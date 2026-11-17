@@ -69,6 +69,10 @@ impl Default for CodegenOptions {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BackendTimings {
     pub machine_ns: u64,
+    pub raw_models_decoded: u64,
+    pub raw_models_encoded: u64,
+    pub raw_model_encodings_reused: u64,
+    pub current_class_bodies_checked: u64,
     /// Nested detail inside machine_ns; never add these to the parent.
     pub machine_emit_ns: u64,
     pub machine_transform_ns: u64,
@@ -104,8 +108,12 @@ impl BackendTimings {
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"machine_ns\":{},\"machine_emit_ns\":{},\"machine_transform_ns\":{},\"transform_ranges_ns\":{},\"transform_checked_add_ns\":{},\"transform_scalar_ns\":{},\"transform_call_classes_ns\":{},\"transform_purity_ns\":{},\"machine_preflight_ns\":{},\"partition_ns\":{},\"diagnostic_ns\":{},\"object_ns\":{},\"link_key_ns\":{},\"link_execution_ns\":{},\"other_ns\":{},\"total_ns\":{}}}",
+            "{{\"machine_ns\":{},\"raw_models_decoded\":{},\"raw_models_encoded\":{},\"raw_model_encodings_reused\":{},\"current_class_bodies_checked\":{},\"machine_emit_ns\":{},\"machine_transform_ns\":{},\"transform_ranges_ns\":{},\"transform_checked_add_ns\":{},\"transform_scalar_ns\":{},\"transform_call_classes_ns\":{},\"transform_purity_ns\":{},\"machine_preflight_ns\":{},\"partition_ns\":{},\"diagnostic_ns\":{},\"object_ns\":{},\"link_key_ns\":{},\"link_execution_ns\":{},\"other_ns\":{},\"total_ns\":{}}}",
             self.machine_ns,
+            self.raw_models_decoded,
+            self.raw_models_encoded,
+            self.raw_model_encodings_reused,
+            self.current_class_bodies_checked,
             self.machine_emit_ns,
             self.machine_transform_ns,
             self.transform_ranges_ns,
@@ -581,17 +589,14 @@ pub fn build_view_with_cancellation_and_session(
         }
     }
     let transform_policy = crate::incremental::TransformPolicy::new(options, protected);
-    // Raw products are selected only from the explicit trusted semantic cache.
-    // Decoding checks their raw relations; actual current module preflight and
-    // exact input/header/callee binding remain in the transform below.
-    let restored_classes = (call_classes_enabled
-        && session
-            .as_ref()
-            .and_then(|s| s.transformed.as_ref())
-            .is_none())
-    .then(|| raw_emission.as_ref()?.product("call-classes"))
-    .flatten()
-    .and_then(|bytes| crate::machine_call_classes::Cache::decode_raw(&bytes, verified.limits()));
+    // One shared, lazy dictionary for both products. Class admission below
+    // binds directly to the actual current complete machine, not an old input.
+    let recovery_bytes = call_classes_enabled
+        .then(|| raw_emission.as_ref()?.product("machine-products"))
+        .flatten();
+    let mut machine_recovery = recovery_bytes
+        .as_deref()
+        .and_then(|bytes| crate::machine_cache::Recovery::new(bytes, verified.limits()));
     let transform_input = session
         .as_ref()
         .and_then(|session| session.lower.identity());
@@ -650,6 +655,16 @@ pub fn build_view_with_cancellation_and_session(
                 let pass_started = std::time::Instant::now();
                 machine_preflight.check(&flat).map_err(api_error)?;
                 let mut reduced = flat.clone();
+                let restored_classes = session
+                    .as_ref()
+                    .and_then(|s| s.transformed.as_ref())
+                    .is_none()
+                    .then(|| machine_recovery.as_mut()?.classes(&flat))
+                    .flatten();
+                if let Some(restored) = &restored_classes {
+                    timings.current_class_bodies_checked +=
+                        restored.current_recovery_bodies_checked as u64;
+                }
                 let previous = session
                     .as_ref()
                     .and_then(|s| s.transformed.as_ref())
@@ -724,6 +739,16 @@ pub fn build_view_with_cancellation_and_session(
                 // The class pass reads and stages a complete model. A source
                 // capability or a hash is not its machine admission proof.
                 machine_preflight.check(&flat).map_err(api_error)?;
+                let restored_classes = session
+                    .as_ref()
+                    .and_then(|s| s.transformed.as_ref())
+                    .is_none()
+                    .then(|| machine_recovery.as_mut()?.classes(&flat))
+                    .flatten();
+                if let Some(restored) = &restored_classes {
+                    timings.current_class_bodies_checked +=
+                        restored.current_recovery_bodies_checked as u64;
+                }
                 let previous = session
                     .as_ref()
                     .and_then(|session| session.transformed.as_ref())
@@ -931,10 +956,7 @@ pub fn build_view_with_cancellation_and_session(
             let restored_partition = previous
                 .is_none()
                 .then(|| {
-                    let bytes = raw_emission.as_ref()?.product("class-partition")?;
-                    crate::machine_cgu::Materialization::decode_raw(
-                        &bytes,
-                        verified.limits(),
+                    machine_recovery.as_mut()?.partition(
                         &partition_lir,
                         options.emit.entry,
                         options.codegen.units,
@@ -1643,7 +1665,12 @@ pub fn build_view_with_cancellation_and_session(
         session.final_product = Some(product);
         session.summary.reused_link = true;
         session.remember_machine_products();
-        stage_machine_products(raw_emission.as_mut(), session);
+        stage_machine_products(
+            raw_emission.as_mut(),
+            session,
+            machine_recovery.as_ref(),
+            &mut timings,
+        );
         session.lower.pending_raw_emission = raw_emission.take().and_then(|raw| raw.pending());
         codegen.final_artifact = Some(crate::FinalArtifactSummary {
             reused_program: true,
@@ -2049,7 +2076,12 @@ pub fn build_view_with_cancellation_and_session(
     let artifact_reuse = final_product.as_ref().map(|product| product.token(None));
     timings.link_execution_ns += crate::object_cache::elapsed_ns(capture_started);
     if let Some(session) = session {
-        stage_machine_products(raw_emission.as_mut(), session);
+        stage_machine_products(
+            raw_emission.as_mut(),
+            session,
+            machine_recovery.as_ref(),
+            &mut timings,
+        );
         session.lower.pending_raw_emission = raw_emission.take().and_then(|raw| raw.pending());
         // Attach only a complete successful chain to the existing lower LRU.
         // Failed/cancelled builds never publish this historical association.
@@ -2995,29 +3027,35 @@ mod native_history_cache_tests {
 fn stage_machine_products(
     raw: Option<&mut crate::emit::raw_products::Request>,
     session: &crate::BackendSession,
+    previous: Option<&crate::machine_cache::Recovery<'_>>,
+    timings: &mut BackendTimings,
 ) {
     let Some(raw) = raw else {
         return;
     };
-    // Equal resident products have already been published by their successful
-    // producer. Avoid re-encoding the entire inventory on unchanged requests.
+    timings.raw_models_decoded = previous.map_or(0, |previous| previous.decoder.decoded as u64);
     if session.summary.reused_machine_transforms && session.summary.reused_partition {
         return;
     }
-    if let Some(bytes) = session
+    let Some(classes) = session
         .transformed
         .as_ref()
-        .and_then(|product| product.class_cache.as_ref())
-        .and_then(|cache| cache.encode_raw())
-    {
-        raw.stage_product("call-classes", bytes);
-    }
-    if let Some(bytes) = session
+        .and_then(|p| p.class_cache.as_ref())
+    else {
+        return;
+    };
+    let Some(partition) = session
         .partition
         .as_ref()
-        .and_then(|product| product.materialization.as_ref())
-        .and_then(|product| product.encode_raw())
+        .and_then(|p| p.materialization.as_ref())
+    else {
+        return;
+    };
+    if let Some((bytes, encoded, retained)) =
+        crate::machine_cache::encode_products(classes, partition, previous)
     {
-        raw.stage_product("class-partition", bytes);
+        timings.raw_models_encoded = encoded as u64;
+        timings.raw_model_encodings_reused = retained as u64;
+        raw.stage_product("machine-products", bytes);
     }
 }

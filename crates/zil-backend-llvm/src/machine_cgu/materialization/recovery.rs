@@ -3,16 +3,13 @@
 //! all CURRENT roles/graph/copy limits before these items reach a CGU consumer.
 use super::*;
 use crate::machine_cache::{Decoder, Encoder};
-use zil_base::Limits;
 use zil_llvm_api::model::{Function, Linkage, Op, Val};
 
-const MAGIC: &[u8; 8] = b"ZILMAT01";
 impl Materialization {
-    pub(crate) fn encode_raw(&self) -> Option<Vec<u8>> {
+    pub(crate) fn encode_into(&self, out: &mut Encoder<'_>) -> Option<()> {
         if !self.completed_roles {
             return None;
         }
-        let mut out = Encoder::new();
         match self.imports {
             CallImportPolicy::Complete => out.out.word(0)?,
             CallImportPolicy::BoundedClasses(None) => out.out.word(1)?,
@@ -35,17 +32,15 @@ impl Materialization {
             out.out.text(class)?;
         }
         self.grouping()?.encode_source(&mut out.out)?;
-        out.finish(MAGIC)
+        Some(())
     }
-    pub(crate) fn decode_raw(
-        bytes: &[u8],
-        limits: &Limits,
+    pub(crate) fn decode_from(
+        input: &mut Decoder<'_>,
         lir: &zil_ir::LirView<'_>,
         entry: crate::EntryPoint,
         count: usize,
         imports: CallImportPolicy,
     ) -> Option<Self> {
-        let mut input = Decoder::new(bytes, MAGIC, limits)?;
         let old_imports = match input.input.word()? {
             0 => CallImportPolicy::Complete,
             1 => CallImportPolicy::BoundedClasses(None),

@@ -94,7 +94,7 @@ struct Context {
     limits: zil_base::Limits,
     entry: EntryPoint,
     scalar_policy: bool,
-    headers: BTreeMap<FunctionId, Header>,
+    headers: BTreeMap<FunctionId, Arc<Header>>,
     globals: Globals,
 }
 impl Context {
@@ -152,7 +152,7 @@ struct Header {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Entry {
     input: TypedFunction,
-    headers: Vec<Header>,
+    headers: Vec<Arc<Header>>,
     facts: Vec<(FunctionId, Option<Constant>)>,
     collected: bool,
     output: Arc<FunctionBatch>,
@@ -425,7 +425,7 @@ impl Session {
                 .map(|f| {
                     (
                         f.id,
-                        Header {
+                        Arc::new(Header {
                             id: f.id,
                             name: f.name.clone(),
                             foreign: f.foreign.clone(),
@@ -444,7 +444,7 @@ impl Session {
                             callable_contract: f.callable_contract.clone(),
                             protocol_contract: f.protocol_contract.clone(),
                             environment: f.environment,
-                        },
+                        }),
                     )
                 })
                 .collect(),

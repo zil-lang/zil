@@ -278,6 +278,8 @@ pub struct FunctionStats {
     /// including the first request of a brand new process. Not disk receipts.
     pub body_key_current_projections: usize,
     pub names_current_replays: usize,
+    pub shape_functions_observed: usize,
+    pub shape_functions_checked: usize,
     pub core_function_eq_comparisons: usize,
     pub body_key_visited_nodes: usize,
     pub graph_edges: usize,
@@ -291,7 +293,7 @@ impl FunctionStats {
     pub fn to_json(&self) -> String {
         let graph = self.graph;
         let timings = format!(
-            "\"cost_profiled\":{},\"total_ns\":{},\"shape_resolution_ns\":{},\"context_construction_ns\":{},\"projection_context_ns\":{},\"core_validation_ns\":{},\"inventory_ns\":{},\"graph_maintenance_ns\":{},\"evaluator_ns\":{},\"body_key_ns\":{},\"cfg_reuse_ns\":{},\"cfg_execute_ns\":{},\"cfg_store_ns\":{},\"producer_version_reuses\":{},\"inventory_functions_visited\":{}",
+            "\"cost_profiled\":{},\"total_ns\":{},\"shape_resolution_ns\":{},\"context_construction_ns\":{},\"projection_context_ns\":{},\"core_validation_ns\":{},\"inventory_ns\":{},\"graph_maintenance_ns\":{},\"evaluator_ns\":{},\"body_key_ns\":{},\"cfg_reuse_ns\":{},\"cfg_execute_ns\":{},\"cfg_store_ns\":{},\"producer_version_reuses\":{},\"inventory_functions_visited\":{},\"shape_functions_observed\":{},\"shape_functions_checked\":{}",
             self.cost_profiled,
             self.total_ns,
             self.shape_resolution_ns,
@@ -307,6 +309,8 @@ impl FunctionStats {
             self.cfg_store_ns,
             self.producer_version_reuses,
             self.inventory_functions_visited,
+            self.shape_functions_observed,
+            self.shape_functions_checked,
         );
         format!(
             "{{{},\"reused_functions\":{},\"restored_reused_functions\":{},\"cfg_same_span_reuses\":{},\"cfg_relocated_functions\":{},\"executed_functions\":{},\"body_key_executions\":{},\"body_key_reuses\":{},\"body_key_current_projections\":{},\"names_current_replays\":{},\"core_function_eq_comparisons\":{},\"body_key_visited_nodes\":{},\"context_modules_visited\":{},\"context_declarations_hashed\":{},\"context_imports_hashed\":{},\"graph_edges\":{},\"graph\":{{\"executed\":{},\"edge_reads\":{},\"notifications\":{},\"enqueues\":{},\"deduplicated\":{},\"reused_bonds\":{},\"new_bonds\":{},\"removed_bonds\":{},\"rank_visits\":{},\"input_updates\":{},\"retained_nodes\":{},\"retained_edges\":{},\"inventory_visits\":{},\"equal_results\":{},\"changed_results\":{},\"cycle_check_edges\":{},\"validation_edge_reads\":{},\"rank_edge_reads\":{}}}}}",
@@ -435,8 +439,7 @@ impl Entry {
                 if self.origin == canonical_span {
                     return Some(self.function.clone());
                 }
-                let mut function = self.function.as_ref().clone();
-                rebase(&mut function, self.origin, canonical_span).then(|| Arc::new(function))
+                relocated_copy(&self.function, self.origin, canonical_span).map(Arc::new)
             })
             .as_ref()
     }
@@ -578,23 +581,28 @@ impl FunctionSession {
         };
         let total_started = start_cost(self.cost_profiling);
         let shape_started = start_cost(self.cost_profiling);
+        let mut shape_work = scalar_shapes::ShapeWork::default();
         // Preserve the existing inference/shape path, including all raw limits.
         let inferred;
         let resolved;
         let graph_eligible;
         let program = if prepared.identity_inference(limits) {
-            resolved = match aggregates::resolve_prepared_program_recording(
+            resolved = match aggregates::resolve_prepared_program_observed(
                 prepared.program(),
                 limits,
                 recording
                     .as_deref_mut()
                     .map(|recording| &mut recording.shapes),
+                prepared.current_inputs(limits),
+                &mut shape_work,
             ) {
                 Ok(resolved) => resolved,
                 Err(error) => {
                     self.projections = Projections::default();
                     self.producer_memo = ProducerMemo::default();
                     self.stats.shape_resolution_ns = elapsed_cost(shape_started);
+                    self.stats.shape_functions_observed = shape_work.observed_functions;
+                    self.stats.shape_functions_checked = shape_work.checked_functions;
                     self.stats.total_ns = elapsed_cost(total_started);
                     return Err(error);
                 }
@@ -628,6 +636,8 @@ impl FunctionSession {
         let mut stats = FunctionStats {
             cost_profiled: self.cost_profiling,
             shape_resolution_ns,
+            shape_functions_observed: shape_work.observed_functions,
+            shape_functions_checked: shape_work.checked_functions,
             ..FunctionStats::default()
         };
         let mut reuse = Reuse {
@@ -1102,18 +1112,20 @@ impl Reuse<'_> {
             .as_ref()
             .filter(|cached| cached.span == function.span)
             .cloned();
-        let mut typed = cached.as_ref().unwrap_or(&entry.function).as_ref().clone();
-        let relocated = typed.span != function.span;
-        if relocated {
-            let old = typed.span;
-            if !rebase(&mut typed, old, function.span) {
+        let source = cached.as_ref().unwrap_or(&entry.function).as_ref();
+        let relocated = source.span != function.span;
+        let typed = if relocated {
+            let Some(typed) = relocated_copy(source, source.span, function.span) else {
                 return Ok(None);
-            }
+            };
             *entry
                 .last_bound
                 .lock()
                 .unwrap_or_else(|error| error.into_inner()) = Some(Arc::new(typed.clone()));
-        }
+            typed
+        } else {
+            source.clone()
+        };
         if !state.replay_accounting(replay) {
             return Ok(None);
         }
@@ -1607,6 +1619,75 @@ fn scalar_typed(f: &TypedFunction) -> bool {
         && f.locals.iter().all(|l| scalar(&l.ty))
         && f.values.iter().all(scalar)
 }
+// Cached bodies are necessarily shared. Clone each local/instruction directly
+// into its current span instead of COW-cloning the complete arrays and then
+// walking those arrays again to rewrite positions. This still allocates the
+// final absolute-position arrays and preserves every other raw field.
+fn relocated_copy(function: &TypedFunction, old: Span, new: Span) -> Option<TypedFunction> {
+    let convert = |span: Span| -> Option<Span> {
+        if span.file != old.file
+            || span.start < old.start
+            || span.end > old.end
+            || span.start > span.end
+        {
+            return None;
+        }
+        let span = Span::new(
+            new.file,
+            new.start.checked_add(span.start - old.start)?,
+            new.start.checked_add(span.end - old.start)?,
+        );
+        (span.end <= new.end).then_some(span)
+    };
+    let span = convert(function.span)?;
+    let mut locals = Vec::with_capacity(function.locals.len());
+    for local in &function.locals {
+        let LocalDecl {
+            id,
+            name,
+            ty,
+            mutable,
+            span,
+        } = local;
+        let span = convert(*span)?;
+        locals.push(LocalDecl {
+            id: *id,
+            name: name.clone(),
+            ty: ty.clone(),
+            mutable: *mutable,
+            span,
+        });
+    }
+    let mut blocks = Vec::with_capacity(function.blocks.len());
+    for block in &function.blocks {
+        let BasicBlock {
+            id,
+            instructions,
+            terminator,
+        } = block;
+        let mut current_instructions = Vec::with_capacity(instructions.len());
+        for instruction in instructions {
+            let Instruction { result, kind, span } = instruction;
+            let span = convert(*span)?;
+            current_instructions.push(Instruction {
+                result: *result,
+                kind: kind.clone(),
+                span,
+            });
+        }
+        blocks.push(BasicBlock {
+            id: *id,
+            instructions: current_instructions,
+            terminator: terminator.clone(),
+        });
+    }
+    let mut current = function.clone();
+    current.span = span;
+    current.locals = locals.into();
+    current.blocks = blocks.into();
+    Some(current)
+}
+
 pub(super) fn rebase(f: &mut TypedFunction, old: Span, new: Span) -> bool {
     let convert = |span: &mut Span| -> Option<()> {
         if span.file != old.file

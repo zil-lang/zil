@@ -318,16 +318,12 @@ impl SemanticPublicationSession {
         let mut retained_bytes = slots
             .iter()
             .filter_map(|slot| slot.get())
-            .fold(0usize, |bytes, raw| {
-                bytes.saturating_add(raw.shared_bytes().len())
-            });
+            .fold(0usize, |bytes, raw| bytes.saturating_add(raw.byte_len()));
         let retained_plan_bytes = old_plan_slots
             .iter()
             .take(plan_count)
             .filter_map(Option::as_ref)
-            .fold(0usize, |bytes, raw| {
-                bytes.saturating_add(raw.shared_bytes().len())
-            });
+            .fold(0usize, |bytes, raw| bytes.saturating_add(raw.byte_len()));
         let mut bindings = publication_prefix(old_bindings, count);
         let dirty = previous.map_or_else(
             || (0..count).collect(),
@@ -375,7 +371,7 @@ impl SemanticPublicationSession {
             let old_bytes = slots
                 .get(index)
                 .and_then(|slot| slot.get())
-                .map_or(0, |raw| raw.shared_bytes().len());
+                .map_or(0, |raw| raw.byte_len());
             let (body, mut slot) = if let Some(body) = body {
                 // Full function equality includes every header, local, value,
                 // block and relative span. A product digest never selects bytes.
@@ -419,7 +415,7 @@ impl SemanticPublicationSession {
                 slot = Arc::new(OnceLock::from(raw));
             }
             retained_bytes =
-                retained_other.saturating_add(slot.get().map_or(0, |raw| raw.shared_bytes().len()));
+                retained_other.saturating_add(slot.get().map_or(0, |raw| raw.byte_len()));
             canonical_count -= usize::from(prior.is_some());
             canonical_count += usize::from(body.is_some());
             let binding = FunctionBinding {
@@ -2186,7 +2182,7 @@ mod tests {
             plan_slots
                 .iter()
                 .filter_map(Option::as_ref)
-                .map(|raw| raw.shared_bytes().len())
+                .map(|raw| raw.byte_len())
                 .sum::<usize>()
                 > wire_limits.max_source_bytes
         );

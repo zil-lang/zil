@@ -426,6 +426,22 @@ pub(super) fn resolve_prepared_program_recording<'a>(
     };
     match validated {
         Some(result) => result.map(|()| std::borrow::Cow::Borrowed(program)),
+        None => resolve_program(program, limits).map(std::borrow::Cow::Owned),
+    }
+}
+pub(super) fn resolve_prepared_program_observed<'a>(
+    program: &'a CoreProgram,
+    limits: &Limits,
+    costs: Option<&mut Vec<usize>>,
+    inputs: Option<&inference_receipts::CurrentInputs>,
+    work: &mut scalar_shapes::ShapeWork,
+) -> CompileResult<std::borrow::Cow<'a, CoreProgram>> {
+    if inputs.is_none() {
+        return resolve_prepared_program_recording(program, limits, costs);
+    }
+    let validated = scalar_shapes::validate_observed(program, limits, costs, inputs, work);
+    match validated {
+        Some(result) => result.map(|()| std::borrow::Cow::Borrowed(program)),
         // Unsupported shapes restart with the original allowance. No partial
         // speculative work changes the existing resolver's diagnostic order.
         None => resolve_program(program, limits).map(std::borrow::Cow::Owned),

@@ -44,7 +44,7 @@ pub fn decode_raw_function_plan_shared_owner(
         let encoding = Arc::new(RawFunctionPlanEncoding {
             function: function.clone(),
             encoding: RawFunctionEncoding {
-                bytes: bytes.clone(),
+                bytes: bytes.clone().into(),
                 limits: limits.clone(),
                 nodes: remaining.max_nodes - reader.nodes,
                 fingerprint: OnceLock::new(),

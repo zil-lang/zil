@@ -1014,7 +1014,7 @@ impl FunctionStore {
         let encode = publication_start(options.profile_compilation);
         let mut encoding = zil_ir::wire::FunctionEncodingStats::default();
         let products =
-            session.encode_item_products(&options.target, &options.limits, &mut encoding)?;
+            session.encode_dictionary_products(&options.target, &options.limits, &mut encoding)?;
         let encode_ns = publication_elapsed(encode);
         let pin = publication_start(options.profile_compilation);
         if !private_directory(&self.store.root, true) || !private_directory(&root, true) {

@@ -143,10 +143,12 @@ impl TypesPushSession {
         let result = if let Some(functions) = functions.as_deref_mut() {
             functions.check_prepared_program_recording(prepared, target, limits, &mut recording)?
         } else if prepared.identity_inference(limits) && prepared.produced().is_some() {
-            let resolved = aggregates::resolve_prepared_program_recording(
+            let resolved = aggregates::resolve_prepared_program_observed(
                 prepared.program(),
                 limits,
                 Some(&mut recording.shapes),
+                prepared.current_inputs(limits),
+                &mut scalar_shapes::ShapeWork::default(),
             )?;
             let eligible = matches!(resolved, std::borrow::Cow::Borrowed(_));
             program::check_resolved_program_recording(

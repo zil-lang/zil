@@ -11,16 +11,21 @@ pub(crate) struct BodyObservation {
     reserved: bool,
     factory: bool,
     projection: Option<projection::Projection>,
+    shape: Option<scalar_shapes::ShapeObservation>,
 }
 impl BodyObservation {
     pub fn with_projection(origin: Span) -> Self {
         Self {
             projection: Some(projection::Projection::new(origin)),
+            shape: Some(scalar_shapes::ShapeObservation::default()),
             ..Self::default()
         }
     }
     pub fn take_input(&mut self) -> Option<BodyInput> {
         self.projection.take()?.finish()
+    }
+    pub fn shape_fee(&self, function: &CoreFunction, limits: &Limits) -> Option<usize> {
+        self.shape.as_ref()?.finish(function, limits)
     }
     fn visit(&mut self, depth: usize) {
         self.max_depth = self.max_depth.max(depth);
@@ -32,12 +37,18 @@ impl BodyObservation {
     }
     pub fn block(&mut self, block: &CoreBlock, depth: usize) {
         self.visit(depth);
+        if let Some(shape) = &mut self.shape {
+            shape.block(depth);
+        }
         if let Some(projection) = &mut self.projection {
             projection.block(block);
         }
     }
     pub fn statement(&mut self, statement: &CoreStatement, depth: usize) {
         self.visit(depth);
+        if let Some(shape) = &mut self.shape {
+            shape.statement(statement, depth);
+        }
         if let Some(projection) = &mut self.projection {
             projection.statement(statement);
         }
@@ -76,6 +87,9 @@ impl BodyObservation {
         factories: &BTreeSet<String>,
     ) {
         self.visit(depth);
+        if let Some(shape) = &mut self.shape {
+            shape.expression(expression, depth);
+        }
         if let Some(projection) = &mut self.projection {
             projection.expression(expression);
         }

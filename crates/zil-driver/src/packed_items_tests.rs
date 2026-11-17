@@ -229,6 +229,7 @@ fn malformed_transport_bounds_are_checked_before_pack_reads() {
         )]),
         packs: BTreeMap::from([(pack_a, PACK_HEADER + 90)]),
         shared: None,
+        recipes: BTreeMap::new(),
     };
     let bytes = good.encode(fixture.bounds).unwrap();
     assert!(Manifest::decode(&bytes, fixture.bounds).is_some());
@@ -254,6 +255,7 @@ fn malformed_transport_bounds_are_checked_before_pack_reads() {
         ]),
         packs: BTreeMap::from([(pack_a, PACK_HEADER + 90), (pack_b, PACK_HEADER + 90)]),
         shared: None,
+        recipes: BTreeMap::new(),
     };
     assert!(amplified.encode(fixture.bounds).is_none());
     for (offset, replacement) in [
@@ -879,4 +881,396 @@ fn direct_manifest_encoding_preserves_decoder_bounds_and_exact_bytes() {
             .is_none()
     );
     assert_eq!(manifest.encode(fixture.bounds).unwrap(), original);
+}
+
+fn scalar_segment(id: u32, name: &str, body: &[u8]) -> (Fingerprint, Arc<[u8]>) {
+    let mut bytes = vec![(id % 2) as u8, 0, 0, 0, 0, 0];
+    bytes.extend_from_slice(&id.to_le_bytes());
+    bytes.extend_from_slice(&u32::try_from(name.len()).unwrap().to_le_bytes());
+    bytes.extend_from_slice(name.as_bytes());
+    bytes.extend_from_slice(body);
+    item(bytes)
+}
+
+fn dictionary_fixture(functions: usize) -> SharedFixture {
+    let mut items: Vec<_> = (0..functions)
+        .map(|id| {
+            scalar_segment(
+                id as u32,
+                &format!("label_{id}_λ"),
+                &[71 + (id % 4) as u8; 4096],
+            )
+        })
+        .collect();
+    items.push(item(b"opaque plan segment: all original bytes"));
+    items.push(item(b"opaque metadata segment: all original bytes"));
+    let mut fixture =
+        Fixture::new(items.iter().map(|(_, bytes)| bytes.len()).sum::<usize>() + 8192);
+    fixture.bounds.max_items = items.len();
+    (
+        fixture,
+        items,
+        b"original logical rows and bindings".to_vec(),
+    )
+}
+
+#[test]
+fn scalar_dictionary_shares_actual_disk_bodies_and_republishes_original_bytes() {
+    let (fixture, mut items, logical) = dictionary_fixture(96);
+    let original = items.clone();
+    let logical_bytes: usize = items.iter().map(|(_, bytes)| bytes.len()).sum();
+    let mut epoch = Epoch::default();
+    let cold = fixture.publish(0, &logical, &items, &mut epoch);
+    assert_eq!(
+        fixture.manifest(0).get(..8),
+        Some(dictionary::MAGIC.as_slice())
+    );
+    assert_eq!(cold.physical_pack_writes, 1);
+    assert_eq!((cold.written_items, cold.existing_items), (items.len(), 0));
+    assert_eq!(epoch.locations.len(), 6);
+    let physical = 4 * 4096 + items[96].1.len() + items[97].1.len();
+    assert_eq!(cold.referenced_pack_payload_bytes, physical);
+    assert!(cache_bytes(&fixture.root) < logical_bytes as u64 / 4);
+    let original_locations = epoch.locations.clone();
+    drop(epoch);
+
+    // Restore only from files, and feed exactly Reader.load's original keys
+    // and full bytes back through the production publisher.
+    let mut reader = fixture.reader(0);
+    assert_eq!(reader.take_logical(), logical);
+    let restored: Vec<_> = items
+        .iter()
+        .map(|(key, _)| (*key, reader.load(*key).unwrap()))
+        .collect();
+    assert_eq!(restored, items);
+    assert!(Arc::ptr_eq(
+        &reader.load(items[0].0).unwrap(),
+        &restored[0].1
+    ));
+    assert!(reader.load(Fingerprint::of(&[71; 4096])).is_none());
+    let mut epoch = reader.epoch();
+    assert_eq!(epoch.locations, original_locations);
+    drop(reader);
+    let warm = fixture.publish(1, &logical, &restored, &mut epoch);
+    assert_eq!((warm.physical_pack_writes, warm.written_bytes), (0, 0));
+    assert_eq!(warm.existing_items, items.len());
+
+    // Different outer ID, UTF-8 label and length must not rewrite any body.
+    items[0] = scalar_segment(1007, "renamed_longer_λ", &[71; 4096]);
+    let renamed = fixture.publish(2, &logical, &items, &mut epoch);
+    assert_eq!(
+        (renamed.physical_pack_writes, renamed.written_bytes),
+        (0, 0)
+    );
+    assert_eq!(epoch.locations, original_locations);
+    contents(&mut fixture.reader(2), &items);
+
+    // A new body adds only its bytes. Every still-current locator is reused.
+    items[1] = scalar_segment(1, "changed", &[93; 4096]);
+    let edited = fixture.publish(3, &logical, &items, &mut epoch);
+    assert_eq!(
+        (edited.physical_pack_writes, edited.written_bytes),
+        (1, 4096)
+    );
+    for (key, location) in original_locations {
+        assert_eq!(epoch.locations[&key], location);
+    }
+    contents(&mut fixture.reader(3), &items);
+    contents(&mut fixture.reader(0), &original);
+    let mut hint = Epoch::hint(
+        &fixture.packs,
+        &fixture.manifest(3),
+        fixture.bounds,
+        &CancellationToken::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        fixture
+            .publish(4, &logical, &items, &mut hint)
+            .physical_pack_writes,
+        0
+    );
+}
+
+#[test]
+fn scalar_dictionary_keeps_original_aggregate_and_item_quotas_before_io() {
+    let (mut fixture, items, logical) = dictionary_fixture(32);
+    let total: usize = items.iter().map(|(_, bytes)| bytes.len()).sum();
+    fixture.bounds.maximum = total - 1;
+    assert!(
+        fixture
+            .publish_with_hook(
+                0,
+                &logical,
+                &items,
+                &mut Epoch::default(),
+                &CancellationToken::default(),
+                || {}
+            )
+            .is_none()
+    );
+    assert_eq!(fs::read_dir(&fixture.packs).unwrap().count(), 0);
+    fixture.bounds.maximum = total;
+    fixture.bounds.max_items = items.len() - 1;
+    assert!(
+        fixture
+            .publish_with_hook(
+                0,
+                &logical,
+                &items,
+                &mut Epoch::default(),
+                &CancellationToken::default(),
+                || {}
+            )
+            .is_none()
+    );
+    assert_eq!(fs::read_dir(&fixture.packs).unwrap().count(), 0);
+    fixture.bounds.max_items = items.len();
+    fixture.publish(0, &logical, &items, &mut Epoch::default());
+    let descriptor = fixture.manifest(0);
+    let token = CancellationToken::default();
+    assert!(
+        Reader::new(
+            &fixture.packs,
+            &descriptor,
+            Bounds {
+                maximum: total - 1,
+                ..fixture.bounds
+            },
+            &token
+        )
+        .is_none()
+    );
+    assert!(
+        Reader::new(
+            &fixture.packs,
+            &descriptor,
+            Bounds {
+                max_items: items.len() - 1,
+                ..fixture.bounds
+            },
+            &token
+        )
+        .is_none()
+    );
+    contents(&mut fixture.reader(0), &items);
+}
+
+#[test]
+fn scalar_dictionary_unknown_headers_plans_and_metadata_remain_complete() {
+    let (mut fixture, mut items, logical) = dictionary_fixture(16);
+    let valid = scalar_segment(1, "name", b"body").1.to_vec();
+    let mut unknown = valid.clone();
+    unknown[1] = 1;
+    let mut bad_length = valid.clone();
+    bad_length[10..14].copy_from_slice(&u32::MAX.to_le_bytes());
+    let mut bad_utf8 = valid.clone();
+    bad_utf8[14] = 255;
+    let unsplit = vec![
+        item(unknown),
+        item(bad_length),
+        item(bad_utf8),
+        item(&valid[..9]),
+        scalar_segment(7, "empty_body", &[]),
+    ];
+    items.extend(unsplit.clone());
+    fixture.bounds.max_items = items.len();
+    fixture.publish(0, &logical, &items, &mut Epoch::default());
+    let manifest = dictionary::decode(&fixture.manifest(0), fixture.bounds).unwrap();
+    for (key, _) in unsplit.iter().chain(items[16..18].iter()) {
+        assert!(manifest.recipes[key].prefix.is_empty());
+        assert_eq!(manifest.recipes[key].body, *key);
+    }
+    contents(&mut fixture.reader(0), &items);
+}
+
+#[test]
+fn scalar_dictionary_checks_original_hash_prefix_lengths_tables_and_no_recursion() {
+    let (fixture, items, logical) = dictionary_fixture(16);
+    let mut epoch = Epoch::default();
+    fixture.publish(0, &logical, &items, &mut epoch);
+    let locations = epoch.locations.clone();
+    let disk_bytes = cache_bytes(&fixture.root);
+    let descriptor = fixture.manifest(0);
+    let token = CancellationToken::default();
+    let reject = |bytes: &[u8]| {
+        assert!(Reader::new(&fixture.packs, bytes, fixture.bounds, &token).is_none())
+    };
+    for (offset, value) in [
+        (8, u64::MAX.to_le_bytes().to_vec()),
+        (16, u32::MAX.to_le_bytes().to_vec()),
+        (20, u32::MAX.to_le_bytes().to_vec()),
+        (dictionary::HEADER + 64, u64::MAX.to_le_bytes().to_vec()),
+    ] {
+        let mut changed = descriptor.clone();
+        changed[offset..offset + value.len()].copy_from_slice(&value);
+        reject(&changed);
+    }
+    reject(&descriptor[..descriptor.len() - 1]);
+    let inner_start = dictionary::HEADER + count(&descriptor, 20).unwrap();
+    for magic in [dictionary::MAGIC, SHARED_MAGIC] {
+        let mut changed = descriptor.clone();
+        changed[inner_start..inner_start + 8].copy_from_slice(magic);
+        reject(&changed);
+    }
+    let mut manifest = dictionary::decode(&descriptor, fixture.bounds).unwrap();
+    let key = items[0].0;
+    // Valid UTF-8 header and valid body hash still cannot substitute a different
+    // full item under the original key.
+    manifest.recipes.get_mut(&key).unwrap().prefix[6] ^= 1;
+    let forged = manifest.encode(fixture.bounds).unwrap();
+    assert!(
+        Reader::new(&fixture.packs, &forged, fixture.bounds, &token)
+            .unwrap()
+            .load(key)
+            .is_none()
+    );
+    manifest.recipes.get_mut(&key).unwrap().prefix[6] ^= 1;
+    let other_body = manifest.recipes[&items[1].0].body;
+    manifest.recipes.get_mut(&key).unwrap().body = other_body;
+    let forged = manifest.encode(fixture.bounds).unwrap();
+    assert!(
+        Reader::new(&fixture.packs, &forged, fixture.bounds, &token)
+            .unwrap()
+            .load(key)
+            .is_none()
+    );
+    let mut wrong_key = items.clone();
+    wrong_key[0].1 = items[1].1.clone();
+    assert!(
+        fixture
+            .publish_with_hook(0, &logical, &wrong_key, &mut epoch, &token, || {})
+            .is_none()
+    );
+    assert_eq!(fixture.manifest(0), descriptor);
+    assert_eq!(epoch.locations, locations);
+    assert_eq!(cache_bytes(&fixture.root), disk_bytes);
+}
+
+#[test]
+fn scalar_dictionary_corruption_truncation_and_missing_packs_are_repaired() {
+    let (fixture, items, logical) = dictionary_fixture(16);
+    let mut epoch = Epoch::default();
+    fixture.publish(0, &logical, &items, &mut epoch);
+    let file = epoch.first_pack_path().unwrap();
+    let raw = fs::read(&file).unwrap();
+    for kind in 0..3 {
+        match kind {
+            0 => {
+                fs::remove_file(&file).unwrap();
+            }
+            1 => {
+                fs::write(&file, &raw[..raw.len() - 1]).unwrap();
+            }
+            _ => {
+                let mut corrupt = raw.clone();
+                *corrupt.last_mut().unwrap() ^= 1;
+                fs::write(&file, corrupt).unwrap();
+            }
+        }
+        assert!(fixture.reader(0).load(items[0].0).is_none());
+        assert_eq!(
+            fixture
+                .publish(0, &logical, &items, &mut epoch)
+                .physical_pack_writes,
+            1
+        );
+        assert_eq!(fs::read(&file).unwrap(), raw);
+        contents(&mut fixture.reader(0), &items);
+    }
+    let mut reader = fixture.reader(0);
+    reader.load(items[0].0).unwrap();
+    reader.cancellation.cancel();
+    assert!(reader.load(items[0].0).is_none());
+}
+
+#[test]
+fn scalar_dictionary_shared_metadata_history_and_cancel_keep_current_locators() {
+    let (fixture, mut items, logical) = dictionary_fixture(256);
+    let original = items.clone();
+    let mut epoch = Epoch::default();
+    fixture.publish(0, &logical, &items, &mut epoch);
+    assert_eq!(fixture.manifest(0).get(..8), Some(SHARED_MAGIC.as_slice()));
+    let cold = cache_bytes(&fixture.root);
+    let mut full_sizes = 0u64;
+    for edit in 1..=12u8 {
+        items[0] = scalar_segment(
+            u32::from(edit) + 800,
+            &format!("new_label_{edit}"),
+            &[71; 4096],
+        );
+        let previous = epoch.locations.clone();
+        assert_eq!(
+            fixture
+                .publish(edit, &logical, &items, &mut epoch)
+                .physical_pack_writes,
+            0
+        );
+        assert_eq!(epoch.locations, previous);
+        let mut reader = fixture.reader(edit);
+        contents(&mut reader, &items);
+        full_sizes += reader.manifest.encode(fixture.bounds).unwrap().len() as u64;
+        epoch = reader.hint_epoch();
+    }
+    assert!(cache_bytes(&fixture.root) - cold < full_sizes / 2);
+    contents(&mut fixture.reader(0), &original);
+    let before = fixture.manifest(12);
+    let locations = epoch.locations.clone();
+    let shared = epoch.shared.as_ref().unwrap().locations.clone();
+    items[0] = scalar_segment(900, "cancelled_body", &[99; 4096]);
+    let token = CancellationToken::default();
+    assert!(
+        fixture
+            .publish_with_hook(12, &logical, &items, &mut epoch, &token, || token.cancel())
+            .is_none()
+    );
+    assert_eq!(fixture.manifest(12), before);
+    assert_eq!(epoch.locations, locations);
+    assert_eq!(epoch.shared.as_ref().unwrap().locations, shared);
+    assert_eq!(
+        fixture
+            .publish(13, &logical, &items, &mut epoch)
+            .physical_pack_writes,
+        0
+    );
+    contents(&mut fixture.reader(13), &items);
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn scalar_dictionary_namespace_race_cannot_advance_manifest_or_epoch() {
+    let (fixture, mut items, logical) = dictionary_fixture(16);
+    let mut epoch = Epoch::default();
+    fixture.publish(0, &logical, &items, &mut epoch);
+    let before = fixture.manifest(0);
+    let locations = epoch.locations.clone();
+    items[0] = scalar_segment(900, "changed", &[99; 4096]);
+    let held = fixture.directory.join("held-dictionary");
+    assert!(
+        fixture
+            .publish_with_hook(
+                0,
+                &logical,
+                &items,
+                &mut epoch,
+                &CancellationToken::default(),
+                || {
+                    fs::rename(&fixture.packs, &held).unwrap();
+                    fs::create_dir(&fixture.packs).unwrap();
+                }
+            )
+            .is_none()
+    );
+    assert_eq!(fixture.manifest(0), before);
+    assert_eq!(epoch.locations, locations);
+    assert_eq!(fs::read_dir(&fixture.packs).unwrap().count(), 0);
+    fs::remove_dir(&fixture.packs).unwrap();
+    fs::rename(&held, &fixture.packs).unwrap();
+    assert_eq!(
+        fixture
+            .publish(1, &logical, &items, &mut epoch)
+            .physical_pack_writes,
+        0
+    );
+    contents(&mut fixture.reader(1), &items);
 }

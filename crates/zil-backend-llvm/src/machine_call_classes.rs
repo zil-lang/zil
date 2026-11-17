@@ -34,6 +34,7 @@ pub(crate) struct Cache {
     pub(crate) shared_keys: usize,
     pub(crate) body_owners: usize,
     pub(crate) address_scans: usize,
+    pub(crate) current_recovery_bodies_checked: usize,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct FunctionReads {

@@ -132,7 +132,7 @@ impl Session {
                 callable_contract,
                 protocol_contract,
                 environment,
-            } = header;
+            } = header.as_ref();
             if storage_life.is_some()
                 || reference_return_bound.is_some()
                 || callable_return_contract.is_some()

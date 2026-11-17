@@ -28,7 +28,12 @@ impl FunctionSession {
         stats: &mut RawFunctionDecodingStats,
     ) -> bool {
         *stats = RawFunctionDecodingStats::default();
-        let Some(entries) = decode_items(manifest, load, hint, target, limits, stats) else {
+        let entries = if manifest.get(..8) == Some(dictionary::MAGIC) {
+            dictionary::decode(manifest, load, target, limits, stats)
+        } else {
+            decode_items(manifest, load, hint, target, limits, stats)
+        };
+        let Some(entries) = entries else {
             return false;
         };
         self.entries = Arc::new(entries);

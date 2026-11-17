@@ -49,6 +49,7 @@ pub(super) enum Key {
 struct Observation {
     function: usize,
     cost: Option<usize>,
+    semantic: Option<(usize, usize)>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Inputs {
@@ -93,6 +94,7 @@ impl Inputs {
                 inputs.observations.push(Observation {
                     function: index,
                     cost: cost(function),
+                    semantic: None,
                 });
                 selectors.push(None);
                 inputs
@@ -110,15 +112,34 @@ impl Inputs {
             // Preserve the original optional fuel and ordered collision costs,
             // including for shared owners. Only the actual scans disappear.
             fuel -= cost;
+            // Repeated exact owners have the same first collision match. Replay
+            // every original logical collision debit, but do not traverse the
+            // equal locals/values/CFG again for each diagnostic alias.
+            if let Some((id, comparisons)) = inputs.observations[observed].semantic
+                && let Some(charge) = cost.checked_mul(comparisons)
+                && let Some(remaining) = fuel.checked_sub(charge)
+            {
+                fuel = remaining;
+                inputs
+                    .identities
+                    .insert(std::ptr::from_ref(function) as usize, id);
+                continue;
+            }
             let hash =
                 *selectors[observed].get_or_insert_with(|| selector.hash_one(Selector(function)));
             let mut identity = None;
+            let mut comparisons = 0usize;
+            let mut complete = true;
+            let mut bucket_len = 0usize;
             if let Some(rows) = buckets.get(&hash) {
+                bucket_len = rows.len();
                 for &(prior, id) in rows {
                     let Some(left) = fuel.checked_sub(cost) else {
+                        complete = false;
                         break;
                     };
                     fuel = left;
+                    comparisons += 1;
                     if incremental::same_body_input(prior, function) {
                         identity = Some(id);
                         break;
@@ -129,6 +150,11 @@ impl Inputs {
             let id = identity.unwrap_or(next);
             if identity.is_none() {
                 buckets.entry(hash).or_default().push((function, id));
+                if complete {
+                    inputs.observations[observed].semantic = Some((id, bucket_len + 1));
+                }
+            } else {
+                inputs.observations[observed].semantic = Some((id, comparisons));
             }
             inputs
                 .identities

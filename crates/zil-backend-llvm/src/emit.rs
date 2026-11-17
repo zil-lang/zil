@@ -423,6 +423,8 @@ pub(crate) fn lower_output_with_raw_products(
                 && summaries
                     .as_ref()
                     .is_none_or(|facts| !facts.contains_key(&function.id));
+            let replacement_absent =
+                scalar_bodies::cacheable_with_inputs(session.body_inputs.as_deref(), function);
             let reserve_current = || {
                 // Reproduce the original early exits before the common
                 // current reservation consumer. A cached body grants no
@@ -438,13 +440,14 @@ pub(crate) fn lower_output_with_raw_products(
                 {
                     return Ok(());
                 }
-                reserve_function_emission(
+                reserve_function_emission_observed(
                     function,
                     lir,
                     &closures,
                     &functions,
                     verified,
                     &task_meter,
+                    replacement_absent,
                 )
                 .map(|_| ())
             };
@@ -1031,6 +1034,21 @@ fn reserve_function_emission(
     verified: &VerifiedModule,
     task_meter: &tasks::Meter,
 ) -> CompileResult<BTreeSet<(zil_ir::BlockId, usize)>> {
+    reserve_function_emission_observed(
+        function, lir, closures, functions, verified, task_meter, false,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn reserve_function_emission_observed(
+    function: &TypedFunction,
+    lir: &LirView<'_>,
+    closures: &BTreeMap<ClosureId, &ClosureDefinition>,
+    functions: &BTreeMap<FunctionId, &TypedFunction>,
+    verified: &VerifiedModule,
+    task_meter: &tasks::Meter,
+    replacement_absent: bool,
+) -> CompileResult<BTreeSet<(zil_ir::BlockId, usize)>> {
     if verified.uses_scalar_tasks() {
         tasks::reserve_bridges(function, task_meter)?;
     }
@@ -1044,7 +1062,9 @@ fn reserve_function_emission(
         }
     }
     tasks::reserve_owner_actions(function, verified.task_ownership(function.id), task_meter)?;
-    replacements::reserve(function, lir.resources, verified.limits(), task_meter)?;
+    if !replacement_absent {
+        replacements::reserve(function, lir.resources, verified.limits(), task_meter)?;
+    }
     let vacated_pollable_drops = if verified.uses_retained_registration()
         && verified.task_ownership(function.id).is_none()
     {

@@ -9,13 +9,140 @@ enum Stop {
 }
 type Probe = Result<(), Stop>;
 
+#[derive(Default)]
+pub(super) struct ShapeWork {
+    pub observed_functions: usize,
+    pub checked_functions: usize,
+}
+
+/// Collected only by the current bounded inference visitor. Shape resolution
+/// charges blocks, expressions and explicit types, not statement wrappers.
+/// Unknown syntax declines; the original shape walker still selects errors.
+#[derive(Default)]
+pub(super) struct ShapeObservation {
+    fee: usize,
+    max_depth: usize,
+    unsupported: bool,
+}
+impl ShapeObservation {
+    fn charge(&mut self, depth: usize) {
+        self.max_depth = self.max_depth.max(depth);
+        if let Some(fee) = self.fee.checked_add(1) {
+            self.fee = fee;
+        } else {
+            self.unsupported = true;
+        }
+    }
+    fn ty(&mut self, ty: &Type, depth: usize) {
+        self.charge(depth);
+        self.unsupported |= !scalar(ty);
+    }
+    pub fn block(&mut self, depth: usize) {
+        self.charge(depth);
+    }
+    pub fn statement(&mut self, statement: &CoreStatement, depth: usize) {
+        match &statement.kind {
+            CoreStatementKind::Binding { ty, .. } => {
+                if let Some(ty) = ty {
+                    self.ty(ty, depth);
+                }
+            }
+            CoreStatementKind::Assign { .. }
+            | CoreStatementKind::Expression(_)
+            | CoreStatementKind::Return(_)
+            | CoreStatementKind::If { .. }
+            | CoreStatementKind::While { .. }
+            | CoreStatementKind::Block(_)
+            | CoreStatementKind::Unsafe(_)
+            | CoreStatementKind::Defer(_)
+            | CoreStatementKind::Break
+            | CoreStatementKind::Continue => {}
+            // Pattern traversal is different in inference. Its full current
+            // shape visitor remains responsible for all pattern domains.
+            _ => self.unsupported = true,
+        }
+    }
+    pub fn expression(&mut self, expression: &CoreExpr, depth: usize) {
+        self.charge(depth);
+        match &expression.kind {
+            CoreExprKind::Ascribed { ty, value: _ }
+            | CoreExprKind::IntegerConvert {
+                target: ty,
+                value: _,
+            }
+            | CoreExprKind::NumericConvert {
+                target: ty,
+                value: _,
+            } => {
+                if let Some(depth) = depth.checked_add(1) {
+                    self.ty(ty, depth);
+                } else {
+                    self.unsupported = true;
+                }
+            }
+            CoreExprKind::Unary { .. }
+            | CoreExprKind::Binary { .. }
+            | CoreExprKind::Call { .. }
+            | CoreExprKind::Member { owner: None, .. }
+            | CoreExprKind::If { .. }
+            | CoreExprKind::Integer(_)
+            | CoreExprKind::Float(_)
+            | CoreExprKind::Bool(_)
+            | CoreExprKind::Unit
+            | CoreExprKind::Name(_) => {}
+            CoreExprKind::Literal(value) if scalar(&value.ty()) => {}
+            _ => self.unsupported = true,
+        }
+    }
+    pub fn finish(&self, function: &CoreFunction, limits: &Limits) -> Option<usize> {
+        if self.unsupported
+            || self.max_depth > limits.max_call_depth
+            || !scalar(&function.return_type)
+            || function
+                .parameters
+                .iter()
+                .any(|parameter| !scalar(&parameter.ty))
+        {
+            return None;
+        }
+        self.fee
+            .checked_add(1)?
+            .checked_add(function.parameters.len())
+    }
+}
+
 pub(super) fn validate(program: &CoreProgram, limits: &Limits) -> Option<CompileResult<()>> {
     validate_recording(program, limits, None)
 }
 pub(super) fn validate_recording(
     program: &CoreProgram,
     limits: &Limits,
+    costs: Option<&mut Vec<usize>>,
+) -> Option<CompileResult<()>> {
+    validate_observed(program, limits, costs, None, &mut ShapeWork::default())
+}
+pub(super) fn validate_observed(
+    program: &CoreProgram,
+    limits: &Limits,
+    costs: Option<&mut Vec<usize>>,
+    inputs: Option<&inference_receipts::CurrentInputs>,
+    work: &mut ShapeWork,
+) -> Option<CompileResult<()>> {
+    let inputs = inputs.filter(|inputs| inputs.matches(program, limits));
+    validate_visiting(
+        program,
+        limits,
+        costs,
+        |index| inputs.and_then(|inputs| inputs.shape(index)),
+        work,
+    )
+}
+fn validate_visiting(
+    program: &CoreProgram,
+    limits: &Limits,
     mut costs: Option<&mut Vec<usize>>,
+    mut observed: impl FnMut(usize) -> Option<usize>,
+    work: &mut ShapeWork,
 ) -> Option<CompileResult<()>> {
     // Check every header before reporting any speculative body error. These
     // conditions make declaration/owner/callable indexes empty, header checks
@@ -55,10 +182,20 @@ pub(super) fn validate_recording(
         depth_limit: limits.max_call_depth,
     };
     let result = (|| {
+        let mut index = 0usize;
         for module in &program.modules {
             for function in &module.core.functions {
                 let before = walker.remaining;
-                walker.function(function)?;
+                if let Some(fee) = observed(index).filter(|fee| *fee <= walker.remaining) {
+                    walker.remaining -= fee;
+                    work.observed_functions += 1;
+                } else {
+                    // Insufficient aggregate allowance runs the original
+                    // current visitor with exactly the original remainder.
+                    work.checked_functions += 1;
+                    walker.function(function)?;
+                }
+                index += 1;
                 if let Some(costs) = costs.as_mut() {
                     costs.push(before - walker.remaining);
                 }
@@ -114,6 +251,10 @@ struct Walker {
     remaining: usize,
     depth_limit: usize,
 }
+
+#[cfg(test)]
+#[path = "shape_observation_tests.rs"]
+mod observation_tests;
 impl Walker {
     fn function(&mut self, function: &CoreFunction) -> Probe {
         self.ty(&function.return_type, 0, function.span)?;

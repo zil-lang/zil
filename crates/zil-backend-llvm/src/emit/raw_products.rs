@@ -19,7 +19,6 @@ pub(crate) struct Pending {
     manifest: String,
     bytes: Vec<u8>,
     maximum: usize,
-    companions: Vec<Pending>,
 }
 impl Pending {
     /// Manifest is replaced last, only after enclosing native publication.
@@ -32,11 +31,7 @@ impl Pending {
             return;
         }
         self.directory = root.join(namespace);
-        let companions = std::mem::take(&mut self.companions);
         let _ = self.store();
-        for pending in companions {
-            pending.commit(root);
-        }
     }
     fn store(self) -> Option<()> {
         if !private_directory(&self.directory, true) {
@@ -82,7 +77,11 @@ struct RawRecord {
     facts: Arc<[u8]>,
     output: Arc<[u8]>,
 }
-type Inventory = (Vec<RawRecord>, BTreeMap<FunctionId, usize>);
+type Inventory = (
+    Vec<RawRecord>,
+    BTreeMap<FunctionId, usize>,
+    BTreeMap<String, Arc<[u8]>>,
+);
 pub(crate) struct Request {
     inputs: Option<Arc<scalar_bodies::Inputs>>,
     validation: Option<std::rc::Rc<std::cell::RefCell<zil_llvm_api::PreflightSession>>>,
@@ -95,7 +94,8 @@ pub(crate) struct Request {
     decoded: BTreeMap<usize, Option<(TypedFunction, FunctionBatch)>>,
     accepted: BTreeMap<FunctionId, (usize, FunctionBatch)>,
     decode_nodes: usize,
-    products: Vec<Pending>,
+    products: BTreeMap<String, Arc<[u8]>>,
+    old_products: BTreeMap<String, Arc<[u8]>>,
     current: Vec<RawRecord>,
     current_aliases: BTreeMap<FunctionId, usize>,
     owners: std::collections::HashMap<scalar_bodies::Key, usize>,
@@ -148,7 +148,8 @@ impl Request {
             decoded: BTreeMap::new(),
             accepted: BTreeMap::new(),
             decode_nodes: 0,
-            products: vec![],
+            products: BTreeMap::new(),
+            old_products: BTreeMap::new(),
             current: vec![],
             current_aliases: BTreeMap::new(),
             owners: Default::default(),
@@ -222,16 +223,18 @@ impl Request {
         let Some(bytes) = self
             .context
             .len()
-            .checked_add(20)
+            .checked_add(24)
             .filter(|bytes| *bytes <= self.maximum)
         else {
             return;
         };
         self.bytes = bytes;
         self.enabled = true;
-        if let Some((records, aliases)) = self.load() {
+        self.old_products.clear();
+        if let Some((records, aliases, products)) = self.load() {
             self.old = records;
             self.aliases = aliases;
+            self.old_products = products;
         }
     }
     fn load(&self) -> Option<Inventory> {
@@ -256,7 +259,7 @@ impl Request {
             return None;
         }
         let mut input = Reader::new(&bytes, self.limits.max_nodes.min(1_000_000))?;
-        if input.take(8)? != b"ZILRAE01" || input.blob()? != self.context {
+        if input.take(8)? != b"ZILRAE02" || input.blob()? != self.context {
             return None;
         }
         let count = input.count()?;
@@ -286,7 +289,20 @@ impl Request {
             previous = Some(id);
             aliases.insert(id, record);
         }
-        input.finish().then_some((records, aliases))
+        let count = input.count()?;
+        if count > 1 {
+            return None;
+        }
+        let mut products = BTreeMap::new();
+        for _ in 0..count {
+            let name = input.text()?;
+            if name != "machine-products"
+                || products.insert(name, Arc::from(input.blob()?)).is_some()
+            {
+                return None;
+            }
+        }
+        input.finish().then_some((records, aliases, products))
     }
     pub(super) fn lookup(
         &mut self,
@@ -459,72 +475,40 @@ impl Request {
         self.current_aliases.insert(function.id, index);
         Some(())
     }
-    /// Auxiliary raw machine products share the exact current semantic context,
-    /// installed compiler/LLVM identity and success-only publication transaction.
-    /// One epoch per product, bounded in aggregate, with no persisted authority.
-    pub(crate) fn product(&self, name: &str) -> Option<Vec<u8>> {
-        if !self.enabled || !private_directory(&self.directory, false) {
-            return None;
-        }
-        let header = read(&self.directory.join(format!("{name}.manifest")), 44)?;
-        let mut input = Reader::new(&header, 8)?;
-        if input.take(8)? != b"ZILRAM01" {
-            return None;
-        }
-        let digest = Fingerprint(input.take(32)?.try_into().ok()?);
-        let length = input.word()?;
-        if !input.finish() || length > self.maximum {
-            return None;
-        }
-        let bytes = read(
-            &self.directory.join(format!("{}.raw", digest.to_hex())),
-            self.maximum,
-        )?;
-        if bytes.len() != length || Fingerprint::of(&bytes) != digest {
-            return None;
-        }
-        let mut input = Reader::new(&bytes, 8)?;
-        if input.take(8)? != b"ZILRAP01" || input.blob()? != self.context {
-            return None;
-        }
-        let product = input.blob()?.to_vec();
-        input.finish().then_some(product)
+    /// All raw products are covered by one context, byte cap, payload digest,
+    /// manifest and success-only transaction. No auxiliary files or histories.
+    pub(crate) fn product(&self, name: &str) -> Option<Arc<[u8]>> {
+        self.old_products.get(name).cloned()
     }
     pub(crate) fn stage_product(&mut self, name: &str, bytes: Vec<u8>) {
         let _ = self.stage_product_inner(name, bytes);
     }
     fn stage_product_inner(&mut self, name: &str, bytes: Vec<u8>) -> Option<()> {
-        if !self.enabled
-            || self
-                .products
-                .iter()
-                .any(|p| p.manifest == format!("{name}.manifest"))
-        {
+        if !self.enabled || name != "machine-products" || !self.products.is_empty() {
             return None;
         }
-        let used = self
-            .products
-            .iter()
-            .try_fold(0usize, |sum, p| sum.checked_add(p.bytes.len()))?;
-        let mut out = Writer::bounded(self.maximum.checked_sub(used)?);
-        out.put(b"ZILRAP01")?;
-        out.blob(&self.context)?;
-        out.blob(&bytes)?;
-        self.products.push(Pending {
-            directory: self.directory.clone(),
-            manifest: format!("{name}.manifest"),
-            bytes: out.0,
-            maximum: self.maximum,
-            companions: vec![],
-        });
+        let length = self
+            .bytes
+            .checked_add(8)?
+            .checked_add(name.len())?
+            .checked_add(bytes.len())?;
+        if length > self.maximum {
+            return None;
+        }
+        self.products.insert(name.to_owned(), bytes.into());
         Some(())
     }
-    pub(crate) fn pending(self) -> Option<Pending> {
+    pub(crate) fn pending(mut self) -> Option<Pending> {
+        // A declined optional refresh can retain raw hints; current consumers
+        // revalidate every relation. This never retains validation authority.
+        if self.products.is_empty() {
+            self.products = std::mem::take(&mut self.old_products);
+        }
         if !self.enabled || self.current.is_empty() {
             return None;
         }
         let mut out = Writer::bounded(self.maximum);
-        out.put(b"ZILRAE01")?;
+        out.put(b"ZILRAE02")?;
         out.blob(&self.context)?;
         out.word(self.current.len())?;
         for record in self.current {
@@ -537,12 +521,16 @@ impl Request {
             out.word(id.0 as usize)?;
             out.word(record)?;
         }
+        out.word(self.products.len())?;
+        for (name, bytes) in self.products {
+            out.text(&name)?;
+            out.blob(&bytes)?;
+        }
         Some(Pending {
             directory: self.directory,
             manifest: self.manifest,
             bytes: out.0,
             maximum: self.maximum,
-            companions: self.products,
         })
     }
 }

@@ -6,6 +6,9 @@ use crate::artifacts::CacheNamespace;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_db::CancellationToken;
 
+#[path = "packed_items_dictionary.rs"]
+mod dictionary;
+
 const MANIFEST_MAGIC: &[u8; 8] = b"ZILPKM01";
 const PACK_MAGIC: &[u8; 8] = b"ZILPAK01";
 const MANIFEST_HEADER: usize = 32;
@@ -65,10 +68,19 @@ pub(crate) struct Bounds {
 }
 impl Bounds {
     pub(crate) fn manifest_maximum(self) -> Option<usize> {
-        self.maximum.checked_add(MANIFEST_HEADER)?.checked_add(
-            self.max_items
-                .checked_mul(PACK_ROW.checked_add(ITEM_ROW)?)?,
-        )
+        // Logical bytes and inline reconstruction prefixes each retain the
+        // original byte allowance. Only transport table overhead grows.
+        self.maximum
+            .checked_mul(2)?
+            .checked_add(MANIFEST_HEADER)?
+            .checked_add(dictionary::HEADER)?
+            .checked_add(
+                self.max_items.checked_mul(
+                    PACK_ROW
+                        .checked_add(ITEM_ROW)?
+                        .checked_add(dictionary::ROW)?,
+                )?,
+            )
     }
     fn pack_maximum(self) -> Option<usize> {
         self.maximum.checked_add(PACK_HEADER)
@@ -199,9 +211,14 @@ struct Manifest {
     locations: BTreeMap<Fingerprint, Location>,
     packs: BTreeMap<Fingerprint, usize>,
     shared: Option<Arc<Epoch>>,
+    // Empty for the legacy complete-item transport. Otherwise locations name
+    // physical suffixes and these rows bind the original complete item keys.
+    recipes: BTreeMap<Fingerprint, dictionary::Recipe>,
 }
 pub(crate) fn is_packed(bytes: &[u8]) -> bool {
-    bytes.get(..8) == Some(MANIFEST_MAGIC) || bytes.get(..8) == Some(SHARED_MAGIC)
+    bytes.get(..8) == Some(MANIFEST_MAGIC)
+        || bytes.get(..8) == Some(SHARED_MAGIC)
+        || bytes.get(..8) == Some(dictionary::MAGIC)
 }
 
 impl Manifest {
@@ -284,11 +301,18 @@ impl Manifest {
             locations,
             packs: pack_table,
             shared: None,
+            recipes: BTreeMap::new(),
         })
     }
     #[cfg(test)]
     fn encode(&self, bounds: Bounds) -> Option<Vec<u8>> {
-        Self::encode_parts(&self.logical, &self.locations, &self.packs, bounds)
+        dictionary::encode(
+            &self.logical,
+            &self.locations,
+            &self.packs,
+            &self.recipes,
+            bounds,
+        )
     }
     fn encode_parts(
         logical: &[u8],
@@ -388,7 +412,7 @@ fn read_manifest(
         return None;
     }
     if bytes.get(..8) != Some(SHARED_MAGIC) {
-        return Manifest::decode(bytes, bounds);
+        return dictionary::decode(bytes, bounds);
     }
     let total = number(bytes, 8)?;
     let digest = Fingerprint(bytes.get(16..48)?.try_into().ok()?);
@@ -457,7 +481,7 @@ fn read_manifest(
     if envelope.len() != total || Fingerprint::of(&envelope) != digest {
         return None;
     }
-    let mut decoded = Manifest::decode(&envelope, bounds)?;
+    let mut decoded = dictionary::decode(&envelope, bounds)?;
     decoded.shared = Some(Arc::new(Epoch {
         namespace: Some(root.to_path_buf()),
         locations: chunks.locations,
@@ -503,6 +527,7 @@ fn share_manifest(
         locations,
         packs,
         records,
+        ..
     } = place_items(
         context,
         items,
@@ -651,7 +676,13 @@ impl Reader {
         if let Some(bytes) = self.items.get(&key) {
             return Some(bytes.clone());
         }
-        let item = *self.manifest.locations.get(&key)?;
+        let recipe = if self.manifest.recipes.is_empty() {
+            None
+        } else {
+            Some(self.manifest.recipes.get(&key)?)
+        };
+        let physical_key = recipe.map_or(key, |recipe| recipe.body);
+        let item = *self.manifest.locations.get(&physical_key)?;
         if !self.loaded.contains_key(&item.pack) {
             let bytes = inspect_pack(
                 &self.root,
@@ -662,11 +693,28 @@ impl Reader {
             self.loaded.insert(item.pack, bytes);
         }
         let bytes = segment(&self.loaded.get(&item.pack)?.0, item)?;
-        if Fingerprint::of(bytes) != key || self.cancellation.is_cancelled() {
+        if (!self.requested.contains(&physical_key) && Fingerprint::of(bytes) != physical_key)
+            || self.cancellation.is_cancelled()
+        {
             return None;
         }
-        self.requested.insert(key);
-        let bytes: Arc<[u8]> = bytes.into();
+        let bytes: Arc<[u8]> =
+            if let Some(recipe) = recipe.filter(|recipe| !recipe.prefix.is_empty()) {
+                let length = recipe.prefix.len().checked_add(bytes.len())?;
+                if length > self.bounds.maximum {
+                    return None;
+                }
+                let mut restored = Vec::with_capacity(length);
+                restored.extend_from_slice(&recipe.prefix);
+                restored.extend_from_slice(bytes);
+                if Fingerprint::of(&restored) != key || self.cancellation.is_cancelled() {
+                    return None;
+                }
+                restored.into()
+            } else {
+                bytes.into()
+            };
+        self.requested.insert(physical_key);
         if let Some(total) = self.item_bytes.checked_add(bytes.len())
             && total <= self.bounds.maximum
             && self.items.len() < self.bounds.max_items
@@ -761,13 +809,34 @@ fn publish_with_hook(
     {
         return None;
     }
+    let encode = publication_start(context.profile);
+    let prepared = dictionary::prepare(&items, bounds, context.cancellation)?;
+    stats.encode_ns += publication_elapsed(encode);
     let Placement {
         locations,
         packs,
         records,
-    } = place_items(&context, items, bounds, epoch, &mut stats, false)?;
+        written_pack,
+    } = place_items(
+        &context,
+        prepared.parts,
+        bounds,
+        epoch,
+        &mut stats,
+        !prepared.recipes.is_empty(),
+    )?;
+    if !prepared.recipes.is_empty() {
+        // Keep logical item counters in the caller's original domain, even
+        // when many original items depend on the same newly written suffix.
+        stats.written_items = prepared
+            .recipes
+            .values()
+            .filter(|recipe| written_pack == Some(locations[&recipe.body].pack))
+            .count();
+    }
+    stats.existing_items = items.len().checked_sub(stats.written_items)?;
     let encode = publication_start(context.profile);
-    let envelope = Manifest::encode_parts(logical, &locations, &packs, bounds)?;
+    let envelope = dictionary::encode(logical, &locations, &packs, &prepared.recipes, bounds)?;
     stats.encode_ns += publication_elapsed(encode);
     let (envelope, shared) = share_manifest(
         &context,
@@ -803,6 +872,7 @@ struct Placement {
     locations: BTreeMap<Fingerprint, Location>,
     packs: BTreeMap<Fingerprint, usize>,
     records: BTreeMap<Fingerprint, PackRecord>,
+    written_pack: Option<Fingerprint>,
 }
 
 // Body and metadata chunks use the same complete pack bounds and current
@@ -970,6 +1040,7 @@ fn place_items<B: AsRef<[u8]>>(
         records.clear();
         dirty = current.keys().copied().collect();
     }
+    let mut written_pack = None;
     if !dirty.is_empty() {
         let encode = publication_start(context.profile);
         let data_len = dirty.iter().try_fold(0usize, |sum, key| {
@@ -1015,6 +1086,7 @@ fn place_items<B: AsRef<[u8]>>(
             stats.physical_pack_bytes = usize::try_from(written_stamp.length).ok()?;
             stats.written_items = dirty.len();
             stats.written_bytes = data_len;
+            written_pack = Some(pack);
             verified
         };
         for (key, offset, length) in offsets {
@@ -1046,6 +1118,7 @@ fn place_items<B: AsRef<[u8]>>(
         locations,
         packs,
         records,
+        written_pack,
     })
 }
 

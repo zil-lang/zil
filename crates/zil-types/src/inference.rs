@@ -520,6 +520,13 @@ fn infer_program_visiting<'a>(
                             .as_mut()
                             .and_then(BodyObservation::take_input),
                     );
+                    receipts.record_shape(
+                        function_index,
+                        budget
+                            .observation
+                            .as_ref()
+                            .and_then(|body| body.shape_fee(function, limits)),
+                    );
                 }
                 observations.push(budget.observation.take());
                 found || !function.state_parameters.is_empty()

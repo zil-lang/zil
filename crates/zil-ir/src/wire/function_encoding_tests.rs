@@ -1,6 +1,71 @@
 use super::*;
 
 #[test]
+fn dictionary_identity_rebind_uses_only_a_real_normalized_decoder_and_original_budget() {
+    let (module, _) = fixture();
+    let limits = Limits::default();
+    let mut expected = module.functions[0].clone();
+    expected.id = FunctionId(71);
+    expected.name = "当前名称".into();
+    let encoded = encode_raw_function(&expected, &limits).unwrap();
+    let (id, name, key, body) = encoded.dictionary_fragment().unwrap();
+    assert_eq!((id, name.as_str()), (expected.id, expected.name.as_str()));
+    assert_eq!(key, Fingerprint::of(&body));
+    assert!(
+        encoded
+            .rebind_decoded_scalar_identity(id, &name, &limits, limits.max_nodes)
+            .is_none()
+    );
+    let (_, base) =
+        decode_raw_function_shared_owner(body.clone(), &limits, limits.max_nodes).unwrap();
+    let (actual, rebound) = base
+        .rebind_decoded_scalar_identity(id, &name, &limits, base.node_cost())
+        .unwrap();
+    assert_eq!(actual.as_ref(), &expected);
+    assert!(!rebound.bytes.is_materialized());
+    assert_eq!(rebound.byte_len(), encoded.byte_len());
+    let mut labeled = actual.as_ref().clone();
+    labeled.name = "final::diagnostic::label".into();
+    let labeled = Arc::new(labeled);
+    let final_encoding = rebound
+        .bind_decoded_owner(labeled.clone(), &limits, limits.max_source_bytes)
+        .unwrap();
+    assert!(!rebound.bytes.is_materialized());
+    assert!(!final_encoding.bytes.is_materialized());
+    assert_eq!(
+        final_encoding.shared_bytes(),
+        encode_raw_function(&labeled, &limits)
+            .unwrap()
+            .shared_bytes()
+    );
+    assert_eq!(rebound.shared_bytes(), encoded.shared_bytes());
+    let (_, _, next_key, next_body) = rebound.dictionary_fragment().unwrap();
+    assert_eq!(next_key, key);
+    assert!(Arc::ptr_eq(&next_body, &body));
+    assert!(
+        base.rebind_decoded_scalar_identity(id, &name, &limits, base.node_cost() - 1)
+            .is_none()
+    );
+    let different = Limits {
+        max_functions: limits.max_functions - 1,
+        ..limits.clone()
+    };
+    assert!(
+        base.rebind_decoded_scalar_identity(id, &name, &different, different.max_nodes)
+            .is_none()
+    );
+    // A non-normalized successful decode cannot masquerade as the template.
+    let (_, ordinary) =
+        decode_raw_function_shared_owner(encoded.shared_bytes(), &limits, limits.max_nodes)
+            .unwrap();
+    assert!(
+        ordinary
+            .rebind_decoded_scalar_identity(id, &name, &limits, limits.max_nodes)
+            .is_none()
+    );
+}
+
+#[test]
 fn scalar_header_reuse_rebinds_real_owner_and_shares_only_equal_bodies() {
     let (module, _) = fixture();
     let limits = Limits::default();

@@ -125,6 +125,7 @@ struct Row {
     names: usize,
     dependencies: usize,
     input: Option<Arc<inference::BodyInput>>,
+    shape: Option<usize>,
 }
 #[derive(Clone, Debug)]
 struct Context {
@@ -150,6 +151,9 @@ impl CurrentInputs {
     }
     pub fn body(&self, index: usize) -> Option<&inference::BodyInput> {
         self.rows.get(index)?.input.as_deref()
+    }
+    pub fn shape(&self, index: usize) -> Option<usize> {
+        self.rows.get(index)?.shape
     }
     pub fn names(&self, limits: &Limits) -> Option<Vec<usize>> {
         if limits != &self.limits {
@@ -208,6 +212,7 @@ impl Work {
                     names: 0,
                     dependencies: 0,
                     input: None,
+                    shape: None,
                 });
             }
         }
@@ -323,6 +328,11 @@ impl Work {
         self.stats.body_inputs_produced += usize::from(input.is_some());
         if let Some(row) = self.rows.get_mut(index) {
             row.input = input.map(Arc::new);
+        }
+    }
+    pub fn record_shape(&mut self, index: usize, shape: Option<usize>) {
+        if let Some(row) = self.rows.get_mut(index) {
+            row.shape = shape;
         }
     }
     pub fn names_fee(&mut self, index: usize) -> Option<usize> {

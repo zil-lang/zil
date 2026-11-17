@@ -221,7 +221,7 @@ pub fn encode_module_candidate(
 /// cache slot with the immutable function that produced it.
 #[derive(Clone)]
 pub struct RawFunctionEncoding {
-    bytes: Arc<[u8]>,
+    bytes: raw_bytes::RawBytes,
     limits: Limits,
     nodes: usize,
     fingerprint: OnceLock<Fingerprint>,
@@ -229,15 +229,16 @@ pub struct RawFunctionEncoding {
 }
 
 mod decoded_function;
+mod raw_bytes;
 pub use decoded_function::{RawFunctionDecodingStats, raw_scalar_function_id};
 
 impl RawFunctionEncoding {
-    fn byte_len(&self) -> usize {
+    pub fn byte_len(&self) -> usize {
         self.bytes.len()
     }
     /// Raw transport only. Integrity does not grant independent Verify authority.
     pub fn shared_bytes(&self) -> Arc<[u8]> {
-        self.bytes.clone()
+        self.bytes.shared()
     }
     pub fn node_cost(&self) -> usize {
         self.nodes
@@ -384,11 +385,15 @@ pub fn decode_raw_function_shared_owner(
     Ok((
         function.clone(),
         RawFunctionEncoding {
-            bytes,
+            bytes: bytes.into(),
             limits: limits.clone(),
             nodes,
             fingerprint: OnceLock::new(),
-            decoded: Some(decoded_function::DecodedFunction { function, name }),
+            decoded: Some(decoded_function::DecodedFunction {
+                function,
+                name,
+                dictionary: None,
+            }),
         },
     ))
 }
@@ -678,7 +683,7 @@ where
                         Some(Arc::new(RawFunctionPlanEncoding {
                             function: plan.functions.owner(index).unwrap().clone(),
                             encoding: RawFunctionEncoding {
-                                bytes: segment.bytes.clone(),
+                                bytes: segment.bytes.clone().into(),
                                 limits: limits.clone(),
                                 nodes: nodes - writer.nodes,
                                 fingerprint: OnceLock::from(segment.fingerprint),
@@ -785,7 +790,7 @@ impl CandidateDecodingRanges {
             }
         }
         let encoding = |segment: &WireSegment, nodes| RawFunctionEncoding {
-            bytes: segment.bytes.clone(),
+            bytes: segment.bytes.clone().into(),
             limits: limits.clone(),
             nodes,
             // The caller's supplied fingerprint is not the decoder receipt.
@@ -800,6 +805,7 @@ impl CandidateDecodingRanges {
                 let mut encoding = encoding(&segments[index + 1], *nodes);
                 encoding.decoded = Some(decoded_function::DecodedFunction {
                     function: module.functions.owner(index)?.clone(),
+                    dictionary: None,
                     name: name.start.checked_sub(range.start)?
                         ..name.end.checked_sub(range.start)?,
                 });
@@ -1688,7 +1694,7 @@ impl<'a> Writer<'a> {
                         fingerprint,
                     });
                     Some(RawFunctionEncoding {
-                        bytes,
+                        bytes: bytes.into(),
                         limits: self.limits.clone(),
                         nodes: nodes - self.nodes,
                         fingerprint: OnceLock::from(fingerprint),

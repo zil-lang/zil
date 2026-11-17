@@ -34,7 +34,8 @@ fn request(root: &Path) -> Request {
         decoded: BTreeMap::new(),
         accepted: BTreeMap::new(),
         decode_nodes: 0,
-        products: vec![],
+        products: BTreeMap::new(),
+        old_products: BTreeMap::new(),
         current: vec![],
         current_aliases: BTreeMap::new(),
         owners: Default::default(),
@@ -767,11 +768,13 @@ fn cold_publish_exit_first_edit_restores_classes_and_actual_partition_consumers(
             crate::machine_cgu::CallImportPolicy::BoundedClasses(None),
         )
         .unwrap();
-        cold.stage_product("call-classes", cache.encode_raw().unwrap());
-        cold.stage_product(
-            "class-partition",
-            partition.materialization.unwrap().encode_raw().unwrap(),
-        );
+        let (bytes, _, _) = crate::machine_cache::encode_products(
+            &cache,
+            &partition.materialization.unwrap(),
+            None,
+        )
+        .unwrap();
+        cold.stage_product("machine-products", bytes);
         // Nothing exists until the enclosing native publication succeeds.
         assert!(!cold.directory.exists());
         cold.pending().unwrap().commit(&directory.0);
@@ -781,13 +784,11 @@ fn cold_publish_exit_first_edit_restores_classes_and_actual_partition_consumers(
     let source = lir(&verified);
     let mut restarted = request(&directory.0);
     let original = lower(&verified, &source, Some(&mut restarted)).unwrap().0;
-    let cache = crate::machine_call_classes::Cache::decode_raw(
-        &restarted.product("call-classes").unwrap(),
-        verified.limits(),
-    )
-    .unwrap();
+    let bytes = restarted.product("machine-products").unwrap();
+    let mut recovery = crate::machine_cache::Recovery::new(&bytes, verified.limits()).unwrap();
+    let cache = recovery.classes(&original).unwrap();
     let (actual, symbols, reused) = classes(&verified, &source, &mut restarted, Some(&cache));
-    let mut expected = original;
+    let mut expected = original.clone();
     crate::machine_call_classes::canonicalize_stable_cached(
         &mut expected,
         &BTreeSet::new(),
@@ -802,15 +803,9 @@ fn cold_publish_exit_first_edit_restores_classes_and_actual_partition_consumers(
         "the actual changed input must miss"
     );
     let policy = crate::machine_cgu::CallImportPolicy::BoundedClasses(None);
-    let old = crate::machine_cgu::Materialization::decode_raw(
-        &restarted.product("class-partition").unwrap(),
-        verified.limits(),
-        &source.as_view(),
-        EntryPoint::None,
-        4,
-        policy,
-    )
-    .unwrap();
+    let old = recovery
+        .partition(&source.as_view(), EntryPoint::None, 4, policy)
+        .unwrap();
     let partition = crate::machine_cgu::partition_classes_reusing_with_policy(
         actual,
         &source.as_view(),
@@ -836,7 +831,19 @@ fn cold_publish_exit_first_edit_restores_classes_and_actual_partition_consumers(
     }
     // The adapted successful epoch can itself be published, avoiding a history
     // chain that silently keeps consuming the original cold input forever.
-    assert!(product.encode_raw().is_some());
+    let (bytes, encoded, retained) =
+        crate::machine_cache::encode_products(&reused, &product, Some(&recovery)).unwrap();
+    assert!(
+        retained > 0,
+        "unchanged actual models must retain their encoding bytes"
+    );
+    assert!(encoded > 0, "edited models must be encoded anew");
+    assert!(
+        encoded < retained,
+        "a private edit cannot re-encode the entire inventory"
+    );
+    let mut next = crate::machine_cache::Recovery::new(&bytes, verified.limits()).unwrap();
+    assert!(next.classes(&original).is_some());
 }
 
 #[test]
@@ -846,24 +853,33 @@ fn auxiliary_products_require_context_integrity_and_successful_publication() {
     let source = lir(&verified);
     let mut cancelled = request(&directory.0);
     lower(&verified, &source, Some(&mut cancelled)).unwrap();
-    cancelled.stage_product("call-classes", vec![1, 2, 3]);
-    drop(cancelled.pending()); // Failed/cancelled enclosing transaction.
+    cancelled.stage_product("machine-products", vec![1, 2, 3]);
+    drop(cancelled.pending());
     assert!(!directory.0.join("test-installed-identity").exists());
     let mut cold = request(&directory.0);
     lower(&verified, &source, Some(&mut cold)).unwrap();
-    cold.stage_product("call-classes", vec![1, 2, 3]);
+    cold.stage_product("machine-products", vec![1, 2, 3]);
     cold.pending().unwrap().commit(&directory.0);
     let mut restarted = request(&directory.0);
     lower(&verified, &source, Some(&mut restarted)).unwrap();
-    assert_eq!(restarted.product("call-classes"), Some(vec![1, 2, 3]));
+    assert_eq!(
+        restarted.product("machine-products").as_deref(),
+        Some([1, 2, 3].as_slice())
+    );
     restarted.context.push(42);
-    assert!(restarted.product("call-classes").is_none());
+    assert!(restarted.load().is_none());
     restarted.context.pop();
-    let manifest = read(&restarted.directory.join("call-classes.manifest"), 44).unwrap();
+    let manifest = read(&restarted.directory.join("current.manifest"), 44).unwrap();
     let digest = Fingerprint(manifest[8..40].try_into().unwrap());
     let path = restarted.directory.join(format!("{}.raw", digest.to_hex()));
     let mut bytes = read(&path, MAX_BYTES).unwrap();
     *bytes.last_mut().unwrap() ^= 1;
     fs::write(path, bytes).unwrap();
-    assert!(restarted.product("call-classes").is_none());
+    let mut corrupted = request(&directory.0);
+    lower(&verified, &source, Some(&mut corrupted)).unwrap();
+    assert!(corrupted.product("machine-products").is_none());
+    assert!(
+        corrupted.hits == 0,
+        "corrupt shared envelope cannot lend emission bodies either"
+    );
 }

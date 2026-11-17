@@ -72,6 +72,57 @@ fn text(count: usize) -> String {
 }
 
 #[test]
+fn fused_cached_cfg_copy_matches_original_rebase_and_preserves_raw_owners() {
+    let produced = expand(&mut ExpandSession::default(), &[text(3)]);
+    let program = check_program(
+        produced.program(),
+        &TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap();
+    for source in &program.module.functions {
+        let unchanged = source.clone();
+        let length = source.span.end - source.span.start;
+        for new in [
+            Span::new(FileId(7), 200, 200 + length),
+            Span::new(FileId(0), 0, length),
+            Span::new(FileId(0), 0, length - 1),
+            Span::new(FileId(0), usize::MAX - 1, usize::MAX),
+        ] {
+            let mut expected = source.clone();
+            let success = rebase(&mut expected, source.span, new);
+            let actual = relocated_copy(source, source.span, new);
+            assert_eq!(actual, success.then_some(expected));
+            if let Some(actual) = actual {
+                assert!(actual.values.ptr_eq(&source.values));
+                assert!(!actual.locals.ptr_eq(&source.locals));
+                assert!(!actual.blocks.ptr_eq(&source.blocks));
+            }
+            assert_eq!(source, &unchanged);
+        }
+        for wrong_file in [false, true] {
+            let mut invalid = source.clone();
+            let end = invalid.span.end;
+            let instruction = invalid
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.instructions)
+                .last()
+                .unwrap();
+            if wrong_file {
+                instruction.span.file = FileId(99);
+            } else {
+                instruction.span.end = end + 1;
+            }
+            let mut old = invalid.clone();
+            let new = Span::new(FileId(7), 200, 200 + length);
+            assert!(!rebase(&mut old, invalid.span, new));
+            assert!(relocated_copy(&invalid, invalid.span, new).is_none());
+        }
+    }
+}
+
+#[test]
 fn fresh_restart_first_edit_reconstructs_current_inputs_and_consumes_persisted_items() {
     let target = TargetProfile::default();
     let limits = Limits::default();
@@ -128,6 +179,13 @@ fn fresh_restart_first_edit_reconstructs_current_inputs_and_consumes_persisted_i
     assert_eq!(stats.body_key_executions, 0);
     assert_eq!(stats.body_key_current_projections, 48);
     assert_eq!(stats.names_current_replays, 48);
+    assert_eq!(
+        (
+            stats.shape_functions_observed,
+            stats.shape_functions_checked
+        ),
+        (48, 0)
+    );
     assert_eq!(stats.restored_reused_functions, 47);
     assert_eq!(stats.cfg_same_span_reuses, 0);
     assert_eq!(

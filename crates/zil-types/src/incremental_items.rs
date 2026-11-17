@@ -2,6 +2,8 @@
 //! validates against the original whole-epoch quotas; nothing grants authority.
 use super::*;
 
+#[path = "incremental_items/dictionary.rs"]
+mod dictionary;
 #[path = "incremental/restore.rs"]
 mod restore;
 
