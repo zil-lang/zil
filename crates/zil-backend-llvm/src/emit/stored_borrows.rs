@@ -450,7 +450,10 @@ pub(super) fn reserve_binding(
     // A verified module may contain separate stored and ordinary components.
     // Exact LIR binding compares the complete original module, so this ledger
     // covers ordinary Task/registration instructions as well as stored bodies.
-    // Every admitted variable-length instruction payload is enumerated below.
+    // Like a MIR visitor, the comparison ledger exhaustively names variants
+    // and fields: a new payload must force this consumer to be reconsidered.
+    // Scalar IDs/flags are covered by each fixed reservation; recursive Type,
+    // path, argument, port and byte payloads are paid explicitly.
     pay(work, module.functions.len())?;
     for f in &module.functions {
         pay(
@@ -517,12 +520,12 @@ pub(super) fn reserve_binding(
             pay(work, block.instructions.len().saturating_add(1))?;
             for i in &block.instructions {
                 let n = match &i.kind {
-                    InstructionKind::Call { arguments, .. }
-                    | InstructionKind::SuspendCall { arguments, .. }
-                    | InstructionKind::ForeignCall { arguments, .. }
+                    InstructionKind::Call { arguments, function: _ }
+                    | InstructionKind::SuspendCall { arguments, function: _ }
+                    | InstructionKind::ForeignCall { arguments, function: _, region: _ }
                     | InstructionKind::MakeAggregate { fields: arguments }
                     | InstructionKind::MakeVariant {
-                        fields: arguments, ..
+                        fields: arguments, variant: _
                     }
                     | InstructionKind::MakeManaged { fields: arguments }
                     | InstructionKind::MakePackage { fields: arguments }
@@ -530,16 +533,16 @@ pub(super) fn reserve_binding(
                     | InstructionKind::MakeOwnedArray {
                         elements: arguments,
                     }
-                    | InstructionKind::CallDynSlot { arguments, .. } => arguments.len(),
+                    | InstructionKind::CallDynSlot { arguments, callee: _, interface: _, slot: _ } => arguments.len(),
                     InstructionKind::TaskCreate {
                         arguments,
                         port_bindings,
-                        ..
+                        worker: _
                     }
                     | InstructionKind::TaskCreateOwned {
                         arguments,
                         port_bindings,
-                        ..
+                        worker: _
                     } => {
                         pay(work, port_bindings.len())?;
                         for binding in port_bindings {
@@ -547,134 +550,160 @@ pub(super) fn reserve_binding(
                         }
                         arguments.len()
                     }
-                    InstructionKind::UnpackTuple { fields, .. }
-                    | InstructionKind::UnpackVariant { fields, .. } => fields.len(),
-                    InstructionKind::CallIndirect { arguments, .. }
-                    | InstructionKind::CallClosure { arguments, .. }
-                    | InstructionKind::CallClosureOnce { arguments, .. }
-                    | InstructionKind::CallClosureBorrowed { arguments, .. }
-                    | InstructionKind::CallClosureShared { arguments, .. }
-                    | InstructionKind::CallClosureMut { arguments, .. } => {
+                    InstructionKind::UnpackTuple { fields, local: _ }
+                    | InstructionKind::UnpackVariant { fields, local: _, variant: _ } => fields.len(),
+                    InstructionKind::CallIndirect { arguments, callee: _ }
+                    | InstructionKind::CallClosure { arguments, callee: _ }
+                    | InstructionKind::CallClosureOnce { arguments, callee: _ }
+                    | InstructionKind::CallClosureBorrowed { arguments, callee: _, kind: _ }
+                    | InstructionKind::CallClosureShared { arguments, callee: _ }
+                    | InstructionKind::CallClosureMut { arguments, callee: _ } => {
                         arguments.len().saturating_add(1)
                     }
-                    InstructionKind::MakeClosure { captures, .. } => {
+                    InstructionKind::MakeClosure { captures, closure: _ } => {
                         captures.len().saturating_add(1)
                     }
-                    InstructionKind::BindPackageCapture { .. }
-                    | InstructionKind::EndPackageCapture { .. } => 2,
-                    InstructionKind::FunctionRef { .. } => 1,
-                    InstructionKind::WriteDesc { .. } => 2,
-                    InstructionKind::ExtractIndex { .. } | InstructionKind::UpdateField { .. } => 2,
-                    InstructionKind::UpdateIndex { .. } => 3,
-                    InstructionKind::VariantTag { .. } | InstructionKind::ReadVariant { .. } => 1,
-                    InstructionKind::ExtractField { .. }
-                    | InstructionKind::ReadPackageField { .. }
-                    | InstructionKind::ReadCapture { .. }
-                    | InstructionKind::BorrowPackageField { .. }
-                    | InstructionKind::DescribePackageField { .. }
-                    | InstructionKind::BorrowCapture { .. }
-                    | InstructionKind::WriteCapture { .. }
-                    | InstructionKind::OwnedStoreBorrow { .. }
-                    | InstructionKind::OwnedStoreBorrowMut { .. }
-                    | InstructionKind::TakeLocal { .. }
-                    | InstructionKind::TakeCapture { .. }
-                    | InstructionKind::DescribeLocal { .. }
-                    | InstructionKind::DescribeCapture { .. }
-                    | InstructionKind::ReadDesc { .. }
-                    | InstructionKind::DropManaged { .. }
-                    | InstructionKind::DropClosure { .. } => 1,
-                    InstructionKind::LoadStoredBorrow { path, .. }
-                    | InstructionKind::StoreStoredBorrow { path, .. }
-                    | InstructionKind::TakeTupleField { path, .. }
-                    | InstructionKind::TakeVariantField { path, .. }
-                    | InstructionKind::BorrowPlaceLocal { path, .. }
-                    | InstructionKind::PlaceTagLocal { path, .. }
-                    | InstructionKind::BorrowPlaceAddress { path, .. }
-                    | InstructionKind::PlaceTagAddress { path, .. }
-                    | InstructionKind::ReservePlaceLocal { path, .. }
-                    | InstructionKind::ReservePlaceAddress { path, .. } => path.len(),
-                    InstructionKind::BorrowFieldLocal { path, .. } => path.len(),
-                    InstructionKind::VariantTagLocal { path, .. }
-                    | InstructionKind::ReadVariantLocal { path, .. }
-                    | InstructionKind::BorrowVariantLocal { path, .. }
-                    | InstructionKind::VariantTagAddress { path, .. }
-                    | InstructionKind::BorrowVariantAddress { path, .. } => {
+                    InstructionKind::BindPackageCapture { local: _, index: _ }
+                    | InstructionKind::EndPackageCapture { local: _, index: _ } => 2,
+                    InstructionKind::FunctionRef { function: _ } => 1,
+                    InstructionKind::WriteDesc { desc: _, index: _, value: _ } => 2,
+                    InstructionKind::ExtractIndex { aggregate: _, index: _ } | InstructionKind::UpdateField { aggregate: _, index: _, value: _ } => 2,
+                    InstructionKind::UpdateIndex { aggregate: _, index: _, value: _ } => 3,
+                    InstructionKind::VariantTag { value: _ } | InstructionKind::ReadVariant { value: _, variant: _, index: _ } => 1,
+                    InstructionKind::ExtractField { aggregate: _, index: _ }
+                    | InstructionKind::ReadPackageField { local: _, index: _ }
+                    | InstructionKind::ReadCapture { index: _ }
+                    | InstructionKind::BorrowPackageField { local: _, index: _, mutable: _ }
+                    | InstructionKind::DescribePackageField { local: _, index: _ }
+                    | InstructionKind::BorrowCapture { index: _, mutable: _ }
+                    | InstructionKind::WriteCapture { index: _, value: _ }
+                    | InstructionKind::OwnedStoreBorrow { store: _, index: _ }
+                    | InstructionKind::OwnedStoreBorrowMut { store: _, index: _ }
+                    | InstructionKind::TakeLocal { local: _ }
+                    | InstructionKind::TakeCapture { index: _ }
+                    | InstructionKind::DescribeLocal { local: _ }
+                    | InstructionKind::DescribeCapture { index: _ }
+                    | InstructionKind::ReadDesc { desc: _, index: _ }
+                    | InstructionKind::DropManaged { local: _ }
+                    | InstructionKind::DropClosure { local: _ } => 1,
+                    InstructionKind::LoadStoredBorrow { path, storage: _, mode: _ }
+                    | InstructionKind::StoreStoredBorrow { path, storage: _, value: _ }
+                    | InstructionKind::TakeTupleField { path, local: _ }
+                    | InstructionKind::TakeVariantField { path, local: _ }
+                    | InstructionKind::BorrowPlaceLocal { path, local: _, mutable: _ }
+                    | InstructionKind::PlaceTagLocal { path, local: _ }
+                    | InstructionKind::BorrowPlaceAddress { path, address: _, mutable: _ }
+                    | InstructionKind::PlaceTagAddress { path, address: _ }
+                    | InstructionKind::ReservePlaceLocal { path, reservation: _, local: _ }
+                    | InstructionKind::ReservePlaceAddress { path, reservation: _, address: _ } => path.len(),
+                    InstructionKind::BorrowFieldLocal { path, local: _, mutable: _ } => path.len(),
+                    InstructionKind::VariantTagLocal { path, local: _ }
+                    | InstructionKind::ReadVariantLocal { path, local: _ }
+                    | InstructionKind::BorrowVariantLocal { path, local: _, mutable: _ }
+                    | InstructionKind::VariantTagAddress { path, address: _ }
+                    | InstructionKind::BorrowVariantAddress { path, address: _, mutable: _ } => {
                         path.len().saturating_mul(2)
                     }
                     InstructionKind::Constant(Constant::WideString(s)) => s.len(),
+                    InstructionKind::OwnedStoreNew { element }
+                    | InstructionKind::ConvertInteger { target: element, value: _ }
+                    | InstructionKind::ConvertNumber { target: element, value: _ } => {
+                        type_work(element, work, limits, 0)?;
+                        8
+                    }
                     InstructionKind::StaticUtf8 { bytes } => bytes.len(),
-                    InstructionKind::Constant(_)
+                    InstructionKind::Constant(Constant::Unit | Constant::Bool(_)
+                        | Constant::I32(_) | Constant::I64(_) | Constant::U64(_)
+                        | Constant::Usize(_) | Constant::F32(_) | Constant::F64(_)
+                        | Constant::U8(_) | Constant::U16(_) | Constant::U32(_)
+                        | Constant::I8(_) | Constant::I16(_) | Constant::Isize(_)
+                        | Constant::NullHandle | Constant::NullWideString)
                     | InstructionKind::Load(_)
-                    | InstructionKind::Store { .. }
+                    | InstructionKind::Store { local: _, value: _ }
                     | InstructionKind::StorageLive(_)
                     | InstructionKind::StorageDead(_)
-                    | InstructionKind::BorrowLocal { .. }
-                    | InstructionKind::BorrowLocalMut { .. }
-                    | InstructionKind::ReborrowAddress { .. }
-                    | InstructionKind::AddressField { .. }
-                    | InstructionKind::AddressIndex { .. }
-                    | InstructionKind::AddressSlice { .. }
-                    | InstructionKind::ReadAddress { .. }
-                    | InstructionKind::WriteAddress { .. }
-                    | InstructionKind::SliceLength { .. }
-                    | InstructionKind::Unary { .. }
-                    | InstructionKind::Binary { .. }
-                    | InstructionKind::ConvertInteger { .. }
-                    | InstructionKind::ConvertNumber { .. }
-                    | InstructionKind::ScopeEnter { .. }
-                    | InstructionKind::ScopeExit { .. }
+                    | InstructionKind::BorrowLocal { local: _ }
+                    | InstructionKind::BorrowLocalMut { local: _ }
+                    | InstructionKind::ReborrowAddress { address: _, mutable: _ }
+                    | InstructionKind::AddressField { address: _, index: _ }
+                    | InstructionKind::AddressIndex { address: _, index: _ }
+                    | InstructionKind::AddressSlice { address: _, start: _, end: _ }
+                    | InstructionKind::ReadAddress { address: _ }
+                    | InstructionKind::WriteAddress { address: _, value: _ }
+                    | InstructionKind::SliceLength { address: _ }
+                    | InstructionKind::Unary { op: _, operand: _ }
+                    | InstructionKind::Binary { op: _, left: _, right: _ }
+                    | InstructionKind::ScopeEnter { scope: _ }
+                    | InstructionKind::ScopeExit { scope: _, kind: _ }
                     | InstructionKind::ByteBufferNew
-                    | InstructionKind::ByteBufferLen { .. }
-                    | InstructionKind::ByteBufferCapacity { .. }
-                    | InstructionKind::ByteBufferBorrow { .. }
-                    | InstructionKind::ByteBufferPush { .. }
-                    | InstructionKind::ByteBufferReserve { .. }
-                    | InstructionKind::ByteBufferTruncate { .. }
-                    | InstructionKind::DescribeAddress { .. }
-                    | InstructionKind::DropPackage { .. }
-                    | InstructionKind::TakePackageField { .. }
-                    | InstructionKind::DropPackageField { .. }
-                    | InstructionKind::StorePackageField { .. }
-                    | InstructionKind::UnsafeEnter { .. }
-                    | InstructionKind::UnsafeExit { .. } => 1,
-                    InstructionKind::MakeDynOwned { .. }
-                    | InstructionKind::MakeDynBorrow { .. }
-                    | InstructionKind::BorrowDynOwned { .. }
-                    | InstructionKind::DropDynOwned { .. }
-                    | InstructionKind::MakeErrorUnion { .. }
-                    | InstructionKind::OwnedStoreNew { .. }
-                    | InstructionKind::OwnedStoreReserve { .. }
-                    | InstructionKind::OwnedStorePush { .. }
-                    | InstructionKind::OwnedStorePop { .. }
-                    | InstructionKind::OwnedStoreLen { .. }
-                    | InstructionKind::OwnedStoreCapacity { .. }
-                    | InstructionKind::ErrorTag { .. }
-                    | InstructionKind::ReadErrorUnion { .. }
-                    | InstructionKind::TakeErrorUnion { .. }
-                    | InstructionKind::DropErrorUnion { .. }
-                    | InstructionKind::DropTuple { .. }
-                    | InstructionKind::DropEnum { .. }
-                    | InstructionKind::ForeignFunctionRef { .. }
-                    | InstructionKind::TaskStart { .. }
+                    | InstructionKind::ByteBufferLen { buffer: _ }
+                    | InstructionKind::ByteBufferCapacity { buffer: _ }
+                    | InstructionKind::ByteBufferBorrow { buffer: _, mutable: _ }
+                    | InstructionKind::ByteBufferPush { buffer: _, value: _ }
+                    | InstructionKind::ByteBufferReserve { buffer: _, capacity: _ }
+                    | InstructionKind::ByteBufferTruncate { buffer: _, length: _ }
+                    | InstructionKind::DescribeAddress { address: _ }
+                    | InstructionKind::DropPackage { local: _ }
+                    | InstructionKind::TakePackageField { local: _, index: _ }
+                    | InstructionKind::DropPackageField { local: _, index: _ }
+                    | InstructionKind::StorePackageField { local: _, index: _, value: _ }
+                    | InstructionKind::UnsafeEnter { region: _ }
+                    | InstructionKind::UnsafeExit { region: _ } => 1,
+                    InstructionKind::MakeDynOwned { interface: _, vtable: _, source: _, route: _ }
+                    | InstructionKind::MakeDynBorrow { interface: _, vtable: _, source: _, mutable: _ }
+                    | InstructionKind::BorrowDynOwned { local: _, mutable: _ }
+                    | InstructionKind::DropDynOwned { local: _ }
+                    | InstructionKind::MakeErrorUnion { is_error: _, value: _ }
+                    | InstructionKind::OwnedStoreReserve { store: _, capacity: _ }
+                    | InstructionKind::OwnedStorePush { store: _, value: _ }
+                    | InstructionKind::OwnedStorePop { store: _ }
+                    | InstructionKind::OwnedStoreLen { store: _ }
+                    | InstructionKind::OwnedStoreCapacity { store: _ }
+                    | InstructionKind::ErrorTag { value: _ }
+                    | InstructionKind::ReadErrorUnion { value: _, is_error: _ }
+                    | InstructionKind::TakeErrorUnion { value: _, is_error: _ }
+                    | InstructionKind::DropErrorUnion { local: _ }
+                    | InstructionKind::DropTuple { local: _ }
+                    | InstructionKind::DropEnum { local: _ }
+                    | InstructionKind::ForeignFunctionRef { function: _ }
+                    | InstructionKind::TaskStart { worker: _, argument: _ }
                     | InstructionKind::TaskYield
-                    | InstructionKind::TaskValid { .. }
-                    | InstructionKind::TaskPoll { .. }
-                    | InstructionKind::TaskRequestCancel { .. }
-                    | InstructionKind::TaskPollClose { .. }
-                    | InstructionKind::TaskFinishDestroy { .. }
-                    | InstructionKind::RegistrationStart { .. }
-                    | InstructionKind::RegistrationValid { .. }
-                    | InstructionKind::RegistrationClose { .. }
-                    | InstructionKind::AsyncRegistrationStart { .. }
-                    | InstructionKind::AsyncRegistrationValid { .. }
-                    | InstructionKind::AsyncRegistrationRequestClose { .. }
-                    | InstructionKind::AsyncRegistrationPollClose { .. }
-                    | InstructionKind::AsyncRegistrationFinishDestroy { .. }
-                    | InstructionKind::AsyncRegistrationFinishDestroyChecked { .. }
-                    | InstructionKind::RegisterDefer { .. }
-                    | InstructionKind::CommitPlaceReplace { .. }
-                    | InstructionKind::AbortPlaceReservation { .. } => 8,
-                    _ => {
+                    | InstructionKind::TaskValid { task: _ }
+                    | InstructionKind::TaskPoll { task: _ }
+                    | InstructionKind::TaskRequestCancel { task: _ }
+                    | InstructionKind::TaskPollClose { task: _ }
+                    | InstructionKind::TaskFinishDestroy { task: _ }
+                    | InstructionKind::RegistrationStart { register: _, close: _, callback: _, region: _ }
+                    | InstructionKind::RegistrationValid { registration: _ }
+                    | InstructionKind::RegistrationClose { registration: _ }
+                    | InstructionKind::AsyncRegistrationStart { register: _, request_close: _, poll_drain: _, callback: _, region: _ }
+                    | InstructionKind::AsyncRegistrationValid { registration: _ }
+                    | InstructionKind::AsyncRegistrationRequestClose { registration: _ }
+                    | InstructionKind::AsyncRegistrationPollClose { registration: _ }
+                    | InstructionKind::AsyncRegistrationFinishDestroy { registration: _ }
+                    | InstructionKind::AsyncRegistrationFinishDestroyChecked { registration: _ }
+                    | InstructionKind::RegisterDefer { scope: _, local: _ }
+                    | InstructionKind::CommitPlaceReplace { reservation: _, value: _ }
+                    | InstructionKind::AbortPlaceReservation { reservation: _ }
+                    | InstructionKind::ProjectOwnedArrayField { local: _, index: _, field: _ }
+                    | InstructionKind::TakeOwnedArrayElement { local: _, index: _ }
+                    | InstructionKind::DropOwnedArrayElement { local: _, index: _ }
+                    | InstructionKind::StoreOwnedArrayElement { local: _, index: _, value: _ }
+                    | InstructionKind::DropOwnedArray { local: _ }
+                    | InstructionKind::BorrowOwnedArrayElement { local: _, index: _, mutable: _ }
+                    | InstructionKind::WithForeignCallback { register: _, close: _, callback: _, body: _, region: _ }
+                    | InstructionKind::WithScopedThread { worker: _, argument: _, body: _ }
+                    | InstructionKind::WithSyncCell { kind: _, initial: _, body: _ }
+                    | InstructionKind::SyncI32 { op: _, address: _, value: _, ordering: _ }
+                    | InstructionKind::SyncI32CompareExchange { address: _, expected: _, desired: _, success: _, failure: _ }
+                    | InstructionKind::SyncInteger { op: _, address: _, value: _, ordering: _ }
+                    | InstructionKind::SyncIntegerCompareExchange { address: _, expected: _, desired: _, success: _, failure: _ }
+                    | InstructionKind::MutexCreate { value: _ }
+                    | InstructionKind::MutexLock { mutex: _ }
+                    | InstructionKind::MutexValue { guard: _ }
+                    | InstructionKind::MutexUnlock { guard: _ }
+                    | InstructionKind::DropMutexGuard { local: _ } => 8,
+                    InstructionKind::Unsupported(_) => {
                         return invalid(
                             "E-CODEGEN-STORAGE-PROFILE",
                             "stored profile instruction comparison has no prepaid consumer",
@@ -690,98 +719,165 @@ pub(super) fn reserve_binding(
 }
 
 fn operands(i: &InstructionKind) -> Vec<ValueId> {
+    // Exact SSA inputs for the same complete instruction inventory as binding.
+    // Local/capture indices are not SSA values; their layouts are paid below.
     match i {
-        InstructionKind::Call { arguments, .. }
-        | InstructionKind::ForeignCall { arguments, .. }
-        | InstructionKind::MakeAggregate { fields: arguments }
-        | InstructionKind::MakePackage { fields: arguments }
-        | InstructionKind::MakeVariant {
-            fields: arguments, ..
-        }
-        | InstructionKind::MakeManaged { fields: arguments }
-        | InstructionKind::MakeClosure {
-            captures: arguments,
-            ..
-        }
-        | InstructionKind::CallClosureShared { arguments, .. }
-        | InstructionKind::CallClosureMut { arguments, .. } => arguments.clone(),
-        InstructionKind::CallDynSlot {
-            callee, arguments, ..
-        }
-        | InstructionKind::CallIndirect { callee, arguments }
-        | InstructionKind::CallClosure { callee, arguments }
-        | InstructionKind::CallClosureOnce { callee, arguments }
-        | InstructionKind::CallClosureBorrowed {
-            callee, arguments, ..
-        } => std::iter::once(*callee)
-            .chain(arguments.iter().copied())
-            .collect(),
-        InstructionKind::MakeDynOwned { source: value, .. }
-        | InstructionKind::MakeDynBorrow { source: value, .. }
-        | InstructionKind::ExtractField {
-            aggregate: value, ..
-        }
-        | InstructionKind::VariantTag { value }
-        | InstructionKind::ReadVariant { value, .. }
-        | InstructionKind::ReadDesc { desc: value, .. }
-        | InstructionKind::MakeErrorUnion { value, .. }
-        | InstructionKind::ErrorTag { value }
-        | InstructionKind::ReadErrorUnion { value, .. }
-        | InstructionKind::TakeErrorUnion { value, .. }
-        | InstructionKind::ByteBufferLen { buffer: value }
-        | InstructionKind::ByteBufferCapacity { buffer: value }
-        | InstructionKind::ByteBufferBorrow { buffer: value, .. }
-        | InstructionKind::Store { value, .. }
-        | InstructionKind::WriteCapture { value, .. }
-        | InstructionKind::Unary { operand: value, .. }
-        | InstructionKind::ConvertInteger { value, .. }
-        | InstructionKind::ConvertNumber { value, .. } => vec![*value],
-        InstructionKind::Binary { left, right, .. } => vec![*left, *right],
-        InstructionKind::ByteBufferReserve { buffer, capacity } => vec![*buffer, *capacity],
-        InstructionKind::ByteBufferPush { buffer, value } => vec![*buffer, *value],
-        InstructionKind::ByteBufferTruncate { buffer, length } => vec![*buffer, *length],
-        InstructionKind::ExtractIndex { aggregate, index } => vec![*aggregate, *index],
-        InstructionKind::UpdateField {
-            aggregate, value, ..
-        } => vec![*aggregate, *value],
-        InstructionKind::UpdateIndex {
-            aggregate,
-            index,
-            value,
-        } => vec![*aggregate, *index, *value],
-        InstructionKind::ReadAddress { address }
-        | InstructionKind::ReborrowAddress { address, .. }
-        | InstructionKind::AddressField { address, .. }
-        | InstructionKind::SliceLength { address }
-        | InstructionKind::DescribeAddress { address }
-        | InstructionKind::BorrowPlaceAddress { address, .. }
-        | InstructionKind::PlaceTagAddress { address, .. }
-        | InstructionKind::LoadStoredBorrow {
-            storage: address, ..
-        } => vec![*address],
-        InstructionKind::WriteAddress { address, value }
-        | InstructionKind::WriteDesc {
-            desc: address,
-            value,
-            ..
-        }
-        | InstructionKind::StoreStoredBorrow {
-            storage: address,
-            value,
-            ..
-        } => vec![*address, *value],
-        InstructionKind::AddressIndex { address, index } => vec![*address, *index],
-        InstructionKind::AddressSlice {
-            address,
-            start,
-            end,
-        } => std::iter::once(*address)
-            .chain(*start)
-            .chain(*end)
-            .collect(),
-        _ => vec![],
+        InstructionKind::MakeDynBorrow { interface: _, vtable: _, source: value0, mutable: _ }
+        | InstructionKind::MakeDynOwned { interface: _, vtable: _, source: value0, route: _ }
+        | InstructionKind::LoadStoredBorrow { storage: value0, path: _, mode: _ }
+        | InstructionKind::OwnedStorePop { store: value0 }
+        | InstructionKind::OwnedStoreLen { store: value0 }
+        | InstructionKind::OwnedStoreCapacity { store: value0 }
+        | InstructionKind::ByteBufferLen { buffer: value0 }
+        | InstructionKind::ByteBufferCapacity { buffer: value0 }
+        | InstructionKind::ByteBufferBorrow { buffer: value0, mutable: _ }
+        | InstructionKind::MakeErrorUnion { is_error: _, value: value0 }
+        | InstructionKind::ErrorTag { value: value0 }
+        | InstructionKind::ReadErrorUnion { value: value0, is_error: _ }
+        | InstructionKind::TakeErrorUnion { value: value0, is_error: _ }
+        | InstructionKind::StoreOwnedArrayElement { local: _, index: _, value: value0 }
+        | InstructionKind::StorePackageField { local: _, index: _, value: value0 }
+        | InstructionKind::DescribeAddress { address: value0 }
+        | InstructionKind::ReadDesc { desc: value0, index: _ }
+        | InstructionKind::ConvertInteger { value: value0, target: _ }
+        | InstructionKind::ConvertNumber { value: value0, target: _ }
+        | InstructionKind::ReborrowAddress { address: value0, mutable: _ }
+        | InstructionKind::ReadAddress { address: value0 }
+        | InstructionKind::AddressField { address: value0, index: _ }
+        | InstructionKind::SliceLength { address: value0 }
+        | InstructionKind::Store { local: _, value: value0 }
+        | InstructionKind::Unary { op: _, operand: value0 }
+        | InstructionKind::MutexCreate { value: value0 }
+        | InstructionKind::MutexLock { mutex: value0 }
+        | InstructionKind::MutexValue { guard: value0 }
+        | InstructionKind::MutexUnlock { guard: value0 }
+        | InstructionKind::TaskStart { worker: _, argument: value0 }
+        | InstructionKind::TaskValid { task: value0 }
+        | InstructionKind::TaskPoll { task: value0 }
+        | InstructionKind::TaskRequestCancel { task: value0 }
+        | InstructionKind::TaskPollClose { task: value0 }
+        | InstructionKind::TaskFinishDestroy { task: value0 }
+        | InstructionKind::RegistrationStart { register: _, close: _, callback: value0, region: _ }
+        | InstructionKind::RegistrationValid { registration: value0 }
+        | InstructionKind::RegistrationClose { registration: value0 }
+        | InstructionKind::AsyncRegistrationStart { register: _, request_close: _, poll_drain: _, callback: value0, region: _ }
+        | InstructionKind::AsyncRegistrationValid { registration: value0 }
+        | InstructionKind::AsyncRegistrationRequestClose { registration: value0 }
+        | InstructionKind::AsyncRegistrationPollClose { registration: value0 }
+        | InstructionKind::AsyncRegistrationFinishDestroy { registration: value0 }
+        | InstructionKind::AsyncRegistrationFinishDestroyChecked { registration: value0 }
+        | InstructionKind::VariantTag { value: value0 }
+        | InstructionKind::ReadVariant { value: value0, variant: _, index: _ }
+        | InstructionKind::BorrowPlaceAddress { address: value0, path: _, mutable: _ }
+        | InstructionKind::PlaceTagAddress { address: value0, path: _ }
+        | InstructionKind::ReservePlaceAddress { reservation: _, address: value0, path: _ }
+        | InstructionKind::CommitPlaceReplace { reservation: _, value: value0 }
+        | InstructionKind::VariantTagAddress { address: value0, path: _ }
+        | InstructionKind::BorrowVariantAddress { address: value0, path: _, mutable: _ }
+        | InstructionKind::ExtractField { aggregate: value0, index: _ }
+        | InstructionKind::WriteCapture { index: _, value: value0 } => vec![*value0],
+        InstructionKind::BorrowDynOwned { local: _, mutable: _ }
+        | InstructionKind::DropDynOwned { local: _ }
+        | InstructionKind::OwnedStoreNew { element: _ }
+        | InstructionKind::ByteBufferNew
+        | InstructionKind::ScopeEnter { scope: _ }
+        | InstructionKind::ScopeExit { scope: _, kind: _ }
+        | InstructionKind::RegisterDefer { scope: _, local: _ }
+        | InstructionKind::DropErrorUnion { local: _ }
+        | InstructionKind::ProjectOwnedArrayField { local: _, index: _, field: _ }
+        | InstructionKind::TakeOwnedArrayElement { local: _, index: _ }
+        | InstructionKind::DropOwnedArrayElement { local: _, index: _ }
+        | InstructionKind::DropOwnedArray { local: _ }
+        | InstructionKind::BorrowOwnedArrayElement { local: _, index: _, mutable: _ }
+        | InstructionKind::BorrowPackageField { local: _, index: _, mutable: _ }
+        | InstructionKind::ReadPackageField { local: _, index: _ }
+        | InstructionKind::DescribePackageField { local: _, index: _ }
+        | InstructionKind::DropPackage { local: _ }
+        | InstructionKind::TakePackageField { local: _, index: _ }
+        | InstructionKind::DropPackageField { local: _, index: _ }
+        | InstructionKind::BindPackageCapture { local: _, index: _ }
+        | InstructionKind::EndPackageCapture { local: _, index: _ }
+        | InstructionKind::DescribeLocal { local: _ }
+        | InstructionKind::DropManaged { local: _ }
+        | InstructionKind::StaticUtf8 { bytes: _ }
+        | InstructionKind::Constant(_)
+        | InstructionKind::Load(_)
+        | InstructionKind::TakeLocal { local: _ }
+        | InstructionKind::StorageLive(_)
+        | InstructionKind::StorageDead(_)
+        | InstructionKind::BorrowLocal { local: _ }
+        | InstructionKind::BorrowLocalMut { local: _ }
+        | InstructionKind::UnsafeEnter { region: _ }
+        | InstructionKind::UnsafeExit { region: _ }
+        | InstructionKind::DropMutexGuard { local: _ }
+        | InstructionKind::TaskYield
+        | InstructionKind::FunctionRef { function: _ }
+        | InstructionKind::ForeignFunctionRef { function: _ }
+        | InstructionKind::UnpackTuple { local: _, fields: _ }
+        | InstructionKind::DropTuple { local: _ }
+        | InstructionKind::TakeTupleField { local: _, path: _ }
+        | InstructionKind::TakeVariantField { local: _, path: _ }
+        | InstructionKind::BorrowPlaceLocal { local: _, path: _, mutable: _ }
+        | InstructionKind::PlaceTagLocal { local: _, path: _ }
+        | InstructionKind::ReservePlaceLocal { reservation: _, local: _, path: _ }
+        | InstructionKind::AbortPlaceReservation { reservation: _ }
+        | InstructionKind::BorrowFieldLocal { local: _, path: _, mutable: _ }
+        | InstructionKind::VariantTagLocal { local: _, path: _ }
+        | InstructionKind::ReadVariantLocal { local: _, path: _ }
+        | InstructionKind::BorrowVariantLocal { local: _, path: _, mutable: _ }
+        | InstructionKind::UnpackVariant { local: _, variant: _, fields: _ }
+        | InstructionKind::DropEnum { local: _ }
+        | InstructionKind::ReadCapture { index: _ }
+        | InstructionKind::DescribeCapture { index: _ }
+        | InstructionKind::TakeCapture { index: _ }
+        | InstructionKind::BorrowCapture { index: _, mutable: _ }
+        | InstructionKind::DropClosure { local: _ }
+        | InstructionKind::Unsupported(_) => Vec::new(),
+        InstructionKind::CallDynSlot { callee: value0, interface: _, slot: _, arguments: inputs0 }
+        | InstructionKind::SyncI32 { op: _, address: value0, value: inputs0, ordering: _ }
+        | InstructionKind::SyncInteger { op: _, address: value0, value: inputs0, ordering: _ }
+        | InstructionKind::CallIndirect { callee: value0, arguments: inputs0 }
+        | InstructionKind::CallClosureBorrowed { callee: value0, kind: _, arguments: inputs0 }
+        | InstructionKind::CallClosureOnce { callee: value0, arguments: inputs0 }
+        | InstructionKind::CallClosure { callee: value0, arguments: inputs0 } => [*value0].into_iter().chain(inputs0.iter().copied()).collect(),
+        InstructionKind::StoreStoredBorrow { storage: value0, path: _, value: value1 }
+        | InstructionKind::OwnedStoreReserve { store: value0, capacity: value1 }
+        | InstructionKind::OwnedStorePush { store: value0, value: value1 }
+        | InstructionKind::OwnedStoreBorrow { store: value0, index: value1 }
+        | InstructionKind::OwnedStoreBorrowMut { store: value0, index: value1 }
+        | InstructionKind::ByteBufferReserve { buffer: value0, capacity: value1 }
+        | InstructionKind::ByteBufferPush { buffer: value0, value: value1 }
+        | InstructionKind::ByteBufferTruncate { buffer: value0, length: value1 }
+        | InstructionKind::WriteDesc { desc: value0, index: _, value: value1 }
+        | InstructionKind::WriteAddress { address: value0, value: value1 }
+        | InstructionKind::AddressIndex { address: value0, index: value1 }
+        | InstructionKind::Binary { op: _, left: value0, right: value1 }
+        | InstructionKind::WithForeignCallback { register: _, close: _, callback: value0, body: value1, region: _ }
+        | InstructionKind::WithScopedThread { worker: _, argument: value0, body: value1 }
+        | InstructionKind::WithSyncCell { kind: _, initial: value0, body: value1 }
+        | InstructionKind::ExtractIndex { aggregate: value0, index: value1 }
+        | InstructionKind::UpdateField { aggregate: value0, index: _, value: value1 } => vec![*value0, *value1],
+        InstructionKind::MakeManaged { fields: inputs0 }
+        | InstructionKind::MakePackage { fields: inputs0 }
+        | InstructionKind::MakeOwnedArray { elements: inputs0 }
+        | InstructionKind::Call { function: _, arguments: inputs0 }
+        | InstructionKind::SuspendCall { function: _, arguments: inputs0 }
+        | InstructionKind::ForeignCall { function: _, arguments: inputs0, region: _ }
+        | InstructionKind::TaskCreate { worker: _, arguments: inputs0, port_bindings: _ }
+        | InstructionKind::TaskCreateOwned { worker: _, arguments: inputs0, port_bindings: _ }
+        | InstructionKind::MakeAggregate { fields: inputs0 }
+        | InstructionKind::MakeVariant { variant: _, fields: inputs0 }
+        | InstructionKind::MakeOwnedTuple { fields: inputs0 }
+        | InstructionKind::MakeClosure { closure: _, captures: inputs0 }
+        | InstructionKind::CallClosureShared { callee: _, arguments: inputs0 }
+        | InstructionKind::CallClosureMut { callee: _, arguments: inputs0 } => inputs0.iter().copied().collect(),
+        InstructionKind::AddressSlice { address: value0, start: inputs0, end: inputs1 } => [*value0].into_iter().chain(inputs0.iter().copied()).chain(inputs1.iter().copied()).collect(),
+        InstructionKind::SyncI32CompareExchange { address: value0, expected: value1, desired: value2, success: _, failure: _ }
+        | InstructionKind::SyncIntegerCompareExchange { address: value0, expected: value1, desired: value2, success: _, failure: _ }
+        | InstructionKind::UpdateIndex { aggregate: value0, index: value1, value: value2 } => vec![*value0, *value1, *value2],
     }
 }
+
 pub(super) fn reserve_emission(
     lir: &LirView<'_>,
     limits: &Limits,
@@ -799,8 +895,13 @@ pub(super) fn reserve_emission(
         for i in f.blocks.iter().flat_map(|b| &b.instructions) {
             let count = match &i.kind {
                 InstructionKind::Call { arguments, .. }
+                | InstructionKind::SuspendCall { arguments, .. }
                 | InstructionKind::ForeignCall { arguments, .. }
+                | InstructionKind::TaskCreate { arguments, .. }
+                | InstructionKind::TaskCreateOwned { arguments, .. }
                 | InstructionKind::MakeAggregate { fields: arguments }
+                | InstructionKind::MakeOwnedTuple { fields: arguments }
+                | InstructionKind::MakeOwnedArray { elements: arguments }
                 | InstructionKind::MakePackage { fields: arguments }
                 | InstructionKind::MakeVariant {
                     fields: arguments, ..
@@ -842,6 +943,13 @@ pub(super) fn reserve_emission(
             | InstructionKind::DropClosure { local: callee }
             | InstructionKind::BorrowDynOwned { local: callee, .. }
             | InstructionKind::DropDynOwned { local: callee }
+            | InstructionKind::DropMutexGuard { local: callee }
+            | InstructionKind::ProjectOwnedArrayField { local: callee, .. }
+            | InstructionKind::TakeOwnedArrayElement { local: callee, .. }
+            | InstructionKind::DropOwnedArrayElement { local: callee, .. }
+            | InstructionKind::StoreOwnedArrayElement { local: callee, .. }
+            | InstructionKind::DropOwnedArray { local: callee }
+            | InstructionKind::BorrowOwnedArrayElement { local: callee, .. }
             | InstructionKind::ReadPackageField { local: callee, .. }
             | InstructionKind::BorrowPackageField { local: callee, .. }
             | InstructionKind::DescribePackageField { local: callee, .. }
@@ -883,6 +991,8 @@ pub(super) fn reserve_emission(
             }
             if let InstructionKind::MakeAggregate { fields }
             | InstructionKind::MakePackage { fields }
+            | InstructionKind::MakeOwnedTuple { fields }
+            | InstructionKind::MakeOwnedArray { elements: fields }
             | InstructionKind::MakeManaged { fields } = &i.kind
                 && let Some(v) = i.result
             {
