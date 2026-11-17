@@ -742,7 +742,42 @@ impl CheckedOriginal {
                 self.task_zero_domain(module, context, &result, env, active, b, depth + 1)?
             }
             Ty::Dyn(value)=>{let mut types=Vec::new();value.types(&mut types,b)?;if value.explicit_life(b)?{return Ok(false);}for ty in types{if !self.task_zero_domain(module,context,ty,env,active,b,depth+1)?{return Ok(false);}}true},
-            Ty::Closure(..) => false,
+            Ty::Closure(owner, arguments, sealed) => {
+                // This is a complete original type-domain proof, not a CE or
+                // literal-root premise. In particular an empty physical capture
+                // list says nothing about free signature or phantom classes.
+                if !self.checked.contains(&owner) { return Ok(false); }
+                for argument in arguments.iter().chain(&sealed) {
+                    let ty=match argument {
+                        Arg::Life(_)=>return Ok(false),
+                        Arg::Type(ty)=>ty,
+                        Arg::Const(value)=>value.carrier.as_ref(),
+                    };
+                    if !self.task_zero_domain(module,context,ty,env,active,b,depth+1)? { return Ok(false); }
+                }
+                let declaration=context.definition(module,owner,b)?;
+                let Some(parent)=declaration.parent else { return Ok(false); };
+                b.spend(env.lexical.len())?;
+                if !env.lexical.iter().any(|frame|frame.definition==parent) {
+                    // A missing real creator is not permission to reconstruct
+                    // its formal world from the closure's physical shape.
+                    return Ok(false);
+                }
+                let selected=self.closure_creator_environment(module,context,owner,&arguments,&sealed,env,active,b)?;
+                let captures=self.closure_capture_types(module,context,owner,&arguments,&sealed,b)?;
+                if !captures.is_empty()&&!self.creator_moves.get(&owner).copied().unwrap_or(false) { return Ok(false); }
+                for capture in captures {
+                    if !self.task_zero_domain(module,context,&capture,&selected,active,b,depth+1)? { return Ok(false); }
+                }
+                let Some(prototype)=self.prototypes.get(&owner) else { return Ok(false); };
+                // The complete raw prototype is substituted simultaneously
+                // exactly once. Invocation roles are neither erased nor freshened.
+                let signature=self.specialize_code_prototype(prototype,&selected,b)?;
+                for parameter in &signature.parameters {
+                    if !self.task_zero_domain(module,context,parameter,&signature.environment,active,b,depth+1)? { return Ok(false); }
+                }
+                self.task_zero_domain(module,context,&signature.result,&signature.environment,active,b,depth+1)?
+            },
         })
     }
 }

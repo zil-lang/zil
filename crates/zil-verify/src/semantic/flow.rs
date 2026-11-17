@@ -552,15 +552,20 @@ impl CheckedContext {
             b.spend(1)?;self.origin_aliases.borrow_mut().insert(origin.clone(),canonical.clone());
             origins.push(canonical.clone());classes.push(key);
         }
-        if anchored.len()!=anchors.len(){
-            let detail=format!("Closure {closure:?} child {:?} complete sealed {:?}; original anchors {anchors:?}; actual header {:?}; used anchors {anchored:?}",child.id,sealed,child.header_embedding);
-            b.spend(detail.len())?;
-            return Err(bad("Closure intrinsic domain omits an actual capture/ghost class occurrence").with_note(detail));
+        // Every original occurrence remains present. Several occurrences can
+        // share one newly constructed role only when their original terms are
+        // equal including intrinsic identity, never just their outside image.
+        for(source,_)in &anchors{
+            let mut matches=0usize;
+            for representative in &anchored{
+                if self.same_capture_anchor(source,representative,&sealed,environment,b)?{matches+=1;}
+            }
+            if matches!=1{return Err(bad("Closure intrinsic domain omits or duplicates an original capture/ghost source term"));}
         }
         for (index,_) in captures.iter().enumerate() {
             if let Some(ordinal)=logical_captures.get(&(index as u32)){
                 let CheckedActual::Type(value)=&sealed[*ordinal]else{unreachable!()};
-                self.environment_capture_header(module,relation,child,index as u32,*ordinal,value,b)?;
+                self.environment_capture_header(module,relation,child,index as u32,*ordinal,value,&sealed,environment,b)?;
                 continue;
             }
             if value_at(values,captures[index])?.classes.is_empty(){continue;}
@@ -572,7 +577,7 @@ impl CheckedContext {
             if self.class(module,&row.actual,&child_environment,b)?!=head{return Err(bad("Closure captured head maps to another original class occurrence"));}
             if let Some(ordinal)=borrowed_captures.get(&(index as u32)){
                 let CheckedActual::Type(pointee)=&sealed[*ordinal]else{unreachable!()};
-                self.borrowed_capture_header(relation,child,index as u32,*ordinal,pointee,b)?;
+                self.borrowed_capture_header(relation,child,index as u32,*ordinal,pointee,&sealed,environment,b)?;
             }
         }
         for position in &relation.static_bindings {
