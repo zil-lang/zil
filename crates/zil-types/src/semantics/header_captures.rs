@@ -524,6 +524,38 @@ fn capture_value(
     Ok(Some(value))
 }
 
+/// Read the already checked complete source value for one actual capture.
+/// The caller cannot supply an environment ordinal or select a same-Type mint.
+pub(in crate::semantics) fn original_capture_value(
+    program: &SemanticModule,
+    module: &super::super::materialize::ActualDirectory<'_>,
+    ledger: &super::super::emission::Ledger,
+    instance: &SemanticInstance,
+    capture: u32,
+    actual_ty: &Type,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<Option<SemanticTypeValue>> {
+    let environment = instance.environment.as_ref().ok_or_else(|| bad("capture value has no original environment"))?;
+    let SemanticClosureTarget::Typed(id) = environment.closure else {
+        return Err(bad("capture value retains an unbound Core creator"));
+    };
+    let captures = creator_captures(program, module, ledger, instance, id, limits, left)?;
+    pay(left, captures.len().saturating_add(program.definitions.len()))?;
+    let mut selected = captures.iter().filter(|(index, _, _)| *index == capture);
+    let (_, ordinal, ty) = selected.next().ok_or_else(|| bad("capture value has no exact actual creator selection"))?;
+    if selected.next().is_some() { return Err(bad("capture value repeats its actual creator selection")); }
+    inference::charge_type_snapshot(ty, Span::default(), limits, left, 1)?;
+    inference::charge_type_snapshot(actual_ty, Span::default(), limits, left, 1)?;
+    if ty != actual_ty { return Err(bad("capture value changes its actual complete capture type")); }
+    let original = program.definitions.iter().find(|row| row.id == instance.definition)
+        .ok_or_else(|| bad("capture value lost its original definition"))?;
+    let (SemanticDefinitionBody::Function { sites, .. } | SemanticDefinitionBody::FunctionWithBody { sites, .. }) = &original.body else {
+        return Err(bad("capture value has no original code body"));
+    };
+    capture_value(program, module, ledger, instance, original, sites, *ordinal, actual_ty, limits, left)
+}
+
 /// Relate each original environment slot to the actual lexical selection made
 /// by this exact creator. A source slot and a physical capture need not have
 /// the same ordinal, and equal concrete types never establish this relation.

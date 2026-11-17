@@ -519,42 +519,81 @@ pub(super) fn place(
     } else {
         LifeTypeProjection::Place(selector)
     };
-    match field {
-        Type::Address { inner, .. } => {
-            let SemanticTypeValue::Resolved { life, classes, .. } = parent else {
-                unreachable!()
-            };
-            world.pay(life.slots.len())?;
-            let mut rows = life.slots.iter().filter(|row| row.path == [selector]);
-            let row = rows.next().ok_or_else(|| {
-                pending("projected outer address requires its original complete occurrence")
-            })?;
-            if rows.next().is_some() {
-                return Err(bad("field projection repeats an outer occurrence"));
-            }
-            let image = classes
-                .get(row.binder as usize)
-                .ok_or_else(|| bad("field outer class exceeds parent domain"))?;
-            crate::dyn_metadata::semantic_operand_snapshot(image, world.limits, world.left, 1)?;
-            let shape = type_shape(world, inner)?;
-            let images = mapped(
-                world,
-                parent,
-                &[prefix, LifeTypeProjection::Pointee],
-                shape.binder_count,
-            )?;
-            let child = world.resolved(inner, shape, images)?;
-            world.address(field, image.clone(), &child)
+    // The parent is an already checked complete value. Extract its full
+    // selected subdomain; a raw physical Type cannot decide Static versus a
+    // variable outer address, or reconstruct an erased phantom child domain.
+    let SemanticTypeValue::Resolved { life, classes, .. } = parent else {
+        return Err(bad("actual field parent retains an unresolved whole type"));
+    };
+    let mut binders = BTreeMap::new();
+    let mut reverse = BTreeMap::new();
+    for row in &life.retained {
+        world.pay(row.path.len().saturating_mul(3).saturating_add(1))?;
+        if row.path.as_slice() != [prefix] { continue; }
+        world.pay(index::search(binders.len()).saturating_add(index::search(reverse.len())).saturating_add(2))?;
+        if binders.len() >= world.limits.max_nodes || reverse.len() >= world.limits.max_nodes {
+            return Err(Diagnostic::limit(Phase::Types, "projected complete field domain exceeds node limit", None));
         }
-        _ => {
-            let shape = type_shape(world, field)?;
-            if shape.binder_count == 0 {
-                return world.resolved(field, shape, Vec::new());
-            }
-            let images = mapped(world, parent, &[prefix], shape.binder_count)?;
-            world.resolved(field, shape, images)
+        if row.binder >= life.binder_count
+            || binders.insert(row.class, row.binder).is_some()
+            || reverse.insert(row.binder, row.class).is_some()
+        {
+            return Err(bad("field repeats or collapses its complete intrinsic class map"));
         }
     }
+    let count = u32::try_from(binders.len()).map_err(|_| bad("field class count overflows"))?;
+    let mut images = Vec::new();
+    world.pay(count as usize)?;
+    for class in 0..count {
+        world.pay(index::search(binders.len()))?;
+        let binder = *binders.get(&class).ok_or_else(|| bad("field intrinsic class ordinals are sparse"))?;
+        let image = classes.get(binder as usize).ok_or_else(|| bad("field intrinsic class leaves parent images"))?;
+        crate::dyn_metadata::semantic_operand_snapshot(image, world.limits, world.left, 1)?;
+        images.push(image.clone());
+    }
+    let mut shape = StorageLifeShape { binder_count: count, ..empty() };
+    for row in &life.slots {
+        world.pay(row.path.len().saturating_mul(3).saturating_add(1))?;
+        let Some(tail) = row.path.strip_prefix(&[selector]) else { continue; };
+        world.pay(index::search(reverse.len()))?;
+        let binder = *reverse.get(&row.binder).ok_or_else(|| bad("field physical occurrence leaves its complete class map"))?;
+        shape.slots.push(StorageLifeSlot { path: tail.to_vec(), binder, mode: row.mode });
+    }
+    for row in &life.retained {
+        world.pay(row.path.len().saturating_mul(3).saturating_add(1))?;
+        let Some(tail) = row.path.strip_prefix(&[prefix]) else { continue; };
+        if tail.is_empty() { continue; }
+        world.pay(index::search(reverse.len()))?;
+        let binder = *reverse.get(&row.binder).ok_or_else(|| bad("field child occurrence leaves its complete class map"))?;
+        shape.retained.push(StorageRetainedBinding { path: tail.to_vec(), class: row.class, binder });
+    }
+    for row in &life.nominal_arguments {
+        world.pay(row.path.len().saturating_mul(3).saturating_add(1))?;
+        let Some(tail) = row.path.strip_prefix(&[prefix]) else { continue; };
+        world.pay(index::search(reverse.len()))?;
+        let binder = *reverse.get(&row.binder).ok_or_else(|| bad("field nominal occurrence leaves its complete class map"))?;
+        shape.nominal_arguments.push(NominalLifeArgument { path: tail.to_vec(), declaration: row.declaration, argument: row.argument, binder });
+    }
+    // Explicit intrinsic carriers must agree with their immutable declaration
+    // domain as well. Inline compounds inherit the complete parent subforest;
+    // no context-free zero query is used for a raw Tuple containing addresses.
+    let canonical = match field {
+        Type::Address { .. } | Type::Desc(_) => Some(address_child_shape(world, life, &mut vec![prefix], field, 0)?),
+        Type::Tuple(_) | Type::Record { .. } | Type::Package { .. }
+            | Type::Array { .. } | Type::Enum { .. } | Type::ErrorUnion { .. } => None,
+        _ => Some(type_shape(world, field)?),
+    };
+    if let Some(canonical) = canonical {
+        world.pay(shape.slots.len().saturating_mul(3).saturating_add(shape.retained.len().saturating_mul(3)).saturating_add(shape.nominal_arguments.len().saturating_mul(5)).saturating_add(1))?;
+        for row in &shape.slots { world.pay(row.path.len())?; }
+        for row in &shape.retained { world.pay(row.path.len())?; }
+        for row in &shape.nominal_arguments { world.pay(row.path.len())?; }
+        if canonical != shape {
+            return Err(bad("field changes its complete original occurrence or child domain"));
+        }
+    }
+    world.resolved(field, shape, images)
+
 }
 
 pub(super) fn field(
@@ -607,6 +646,17 @@ pub(super) fn capture(
     ty: &Type,
     header: &StorageLifeContract,
 ) -> R<SharedType> {
+    // A physical Static leaf inside an inline capture is not a variable slot.
+    // Reuse the same exact creator/environment correspondence that formed the
+    // header, rather than reconstructing this compound from its erased Type.
+    world.pay(header.static_bindings.len())?;
+    if header.static_bindings.iter().any(|position| position.base == StorageBase::Capture(index) && !position.path.is_empty()) {
+        let value = super::super::headers::original_capture_value(
+            world.program, &world.view, world.ledger, instance, index, ty,
+            world.limits, world.left,
+        )?.ok_or_else(|| pending("compound Static capture lacks its complete original creator value"))?;
+        return Ok(std::rc::Rc::new(value));
+    }
     let base = StorageBase::Capture(index);
     if let Type::Address { inner, .. } | Type::Desc(inner) = ty {
         let shape = type_shape(world, inner)?;

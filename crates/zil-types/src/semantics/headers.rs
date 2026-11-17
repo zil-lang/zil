@@ -7,6 +7,7 @@ mod captures;
 pub(super) use captures::complete_emitted_headers;
 pub(super) use captures::complete_invocation_embeddings;
 pub(super) use captures::form_emitted_header;
+pub(super) use captures::original_capture_value;
 pub(super) use captures::populate as capture_domains;
 pub(super) use captures::validate_formed_header;
 
