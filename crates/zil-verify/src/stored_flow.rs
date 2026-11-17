@@ -3030,6 +3030,7 @@ fn seed_payload(
         compound::seed(inner, base, &mut p, loans, b)?;
     }
     task_address::seed(module, ty, base, &mut p, loans, b)?;
+    value_transport::seed_environments(module, ty, base, &mut p, loans, b)?;
     Ok(p)
 }
 fn empty_frame(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<Frame> {
@@ -3197,7 +3198,10 @@ fn seed(
             || b.dyn_contexts && matches!(ty, Type::Address { .. }) && !p.dyn_ports.0.is_empty()
             || fixed_environment(module, ty, b)
             || matches!(ty, Type::Address { inner, .. } if shared_array_value(inner))
-            || matches!(ty, Type::Address { .. }) && !p.field_facts.is_empty()
+            || !p.leaves.is_empty()
+            || !p.task_ports.is_empty()
+            || !p.dyn_ports.0.is_empty()
+            || !p.field_facts.is_empty()
         {
             state.external[position] = copy_payload(&p, b)?;
         }

@@ -15,7 +15,7 @@ struct Row {
 pub(in crate::stored_flow) struct After(Vec<Row>);
 #[derive(Default)]
 pub(in crate::stored_flow) struct PreparedAfter {
-    rows: Vec<(Source, Type, Payload, bool, bool)>,
+    rows: Vec<(Source, Type, Payload, bool, bool, Vec<Path>)>,
     pending: bool,
 }
 pub(in crate::stored_flow) fn after_work(after: &After, b: &mut Budget) -> Check<()> {
@@ -695,6 +695,10 @@ pub(in crate::stored_flow) fn prepare_after(
             continue;
         }
         let unique = targets.sources.len() == 1;
+        let complete_physical = physical_paths(before.module(), &row.ty, b)?
+            .into_iter()
+            .map(|(path, _)| path)
+            .collect::<Vec<_>>();
         for target in &targets.sources {
             if target.retained_port.is_some()
                 || target.heap_element.is_some()
@@ -716,6 +720,12 @@ pub(in crate::stored_flow) fn prepare_after(
                 value.clone(),
                 unique,
                 !matches!(row.ty, Type::Address { .. }),
+                {
+                    b.spend(complete_physical.iter().fold(0usize, |n, path| {
+                        n.saturating_add(path.len().saturating_add(1))
+                    }))?;
+                    complete_physical.clone()
+                },
             ));
         }
     }
@@ -727,9 +737,37 @@ pub(in crate::stored_flow) fn publish_after(
     b: &mut Budget,
 ) -> Check<()> {
     state.pending_external_update |= prepared.pending;
-    for (target, _ty, value, strong, root_address) in prepared.rows {
+    for (target, _ty, value, strong, root_address, physical_domain) in prepared.rows {
         let holder = memory_holder_mut(state, target.base, b)?
             .ok_or_else(|| err("auxiliary after-state target holder is absent"))?;
+        if strong {
+            // A known new inactive arm owns no old leaf. Remove only the
+            // complete declared physical slots carried by this snapshot;
+            // independent opaque ledgers and private pointee shadows stay.
+            b.spend(
+                holder
+                    .leaves
+                    .len()
+                    .saturating_mul(physical_domain.iter().fold(0usize, |n, path| {
+                        n.saturating_add(
+                            path.len()
+                                .saturating_add(target.inline.len())
+                                .saturating_add(1),
+                        )
+                    })),
+            )?;
+            holder.leaves.retain(
+                |(path, _)| {
+                    path.strip_prefix(target.inline.as_slice())
+                        .is_none_or(|relative| {
+                            !physical_domain
+                                .iter()
+                                .any(|slot| slot.as_slice() == relative)
+                        })
+                },
+                b,
+            )?;
+        }
         for (path, permission) in &value.leaves {
             b.spend(target.inline.len().saturating_add(path.len()))?;
             let mut full = target.inline.clone();
@@ -890,6 +928,7 @@ mod tests {
                     value,
                     strong,
                     true,
+                    vec![],
                 )],
                 pending: false,
             };
@@ -977,6 +1016,7 @@ mod tests {
                     value,
                     true,
                     false,
+                    vec![],
                 )],
                 pending: false,
             },
@@ -1145,6 +1185,89 @@ mod tests {
             frame.external[0].leaves, alpha.leaves,
             "beta publication does not rewrite the pointer SSA snapshot"
         );
+    }
+
+    #[test]
+    fn complete_inactive_arm_after_retires_only_strong_physical_slots() {
+        let (module, _) = crate::tests::baseline();
+        let mut function = module.functions[0].clone();
+        let borrowed = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        };
+        let sum = Type::ErrorUnion {
+            error: Box::new(Type::Unit),
+            result: Box::new(borrowed),
+        };
+        function.values = vec![Type::Unit, sum.clone()];
+        let produce = Instruction {
+            result: Some(ValueId(1)),
+            kind: InstructionKind::MakeErrorUnion {
+                value: ValueId(0),
+                is_error: true,
+            },
+            span: function.span,
+        };
+        for strong in [false, true] {
+            let limits = Limits::default();
+            let mut b = Budget::new(&limits);
+            b.raw_reference_cells = true;
+            let tags = enum_address::tags::transfer(
+                &function,
+                &produce,
+                &Frame::default(),
+                &[Payload::default()],
+                &mut b,
+            )
+            .unwrap()
+            .unwrap();
+            let arm = vec![PlaceProjection::ErrorArm(false)];
+            let private = vec![PlaceProjection::ErrorArm(false), PlaceProjection::Field(9)];
+            let mut old = Payload::default();
+            let mut old_permission = permission(1);
+            old_permission.loans = vec![7];
+            add_leaf(&mut old, &arm, &old_permission, &mut b).unwrap();
+            add_leaf(&mut old, &private, &permission(2), &mut b).unwrap();
+            old.enum_variants = enum_address::Variants::runtime(&sum, 0, &mut b).unwrap();
+            let domain = physical_paths(&module, &sum, &mut b)
+                .unwrap()
+                .into_iter()
+                .map(|(path, _)| path)
+                .collect();
+            let mut frame = Frame {
+                locals: vec![old],
+                ..Default::default()
+            };
+            publish_after(
+                &mut frame,
+                PreparedAfter {
+                    rows: vec![(
+                        source(HoldRoot::Local(LocalId(0)), vec![]),
+                        sum.clone(),
+                        Payload {
+                            enum_variants: tags,
+                            ..Default::default()
+                        },
+                        strong,
+                        false,
+                        domain,
+                    )],
+                    pending: false,
+                },
+                &mut b,
+            )
+            .unwrap();
+            let updated = &frame.locals[0];
+            assert_eq!(leaf(updated, &arm, &mut b).unwrap().is_none(), strong);
+            if !strong {
+                assert_eq!(leaf(updated, &arm, &mut b).unwrap().unwrap().loans, vec![7]);
+            }
+            assert!(
+                leaf(updated, &private, &mut b).unwrap().is_some(),
+                "untransported pointee shadow is not an ordinary physical slot"
+            );
+            assert_eq!(updated.enum_variants.path_active(&arm), !strong);
+        }
     }
 
     #[test]

@@ -443,6 +443,36 @@ pub(super) fn seed(
             heap_parents: Vec::new(),
             heap_element: None,
         };
+        if let Some(existing) = find(&out.dyn_ports, &path, b)? {
+            let port = &out.dyn_ports.0[existing].1;
+            permission_work(&port.permission, b)?;
+            source_work(&port.parent_sources, b)?;
+            source_work(&port.head_sources, b)?;
+            b.spend(port.permission.loans.len())?;
+            for id in &port.permission.loans {
+                if let Some(loan) = loans.get(*id) {
+                    source_work(&loan.sources, b)?;
+                }
+            }
+            if !port.known
+                || (port.permission.sources.len() != 1 || port.permission.sources[0] != source)
+                || !port.parent_sources.is_empty()
+                || !port.head_sources.is_empty()
+                || port.permission.loans.is_empty()
+                || port.permission.loans.iter().any(|id| {
+                    loans.get(*id).is_none_or(|loan| {
+                        loan.exclusive != (mode == StoredBorrowMode::ExclusiveAddress)
+                            || loan.sources != port.permission.sources
+                            || !loan.parents.is_empty()
+                    })
+                })
+            {
+                return Err(bad(
+                    "nested Dyn input conflicts with its complete typed port",
+                ));
+            }
+            continue;
+        }
         let id = loans.len();
         let exclusive = mode == StoredBorrowMode::ExclusiveAddress;
         loans.push(Loan {
