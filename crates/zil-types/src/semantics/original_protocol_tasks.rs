@@ -3,6 +3,126 @@
 use super::*;
 
 impl Engine<'_, '_> {
+    /// A reusable summary can refine a surviving occupant only when the body
+    /// preserved that exact input occurrence. Ordinary replacement remains
+    /// valid, but needs its own take/refill correspondence before transport.
+    pub(super) fn same_input_occurrence(
+        &mut self,
+        expected: &Value,
+        actual: &Value,
+        depth: usize,
+    ) -> R<bool> {
+        self.pay(expected.work().saturating_add(actual.work()), depth)?;
+        if let Value::Choice(values) = actual {
+            for value in values {
+                if !self.same_input_occurrence(expected, value, depth + 1)? {
+                    return Ok(false);
+                }
+            }
+            return Ok(!values.is_empty());
+        }
+        if let Value::Choice(values) = expected {
+            for value in values {
+                if self.same_input_occurrence(value, actual, depth + 1)? {
+                    return Ok(true);
+                }
+            }
+            return Ok(false);
+        }
+        Ok(match (expected, actual) {
+            (Value::Plain | Value::Bool(_), _) => true,
+            (
+                Value::Root(root, true, owning, None),
+                Value::Root(other, true, other_owning, None),
+            ) => root == other && owning == other_owning,
+            (
+                Value::Cleanup {
+                    owner,
+                    ty,
+                    source: Some(source),
+                },
+                Value::Cleanup {
+                    owner: other,
+                    ty: other_ty,
+                    source: Some(other_source),
+                },
+            ) => owner == other && ty == other_ty && source == other_source,
+            (Value::Tuple(a), Value::Tuple(b)) if a.len() == b.len() => {
+                for (a, b) in a.iter().zip(b) {
+                    if !self.same_input_occurrence(a, b, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                true
+            }
+            (Value::Fields(a), Value::Fields(b)) => self.same_input_fields(a, b, depth + 1)?,
+            (
+                Value::Closure {
+                    definition: a,
+                    captures: ac,
+                },
+                Value::Closure {
+                    definition: b,
+                    captures: bc,
+                },
+            ) if a == b => self.same_input_fields(ac, bc, depth + 1)?,
+            (
+                Value::Error {
+                    is_error: a,
+                    payload: ap,
+                },
+                Value::Error {
+                    is_error: b,
+                    payload: bp,
+                },
+            ) if a == b => self.same_input_occurrence(ap, bp, depth + 1)?,
+            (Value::Boxed(a), Value::Boxed(b)) => self.same_input_occurrence(a, b, depth + 1)?,
+            (
+                Value::Variant {
+                    name: a,
+                    fields: af,
+                },
+                Value::Variant {
+                    name: b,
+                    fields: bf,
+                },
+            ) if a == b && af.len() == bf.len() => {
+                for (a, b) in af.iter().zip(bf) {
+                    if !self.same_input_occurrence(a, b, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                true
+            }
+            _ => false,
+        })
+    }
+    fn same_input_fields(
+        &mut self,
+        a: &BTreeMap<String, Value>,
+        b: &BTreeMap<String, Value>,
+        depth: usize,
+    ) -> R<bool> {
+        if a.len() != b.len() {
+            return Ok(false);
+        }
+        for (name, value) in a {
+            self.pay(
+                name.len()
+                    .saturating_mul(lookup_work(b.len()))
+                    .saturating_add(1),
+                depth,
+            )?;
+            let Some(other) = b.get(name) else {
+                return Ok(false);
+            };
+            if !self.same_input_occurrence(value, other, depth + 1)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     pub(super) fn task_set_sources(
         &mut self,
         bindings: &mut SourceBindings,
@@ -805,6 +925,19 @@ impl Engine<'_, '_> {
         let mut roots = BTreeSet::new();
         self.pay(state.returned.work(), depth)?;
         state.returned.roots(&mut roots);
+        // A reusable invocation leaves its input owners in place. Their real
+        // exit states belong to this invocation even when the result is Copy.
+        // These are conditional exit facts, never cleanup facts of the type.
+        self.pay(lookup_work(self.proof.kinds.len()), depth)?;
+        if self.definition(owner)?.kind == SemanticDefinitionKind::Closure
+            && matches!(self.proof.kinds.get(&owner), Some(CallableKind::Fn | CallableKind::FnMut)) {
+            self.pay(state.tasks.len().saturating_mul(lookup_work(roots.len().saturating_add(state.tasks.len())).saturating_add(1)), depth)?;
+            for root in &state.tasks {
+                if matches!(root, Root::Parameter(domain, _) | Root::Capture(domain, _) | Root::Projection(domain, _) if *domain == owner) {
+                    roots.insert(*root);
+                }
+            }
+        }
         let mut phases: BTreeMap<Root, u8> = BTreeMap::new();
         for root in roots {
             if state.tasks.contains(&root) {
@@ -883,7 +1016,7 @@ impl Engine<'_, '_> {
         self.task_return_application(owner, node, target, arguments, None, state, incoming, depth + 1)
     }
 
-    /// Only the actual consumed closure supplies this environment. No type,
+    /// Only the actual invoked closure supplies this environment. No type,
     /// matching layout or unrelated creator can stand in for these captures.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn task_return_callable(
@@ -899,11 +1032,11 @@ impl Engine<'_, '_> {
         let Value::Closure { definition, captures } = callee else { return Ok(None); };
         let Some(site) = self.site(owner, node, depth + 1)? else { return Ok(None); };
         self.pay(lookup_work(self.proof.callable_calls.len()).saturating_add(lookup_work(self.proof.kinds.len())), depth)?;
-        if !self.proof.callable_calls.get(&(owner, site)).is_some_and(|call|
-            call.kind == CallableKind::FnOnce && call.callee_node == callee_node)
-            || !matches!(self.proof.kinds.get(definition),
-                Some(CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce))
-        { return Ok(None); }
+        let Some(call) = self.proof.callable_calls.get(&(owner, site)) else { return Ok(None); };
+        if call.callee_node != callee_node || !matches!((self.proof.kinds.get(definition), call.kind),
+            (Some(CallableKind::Fn), CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce)
+            | (Some(CallableKind::FnMut), CallableKind::FnMut | CallableKind::FnOnce)
+            | (Some(CallableKind::FnOnce), CallableKind::FnOnce)) { return Ok(None); }
         let incoming = self.copy(state, depth + 1)?;
         let mut outgoing = self.copy(state, depth + 1)?;
         let mut exposed = BTreeSet::new();
@@ -953,7 +1086,10 @@ impl Engine<'_, '_> {
         });
         self.pay(work, depth)?;
         let exits = self.task_exits[&target].clone();
-        let mut transported = exits.iter().any(|exit| !exit.phases.is_empty());
+        self.pay(lookup_work(self.proof.kinds.len()), depth)?;
+        let reusable = self.definition(target)?.kind == SemanticDefinitionKind::Closure
+            && matches!(self.proof.kinds.get(&target), Some(CallableKind::Fn | CallableKind::FnMut));
+        let mut transported = reusable || exits.iter().any(|exit| !exit.phases.is_empty());
         for exit in &exits { transported |= self.callable_return_value(&exit.value, depth + 1)?; }
         if !transported { return Ok(None); }
         // This summary transports Task generations and ordinary callable
@@ -971,6 +1107,9 @@ impl Engine<'_, '_> {
         let mut roots = BTreeMap::new();
         let mut phases: BTreeMap<Root, u8> = BTreeMap::new();
         for exit in &exits {
+            let mut returned = BTreeSet::new();
+            self.pay(exit.value.work(), depth)?;
+            exit.value.roots(&mut returned);
             for (root, phase) in &exit.phases {
                 if matches!(root, Root::Capture(..)) && captures.is_none() { return Ok(None); }
                 let input = matches!(root, Root::Parameter(..) | Root::Capture(..) | Root::Projection(..));
@@ -978,7 +1117,8 @@ impl Engine<'_, '_> {
                     let value = self.original_input(*root, target, arguments, captures, depth + 1)?
                         .ok_or_else(|| failure("Task return input is an inactive original alternative"))?;
                     let mapped = self.root(&value, incoming.unwrap_or(state), depth + 1)?;
-                    if !matches!(value, Value::Root(_, true, true, None)) {
+                    if !matches!(value, Value::Root(_, true, _, None))
+                        || returned.contains(root) && !matches!(value, Value::Root(_, true, true, None)) {
                         return Err(pending(
                             "Task owning return through a borrowed head requires its exact storage take/refill relation",
                         ));
@@ -1107,7 +1247,24 @@ impl Engine<'_, '_> {
                     .map(|(name, value)| Ok((name, self.task_rehome(value, roots, target, arguments, captures, depth + 1)?)))
                     .collect::<R<_>>()?,
             },
-            Value::Poll { .. } | Value::Valid { .. } => {
+            Value::Poll { fresh, outcomes } => {
+                let mut mapped = Vec::new();
+                for outcome in outcomes {
+                    self.pay(outcome.phases.len().saturating_mul(
+                        lookup_work(roots.len()).saturating_add(lookup_work(outcome.phases.len())).saturating_add(2),
+                    ).saturating_add(1), depth)?;
+                    let mut phases = BTreeMap::new();
+                    for (root, phase) in outcome.phases {
+                        let root = *roots.get(&root).ok_or_else(|| pending(
+                            "callable Poll result has no complete original Task input correspondence",
+                        ))?;
+                        phases.entry(root).and_modify(|joined| *joined |= phase).or_insert(phase);
+                    }
+                    mapped.push(Outcome { exit: outcome.exit, phases });
+                }
+                Value::Poll { fresh, outcomes: mapped }
+            }
+            Value::Valid { .. } => {
                 return Err(pending(
                     "Task return also carries an independently correlated protocol discriminator",
                 ));

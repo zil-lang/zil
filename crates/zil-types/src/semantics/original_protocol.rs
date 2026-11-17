@@ -2401,6 +2401,7 @@ impl<'a> Engine<'a, '_> {
                     };
                     let source = object.unwrap_or(callee.as_ref());
                     let mut callee_value = self.observe(owner, source, state, depth + 1)?;
+                    let callable = site.is_some_and(|site| self.proof.callable_calls.contains_key(&(owner, site)));
                     let graph_callee = if self.graph_requested.contains(&owner) {
                         Some(self.value_copy(&callee_value, depth + 1)?)
                     } else { None };
@@ -2433,7 +2434,10 @@ impl<'a> Engine<'a, '_> {
                     if !consume && !temporary {
                         callee_value = self.view(callee_value, depth + 1)?;
                     }
-                    if consume || temporary {
+                    // The view of a real stored receiver remains in the same
+                    // preparation inventory as owning callees. Argument-side
+                    // replacement must invalidate that exact occurrence too.
+                    if consume || temporary || callable {
                         self.pay(1, depth)?;
                         state.temporaries.push(callee_value);
                     }
@@ -2453,11 +2457,11 @@ impl<'a> Engine<'a, '_> {
                         if let (Some(site), Some(callee)) = (site, graph_callee) {
                             self.record_graph_call(owner, site, callee, &values, state, depth + 1)?;
                         }
-                        // Preserve the exact consumed closure's returned owner
-                        // before its code call is summarized as unknown effects.
-                        // Its independently checked consuming exits still govern
-                        // every capture not returned by this application.
-                        let returned = if once {
+                        // Preserve this exact invocation's returned owner and
+                        // surviving input states before using unknown effects.
+                        // A reusable receiver stays borrowed; its phase facts
+                        // never establish cleanup of an uncalled environment.
+                        let returned = if callable {
                             let prepared = self.value_copy(&state.temporaries[callee_slot], depth + 1)?;
                             self.task_return_callable(owner, expr.id, callee_base.id,
                                 &prepared, &values, state, depth + 1)?
@@ -2467,7 +2471,7 @@ impl<'a> Engine<'a, '_> {
                     } else {
                         Value::Plain
                     };
-                    if consume || temporary {
+                    if consume || temporary || callable {
                         let callee = state.temporaries.remove(callee_slot);
                         if state.reachable {
                             if once {
@@ -4311,6 +4315,7 @@ impl<'a> Engine<'a, '_> {
                 self.proof.cleanup_complete.insert(owner);
                 return Ok(());
             };
+            let mut reusable_inputs_complete = true;
             let mut cases = vec![BTreeMap::new()];
             let task_sources = self.proof.task_control_sources_needed(
                 self.program,
@@ -4347,6 +4352,7 @@ impl<'a> Engine<'a, '_> {
                     temporaries: Vec::new(),
                 };
                 let mut capture_inputs = Vec::new();
+                let mut borrowed_task_inputs = Vec::new();
                 let captured_mode = self.proof.kinds.get(&owner).copied();
                 if definition.kind == SemanticDefinitionKind::Closure {
                     let (parent, creator) = self.closure_creator(definition, depth + 1)?;
@@ -4429,6 +4435,9 @@ impl<'a> Engine<'a, '_> {
                     self.pay(parameter.name.len().saturating_add(1), depth)?;
                     let value = self.consumption_parameter(owner, index as u32,
                         inputs.get(&(index as u32)).copied().map(bit), &mut state, depth + 1)?;
+                    if matches!(&value, Value::Root(root, true, false, None) if state.tasks.contains(root)) {
+                        borrowed_task_inputs.push((index, self.value_copy(&value, depth + 1)?));
+                    }
                     state
                         .names
                         .entry(parameter.name.clone())
@@ -4443,6 +4452,13 @@ impl<'a> Engine<'a, '_> {
                         ));
                     }
                     if definition.kind == SemanticDefinitionKind::Closure {
+                        for (index, expected) in &borrowed_task_inputs {
+                            self.pay(parameters[*index].name.len().saturating_mul(lookup_work(state.names.len())).saturating_add(1), depth)?;
+                            let actual = state.names.get(&parameters[*index].name).and_then(|values| values.first());
+                            if let Some(actual) = actual {
+                                reusable_inputs_complete &= self.same_input_occurrence(expected, actual, depth + 1)?;
+                            } else { reusable_inputs_complete = false; }
+                        }
                         let mut remaining = Some(BTreeSet::new());
                         for (name, expected) in &capture_inputs {
                             self.pay(
@@ -4461,6 +4477,9 @@ impl<'a> Engine<'a, '_> {
                                 return Err(failure(
                                     "original reusable closure exits without refilling its captured owning responsibility",
                                 ));
+                            }
+                            if matches!(captured_mode, Some(CallableKind::Fn | CallableKind::FnMut)) {
+                                reusable_inputs_complete &= self.same_input_occurrence(expected, actual, depth + 1)?;
                             }
                             let needed = self.remaining_consumption(actual, &state, depth + 1)?;
                             match (&mut remaining, needed) {
@@ -4489,6 +4508,11 @@ impl<'a> Engine<'a, '_> {
                     self.output(owner, &state, protocol_contracts, &inputs, depth + 1)?;
                     self.task_record_exit(owner, &state, depth + 1)?;
                 }
+            }
+            if !reusable_inputs_complete {
+                // Do not publish a phase-only summary for replaced receiver
+                // occupants. The ordinary unknown-call path remains available.
+                self.task_exits.remove(&owner);
             }
             self.active.remove(&owner);
             self.local_complete.insert(owner);

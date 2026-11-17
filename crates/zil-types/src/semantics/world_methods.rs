@@ -818,15 +818,6 @@ pub(super) fn callable(
         ));
     }
     let signature = &scheme.signature;
-    if arguments.len() != signature.parameters.len()
-        || function.parameters.len() != arguments.len()
-        || function.result_mode != signature.result_mode
-        || function.call_kind != signature.call_kind
-    {
-        return Err(bad(
-            "actual callable entry changes the original complete signature roles",
-        ));
-    }
     let target = world.definition(child.definition)?;
     let (SemanticDefinitionBody::FunctionWithBody {
         signature: target_signature,
@@ -839,6 +830,25 @@ pub(super) fn callable(
     else {
         return Err(bad("actual callable entry has another original body kind"));
     };
+    let operation_fits = function.call_kind == signature.call_kind
+        || scheme.kind == CallableKind::FnOnce && requested == CallableKind::FnOnce
+            && function.call_kind == CallKind::Direct && signature.call_kind == CallKind::Suspend;
+    if arguments.len() != signature.parameters.len()
+        || function.parameters.len() != arguments.len()
+        || function.result_mode != signature.result_mode
+        || function.result_mode != target_signature.result_mode
+        || function.call_kind != target_signature.call_kind
+        || !operation_fits
+    {
+        world.pay(1024)?;
+        let mut diagnostic = bad("actual callable entry changes the original complete signature roles");
+        diagnostic.notes.push(format!(
+            "callable boundary caller {:?}, site {:?}, entry {:?}: requested {:?}, original {:?} operation {:?}; actual body {:?}, original body {:?}; actual P {}, operation P {}, actual result mode {:?}, operation result mode {:?}",
+            original.id, site.recipe, child.definition, requested, scheme.kind, signature.call_kind,
+            function.call_kind, target_signature.call_kind, function.parameters.len(), signature.parameters.len(), function.result_mode, signature.result_mode,
+        ));
+        return Err(diagnostic);
+    }
     let header = definition.storage_life.as_ref().ok_or_else(|| {
         pending("called environment has no complete Fixed and Invocation domains")
     })?;
