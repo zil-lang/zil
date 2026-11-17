@@ -547,7 +547,7 @@ fn ordinary_value_factories_return_symbolic_task_owners_without_a_callable_forma
 
 #[test]
 fn task_value_factory_preserves_mixed_and_phantom_source_formals() {
-    let text = "fn retain<life a,T:Value+ClosedEnvironment,const n:i32,P:Value,life unused>(give selected:Task<T,(&'a i32,&'a i32)>)->impl FnOnce()->Managed<Task<T,(&'a i32,&'a i32)>>{let result=move()=>give selected;return result;}fn main(){}";
+    let text = "fn retain<life a,T:Value+ClosedEnvironment,#n:i32,P:Value,life unused>(give selected:Task<T,(&'a i32,&'a i32)>)->impl FnOnce()->Managed<Task<T,(&'a i32,&'a i32)>>{let result=move()=>give selected;return result;}fn main(){}";
     let core = expand(text).unwrap_or_else(|errors| panic!("{errors:?}"));
     assert!(core.unsupported.is_empty(), "{:?}", core.unsupported);
     let original = core
@@ -621,7 +621,7 @@ fn task_value_factories_require_full_value_type_and_single_owner_transfer() {
 fn ordinary_task_factory_keeps_where_ce_and_symbolic_array_result() {
     for text in [
         "fn retain<T:Value>(give selected:Task<T>)->impl FnOnce()->Managed<Task<T>> where T:ClosedEnvironment{return move()=>give selected;}fn main(){}",
-        "fn retain<T:Value+ClosedEnvironment,const n:i32>(give selected:Task<[T;n]>)->impl FnOnce()->Managed<Task<[T;n]>>{return move()=>give selected;}fn main(){}",
+        "fn retain<T:Value+ClosedEnvironment,#n:i32>(give selected:Task<[T;n]>)->impl FnOnce()->Managed<Task<[T;n]>>{return move()=>give selected;}fn main(){}",
     ] {
         let core = expand(text).unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
         assert!(core.unsupported.is_empty(), "{:?}", core.unsupported);
