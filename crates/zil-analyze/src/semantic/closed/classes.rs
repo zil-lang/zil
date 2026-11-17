@@ -2749,23 +2749,14 @@ impl Check<'_, '_> {
                 let callee = self
                     .inventory
                     .function(&SemanticFunctionTarget::Typed(*callee), b)?;
-                let original_output = if matches!(
-                    ty,
-                    Type::Address { .. }
-                        | Type::Desc(_)
-                        | Type::Closure(_)
-                        | Type::Dyn { .. }
-                        | Type::OwnedDyn { .. }
-                ) || self.dyn_sum_type(ty, b)?
-                {
-                    let output = self.static_call_result(instance, block, index, b)?;
-                    if !geometry::same_type(&output.ty, ty, b)? {
-                        return Err(fail("call output changes its complete original head Type"));
-                    }
-                    Some(output)
-                } else {
-                    None
-                };
+                // Every class-bearing call transports its complete original
+                // result. A list of selected physical constructors omitted
+                // Task/ErrorUnion results and lost their child domains.
+                let output = self.static_call_result(instance, block, index, b)?;
+                if !geometry::same_type(&output.ty, ty, b)? {
+                    return Err(fail("call output changes its complete original result Type"));
+                }
+                let original_output = Some(output);
                 self.call_output_from_entry(
                     instance,
                     function,
