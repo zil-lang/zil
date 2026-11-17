@@ -179,6 +179,62 @@ impl Check<'_, '_> {
                 *initial,
                 b,
             )?;
+            // The shell is an implementation detail, never an addressable or
+            // transferred source value. Otherwise an untracked whole-array
+            // alias could replace its element behind a logical source query.
+            for owner_block in &function.blocks {
+                for (ordinal, operation) in owner_block.instructions.iter().enumerate() {
+                    b.spend(1, WORK)?;
+                    match &operation.kind {
+                        InstructionKind::Load(target)
+                        | InstructionKind::TakeLocal { local: target }
+                        | InstructionKind::BorrowLocal { local: target }
+                        | InstructionKind::BorrowLocalMut { local: target }
+                        | InstructionKind::BorrowFieldLocal { local: target, .. }
+                        | InstructionKind::BorrowPlaceLocal { local: target, .. }
+                        | InstructionKind::ReservePlaceLocal { local: target, .. }
+                            if *target == local =>
+                        {
+                            return Err(fail(
+                                "persistent closure shell escapes its exact element operations",
+                            ));
+                        }
+                        InstructionKind::Store {
+                            local: target,
+                            value,
+                        } if *target == local
+                            && ((owner_block.id, ordinal) != (block, store) || value != array) =>
+                        {
+                            return Err(fail(
+                                "persistent closure shell has an unrelated whole replacement",
+                            ));
+                        }
+                        InstructionKind::TakeOwnedArrayElement {
+                            local: target,
+                            index,
+                        }
+                        | InstructionKind::DropOwnedArrayElement {
+                            local: target,
+                            index,
+                        }
+                        | InstructionKind::StoreOwnedArrayElement {
+                            local: target,
+                            index,
+                            ..
+                        }
+                        | InstructionKind::BorrowOwnedArrayElement {
+                            local: target,
+                            index,
+                            ..
+                        } if *target == local && *index != 0 => {
+                            return Err(fail(
+                                "persistent closure shell changes its exact element selector",
+                            ));
+                        }
+                        _ => {}
+                    }
+                }
+            }
             if selected.is_some() {
                 return Err(unknown(
                     "persistent slot has competing original activation witnesses",

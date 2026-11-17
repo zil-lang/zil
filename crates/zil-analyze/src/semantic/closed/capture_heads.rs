@@ -641,6 +641,15 @@ impl Check<'_, '_> {
             let mut found = false;
             for (index, instruction) in actual.instructions.iter().enumerate().take(end).rev() {
                 b.spend(1, WORK)?;
+                if slot.is_some() || !projection.is_empty() {
+                    self.head_projection_barrier(
+                        function,
+                        local,
+                        projection,
+                        &instruction.kind,
+                        b,
+                    )?;
+                }
                 match instruction.kind {
                     InstructionKind::Store {
                         local: destination,
@@ -789,6 +798,132 @@ impl Check<'_, '_> {
         Ok(out)
     }
 
+    fn head_projection_barrier(
+        &self,
+        function: &TypedFunction,
+        local: LocalId,
+        path: &[PlaceProjection],
+        instruction: &InstructionKind,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let overlaps =
+            |changed: &[PlaceProjection]| path.starts_with(changed) || changed.starts_with(path);
+        match instruction {
+            InstructionKind::StorePackageField {
+                local: target,
+                index,
+                ..
+            }
+            | InstructionKind::TakePackageField {
+                local: target,
+                index,
+            }
+            | InstructionKind::DropPackageField {
+                local: target,
+                index,
+            } if *target == local => {
+                b.spend(path.len().saturating_add(1), WORK)?;
+                if overlaps(&[PlaceProjection::Field(*index)]) {
+                    return Err(unknown(
+                        "implicit projected head crosses a changed or vacant owning field",
+                    ));
+                }
+            }
+            InstructionKind::TakeTupleField {
+                local: target,
+                path: changed,
+            }
+            | InstructionKind::TakeVariantField {
+                local: target,
+                path: changed,
+            } if *target == local => {
+                b.spend(path.len().saturating_add(changed.len()), WORK)?;
+                if overlaps(changed) {
+                    return Err(unknown(
+                        "implicit projected head crosses a transferred child place",
+                    ));
+                }
+            }
+            InstructionKind::DropPackage { local: target }
+            | InstructionKind::DropTuple { local: target }
+            | InstructionKind::DropEnum { local: target }
+            | InstructionKind::DropErrorUnion { local: target }
+            | InstructionKind::EndPackageCapture { local: target, .. }
+            | InstructionKind::BindPackageCapture { local: target, .. }
+                if *target == local =>
+            {
+                return Err(unknown(
+                    "implicit projected head crosses a changed whole owner or capture activation",
+                ));
+            }
+            InstructionKind::UnpackTuple {
+                local: source,
+                fields,
+            }
+            | InstructionKind::UnpackVariant {
+                local: source,
+                fields,
+                ..
+            } => {
+                b.spend(fields.len().saturating_add(1), WORK)?;
+                if *source == local || fields.contains(&local) {
+                    return Err(unknown(
+                        "implicit projected head requires its actual unpacked child source",
+                    ));
+                }
+            }
+            InstructionKind::CommitPlaceReplace { reservation, .. } => {
+                let mut found = false;
+                for block in &function.blocks {
+                    for producer in &block.instructions {
+                        b.spend(1, WORK)?;
+                        match &producer.kind {
+                            InstructionKind::ReservePlaceLocal {
+                                reservation: actual,
+                                local: target,
+                                path: changed,
+                            } if actual == reservation => {
+                                if found {
+                                    return Err(fail(
+                                        "implicit head replacement has competing reservation definitions",
+                                    ));
+                                }
+                                found = true;
+                                b.spend(path.len().saturating_add(changed.len()), WORK)?;
+                                if *target == local && overlaps(changed) {
+                                    return Err(unknown(
+                                        "implicit projected head crosses a committed overlapping replacement",
+                                    ));
+                                }
+                            }
+                            InstructionKind::ReservePlaceAddress {
+                                reservation: actual,
+                                ..
+                            } if actual == reservation => {
+                                return Err(unknown(
+                                    "implicit projected head needs the committed address's complete source and effect",
+                                ));
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                if !found {
+                    return Err(fail(
+                        "implicit head replacement lacks its real reservation definition",
+                    ));
+                }
+            }
+            InstructionKind::WriteAddress { .. } => {
+                return Err(unknown(
+                    "implicit projected head needs a complete overlapping address-write effect",
+                ));
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     fn head_projection_type<'t>(mut ty: &'t Type, path: &[PlaceProjection]) -> Option<&'t Type> {
         for step in path {
             while let Type::BorrowedStorage { storage, .. } = ty {
@@ -843,8 +978,6 @@ impl Check<'_, '_> {
             .get(value.0 as usize)
             .ok_or_else(|| fail("implicit head projection has no actual SSA type"))?;
         crate::dyn_metadata::ty(ty, b)?;
-        Self::head_projection_type(ty, path)
-            .ok_or_else(|| fail("implicit head projection leaves its complete actual layout"))?;
         b.spend(
             path.len()
                 .saturating_mul(2)
@@ -852,6 +985,8 @@ impl Check<'_, '_> {
                 .saturating_add(1),
             WORK,
         )?;
+        Self::head_projection_type(ty, path)
+            .ok_or_else(|| fail("implicit head projection leaves its complete actual layout"))?;
         let key = (function.id, value, path.to_vec(), class, false);
         if !active.insert(key.clone()) {
             return Ok(Heads::new());
@@ -1041,6 +1176,10 @@ impl Check<'_, '_> {
             .values
             .get(value.0 as usize)
             .ok_or_else(|| fail("implicit selected head has no result type"))?;
+        b.spend(
+            path.len().saturating_add(tail.len()).saturating_add(1),
+            WORK,
+        )?;
         let selected = Self::head_projection_type(source_ty, &path)
             .ok_or_else(|| fail("implicit selected head changes its complete source path"))?;
         let expected = Self::head_projection_type(output, tail)
