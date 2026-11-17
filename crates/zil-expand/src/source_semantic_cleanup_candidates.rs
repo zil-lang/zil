@@ -98,6 +98,7 @@ enum Value<'a> {
         shutdown: bool,
         cleanup: Cleanup,
         initial: Cleanup,
+        unknown_write: Cleanup,
         after: Cleanup,
         ready: Option<Cleanup>,
     },
@@ -194,6 +195,7 @@ impl<'a> Walk<'a, '_, '_> {
                 shutdown,
                 cleanup,
                 initial,
+                unknown_write,
                 after,
                 ready,
             } => Value::Callable {
@@ -206,6 +208,7 @@ impl<'a> Walk<'a, '_, '_> {
                 shutdown: *shutdown,
                 cleanup: *cleanup,
                 initial: *initial,
+                unknown_write: *unknown_write,
                 after: *after,
                 ready: *ready,
             },
@@ -446,8 +449,24 @@ impl<'a> Walk<'a, '_, '_> {
         match value {
             Value::SettledTask | Value::SyncTask => *value = Value::Task,
             Value::Callable {
-                cleanup, initial, ..
-            } => *cleanup |= *initial,
+                cleanup,
+                initial,
+                unknown_write,
+                shutdown,
+                after,
+                ready,
+                ..
+            } => {
+                // A mutable helper can replace this factory's occupant. Its
+                // old actual SyncTask birth and conditional Ready receipt do
+                // not belong to the replacement. Keep only the original
+                // complete owning-source upper, not an invented SyncDrop.
+                *cleanup |= *unknown_write;
+                *initial |= *unknown_write;
+                *after |= *unknown_write;
+                *shutdown = false;
+                *ready = None;
+            }
             Value::Tuple(values) | Value::Alternatives(values) => {
                 for value in values {
                     Self::forget_mutated(budget, value, depth + 1)?;
@@ -591,6 +610,7 @@ impl<'a> Walk<'a, '_, '_> {
                     shutdown: ash,
                     cleanup: ad,
                     initial: ai,
+                    unknown_write: aw,
                     after: aa,
                     ready: ar,
                 },
@@ -604,6 +624,7 @@ impl<'a> Walk<'a, '_, '_> {
                     shutdown: bsh,
                     cleanup: bd,
                     initial: bi,
+                    unknown_write: bw,
                     after: ba,
                     ready: br,
                 },
@@ -617,6 +638,7 @@ impl<'a> Walk<'a, '_, '_> {
                     && ash == bsh
                     && ad == bd
                     && ai == bi
+                    && aw == bw
                     && aa == ba
                     && ar == br
             }
@@ -746,6 +768,34 @@ impl<'a> Walk<'a, '_, '_> {
             | Value::Function(_) => Cleanup::NONE,
         })
     }
+    fn unknown_write_cleanup(&mut self, value: &Value<'a>, depth: usize) -> R<Cleanup> {
+        self.budget.node(Span::default(), depth)?;
+        Ok(match value {
+            Value::Task | Value::SyncTask | Value::SettledTask | Value::UnknownAsync => {
+                Cleanup::ASYNC
+            }
+            Value::Unknown => Cleanup::ABSTRACT,
+            Value::Callable { unknown_write, .. } => *unknown_write,
+            Value::Tuple(values) | Value::Alternatives(values) => {
+                let mut result = Cleanup::NONE;
+                for value in values {
+                    result |= self.unknown_write_cleanup(value, depth + 1)?;
+                }
+                result
+            }
+            Value::Record(values) => {
+                let mut result = Cleanup::NONE;
+                for (_, value) in values {
+                    result |= self.unknown_write_cleanup(value, depth + 1)?;
+                }
+                result
+            }
+            Value::Error { value, .. } => self.unknown_write_cleanup(value, depth + 1)?,
+            Value::Plain | Value::View { .. } | Value::Poll(_) | Value::Function(_) => {
+                Cleanup::NONE
+            }
+        })
+    }
     fn residual(&mut self, env: &[(&'a str, Value<'a>)], depth: usize) -> R<Cleanup> {
         let mut result = Cleanup::NONE;
         for (_, value) in env {
@@ -833,6 +883,7 @@ impl<'a> Walk<'a, '_, '_> {
                     shutdown: left_shutdown,
                     cleanup: left_cleanup,
                     initial: left_initial,
+                    unknown_write: left_write,
                     after: left_after,
                     ready: left_ready,
                 },
@@ -846,6 +897,7 @@ impl<'a> Walk<'a, '_, '_> {
                     shutdown: right_shutdown,
                     cleanup: right_cleanup,
                     initial: right_initial,
+                    unknown_write: right_write,
                     after: right_after,
                     ready: right_ready,
                 },
@@ -864,6 +916,7 @@ impl<'a> Walk<'a, '_, '_> {
                     shutdown: left_shutdown && right_shutdown,
                     cleanup: left_cleanup | right_cleanup,
                     initial: left_initial | right_initial,
+                    unknown_write: left_write | right_write,
                     after: left_after | right_after,
                     ready: left_ready.zip(right_ready).map(|(a, b)| a | b),
                 }
@@ -1059,6 +1112,7 @@ impl<'a> Walk<'a, '_, '_> {
                     shutdown: false,
                     cleanup: Cleanup::ABSTRACT,
                     initial: Cleanup::ABSTRACT,
+                    unknown_write: Cleanup::ABSTRACT,
                     after: Cleanup::ABSTRACT,
                     ready: None,
                 }),
@@ -1126,6 +1180,7 @@ impl<'a> Walk<'a, '_, '_> {
                 shutdown,
                 cleanup: Cleanup::NONE,
                 initial: Cleanup::NONE,
+                unknown_write: Cleanup::NONE,
                 after: Cleanup::NONE,
                 ready: None,
             },
@@ -1155,6 +1210,7 @@ impl<'a> Walk<'a, '_, '_> {
                 shutdown: false,
                 cleanup: Cleanup::NONE,
                 initial: Cleanup::NONE,
+                unknown_write: Cleanup::NONE,
                 after: Cleanup::NONE,
                 ready: None,
             },
@@ -1599,11 +1655,16 @@ impl<'a> Walk<'a, '_, '_> {
                 shutdown: false,
                 cleanup: Cleanup::ABSTRACT,
                 initial: Cleanup::ABSTRACT,
+                unknown_write: Cleanup::ABSTRACT,
                 after: Cleanup::ABSTRACT,
                 ready: None,
             });
         }
         let flow = self.function_flow(owner, depth + 1)?;
+        let unknown_write = match &flow.value {
+            Some(value) => self.unknown_write_cleanup(value, depth + 1)?,
+            None => Cleanup::ABSTRACT,
+        };
         let (suspend, known, cleanup, after, ready) = if !flow.live && !flow.incomplete {
             match flow.value {
                 Some(value) => self.operation(&value, depth + 1)?.unwrap_or((
@@ -1649,6 +1710,7 @@ impl<'a> Walk<'a, '_, '_> {
             shutdown: false,
             cleanup,
             initial: cleanup,
+            unknown_write,
             after,
             ready,
         })
@@ -1680,6 +1742,7 @@ impl<'a> Walk<'a, '_, '_> {
             signature,
             suspend,
             known_suspend,
+            unknown_write,
             ..
         } = declared
         {
@@ -1687,6 +1750,7 @@ impl<'a> Walk<'a, '_, '_> {
                 return Ok(Value::Unknown);
             };
             let shutdown = self.callable_shutdown(&value, depth + 1)?;
+            let unknown_write = unknown_write | self.unknown_write_cleanup(&value, depth + 1)?;
             Ok(Value::Callable {
                 definition,
                 scope,
@@ -1697,6 +1761,7 @@ impl<'a> Walk<'a, '_, '_> {
                 shutdown,
                 cleanup,
                 initial: cleanup,
+                unknown_write,
                 after,
                 ready,
             })
@@ -1920,8 +1985,6 @@ impl<'a> Walk<'a, '_, '_> {
             }
             E::Call { callee, arguments } => {
                 let target = self.target(owner, env, callee, depth + 1)?;
-                let callable = self.expr(owner, env, callee, depth + 1)?;
-                let position = self.place(owner, env, callee, depth + 1)?;
                 let mut head = callee.as_ref();
                 while let E::Group(inner)
                 | E::TypeApply { callee: inner, .. }
@@ -1939,6 +2002,12 @@ impl<'a> Walk<'a, '_, '_> {
                     }
                     _ => None,
                 };
+                let callable = if primitive.is_some() {
+                    Value::Plain
+                } else {
+                    self.expr(owner, env, callee, depth + 1)?
+                };
+                let position = self.place(owner, env, callee, depth + 1)?;
                 let primitive_place = if matches!(
                     primitive,
                     Some(
@@ -2297,6 +2366,10 @@ impl<'a> Walk<'a, '_, '_> {
                 // Uncalled cleanup owns only captures, never hypothetical
                 // invocation inputs which have not been supplied.
                 let cleanup = self.residual(&captured, depth + 1)?;
+                let mut unknown_write = Cleanup::NONE;
+                for (_, value) in &captured {
+                    unknown_write |= self.unknown_write_cleanup(value, depth + 1)?;
+                }
                 let held = std::mem::replace(&mut self.held_captures, captured.len());
                 for (parameter, ty) in parameters.iter().zip(&child_signature.parameters) {
                     let value = self.ty(child, &ty.ty, depth + 1)?;
@@ -2351,6 +2424,7 @@ impl<'a> Walk<'a, '_, '_> {
                     shutdown: flow.shutdown,
                     cleanup,
                     initial: cleanup,
+                    unknown_write,
                     after: flow.cleanup,
                     ready: flow.ready.known(),
                 }
