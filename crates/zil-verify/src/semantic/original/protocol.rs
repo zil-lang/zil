@@ -20,8 +20,7 @@ struct Engine<'a> {
     next: u64,
     closed_tasks: BTreeSet<Place>,
     async_tasks: BTreeSet<Place>,
-    synchronous_tasks:BTreeSet<Place>,
-    synchronous_births:&'a BTreeSet<(SemanticDefinitionId,NodeId)>,
+    synchronous_births:&'a mut tasks::SynchronousBirths,
     result_sources_by_function:&'a BTreeMap<SemanticDefinitionId,ResultSources>,
     returned_sources:Option<ResultSources>,
     fallible_task_result:bool,
@@ -29,6 +28,7 @@ struct Engine<'a> {
     task_loop_keys: Vec<BTreeSet<Binder>>,
     result_shapes:BTreeMap<NodeId,tasks::Shape>,
     callable_roles:BTreeMap<NodeId,(CallableKind,Vec<PassingMode>)>,
+    creation_shapes:BTreeMap<NodeId,Vec<tasks::Shape>>,
 }
 
 impl CheckedOriginal {
@@ -40,7 +40,7 @@ impl CheckedOriginal {
         active: &mut ActiveQueries,
         b: &mut Budget,
     ) -> Check<()> {
-        let synchronous_births=self.synchronous_task_births(module,context,index,active,b)?;
+        let mut synchronous_births=self.synchronous_task_births(module,context,index,active,b)?;
         let mut result_sources_by_function=BTreeMap::new();
         for id in protocol_order(self,index,b)? {
             let function=&index.definitions[&id];
@@ -132,6 +132,15 @@ impl CheckedOriginal {
                 self.current=previous;
                 continue;
             }
+            let mut creation_shapes=BTreeMap::new();
+            for(&site,node)in &function.nodes{
+                b.spend(self.intrinsic_calls.len().checked_ilog2().map_or(1,|n|n as usize+1))?;
+                if !self.intrinsic_calls.get(&(id,site)).is_some_and(|use_|matches!(use_.kind,Intrinsic::TaskCreate|Intrinsic::TaskCreateOwned)){continue;}
+                let index::Node::Expression(expression)=node else{return Err(bad("Task dependency source has no original expression occurrence"));};
+                let CoreExprKind::Call{arguments,..}=&expression.kind else{return Err(bad("Task dependency source is not its original Call"));};
+                let shapes=self.creation_dependency_shapes(module,context,id,site,arguments,active,b)?;
+                if creation_shapes.insert(expression.id,shapes).is_some(){return Err(bad("Task dependency source has ambiguous original Call occurrences"));}
+            }
             let mut callable_roles=BTreeMap::new();
             for expression in function.expressions.values(){
                 let CoreExprKind::Call{callee,..}=&expression.kind else{continue;};
@@ -163,8 +172,7 @@ impl CheckedOriginal {
                 next: 0,
                 closed_tasks: BTreeSet::new(),
                 async_tasks: BTreeSet::new(),
-                synchronous_tasks:BTreeSet::new(),
-                synchronous_births:&synchronous_births,
+                synchronous_births:&mut synchronous_births,
                 result_sources_by_function:&result_sources_by_function,
                 returned_sources:None,
                 fallible_task_result,
@@ -172,6 +180,7 @@ impl CheckedOriginal {
                 task_loop_keys: Vec::new(),
                 result_shapes,
                 callable_roles,
+                creation_shapes,
             };
             engine.poll = engine.poll_type(&prototype.result, b)?;
             engine.shape(b)?;
@@ -278,11 +287,9 @@ impl CheckedOriginal {
             }
             let closed = std::mem::take(&mut engine.closed_tasks);
             let asynchronous = std::mem::take(&mut engine.async_tasks);
-            let synchronous=std::mem::take(&mut engine.synchronous_tasks);
             let returned=engine.returned_sources.take();
             drop(engine);
             if let Some(returned)=returned{b.spend(returned.len())?;result_sources_by_function.insert(id,returned);}
-            for root in synchronous{b.spend(1)?;self.task_synchronous_cleanups.insert((id,root));}
             for root in closed {
                 b.spend(1)?;
                 self.task_closed_cleanups.insert((id, root));
@@ -293,6 +300,7 @@ impl CheckedOriginal {
             }
             self.current=previous;
         }
+        for(definition,root)in synchronous_births.finish(b)?{b.spend(1)?;self.task_synchronous_cleanups.insert((definition,root));}
         Ok(())
     }
 }

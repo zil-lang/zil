@@ -423,8 +423,8 @@ mod source_tests{
         let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../../fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
         let original=CheckedOriginal::default();let index=index::build(&module,&mut b).unwrap();
         let definition=index.definitions.keys().next().copied().unwrap();
-        let births=BTreeSet::new();let summaries=BTreeMap::new();
-        let mut engine=Engine{original:&original,module:&module,index:&index,current:definition,contracts:vec![],inputs:BTreeMap::new(),poll:false,next:0,closed_tasks:BTreeSet::new(),async_tasks:BTreeSet::new(),synchronous_tasks:BTreeSet::new(),synchronous_births:&births,result_sources_by_function:&summaries,returned_sources:None,fallible_task_result:false,error_unwind:vec![],task_loop_keys:vec![],result_shapes:BTreeMap::new(),callable_roles:BTreeMap::new()};
+        let mut births=tasks::SynchronousBirths::default();let summaries=BTreeMap::new();
+        let mut engine=Engine{original:&original,module:&module,index:&index,current:definition,contracts:vec![],inputs:BTreeMap::new(),poll:false,next:0,closed_tasks:BTreeSet::new(),async_tasks:BTreeSet::new(),synchronous_births:&mut births,result_sources_by_function:&summaries,returned_sources:None,fallible_task_result:false,error_unwind:vec![],task_loop_keys:vec![],result_shapes:BTreeMap::new(),callable_roles:BTreeMap::new(),creation_shapes:BTreeMap::new()};
         let binder=Binder::Parameter{definition,ordinal:0};
         let pending=Value::FallibleTask(PendingTask{sources:BTreeSet::from([TaskSource::Birth{definition,node:NodeId(4)}]),states:OPEN});
         let mut present=State::default();present.values.insert(binder.clone(),pending.clone());

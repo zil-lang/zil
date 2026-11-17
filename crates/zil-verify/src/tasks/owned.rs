@@ -661,6 +661,19 @@ fn helper_graph(
         for b in &f.blocks {
             for i in &b.instructions {
                 budget.spend(1)?;
+                // This is ordinary execution reached from a Task driver,
+                // not synchronous destruction of the captured environment.
+                // Registration providers/callbacks, actual heads and results
+                // still pass their complete opcode contract; lifecycle and
+                // retirement remain in the resource/protocol kernels.
+                if driving&&matches!(i.kind,
+                    InstructionKind::RegistrationStart{..}|InstructionKind::RegistrationValid{..}|InstructionKind::RegistrationClose{..}
+                    |InstructionKind::AsyncRegistrationStart{..}|InstructionKind::AsyncRegistrationValid{..}
+                    |InstructionKind::AsyncRegistrationRequestClose{..}|InstructionKind::AsyncRegistrationPollClose{..}
+                    |InstructionKind::AsyncRegistrationFinishDestroy{..}|InstructionKind::AsyncRegistrationFinishDestroyChecked{..}){
+                    crate::check_instruction(module,f,i,budget)?;
+                    continue;
+                }
                 match &i.kind {
                     InstructionKind::CallDynSlot{interface,slot,..}=>{
                         let(kind,targets)=dyn_callees(module,*interface,*slot,budget)?;

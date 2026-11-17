@@ -29,7 +29,91 @@ impl Shape {
         }
     }
 }
+type Birth=(SemanticDefinitionId,NodeId);
+#[derive(Default)]
+pub(super) struct SynchronousBirths{
+    known:BTreeSet<Birth>,
+    conditional:BTreeSet<Birth>,
+    observed:BTreeMap<Birth,Sources>,
+    pending:Vec<(SemanticDefinitionId,Place,u64,u8,Sources)>,
+}
+impl SynchronousBirths{
+    fn observe(&mut self,birth:Birth,shapes:&[Shape],values:&[Value],state:&State,b:&mut Budget)->Check<()>{
+        fn collect(shape:&Shape,value:&Value,state:&State,out:&mut Sources,b:&mut Budget)->Check<()>{
+            b.spend(1)?;
+            fn add(task:&PendingTask,out:&mut Sources,b:&mut Budget)->Check<()>{b.spend(task.width())?;if task.states&!(CLOSED|DEAD)!=0{if task.sources.is_empty(){out.insert(TaskSource::Unknown);}else{out.extend(task.sources.iter().cloned());}}Ok(())}
+            match(shape,value){
+                (Shape::Task{..},Value::Owner{root,..})=>{let owner=state.owner(root,b)?;if !owner.task{out.insert(TaskSource::Unknown);}else if owner.states&!(CLOSED|DEAD)!=0{b.spend(source_width(&owner.sources))?;if owner.sources.is_empty(){out.insert(TaskSource::Unknown);}else{out.extend(owner.sources.iter().cloned());}}},
+                (Shape::Task{..},Value::FreshTask(task))|(Shape::FallibleTask,Value::FallibleTask(task))=>add(task,out,b)?,
+                (Shape::Product(expected),Value::Product(actual))=>{
+                    b.spend(expected.len().saturating_mul(actual.len().saturating_add(1)))?;
+                    if expected.len()!=actual.len(){out.insert(TaskSource::Unknown);return Ok(());}
+                    for(name,shape)in expected{let mut rows=actual.iter().filter(|(field,_)|field==name);let Some((_,value))=rows.next()else{out.insert(TaskSource::Unknown);continue;};if rows.next().is_some(){out.insert(TaskSource::Unknown);continue;}collect(shape,value,state,out,b)?;}
+                },
+                (Shape::Plain,_)if !owner_value(value)=>{},
+                _=>{out.insert(TaskSource::Unknown);},
+            }Ok(())
+        }
+        if !self.conditional.contains(&birth){return Ok(());}
+        let mut incoming=Sources::new();
+        if shapes.len()!=values.len(){incoming.insert(TaskSource::Unknown);}else{for(shape,value)in shapes.iter().zip(values){collect(shape,value,state,&mut incoming,b)?;}}
+        b.spend(source_width(&incoming).saturating_add(self.observed.len().checked_ilog2().map_or(1,|n|n as usize+1)))?;
+        if self.observed.len()>=b.limits.max_nodes&&!self.observed.contains_key(&birth){return Err(limit("original Task creation-source inventory exceeded"));}
+        let previous=self.observed.entry(birth).or_default();b.spend(source_width(previous))?;previous.extend(incoming);Ok(())
+    }
+    fn request(&mut self,definition:SemanticDefinitionId,root:&Place,owner:&Owner,b:&mut Budget)->Check<()>{
+        b.spend(source_width(&owner.sources))?;
+        if owner.sources.is_empty()||owner.sources.iter().any(|source|!matches!(source,TaskSource::Birth{definition,node}if self.known.contains(&(*definition,*node))||self.conditional.contains(&(*definition,*node)))){
+            return Err(bad("original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend").with_note(format!("original cleanup owner {definition:?}; root {root:?}; phase {}; universal sources {:?}",owner.states,owner.sources)));
+        }
+        if self.pending.len()>=b.limits.max_nodes{return Err(limit("original pending Task cleanup inventory exceeded"));}
+        root.binder.charge_clone(b)?;b.spend(root.fields.iter().map(String::len).sum::<usize>().saturating_add(source_width(&owner.sources)).saturating_add(2))?;
+        self.pending.push((definition,root.clone(),owner.generation,owner.states,owner.sources.clone()));Ok(())
+    }
+    pub(super) fn finish(mut self,b:&mut Budget)->Check<Vec<(SemanticDefinitionId,Place)>>{
+        // Least fixed point of all-source obligations. Original Input/Unknown,
+        // absent creation observations and source-only cycles are not anchors.
+        let mut changed=true;
+        while changed{changed=false;for(birth,sources)in &self.observed{
+            b.spend(source_width(sources).saturating_add(1))?;
+            if self.known.contains(birth){continue;}
+            if self.conditional.contains(birth)&&sources.iter().all(|source|matches!(source,TaskSource::Birth{definition,node}if self.known.contains(&(*definition,*node)))){self.known.insert(*birth);changed=true;}
+        }}
+        let mut ready=Vec::new();
+        for(definition,root,generation,phase,sources)in self.pending{
+            b.spend(source_width(&sources).saturating_add(1))?;
+            if !sources.iter().all(|source|matches!(source,TaskSource::Birth{definition,node}if self.known.contains(&(*definition,*node)))){
+                return Err(bad("original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend").with_note(format!("original cleanup {definition:?} {root:?} generation {generation}, phase {phase}; incomplete all-source creation dependencies {sources:?}")));
+            }
+            ready.push((definition,root));
+        }Ok(ready)
+    }
+}
+
 impl CheckedOriginal {
+    pub(super) fn creation_dependency_shapes(&mut self,module:&TypedModule,context:&CheckedContext,owner:SemanticDefinitionId,site:SemanticSiteId,arguments:&[SemanticOriginalExpr],active:&mut ActiveQueries,b:&mut Budget)->Check<Vec<Shape>>{
+        let worker=self.intrinsic_calls.get(&(owner,site)).and_then(|use_|use_.worker).ok_or_else(||bad("Task dependency shapes have no original worker"))?;
+        let caller=self.environment(module,context,owner,active,b)?;
+        let actuals=self.calls.get(&(owner,site)).ok_or_else(||bad("Task dependency shapes omit the original full mixed worker arguments"))?;
+        let actuals=self.apply_arguments(actuals,&caller,0,b)?;
+        let selected=self.synchronous_environment(module,context,worker,&actuals,&[caller],active,b)?;
+        let mut shapes=Vec::new();
+        for(ordinal,argument)in arguments.iter().enumerate(){
+            let actual=self.expressions.get(&(owner,argument.id)).ok_or_else(||bad("Task creation has no complete original worker/input expression type"))?.clone();
+            let mut shape=self.task_shape(module,context,&actual,false,active,b,0)?;
+            if ordinal!=0{
+                if let Some(selected)=&selected{
+                    let parameter=self.prototypes.get(&worker).and_then(|prototype|prototype.parameters.get(ordinal-1)).ok_or_else(||bad("Task dependency shape changes its original worker arity"))?;
+                    let parameter=self.apply_type(parameter,selected,b)?;
+                    let required=self.task_shape(module,context,&parameter,false,active,b,0)?;
+                    // A source Type variable/equality cannot erase a Task slot
+                    // required by the independently selected worker prototype.
+                    if required.has_task(){shape=required;}
+                }
+            }
+            shapes.push(shape);
+        }Ok(shapes)
+    }
     pub(in crate::semantic::original) fn task_shape(
         &mut self,
         module: &TypedModule,
@@ -355,13 +439,7 @@ impl<'a> Engine<'a> {
                 .get(&self.current)
                 .ok_or_else(|| bad("Task cleanup has no fixed original effect upper"))?;
             if prototype.call_kind != CallKind::Suspend {
-                b.spend(source_width(&owner.sources))?;
-                if owner.sources.is_empty()||!owner.sources.iter().all(|source|matches!(source,TaskSource::Birth{definition,node}if self.synchronous_births.contains(&(*definition,*node)))){
-                    let detail=format!("original cleanup owner {:?}; root {root:?}; phase {}; universal sources {:?}",self.current,owner.states,owner.sources);
-                    b.spend(detail.len())?;
-                    return Err(bad("original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend").with_note(detail));
-                }
-                self.synchronous_tasks.insert(root.clone());
+                self.synchronous_births.request(self.current,root,&owner,b)?;
             }else{
             // This is the sealed asynchronous cleanup edge under an explicit
             // Suspend ABI. It supplies no Closed or global SyncDrop fact. The
@@ -448,6 +526,8 @@ impl<'a> Engine<'a> {
         b: &mut Budget,
     ) -> Check<Option<Value>> {
         if matches!(kind, Intrinsic::TaskCreate | Intrinsic::TaskCreateOwned) {
+            let shapes=self.creation_shapes.get(&node).ok_or_else(||bad("Task creation omits its complete original input/capture shape directory"))?;
+            self.synchronous_births.observe((self.current,node),shapes,values,state,b)?;
             b.spend(values.len())?;
             let inputs = values.iter().skip(1).cloned().collect::<Vec<_>>();
             let sources=PendingTask{states:OPEN,sources:BTreeSet::from([TaskSource::Birth{definition:self.current,node}])};
@@ -869,6 +949,48 @@ struct SynchronousWorld {world:Env,sources:Vec<Env>}
 #[cfg(test)]
 mod source_world_tests{
     use super::*;
+    fn birth(index:u32)->Birth{(SemanticDefinitionId{module:zil_base::ModuleId(0),index:0},NodeId(index))}
+    fn source(value:Birth)->TaskSource{TaskSource::Birth{definition:value.0,node:value.1}}
+    fn pending(sources:Sources)->Value{Value::FreshTask(PendingTask{states:OPEN,sources})}
+    fn request(registry:&mut SynchronousBirths,value:Birth,generation:u64,b:&mut Budget){
+        let root=root_place(&Binder::Parameter{definition:value.0,ordinal:0});
+        registry.request(value.0,&root,&Owner{states:OPEN,generation,task:true,owned:true,sources:BTreeSet::from([source(value)])},b).unwrap();
+    }
+    #[test]
+    fn creation_dependencies_require_all_universal_sources_and_keep_each_cleanup_generation(){
+        let limits=Limits::default();let mut b=Budget::new(&limits);let state=State::default();let base=birth(1);let a=birth(2);let z=birth(3);
+        let mut safe=SynchronousBirths{known:BTreeSet::from([base]),conditional:BTreeSet::from([a]),..SynchronousBirths::default()};
+        safe.observe(a,&[Shape::Task{borrowed:false}],&[pending(BTreeSet::from([source(base)]))],&state,&mut b).unwrap();request(&mut safe,a,1,&mut b);assert_eq!(safe.finish(&mut b).unwrap().len(),1);
+        for hostile in 0..4{
+            let mut proof=SynchronousBirths{known:BTreeSet::from([base]),conditional:BTreeSet::from([a,z]),..SynchronousBirths::default()};
+            let unsafe_source=if hostile==0{TaskSource::Input{definition:a.0,ordinal:0,path:vec![]}}else{TaskSource::Unknown};
+            match hostile{
+                0=>proof.observe(a,&[Shape::Task{borrowed:false}],&[pending(BTreeSet::from([unsafe_source]))],&state,&mut b).unwrap(),
+                1=>{proof.observe(a,&[Shape::Task{borrowed:false}],&[pending(BTreeSet::from([source(base)]))],&state,&mut b).unwrap();proof.observe(a,&[Shape::Task{borrowed:false}],&[pending(BTreeSet::from([unsafe_source]))],&state,&mut b).unwrap();},
+                2=>{proof.observe(a,&[Shape::Task{borrowed:false}],&[pending(BTreeSet::from([source(z)]))],&state,&mut b).unwrap();proof.observe(z,&[Shape::Task{borrowed:false}],&[pending(BTreeSet::from([source(a)]))],&state,&mut b).unwrap();},
+                _=>{}, // A candidate with no original creation observation has no proof.
+            }
+            request(&mut proof,a,1,&mut b);
+            // A later safe occupant at the same Place cannot overwrite the
+            // earlier cleanup's exact source/phase/generation obligation.
+            request(&mut proof,base,2,&mut b);
+            assert!(proof.finish(&mut b).is_err(),"unsafe creation dependency {hostile}");
+        }
+    }
+    #[test]
+    fn creation_dependencies_include_worker_capture_zero_and_reject_missing_task_slots(){
+        let mut b=Budget::new(&Limits::default());let state=State::default();let base=birth(1);let target=birth(2);
+        let shape=Shape::Product(vec![("$capture:child".into(),Shape::Task{borrowed:false})]);
+        for hostile in 0..4{
+            let mut proof=SynchronousBirths{known:BTreeSet::from([base]),conditional:BTreeSet::from([target]),..SynchronousBirths::default()};
+            let value=match hostile{0=>Value::Product(vec![("$capture:child".into(),pending(BTreeSet::from([source(base)])))]),1=>Value::Product(vec![("$capture:child".into(),pending(unknown_sources()))]),2=>Value::Plain,_=>Value::FallibleTaskOwned(vec![pending(unknown_sources())],PendingTask{states:OPEN,sources:BTreeSet::from([source(base)])})};
+            proof.observe(target,std::slice::from_ref(&shape),&[value],&state,&mut b).unwrap();request(&mut proof,target,1,&mut b);
+            assert_eq!(proof.finish(&mut b).is_ok(),hostile==0,"worker selector/capture omission {hostile}");
+        }
+        let mut proof=SynchronousBirths{conditional:BTreeSet::from([target]),..SynchronousBirths::default()};
+        let root=root_place(&Binder::Parameter{definition:target.0,ordinal:0});let mut state=State::default();state.owners.insert(root.clone(),Owner{states:CLOSED,generation:5,task:true,owned:true,sources:unknown_sources()});
+        proof.observe(target,&[Shape::Task{borrowed:true}],&[Value::Owner{root,borrowed:true}],&state,&mut b).unwrap();request(&mut proof,target,1,&mut b);assert!(proof.finish(&mut b).is_ok(),"only this exact already Closed generation has no future Task-source dependency");
+    }
     #[test]
     fn synchronous_creator_never_selects_between_distinct_full_parent_domains(){
         let original=CheckedOriginal::default();let mut b=Budget::new(&Limits::default());
@@ -887,10 +1009,10 @@ mod source_world_tests{
 impl CheckedOriginal{
     /// A birth is proved in the original creation site's universal Gamma. A
     /// concrete caller never specializes an incoming Task into a safe birth.
-    pub(super) fn synchronous_task_births(&mut self,module:&TypedModule,context:&CheckedContext,index:&index::Index<'_>,active:&mut ActiveQueries,b:&mut Budget)->Check<BTreeSet<(SemanticDefinitionId,NodeId)>>{
+    pub(super) fn synchronous_task_births(&mut self,module:&TypedModule,context:&CheckedContext,index:&index::Index<'_>,active:&mut ActiveQueries,b:&mut Budget)->Check<SynchronousBirths>{
         let previous=self.current;
         let result=(||{
-            let mut out=BTreeSet::new();
+            let mut out=SynchronousBirths::default();
             let sites=self.intrinsic_calls.iter().filter(|(_,use_)|matches!(use_.kind,Intrinsic::TaskCreate|Intrinsic::TaskCreateOwned)).map(|(key,use_)|(*key,*use_)).collect::<Vec<_>>();b.spend(sites.len())?;
             for((owner,site),use_)in sites{
                 let Some(worker)=use_.worker else{return Err(bad("original Task birth loses its exact worker source"));};
@@ -905,7 +1027,9 @@ impl CheckedOriginal{
                 let actuals=self.apply_arguments(actuals,&caller,0,b)?;
                 let sources=vec![self.copy_environment(&caller,b)?];
                 let Some(world)=self.synchronous_environment(module,context,worker,&actuals,&sources,active,b)?else{continue;};
-                if self.closed_source_worker(module,context,index,SynchronousWorld{world,sources},active,b)?{out.insert((owner,node.id));}
+                let conditional=SynchronousWorld{world:self.copy_environment(&world,b)?,sources:sources.iter().map(|source|self.copy_environment(source,b)).collect::<Check<Vec<_>>>()?};
+                if self.closed_source_worker(module,context,index,SynchronousWorld{world,sources},false,active,b)?{out.known.insert((owner,node.id));}
+                else if self.closed_source_worker(module,context,index,conditional,true,active,b)?{out.conditional.insert((owner,node.id));}
             }
             Ok(out)
         })();
@@ -955,7 +1079,7 @@ impl CheckedOriginal{
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn closed_source_type(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,item:&SynchronousWorld,pending:&mut Vec<SynchronousWorld>,active:&mut ActiveQueries,b:&mut Budget,depth:usize)->Check<bool>{
+    fn closed_source_type(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,item:&SynchronousWorld,pending:&mut Vec<SynchronousWorld>,allow_tasks:bool,active:&mut ActiveQueries,b:&mut Budget,depth:usize)->Check<bool>{
         b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("original synchronous worker type depth exceeded"));}
         let ty=self.resolved(ty,b)?;
         Ok(match ty{
@@ -963,17 +1087,23 @@ impl CheckedOriginal{
             // A reference to code is not execution. Every actual Call below
             // still requires a complete target, including indirect callables.
             Ty::Function(_)=>true,
-            Ty::Tuple(fields)=>{for field in fields{if !self.closed_source_type(module,context,&field,item,pending,active,b,depth+1)?{return Ok(false);}}true},
-            Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Array(inner,_)|Ty::Slice(inner)|Ty::Store(inner)=>self.closed_source_type(module,context,&inner,item,pending,active,b,depth+1)?,
-            Ty::ErrorUnion(error,result)=>self.closed_source_type(module,context,&error,item,pending,active,b,depth+1)?&&self.closed_source_type(module,context,&result,item,pending,active,b,depth+1)?,
-            Ty::Code{parameters,result,..}=>{for parameter in parameters{if !self.closed_source_type(module,context,&parameter,item,pending,active,b,depth+1)?{return Ok(false);}}self.closed_source_type(module,context,&result,item,pending,active,b,depth+1)?},
+            Ty::Tuple(fields)=>{for field in fields{if !self.closed_source_type(module,context,&field,item,pending,allow_tasks,active,b,depth+1)?{return Ok(false);}}true},
+            Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)=>self.closed_source_type(module,context,&inner,item,pending,allow_tasks,active,b,depth+1)?,
+            Ty::Array(inner,_)|Ty::Slice(inner)|Ty::Store(inner)=>self.closed_source_type(module,context,&inner,item,pending,false,active,b,depth+1)?,
+            Ty::Carrier{kind:CarrierKind::Task,child,..}if allow_tasks=>self.closed_source_type(module,context,&child,item,pending,false,active,b,depth+1)?,
+            Ty::ErrorUnion(error,result)=>{
+                let shape=self.task_shape(module,context,&Ty::ErrorUnion(error.clone(),result.clone()),false,active,b,depth+1)?;
+                let conditional=allow_tasks&&matches!(shape,Shape::FallibleTask);
+                self.closed_source_type(module,context,&error,item,pending,false,active,b,depth+1)?&&self.closed_source_type(module,context,&result,item,pending,conditional,active,b,depth+1)?
+            },
+            Ty::Code{parameters,result,..}=>{for parameter in parameters{if !self.closed_source_type(module,context,&parameter,item,pending,allow_tasks,active,b,depth+1)?{return Ok(false);}}self.closed_source_type(module,context,&result,item,pending,allow_tasks,active,b,depth+1)?},
             Ty::Nominal(id,args)=>{
                 let nominal=context.definition(module,id,b)?;
                 let SemanticDefinitionBody::Nominal{body,..}=&nominal.body else{return Err(bad("synchronous source nominal has no original complete declaration"));};
                 let mut selected=self.environment(module,context,id,active,b)?;selected.lexical[0].actuals=args;
                 match body{
-                    SemanticNominalBody::Product{fields}=>for field in fields{let ty=self.ty(module,context,&field.ty,&selected,active,b)?;if !self.closed_source_type(module,context,&ty,item,pending,active,b,depth+1)?{return Ok(false);}},
-                    SemanticNominalBody::Enum{variants}=>for variant in variants{for field in &variant.fields{let ty=self.ty(module,context,field,&selected,active,b)?;if !self.closed_source_type(module,context,&ty,item,pending,active,b,depth+1)?{return Ok(false);}}},
+                    SemanticNominalBody::Product{fields}=>for field in fields{let ty=self.ty(module,context,&field.ty,&selected,active,b)?;if !self.closed_source_type(module,context,&ty,item,pending,allow_tasks,active,b,depth+1)?{return Ok(false);}},
+                    SemanticNominalBody::Enum{variants}=>for variant in variants{for field in &variant.fields{let ty=self.ty(module,context,field,&selected,active,b)?;if !self.closed_source_type(module,context,&ty,item,pending,false,active,b,depth+1)?{return Ok(false);}}},
                 }
                 let program=module.semantic.as_ref().ok_or_else(||bad("synchronous source Drop lacks its complete original directory"))?;
                 for scope in &program.definitions{b.spend(1)?;let SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl{self_type,trait_kind:SemanticBuiltinTrait::Drop})=&scope.body else{continue;};let mut ty=self_type;while let SemanticTypeRecipe::Qualified{storage,..}=ty{b.spend(1)?;ty=storage;}
@@ -990,7 +1120,7 @@ impl CheckedOriginal{
                 let sources=self.synchronous_sources(item,b)?;
                 let Some(world)=self.synchronous_environment(module,context,owner,&args,&sources,active,b)?else{return Ok(false);};
                 let hidden=self.opaque_hidden(module,context,owner,&args,active,b)?;
-                self.closed_source_type(module,context,&hidden,&SynchronousWorld{world,sources},pending,active,b,depth+1)?
+                self.closed_source_type(module,context,&hidden,&SynchronousWorld{world,sources},pending,allow_tasks,active,b,depth+1)?
             },
             Ty::Closure(owner,args,sealed)=>{
                 let parent=context.definition(module,owner,b)?.parent.ok_or_else(||bad("synchronous Closure has no exact original creator"))?;
@@ -998,7 +1128,7 @@ impl CheckedOriginal{
                 let Some(creator)=self.synchronous_parent(parent,&sources,b)?else{return Ok(false);};
                 let world=self.closure_creator_environment(module,context,owner,&args,&sealed,&creator,active,b)?;
                 let closure=SynchronousWorld{world,sources};
-                for(_,capture)in self.closure_capture_fields(module,context,owner,&args,&sealed,b)?{if !self.closed_source_type(module,context,&capture,&closure,pending,active,b,depth+1)?{return Ok(false);}}
+                for(_,capture)in self.closure_capture_fields(module,context,owner,&args,&sealed,b)?{if !self.closed_source_type(module,context,&capture,&closure,pending,allow_tasks,active,b,depth+1)?{return Ok(false);}}
                 pending.push(closure);true
             },
             // Input Tasks/registrations, erased targets and abstract variables
@@ -1008,21 +1138,21 @@ impl CheckedOriginal{
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn closed_source_callable(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,item:&SynchronousWorld,pending:&mut Vec<SynchronousWorld>,active:&mut ActiveQueries,b:&mut Budget,depth:usize)->Check<bool>{
+    fn closed_source_callable(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,item:&SynchronousWorld,pending:&mut Vec<SynchronousWorld>,allow_tasks:bool,active:&mut ActiveQueries,b:&mut Budget,depth:usize)->Check<bool>{
         b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("synchronous callable source depth exceeded"));}
         match self.resolved(ty,b)?{
-            ref ty@Ty::Closure(..)=>self.closed_source_type(module,context,ty,item,pending,active,b,depth+1),
+            ref ty@Ty::Closure(..)=>self.closed_source_type(module,context,ty,item,pending,allow_tasks,active,b,depth+1),
             Ty::Opaque(owner,args)=>{
                 let sources=self.synchronous_sources(item,b)?;
                 let Some(world)=self.synchronous_environment(module,context,owner,&args,&sources,active,b)?else{return Ok(false);};
                 let hidden=self.opaque_hidden(module,context,owner,&args,active,b)?;
-                self.closed_source_callable(module,context,&hidden,&SynchronousWorld{world,sources},pending,active,b,depth+1)
+                self.closed_source_callable(module,context,&hidden,&SynchronousWorld{world,sources},pending,allow_tasks,active,b,depth+1)
             },
-            Ty::Address{inner,..}=>self.closed_source_callable(module,context,&inner,item,pending,active,b,depth+1),
+            Ty::Address{inner,..}=>self.closed_source_callable(module,context,&inner,item,pending,allow_tasks,active,b,depth+1),
             _=>Ok(false),
         }
     }
-    fn closed_source_worker(&mut self,module:&TypedModule,context:&CheckedContext,index:&index::Index<'_>,root:SynchronousWorld,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
+    fn closed_source_worker(&mut self,module:&TypedModule,context:&CheckedContext,index:&index::Index<'_>,root:SynchronousWorld,allow_tasks:bool,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
         fn scalar(ty:&Ty)->bool{matches!(ty,Ty::Atom(Type::Unit|Type::Bool|Type::I8|Type::I16|Type::I32|Type::I64|Type::Isize|Type::U8|Type::U16|Type::U32|Type::U64|Type::Usize|Type::F32|Type::F64))}
         let mut pending=vec![root];let mut seen=Vec::<SynchronousWorld>::new();
         while let Some(item)=pending.pop(){
@@ -1042,15 +1172,15 @@ impl CheckedOriginal{
                 if !matches!(function.body,SemanticOriginalFunctionBody::External)||function.definition.kind!=SemanticDefinitionKind::Function||function.definition.parent.is_some()||call_kind!=CallKind::Direct||!types.iter().all(scalar){return Ok(false);}
                 continue;
             }
-            for ty in &types{if !self.closed_source_type(module,context,ty,&item,&mut pending,active,b,0)?{return Ok(false);}}
+            for ty in &types{if !self.closed_source_type(module,context,ty,&item,&mut pending,allow_tasks,active,b,0)?{return Ok(false);}}
             let captures=self.free_values.get(&id).map(|values|values.values().map(|value|self.apply_type(&value.ty,&item.world,b)).collect::<Check<Vec<_>>>()).transpose()?.unwrap_or_default();
-            for ty in captures{if !self.closed_source_type(module,context,&ty,&item,&mut pending,active,b,0)?{return Ok(false);}}
+            for ty in captures{if !self.closed_source_type(module,context,&ty,&item,&mut pending,allow_tasks,active,b,0)?{return Ok(false);}}
             b.spend(self.bindings.len())?;
             let bindings=self.bindings.iter().filter(|((owner,_),_)|*owner==id).map(|(_,ty)|self.apply_type(ty,&item.world,b)).collect::<Check<Vec<_>>>()?;
-            for ty in bindings{if !self.closed_source_type(module,context,&ty,&item,&mut pending,active,b,0)?{return Ok(false);}}
+            for ty in bindings{if !self.closed_source_type(module,context,&ty,&item,&mut pending,allow_tasks,active,b,0)?{return Ok(false);}}
             for node in function.expressions.values(){
                 b.spend(1)?;
-                if let Some(ty)=self.expressions.get(&(id,node.id)){let ty=self.apply_type(ty,&item.world,b)?;if !self.closed_source_type(module,context,&ty,&item,&mut pending,active,b,0)?{return Ok(false);}}
+                if let Some(ty)=self.expressions.get(&(id,node.id)){let ty=self.apply_type(ty,&item.world,b)?;if !self.closed_source_type(module,context,&ty,&item,&mut pending,allow_tasks,active,b,0)?{return Ok(false);}}
                 if !matches!(node.kind,CoreExprKind::Call{..}){continue;}
                 let(_,site)=self.original_call_site(id,node.id,b)?;
                 let target=if let Some(use_)=self.intrinsic_calls.get(&(id,site)){
@@ -1067,7 +1197,7 @@ impl CheckedOriginal{
                     let Some(source)=self.callable_nodes.get(&(id,node.id))else{return Ok(false);};
                     let Some(ty)=self.expressions.get(&(id,*source))else{return Ok(false);};
                     let ty=self.apply_type(ty,&item.world,b)?;
-                    if !self.closed_source_callable(module,context,&ty,&item,&mut pending,active,b,0)?{return Ok(false);}
+                    if !self.closed_source_callable(module,context,&ty,&item,&mut pending,allow_tasks,active,b,0)?{return Ok(false);}
                 }
             }
         }Ok(true)
