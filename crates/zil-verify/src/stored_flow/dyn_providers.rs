@@ -254,10 +254,15 @@ pub(super) fn observe(
                 .ok_or_else(|| bad("actual Context callable summary is absent"))?;
             if !actual.dyn_accesses.is_empty() {
                 for (source, write) in &actual.dyn_accesses {
-                    let permission = captured_owner::substitute_access(
+                    let access = captured_owner::substitute_access(
                         module, f, i, source, definition, arguments, values, state, b,
                     )?;
-                    record(rows, &permission, *write, b)?;
+                    match access {
+                        captured_owner::Access::OwnedEnvironment => {}
+                        captured_owner::Access::External(permission) => {
+                            record(rows, &permission, *write, b)?;
+                        }
+                    }
                 }
             }
         }
