@@ -1,0 +1,473 @@
+{
+  "scope": "Original5105functions/102files/843875bytes, original257input domain; actualmain/currentcandidate/Rust only. Native O2/CGU16/compilerjobs1; explicit default-off bounded-class-imports128-v4. Closeprocess, edit, then newprocess first resident request. Startup separate; not full ordinaryCLI or OS-cold.",
+  "disk_accounting": "Peak of simultaneous per-arm totals in original workflow snapshots, global inode dedup st_blocks*512. Not sum of independent category peaks; not transient peaks; SDK/host/evidence excluded.",
+  "host_build_features": [
+    "native-products",
+    "host-jemalloc"
+  ],
+  "host_allocator": {
+    "identity": "tikv-jemalloc-sys0.6.1 process C override",
+    "exports": {
+      "malloc": "T",
+      "free": "T",
+      "realloc": "T",
+      "calloc": "T",
+      "posix_memalign": "T",
+      "malloc_usable_size": "T"
+    },
+    "LD_PRELOAD": null,
+    "MALLOC_CONF_present": false
+  },
+  "rust_reference": {
+    "commit": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+    "CGU_reuse": "https://github.com/rust-lang/rust/blob/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_codegen_ssa/src/base.rs#L1238",
+    "dispatch": "https://github.com/rust-lang/rust/blob/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_codegen_ssa/src/base.rs#L842",
+    "postLTO": "https://github.com/rust-lang/rust/blob/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_codegen_ssa/src/back/write.rs#L2267",
+    "lesson": "Existing green dependency node plus actual workproduct allows reuse before LLVM module construction. ZILrawcache currently stops before canonical class graph, forcing fresh reconstruction after process exit; not two classpasses on successful earlyreduction."
+  },
+  "schema": "zil.native-direct-firstedit-result.v8",
+  "source": "3c418570aa6e0582bd2be63c2f9d50fb15baa58f",
+  "binary_sha256": "dfecb4bf95f5a0a863d7d6c5be3f1c7bc055735efa531e9631e29a01903b8bd8",
+  "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+  "execution_complete": true,
+  "functional_quality_valid": true,
+  "runtime_candidate_rust_accepted": true,
+  "accepted": false,
+  "counts": {
+    "formal_workflow_requests": 30,
+    "runtime_profile_build_requests": 12,
+    "functional_cells": 10,
+    "sustained_runtime_cases": 4
+  },
+  "compile_median_ms": {
+    "cold": {
+      "candidate": 3443.1033415,
+      "rust": 6142.8002345
+    },
+    "unchanged": {
+      "candidate": 50.014480000000006,
+      "rust": 20.4051895
+    },
+    "private-001": {
+      "candidate": 1551.8115205,
+      "rust": 1042.1056505
+    },
+    "recovery": {
+      "candidate": 1879.88479,
+      "rust": 5853.999502
+    },
+    "error": {
+      "candidate": 1140.1114915,
+      "rust": 1908.7065765
+    }
+  },
+  "runtime_ms": {
+    "5105/cold": {
+      "candidate": 34.041492500000004,
+      "rust": 200.2450465
+    },
+    "5105/unchanged": {
+      "candidate": 33.047135,
+      "rust": 238.09920699999998
+    },
+    "5105/private-001": {
+      "candidate": 32.849005000000005,
+      "rust": 194.650518
+    },
+    "5105/recovery": {
+      "candidate": 32.75108,
+      "rust": 187.583669
+    }
+  },
+  "raw": "out/runs/direct-firstedit-performance-direct-27",
+  "previous_formal_result": "https://github.com/zil-lang/zil/blob/2c6ee02df6a15c90723b666a379884fd96b37fd9/tools/research/incremental-demand/native-direct-edit-chain-20261116/window26.json",
+  "changes": [
+    "Whole current body-admission consumer chain: source-function indexes now reach distinct LIR wrapper nodes through actual current ID, three strong immutable array owners and complete executable header equality; existing current reservation/planning/emission/rawpublication consumers reuse those exact semantic identities. No ID/pointer alone grants authority.",
+    "Cost and selector scans share exact current owners/headers while preserving the original per-logical-row optional fuel and collision charges; unsupported/header/COW changes take original traversal. One bounded current inventory, no serialized receipt.",
+    "Scope correction: the formal driver uses lower_view borrowing verified.module().functions. The distinct-wrapper case is an interface regression fix, NOT an established cause of the formal5105 slowdown. Do not attribute timing changes to that bridge without measured consumer evidence.",
+    "Scoped runtime combines presence and declaration needs, binding both block and value owners for mutex selection. Linker fold observes each current body once, still updates every logical slot and preserves checkpoint isolation and current target/ABI failures.",
+    "Raw machine call validation borrows current ABI operands instead of constructing a temporary parameter vector per call; every occurrence is checked, declaration ordering unchanged, parameter names normalized once. Tests reject a changed128thcall ABI, currentcallee change and missingcallee.",
+    "Prior source58 checker-chain and rawpack snapshot changes retained, with its complete negative window26 separately recorded. Independent Verify/defaultbudgets/fullO2/researchdefaults unchanged."
+  ],
+  "result": "window27 directfirstedit 1.551812/Rust1.042106s, candidate/Rust=1.489112; NoGo, firstedit still slower; comprehensive goal remains open",
+  "user_disk_boundary_peak_physical_bytes": [
+    {
+      "block": 0,
+      "candidate": 43032576,
+      "rust": 76734464
+    },
+    {
+      "block": 1,
+      "candidate": 43069440,
+      "rust": 61546496
+    }
+  ],
+  "direct_firstedit_costs": [
+    {
+      "block": 0,
+      "wall_ms": 1631.659774,
+      "cpu_seconds": 1.59,
+      "phases_ms": {
+        "parse": 0.113233,
+        "expand": 99.205933,
+        "types": 408.421655,
+        "analyze": 40.064551,
+        "verify": 71.625124,
+        "lower": 2.983274,
+        "codegen": 537.501317,
+        "ct": 38.76864
+      },
+      "backend_ms": {
+        "machine": 318.135922,
+        "machine_emit": 184.437158,
+        "machine_transform": 130.024183,
+        "transform_ranges": 15.509878,
+        "transform_checked_add": 1.371265,
+        "transform_scalar": 1.375562,
+        "transform_call_classes": 106.353816,
+        "transform_purity": 0.500067,
+        "machine_preflight": 37.650189,
+        "partition": 10.125523,
+        "diagnostic": 7.600312,
+        "object": 139.814128,
+        "link_key": 29.698005,
+        "link_execution": 27.981706,
+        "other": 3.791275,
+        "total": 537.146871
+      },
+      "backend_work": {
+        "lowered_functions": 5105,
+        "reused_functions": 0,
+        "reused_body_templates": 4857,
+        "produced_body_templates": 244,
+        "restored_emission_templates": 243,
+        "raw_emission_cache_misses": 5,
+        "shared_body_template_reuses": 4857,
+        "shared_admission_reuses": 4857,
+        "reused_machine_module": false,
+        "whole_machine_input_functions_compared": 0,
+        "reused_machine_transforms": false,
+        "reused_call_class_inputs": 4857,
+        "rebuilt_call_class_inputs": 252,
+        "reused_call_class_keys": 4857,
+        "rebuilt_call_class_keys": 243,
+        "machine_body_preflights_checked": 1317,
+        "machine_body_preflights_reused": 478,
+        "machine_preflights_checked": 20,
+        "machine_preflights_reused": 2,
+        "checked_add_functions_checked": 161,
+        "checked_add_functions_reused": 0,
+        "reused_partition_layout": false,
+        "reused_partition": false,
+        "reused_object_keys": 0,
+        "reused_link": false,
+        "rendered_diagnostic_items": 166,
+        "reused_diagnostic_items": 0,
+        "reused_partition_recipe": false,
+        "reused_partition_units": 0,
+        "rebuilt_partition_units": 16,
+        "reused_partition_items": 0,
+        "rebuilt_partition_items": 1331,
+        "representation_functions_checked": 248,
+        "representation_functions_reused": 4857,
+        "scoped_thread_functions_checked": 5105,
+        "scoped_thread_functions_reused": 0,
+        "source_projection_traversals": 0,
+        "source_projection_instruction_visits": 0,
+        "source_projection_reuses": 0,
+        "source_projection_admission_reuses": 5105,
+        "native_history_restored_units": 0,
+        "native_history_retained_epochs": 0,
+        "native_history_payload_bytes": 0
+      }
+    },
+    {
+      "block": 1,
+      "wall_ms": 1471.963267,
+      "cpu_seconds": 1.41,
+      "phases_ms": {
+        "parse": 0.148252,
+        "expand": 212.737034,
+        "types": 159.160845,
+        "analyze": 44.664793,
+        "verify": 76.943643,
+        "lower": 4.787846,
+        "codegen": 478.606822,
+        "ct": 38.757854
+      },
+      "backend_ms": {
+        "machine": 277.915056,
+        "machine_emit": 167.98876,
+        "machine_transform": 105.688623,
+        "transform_ranges": 14.587196,
+        "transform_checked_add": 1.418086,
+        "transform_scalar": 1.174878,
+        "transform_call_classes": 87.626028,
+        "transform_purity": 0.412264,
+        "machine_preflight": 31.735054,
+        "partition": 11.423858,
+        "diagnostic": 7.734845,
+        "object": 111.406246,
+        "link_key": 31.47963,
+        "link_execution": 33.186432,
+        "other": 5.044094,
+        "total": 478.190161
+      },
+      "backend_work": {
+        "lowered_functions": 5105,
+        "reused_functions": 0,
+        "reused_body_templates": 4857,
+        "produced_body_templates": 244,
+        "restored_emission_templates": 243,
+        "raw_emission_cache_misses": 5,
+        "shared_body_template_reuses": 4857,
+        "shared_admission_reuses": 4857,
+        "reused_machine_module": false,
+        "whole_machine_input_functions_compared": 0,
+        "reused_machine_transforms": false,
+        "reused_call_class_inputs": 4857,
+        "rebuilt_call_class_inputs": 252,
+        "reused_call_class_keys": 4857,
+        "rebuilt_call_class_keys": 243,
+        "machine_body_preflights_checked": 1317,
+        "machine_body_preflights_reused": 478,
+        "machine_preflights_checked": 20,
+        "machine_preflights_reused": 2,
+        "checked_add_functions_checked": 161,
+        "checked_add_functions_reused": 0,
+        "reused_partition_layout": false,
+        "reused_partition": false,
+        "reused_object_keys": 0,
+        "reused_link": false,
+        "rendered_diagnostic_items": 166,
+        "reused_diagnostic_items": 0,
+        "reused_partition_recipe": false,
+        "reused_partition_units": 0,
+        "rebuilt_partition_units": 16,
+        "reused_partition_items": 0,
+        "rebuilt_partition_items": 1331,
+        "representation_functions_checked": 248,
+        "representation_functions_reused": 4857,
+        "scoped_thread_functions_checked": 5105,
+        "scoped_thread_functions_reused": 0,
+        "source_projection_traversals": 0,
+        "source_projection_instruction_visits": 0,
+        "source_projection_reuses": 0,
+        "source_projection_admission_reuses": 5105,
+        "native_history_restored_units": 0,
+        "native_history_retained_epochs": 0,
+        "native_history_payload_bytes": 0
+      }
+    }
+  ],
+  "gates": {
+    "source": "3c418570aa6e0582bd2be63c2f9d50fb15baa58f",
+    "checks": {
+      "strict": {
+        "source": "3c418570aa6e0582bd2be63c2f9d50fb15baa58f",
+        "valid": true,
+        "test_results": [],
+        "path": "out/runs/direct-firstedit-native-gates-62-3c418570aa6e/strict.json"
+      },
+      "backend": {
+        "source": "3c418570aa6e0582bd2be63c2f9d50fb15baa58f",
+        "valid": true,
+        "test_results": [
+          [
+            "ok",
+            "388",
+            "0",
+            "0"
+          ]
+        ],
+        "path": "out/runs/direct-firstedit-native-gates-62-3c418570aa6e/backend.json"
+      },
+      "driver": {
+        "source": "3c418570aa6e0582bd2be63c2f9d50fb15baa58f",
+        "valid": true,
+        "test_results": [
+          [
+            "ok",
+            "254",
+            "0",
+            "0"
+          ]
+        ],
+        "path": "out/runs/direct-firstedit-native-gates-62-3c418570aa6e/driver.json"
+      },
+      "publication": {
+        "source": "3c418570aa6e0582bd2be63c2f9d50fb15baa58f",
+        "valid": true,
+        "test_results": [
+          [
+            "ok",
+            "3",
+            "0",
+            "0"
+          ]
+        ],
+        "path": "out/runs/direct-firstedit-native-gates-62-3c418570aa6e/publication.json"
+      },
+      "fmt": {
+        "source": "3c418570aa6e0582bd2be63c2f9d50fb15baa58f",
+        "valid": true,
+        "test_results": [],
+        "path": "out/runs/direct-firstedit-native-gates-62-3c418570aa6e/fmt.json"
+      },
+      "release": {
+        "source": "3c418570aa6e0582bd2be63c2f9d50fb15baa58f",
+        "valid": true,
+        "test_results": [],
+        "path": "out/runs/direct-firstedit-native-gates-62-3c418570aa6e/release.json"
+      }
+    }
+  },
+  "unchanged_checks_reused": "API111 gate60 unchanged; qualifier31/recording2 gate61 unchanged; Analyze316 gate59 and prior IR94/CT78/Expand148/Types121/Verify657 unchanged. All affected backend/driver/nativepublication rerun; strict/fmt/release and original30+12/10+4 performance complete.",
+  "review": "Root nonauthor reviewed Astra Inputs exactowner/header/fuel/wrapper bridge and scoped-runtime values dependency. Astra nonauthor exact3c418570aa6e0582bd2be63c2f9d50fb15baa58f reviewed root raw ABI+Inputs integration and complete raw cold/restart/directedit wrapper test: PASS. No persisted Source/Types/Verify/WorldBound receipt.",
+  "failures_preserved": [
+    "gates47: new backend test imports used private IR identities; driver load result triggered strict type-complexity. Fixed mechanically, no old release used.",
+    "gates48: driver237PASS/2FAIL; recovered parser-LRU/leaf identity lost CT continuation (210checks/96reuse instead1/305), and candidate retry reason precedence changed. Fixed actual retention/provenance, original assertions retained; gates49driver239PASS.",
+    "profile tool perf task-clock userspace sampling unavailable under kernel policy, also outside outer sandbox; no kernel configuration changed.",
+    "gates50 strict: new test field_reassign_with_default; corrected test initialization; no old binary used.",
+    "gates51 backend380PASS/1FAIL and nativepublication0PASS/2FAIL: launcher omitted ZIL_TEST_NATIVE_LINK_PROFILE. Same-source explicit-profile gates52backend381/publication2 PASS.",
+    "Formal22 source951add3bef36ebac1a3ebe4b02898a2be59c305c binary0c75b8cc27bef4ae01ae1e2eafe0a9021d278729847973559347fd3589400a97: firstedit1.8920515635/Rust1.0873430315s; full30/10 and4runtime PASS. Cold absent root skipped raw producer, firstedit0restored/248misses; failure retained, not a machine-cache win.",
+    "gates53: existing native2PASS/new1FAIL because constant-input test legitimately fully folded to1CGU and exercised no raw producer. Real foreign-input dependency now exercises cold seed/directedit; existing unit/preflight/native assertions retained; SafeReject checks tightened.",
+    "g55: cross-driver-module private analysis field access; scoped getter fixed, field remains private.",
+    "g56: Analyze314/1 counter fixture lacked outer relocation; Driver246/3 fixtures: independent valid Analyze cache not isolated by old hydration corruption test, native profile requiredCGU>=2, and adopted-restored counter excludes changed row. All original safety/fee/native assertions preserved, scenarios corrected.",
+    "g57: Analyze315/Driver248 passed; one native newSession proof accidentally reused same-process successful stage query after outer failure, leaving initialization_workNone. g58 destroys worker before disk retry, exact1 contractPASS; no production logic changed.",
+    "Formal24 e4cf6071eaeb firstedit1.818/Rust1.259s:5104 Analyze rows restored but5105 distinct plan checks; negative result033030437 retained.",
+    "Phase diagnostic25 wrapper used execv with PATH-only rustc, failed before Rustcompile. Diagnostic25b fixture lacked original Cargo.toml/Cargo.lock and discovered parent workspace; explicitly terminated wrong cargo subtree and retired only its generated target. Corrected25c copies exact original manifest/lock and verifies crate/workspace boundary. Both failures retained; formal25 unaffected.",
+    "Formal26 source58ae9a73ac22fae8f5f707b4dc234097f379896b: firstedit1.5487633895/Rust1.0539526655s; fullqualitypassed but optimizationgoal NoGo. See window26.json; previous machinepreflight andpublication changes alone did not solve the gap.",
+    "Gate60 hostdiskexhaustion failedpublication linker/toolchecks; same-source61passed aftercompletedhostintermediatecleanup. No productdiskclaim from host/evidence cleanup."
+  ],
+  "paired_phase_diagnostic": {
+    "source": "3c418570aa6e0582bd2be63c2f9d50fb15baa58f",
+    "diagnostic_only": true,
+    "formal_ratio": false,
+    "raw": "out/runs/paired-firstedit-phases-27",
+    "method": "Same original cold -> exit -> private001 -> first request in freshprocess, no unchangedprewarm. Rust bothbuilds add -Ztime-passes/-Zincremental-info; ZIL profile-compilation. OriginalO2/CGU16/jobs1. Processwall includes startup/drop; formalrequest clocks separately above.",
+    "process_wall_ms": {
+      "candidate": 2185.777212,
+      "rust": 1653.922765
+    },
+    "candidate_exclusive_ns": {
+      "total_ns": 2058158482,
+      "classified_ns": 1970539398,
+      "unassigned_ns": 87619084,
+      "overlap_ns": 0,
+      "overlap_errors_ns": {},
+      "segments_ns": {
+        "analyze": 38823129,
+        "codegen": 571857152,
+        "ct": 45309495,
+        "discovery_receipt_publication": 3878709,
+        "expand_assembly": 342432,
+        "expand_context": 2959689,
+        "expand_materialization": 21028983,
+        "expand_other": 81916005,
+        "expand_production": 11630884,
+        "expand_reuse": 1939823,
+        "frontend_product_publication": 18749974,
+        "frontend_product_read": 22505456,
+        "function_cache_publication": 24377940,
+        "function_cache_read": 62513939,
+        "function_checkpoint": 171180,
+        "lower": 2515757,
+        "owner_binding": 18628,
+        "parse": 113065,
+        "producer_checkpoint": 28813,
+        "project_setup": 1372397,
+        "semantic_cache_read": 5914260,
+        "semantic_candidate_publication": 160143126,
+        "source_ingress": 95542420,
+        "types_cfg_execute": 699679,
+        "types_cfg_reuse": 104716381,
+        "types_cfg_store": 30917,
+        "types_context": 83960874,
+        "types_core_comparison": 0,
+        "types_graph_maintenance": 0,
+        "types_input_inventory": 17240611,
+        "types_other": 113098042,
+        "types_projection_context": 217258378,
+        "types_query_evaluation": 195669071,
+        "types_shape": 9720760,
+        "verify": 54491429
+      }
+    },
+    "candidate_backend_ns": {
+      "machine_ns": 361477116,
+      "machine_emit_ns": 192483676,
+      "machine_transform_ns": 164752021,
+      "transform_ranges_ns": 11791744,
+      "transform_checked_add_ns": 1089669,
+      "transform_scalar_ns": 1127186,
+      "transform_call_classes_ns": 150028821,
+      "transform_purity_ns": 394497,
+      "machine_preflight_ns": 30192216,
+      "partition_ns": 10831901,
+      "diagnostic_ns": 9357660,
+      "object_ns": 114490332,
+      "link_key_ns": 29545881,
+      "link_execution_ns": 31684927,
+      "other_ns": 14048468,
+      "total_ns": 571436285
+    },
+    "candidate_publication": {
+      "serialized_functions": 5,
+      "reused_functions": 5100,
+      "written_segments": 4,
+      "existing_segments": 10212,
+      "written_bytes": 10844,
+      "manifest_bytes": 160346,
+      "canonical_functions": 5105,
+      "bound_functions": 0,
+      "encode_ns": 64177337,
+      "guard_ns": 7025432,
+      "item_io_ns": 39176310,
+      "manifest_io_ns": 3982019,
+      "physical_pack_writes": 1,
+      "physical_pack_bytes": 10944,
+      "manifest_writes": 2,
+      "compacted_items": 0,
+      "referenced_packs": 2,
+      "referenced_pack_payload_bytes": 8924081,
+      "serialized_function_plans": 248,
+      "reused_function_plans": 4857,
+      "serialized_function_plan_bytes": 287408,
+      "reused_function_plan_bytes": 1282248,
+      "function_bindings_checked": 5105,
+      "function_plan_bindings_compared": 0
+    },
+    "rust_pass_ms": {
+      "macro_expand_crate": 99.54695,
+      "resolve_crate": 54.633995,
+      "type_check_crate": 23.902661,
+      "MIR_borrow_checking": 19.789445999999998,
+      "partition_and_assert_distinct_symbols": 26.526171,
+      "find_cgu_reuse": 0.745659,
+      "codegen_to_LLVM_IR": 9.933832,
+      "LLVM_passes": 37.589752999999995,
+      "codegen_crate": 101.94539800000001,
+      "serialize_dep_graph": 95.919459,
+      "LLVM_thinlto": 481.410358,
+      "finish_ongoing_codegen": 368.900919,
+      "link": 37.545625,
+      "total": 1553.905068
+    },
+    "warning": "Rust nested/async LLVM_thinlto and finish_ongoing_codegen overlap; do not add them or equate stage obligations. Separate diagnostic is not new formal ratio.",
+    "remaining_costs": "Current paired diagnostic: Types context/projection/query/CFG recovery dominate frontend; semantic publication160ms/function read63ms; machine361ms (emit192,class/prune150), object114ms. Rust codegen_crate102ms is only start_codegen; finish_ongoing_codegen369ms and link38ms occur later, while LLVM_thinlto481ms overlaps. Never compare whole ZILbackend571ms only toRust102ms or assign the whole formal gap to machine."
+  },
+  "unresolved": [
+    "Actual main originaldefaultResourceLimit, accepted=false; no merge.",
+    "Directfirstedit goal remains open unless the formal candidate/Rust row leads; current machine class/reachability/partition still reconstructed before object hits, not rustc greenCGU reuse before LLVM IR.",
+    "Industrial multi-crate/proc-macro/build.rs, minute-scale builds and GB-scale cache coverage remain unverified. No comprehensive Rust claim.",
+    "Formal residentrequest timing excludes startup/drop. OrdinaryCLI full-process and OScold are not established by this window.",
+    "No sustained benefit from the current owner-based scoped-body path: actual firstedit checked5105/reused0. Further small pointer caches are not justified by this measurement; need eliminate actual restored data/context/graph work or overlap metadata preparation with LLVM as rustc does, preserving success-only publication. Neither new persistent classgraph nor asynchronous metadata preparation is implemented here."
+  ],
+  "measured_consumer_correction": {
+    "formal_scoped_thread_scans_per_firstedit": 5105,
+    "formal_scoped_thread_reuses_per_firstedit": 0,
+    "normal_lowering": "zil_lower::current_view borrows verified.module().functions; distinct LIR wrappers are an interface case, not demonstrated in formal27.",
+    "conclusion": "No end-to-end speed improvement established. Formal26 firstedit1548.763ms, formal27 1551.812ms are separate windows, not paired A/B. Current owner-scoped optimization missed the formal first-edit body population. Do not interpret successful tests or the wrapper regression fix as removal of the observed gap."
+  }
+}

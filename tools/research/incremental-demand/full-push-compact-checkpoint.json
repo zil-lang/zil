@@ -1,26 +1,32 @@
 {
-  "schema": "zil.compiler-pain-continuation.v22",
+  "schema": "zil.compiler-pain-continuation.v23",
   "construction_branch": "research/full-push-native",
-  "compiled_source": "3c418570aa6e0582bd2be63c2f9d50fb15baa58f",
-  "production_source": "3c418570aa6e0582bd2be63c2f9d50fb15baa58f",
-  "binary_sha256": "dfecb4bf95f5a0a863d7d6c5be3f1c7bc055735efa531e9631e29a01903b8bd8",
-  "binary": "/workspace/zil-push-main/out/binaries/3c418570aa6e0582bd2be63c2f9d50fb15baa58f/zil",
+  "compiled_source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
+  "production_source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
+  "binary_sha256": "8f5a44be3f4a6ab879366ac8a787ab5f63c25f3377d1ff6d1e9afb3800f3acc2",
+  "binary": "/workspace/zil-push-main/out/binaries/7623ad13c4fea78ace29a426dec9a1633e8fa678/zil",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "status": "window27 directfirstedit 1.551812/Rust1.042106s, candidate/Rust=1.489112; NoGo, firstedit still slower; comprehensive goal remains open",
+  "status": "window28 firstedit 1.710628/Rust1.304979s; NoGo: firstedit still slower; comprehensive target remains open",
   "current_result": "tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
   "previous_native_result": "https://github.com/zil-lang/zil/blob/2c6ee02df6a15c90723b666a379884fd96b37fd9/tools/research/incremental-demand/native-direct-edit-chain-20261116/window26.json",
   "previous_check_source": "54a0258ab9e081085254084e4b081309dc06eda9",
   "previous_check_result": "tools/research/incremental-demand/check-restart-scope-chain-20261116/summary.json",
   "work_in_this_commit": [
-    "Whole current body-admission consumer chain: source-function indexes now reach distinct LIR wrapper nodes through actual current ID, three strong immutable array owners and complete executable header equality; existing current reservation/planning/emission/rawpublication consumers reuse those exact semantic identities. No ID/pointer alone grants authority.",
-    "Cost and selector scans share exact current owners/headers while preserving the original per-logical-row optional fuel and collision charges; unsupported/header/COW changes take original traversal. One bounded current inventory, no serialized receipt.",
-    "Scope correction: the formal driver uses lower_view borrowing verified.module().functions. The distinct-wrapper case is an interface regression fix, NOT an established cause of the formal5105 slowdown. Do not attribute timing changes to that bridge without measured consumer evidence.",
-    "Scoped runtime combines presence and declaration needs, binding both block and value owners for mutex selection. Linker fold observes each current body once, still updates every logical slot and preserves checkpoint isolation and current target/ABI failures.",
-    "Raw machine call validation borrows current ABI operands instead of constructing a temporary parameter vector per call; every occurrence is checked, declaration ordering unchanged, parameter names normalized once. Tests reject a changed128thcall ABI, currentcallee change and missingcallee.",
-    "Prior source58 checker-chain and rawpack snapshot changes retained, with its complete negative window26 separately recorded. Independent Verify/defaultbudgets/fullO2/researchdefaults unchanged."
+    "Current exact Core/Limits raw inference observations reach actual Types key and name consumers, including a fresh process first edit. Current signature reads reconstruct dependencies. Original ledgers and error precedence remain.",
+    "Original ordered task/registration/byte-buffer/dynamic-store consumers record actual scoped charges. Context construction consumes complete reconciled observations instead of rerunning these passes. Equal output anchors still require complete input equality.",
+    "Raw class and partition work products are bounded, produced by cold builds, success-only published, loaded after restart, checked against full current inputs/ABI/callee classes/graph/roles/copy allowance, and consumed before CGU materialization. Decoded dependency and rendering relations are independently rederived; selector is rehashed; no checker authority persisted.",
+    "Semantic encoding preparation starts after current Verify, overlaps backend work, and always joins before return. Successful guarded publication alone advances cache epochs. Failure/cancellation and bounded raw OnceLock associations retain original semantics.",
+    "Fresh closure inference, current header context construction and absolute CFG span rebinding remain. This is not serialized Context authority or zero-copy span rebasing."
   ],
   "invariants": "Default research off; current full Source/LIR bindings, original budgets, independent Verify, full default<O2>; main/goal/archive separate; no LLVM rebuild or evidence packing.",
   "sdk": "Installed SDK18/native-link reused, V32 pins unchanged; no assumption of historical local caches. Completed old user caches retired only after raw/results preserved; not product disk improvement.",
   "goal_status": "Full Rust/main/industrial gates OPEN; old7e/98fa/021997/54a/e402/f828 figures stay source-bound.",
-  "active_work": "Formal27 and pairedphase27 complete; no active builds/agents. No speedup established: firstedit1.552/R1.042s, scopedbodychecks5105/reuse0. Source3c418570 pushed; source58 negativewindow26 kept. The wrapper bridge is a real interface test case but formal lower_view borrows source nodes, not proven rootcause. Next work must eliminate measured Source/Types restoration, metadata publication and machine classgraph/partition work; consider Rust asyncmetadata+LLVM sequencing with unchanged success-onlypublication. These larger changes NOT implemented. No main merge/fullpack/LLVM rebuild."
+  "active_work": "Combined A/B/Driver source7623 fully tested+measured window28 and ordinaryCLI28; firstedit still losesRust (resident1.711/R1.305, CLI2.171/R1.241s). Class/partition rebuilds shrink but restore/reencode still costs; cachepeak50MB versus prior43MB. No main merge/fullpack/LLVM rebuild. Current projection/name report aggregation fixed separately atadc3; targeted release regression1/1+strict passed; no active build or benchmark.",
+  "latest_reporting_source": "adc3d54baa592aa534f401e2fee5eede0d2db9e5",
+  "latest_reporting_source_status": "Only adds omitted current body-projection/name counters to report aggregation. Targeted release aggregation regression1/1 passed; no timings attributed to this later source. Targeted release strict passed.",
+  "unresolved_physical_work": [
+    "Raw work product recovery still decodes, rederives dependencies/normalization, binds current inputs and serializes auxiliary class/partition products; logical hits alone did not remove enough CPU.",
+    "Current canonical CFGs still rebind5100 absolute span-bearing bodies; fresh closure inference and current header context remain.",
+    "OrdinaryCLI includes large compiler session destruction after compile_path, unlike the separate resident request clock; compilerjobs1/CGU16/O2 remain equal."
+  ]
 }
