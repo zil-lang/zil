@@ -1,0 +1,31 @@
+{
+  "status": "Partial replay artifact only; not READY, not integrated, not parsed/reviewed/compiled",
+  "source_base": "3808ce65fab62c68e99d8dd45ab9a96bbb850057",
+  "latest_saved_source": "9db107f3ebc2730a964a0b19e9c9b9e96597c850",
+  "source_path_note": "Later saved staged Verify checkpoint did not change these four Lower/backend paths",
+  "artifact": "language/20261117T1350Z-lower-replay/partial-lower-and-backend.apply_patch",
+  "artifact_blob": "d159dc2f73cd8984c3d49d8056cb40469d96f06c",
+  "format": "apply_patch text, relative repository crates paths",
+  "provenance": "Root reproduced the exact first successful apply_patch payload after execution environment loss; byte equality to an unavailable whole working tree is not asserted",
+  "scope": [
+    "crates/zil-lower/src/owned_sums.rs",
+    "crates/zil-lower/src/lib.rs",
+    "crates/zil-backend-llvm/src/emit/drop_plan.rs",
+    "crates/zil-backend-llvm/src/emit/packages.rs"
+  ],
+  "author_reported_diff": {
+    "insertions": 40,
+    "deletions": 24
+  },
+  "subsequent_patch": "OwnedDyn addition, unused-helper deletion and stronger tests were in a second apply_patch that failed at its first file read; NONE of that second patch is included or claimed applied",
+  "validation": {
+    "connector_readback_exact": true,
+    "rust_parse": false,
+    "independent_review": false,
+    "cargo": false,
+    "source": false,
+    "native": false
+  },
+  "recovery": "Read this record and compare exact base files before replay. Do not blind apply or merge as a completed implementation.",
+  "authorization": "User explicitly authorized current and future same-scope repository backups and all GitHub interactions; fixed existing archive/source-history only"
+}
