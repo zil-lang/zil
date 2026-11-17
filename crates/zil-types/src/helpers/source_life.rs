@@ -518,8 +518,11 @@ impl Occurrences {
     }
 }
 fn environment_lending(kind: CallableKind, result: &Type, life: &StorageLifeContract) -> bool {
+    // Match the Source producer's scalar receiver-lending contract exactly.
+    // A borrowed aggregate, even with N0 or a Copy layout, still needs its
+    // complete Result head and intrinsic class relation.
     kind != CallableKind::FnOnce
-        && matches!(result, Type::Address { mutable: false, .. })
+        && matches!(result, Type::Address { mutable: false, inner } if inner.is_b0_scalar())
         && !life
             .bindings
             .iter()
@@ -1678,5 +1681,83 @@ mod tests {
         assert_eq!(image(0, 2), image(1, 0));
         assert_eq!(image(0, 0), image(1, 1));
         assert_ne!(image(0, 1), image(1, 0));
+    }
+    #[test]
+    fn receiver_lending_cannot_erase_a_rich_result_head_or_intrinsic_image() {
+        let mut declared = bound(0, "F");
+        declared.result = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::BorrowedStorage {
+                storage: Box::new(Type::Tuple(vec![address()])),
+                life: StorageLifeShape {
+                    binder_count: 1,
+                    slots: vec![StorageLifeSlot {
+                        path: vec![PlaceProjection::Field(0)],
+                        mode: StoredBorrowMode::SharedAddress,
+                        binder: 0,
+                    }],
+                    retained: vec![],
+                    nominal_arguments: vec![],
+                },
+            }),
+        };
+        // Omitting the whole Result domain used to enter the scalar receiver
+        // exception. The pointee's nonzero domain cannot disappear there.
+        assert!(relation(&declared, Span::default()).is_err());
+        let result_class = SignatureLifeClass {
+            base: StorageBase::Result,
+            path: vec![LifeTypeProjection::Pointee],
+            class: 0,
+        };
+        let life = declared.life.as_mut().unwrap();
+        life.bindings.push(StorageLifeBinding {
+            position: StoragePosition {
+                base: StorageBase::Result,
+                path: vec![],
+            },
+            binder: StorageBinder::Fixed(0),
+        });
+        life.classes.push(SignatureLifeClassBinding {
+            position: result_class.clone(),
+            binder: StorageBinder::Fixed(1),
+        });
+        relation(&declared, Span::default()).unwrap();
+        let original = function(vec![declared.clone()]);
+        let mut actual = self::actual(0, 2, &[0, 1], &[0, 1]);
+        actual.result = declared.result.clone();
+        let actual_life = actual.storage_life.as_mut().unwrap();
+        actual_life.bindings.push(StorageLifeBinding {
+            position: StoragePosition {
+                base: StorageBase::Result,
+                path: vec![],
+            },
+            binder: StorageBinder::Fixed(0),
+        });
+        actual_life.classes.push(SignatureLifeClassBinding {
+            position: result_class,
+            binder: StorageBinder::Fixed(1),
+        });
+        let mut left = 1_000_000;
+        form(&original, &declared, &actual, &mut left, Span::default()).unwrap();
+        actual.storage_life.as_mut().unwrap().classes[0].binder = StorageBinder::Fixed(0);
+        assert!(form(&original, &declared, &actual, &mut left, Span::default()).is_err());
+        // N0 and Copy aggregate referents are not scalar receiver results.
+        for inner in [
+            Type::Tuple(vec![]),
+            Type::Record {
+                name: "Leaf".into(),
+                fields: vec![("value".into(), Type::I32)],
+            },
+        ] {
+            let mut omitted = bound(0, "F");
+            omitted.result = Type::Address {
+                mutable: false,
+                inner: Box::new(inner),
+            };
+            assert!(relation(&omitted, Span::default()).is_err());
+        }
+        let mut scalar = bound(0, "F");
+        scalar.result = address();
+        relation(&scalar, Span::default()).unwrap();
     }
 }

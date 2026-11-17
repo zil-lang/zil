@@ -135,7 +135,7 @@ impl Ledger {
                 "source helper bound has no actual lowered role",
             ));
         }
-        Ok(true)
+        Ok(())
     }
 }
 impl Engine<'_> {
