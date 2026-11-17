@@ -1,0 +1,33 @@
+{
+  "source_base": "cf918eab1838e113c14ece3a0cd7d69263d05251",
+  "status": "Unverified active WIP; no functional acceptance",
+  "snapshot_utc": "20261117T125416Z",
+  "scope": [
+    "crates",
+    "tests/language-readiness/task-owner-transport",
+    "spec/semantic-scopes.md",
+    "_zil_design.md"
+  ],
+  "changed_files": {
+    "crates/zil-verify/src/dynamic_witness.rs": "88297dcba134693a29fbcd7933511b76bb78dfd150bd8d4b0074feedfd6a3c2f",
+    "crates/zil-verify/src/dynamic_witness/inventory.rs": "c06140ede9e72846645cd720e6554ae482141cd7e9d99e9e5c73bfcf00ff2fac",
+    "crates/zil-verify/src/dynamic_witness/values.rs": "8f26cb87d6cb0121950c8250bffa8576dc325c84b37c89e79ee30e2b973ff592",
+    "crates/zil-verify/src/retained.rs": "c85487938d13476315de79b4c4f05c4caf694b883016018eb0ea9486d2c7518b",
+    "crates/zil-verify/src/retained/sources.rs": "21e9e771c66dbf472ff521016aa4b15ff28ac04fe84e85582de2cf4a3418ea3b",
+    "crates/zil-verify/src/retained_tests.rs": "c967cdf863ca3b02967943448aac426539f231f008a6ca5d3eec12db45700210",
+    "crates/zil-verify/src/semantic/flow/child_values.rs": "9a2dac2d00e6b849ad2fbf8d7dfc75e63ed927bf71c641c8ebe690d519f7209e",
+    "crates/zil-verify/src/semantic/original/calls.rs": "72004ae6954309af6789b2c346595accd1a7432dd50a64f8834b6149e04a3caf",
+    "crates/zil-verify/src/semantic/original/protocol/expressions.rs": "3d232b4428e4654a1af7dedf705af6a3dd4303027184c1788cfe94d84a631065",
+    "crates/zil-verify/src/semantic/original/protocol/state.rs": "71843f07ec04f3456eceadb0978264952b50b6298829a873e1afb2bd442f85cb",
+    "crates/zil-verify/src/semantic/original/receiver_signatures.rs": "3ec0ff9ea2261d2282a197c07edacc8fd2d9db041af7aa6a8babcbca5010c012",
+    "crates/zil-verify/src/stored_flow.rs": "0e8a26fa2d77976bd4e91221e6a96cf36da0504df5fbbb76f862d801e8bd1159",
+    "crates/zil-verify/src/stored_flow/callable_cells.rs": "8caf6848ca55602c1976e20f6189a0e180d054c7f0cc80c3f48a038435419803",
+    "crates/zil-verify/src/stored_flow_pure_copy.rs": "62dd56fe263727d0107643ff11568399608921375674f9141e1fd0f89b72ee1d",
+    "crates/zil-verify/src/sums.rs": "bff301de1287f846132cf1a969ea84365877dde27f84367b9ce9d0d68c3f5fd7",
+    "crates/zil-verify/src/sums/values.rs": "120872413deccffa7a7efce6f461879f63308c8f8513bf9496fa738c391392ff",
+    "crates/zil-verify/src/tasks/frame_shape.rs": "e7d2bb40566f76f0f581a8215c10e166d2a940bdeb113e5f8804c9c08ee6fb3b"
+  },
+  "untracked_files": [],
+  "stable_double_read": true,
+  "restore": "Checkout source_base, apply source.patch, and copy untracked/ into that checkout. Evidence has its own candidate provenance; do not infer acceptance from archive."
+}
