@@ -1203,6 +1203,14 @@ impl CompilationSession {
         )
     }
 
+    pub(super) fn raw_analysis_product_for(
+        &self,
+        program: &Arc<TypedProgram>,
+        candidate: &Arc<CandidatePlan>,
+    ) -> Option<zil_analyze::RawAnalysisBase> {
+        self.analysis.raw_product_for(program, candidate)
+    }
+
     /// Retrieve only the candidate actually adopted for this exact current
     /// Types construction. Optional persistence cannot use a stale raw entry.
     pub(super) fn analysis_candidate(

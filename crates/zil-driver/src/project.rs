@@ -1755,7 +1755,7 @@ impl CompilationSession {
             }
             if options.push_reuse
                 && !options.cancellation.is_cancelled()
-                && let Some(raw) = self.analysis.raw_product_for(typed.program(), &candidate)
+                && let Some(raw) = self.raw_analysis_product_for(typed.program(), &candidate)
             {
                 super::semantic_cache::analyze_recovery::save(
                     options,
