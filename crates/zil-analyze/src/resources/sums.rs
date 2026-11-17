@@ -449,6 +449,35 @@ impl Tree {
             node,
         }))
     }
+    // Check only the complete immutable layout, not origins, tags as runtime
+    // permissions, liveness or class images. Actual alternatives may already
+    // be narrowed; each present alternative must retain its full field tree.
+    fn layout_matches(&self, expected: &Self, b: &mut Budget) -> CompileResult<bool> {
+        b.spend(1, "actual producer complete Tree layout")?;
+        match (&self.node, &expected.node) {
+            (Node::Copy, Node::Copy) | (Node::Leaf(_), Node::Leaf(_)) => Ok(true),
+            (Node::Product(actual), Node::Product(expected)) => {
+                if actual.len() != expected.len() { return Ok(false); }
+                for (a, e) in actual.iter().zip(expected) {
+                    if !a.layout_matches(e, b)? { return Ok(false); }
+                }
+                Ok(true)
+            }
+            (Node::Sum(actual), Node::Sum(expected)) => {
+                for (tag, fields) in actual {
+                    b.lookup(expected.len(), "actual producer typed alternative")?;
+                    let Some(want) = expected.get(tag) else { return Ok(false); };
+                    if fields.len() != want.len() { return Ok(false); }
+                    for (a, e) in fields.iter().zip(want) {
+                        if !a.layout_matches(e, b)? { return Ok(false); }
+                    }
+                }
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
+    }
+
     fn cost(&self, budget: &mut Budget) -> CompileResult<()> {
         // Arc::make_mut copies only this node and its immediate child refs.
         budget.spend(2, "Sum COW node copy")?;
@@ -850,7 +879,17 @@ impl Tree {
                 }
             }
             (Node::Copy, Node::Copy) => {}
-            _ => return Err(error("Sum fact has inconsistent shape")),
+            _ => {
+                fn shape(node: &Node) -> (&'static str, usize) {
+                    match node { Node::Copy => ("Copy", 0), Node::Leaf(origins) => ("Leaf", origins.len()),
+                        Node::Product(fields) => ("Product", fields.len()), Node::Sum(arms) => ("Sum", arms.len()) }
+                }
+                budget.spend(192, "Sum inconsistent shape bounded diagnostic")?;
+                let mut errors = error("Sum fact has inconsistent shape");
+                errors[0].notes.push(format!("existing {:?}, missing {}; incoming {:?}, missing {}",
+                    shape(&self.node), self.missing, shape(&other.node), other.missing));
+                return Err(errors);
+            },
         }
         Ok(changed)
     }
@@ -1945,60 +1984,123 @@ impl Plan {
                 }));
             }
             InstructionKind::TaskCreateOwned { arguments, .. } => {
-                budget.spend(
-                    arguments.len().saturating_add(12),
-                    "Task allocation failure original input tree",
-                )?;
-                let inputs = Arc::new(Tree {
-                    missing: false,
-                    node: Node::Product(
-                        arguments
-                            .iter()
-                            .map(|v| facts.value(*v, budget))
-                            .collect::<CompileResult<_>>()?,
-                    ),
-                });
-                let reason = Arc::new(Tree {
-                    missing: false,
-                    node: Node::Copy,
-                });
-                let failure = Arc::new(Tree {
-                    missing: false,
-                    node: Node::Product(vec![reason, inputs]),
-                });
-                let head = Arc::new(Tree {
-                    missing: false,
-                    node: Node::Leaf(BTreeSet::from([Birth::Created])),
-                });
-                output = Some(Arc::new(Tree {
-                    missing: false,
-                    node: Node::Sum(BTreeMap::from([(0, vec![head]), (1, vec![failure])])),
-                }));
+                let ty = i.result.and_then(|v| f.values.get(v.0 as usize))
+                    .ok_or_else(|| error("Task owned result type is absent"))?;
+                let Type::ErrorUnion { error: failure, result } = ty else {
+                    return Err(error("Task owned result requires its complete failure/success Sum"));
+                };
+                if !matches!(result.as_ref(), Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. })) {
+                    return Err(error("Task owned success does not contain its actual Task owner"));
+                }
+                let storage = package_storage(failure);
+                let (name, fields, record) = match storage {
+                    Type::Record { name, fields } => (name, fields, true),
+                    Type::Package { name, fields } => (name, fields, false),
+                    _ => return Err(error("Task owned failure has no actual ordered product")),
+                };
+                let [(reason_name, reason), (inputs_name, inputs @ Type::Tuple(types))] = fields.as_slice() else {
+                    return Err(error("Task owned failure omits its complete reason/input Tuple"));
+                };
+                budget.spend(name.len().saturating_add(arguments.len()).saturating_add(32),
+                    "Task owned complete failure product")?;
+                if reason_name != "reason" || inputs_name != "inputs"
+                    || !matches!(reason, Type::Enum { name, variants } if name == "@std.task:v1:TaskCreateError"
+                        && matches!(variants.as_slice(), [(tag, fields)] if tag == "Allocation" && fields.is_empty()))
+                    || types.len() != arguments.len()
+                {
+                    return Err(error("Task owned failure changes its canonical reason or input arity"));
+                }
+                budget.type_work(inputs, true, "Task failure complete input identity")?;
+                if *name != format!("@std.task:v1:TaskCreateFailure:{}", inputs.fingerprint()) {
+                    return Err(error("Task owned failure changes its full input product identity"));
+                }
+                let mut actual_inputs = Vec::new();
+                let mut copy_record = true;
+                for (argument, expected) in arguments.iter().zip(types) {
+                    let actual = f.values.get(argument.0 as usize)
+                        .ok_or_else(|| error("Task failure original input SSA absent"))?;
+                    budget.type_work(expected, false, "Task failure expected input Type")?;
+                    budget.type_work(actual, false, "Task failure actual input Type")?;
+                    if actual != expected {
+                        return Err(error("Task failure changes one actual ordered input Type"));
+                    }
+                    copy_record &= actual.is_copy_value() || matches!(actual, Type::Address { .. });
+                    let incoming = facts.value(*argument, budget)?;
+                    if check && !incoming.complete(budget)? {
+                        return Err(error("Task failure input is not a complete available value"));
+                    }
+                    budget.spend(1, "Task failure input tree reference")?;
+                    actual_inputs.push(incoming);
+                }
+                if record != copy_record {
+                    return Err(error("Task failure product changes its actual input responsibilities"));
+                }
+                // The same full-Type constructor used by initial states also
+                // builds this producer's reason Enum, qualified product and
+                // success owner. Only executable inputs replace their exact
+                // typed positions; their original births are not re-created.
+                let mut tree = Tree::unknown(ty, budget)?;
+                let Node::Sum(arms) = &mut edit(&mut tree, budget)?.node else { unreachable!(); };
+                let failure_tree = &mut arms.get_mut(&1).ok_or_else(|| error("Task failure arm absent"))?[0];
+                if record {
+                    if !matches!(failure_tree.node, Node::Copy) {
+                        return Err(error("Copy Task failure changes its typed terminal layout"));
+                    }
+                    for input in &actual_inputs {
+                        if !input.no_live_owner(budget)? {
+                            return Err(error("Copy Task failure hides an actual owning input"));
+                        }
+                    }
+                } else {
+                    let Node::Product(fields) = &mut edit(failure_tree, budget)?.node else {
+                        return Err(error("owning Task failure changes its typed product layout"));
+                    };
+                    let inputs = fields.get_mut(1).ok_or_else(|| error("Task failure input field absent"))?;
+                    let Node::Product(expected) = &mut edit(inputs, budget)?.node else {
+                        return Err(error("Task failure input field is not its complete typed Tuple"));
+                    };
+                    for (slot, incoming) in expected.iter_mut().zip(actual_inputs) {
+                        if !incoming.layout_matches(slot, budget)? {
+                            return Err(error("Task failure original input Tree disagrees with its complete Type"));
+                        }
+                        *slot = incoming;
+                    }
+                }
+                // The common real-opcode publication below marks only the
+                // success head Created. The failure keeps every actual input.
+                output = Some(tree);
             }
             InstructionKind::WithScopedThread { argument, .. }
                 if crate::tasks::transfer::task_owner(&f.values[argument.0 as usize]) =>
             {
-                budget.spend(8, "Task thread outcome actual source")?;
+                let ty = i.result.and_then(|v| f.values.get(v.0 as usize))
+                    .ok_or_else(|| error("Task thread outcome result absent"))?;
+                let owner = &f.values[argument.0 as usize];
+                let Type::Enum { variants, .. } = ty else {
+                    return Err(error("Task thread outcome is not its actual Enum"));
+                };
+                let [(failed, one), (completed, two)] = variants.as_slice() else {
+                    return Err(error("Task thread outcome omits complete alternatives"));
+                };
+                budget.type_work(owner, false, "Task thread actual owner input")?;
+                if let Some(expected) = one.first() {
+                    budget.type_work(expected, false, "Task thread expected returned owner")?;
+                }
+                if failed != "Failed" || completed != "Completed"
+                    || one.as_slice() != std::slice::from_ref(owner)
+                    || two.as_slice() != [Type::I32, Type::I32]
+                {
+                    return Err(error("Task thread outcome changes its complete physical payloads"));
+                }
                 let source = facts.value(*argument, budget)?;
-                output = Some(Arc::new(Tree {
-                    missing: false,
-                    node: Node::Sum(BTreeMap::from([
-                        (0, vec![source]),
-                        (
-                            1,
-                            vec![
-                                Arc::new(Tree {
-                                    missing: false,
-                                    node: Node::Copy,
-                                }),
-                                Arc::new(Tree {
-                                    missing: false,
-                                    node: Node::Copy,
-                                }),
-                            ],
-                        ),
-                    ])),
-                }));
+                let mut tree = Tree::unknown(ty, budget)?;
+                let Node::Sum(arms) = &mut edit(&mut tree, budget)?.node else { unreachable!(); };
+                let slot = &mut arms.get_mut(&0).ok_or_else(|| error("Task thread failed arm absent"))?[0];
+                if !source.layout_matches(slot, budget)? {
+                    return Err(error("Task thread returned input changes its complete Tree layout"));
+                }
+                *slot = source;
+                output = Some(tree);
             }
             InstructionKind::MakeVariant { variant, fields } => {
                 let Some(Type::Enum { variants, .. }) =
