@@ -35,7 +35,7 @@ pub(super) fn lending(d: &ClosureDefinition) -> bool {
     d.storage_life.is_some()
         && !d.lending_captures.is_empty()
         && d.kind != CallableKind::FnOnce
-        && matches!(&d.result, Type::Address { mutable:false, inner } if scalar(inner))
+        && matches!(&d.result, Type::Address { mutable:false, inner } if inner.is_address_pointee())
 }
 /// Schedules a complete argument-bounded returned-address proof. A declared
 /// relation supplies no target: each actual Return and caller substitution
@@ -72,6 +72,26 @@ pub(super) fn life_result(d: &ClosureDefinition) -> &Type {
         &d.result
     }
 }
+/// Scheduling only: the independent original source and complete actual
+/// header/entry checks still establish whether this head may supply a view.
+pub(super) fn receiver_access_head(d: &ClosureDefinition) -> bool {
+    matches!(d.kind, CallableKind::Fn | CallableKind::FnMut)
+        && d.storage_life.as_ref().is_some_and(|life| {
+            matches!(super::signature_life::outer(life, StorageBase::Receiver),
+                Some(StorageBinder::Invocation(_)))
+        })
+}
+
+pub(super) fn receiver_view(
+    function: &TypedFunction, instruction: &Instruction, d: &ClosureDefinition,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if result_is_receiver(d) { return Ok(true); }
+    let Some(result) = instruction.result else { return Ok(false); };
+    b.lookup(b.semantic_receiver_views.len(), "exact original callable receiver view")?;
+    Ok(b.semantic_receiver_views.contains_key(&(function.id, result, d.id)))
+}
+
 pub(super) fn result_is_receiver(d: &ClosureDefinition) -> bool {
     d.storage_life.as_ref().is_some_and(|life| {
         super::signature_life::outer(life, StorageBase::Receiver).is_some_and(|head| {
@@ -232,6 +252,12 @@ pub(super) fn value(module: &TypedModule, t: &Type) -> bool {
     };
     matches!(t,Type::Closure(id)if finite(module,*id))
 }
+/// A manager anchor, never its payload address. The sealed ByteBuffer view
+/// kernel checks canonical resource identity, every use and relocation.
+pub(super) fn byte_capture_head(ty: &Type) -> bool {
+    matches!(ty, Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer)
+}
+
 pub(super) fn capture(t: &Type) -> bool {
     scalar(t)
         || matches!(t, Type::Address { mutable: false, inner }
@@ -343,6 +369,15 @@ pub(super) fn semantic_copy_capture(
     )?;
     if !b.semantic_closures_proven.contains(&closure.id) {
         return Ok(false);
+    }
+    if matches!(ty, Type::Record { .. } | Type::Array { .. } | Type::Tuple(_) | Type::Enum { .. })
+        && super::stored_flow::inline_capture_data(ty, b)? {
+        if closure.storage_life.is_none() || !module.closures.get(closure.id.0 as usize)
+            .is_some_and(|actual| std::ptr::eq(actual, closure)) {
+            return Err(bad("completed inline capture changes its exact actual environment"));
+        }
+        b.owning_environment_captures = true;
+        return Ok(true);
     }
     if matches!(ty, Type::Tuple(_)) && super::stored_flow::shared_compound(module, ty, b)? {
         if closure.storage_life.is_none()

@@ -6,7 +6,7 @@ use super::*;
 pub(super) struct AbstractCall {
     parameter: u32,
     pub(super) subject: Term,
-    receiver: Term,
+    pub(super) receiver: Term,
     place: Option<Borrow>,
     pub(super) signature_owner: SemanticDefinitionId,
     pub(super) signature: SemanticSignatureRecipe,
@@ -238,7 +238,17 @@ impl Solver<'_, '_> {
         let root = self.type_root(local, b)?;
         if let Kind::Rigid(owner, ordinal) = self.state.arena[root] {
             let (kind, signature, bounds) = self.quantified_callable_premise(owner, ordinal, b)?;
-            let place = self.borrow_place(frame, callee, b, depth + 1)?;
+            let place = if kind == CallableKind::FnOnce
+                && matches!(callee.kind, CoreExprKind::Call { .. } | CoreExprKind::Closure { .. }
+                    | CoreExprKind::If { .. } | CoreExprKind::Sequence { .. }) {
+                b.lookup(frame.expressions.len(), WORK)?;
+                if frame.expressions.get(&callee.id).copied() != Some(local) {
+                    return Err(fail("abstract temporary consuming receiver has no exact evaluated expression"));
+                }
+                borrow_places::Place { anchor: None, expression: Some(callee.id), index: None,
+                    root: local, path: Vec::new(), inner: local, indirect: false,
+                    source_life: None, mutable: false }
+            } else { self.borrow_place(frame, callee, b, depth + 1)? };
             match kind {
                 CallableKind::FnOnce if place.indirect => {
                     return Err(fail("abstract FnOnce cannot move through a borrowed place"));
@@ -249,7 +259,7 @@ impl Solver<'_, '_> {
                 CallableKind::FunctionPointer => return Ok(None),
                 _ => {}
             }
-            if kind == CallableKind::FnOnce {
+            if kind == CallableKind::FnOnce && place.expression.is_none() {
                 self.consume_place(frame, &place, b)?;
             }
             let context = self.premise_frame(frame, owner, b)?;

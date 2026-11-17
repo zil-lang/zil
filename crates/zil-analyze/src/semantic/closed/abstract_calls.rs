@@ -187,7 +187,7 @@ impl Check<'_, '_> {
                     }
                 } else if kind == CallableKind::FnOnce {
                     let callee = callee.ok_or_else(|| fail("abstract owned receiver loses its actual SSA"))?;
-                    self.checked_owned_place(instance, function, callee, source, b)?;
+                    self.consuming_receiver_place(instance, function, (block, index), callee, source, b)?;
                 } else {
                     let callee = callee.ok_or_else(|| fail("abstract borrowed receiver loses its actual SSA"))?;
                     self.checked_borrow_place(
@@ -389,6 +389,21 @@ impl Check<'_, '_> {
             // actual receiver/entry/full signature. Actual roots, retained
             // parents, loans, effects and cleanup are still independently
             // reconstructed by the memory/callable kernels before publication.
+            if original::receiver_result(&boundary.signature, kind) {
+                if !crate::stored_callables::receiver_access_head(definition) {
+                    if !crate::stored_callables::constant_result(definition) {
+                        return Err(fail("abstract Receiver role loses its actual invocation access head"));
+                    }
+                    self.static_byte_returns(self.inventory.function(
+                        &SemanticFunctionTarget::Typed(definition.function), b)?, &definition.result, b)?;
+                }
+                let result = instruction.result.ok_or_else(|| fail("abstract Receiver call has no actual result SSA"))?;
+                let key = (function.id, result, id);
+                b.lookup(b.semantic_receiver_views.len(), WORK)?;
+                if let Some(previous) = b.semantic_receiver_views.insert(key, (block, index)) {
+                    if previous != (block, index) { return Err(fail("abstract Receiver changes its exact actual call identity")); }
+                }
+            }
             if kind == CallableKind::FnOnce {
                 record_consuming_operation(function.id, block, index, id,
                     boundary.signature.call_kind, b)?;
@@ -403,6 +418,41 @@ impl Check<'_, '_> {
     /// A zero-class callable still has an exact current owner. The original
     /// temporary's emitted SSA and the final initialization of its actual
     /// receiver local must agree; equal closure types do not choose an owner.
+    pub(super) fn known_consuming_receiver(
+        &self, instance: &SemanticInstance, function: &TypedFunction,
+        at: (BlockId, usize), callee: ValueId, site: SemanticSiteId,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        operations::available_before(function, (at.0, at.1, SemanticSiteEdge::Before), callee, b)?;
+        let source = self.original.borrowed_closure_receiver(instance, site,
+            self.program, self.inventory, b)?;
+        self.consuming_receiver_place(instance, function, at, callee, &source, b)
+    }
+
+    fn consuming_receiver_place(
+        &self, instance: &SemanticInstance, function: &TypedFunction,
+        at: (BlockId, usize), callee: ValueId, source: &original::borrow_places::Source,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        operations::available_before(function, (at.0, at.1, SemanticSiteEdge::Before), callee, b)?;
+        if let Some(node) = source.expression {
+            if source.anchor.is_some() || source.indirect || !source.path.is_empty()
+                || source.index.is_some() || source.slice.is_some() {
+                return Err(fail("temporary consuming receiver changes its original whole expression"));
+            }
+            let expected = self.original_subject_value(instance, function, node, b)?
+                .ok_or_else(|| fail("temporary consuming receiver has no exact emitted original value"))?;
+            self.original_producer_value(function, callee, expected, b)?;
+            let actual = self.ssa_value(instance, function, callee, b, 0)?;
+            if !self.capture_values_equal(&actual, &source.root, b)? {
+                return Err(fail("temporary consuming receiver changes its complete original value"));
+            }
+            Ok(())
+        } else {
+            self.checked_owned_place(instance, function, callee, source, b)
+        }
+    }
+
     pub(super) fn known_receiver_place(
         &self, instance: &SemanticInstance, function: &TypedFunction,
         at: (BlockId, usize), instruction: &Instruction,
@@ -434,27 +484,7 @@ impl Check<'_, '_> {
             let node = source.expression.ok_or_else(|| fail("temporary Receiver omits its original expression"))?;
             let expected = self.original_subject_value(instance, function, node, b)?
                 .ok_or_else(|| fail("temporary Receiver has no exact emitted original SSA"))?;
-            let block = function.blocks.get(at.0.0 as usize).filter(|row| row.id == at.0)
-                .ok_or_else(|| fail("temporary Receiver has no actual call block"))?;
-            let mut initialized = false;
-            for operation in block.instructions.iter().take(at.1).rev() {
-                b.spend(1, WORK)?;
-                match operation.kind {
-                    InstructionKind::Store { local: target, value } if target == local => {
-                        if value != expected { return Err(fail("temporary Receiver replaces its original producer")); }
-                        initialized = true;
-                        break;
-                    }
-                    InstructionKind::StorageLive(target) | InstructionKind::StorageDead(target)
-                    | InstructionKind::TakeLocal { local: target }
-                    | InstructionKind::DropClosure { local: target } if target == local =>
-                        return Err(fail("temporary Receiver crosses a retired or uninitialized epoch")),
-                    InstructionKind::CommitPlaceReplace { .. } | InstructionKind::WriteAddress { .. } =>
-                        return Err(unknown("temporary Receiver needs its complete intervening replacement identity")),
-                    _ => {}
-                }
-            }
-            if !initialized { return Err(unknown("temporary Receiver needs its exact same-block initialization")); }
+            self.original_producer_local(function, local, at, expected, b)?;
         }
         let current = self.local_value(instance, function, local, at, b, 0)?;
         if !self.capture_values_equal(&current, &source.root, b)? {

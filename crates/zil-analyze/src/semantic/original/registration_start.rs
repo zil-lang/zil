@@ -193,6 +193,7 @@ impl Solver<'_, '_> {
             .last()
             .ok_or_else(|| fail("original installation loses its callback"))?;
         let callback = self.expression(frame, callback_expression, b, depth + 1)?;
+        self.prepare_call_value(frame.definition, callback_expression.id, callback, b)?;
         let anchor = self.registration_anchor(frame, callback_expression, b, depth + 1)?;
         for predicate in [
             Predicate::SyncDrop,

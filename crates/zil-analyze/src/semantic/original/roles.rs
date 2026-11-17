@@ -498,6 +498,14 @@ impl Solver<'_, '_> {
                     ));
                 };
                 let declaration = self.inventory.definition(definition, b)?;
+                if need.kind == CallableKind::FnOnce {
+                    let result = self.type_root(result, b)?;
+                    if let Kind::Address { life, .. } = self.state.arena[result]
+                        && matches!(self.state.arena[self.root(life, b)?],
+                            Kind::Life(Life::ClosureReceiver(owner)) if owner == definition) {
+                        return Err(fail("consuming callable cannot expose a receiver-bounded result"));
+                    }
+                }
                 self.capture_role(definition, need.kind, need.call_kind, b)?;
                 let SemanticDefinitionBody::FunctionWithBody {
                     signature,
@@ -562,6 +570,7 @@ impl Solver<'_, '_> {
                     // return, rather than equating it with the role window.
                     self.state.receiver_sources(definition, self.inventory, b)?
                         .ok_or_else(|| fail("callable Receiver result has no complete captured return proof"))?;
+                    if self.static_byte_role(result, need.result, b, 0)? { continue; }
                     let expected = self.type_root(need.result, b)?;
                     let actual = self.type_root(result, b)?;
                     let (Kind::Address { mutable: false, inner: wanted, .. },
@@ -732,7 +741,9 @@ impl Checked {
         b.lookup(self.frames.len(), WORK)?;
         let frame = self.frames.get(&owner)
             .ok_or_else(|| fail("Receiver source has no independently completed original body"))?;
-        if !matches!(self.arena[self.root(frame.result, b)?], Kind::Address { mutable: false, .. }) {
+        let result = self.receiver_value_root(frame.result, b)?;
+        if !matches!(&self.arena[result], Kind::Address { mutable: false, .. })
+            && !matches!(&self.arena[result], Kind::Atom(ty) if strings::is_byte_type(ty)) {
             return Ok(None);
         }
         let directory = inventory.original_index(owner, b)?;
@@ -748,59 +759,235 @@ impl Checked {
             b.lookup(frame.expressions.len(), WORK)?;
             let Some(term) = frame.expressions.get(&value.id) else { return Ok(None); };
             if self.root(*term, b)? != self.root(frame.result, b)?
-                || !self.receiver_expression_source(owner, value, &mut sources, b, 0)? {
+                || !self.receiver_expression_source(owner, value.id, inventory, &mut sources, &mut BTreeSet::new(), b, 0)? {
                 return Ok(None);
             }
         } else {
             for value in returns {
                 b.spend(1, WORK)?;
                 let Some(value) = value else { return Ok(None); };
-                if !self.receiver_expression_source(owner, value, &mut sources, b, 0)? { return Ok(None); }
+                if !self.receiver_expression_source(owner, value.id, inventory, &mut sources, &mut BTreeSet::new(), b, 0)? { return Ok(None); }
             }
         }
-        Ok((!sources.is_empty()).then_some(sources))
+        // A literal-only result has no capture root. Its separate genuine
+        // Static source proof is sufficient; zero captures alone prove nothing.
+        Ok(Some(sources))
     }
 
+    fn receiver_value_root(&self, term: Term, b: &mut Budget) -> CompileResult<Term> {
+        let mut root = self.root(term, b)?;
+        for _ in 0..=b.partial_depth {
+            b.spend(1, WORK)?;
+            let Kind::CallResult { hidden, .. } = self.arena[root] else { return Ok(root); };
+            root = self.root(hidden, b)?;
+        }
+        Err(resource("Receiver source value exceeds its finite call ancestry"))
+    }
+
+    /// Follow the already checked original source directory. Syntax only
+    /// transports projections/aliases; actual Borrow, call-input and sealed
+    /// manager receipts establish roots. Equal lifetime labels never select a
+    /// captured owner, and helper spellings carry no authority.
     fn receiver_expression_source(
-        &self, owner: SemanticDefinitionId, value: &SemanticOriginalExpr,
-        sources: &mut BTreeSet<u32>, b: &mut Budget, depth: usize,
+        &self, owner: SemanticDefinitionId, node: NodeId, inventory: &Inventory<'_>,
+        sources: &mut BTreeSet<u32>, active: &mut BTreeSet<(SemanticDefinitionId, NodeId)>,
+        b: &mut Budget, depth: usize,
     ) -> CompileResult<bool> {
         b.spend(1, WORK)?;
         if depth > b.partial_depth { return Err(resource("Receiver original source depth exceeded")); }
-        match &value.kind {
-            CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. }
-            | CoreExprKind::Sequence { value: inner, .. } =>
-                self.receiver_expression_source(owner, inner, sources, b, depth + 1),
-            CoreExprKind::If { then_value, else_value, .. } => Ok(
-                self.receiver_expression_source(owner, then_value, sources, b, depth + 1)?
-                && self.receiver_expression_source(owner, else_value, sources, b, depth + 1)?),
-            CoreExprKind::Unary { op: UnaryOp::Borrow, .. } => {
-                b.lookup(self.borrows.len(), WORK)?;
-                let Some(source) = self.borrows.get(&(owner, value.id)) else { return Ok(false); };
-                let Some(LocalAnchor::Environment(ordinal)) = source.anchor else { return Ok(false); };
-                if source.expression.is_some() || source.index.is_some() { return Ok(false); }
-                b.lookup(sources.len(), WORK)?;
-                sources.insert(ordinal);
-                Ok(true)
+        b.lookup(active.len(), WORK)?;
+        if !active.insert((owner, node)) { return Err(unknown("Receiver source has a cyclic original alias")); }
+        let answer = (|| -> CompileResult<bool> {
+            b.lookup(self.string_literals.len(), WORK)?;
+            if self.string_literals.contains_key(&(owner, node)) { return Ok(true); }
+            let directory = inventory.original_index(owner, b)?;
+            let value = directory.get_expr(node, b)?;
+            b.lookup(self.borrows.len(), WORK)?;
+            if let Some(source) = self.borrows.get(&(owner, node)) {
+                if let Some(LocalAnchor::Environment(ordinal)) = source.anchor {
+                    b.spend(source.path.len().saturating_add(1), WORK)?;
+                    b.lookup(sources.len(), WORK)?; sources.insert(ordinal);
+                    return Ok(true);
+                }
+                // Borrowing a copied local payload still borrows that local,
+                // never its initializer. Only an actual pointer traversal can
+                // inherit an earlier captured/external permission.
+                if !source.indirect && !source.slice.is_some_and(|slice| slice.address) { return Ok(false); }
+                if let Some(expression) = source.expression {
+                    return self.receiver_expression_source(owner, expression, inventory, sources, active, b, depth + 1);
+                }
+                if let Some(LocalAnchor::Binding(binding)) = source.anchor {
+                    return self.receiver_binding_sources(owner, binding, inventory, sources, active, b, depth + 1);
+                }
+                return Ok(false);
             }
-            CoreExprKind::Name(_) => {
-                b.lookup(self.environment_reads.len(), WORK)?;
-                let Some(ordinal) = self.environment_reads.get(&(owner, value.id)) else { return Ok(false); };
-                b.lookup(self.frames.len(), WORK)?;
-                let frame = self.frames.get(&owner).ok_or_else(|| fail("Receiver return frame absent"))?;
-                b.lookup(frame.expressions.len(), WORK)?;
-                let Some(term) = frame.expressions.get(&value.id) else { return Ok(false); };
-                if !matches!(self.arena[self.root(*term, b)?], Kind::Address { mutable: false, .. }) { return Ok(false); }
-                b.lookup(sources.len(), WORK)?;
-                sources.insert(*ordinal);
-                Ok(true)
+            b.lookup(self.environment_reads.len(), WORK)?;
+            if let Some(ordinal) = self.environment_reads.get(&(owner, node)) {
+                b.lookup(sources.len(), WORK)?; sources.insert(*ordinal);
+                return Ok(true);
             }
-            _ => Ok(false),
-        }
+            b.lookup(self.intrinsics.len().saturating_add(self.intrinsic_anchors.len()), WORK)?;
+            if self.intrinsics.get(&(owner, node)) == Some(&sealed::Intrinsic::BytesView) {
+                return match self.intrinsic_anchors.get(&(owner, node)) {
+                    Some(LocalAnchor::Environment(ordinal)) => {
+                        b.lookup(sources.len(), WORK)?; sources.insert(*ordinal); Ok(true)
+                    }
+                    // A newly created local manager cannot supply an escaping
+                    // environment view. Its actual heap does not extend Γ.
+                    _ => Ok(false),
+                };
+            }
+            match &value.kind {
+                CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. }
+                | CoreExprKind::Sequence { value: inner, .. }
+                | CoreExprKind::Member { object: inner, .. }
+                | CoreExprKind::Index { object: inner, .. }
+                | CoreExprKind::Unary { op: UnaryOp::Dereference, operand: inner } =>
+                    return self.receiver_expression_source(owner, inner.id, inventory, sources, active, b, depth + 1),
+                CoreExprKind::If { then_value, else_value, .. } => return Ok(
+                    self.receiver_expression_source(owner, then_value.id, inventory, sources, active, b, depth + 1)?
+                    && self.receiver_expression_source(owner, else_value.id, inventory, sources, active, b, depth + 1)?),
+                CoreExprKind::Name(_) => {
+                    b.lookup(self.local_reads.len(), WORK)?;
+                    return match self.local_reads.get(&(owner, node)) {
+                        Some(LocalAnchor::Binding(binding)) => self.receiver_binding_sources(owner, *binding,
+                            inventory, sources, active, b, depth + 1),
+                        _ => Ok(false),
+                    };
+                }
+                _ => {}
+            }
+            // Ordinary and abstract helpers transport the exact outer result
+            // role through their checked original parameter-to-result scheme.
+            // Follow every real argument receipt for that role, not all args.
+            b.lookup(self.frames.len(), WORK)?;
+            let frame = self.frames.get(&owner).ok_or_else(|| fail("Receiver helper source frame absent"))?;
+            b.lookup(frame.expressions.len(), WORK)?;
+            let Some(term) = frame.expressions.get(&node) else { return Ok(false); };
+            let root = self.receiver_value_root(*term, b)?;
+            let Kind::Address { mutable: false, life, .. } = self.arena[root] else { return Ok(false); };
+            let life = self.root(life, b)?;
+            b.lookup(self.call_uses.len(), WORK)?;
+            let mut found = false;
+            if let Some(uses) = self.call_uses.get(&(owner, node)) {
+                for input in uses {
+                    b.spend(1, WORK)?;
+                    if self.root(input.target, b)? != life { continue; }
+                    found = true;
+                    if !self.receiver_expression_source(owner, input.source.node, inventory,
+                        sources, active, b, depth + 1)? { return Ok(false); }
+                }
+            }
+            if found { return Ok(true); }
+            if matches!(self.arena[life], Kind::Life(Life::Receiver(scope, call)) if scope == owner && call == node) {
+                let CoreExprKind::Call { callee, .. } = &value.kind else { return Ok(false); };
+                return self.receiver_expression_source(owner, callee.id, inventory, sources, active, b, depth + 1);
+            }
+            Ok(false)
+        })();
+        b.lookup(active.len(), WORK)?; active.remove(&(owner, node));
+        answer
     }
+
+    fn receiver_binding_sources(
+        &self, owner: SemanticDefinitionId, binding: NodeId, inventory: &Inventory<'_>,
+        sources: &mut BTreeSet<u32>, active: &mut BTreeSet<(SemanticDefinitionId, NodeId)>,
+        b: &mut Budget, depth: usize,
+    ) -> CompileResult<bool> {
+        if depth > b.partial_depth { return Err(resource("Receiver binding source depth exceeded")); }
+        let directory = inventory.original_index(owner, b)?;
+        let statement = directory.get_stmt(binding, b)?;
+        let CoreStatementKind::Binding { initializer: Some(initializer), .. } = &statement.kind else { return Ok(false); };
+        if !self.receiver_expression_source(owner, initializer.id, inventory, sources, active, b, depth + 1)? { return Ok(false); }
+        for ((scope, _), write) in &self.cleanup_writes {
+            b.spend(write.path.len().saturating_add(1), WORK)?;
+            if *scope == owner && write.anchor == LocalAnchor::Binding(binding) {
+                if !write.path.is_empty() { return Ok(false); }
+                if !self.receiver_expression_source(owner, write.value, inventory, sources, active, b, depth + 1)? { return Ok(false); }
+            }
+        }
+        Ok(true)
+    }
+
 }
 
 impl Solver<'_, '_> {
+    pub(super) fn inferred_receiver_body(
+        &self, owner: SemanticDefinitionId, b: &mut Budget,
+    ) -> CompileResult<bool> {
+        let declaration = self.inventory.definition(owner, b)?;
+        Ok(declaration.kind == SemanticDefinitionKind::Closure
+            && matches!(&declaration.body, SemanticDefinitionBody::FunctionWithBody { signature, .. }
+                if signature.call_kind == CallKind::Direct
+                    && matches!(signature.result, SemanticTypeRecipe::OriginalType {
+                        scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result })))
+    }
+
+    pub(super) fn inferred_receiver_return(
+        &mut self, frame: &mut Frame, actual: Term, b: &mut Budget, depth: usize,
+    ) -> CompileResult<bool> {
+        if !self.inferred_receiver_body(frame.definition, b)? { return Ok(false); }
+        let actual = self.type_root(actual, b)?;
+        let Kind::Address { mutable: false, inner, .. } = self.state.arena[actual] else { return Ok(false); };
+        let expected = self.type_root(frame.result, b)?;
+        match self.state.arena[expected] {
+            Kind::Infer(None) => {
+                let life = self.term(Kind::Life(Life::ClosureReceiver(frame.definition)), b)?;
+                let result = self.term(Kind::Address { mutable: false, life, inner }, b)?;
+                self.unify(frame.result, result, depth + 1, b)?;
+            }
+            Kind::Address { mutable: false, life, inner: expected_inner }
+                if matches!(self.state.arena[self.root(life, b)?], Kind::Life(Life::ClosureReceiver(owner)) if owner == frame.definition) => {
+                self.unify(inner, expected_inner, depth + 1, b)?;
+            }
+            _ => return Ok(false),
+        }
+        Ok(true)
+    }
+
+    pub(super) fn finish_inferred_receiver(
+        &mut self, frame: &mut Frame, b: &mut Budget,
+    ) -> CompileResult<()> {
+        let result = self.type_root(frame.result, b)?;
+        let Kind::Address { life, .. } = self.state.arena[result] else { return Ok(()); };
+        if !matches!(self.state.arena[self.root(life, b)?], Kind::Life(Life::ClosureReceiver(owner)) if owner == frame.definition) { return Ok(()); }
+        let directory = self.inventory.original_index(frame.definition, b)?;
+        let returns = directory.active_returns(b)?;
+        if returns.is_empty() { return Err(fail("inferred closure Receiver has no complete actual return inventory")); }
+        let mut common = None;
+        let mut same = true;
+        for value in returns {
+            let value = value.ok_or_else(|| fail("shared closure result has a Unit return"))?;
+            b.lookup(frame.expressions.len(), WORK)?;
+            let term = frame.expressions.get(&value.id).copied()
+                .ok_or_else(|| fail("inferred closure return has no checked original expression"))?;
+            let term = self.type_root(term, b)?;
+            let Kind::Address { mutable: false, life, .. } = self.state.arena[term] else {
+                return Err(fail("inferred closure changes its complete shared result mode"));
+            };
+            if let Some((_, first)) = common {
+                same &= self.same_original(first, life, b, 0)?;
+            } else { common = Some((term, life)); }
+        }
+        let (common_term, common_life) = common.ok_or_else(|| fail("closure return inventory is empty"))?;
+        let local_window = matches!(self.state.arena[self.root(common_life, b)?],
+            Kind::Life(Life::Implicit(owner, _)) | Kind::Life(Life::Receiver(owner, _))
+                | Kind::Life(Life::CallResult(owner, _, _, _)) if owner == frame.definition);
+        if same && !local_window {
+            // A genuinely common Fixed/input source stays intact. A body-local
+            // borrow/call occurrence is not such an external strong source.
+            frame.result = common_term;
+        } else {
+            self.snapshot(frame, b)?;
+            self.capture_role(frame.definition,
+                if self.mutating_closures.contains(&frame.definition) { CallableKind::FnMut } else { CallableKind::Fn },
+                CallKind::Direct, b)?;
+            self.state.receiver_sources(frame.definition, self.inventory, b)?
+                .ok_or_else(|| fail("closure return alternatives have no independent common Receiver upper"))?;
+        }
+        Ok(())
+    }
+
     pub(super) fn known_receiver_output(
         &mut self, owner: SemanticDefinitionId, node: NodeId, subject: Term,
         definition: SemanticDefinitionId, once: bool, result: Term, b: &mut Budget,
@@ -829,7 +1016,7 @@ impl Solver<'_, '_> {
             return Err(resource("Receiver callable provenance exceeds its finite depth"));
         }
         let local_view = matches!(self.state.arena[self.root(life, b)?],
-            Kind::Life(Life::Implicit(actual, _)) if actual == definition);
+            Kind::Life(Life::Implicit(actual, _)) | Kind::Life(Life::ClosureReceiver(actual)) if actual == definition);
         if !required && !local_view { return Ok(result); }
         self.state.receiver_sources(definition, self.inventory, b)?
             .ok_or_else(|| fail("Receiver invocation lacks a complete original captured source proof"))?;

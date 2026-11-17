@@ -753,7 +753,7 @@ impl Check<'_, '_> {
         b.spend(definition.captures.len(), WORK)?;
         // The explicit head/result relation schedules the stronger original
         // all-creators/all-returns theorem below; it supplies no source fact.
-        if crate::stored_callables::result_is_receiver(definition) { return Ok(true); }
+        if crate::stored_callables::receiver_access_head(definition) { return Ok(true); }
         if definition.captures.iter().any(|ty| {
             !ty.is_b0_scalar()
                 && !matches!(ty, Type::Address { mutable: false, inner } if inner.is_b0_scalar())
@@ -939,7 +939,7 @@ impl Check<'_, '_> {
                 }
             }
         }
-        let receiver_result = crate::stored_callables::result_is_receiver(closure);
+        let receiver_result = crate::stored_callables::receiver_access_head(closure);
         if receiver_result {
             if !matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
                 || function.call_kind != CallKind::Direct
@@ -963,7 +963,7 @@ impl Check<'_, '_> {
             }
         }
         if !closure.lending_captures.is_empty() && !receiver_result {
-            if !static_result || closure.kind != CallableKind::FnOnce
+            if !static_result
                 || !closure.lending_captures.windows(2).all(|pair| pair[0] < pair[1]) {
                 return Err(unknown("consuming Static result needs its whole original capture and return relation"));
             }
@@ -1364,7 +1364,7 @@ impl Check<'_, '_> {
                 return Err(fail("Receiver class cannot replace a captured Fixed identity"));
             };
             if function.call_kind != CallKind::Direct
-                || !crate::stored_callables::result_is_receiver(closure)
+                || !crate::stored_callables::receiver_access_head(closure)
                 || crate::signature_life::outer(header, StorageBase::Receiver) != Some(binder)
                 || index >= header.invocation_binder_count {
                 return Err(fail("Receiver class changes its explicit actual head/result relation"));
@@ -3095,6 +3095,51 @@ impl Check<'_, '_> {
 }
 
 impl Check<'_, '_> {
+    pub(super) fn receiver_return_role(
+        &self, instance: &SemanticInstance, function: &TypedFunction, block: BlockId,
+        value: ValueId, actual: &Value, expected: &Value, b: &mut Budget,
+    ) -> CompileResult<bool> {
+        let Some(closure) = function.environment.and_then(|id| self.module.closures.get(id.0 as usize))
+            .filter(|closure| closure.function == function.id) else { return Ok(false); };
+        if function.call_kind != CallKind::Direct || !crate::stored_callables::result_is_receiver(closure)
+            || !matches!(actual.ty, Type::Address { mutable: false, .. })
+            || !geometry::same_type(&actual.ty, &expected.ty, b)? { return Ok(false); }
+        if self.original.receiver_sources(instance.definition, self.inventory, b)?.is_none()
+            || !self.capture_values_equal(&self.pointee(actual, b)?, &self.pointee(expected, b)?, b)? {
+            return Ok(false);
+        }
+        let directory = self.inventory.original_index(instance.definition, b)?;
+        let returns = directory.active_returns(b)?;
+        let mut selected = false;
+        for original in returns {
+            let Some(original) = original else { return Ok(false); };
+            if let Some(producer) = self.original_subject_value(instance, function, original.id, b)? {
+                if producer == value { selected = true; }
+            }
+        }
+        if !selected { return Ok(false); }
+        let header = function.storage_life.as_ref()
+            .ok_or_else(|| fail("Receiver actual return omits its entry header"))?;
+        let binder = crate::signature_life::outer(header, StorageBase::Receiver)
+            .ok_or_else(|| fail("Receiver actual return has no access head"))?;
+        let [outer] = expected.life.slots.as_slice() else { return Ok(false); };
+        if !outer.path.is_empty() || outer.mode != StoredBorrowMode::SharedAddress
+            || expected.classes.get(outer.binder as usize) != Some(&self.header_class(instance, binder, b)?) {
+            return Ok(false);
+        }
+        let actual_block = function.blocks.get(block.0 as usize).filter(|row| row.id == block)
+            .ok_or_else(|| fail("Receiver return has no actual exit block"))?;
+        if !matches!(actual_block.terminator, Terminator::Return(Some(returned)) if returned == value) {
+            return Err(fail("Receiver result adapter selects another actual exit"));
+        }
+        b.lookup(b.semantic_receiving_returns.len(), WORK)?;
+        b.semantic_receiving_returns.insert((function.id, block, value, binder));
+        // This accepts only the directed outer result view. Every actual
+        // source operation, invariant child and final memory ancestry remain
+        // separate mandatory checks; no σ/Fixed equality is published.
+        Ok(true)
+    }
+
     fn static_closure_result(
         &self,
         instance: &SemanticInstance,
@@ -3116,7 +3161,16 @@ impl Check<'_, '_> {
             .filter(|row| row.id == *id)
             .ok_or_else(|| fail("concrete closure result has no actual closure definition"))?;
         let output = self.static_call_result(instance, block, index, b)?;
-        if crate::stored_callables::result_is_receiver(closure) {
+        let mut receiver_view = false;
+        for site in self.inventory.sites_at(self.program, instance.id, block, index, SemanticSiteEdge::After, b)? {
+            if matches!(site.action, SemanticSiteAction::BodyCall { .. }) {
+                receiver_view |= self.original.call_receiver_view(instance, site.recipe, self.inventory, b)?;
+            }
+        }
+        if receiver_view {
+            if !crate::stored_callables::receiver_access_head(closure) {
+                return Err(fail("original Receiver view loses its actual invocation access head"));
+            }
             self.capture_directory(*id, b)?;
             let SemanticInstanceTarget::Function(target) = &instance.target else {
                 return Err(fail("Receiver result has no actual caller function"));
@@ -3142,10 +3196,43 @@ impl Check<'_, '_> {
             let [slot] = output.life.slots.as_slice() else {
                 return Err(fail("Receiver call result loses its complete outer view domain"));
             };
-            if !slot.path.is_empty() || slot.mode != StoredBorrowMode::SharedAddress
-                || !output.life.retained.is_empty() || !output.life.nominal_arguments.is_empty()
-                || output.classes.len() != 1 {
-                return Err(unknown("Receiver call result needs its full retained inner domain proof"));
+            if !slot.path.is_empty() || slot.mode != StoredBorrowMode::SharedAddress {
+                return Err(fail("Receiver call changes its exact shared outer occurrence"));
+            }
+            // Reconstruct the entire child, including phantom/nominal rows;
+            // the shortened root never supplies a missing invariant class.
+            self.pointee(&output, b)?;
+            let contract = closure.storage_life.as_ref()
+                .ok_or_else(|| fail("Receiver result loses its complete actual header"))?;
+            if receiver.classes.len() != contract.fixed_binder_count as usize {
+                return Err(fail("Receiver result omits the complete actual captured domain"));
+            }
+            let mut covered = BTreeSet::new();
+            covered.insert(slot.binder);
+            for child in &output.life.retained {
+                let mut selected = None;
+                for row in &contract.classes {
+                    b.spend(row.position.path.len().saturating_add(child.path.len() + 1), WORK)?;
+                    if row.position.base == StorageBase::Result && row.position.path == child.path
+                        && row.position.class == child.class && selected.replace(row.binder).is_some() {
+                        return Err(fail("Receiver result repeats an invariant child occurrence"));
+                    }
+                }
+                let Some(StorageBinder::Fixed(index)) = selected else {
+                    return Err(unknown("Receiver invariant child requires its complete original parameter class transport"));
+                };
+                let source = receiver.classes.get(index as usize)
+                    .ok_or_else(|| fail("Receiver invariant child selects no captured class"))?;
+                let actual = output.classes.get(child.binder as usize)
+                    .ok_or_else(|| fail("Receiver invariant child leaves its complete result domain"))?;
+                if self.capture_class_image(source.clone(), b)? != self.capture_class_image(actual.clone(), b)? {
+                    return Err(fail("Receiver short view changes an invariant captured child class"));
+                }
+                b.lookup(covered.len(), WORK)?;
+                covered.insert(child.binder);
+            }
+            if covered.len() != output.classes.len() {
+                return Err(fail("Receiver short view omits an invariant or phantom result class"));
             }
             // Source/result role and actual head ancestry are separate. The
             // explicit header and original call receipt are checked here;
@@ -3153,6 +3240,12 @@ impl Check<'_, '_> {
             let target = self.inventory.function(&SemanticFunctionTarget::Typed(closure.function), b)?;
             crate::stored_callables::check_role_relation(self.module, closure,
                 target.storage_life.as_ref().ok_or_else(|| fail("Receiver entry has no actual complete header"))?, b)?;
+            let result = instruction.result.ok_or_else(|| fail("Receiver call has no actual result SSA"))?;
+            let key = (function.id, result, *id);
+            b.lookup(b.semantic_receiver_views.len(), WORK)?;
+            if let Some(previous) = b.semantic_receiver_views.insert(key, (block, index)) {
+                if previous != (block, index) { return Err(fail("Receiver view changes its exact actual call site")); }
+            }
             return Ok(output);
         }
         if self.task_domain(ty, b)?.is_some() {
@@ -3727,7 +3820,7 @@ impl Check<'_, '_> {
             if row.position.base == StorageBase::Receiver {
                 let closure = function.environment.and_then(|id| self.module.closures.get(id.0 as usize))
                     .ok_or_else(|| fail("ordinary header invents a callable Receiver"))?;
-                if !row.position.path.is_empty() || !crate::stored_callables::result_is_receiver(closure)
+                if !row.position.path.is_empty() || !crate::stored_callables::receiver_access_head(closure)
                     || !matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
                     || !matches!(row.binder, StorageBinder::Invocation(_)) {
                     return Err(fail("Receiver header has no exact reusable head/result relation"));

@@ -196,8 +196,9 @@ impl Solver<'_, '_> {
         definition: SemanticDefinitionId,
         requested_once: bool,
         operation: CallKind,
+        borrowed: Option<bool>,
         b: &mut Budget,
-    ) -> CompileResult<()> {
+    ) -> CompileResult<bool> {
         let name = if let CoreExprKind::Name(name) = &callee.kind { Some(name) } else { None };
         let mut once = requested_once;
         if let Some(reads) = self.capture_state.reads.get(&definition) {
@@ -231,6 +232,22 @@ impl Solver<'_, '_> {
                 }
             }
         }
+        if once {
+            b.lookup(self.state.frames.len(), WORK)?;
+            let result = self.state.frames.get(&definition)
+                .ok_or_else(|| fail("consuming receiver has no completed original result"))?.result;
+            let result = self.type_root(result, b)?;
+            if let Kind::Address { life, .. } = self.state.arena[result]
+                && matches!(self.state.arena[self.root(life, b)?],
+                    Kind::Life(Life::ClosureReceiver(owner)) if owner == definition) {
+                return Err(fail("consuming invocation cannot preserve its retired receiver result"));
+            }
+        }
+        if let Some(mutable) = borrowed {
+            if once || self.mutating_closures.contains(&definition) && !mutable {
+                return Err(fail("borrowed original callable cannot consume its environment or mutate a shared head"));
+            }
+        }
         if let Some(name) = name {
             let local = frame.locals.iter_mut().rev().find(|local| local.name == *name)
                 .ok_or_else(|| fail("original callable invocation has no real local occupant"))?;
@@ -246,9 +263,6 @@ impl Solver<'_, '_> {
             if !frame.expressions.contains_key(&callee.id) {
                 return Err(fail("temporary callable has no checked original expression"));
             }
-            if once {
-                return Err(unknown("temporary consuming callable needs its exact end-of-expression cleanup"));
-            }
         }
         self.capture_role(
             definition,
@@ -261,7 +275,8 @@ impl Solver<'_, '_> {
             },
             operation,
             b,
-        )
+        )?;
+        Ok(once)
     }
 }
 
@@ -364,7 +379,10 @@ impl Checked {
         };
         let root = self.source_value(context, SemanticScopeRef::Ancestor(0),
             &SemanticOriginalTypeSource::Expression(callee.id), program, inventory, b)?;
+        let indirect = matches!(root.ty, Type::Address { .. });
+        let inner = if indirect { crate::semantic::value::pointee(&root, inventory, b)? }
+            else { root.copy(b)? };
         Ok(borrow_places::Source { role: None, anchor, expression: anchor.is_none().then_some(callee.id),
-            index: None, inner: root.copy(b)?, root, path: Vec::new(), indirect: false, slice: None })
+            index: None, inner, root, path: Vec::new(), indirect, slice: None })
     }
 }

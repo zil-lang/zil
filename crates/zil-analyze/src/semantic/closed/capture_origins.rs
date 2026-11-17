@@ -29,6 +29,7 @@ struct Graph<'c, 'a, 'i, 'f> {
     function: &'f TypedFunction,
     initialization: std::sync::Arc<crate::Initialization>,
     definitions: std::sync::Arc<Vec<Option<crate::SsaDefinition>>>,
+    producer: Option<ValueId>,
     indices: BTreeMap<Query, usize>,
     nodes: Vec<Node>,
 }
@@ -53,6 +54,7 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
             function,
             initialization,
             definitions,
+            producer: None,
             indices: BTreeMap::new(),
             nodes: Vec::new(),
         })
@@ -84,6 +86,9 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
         Ok(index)
     }
     fn capture(&self, index: u32, b: &mut Budget) -> CompileResult<()> {
+        if self.producer.is_some() {
+            return Err(fail("original expression transport selects another actual environment source"));
+        }
         let environment = self
             .function
             .environment
@@ -338,6 +343,9 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
                 if !self.initialization.reachable[definition.block.0 as usize] {
                     return Err(fail("capture provenance SSA value is unreachable"));
                 }
+                if self.producer == Some(value) {
+                    return Ok((Some(0), Vec::new()));
+                }
                 let instruction = &self.function.blocks[definition.block.0 as usize].instructions
                     [definition.instruction];
                 match instruction.kind {
@@ -451,6 +459,28 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
     }
 }
 impl Check<'_, '_> {
+    /// The same complete transport graph, grounded at one actual emitted SSA
+    /// instead of a physical capture ordinal. All incoming paths must retain
+    /// this exact producer; equal types/classes grant no source identity.
+    pub(super) fn original_producer_value(
+        &self, function: &TypedFunction, value: ValueId, producer: ValueId,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let mut graph = Graph::new(self, function, b)?;
+        graph.producer = Some(producer);
+        graph.solve(Query::Value(value), b)?;
+        Ok(())
+    }
+
+    pub(super) fn original_producer_local(
+        &self, function: &TypedFunction, local: LocalId, at: (BlockId, usize),
+        producer: ValueId, b: &mut Budget,
+    ) -> CompileResult<()> {
+        let mut graph = Graph::new(self, function, b)?;
+        graph.producer = Some(producer);
+        graph.solve(Query::Local(local, at.0, at.1), b)?;
+        Ok(())
+    }
     pub(super) fn capture_origin_value(
         &self,
         function: &TypedFunction,

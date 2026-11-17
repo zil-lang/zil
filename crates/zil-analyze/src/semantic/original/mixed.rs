@@ -9,6 +9,9 @@ pub(super) enum Life {
     Invocation(SemanticDefinitionId, u32),
     Role(SemanticDefinitionId, u32, u32),
     Receiver(SemanticDefinitionId, NodeId),
+    // The closure's own signature-local access head, formed only after all
+    // original returns prove a capture-bounded common view. Not a Borrow σ.
+    ClosureReceiver(SemanticDefinitionId),
     // A returned local region is fresh at this original call, with all of its
     // sources proved separately. It is not an inferred input life equation.
     CallResult(SemanticDefinitionId, NodeId, SemanticDefinitionId, u32),

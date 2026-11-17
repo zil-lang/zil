@@ -56,6 +56,9 @@ impl Check<'_, '_> {
                     }
                     original::CleanupSource::Unknown => return Err(fail("original cleanup has no source occurrence")),
                 };
+                let producer = if let original::CleanupSource::Expression(node) = pending.source {
+                    self.original_subject_value(instance, function, node, b)?
+                } else { None };
                 let declaration = function.locals.get(local.0 as usize).filter(|declaration| declaration.id == local)
                     .ok_or_else(|| fail("original cleanup occurrence loses its exact actual local"))?;
                 let slot = self.persistent_slot(instance, function, local, b)?;
@@ -101,7 +104,7 @@ impl Check<'_, '_> {
                                     (block.id, position), &expected, b)?;
                             } else {
                                 self.cleanup_local_subject(instance, function, local,
-                                    (block.id, position), &expected, b)?;
+                                    (block.id, position), &expected, producer, b)?;
                             }
                             if !synchronous {
                                 b.lookup(b.semantic_cleanup_sites.len(), WORK)?;
@@ -128,7 +131,7 @@ impl Check<'_, '_> {
     // source independently; an actual removal supplies only a vacant debt.
     fn cleanup_local_subject(&self, instance: &SemanticInstance, function: &TypedFunction,
         local: LocalId, at: (BlockId, usize), expected: &value::Value,
-        b: &mut Budget) -> CompileResult<()> {
+        producer: Option<ValueId>, b: &mut Budget) -> CompileResult<()> {
         let initialization = crate::shared_initialization(function, b)?;
         let mut pending = Vec::new();
         self.push_value(&mut pending, at, b)?;
@@ -146,6 +149,9 @@ impl Check<'_, '_> {
                 match instruction.kind {
                     InstructionKind::Store { local: target, value } if target == local => {
                         operations::available_before(function, (block, index, SemanticSiteEdge::Before), value, b)?;
+                        if let Some(producer) = producer {
+                            self.original_producer_value(function, value, producer, b)?;
+                        }
                         let actual = self.ssa_value(instance, function, value, b, 0)?;
                         if !actual.equal_paid(expected, b)? {
                             return Err(fail("conditional cleanup changes a complete live original subject"));

@@ -571,8 +571,10 @@ impl Solver<'_, '_> {
         let deferred = self.deferred_call_type(expected, b)?;
         self.call_argument(frame, value, deferred, b, depth + 1)?;
         b.lookup(frame.expressions.len(), WORK)?;
-        frame.expressions.get(&value.id).copied()
-            .ok_or_else(|| fail("original call argument has no checked expression occurrence"))
+        let actual = frame.expressions.get(&value.id).copied()
+            .ok_or_else(|| fail("original call argument has no checked expression occurrence"))?;
+        self.prepare_call_value(frame.definition, value.id, actual, b)?;
+        Ok(actual)
     }
     pub(super) fn call_argument(
         &mut self,

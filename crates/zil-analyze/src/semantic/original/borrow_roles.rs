@@ -90,6 +90,35 @@ impl Solver<'_, '_> {
         if self.same_original(upper, wanted, b, depth + 1)? {
             return Ok(true);
         }
+        if let Kind::Life(Life::Receiver(owner, node)) = self.state.arena[upper] {
+            b.lookup(self.state.abstract_calls.len().saturating_add(self.state.calls.len()), WORK)?;
+            let receiver = if let Some(call) = self.state.abstract_calls.get(&(owner, node)) {
+                if roles::receiver_result(&call.signature, call.kind) { Some(call.receiver) } else { None }
+            } else if self.state.calls.get(&(owner, node)).is_some_and(|call| call.closure) {
+                b.lookup(self.indexes.len(), WORK)?;
+                let directory = self.indexes.get(&owner)
+                    .ok_or_else(|| fail("Receiver upper has no original expression directory"))?;
+                let CoreExprKind::Call { callee, .. } = &directory.get_expr(node, b)?.kind else {
+                    return Err(fail("Receiver upper selects another original operation"));
+                };
+                let expressions = if owner == frame.definition { &frame.expressions } else {
+                    b.lookup(self.state.frames.len(), WORK)?;
+                    &self.state.frames.get(&owner)
+                        .ok_or_else(|| fail("Receiver upper has no completed original frame"))?.expressions
+                };
+                b.lookup(expressions.len(), WORK)?;
+                expressions.get(&callee.id).copied()
+            } else { None };
+            if let Some(receiver) = receiver {
+                let root = self.type_root(receiver, b)?;
+                if let Kind::Address { life, .. } = self.state.arena[root] {
+                    // A borrowed F's result is a subview of its real incoming
+                    // head. An owned local F has no such external upper and
+                    // therefore cannot escape merely by sharing its Type.
+                    return self.view_upper_allows(frame, life, wanted, active, b, depth + 1);
+                }
+            }
+        }
         if let Kind::Life(Life::Implicit(owner, ordinal)) = self.state.arena[upper] {
             b.lookup(self.state.call_regions.len(), WORK)?;
             if let Some(region) = self.state.call_regions.get(&(owner, ordinal)) {

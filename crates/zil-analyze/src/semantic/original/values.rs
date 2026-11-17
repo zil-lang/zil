@@ -4,6 +4,35 @@ use super::*;
 use crate::semantic::value::{self, Argument, Class, Value};
 
 impl Checked {
+    pub(in crate::semantic) fn call_receiver_view(
+        &self, context: &SemanticInstance, site: SemanticSiteId,
+        inventory: &Inventory<'_>, b: &mut Budget,
+    ) -> CompileResult<bool> {
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } =
+            &inventory.definition(context.definition, b)?.body else {
+                return Err(fail("Receiver call has no original body directory"));
+            };
+        let mut selected = None;
+        for link in site_nodes {
+            b.spend(1, WORK)?;
+            if link.site != site { continue; }
+            let SemanticOriginalNode::Expression(node) = link.node else {
+                return Err(fail("Receiver call changes its original expression kind"));
+            };
+            if selected.replace(node).is_some() { return Err(fail("Receiver call repeats its original expression")); }
+        }
+        let Some(node) = selected else { return Ok(false); };
+        b.lookup(self.frames.len(), WORK)?;
+        let frame = self.frames.get(&context.definition)
+            .ok_or_else(|| fail("Receiver call lacks its checked original frame"))?;
+        b.lookup(frame.expressions.len(), WORK)?;
+        let Some(term) = frame.expressions.get(&node) else { return Ok(false); };
+        let root = self.root(*term, b)?;
+        let Kind::Address { mutable: false, life, .. } = self.arena[root] else { return Ok(false); };
+        Ok(matches!(self.arena[self.root(life, b)?],
+            Kind::Life(Life::Receiver(owner, call)) if owner == context.definition && call == node))
+    }
+
     pub(in crate::semantic) fn call_output(&self, context: &SemanticInstance, site: SemanticSiteId,
         program: &SemanticModule, inventory: &Inventory<'_>, b: &mut Budget) -> CompileResult<Value> {
         let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } =
@@ -131,6 +160,28 @@ impl Checked {
                     b,
                     0,
                 )
+            }
+            Kind::Life(Life::ClosureReceiver(owner)) => {
+                self.receiver_sources(*owner, inventory, b)?
+                    .ok_or_else(|| fail("closure Receiver has no complete original return upper proof"))?;
+                let scope = self.context(*owner, context, inventory, b)?;
+                let SemanticInstanceTarget::Function(target) = &scope.target else {
+                    return Err(fail("closure Receiver has no actual entry world"));
+                };
+                let function = inventory.function(target, b)?;
+                let closure = function.environment.and_then(|id| inventory.module.closures.get(id.0 as usize))
+                    .filter(|closure| closure.function == function.id)
+                    .ok_or_else(|| fail("closure Receiver is outside its actual environment"))?;
+                if function.call_kind != CallKind::Direct || !crate::stored_callables::receiver_access_head(closure) {
+                    return Err(fail("closure Receiver changes its actual reusable Direct access mode"));
+                }
+                let header = function.storage_life.as_ref()
+                    .ok_or_else(|| fail("closure Receiver omits its actual entry header"))?;
+                let Some(StorageBinder::Invocation(index)) = crate::signature_life::outer(header, StorageBase::Receiver) else {
+                    return Err(fail("closure Receiver has no actual invocation access head"));
+                };
+                if index >= header.invocation_binder_count { return Err(fail("closure Receiver leaves its actual binder domain")); }
+                Ok(Class::Invocation(scope.id, index))
             }
             Kind::Life(Life::CallResult(owner, node, target, ordinal)) => {
                 let scope = self.context(*owner, context, inventory, b)?;
@@ -1035,7 +1086,8 @@ impl Checked {
                     .filter(|row| row.id == closure.function)
                     .ok_or_else(|| fail("callable Receiver has no exact actual entry"))?;
                 if entry.call_kind != CallKind::Direct
-                    || !crate::stored_callables::result_is_receiver(closure) || operation.result.is_none()
+                    || !(crate::stored_callables::receiver_access_head(closure)
+                        || crate::stored_callables::constant_result(closure)) || operation.result.is_none()
                     || !matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut) {
                     return Err(fail("callable Receiver lacks its explicit actual head/result relation"));
                 }

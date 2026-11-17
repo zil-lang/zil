@@ -27,7 +27,7 @@ pub(super) fn invoke(
 ) -> CompileResult<Value> {
     let (d, arguments) = super::super::stored_callables::called(module, f, &i.kind)
         .ok_or_else(|| failure("returned view has no actual callable entry"))?;
-    let needs_head = super::super::stored_callables::result_is_receiver(d);
+    let needs_head = super::super::stored_callables::receiver_view(f, i, d, b)?;
     let (environment, head) = match &i.kind {
         InstructionKind::CallClosureShared { callee, .. }
         | InstructionKind::CallClosureMut { callee, .. } => {
@@ -80,7 +80,8 @@ pub(super) fn invoke(
                     .captures
                     .get(index as usize)
                     .ok_or_else(|| failure("returned view capture is absent"))?;
-                if super::super::stored_callables::scalar(ty) && source.stored.is_empty() {
+                if source.stored.is_empty() && (inline_capture_data(ty, b)?
+                    || super::super::stored_callables::byte_capture_head(ty)) {
                     let mut actual = copy_permission(&head, b)?;
                     let mut targets = Targets::new();
                     for root in &actual.targets {
@@ -134,11 +135,23 @@ pub(super) fn invoke(
         dyn_address::upper_union(&mut out.source_upper, &upper, b)?;
     }
     if needs_head {
+        if head.targets.is_empty() { return Err(failure("Receiver short view has no actual current callee parent")); }
         let retained = retain_slot(&head, i, u32::MAX - 2, &Vec::new(), ids, loans, b)?;
         for id in &retained.loans {
             loans[*id].receiver_head = true;
             ordered(b, out.pointer.loans.len(), 0)?;
             out.pointer.loans.insert(*id);
+        }
+    }
+    if let Some(result) = i.result {
+        let key = (f.id, result, d.id);
+        let pending = b.semantic_receiver_views.len();
+        ordered(b, pending, 0)?;
+        if b.semantic_receiver_views.contains_key(&key) {
+            if !needs_head { return Err(failure("original Receiver view omitted its actual parent retention")); }
+            let completed = b.semantic_receiver_view_proofs.len();
+            ordered(b, completed, 0)?;
+            b.semantic_receiver_view_proofs.insert(key);
         }
     }
     Ok(out)

@@ -1636,6 +1636,10 @@ pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> Comp
 
 /// Finite shared Tuples keep independently scoped child instances and all
 /// physical targets. This never establishes a generic Copy capability.
+pub(super) fn inline_capture_data(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    retained::pure(ty, b)
+}
+
 pub(super) fn shared_compound(
     module: &TypedModule,
     ty: &Type,
@@ -2796,7 +2800,9 @@ fn returns(
                             "full Fixed exclusive result did not uniquely take its captured capability",
                         ));
                     }
-                    if !super::stored_callables::scalar(ty) {
+                    let inline = source.stored.is_empty()
+                        && (inline_capture_data(ty, b)? || super::stored_callables::byte_capture_head(ty));
+                    if !inline {
                         let key = environment_path(index as usize, &source.stored, b)?;
                         fee(b, leaves.len().saturating_mul(key.len().saturating_add(1)))?;
                         if !leaves.iter().any(|(path, _)| *path == key) {
@@ -4167,8 +4173,9 @@ fn slot_loan_ids(
                 fee(b, 1)?;
                 ids.retained_heads.insert(id);
             }
-            let receiver_result = super::stored_callables::called(module, f, &instruction.kind)
-                .is_some_and(|(d, _)| super::stored_callables::result_is_receiver(d));
+            let receiver_result = if let Some((d, _)) = super::stored_callables::called(module, f, &instruction.kind) {
+                super::stored_callables::receiver_view(f, instruction, d, b)?
+            } else { false };
             let mutable_leaves = if let Some((d, _)) =
                 super::stored_callables::called(module, f, &instruction.kind)
                 && (d.storage_life.is_some() || b.returned_borrowed_environments.contains(&d.id))
@@ -4520,6 +4527,12 @@ fn transfer(
             index,
             value,
         } => {
+            if !get(*value)?.environment.is_empty() {
+                return Err(vec![Diagnostic::unsupported(Phase::Analyze,
+                    "callable field replacement requires its complete current subenvironment publication",
+                    Some(i.span))]);
+            }
+
             let source = snapshot(get(*value)?, b)?;
             ordered(b, state.locals.len(), 0)?;
             let holder = state.locals.entry(*local).or_default();
@@ -4722,6 +4735,19 @@ fn transfer(
                 f,
                 i.result.ok_or_else(|| failure("aggregate lacks result"))?,
             )?;
+            // A physical aggregate stores each F's complete environment at
+            // its real field prefix. Whole moves/joins already transport this
+            // unified directory; no class count substitutes for its contents.
+            for (index, field) in fields.iter().enumerate() {
+                let source = get(*field)?;
+                for (tail, permission) in &source.environment {
+                    fee(b, tail.len().saturating_add(1))?;
+                    let mut path = vec![PlaceProjection::Field(u32::try_from(index)
+                        .map_err(|_| failure("aggregate environment field ordinal overflow"))?)];
+                    path.extend_from_slice(tail);
+                    environment_leaf(&mut out, path, permission, b)?;
+                }
+            }
             if shared_array_shape(ty, b)? {
                 let Type::Array { length, .. } = ty else {
                     unreachable!()
@@ -5488,6 +5514,20 @@ fn transfer(
         }
         InstructionKind::ByteBufferBorrow { mutable: false, .. } => {
             out.pointer = owned_byte_views::transfer(module, f, i, values, b)?;
+            // The byte kernel's target is the owning manager anchor. When
+            // that manager is an actual environment field, its view also
+            // depends on this invocation's real environment access window.
+            for source in &out.pointer.targets {
+                fee(b, target_width(source).saturating_add(1))?;
+                if let HoldRoot::Capture(index) = source.base
+                    && f.environment.and_then(|id| module.closures.get(id.0 as usize))
+                        .and_then(|d| d.captures.get(index as usize))
+                        .is_some_and(super::stored_callables::byte_capture_head)
+                {
+                    out.pointer.loans.insert(state.receiver_loan
+                        .ok_or_else(|| failure("captured ByteBuffer view has no actual invocation parent"))?);
+                }
+            }
         }
         InstructionKind::ByteBufferNew
         | InstructionKind::ByteBufferLen { .. }
@@ -5545,6 +5585,13 @@ fn transfer(
                 base:state.capture_views.get(local).copied().map_or(HoldRoot::Local(*local),HoldRoot::Capture),
                 stored:Vec::new(),place:vec![PlaceProjection::Field(*index)],heap_parents:Vec::new(),heap_element:None,
             });
+            let base = state.capture_views.get(local).copied().map_or(HoldRoot::Local(*local), HoldRoot::Capture);
+            for (path, permission) in environment_memory::rows(state, base, b)? {
+                fee(b, path.len().saturating_add(1))?;
+                if let Some((PlaceProjection::Field(field), tail)) = path.split_first() {
+                    if field == index { environment_leaf(&mut out, tail.to_vec(), permission, b)?; }
+                }
+            }
         }
         _ if pure_copy::ordinary_package_read(f, i, b)? => {}
         _ if task_transfer.is_some() => {

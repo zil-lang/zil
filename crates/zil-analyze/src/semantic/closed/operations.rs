@@ -1243,7 +1243,7 @@ impl Check<'_, '_> {
                             self.checked_borrow_place(instance, point.function, callee, &original,
                                 false, false, b, 0)?;
                             let whole = self.ssa_value(instance, point.function, callee, b, 0)?;
-                            if !self.pointee(&whole, b)?.equal_paid(&original.root, b)? {
+                            if !self.pointee(&whole, b)?.equal_paid(&original.inner, b)? {
                                 return Err(fail("borrowed known closure changes its complete original environment value"));
                             }
                             *id
@@ -1361,6 +1361,8 @@ impl Check<'_, '_> {
                     let Some(Type::Closure(id)) = point.function.values.get(callee.0 as usize) else {
                         return Err(fail("known consuming operation loses its complete receiver"));
                     };
+                    self.known_consuming_receiver(instance, point.function,
+                        (point.block.id, point.instruction), callee, site.recipe, b)?;
                     let upper = operation.ok_or_else(|| fail("known consuming operation loses its original execution upper"))?;
                     if upper == CallKind::Suspend && point.function.call_kind != CallKind::Suspend {
                         return Err(fail("known Suspend consuming operation has no original Suspend caller"));
@@ -1932,6 +1934,7 @@ impl Check<'_, '_> {
                         let actual = self.ssa_value(instance, function, value, b, 0)?;
                         if !self.capture_values_equal(&actual, &expected, b)?
                             && !self.outer_role(instance, function, &actual, &expected, b, 0)?
+                            && !self.receiver_return_role(instance, function, block.id, value, &actual, &expected, b)?
                             && !self.receiving_field_return(instance, function, block.id, value, &actual, &expected, b)? {
                             return Err(fail(
                                 "actual Return changes its complete original result class/source role",

@@ -51,6 +51,7 @@ impl Solver<'_, '_> {
                 ));
             }
             let body_term = self.expression(frame, body, b, depth + 1)?;
+            self.prepare_call_value(frame.definition, body.id, body_term, b)?;
             let signature = SemanticSignatureRecipe {
                 bound_lifetimes: 0,
                 invocation_lifetimes: 0,

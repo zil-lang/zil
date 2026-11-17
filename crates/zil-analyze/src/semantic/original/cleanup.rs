@@ -31,6 +31,15 @@ pub(super) struct Occurrence {
     pub(super) term: Term,
     pub(super) origin: Origin,
 }
+
+/// Successfully evaluated operands waiting for one actual original call.
+/// This is the same cleanup responsibility as a lexical owner, named by its
+/// genuine expression occurrence instead of a fabricated local declaration.
+pub(super) struct Preparation {
+    pub(super) definition: SemanticDefinitionId,
+    pub(super) call: NodeId,
+    pub(super) values: Vec<Occurrence>,
+}
 pub(in crate::semantic) struct Pending {
     pub(in crate::semantic) definition: SemanticDefinitionId,
     pub(in crate::semantic) source: Source,
@@ -65,6 +74,48 @@ impl Checked {
 }
 
 impl Solver<'_, '_> {
+    pub(super) fn prepare_call_value(
+        &mut self, definition: SemanticDefinitionId, node: NodeId,
+        term: Term, b: &mut Budget,
+    ) -> CompileResult<()> {
+        let Some(preparation) = self.preparations.last() else {
+            return Err(fail("prepared operand has no original call transaction"));
+        };
+        if preparation.definition != definition {
+            return Err(fail("prepared operand crosses its original call owner"));
+        }
+        b.spend(preparation.values.len(), WORK)?;
+        for value in &preparation.values {
+            if matches!(value.origin.source, Source::Expression(actual) if actual == node) {
+                if value.term != term {
+                    return Err(fail("prepared original expression has competing value identities"));
+                }
+                return Ok(());
+            }
+        }
+        let origin = Origin::expression(definition, node);
+        Self::push(&mut self.preparations.last_mut().expect("checked transaction").values,
+            Occurrence { term, origin }, b)
+    }
+
+    /// A possible language exit does not destroy the success-path preparation
+    /// state. Record independent obligations for every still-owned operand,
+    /// newest successful initialization first, within this exact definition.
+    pub(super) fn cleanup_preparations(
+        &mut self, definition: SemanticDefinitionId, b: &mut Budget,
+    ) -> CompileResult<()> {
+        for preparation in self.preparations.iter().rev() {
+            b.spend(1, WORK)?;
+            if preparation.definition != definition { continue; }
+            for value in preparation.values.iter().rev() {
+                b.spend(value.origin.path.len().saturating_add(1), WORK)?;
+                Self::push(&mut self.cleanup_terms,
+                    Occurrence { term: value.term, origin: value.origin.clone() }, b)?;
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn record_cleanup_write(&mut self, definition: SemanticDefinitionId,
         node: NodeId, anchor: Option<LocalAnchor>, path: &[u32], value: NodeId,
         b: &mut Budget) -> CompileResult<()> {

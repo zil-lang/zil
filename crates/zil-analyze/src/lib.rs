@@ -152,6 +152,8 @@ fn analyze_budgeted_context(
     budget.semantic_raw_local_shapes.clear();
     budget.semantic_cleanup_sites.clear();
     budget.semantic_cleanup_proofs.clear();
+    budget.semantic_receiver_views.clear();
+    budget.semantic_receiver_view_proofs.clear();
     budget.semantic_capture_cleanups.clear();
     budget.semantic_consuming_operations.clear();
     budget.semantic_consuming_cleanups.clear();
@@ -223,8 +225,15 @@ fn analyze_budgeted_context(
         });
     }
     let mut stored_holds = None;
-    let ordinary_input_heads =
-        budget.stored_borrows && signature_life::ordinary_heads::module(module, limits, budget)?;
+    let receiver_views = !budget.semantic_receiver_views.is_empty();
+    if receiver_views {
+        // This exact original obligation needs actual callee/caller memory
+        // summaries even when no ordinary owning shape selected that lane.
+        budget.stored_borrows = true;
+        budget.composition_stored.clear();
+    }
+    let ordinary_input_heads = !receiver_views
+        && budget.stored_borrows && signature_life::ordinary_heads::module(module, limits, budget)?;
     if ordinary_input_heads && !module.closures.is_empty() {
         // Input-only heads keep the whole ordinary resource/Hold solution.
         // Their concrete callback definitions, caller roles and exact current
@@ -250,7 +259,7 @@ fn analyze_budgeted_context(
             && !budget.masked_stored_tasks()
             && stored_flow::synchronous_callback_module(module, budget)?;
         if budget.task_sources() || budget.masked_stored_tasks() {
-            if budget.masked_stored_tasks() && !budget.static_occurrences {
+            if budget.masked_stored_tasks() && !budget.static_occurrences && !receiver_views {
                 budget.spend(module.functions.len(), "qualified Option function mask")?;
                 budget.composition_stored = module
                     .functions
@@ -274,7 +283,7 @@ fn analyze_budgeted_context(
             }
             stored_holds = Some(stored_flow::infer(module, &hold_graphs, budget)?);
         } else if task_frame_calls || !budget.semantic_cleanup_sites.is_empty() || !budget.semantic_capture_cleanups.is_empty()
-            || !budget.semantic_consuming_operations.is_empty() {
+            || !budget.semantic_consuming_operations.is_empty() || receiver_views {
             // A concrete original cleanup is not a structural SyncDrop
             // theorem. Keep the stored source proof and continue through the
             // ordinary Task graph and resource ledger before discharging it.
@@ -525,6 +534,32 @@ fn publish_holds(
     plan: &mut CandidatePlan,
     budget: &mut Budget,
 ) -> CompileResult<()> {
+    budget.spend(budget.semantic_receiver_views.len().saturating_mul(4)
+        .saturating_add(budget.semantic_receiver_view_proofs.len().saturating_mul(3)),
+        "complete original receiver view consumption")?;
+    let receiver_views: Vec<_> = budget.semantic_receiver_views.iter()
+        .map(|(key, point)| (*key, *point)).collect();
+    for (key, (block, position)) in receiver_views {
+        let function = module.functions.get(key.0.0 as usize).filter(|row| row.id == key.0)
+            .ok_or_else(|| bad("receiver view loses its actual function"))?;
+        let instruction = function.blocks.get(block.0 as usize).filter(|row| row.id == block)
+            .and_then(|row| row.instructions.get(position))
+            .ok_or_else(|| bad("receiver view loses its exact actual operation"))?;
+        budget.lookup(budget.semantic_receiver_view_proofs.len(), "actual receiver view proof")?;
+        if instruction.result != Some(key.1)
+            || !budget.semantic_receiver_view_proofs.contains(&key) {
+            return Err(bad("original receiver view lacks complete actual parent-loan consumption"));
+        }
+    }
+    let receiver_proofs: Vec<_> = budget.semantic_receiver_view_proofs.iter().copied().collect();
+    for key in receiver_proofs {
+        budget.lookup(budget.semantic_receiver_views.len(), "original receiver view obligation")?;
+        if !budget.semantic_receiver_views.contains_key(&key) {
+            return Err(bad("actual receiver view proof has no exact original obligation"));
+        }
+    }
+    budget.semantic_receiver_views.clear();
+    budget.semantic_receiver_view_proofs.clear();
     if !budget.semantic_cleanup_sites.is_empty() || !budget.semantic_cleanup_proofs.is_empty()
         || !budget.semantic_capture_cleanups.is_empty() || !budget.semantic_consuming_operations.is_empty()
         || !budget.semantic_consuming_cleanups.is_empty() {

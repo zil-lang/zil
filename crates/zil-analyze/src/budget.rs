@@ -121,6 +121,12 @@ pub(super) struct Budget {
     // Exact owning Task DropManaged sites discharged by the complete actual
     // resource fixed point. This is never a structural SyncDrop theorem.
     pub(super) semantic_cleanup_proofs: BTreeSet<(FunctionId, zil_ir::BlockId, usize, LocalId)>,
+    // Exact original call-site short views. Entry Fixed classes remain intact;
+    // memory flow must retain this actual callee's parent loan before publish.
+    pub(super) semantic_receiver_views:
+        BTreeMap<(FunctionId, ValueId, zil_ir::ClosureId), (zil_ir::BlockId, usize)>,
+    pub(super) semantic_receiver_view_proofs:
+        BTreeSet<(FunctionId, ValueId, zil_ir::ClosureId)>,
     pub(super) semantic_capture_cleanups: BTreeSet<(zil_ir::ClosureId, u32, Vec<u32>, zil_ir::CallKind)>,
     // Exact independently checked original consuming-operation upper bounds.
     // These are obligations, not frame/cleanup permission.
@@ -331,6 +337,8 @@ impl Budget {
             semantic_raw_local_shapes: BTreeMap::new(),
             semantic_cleanup_sites: BTreeSet::new(),
             semantic_cleanup_proofs: BTreeSet::new(),
+            semantic_receiver_views: BTreeMap::new(),
+            semantic_receiver_view_proofs: BTreeSet::new(),
             semantic_capture_cleanups: BTreeSet::new(),
             semantic_consuming_operations: BTreeMap::new(),
             semantic_consuming_cleanups: BTreeMap::new(),

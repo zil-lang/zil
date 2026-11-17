@@ -44,7 +44,6 @@ pub(super) fn current(
     fee(b, value.pointer.targets.len())?;
     for head in &value.pointer.targets {
         if !head.stored.is_empty()
-            || !head.place.is_empty()
             || head.heap_element.is_some()
             || head.retained_port.is_some()
         {
@@ -53,9 +52,11 @@ pub(super) fn current(
             ));
         }
         for (path, permission) in rows(state, head.base, b)? {
-            ordered(b, out.len(), path.len())?;
-            fee(b, path.len())?;
-            union(out.entry(path.clone()).or_default(), permission, b)?;
+            fee(b, path.len().saturating_add(head.place.len()).saturating_add(1))?;
+            let Some(relative) = path.strip_prefix(head.place.as_slice()) else { continue; };
+            ordered(b, out.len(), relative.len())?;
+            fee(b, relative.len())?;
+            union(out.entry(relative.to_vec()).or_default(), permission, b)?;
         }
     }
     Ok(out)

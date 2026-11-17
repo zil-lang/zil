@@ -305,6 +305,7 @@ struct Solver<'a, 'i> {
     integers: Vec<Term>,
     needs: Vec<Need>,
     cleanup_terms: Vec<cleanup::Occurrence>,
+    preparations: Vec<cleanup::Preparation>,
     callable_needs: Vec<CallableNeed>,
     mutating_closures: BTreeSet<SemanticDefinitionId>,
     role_frames: Vec<roles::RoleFrame>,
@@ -1704,6 +1705,16 @@ impl Solver<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Term> {
+        let preparation_depth = self.preparations.len();
+        let preparing = matches!(value.kind, CoreExprKind::Call { .. }
+            | CoreExprKind::Tuple(_) | CoreExprKind::Array(_)
+            | CoreExprKind::Record { .. } | CoreExprKind::RecordConstructor { .. }
+            | CoreExprKind::RecordUpdate { .. });
+        if preparing {
+            Self::push(&mut self.preparations, cleanup::Preparation {
+                definition: frame.definition, call: value.id, values: Vec::new(),
+            }, b)?;
+        }
         let result: CompileResult<Term> = (|| {
             self.step(depth, b)?;
             b.lookup(self.indexes.len(), WORK)?;
@@ -1782,6 +1793,7 @@ impl Solver<'_, '_> {
                     for value in values {
                         let actual = self.expression(frame, value, b, depth + 1)?;
                         self.unify(actual, element, depth + 1, b)?;
+                        self.prepare_call_value(frame.definition, value.id, actual, b)?;
                     }
                     let length = u64::try_from(values.len())
                         .map_err(|_| resource("original array length exceeds its carrier"))?;
@@ -1798,6 +1810,7 @@ impl Solver<'_, '_> {
                         let mut terms = Vec::new();
                         for field in fields {
                             let term = self.expression(frame, field, b, depth + 1)?;
+                            self.prepare_call_value(frame.definition, field.id, term, b)?;
                             Self::push(&mut terms, term, b)?;
                         }
                         self.term(Kind::Tuple(terms), b)?
@@ -1842,6 +1855,7 @@ impl Solver<'_, '_> {
                     self.unify(error, expected_error, depth + 1, b)?;
                     if frame.alive {
                         self.capture_exit(frame, b)?;
+                        self.cleanup_preparations(frame.definition, b)?;
                         self.cleanup(frame.definition, &frame.locals[frame.inherited..], b)?;
                     }
                     result
@@ -2155,6 +2169,11 @@ impl Solver<'_, '_> {
                         if let Some((parameters, result)) =
                             self.abstract_scheme(frame, head, value.id, local, b, depth + 1)?
                         {
+                            b.lookup(self.state.abstract_calls.len(), WORK)?;
+                            if self.state.abstract_calls.get(&(frame.definition, value.id))
+                                .is_some_and(|call| call.kind == CallableKind::FnOnce) {
+                                self.prepare_call_value(frame.definition, head.id, local, b)?;
+                            }
                             (parameters, result)
                         } else if let Some(call) =
                             self.code_call(frame, head, value.id, local, b, depth + 1)?
@@ -2170,6 +2189,10 @@ impl Solver<'_, '_> {
                                     break;
                                 }
                             }
+                            let borrowed = if let Kind::Address { mutable, inner, .. } = self.state.arena[local] {
+                                local = self.type_root(inner, b)?;
+                                Some((mutable, inner))
+                            } else { None };
                             b.spend(
                                 match &self.state.arena[local] {
                                     Kind::Closure {
@@ -2211,8 +2234,11 @@ impl Solver<'_, '_> {
                                     frame.captured.insert(index, callee_value);
                                 }
                             }
-                            let (requested_once, operation) = self.known_call_operation(callee_value, target, b)?;
-                            self.known_capture_call(frame, head, target, requested_once, operation, b)?;
+                            let subject = borrowed.map_or(callee_value, |(_, inner)| inner);
+                            let (requested_once, operation) = self.known_call_operation(subject, target, b)?;
+                            let consuming = self.known_capture_call(frame, head, target, requested_once, operation,
+                                borrowed.map(|(mutable, _)| mutable), b)?;
+                            if consuming { self.prepare_call_value(frame.definition, head.id, callee_value, b)?; }
                             let declaration = self.inventory.definition(target, b)?;
                             let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
                                 &declaration.body
@@ -2240,7 +2266,7 @@ impl Solver<'_, '_> {
                             let result =
                                 self.open_invocations(result, target, &lives, b, depth + 1)?;
                             let result = self.known_receiver_output(frame.definition, value.id,
-                                callee_value, target, requested_once, result, b)?;
+                                subject, target, consuming, result, b)?;
                             b.spend(
                                 self.state.calls.len().saturating_add(parameters.len() + 1),
                                 WORK,
@@ -2539,6 +2565,7 @@ impl Solver<'_, '_> {
                                         if prepared_arguments.insert(argument.id, actual).is_some() {
                                             return Err(fail("staged call argument reuses an original source identity"));
                                         }
+                                        self.prepare_call_value(frame.definition, argument.id, actual, b)?;
                                         if let Some(hint) = hints.get_mut(ordinal) { *hint = Some(actual); }
                                     }
                                 }
@@ -2650,6 +2677,7 @@ impl Solver<'_, '_> {
                 }
                 CoreExprKind::RecordUpdate { ty, base, fields } => {
                     let term = self.expression(frame, base, b, depth + 1)?;
+                    self.prepare_call_value(frame.definition, base.id, term, b)?;
                     if let Some(ty) = ty {
                         let ty = self.recipe(frame, ty, b, depth + 1)?;
                         self.unify(term, ty, depth + 1, b)?;
@@ -2977,6 +3005,17 @@ impl Solver<'_, '_> {
             frame.expressions.insert(value.id, ty);
             Ok(ty)
         })();
+        if preparing {
+            let current = self.preparations.last()
+                .ok_or_else(|| fail("original call lost its preparation transaction"))?;
+            if self.preparations.len() != preparation_depth + 1
+                || current.definition != frame.definition || current.call != value.id {
+                return Err(fail("original call preparation commits another expression transaction"));
+            }
+            // Success transferred the prepared operands to this operation;
+            // compiler rejection publishes no partially checked transaction.
+            self.preparations.pop();
+        }
         result.map_err(|mut diagnostics| {
             if let Err(limit) = b.spend(
                 diagnostics.len().saturating_mul(64),
@@ -3121,10 +3160,13 @@ impl Solver<'_, '_> {
                     let receiving = frame.result;
                     let value = match value {
                         Some(value) => {
-                            self.expression_expected(frame, value, receiving, b, depth + 1)?
+                            if self.inferred_receiver_body(frame.definition, b)? {
+                                self.expression(frame, value, b, depth + 1)?
+                            } else { self.expression_expected(frame, value, receiving, b, depth + 1)? }
                         }
                         None => self.atom(Type::Unit, b)?,
                     };
+                    let receiver_return = self.inferred_receiver_return(frame, value, b, depth + 1)?;
                     let expected = self.type_root(frame.result, b)?;
                     let actual = self.type_root(value, b)?;
                     if let Kind::ErrorUnion { error, result } = self.state.arena[expected]
@@ -3150,11 +3192,12 @@ impl Solver<'_, '_> {
                                 ));
                             }
                         }
-                    } else {
+                    } else if !receiver_return {
                         self.unify(value, frame.result, depth + 1, b)?;
                     }
                     if frame.alive {
                         self.capture_exit(frame, b)?;
+                        self.cleanup_preparations(frame.definition, b)?;
                         self.cleanup(frame.definition, &frame.locals[frame.inherited..], b)?;
                     }
                     frame.alive = false;
@@ -3796,6 +3839,7 @@ impl Solver<'_, '_> {
                 self.unify(frame.result, unit, depth + 1, b)?;
             }
         }
+        self.finish_inferred_receiver(&mut frame, b)?;
         let result = self.recipe(&frame, &signature.result, b, depth + 1)?;
         self.unify(frame.result, result, depth + 1, b)
             .map_err(|mut errors| {
@@ -4181,6 +4225,7 @@ pub(super) fn check(
         integers: Vec::new(),
         needs: Vec::new(),
         cleanup_terms: Vec::new(),
+        preparations: Vec::new(),
         callable_needs: Vec::new(),
         mutating_closures: BTreeSet::new(),
         role_frames: Vec::new(),
@@ -4271,6 +4316,9 @@ pub(super) fn check(
             }
             errors
         })?;
+    if !solver.preparations.is_empty() {
+        return Err(fail("original body checking left an uncommitted operand preparation"));
+    }
     solver.check_callables(b).map_err(|mut errors| {
         for error in &mut errors {
             error

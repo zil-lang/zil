@@ -156,8 +156,15 @@ pub(super) fn ordinary_package_borrow(
         .ok_or_else(|| failure("borrowed Package field absent"))?
         .1;
     b.type_work(field, false, "ordinary borrowed Package field")?;
+    let callable = if let Type::Closure(id) = field {
+        b.lookup(b.semantic_closures_proven.len(), "complete original Package callback field")?;
+        b.spend(module.closures.len().saturating_add(1), "actual Package callback field identity")?;
+        !mutable && b.semantic_closures_proven.contains(id)
+            && module.closures.get(id.0 as usize).is_some_and(|d|
+                d.id == *id && d.kind == CallableKind::Fn && super::super::stored_callables::finite(module, *id))
+    } else { false };
     let ordinary = !mutable
-        && (field.is_copy_value() && pure(field, b, 0)?
+        && (callable || field.is_copy_value() && pure(field, b, 0)?
             || owned::ordinary_value(module, field, b)?);
     if ordinary {
         resources::product::admit_owned(module, parent, b)?;

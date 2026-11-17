@@ -730,6 +730,7 @@ impl Solver<'_, '_> {
             })?;
             let actual = self.expression_expected(context, value, fields[index], b, depth + 1)?;
             self.unify(actual, fields[index], depth + 1, b)?;
+            self.prepare_call_value(context.definition, value.id, actual, b)?;
             if !complete {
                 Self::push(
                     &mut self.needs,

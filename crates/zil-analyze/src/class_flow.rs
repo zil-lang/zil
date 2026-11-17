@@ -1135,16 +1135,26 @@ fn call(
     Ok(())
 }
 fn call_with_outer(
+    c: &StorageLifeContract, args: &[ValueId], output: Option<ValueId>, values: &[Ports],
+    fixed: Option<(&[usize], Option<usize>)>,
+    context: (&mut Equations, Option<&array_outer::Flow>), b: &mut Budget,
+) -> CompileResult<()> {
+    call_with_receiver_view(c, args, output, values, fixed, context, false, b)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn call_with_receiver_view(
     c: &StorageLifeContract,
     args: &[ValueId],
     output: Option<ValueId>,
     values: &[Ports],
     fixed: Option<(&[usize], Option<usize>)>,
     context: (&mut Equations, Option<&array_outer::Flow>),
+    receiver_view: bool,
     b: &mut Budget,
 ) -> CompileResult<()> {
     let (e, flow) = context;
-    if flow.is_none() {
+    if flow.is_none() && !receiver_view {
         return call(c, args, output, values, fixed, e, b);
     }
 
@@ -1182,10 +1192,32 @@ fn call_with_outer(
         )?;
     }
     if let Some(out) = output {
+        let source = &values[out.0 as usize];
+        let adapted;
+        let result = if receiver_view {
+            let actual_head = source.outer.ok_or_else(|| bad("proved receiver view has no actual output head"))?;
+            let access = if let Some(binder) = super::signature_life::outer(c, StorageBase::Receiver) {
+                select(&formal, binder)?
+            } else if let Some((_, Some(head))) = fixed { head }
+            else { e.fresh(false, b)? };
+            array_outer::binding(e, actual_head, access, flow, b)?;
+            b.spend(source.classes.len().saturating_add(source.keys.iter().map(|row| row.0.len()).sum::<usize>())
+                .saturating_add(source.physical_slots.iter().map(|row| row.0.len()).sum::<usize>())
+                .saturating_add(source.array_elements.len()).saturating_add(source.raw_whole.len())
+                .saturating_add(source.task_ports.len()).saturating_add(1), "receiver view complete invariant port projection")?;
+            let mut projected = source.clone();
+            // Preserve the actual strong source equation on this private
+            // projection. Only the exposed head uses the independently proved
+            // call window; retained/nominal children retain every equation.
+            projected.outer = super::signature_life::outer(c, StorageBase::Result)
+                .map(|binder| select(&formal, binder)).transpose()?;
+            adapted = projected;
+            &adapted
+        } else { source };
         bind_with_outer(
             c,
             StorageBase::Result,
-            &values[out.0 as usize],
+            result,
             &formal,
             e,
             flow,
@@ -1842,21 +1874,14 @@ fn check_with(
                     if f.environment
                         .and_then(|id| module.closures.get(id.0 as usize))
                         .and_then(|d| d.captures.get(*index as usize))
-                        .is_some_and(super::stored_callables::scalar) =>
+                        .is_some_and(|ty| super::stored_callables::scalar(ty)
+                            || matches!(ty, Type::Record { .. } | Type::Array { .. } | Type::Tuple(_) | Type::Enum { .. })) =>
                 {
-                    if let (Some(head), Some(region)) = (out.and_then(|p| p.outer), receiver_region)
-                    {
-                        array_outer::transport(&mut e, head, region, outer.as_ref(), b)?;
+                    let ty = &module.closures[f.environment.unwrap().0 as usize].captures[*index as usize];
+                    if !super::stored_flow::inline_capture_data(ty, b)? {
+                        return Err(bad("receiver capture requires its complete invariant stored child relation"));
                     }
-                }
-                InstructionKind::BorrowCapture { index, .. }
-                    if f.environment
-                        .and_then(|id| module.closures.get(id.0 as usize))
-                        .and_then(|d| d.captures.get(*index as usize))
-                        .is_some_and(super::stored_callables::scalar) =>
-                {
-                    if let (Some(head), Some(region)) = (out.and_then(|p| p.outer), receiver_region)
-                    {
+                    if let (Some(head), Some(region)) = (out.and_then(|p| p.outer), receiver_region) {
                         array_outer::transport(&mut e, head, region, outer.as_ref(), b)?;
                     }
                 }
@@ -2768,12 +2793,14 @@ fn check_with(
                         // Both contracts constrain the same actual arguments,
                         // result and persistent environment. Each invocation
                         // relation gets fresh variables, not a new owner/loan.
+                        let receiver_view = super::stored_callables::receiver_view(f, i, definition, b)?;
                         deferred_closures.push((
                             actual,
                             arguments,
                             i.result,
                             (receiver.classes.as_slice(), receiver.outer),
                             (block_index, instruction_index),
+                            receiver_view,
                         ));
                         if let Some(role) = role {
                             b.spend(1, "deferred actual parameter role invocation")?;
@@ -2783,6 +2810,7 @@ fn check_with(
                                 i.result,
                                 (receiver.classes.as_slice(), receiver.outer),
                                 (block_index, instruction_index),
+                                receiver_view,
                             ));
                         }
                     } else if let Some(life) = role {
@@ -2967,18 +2995,19 @@ fn check_with(
             }
         }
     }
-    for (contract, arguments, output, fixed, site) in deferred_closures {
+    for (contract, arguments, output, fixed, site, receiver_view) in deferred_closures {
         e.point = Some((f.id, BlockId(site.0 as u32), site.1));
         if let Some(flow) = &outer {
             flow.enter(site.0, site.1);
         }
-        call_with_outer(
+        call_with_receiver_view(
             contract,
             arguments,
             output,
             &values,
             Some(fixed),
             (&mut e, outer.as_ref()),
+            receiver_view,
             b,
         )?;
     }
