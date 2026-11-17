@@ -1,0 +1,19 @@
+{
+  "case": "ready",
+  "source_sha256": "769e7684668cacdeaf50f2cd86b219ed3a84d373ffc90f882db4e90b056aa4b7",
+  "exit_code": 0,
+  "status": "Success",
+  "phase": "verify",
+  "verification_runs": 1,
+  "diagnostics": [],
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/ready/source.zil",
+    "--work-profile",
+    "standard",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/ready/phases",
+    "--json"
+  ]
+}

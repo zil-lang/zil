@@ -1,0 +1,471 @@
+{
+  "candidate": "6e0606b929480fbdab9585474509a663528edac3",
+  "cli_sha256": "e3c8e8abda797295f5831427e15709efff65786c5bbb89bfcb426140e36951f1",
+  "work_profile": "standard",
+  "scope": "Diagnostic of exact existing positive fixtures in SDK included modules; not native/raw acceptance",
+  "selected": 16,
+  "source_verified": 7,
+  "rows": [
+    {
+      "case": "fnmut-async-close",
+      "source_sha256": "4b35acd441f3c2b59d28a5f426d2e8ca5057c2f10ce0ffd8d36c1d264f8330d5",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/fnmut-async-close/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/fnmut-async-close/phases",
+        "--json"
+      ],
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-ORIGINAL-CLEANUP",
+          "message": "live original Task default Drop cleanup may suspend and lacks a Closed fact or a Suspend execution root",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": [
+            "original scope cleanup binding \"callback\", retained lexical depth 0",
+            "original checked function SemanticDefinitionId { module: ModuleId(0), index: 9 }",
+            "original protocol method costs {\"async_head\": (33, 43, 33), \"block\": (44, 90632, 300), \"call\": (46, 9921, 1332), \"can_drop\": (4, 310, 310), \"capture_type\": (1, 144, 29), \"category\": (242, 8243, 8243), \"change\": (35, 936, 936), \"charge_state\": (79, 310, 0), \"charge_value\": (490, 580, 490), \"choice\": (8, 134, 89), \"cleanup\": (59, 2094, 74), \"cleanup_value\": (0, 0, 0), \"closure_child\": (2, 488, 468), \"closure_creator\": (0, 0, 0), \"condition\": (0, 0, 0), \"copy\": (53, 1625, 1429), \"definition\": (133, 665, 665), \"drop_value\": (80, 132, 115), \"expr\": (110, 41241, 558), \"expr_inner\": (110, 22065, 936), \"function\": (16, 76518, 28727), \"function_inputs\": (13, 1670, 722), \"hide_for_defer\": (0, 0, 0), \"items\": (46, 4279, 36), \"iteration\": (0, 0, 0), \"leave\": (98, 3766, 3696), \"loop_body\": (8, 11977, 10), \"matches\": (24, 154, 154), \"merge\": (0, 0, 0), \"move_place\": (26, 530, 0), \"nominal_value\": (48, 48, 48), \"observe\": (90, 1839, 1649), \"offer\": (16, 1162, 1048), \"output\": (15, 248, 248), \"ownership\": (53, 53, 53), \"pattern\": (34, 280, 199), \"pattern_query\": (0, 0, 0), \"place_path\": (73, 1400, 1391), \"present\": (0, 0, 0), \"query_async\": (23, 857, 0), \"query_ownership\": (53, 3439, 0), \"query_type\": (209, 11924, 11924), \"replace_place\": (26, 530, 294), \"restore\": (0, 0, 0), \"restore_defer\": (0, 0, 0), \"root\": (29, 63, 63), \"scope\": (65, 1161, 1161), \"selected\": (26, 1572, 170), \"site\": (111, 1726, 1171), \"statement\": (100, 87524, 349), \"typed\": (137, 2795, 1173), \"unknown_call\": (15, 735, 49), \"unselected\": (0, 0, 0), \"value_copy\": (109, 370, 241), \"view\": (123, 167, 165)}; function costs {SemanticDefinitionId { module: ModuleId(0), index: 0 }: (1, 13, 13), SemanticDefinitionId { module: ModuleId(0), index: 1 }: (1, 17, 17), SemanticDefinitionId { module: ModuleId(0), index: 2 }: (1, 16, 16), SemanticDefinitionId { module: ModuleId(0), index: 3 }: (3, 561, 561), SemanticDefinitionId { module: ModuleId(0), index: 4 }: (3, 11996, 11996), SemanticDefinitionId { module: ModuleId(0), index: 5 }: (1, 1620, 1457), SemanticDefinitionId { module: ModuleId(0), index: 6 }: (2, 50205, 44620), SemanticDefinitionId { module: ModuleId(0), index: 7 }: (1, 4157, 4157), SemanticDefinitionId { module: ModuleId(0), index: 8 }: (2, 1809, 1809), SemanticDefinitionId { module: ModuleId(0), index: 9 }: (1, 6124, 6102)}",
+            "Types request pass costs Stats { passes: {\"abi: collect original input\": PassStats { calls: 1, work: 13276, first_allowance: 9999988, last_remaining: 9986712 }, \"abi: original function heads\": PassStats { calls: 1, work: 10, first_allowance: 9999998, last_remaining: 9999988 }, \"abi: universal original body check\": PassStats { calls: 1, work: 131183, first_allowance: 9986712, last_remaining: 9855529 }}, original_bodies: {}, original_stages: {}, protocol_bodies: {}, protocol_methods: {}, phases: {} }"
+          ]
+        }
+      ],
+      "verified": false
+    },
+    {
+      "case": "fnmut-async-poll-close",
+      "source_sha256": "27b0e13f49a3b9f72c4eb3229010dcf6fbb1d553ca32209548c4455338e2fe9b",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/fnmut-async-poll-close/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/fnmut-async-poll-close/phases",
+        "--json"
+      ],
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-ORIGINAL-CLEANUP",
+          "message": "live original Task default Drop cleanup may suspend and lacks a Closed fact or a Suspend execution root",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": [
+            "original scope cleanup binding \"callback\", retained lexical depth 0",
+            "original checked function SemanticDefinitionId { module: ModuleId(0), index: 9 }",
+            "original protocol method costs {\"async_head\": (33, 43, 33), \"block\": (47, 92432, 313), \"call\": (46, 9956, 1330), \"can_drop\": (4, 310, 310), \"capture_type\": (1, 144, 29), \"category\": (242, 8426, 8426), \"change\": (35, 936, 936), \"charge_state\": (86, 338, 0), \"charge_value\": (520, 617, 520), \"choice\": (8, 134, 89), \"cleanup\": (63, 2222, 78), \"cleanup_value\": (0, 0, 0), \"closure_child\": (2, 488, 468), \"closure_creator\": (0, 0, 0), \"condition\": (0, 0, 0), \"copy\": (57, 1757, 1545), \"definition\": (133, 665, 665), \"drop_value\": (80, 132, 115), \"expr\": (110, 41505, 558), \"expr_inner\": (110, 22100, 936), \"function\": (16, 77425, 28741), \"function_inputs\": (13, 1686, 722), \"hide_for_defer\": (0, 0, 0), \"items\": (46, 4279, 36), \"iteration\": (0, 0, 0), \"leave\": (106, 4014, 3944), \"loop_body\": (9, 13036, 11), \"matches\": (26, 158, 158), \"merge\": (0, 0, 0), \"move_place\": (26, 530, 0), \"nominal_value\": (48, 48, 48), \"observe\": (90, 1839, 1649), \"offer\": (18, 1262, 1136), \"output\": (15, 248, 248), \"ownership\": (53, 53, 53), \"pattern\": (37, 291, 206), \"pattern_query\": (0, 0, 0), \"place_path\": (73, 1400, 1391), \"present\": (0, 0, 0), \"query_async\": (23, 894, 0), \"query_ownership\": (53, 3439, 0), \"query_type\": (209, 11769, 11769), \"replace_place\": (26, 530, 294), \"restore\": (0, 0, 0), \"restore_defer\": (0, 0, 0), \"root\": (29, 63, 63), \"scope\": (70, 1251, 1251), \"selected\": (28, 1656, 172), \"site\": (111, 1726, 1171), \"statement\": (103, 89129, 357), \"typed\": (137, 3102, 1427), \"unknown_call\": (15, 772, 49), \"unselected\": (0, 0, 0), \"value_copy\": (111, 374, 243), \"view\": (123, 167, 165)}; function costs {SemanticDefinitionId { module: ModuleId(0), index: 0 }: (1, 13, 13), SemanticDefinitionId { module: ModuleId(0), index: 1 }: (1, 17, 17), SemanticDefinitionId { module: ModuleId(0), index: 2 }: (1, 16, 16), SemanticDefinitionId { module: ModuleId(0), index: 3 }: (3, 561, 561), SemanticDefinitionId { module: ModuleId(0), index: 4 }: (3, 11996, 11996), SemanticDefinitionId { module: ModuleId(0), index: 5 }: (1, 1619, 1456), SemanticDefinitionId { module: ModuleId(0), index: 6 }: (2, 50204, 44619), SemanticDefinitionId { module: ModuleId(0), index: 7 }: (1, 4157, 4157), SemanticDefinitionId { module: ModuleId(0), index: 8 }: (2, 1839, 1839), SemanticDefinitionId { module: ModuleId(0), index: 9 }: (1, 7003, 6981)}",
+            "Types request pass costs Stats { passes: {\"abi: collect original input\": PassStats { calls: 1, work: 13231, first_allowance: 9999988, last_remaining: 9986757 }, \"abi: original function heads\": PassStats { calls: 1, work: 10, first_allowance: 9999998, last_remaining: 9999988 }, \"abi: universal original body check\": PassStats { calls: 1, work: 134939, first_allowance: 9986757, last_remaining: 9851818 }}, original_bodies: {}, original_stages: {}, protocol_bodies: {}, protocol_methods: {}, phases: {} }"
+          ]
+        }
+      ],
+      "verified": false
+    },
+    {
+      "case": "child-frame-cleanup",
+      "source_sha256": "27e4320eea20cbac17787379bf350ba2cc2836c2fd6c7be4025d1055ae1e3d34",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/child-frame-cleanup/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/child-frame-cleanup/phases",
+        "--json"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "verified": true
+    },
+    {
+      "case": "closed-task-fnonce",
+      "source_sha256": "0bbfb9b7e302389c9498300abff45eaa43d4d755f94478d2276ce0f58eb6617f",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/closed-task-fnonce/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/closed-task-fnonce/phases",
+        "--json"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "verified": true
+    },
+    {
+      "case": "nested-callable-child-cleanup",
+      "source_sha256": "e3629fe8b018137e6ad5543c1da12bcb034fa75c62a1f5123ebe21ef5b3c52c5",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/nested-callable-child-cleanup/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/nested-callable-child-cleanup/phases",
+        "--json"
+      ],
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-VERIFY-SUM",
+          "message": "ordinary Product requires an owning child or complete finite Copy fields",
+          "span": {
+            "file": 0,
+            "start": 2675,
+            "end": 2688
+          },
+          "notes": []
+        }
+      ],
+      "verified": false
+    },
+    {
+      "case": "nested-once-callable-child-cleanup",
+      "source_sha256": "4ff7fb8fd51b1fb902daa1c01431e03fb6576e206ad9ff7a6543aeee1312bee9",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/nested-once-callable-child-cleanup/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/nested-once-callable-child-cleanup/phases",
+        "--json"
+      ],
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-VERIFY-SUM",
+          "message": "ordinary Product requires an owning child or complete finite Copy fields",
+          "span": {
+            "file": 0,
+            "start": 2817,
+            "end": 2830
+          },
+          "notes": []
+        }
+      ],
+      "verified": false
+    },
+    {
+      "case": "once-pending-callable-cleanup",
+      "source_sha256": "0ac7be1e29e0e0a3ad7a2b68c97570278531e2dc624478478da4680e264ab769",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/once-pending-callable-cleanup/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/once-pending-callable-cleanup/phases",
+        "--json"
+      ],
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-WORLD",
+          "message": "actual callable entry changes the original complete signature roles",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": [
+            "actual direct work by call site (calls, paid work): [((\"crates/zil-types/src/semantics/world.rs\", 1228), (559, 3913)), ((\"crates/zil-types/src/semantics/world_protocol_flow.rs\", 135), (52, 3577)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 34), (76, 3540)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 460), (66, 2275)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 652), (132, 2123)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 1021), (13, 1857)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 1355), (66, 1767)), ((\"crates/zil-types/src/semantics/world.rs\", 1222), (1588, 1588)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 1107), (130, 1399)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 1103), (147, 1335)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 1097), (130, 1296)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 440), (964, 1110)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 842), (21, 1069)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 367), (1035, 1035)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 780), (964, 964)), ((\"crates/zil-types/src/semantics/world_protocol_flow.rs\", 877), (36, 958))]",
+            "actual instance directory position Some(21) of 21; immutable CFG structures 13",
+            "actual world work: entry allowance 9443165, failing instance SemanticInstanceId { module: ModuleId(0), index: 22 }/definition SemanticDefinitionId { module: ModuleId(0), index: 17 } began 9253518, consumed 1329, remaining 9252189; type cache hits 68, misses 130, lookup work 13516, evaluation work 41193; state snapshots 76 work 5503, comparisons 6 work 834; unreachable correspondence entries retired 20; canonical work 9257, digest work 10459, immutable where work 5292; live normalized equations 142 work 8079",
+            "complete actual world pass: stage complete actual CFG; instance Some(SemanticInstanceId { module: ModuleId(0), index: 22 }); definition Some(SemanticDefinitionId { module: ModuleId(0), index: 17 }); entry allowance 9443165; consumed 190976; remaining 9252189",
+            "Types request pass costs Stats { passes: {\"abi: collect original input\": PassStats { calls: 1, work: 22361, first_allowance: 9999981, last_remaining: 9977620 }, \"abi: fixed source ABI selection\": PassStats { calls: 1, work: 639, first_allowance: 9679735, last_remaining: 9679096 }, \"abi: original function heads\": PassStats { calls: 1, work: 17, first_allowance: 9999998, last_remaining: 9999981 }, \"abi: seal original context\": PassStats { calls: 1, work: 277, first_allowance: 9680012, last_remaining: 9679735 }, \"abi: universal original body check\": PassStats { calls: 1, work: 297218, first_allowance: 9977620, last_remaining: 9680402 }, \"finish: actual Dyn registry relocation\": PassStats { calls: 1, work: 166, first_allowance: 9443331, last_remaining: 9443165 }, \"finish: actual worlds\": PassStats { calls: 1, work: 190976, first_allowance: 9443165, last_remaining: 9252189 }, \"finish: capture domains\": PassStats { calls: 1, work: 121, first_allowance: 9554853, last_remaining: 9554732 }, \"finish: closure invocation embeddings\": PassStats { calls: 1, work: 25, first_allowance: 9554732, last_remaining: 9554707 }, \"finish: complete headers\": PassStats { calls: 1, work: 1589, first_allowance: 9556592, last_remaining: 9555003 }, \"finish: creator headers\": PassStats { calls: 1, work: 6322, first_allowance: 9479585, last_remaining: 9473263 }, \"finish: deferred nominals\": PassStats { calls: 1, work: 23935, first_allowance: 9580527, last_remaining: 9556592 }, \"finish: full materialization\": PassStats { calls: 1, work: 29932, first_allowance: 9473263, last_remaining: 9443331 }, \"finish: ghost capture\": PassStats { calls: 1, work: 292, first_allowance: 9580819, last_remaining: 9580527 }, \"finish: header bindings\": PassStats { calls: 1, work: 150, first_allowance: 9555003, last_remaining: 9554853 }, \"finish: ordinary inventory\": PassStats { calls: 1, work: 3755, first_allowance: 9554707, last_remaining: 9550952 }, \"finish: original nominal catalog\": PassStats { calls: 1, work: 71367, first_allowance: 9550952, last_remaining: 9479585 }, \"finish: original publication snapshot\": PassStats { calls: 1, work: 22075, first_allowance: 9616129, last_remaining: 9594054 }, \"finish: relocation\": PassStats { calls: 1, work: 13235, first_allowance: 9594054, last_remaining: 9580819 }, \"finish: verify original inputs\": PassStats { calls: 1, work: 17, first_allowance: 9616146, last_remaining: 9616129 }, \"program: actual signatures and dynamic inventory\": PassStats { calls: 1, work: 894, first_allowance: 9679096, last_remaining: 9678202 }, \"program: all actual body emission and helpers\": PassStats { calls: 1, work: 50148, first_allowance: 9675795, last_remaining: 9625647 }, \"program: emitter closure finish\": PassStats { calls: 1, work: 334, first_allowance: 9625647, last_remaining: 9625313 }, \"program: generic templates and shared contexts\": PassStats { calls: 1, work: 2407, first_allowance: 9678202, last_remaining: 9675795 }, \"program: local origins and protocol metadata\": PassStats { calls: 1, work: 5481, first_allowance: 9621629, last_remaining: 9616148 }, \"program: original ABI and universal source\": PassStats { calls: 1, work: 320904, first_allowance: 10000000, last_remaining: 9679096 }, \"program: resource and output metadata\": PassStats { calls: 1, work: 3684, first_allowance: 9625313, last_remaining: 9621629 }, \"program: stored elements and closing transfers\": PassStats { calls: 1, work: 0, first_allowance: 9625647, last_remaining: 9625647 }}, original_bodies: {SemanticDefinitionId { module: ModuleId(0), index: 0 }: (1, 357, 357), SemanticDefinitionId { module: ModuleId(0), index: 1 }: (1, 47, 47), SemanticDefinitionId { module: ModuleId(0), index: 2 }: (1, 47, 47), SemanticDefinitionId { module: ModuleId(0), index: 3 }: (1, 231, 231), SemanticDefinitionId { module: ModuleId(0), index: 4 }: (1, 3092, 3092), SemanticDefinitionId { module: ModuleId(0), index: 5 }: (1, 1004, 1004), SemanticDefinitionId { module: ModuleId(0), index: 6 }: (1, 28127, 27950), SemanticDefinitionId { module: ModuleId(0), index: 7 }: (1, 3134, 3134), SemanticDefinitionId { module: ModuleId(0), index: 8 }: (1, 47, 47), SemanticDefinitionId { module: ModuleId(0), index: 9 }: (1, 47, 47), SemanticDefinitionId { module: ModuleId(0), index: 10 }: (1, 47, 47), SemanticDefinitionId { module: ModuleId(0), index: 16 }: (1, 6197, 2642), SemanticDefinitionId { module: ModuleId(0), index: 17 }: (1, 1493, 1493), SemanticDefinitionId { module: ModuleId(0), index: 18 }: (1, 4424, 4424), SemanticDefinitionId { module: ModuleId(0), index: 19 }: (1, 100748, 100748), SemanticDefinitionId { module: ModuleId(0), index: 21 }: (1, 1493, 1493), SemanticDefinitionId { module: ModuleId(0), index: 23 }: (1, 1490, 1490), SemanticDefinitionId { module: ModuleId(0), index: 25 }: (1, 177, 177), SemanticDefinitionId { module: ModuleId(0), index: 26 }: (1, 3555, 3555)}, original_stages: {\"all_functions_and_carriers\": 153427, \"associated_inventory\": 15316, \"associated_obligations\": 1, \"closed_opaque_finalize\": 855, \"finish_effects\": 522, \"protocol: foreign edges\": 1551, \"protocol: function traversal\": 123848, \"protocol: relevance\": 68, \"protocol_cleanup\": 125895}, protocol_bodies: {SemanticDefinitionId { module: ModuleId(0), index: 0 }: (1, 13, 13), SemanticDefinitionId { module: ModuleId(0), index: 1 }: (1, 17, 17), SemanticDefinitionId { module: ModuleId(0), index: 2 }: (1, 16, 16), SemanticDefinitionId { module: ModuleId(0), index: 3 }: (3, 567, 567), SemanticDefinitionId { module: ModuleId(0), index: 4 }: (3, 12026, 12026), SemanticDefinitionId { module: ModuleId(0), index: 5 }: (1, 1707, 1543), SemanticDefinitionId { module: ModuleId(0), index: 6 }: (2, 50337, 44746), SemanticDefinitionId { module: ModuleId(0), index: 7 }: (3, 4206, 4206), SemanticDefinitionId { module: ModuleId(0), index: 8 }: (2, 47, 47), SemanticDefinitionId { module: ModuleId(0), index: 9 }: (2, 50, 50), SemanticDefinitionId { module: ModuleId(0), index: 10 }: (3, 60, 60), SemanticDefinitionId { module: ModuleId(0), index: 16 }: (2, 3197, 3197), SemanticDefinitionId { module: ModuleId(0), index: 17 }: (4, 2451, 2421), SemanticDefinitionId { module: ModuleId(0), index: 18 }: (3, 6081, 6051), SemanticDefinitionId { module: ModuleId(0), index: 19 }: (1, 44710, 43784), SemanticDefinitionId { module: ModuleId(0), index: 21 }: (1, 895, 878), SemanticDefinitionId { module: ModuleId(0), index: 23 }: (1, 899, 881), SemanticDefinitionId { module: ModuleId(0), index: 25 }: (1, 844, 844), SemanticDefinitionId { module: ModuleId(0), index: 26 }: (1, 2501, 2501)}, protocol_methods: {\"async_head\": (57, 72, 57), \"block\": (67, 197663, 446), \"call\": (63, 15136, 2999), \"can_drop\": (11, 1230, 1230), \"capture_type\": (4, 309, 92), \"category\": (379, 32711, 32711), \"change\": (40, 1137, 1137), \"charge_state\": (109, 457, 0), \"charge_value\": (867, 1201, 867), \"choice\": (18, 493, 352), \"cleanup\": (90, 3411, 106), \"cleanup_value\": (0, 0, 0), \"closure_child\": (2, 494, 474), \"closure_creator\": (2, 484, 474), \"condition\": (2, 4, 4), \"copy\": (74, 2434, 2139), \"definition\": (206, 1030, 1030), \"drop_value\": (151, 637, 391), \"expr\": (166, 88548, 737), \"expr_inner\": (166, 35818, 1475), \"function\": (36, 130624, 30169), \"function_inputs\": (20, 4816, 1435), \"hide_for_defer\": (0, 0, 0), \"items\": (63, 10521, 53), \"iteration\": (0, 0, 0), \"leave\": (145, 6007, 5831), \"loop_body\": (10, 54094, 13), \"matches\": (40, 354, 354), \"merge\": (0, 0, 0), \"move_place\": (43, 936, 0), \"nominal_value\": (70, 70, 70), \"observe\": (131, 2439, 2033), \"offer\": (21, 1641, 1479), \"output\": (27, 368, 368), \"ownership\": (64, 64, 64), \"pattern\": (53, 716, 479), \"pattern_query\": (0, 0, 0), \"place_path\": (115, 1821, 1788), \"present\": (4, 16, 8), \"query_async\": (41, 2462, 0), \"query_ownership\": (64, 8372, 0), \"query_type\": (314, 24305, 24305), \"replace_place\": (48, 1067, 632), \"restore\": (0, 0, 0), \"restore_defer\": (0, 0, 0), \"root\": (33, 73, 73), \"scope\": (95, 1740, 1740), \"selected\": (50, 3878, 546), \"site\": (162, 2608, 1798), \"statement\": (149, 192677, 506), \"typed\": (220, 5245, 2283), \"unknown_call\": (26, 2028, 83), \"unselected\": (0, 0, 0), \"value_copy\": (182, 800, 546), \"view\": (213, 796, 471)}, phases: {\"materialize::program\": PhaseStats { contexts: 1, zero_calls: 15, index_builds: 1, hashed_types: 9, complete_comparisons: 7, work: 2372, first_allowance: 9458711 }, \"nominal_catalog\": PhaseStats { contexts: 1, zero_calls: 22, index_builds: 1, hashed_types: 9, complete_comparisons: 7, work: 2439, first_allowance: 9516822 }, \"world\": PhaseStats { contexts: 1, zero_calls: 24, index_builds: 1, hashed_types: 9, complete_comparisons: 16, work: 3401, first_allowance: 9364796 }} }"
+          ]
+        }
+      ],
+      "verified": false
+    },
+    {
+      "case": "once-pending-owned-result-cleanup",
+      "source_sha256": "c52e16735a3adb02308047c5d806835048b4ed09f680a5fce7f58a731e916411",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/once-pending-owned-result-cleanup/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/once-pending-owned-result-cleanup/phases",
+        "--json"
+      ],
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-WORLD",
+          "message": "actual callable entry changes the original complete signature roles",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": [
+            "actual direct work by call site (calls, paid work): [((\"crates/zil-types/src/semantics/world.rs\", 1228), (598, 4186)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 34), (76, 3616)), ((\"crates/zil-types/src/semantics/world_protocol_flow.rs\", 135), (52, 3577)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 460), (66, 2336)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 652), (132, 2184)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 1021), (13, 1867)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 1355), (66, 1804)), ((\"crates/zil-types/src/semantics/world.rs\", 1222), (1709, 1709)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 1107), (130, 1399)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 1103), (147, 1335)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 1097), (130, 1296)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 440), (964, 1110)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 842), (21, 1069)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 367), (1035, 1035)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 780), (964, 964)), ((\"crates/zil-types/src/semantics/world_protocol_flow.rs\", 877), (36, 958))]",
+            "actual instance directory position Some(21) of 21; immutable CFG structures 13",
+            "actual world work: entry allowance 9424671, failing instance SemanticInstanceId { module: ModuleId(0), index: 22 }/definition SemanticDefinitionId { module: ModuleId(0), index: 17 } began 9227755, consumed 1343, remaining 9226412; type cache hits 70, misses 135, lookup work 14751, evaluation work 42815; state snapshots 76 work 5579, comparisons 6 work 834; unreachable correspondence entries retired 20; canonical work 9318, digest work 10520, immutable where work 5292; live normalized equations 148 work 9089",
+            "complete actual world pass: stage complete actual CFG; instance Some(SemanticInstanceId { module: ModuleId(0), index: 22 }); definition Some(SemanticDefinitionId { module: ModuleId(0), index: 17 }); entry allowance 9424671; consumed 198259; remaining 9226412",
+            "Types request pass costs Stats { passes: {\"abi: collect original input\": PassStats { calls: 1, work: 23029, first_allowance: 9999981, last_remaining: 9976952 }, \"abi: fixed source ABI selection\": PassStats { calls: 1, work: 639, first_allowance: 9673400, last_remaining: 9672761 }, \"abi: original function heads\": PassStats { calls: 1, work: 17, first_allowance: 9999998, last_remaining: 9999981 }, \"abi: seal original context\": PassStats { calls: 1, work: 277, first_allowance: 9673677, last_remaining: 9673400 }, \"abi: universal original body check\": PassStats { calls: 1, work: 302885, first_allowance: 9976952, last_remaining: 9674067 }, \"finish: actual Dyn registry relocation\": PassStats { calls: 1, work: 166, first_allowance: 9424837, last_remaining: 9424671 }, \"finish: actual worlds\": PassStats { calls: 1, work: 198259, first_allowance: 9424671, last_remaining: 9226412 }, \"finish: capture domains\": PassStats { calls: 1, work: 121, first_allowance: 9539101, last_remaining: 9538980 }, \"finish: closure invocation embeddings\": PassStats { calls: 1, work: 25, first_allowance: 9538980, last_remaining: 9538955 }, \"finish: complete headers\": PassStats { calls: 1, work: 2093, first_allowance: 9541344, last_remaining: 9539251 }, \"finish: creator headers\": PassStats { calls: 1, work: 6325, first_allowance: 9462670, last_remaining: 9456345 }, \"finish: deferred nominals\": PassStats { calls: 1, work: 25338, first_allowance: 9566682, last_remaining: 9541344 }, \"finish: full materialization\": PassStats { calls: 1, work: 31508, first_allowance: 9456345, last_remaining: 9424837 }, \"finish: ghost capture\": PassStats { calls: 1, work: 213, first_allowance: 9566895, last_remaining: 9566682 }, \"finish: header bindings\": PassStats { calls: 1, work: 150, first_allowance: 9539251, last_remaining: 9539101 }, \"finish: ordinary inventory\": PassStats { calls: 1, work: 3755, first_allowance: 9538955, last_remaining: 9535200 }, \"finish: original nominal catalog\": PassStats { calls: 1, work: 72530, first_allowance: 9535200, last_remaining: 9462670 }, \"finish: original publication snapshot\": PassStats { calls: 1, work: 22737, first_allowance: 9603213, last_remaining: 9580476 }, \"finish: relocation\": PassStats { calls: 1, work: 13581, first_allowance: 9580476, last_remaining: 9566895 }, \"finish: verify original inputs\": PassStats { calls: 1, work: 17, first_allowance: 9603230, last_remaining: 9603213 }, \"program: actual signatures and dynamic inventory\": PassStats { calls: 1, work: 894, first_allowance: 9672761, last_remaining: 9671867 }, \"program: all actual body emission and helpers\": PassStats { calls: 1, work: 55504, first_allowance: 9668764, last_remaining: 9613260 }, \"program: emitter closure finish\": PassStats { calls: 1, work: 669, first_allowance: 9613260, last_remaining: 9612591 }, \"program: generic templates and shared contexts\": PassStats { calls: 1, work: 3103, first_allowance: 9671867, last_remaining: 9668764 }, \"program: local origins and protocol metadata\": PassStats { calls: 1, work: 5522, first_allowance: 9608754, last_remaining: 9603232 }, \"program: original ABI and universal source\": PassStats { calls: 1, work: 327239, first_allowance: 10000000, last_remaining: 9672761 }, \"program: resource and output metadata\": PassStats { calls: 1, work: 3837, first_allowance: 9612591, last_remaining: 9608754 }, \"program: stored elements and closing transfers\": PassStats { calls: 1, work: 0, first_allowance: 9613260, last_remaining: 9613260 }}, original_bodies: {SemanticDefinitionId { module: ModuleId(0), index: 0 }: (1, 357, 357), SemanticDefinitionId { module: ModuleId(0), index: 1 }: (1, 47, 47), SemanticDefinitionId { module: ModuleId(0), index: 2 }: (1, 47, 47), SemanticDefinitionId { module: ModuleId(0), index: 3 }: (1, 231, 231), SemanticDefinitionId { module: ModuleId(0), index: 4 }: (1, 3092, 3092), SemanticDefinitionId { module: ModuleId(0), index: 5 }: (1, 1004, 1004), SemanticDefinitionId { module: ModuleId(0), index: 6 }: (1, 28127, 27950), SemanticDefinitionId { module: ModuleId(0), index: 7 }: (1, 3134, 3134), SemanticDefinitionId { module: ModuleId(0), index: 8 }: (1, 47, 47), SemanticDefinitionId { module: ModuleId(0), index: 9 }: (1, 47, 47), SemanticDefinitionId { module: ModuleId(0), index: 10 }: (1, 47, 47), SemanticDefinitionId { module: ModuleId(0), index: 16 }: (1, 6282, 2897), SemanticDefinitionId { module: ModuleId(0), index: 17 }: (1, 2076, 2076), SemanticDefinitionId { module: ModuleId(0), index: 18 }: (1, 4423, 4423), SemanticDefinitionId { module: ModuleId(0), index: 19 }: (1, 100838, 100838), SemanticDefinitionId { module: ModuleId(0), index: 21 }: (1, 1493, 1493), SemanticDefinitionId { module: ModuleId(0), index: 23 }: (1, 1490, 1490), SemanticDefinitionId { module: ModuleId(0), index: 25 }: (1, 177, 177), SemanticDefinitionId { module: ModuleId(0), index: 26 }: (1, 3385, 3385)}, original_stages: {\"all_functions_and_carriers\": 154184, \"associated_inventory\": 15916, \"associated_obligations\": 1, \"closed_opaque_finalize\": 855, \"finish_effects\": 522, \"protocol: foreign edges\": 1688, \"protocol: function traversal\": 128021, \"protocol: relevance\": 68, \"protocol_cleanup\": 130205}, protocol_bodies: {SemanticDefinitionId { module: ModuleId(0), index: 0 }: (1, 13, 13), SemanticDefinitionId { module: ModuleId(0), index: 1 }: (1, 17, 17), SemanticDefinitionId { module: ModuleId(0), index: 2 }: (1, 16, 16), SemanticDefinitionId { module: ModuleId(0), index: 3 }: (3, 567, 567), SemanticDefinitionId { module: ModuleId(0), index: 4 }: (3, 12026, 12026), SemanticDefinitionId { module: ModuleId(0), index: 5 }: (1, 1712, 1548), SemanticDefinitionId { module: ModuleId(0), index: 6 }: (2, 50342, 44751), SemanticDefinitionId { module: ModuleId(0), index: 7 }: (3, 4206, 4206), SemanticDefinitionId { module: ModuleId(0), index: 8 }: (2, 47, 47), SemanticDefinitionId { module: ModuleId(0), index: 9 }: (2, 50, 50), SemanticDefinitionId { module: ModuleId(0), index: 10 }: (3, 60, 60), SemanticDefinitionId { module: ModuleId(0), index: 16 }: (2, 3209, 3209), SemanticDefinitionId { module: ModuleId(0), index: 17 }: (4, 3975, 3945), SemanticDefinitionId { module: ModuleId(0), index: 18 }: (3, 5889, 5859), SemanticDefinitionId { module: ModuleId(0), index: 19 }: (1, 45594, 44609), SemanticDefinitionId { module: ModuleId(0), index: 21 }: (1, 895, 878), SemanticDefinitionId { module: ModuleId(0), index: 23 }: (1, 899, 881), SemanticDefinitionId { module: ModuleId(0), index: 25 }: (1, 844, 844), SemanticDefinitionId { module: ModuleId(0), index: 26 }: (1, 4495, 4495)}, protocol_methods: {\"async_head\": (57, 72, 57), \"block\": (67, 202576, 446), \"call\": (63, 16058, 3069), \"can_drop\": (13, 2623, 2623), \"capture_type\": (4, 309, 92), \"category\": (388, 33037, 33037), \"change\": (40, 1137, 1137), \"charge_state\": (109, 458, 0), \"charge_value\": (876, 1217, 876), \"choice\": (18, 493, 352), \"cleanup\": (90, 4053, 106), \"cleanup_value\": (0, 0, 0), \"closure_child\": (2, 494, 474), \"closure_creator\": (2, 484, 474), \"condition\": (2, 4, 4), \"copy\": (74, 2441, 2145), \"definition\": (206, 1030, 1030), \"drop_value\": (153, 1909, 405), \"expr\": (170, 91885, 749), \"expr_inner\": (170, 37555, 1501), \"function\": (36, 134856, 31290), \"function_inputs\": (20, 4636, 1435), \"hide_for_defer\": (0, 0, 0), \"items\": (63, 10651, 53), \"iteration\": (0, 0, 0), \"leave\": (145, 6649, 5831), \"loop_body\": (10, 54978, 13), \"matches\": (40, 354, 354), \"merge\": (0, 0, 0), \"move_place\": (43, 936, 0), \"nominal_value\": (71, 71, 71), \"observe\": (135, 2532, 2046), \"offer\": (21, 1641, 1479), \"output\": (27, 380, 380), \"ownership\": (64, 64, 64), \"pattern\": (53, 716, 479), \"pattern_query\": (0, 0, 0), \"place_path\": (115, 1821, 1788), \"present\": (4, 16, 8), \"query_async\": (41, 2284, 0), \"query_ownership\": (64, 8372, 0), \"query_type\": (318, 24594, 24594), \"replace_place\": (48, 1067, 632), \"restore\": (0, 0, 0), \"restore_defer\": (0, 0, 0), \"root\": (33, 73, 73), \"scope\": (95, 1740, 1740), \"selected\": (50, 3878, 546), \"site\": (162, 2630, 1820), \"statement\": (149, 196948, 506), \"typed\": (225, 6356, 3108), \"unknown_call\": (26, 2048, 83), \"unselected\": (0, 0, 0), \"value_copy\": (184, 846, 584), \"view\": (209, 792, 467)}, phases: {\"materialize::program\": PhaseStats { contexts: 1, zero_calls: 15, index_builds: 1, hashed_types: 9, complete_comparisons: 7, work: 2372, first_allowance: 9440565 }, \"nominal_catalog\": PhaseStats { contexts: 1, zero_calls: 22, index_builds: 1, hashed_types: 9, complete_comparisons: 7, work: 2439, first_allowance: 9499917 }, \"world\": PhaseStats { contexts: 1, zero_calls: 23, index_builds: 1, hashed_types: 9, complete_comparisons: 15, work: 3294, first_allowance: 9346112 }} }"
+          ]
+        }
+      ],
+      "verified": false
+    },
+    {
+      "case": "once-pending-returned-task-cleanup",
+      "source_sha256": "d8e6db8fa4241b1195dd4c889c84d36585277af4d714c808a96044428d435ffa",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/once-pending-returned-task-cleanup/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/once-pending-returned-task-cleanup/phases",
+        "--json"
+      ],
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-WORLD",
+          "message": "actual callable entry changes the original complete signature roles",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": [
+            "actual direct work by call site (calls, paid work): [((\"crates/zil-types/src/semantics/world_flow.rs\", 34), (78, 4288)), ((\"crates/zil-types/src/semantics/world.rs\", 1228), (609, 4263)), ((\"crates/zil-types/src/semantics/world_protocol_flow.rs\", 135), (52, 3577)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 460), (67, 2788)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 652), (134, 2627)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 1355), (67, 2135)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 1021), (13, 2121)), ((\"crates/zil-types/src/semantics/world.rs\", 1222), (1743, 1743)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 1107), (132, 1528)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 1103), (149, 1483)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 1097), (132, 1440)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 440), (1054, 1179)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 367), (1092, 1092)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 780), (1054, 1054)), ((\"crates/zil-types/src/semantics/world_flow.rs\", 842), (19, 968)), ((\"crates/zil-types/src/semantics/world_protocol_flow.rs\", 877), (36, 958))]",
+            "actual instance directory position Some(21) of 21; immutable CFG structures 13",
+            "actual world work: entry allowance 9375869, failing instance SemanticInstanceId { module: ModuleId(0), index: 22 }/definition SemanticDefinitionId { module: ModuleId(0), index: 17 } began 9169872, consumed 1391, remaining 9168481; type cache hits 77, misses 132, lookup work 14923, evaluation work 48800; state snapshots 78 work 6207, comparisons 6 work 880; unreachable correspondence entries retired 20; canonical work 9582, digest work 10928, immutable where work 5292; live normalized equations 148 work 8615",
+            "complete actual world pass: stage complete actual CFG; instance Some(SemanticInstanceId { module: ModuleId(0), index: 22 }); definition Some(SemanticDefinitionId { module: ModuleId(0), index: 17 }); entry allowance 9375869; consumed 207388; remaining 9168481",
+            "Types request pass costs Stats { passes: {\"abi: collect original input\": PassStats { calls: 1, work: 23043, first_allowance: 9999981, last_remaining: 9976938 }, \"abi: fixed source ABI selection\": PassStats { calls: 1, work: 639, first_allowance: 9636725, last_remaining: 9636086 }, \"abi: original function heads\": PassStats { calls: 1, work: 17, first_allowance: 9999998, last_remaining: 9999981 }, \"abi: seal original context\": PassStats { calls: 1, work: 277, first_allowance: 9637002, last_remaining: 9636725 }, \"abi: universal original body check\": PassStats { calls: 1, work: 339546, first_allowance: 9976938, last_remaining: 9637392 }, \"finish: actual Dyn registry relocation\": PassStats { calls: 1, work: 166, first_allowance: 9376035, last_remaining: 9375869 }, \"finish: actual worlds\": PassStats { calls: 1, work: 207388, first_allowance: 9375869, last_remaining: 9168481 }, \"finish: capture domains\": PassStats { calls: 1, work: 121, first_allowance: 9503267, last_remaining: 9503146 }, \"finish: closure invocation embeddings\": PassStats { calls: 1, work: 25, first_allowance: 9503146, last_remaining: 9503121 }, \"finish: complete headers\": PassStats { calls: 1, work: 1883, first_allowance: 9505300, last_remaining: 9503417 }, \"finish: creator headers\": PassStats { calls: 1, work: 6462, first_allowance: 9416531, last_remaining: 9410069 }, \"finish: deferred nominals\": PassStats { calls: 1, work: 25600, first_allowance: 9530900, last_remaining: 9505300 }, \"finish: full materialization\": PassStats { calls: 1, work: 34034, first_allowance: 9410069, last_remaining: 9376035 }, \"finish: ghost capture\": PassStats { calls: 1, work: 212, first_allowance: 9531112, last_remaining: 9530900 }, \"finish: header bindings\": PassStats { calls: 1, work: 150, first_allowance: 9503417, last_remaining: 9503267 }, \"finish: ordinary inventory\": PassStats { calls: 1, work: 3759, first_allowance: 9503121, last_remaining: 9499362 }, \"finish: original nominal catalog\": PassStats { calls: 1, work: 82831, first_allowance: 9499362, last_remaining: 9416531 }, \"finish: original publication snapshot\": PassStats { calls: 1, work: 22753, first_allowance: 9567686, last_remaining: 9544933 }, \"finish: relocation\": PassStats { calls: 1, work: 13821, first_allowance: 9544933, last_remaining: 9531112 }, \"finish: verify original inputs\": PassStats { calls: 1, work: 17, first_allowance: 9567703, last_remaining: 9567686 }, \"program: actual signatures and dynamic inventory\": PassStats { calls: 1, work: 894, first_allowance: 9636086, last_remaining: 9635192 }, \"program: all actual body emission and helpers\": PassStats { calls: 1, work: 54610, first_allowance: 9632717, last_remaining: 9578107 }, \"program: emitter closure finish\": PassStats { calls: 1, work: 392, first_allowance: 9578107, last_remaining: 9577715 }, \"program: generic templates and shared contexts\": PassStats { calls: 1, work: 2475, first_allowance: 9635192, last_remaining: 9632717 }, \"program: local origins and protocol metadata\": PassStats { calls: 1, work: 5592, first_allowance: 9573297, last_remaining: 9567705 }, \"program: original ABI and universal source\": PassStats { calls: 1, work: 363914, first_allowance: 10000000, last_remaining: 9636086 }, \"program: resource and output metadata\": PassStats { calls: 1, work: 4418, first_allowance: 9577715, last_remaining: 9573297 }, \"program: stored elements and closing transfers\": PassStats { calls: 1, work: 0, first_allowance: 9578107, last_remaining: 9578107 }}, original_bodies: {SemanticDefinitionId { module: ModuleId(0), index: 0 }: (1, 357, 357), SemanticDefinitionId { module: ModuleId(0), index: 1 }: (1, 47, 47), SemanticDefinitionId { module: ModuleId(0), index: 2 }: (1, 47, 47), SemanticDefinitionId { module: ModuleId(0), index: 3 }: (1, 236, 236), SemanticDefinitionId { module: ModuleId(0), index: 4 }: (1, 3092, 3092), SemanticDefinitionId { module: ModuleId(0), index: 5 }: (1, 1004, 1004), SemanticDefinitionId { module: ModuleId(0), index: 6 }: (1, 28127, 27950), SemanticDefinitionId { module: ModuleId(0), index: 7 }: (1, 3134, 3134), SemanticDefinitionId { module: ModuleId(0), index: 8 }: (1, 47, 47), SemanticDefinitionId { module: ModuleId(0), index: 9 }: (1, 47, 47), SemanticDefinitionId { module: ModuleId(0), index: 10 }: (1, 47, 47), SemanticDefinitionId { module: ModuleId(0), index: 16 }: (1, 6083, 3763), SemanticDefinitionId { module: ModuleId(0), index: 17 }: (1, 2374, 2374), SemanticDefinitionId { module: ModuleId(0), index: 18 }: (1, 4423, 4423), SemanticDefinitionId { module: ModuleId(0), index: 19 }: (1, 127190, 127190), SemanticDefinitionId { module: ModuleId(0), index: 21 }: (1, 1493, 1493), SemanticDefinitionId { module: ModuleId(0), index: 23 }: (1, 1490, 1490), SemanticDefinitionId { module: ModuleId(0), index: 25 }: (1, 177, 177), SemanticDefinitionId { module: ModuleId(0), index: 26 }: (1, 2320, 2320)}, original_stages: {\"all_functions_and_carriers\": 180640, \"associated_inventory\": 16095, \"associated_obligations\": 1, \"closed_opaque_finalize\": 1444, \"finish_effects\": 702, \"protocol: foreign edges\": 1779, \"protocol: function traversal\": 137175, \"protocol: relevance\": 74, \"protocol_cleanup\": 139462}, protocol_bodies: {SemanticDefinitionId { module: ModuleId(0), index: 0 }: (1, 13, 13), SemanticDefinitionId { module: ModuleId(0), index: 1 }: (1, 17, 17), SemanticDefinitionId { module: ModuleId(0), index: 2 }: (1, 16, 16), SemanticDefinitionId { module: ModuleId(0), index: 3 }: (3, 567, 567), SemanticDefinitionId { module: ModuleId(0), index: 4 }: (3, 12026, 12026), SemanticDefinitionId { module: ModuleId(0), index: 5 }: (2, 1737, 1573), SemanticDefinitionId { module: ModuleId(0), index: 6 }: (2, 50351, 44760), SemanticDefinitionId { module: ModuleId(0), index: 7 }: (6, 4252, 4252), SemanticDefinitionId { module: ModuleId(0), index: 8 }: (2, 47, 47), SemanticDefinitionId { module: ModuleId(0), index: 9 }: (2, 50, 50), SemanticDefinitionId { module: ModuleId(0), index: 10 }: (3, 60, 60), SemanticDefinitionId { module: ModuleId(0), index: 16 }: (2, 4583, 4583), SemanticDefinitionId { module: ModuleId(0), index: 17 }: (4, 3820, 3760), SemanticDefinitionId { module: ModuleId(0), index: 18 }: (3, 5889, 5859), SemanticDefinitionId { module: ModuleId(0), index: 19 }: (1, 55107, 53772), SemanticDefinitionId { module: ModuleId(0), index: 21 }: (1, 895, 878), SemanticDefinitionId { module: ModuleId(0), index: 23 }: (1, 899, 881), SemanticDefinitionId { module: ModuleId(0), index: 25 }: (1, 844, 844), SemanticDefinitionId { module: ModuleId(0), index: 26 }: (1, 3217, 3217)}, protocol_methods: {\"async_head\": (64, 82, 64), \"block\": (68, 269153, 467), \"call\": (67, 16958, 3357), \"can_drop\": (9, 1155, 1155), \"capture_type\": (6, 515, 158), \"category\": (399, 35943, 35943), \"change\": (44, 1364, 1364), \"charge_state\": (112, 504, 0), \"charge_value\": (956, 1355, 956), \"choice\": (20, 577, 419), \"cleanup\": (92, 3745, 126), \"cleanup_value\": (0, 0, 0), \"closure_child\": (2, 494, 474), \"closure_creator\": (2, 484, 474), \"condition\": (0, 0, 0), \"copy\": (77, 2732, 2408), \"definition\": (222, 1110, 1110), \"drop_value\": (160, 646, 400), \"expr\": (174, 100997, 772), \"expr_inner\": (174, 40870, 1620), \"function\": (40, 144390, 31165), \"function_inputs\": (20, 5126, 1712), \"hide_for_defer\": (0, 0, 0), \"items\": (67, 13068, 57), \"iteration\": (0, 0, 0), \"leave\": (150, 6650, 6470), \"loop_body\": (10, 60607, 13), \"matches\": (44, 402, 402), \"merge\": (0, 0, 0), \"move_place\": (49, 1131, 0), \"nominal_value\": (73, 73, 73), \"observe\": (139, 2578, 2132), \"offer\": (21, 1891, 1711), \"output\": (27, 403, 403), \"ownership\": (68, 68, 68), \"pattern\": (57, 864, 574), \"pattern_query\": (0, 0, 0), \"place_path\": (125, 1912, 1879), \"present\": (0, 0, 0), \"query_async\": (45, 2795, 0), \"query_ownership\": (68, 11202, 0), \"query_type\": (333, 29082, 29082), \"replace_place\": (54, 1282, 794), \"restore\": (0, 0, 0), \"restore_defer\": (0, 0, 0), \"root\": (34, 80, 80), \"scope\": (97, 1920, 1920), \"selected\": (56, 4534, 636), \"site\": (174, 2928, 2058), \"statement\": (153, 263701, 543), \"typed\": (232, 6001, 2832), \"unknown_call\": (30, 2978, 153), \"unselected\": (0, 0, 0), \"value_copy\": (193, 958, 677), \"view\": (215, 800, 474)}, phases: {\"materialize::program\": PhaseStats { contexts: 1, zero_calls: 21, index_builds: 1, hashed_types: 9, complete_comparisons: 7, work: 2400, first_allowance: 9394638 }, \"nominal_catalog\": PhaseStats { contexts: 1, zero_calls: 28, index_builds: 1, hashed_types: 9, complete_comparisons: 7, work: 2467, first_allowance: 9460668 }, \"world\": PhaseStats { contexts: 1, zero_calls: 30, index_builds: 1, hashed_types: 9, complete_comparisons: 16, work: 3755, first_allowance: 9297366 }} }"
+          ]
+        }
+      ],
+      "verified": false
+    },
+    {
+      "case": "direct-default-local",
+      "source_sha256": "109b732b74f9bcc5b7e86de94c2d5dd648df3fa4a3d7e2a282e51f3f3564f3da",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/direct-default-local/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/direct-default-local/phases",
+        "--json"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "verified": true
+    },
+    {
+      "case": "adapter-default-local",
+      "source_sha256": "569cb9251d329d09406f531f89ac728089b27edea95947059762067a9672b92e",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/adapter-default-local/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/adapter-default-local/phases",
+        "--json"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "verified": true
+    },
+    {
+      "case": "returned-task-result-fnonce",
+      "source_sha256": "481c3efa48432814220cfe69beefe3ac4f02402fd5df7e93dcbf6e231dfba240",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/returned-task-result-fnonce/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/returned-task-result-fnonce/phases",
+        "--json"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "verified": true
+    },
+    {
+      "case": "returned-second-task-fnonce",
+      "source_sha256": "a31ff69da4030a0bde25723abcdde2ebdc1327109507774c466c54ad647e4e6a",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/returned-second-task-fnonce/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/returned-second-task-fnonce/phases",
+        "--json"
+      ],
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-VERIFY-SEMANTIC",
+          "message": "original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend",
+          "span": null,
+          "notes": [
+            "original cleanup owner SemanticDefinitionId { module: ModuleId(0), index: 3 }; root Place { binder: Local { definition: SemanticDefinitionId { module: ModuleId(0), index: 3 }, node: NodeId(25), name: \"restored\" }, fields: [] }; phase 7; universal sources {Unknown}"
+          ]
+        }
+      ],
+      "verified": false
+    },
+    {
+      "case": "equal-shared-task-classes",
+      "source_sha256": "e2d5b2b12ad60930a2613044916e88f74be07b9b9e6d0f818b19d9fe3cd75483",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/equal-shared-task-classes/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/equal-shared-task-classes/phases",
+        "--json"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "verified": true
+    },
+    {
+      "case": "returned-shared-task-classes",
+      "source_sha256": "1ffb120ca8667712cfa79d10917b7c2abcbb7199da511ce200312092abdaaedd",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/returned-shared-task-classes/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/returned-shared-task-classes/phases",
+        "--json"
+      ],
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-VERIFY-SEMANTIC",
+          "message": "original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend",
+          "span": null,
+          "notes": [
+            "original cleanup owner SemanticDefinitionId { module: ModuleId(0), index: 4 }; root Place { binder: Local { definition: SemanticDefinitionId { module: ModuleId(0), index: 4 }, node: NodeId(4), name: \"restored\" }, fields: [] }; phase 7; universal sources {Unknown}"
+          ]
+        }
+      ],
+      "verified": false
+    },
+    {
+      "case": "static-callable-input",
+      "source_sha256": "ce376838b851f4ac4529f189ba3254a225dfbafa8d9d357d472d62662f5309d2",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/static-callable-input/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/static-callable-input/phases",
+        "--json"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "verified": true
+    }
+  ]
+}

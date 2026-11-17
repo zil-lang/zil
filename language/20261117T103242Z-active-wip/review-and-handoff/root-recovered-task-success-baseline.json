@@ -1,0 +1,311 @@
+{
+  "purpose": "Success-set preservation gate only, not Alpha acceptance",
+  "profiles": {
+    "standard": {
+      "required_success_count": 10,
+      "required_cases": [
+        {
+          "case": "child-frame-cleanup",
+          "source_sha256": "27e4320eea20cbac17787379bf350ba2cc2836c2fd6c7be4025d1055ae1e3d34",
+          "evidence": [
+            {
+              "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+              "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures/receipt.json"
+            },
+            {
+              "candidate": "9bcf65123deb43e1119aef5fc26c21808671466f",
+              "cli_sha256": "8fd971553dde561603f1626fad3946528c809f85d4cd9aa7de005e70a2626883",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-creator-source-publication-contract/original-task-positive-fixtures/receipt.json"
+            }
+          ]
+        },
+        {
+          "case": "closed-task-fnonce",
+          "source_sha256": "0bbfb9b7e302389c9498300abff45eaa43d4d755f94478d2276ce0f58eb6617f",
+          "evidence": [
+            {
+              "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+              "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures/receipt.json"
+            },
+            {
+              "candidate": "9bcf65123deb43e1119aef5fc26c21808671466f",
+              "cli_sha256": "8fd971553dde561603f1626fad3946528c809f85d4cd9aa7de005e70a2626883",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-creator-source-publication-contract/original-task-positive-fixtures/receipt.json"
+            }
+          ]
+        },
+        {
+          "case": "direct-default-local",
+          "source_sha256": "109b732b74f9bcc5b7e86de94c2d5dd648df3fa4a3d7e2a282e51f3f3564f3da",
+          "evidence": [
+            {
+              "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+              "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures/receipt.json"
+            },
+            {
+              "candidate": "9bcf65123deb43e1119aef5fc26c21808671466f",
+              "cli_sha256": "8fd971553dde561603f1626fad3946528c809f85d4cd9aa7de005e70a2626883",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-creator-source-publication-contract/original-task-positive-fixtures/receipt.json"
+            }
+          ]
+        },
+        {
+          "case": "adapter-default-local",
+          "source_sha256": "569cb9251d329d09406f531f89ac728089b27edea95947059762067a9672b92e",
+          "evidence": [
+            {
+              "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+              "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures/receipt.json"
+            },
+            {
+              "candidate": "9bcf65123deb43e1119aef5fc26c21808671466f",
+              "cli_sha256": "8fd971553dde561603f1626fad3946528c809f85d4cd9aa7de005e70a2626883",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-creator-source-publication-contract/original-task-positive-fixtures/receipt.json"
+            }
+          ]
+        },
+        {
+          "case": "returned-task-result-fnonce",
+          "source_sha256": "481c3efa48432814220cfe69beefe3ac4f02402fd5df7e93dcbf6e231dfba240",
+          "evidence": [
+            {
+              "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+              "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures/receipt.json"
+            },
+            {
+              "candidate": "9bcf65123deb43e1119aef5fc26c21808671466f",
+              "cli_sha256": "8fd971553dde561603f1626fad3946528c809f85d4cd9aa7de005e70a2626883",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-creator-source-publication-contract/original-task-positive-fixtures/receipt.json"
+            }
+          ]
+        },
+        {
+          "case": "returned-second-task-fnonce",
+          "source_sha256": "a31ff69da4030a0bde25723abcdde2ebdc1327109507774c466c54ad647e4e6a",
+          "evidence": [
+            {
+              "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+              "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures/receipt.json"
+            }
+          ]
+        },
+        {
+          "case": "equal-shared-task-classes",
+          "source_sha256": "e2d5b2b12ad60930a2613044916e88f74be07b9b9e6d0f818b19d9fe3cd75483",
+          "evidence": [
+            {
+              "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+              "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures/receipt.json"
+            }
+          ]
+        },
+        {
+          "case": "static-callable-input",
+          "source_sha256": "ce376838b851f4ac4529f189ba3254a225dfbafa8d9d357d472d62662f5309d2",
+          "evidence": [
+            {
+              "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+              "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures/receipt.json"
+            },
+            {
+              "candidate": "9bcf65123deb43e1119aef5fc26c21808671466f",
+              "cli_sha256": "8fd971553dde561603f1626fad3946528c809f85d4cd9aa7de005e70a2626883",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-creator-source-publication-contract/original-task-positive-fixtures/receipt.json"
+            }
+          ]
+        },
+        {
+          "case": "fnmut-async-close",
+          "source_sha256": "4b35acd441f3c2b59d28a5f426d2e8ca5057c2f10ce0ffd8d36c1d264f8330d5",
+          "evidence": [
+            {
+              "candidate": "9bcf65123deb43e1119aef5fc26c21808671466f",
+              "cli_sha256": "8fd971553dde561603f1626fad3946528c809f85d4cd9aa7de005e70a2626883",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-creator-source-publication-contract/original-task-positive-fixtures/receipt.json"
+            }
+          ]
+        },
+        {
+          "case": "fnmut-async-poll-close",
+          "source_sha256": "27b0e13f49a3b9f72c4eb3229010dcf6fbb1d553ca32209548c4455338e2fe9b",
+          "evidence": [
+            {
+              "candidate": "9bcf65123deb43e1119aef5fc26c21808671466f",
+              "cli_sha256": "8fd971553dde561603f1626fad3946528c809f85d4cd9aa7de005e70a2626883",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-creator-source-publication-contract/original-task-positive-fixtures/receipt.json"
+            }
+          ]
+        }
+      ],
+      "previous_regressions": [
+        "equal-shared-task-classes",
+        "returned-second-task-fnonce"
+      ],
+      "new_successes": [
+        "fnmut-async-close",
+        "fnmut-async-poll-close"
+      ]
+    },
+    "alpha": {
+      "required_success_count": 10,
+      "required_cases": [
+        {
+          "case": "child-frame-cleanup",
+          "source_sha256": "27e4320eea20cbac17787379bf350ba2cc2836c2fd6c7be4025d1055ae1e3d34",
+          "evidence": [
+            {
+              "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+              "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures-alpha/receipt.json"
+            },
+            {
+              "candidate": "9bcf65123deb43e1119aef5fc26c21808671466f",
+              "cli_sha256": "8fd971553dde561603f1626fad3946528c809f85d4cd9aa7de005e70a2626883",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-creator-source-publication-contract/original-task-positive-fixtures-alpha/receipt.json"
+            }
+          ]
+        },
+        {
+          "case": "closed-task-fnonce",
+          "source_sha256": "0bbfb9b7e302389c9498300abff45eaa43d4d755f94478d2276ce0f58eb6617f",
+          "evidence": [
+            {
+              "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+              "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures-alpha/receipt.json"
+            },
+            {
+              "candidate": "9bcf65123deb43e1119aef5fc26c21808671466f",
+              "cli_sha256": "8fd971553dde561603f1626fad3946528c809f85d4cd9aa7de005e70a2626883",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-creator-source-publication-contract/original-task-positive-fixtures-alpha/receipt.json"
+            }
+          ]
+        },
+        {
+          "case": "direct-default-local",
+          "source_sha256": "109b732b74f9bcc5b7e86de94c2d5dd648df3fa4a3d7e2a282e51f3f3564f3da",
+          "evidence": [
+            {
+              "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+              "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures-alpha/receipt.json"
+            },
+            {
+              "candidate": "9bcf65123deb43e1119aef5fc26c21808671466f",
+              "cli_sha256": "8fd971553dde561603f1626fad3946528c809f85d4cd9aa7de005e70a2626883",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-creator-source-publication-contract/original-task-positive-fixtures-alpha/receipt.json"
+            }
+          ]
+        },
+        {
+          "case": "adapter-default-local",
+          "source_sha256": "569cb9251d329d09406f531f89ac728089b27edea95947059762067a9672b92e",
+          "evidence": [
+            {
+              "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+              "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures-alpha/receipt.json"
+            },
+            {
+              "candidate": "9bcf65123deb43e1119aef5fc26c21808671466f",
+              "cli_sha256": "8fd971553dde561603f1626fad3946528c809f85d4cd9aa7de005e70a2626883",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-creator-source-publication-contract/original-task-positive-fixtures-alpha/receipt.json"
+            }
+          ]
+        },
+        {
+          "case": "returned-task-result-fnonce",
+          "source_sha256": "481c3efa48432814220cfe69beefe3ac4f02402fd5df7e93dcbf6e231dfba240",
+          "evidence": [
+            {
+              "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+              "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures-alpha/receipt.json"
+            },
+            {
+              "candidate": "9bcf65123deb43e1119aef5fc26c21808671466f",
+              "cli_sha256": "8fd971553dde561603f1626fad3946528c809f85d4cd9aa7de005e70a2626883",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-creator-source-publication-contract/original-task-positive-fixtures-alpha/receipt.json"
+            }
+          ]
+        },
+        {
+          "case": "returned-second-task-fnonce",
+          "source_sha256": "a31ff69da4030a0bde25723abcdde2ebdc1327109507774c466c54ad647e4e6a",
+          "evidence": [
+            {
+              "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+              "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures-alpha/receipt.json"
+            }
+          ]
+        },
+        {
+          "case": "equal-shared-task-classes",
+          "source_sha256": "e2d5b2b12ad60930a2613044916e88f74be07b9b9e6d0f818b19d9fe3cd75483",
+          "evidence": [
+            {
+              "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+              "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures-alpha/receipt.json"
+            }
+          ]
+        },
+        {
+          "case": "static-callable-input",
+          "source_sha256": "ce376838b851f4ac4529f189ba3254a225dfbafa8d9d357d472d62662f5309d2",
+          "evidence": [
+            {
+              "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+              "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures-alpha/receipt.json"
+            },
+            {
+              "candidate": "9bcf65123deb43e1119aef5fc26c21808671466f",
+              "cli_sha256": "8fd971553dde561603f1626fad3946528c809f85d4cd9aa7de005e70a2626883",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-creator-source-publication-contract/original-task-positive-fixtures-alpha/receipt.json"
+            }
+          ]
+        },
+        {
+          "case": "fnmut-async-close",
+          "source_sha256": "4b35acd441f3c2b59d28a5f426d2e8ca5057c2f10ce0ffd8d36c1d264f8330d5",
+          "evidence": [
+            {
+              "candidate": "9bcf65123deb43e1119aef5fc26c21808671466f",
+              "cli_sha256": "8fd971553dde561603f1626fad3946528c809f85d4cd9aa7de005e70a2626883",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-creator-source-publication-contract/original-task-positive-fixtures-alpha/receipt.json"
+            }
+          ]
+        },
+        {
+          "case": "fnmut-async-poll-close",
+          "source_sha256": "27b0e13f49a3b9f72c4eb3229010dcf6fbb1d553ca32209548c4455338e2fe9b",
+          "evidence": [
+            {
+              "candidate": "9bcf65123deb43e1119aef5fc26c21808671466f",
+              "cli_sha256": "8fd971553dde561603f1626fad3946528c809f85d4cd9aa7de005e70a2626883",
+              "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-creator-source-publication-contract/original-task-positive-fixtures-alpha/receipt.json"
+            }
+          ]
+        }
+      ],
+      "previous_regressions": [
+        "equal-shared-task-classes",
+        "returned-second-task-fnonce"
+      ],
+      "new_successes": [
+        "fnmut-async-close",
+        "fnmut-async-poll-close"
+      ]
+    }
+  }
+}

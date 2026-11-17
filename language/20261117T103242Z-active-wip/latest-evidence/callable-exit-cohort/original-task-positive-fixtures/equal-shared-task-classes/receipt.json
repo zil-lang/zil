@@ -1,0 +1,20 @@
+{
+  "case": "equal-shared-task-classes",
+  "source_sha256": "e2d5b2b12ad60930a2613044916e88f74be07b9b9e6d0f818b19d9fe3cd75483",
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/equal-shared-task-classes/source.zil",
+    "--work-profile",
+    "standard",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/equal-shared-task-classes/phases",
+    "--json"
+  ],
+  "exit": 0,
+  "status": "Success",
+  "phase": "verify",
+  "verification_runs": 1,
+  "diagnostics": [],
+  "verified": true
+}

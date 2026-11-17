@@ -1,0 +1,709 @@
+{
+  "candidate": "ee66b10c1bfff43bee9b251cd678c795341a256b",
+  "cli_sha256": "59127a13614081aff67c2a4a32a55ea47fee028475a5c6ed7e11d76498c6f354",
+  "scope": "All exact existing Task helper Source cases; diagnostic only, not native acceptance",
+  "original_helper_file_sha256": "32eed84d3be1abcb9d1e44aea96e4abe1feaf22017d904be644f6f4411bba4eb",
+  "exact_helper_excerpt_sha256": "efa190d5d299396fa3fe702b63da6feb7d2037a80a204631600f52bd8bf5c3b9",
+  "work_profile": "standard",
+  "selected": 30,
+  "source_verified": 21,
+  "rows": [
+    {
+      "case": "basic",
+      "source_sha256": "8bfa3690b70ffac8aecba92d0a5f5f26614a0ab92bdfe3d51b6ee01b72d9f429",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/basic/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/basic/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "closed-owner",
+      "source_sha256": "0bbfb9b7e302389c9498300abff45eaa43d4d755f94478d2276ce0f58eb6617f",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/closed-owner/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/closed-owner/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "ready",
+      "source_sha256": "769e7684668cacdeaf50f2cd86b219ed3a84d373ffc90f882db4e90b056aa4b7",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/ready/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/ready/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "prepolled-pending",
+      "source_sha256": "d7445085448dfb70d7904ddfd1e6c8776a0287b60bae56ca7c457c6ad477a5ee",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/prepolled-pending/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/prepolled-pending/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "cancel-before-poll",
+      "source_sha256": "08b923f24efaf5150e67a2a9a311293390824668560d7490c201d84cb7b2aecf",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/cancel-before-poll/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/cancel-before-poll/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "cancel-after-pending",
+      "source_sha256": "72199a7d86ae83b0ebdcc8892d1f91c569cb8952694d2773a9c991cf74502479",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/cancel-after-pending/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/cancel-after-pending/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "ready-result-unobserved-by-owner",
+      "source_sha256": "55abe43ff9475955a45cdba329e93443a643e2edef51cbb81f1bc14630b0c05b",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/ready-result-unobserved-by-owner/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/ready-result-unobserved-by-owner/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "returned-frame-ready",
+      "source_sha256": "9289d26dd64fcc1fc221ec5eb7181e5222038ec33aca9758d2ddfa33c68eac76",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/returned-frame-ready/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/returned-frame-ready/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "returned-frame-prepolled-pending",
+      "source_sha256": "b6770cb87c93e9b678e7690abfd9c4c34ad6e1f4617169051010c46e6034e7fc",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/returned-frame-prepolled-pending/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/returned-frame-prepolled-pending/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "returned-frame-cancel-before-poll",
+      "source_sha256": "340ceecc8187cdc3f07b7bf64953857d090c29b4264de3f4bd18763ff5d4b5c6",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/returned-frame-cancel-before-poll/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/returned-frame-cancel-before-poll/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "returned-frame-cancel-after-pending",
+      "source_sha256": "776495d9e097030302f9a37ba1f49166e93860932c9a9c8d17ab6107e57e625a",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/returned-frame-cancel-after-pending/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/returned-frame-cancel-after-pending/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "returned-frame-ready-unobserved",
+      "source_sha256": "7e177a3a98959b3959f97aeb88843b6a90cecd355dfe87183f2938345ffbe586",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/returned-frame-ready-unobserved/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/returned-frame-ready-unobserved/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "mutable-frame-ready",
+      "source_sha256": "fd1e0a679642ec33e0316a851860285f2e689bca48eae1e6a25641fa539eb1e2",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-TASK-ABI",
+          "message": "original Task cleanup needs a declaration-local root or an independent Closed proof",
+          "span": {
+            "file": 0,
+            "start": 626,
+            "end": 636
+          },
+          "notes": [
+            "original cleanup actual function 4 drive_callback, unresolved incoming parameters {0}, captures {}"
+          ]
+        }
+      ],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/mutable-frame-ready/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/mutable-frame-ready/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "mutable-frame-prepolled",
+      "source_sha256": "b933c80d36b11f3a74f95301466e2101409155bfed76c0eaf57c4a817a0c2b48",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-TASK-ABI",
+          "message": "original Task cleanup needs a declaration-local root or an independent Closed proof",
+          "span": {
+            "file": 0,
+            "start": 644,
+            "end": 654
+          },
+          "notes": [
+            "original cleanup actual function 4 drive_callback, unresolved incoming parameters {0}, captures {}"
+          ]
+        }
+      ],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/mutable-frame-prepolled/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/mutable-frame-prepolled/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "mutable-frame-ready-unobserved",
+      "source_sha256": "3a785daad3a93a69d3bb6f9a3a86a297b188bd2c727919158a2fa1e8e58e9f93",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-TASK-ABI",
+          "message": "original Task cleanup needs a declaration-local root or an independent Closed proof",
+          "span": {
+            "file": 0,
+            "start": 630,
+            "end": 639
+          },
+          "notes": [
+            "original cleanup actual function 4 drive_callback, unresolved incoming parameters {0}, captures {}"
+          ]
+        }
+      ],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/mutable-frame-ready-unobserved/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/mutable-frame-ready-unobserved/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "mutable-frame-never-called",
+      "source_sha256": "8e42eb809ba5346c0e1283599d6c5461bb1913e26448b38e5f812cb91c4470f8",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/mutable-frame-never-called/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/mutable-frame-never-called/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "mutable-frame-cancel-before-poll",
+      "source_sha256": "c05f8c4bf220e8e6197453005c8c087d41b7e6fb871a02808969c6bfcc9fca1d",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-TASK-ABI",
+          "message": "original Task cleanup needs a declaration-local root or an independent Closed proof",
+          "span": {
+            "file": 0,
+            "start": 608,
+            "end": 618
+          },
+          "notes": [
+            "original cleanup actual function 4 drive_callback, unresolved incoming parameters {0}, captures {}"
+          ]
+        }
+      ],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/mutable-frame-cancel-before-poll/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/mutable-frame-cancel-before-poll/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "mutable-frame-cancel-after-pending",
+      "source_sha256": "0b9b4f8b138f456059788a3da7d11668f3322f86b917244bf39e532cff9f0b5f",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-TASK-ABI",
+          "message": "original Task cleanup needs a declaration-local root or an independent Closed proof",
+          "span": {
+            "file": 0,
+            "start": 608,
+            "end": 618
+          },
+          "notes": [
+            "original cleanup actual function 4 drive_callback, unresolved incoming parameters {0}, captures {}"
+          ]
+        }
+      ],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/mutable-frame-cancel-after-pending/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/mutable-frame-cancel-after-pending/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "static-frame-fn",
+      "source_sha256": "af5f33fa39e68e27c31fbb8931df8c701125d4ab036e58090d1ca00f203aebf2",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-fn/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-fn/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "static-frame-fnmut",
+      "source_sha256": "17e93b500048ddd034e7e10f8cecbcf473044cc802c1a7225f261f53241dec3c",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-fnmut/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-fnmut/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "static-frame-owning-fnmut",
+      "source_sha256": "6af8b9aaeb0a236746fbcb382229e2090ec5b515765729f31c54998831df1e7e",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-owning-fnmut/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-owning-fnmut/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "static-frame-owning-fnmut-cancel-before-poll",
+      "source_sha256": "09c0454f00030fabc345ff71b651dee29a02a0cb2f4ac74bd4148aee03be8d27",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-owning-fnmut-cancel-before-poll/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-owning-fnmut-cancel-before-poll/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "static-frame-owning-fnmut-cancel-after-pending",
+      "source_sha256": "539499355c28e358ac1ddede2d57ceb48cafd062797919e086a0c2b20d924d4d",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-owning-fnmut-cancel-after-pending/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-owning-fnmut-cancel-after-pending/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "static-frame-owning-fnmut-cancel-after-second-pending",
+      "source_sha256": "08e83641ff19757ba18438d84a6bc189eef088d1a7eb9b14e4884aa1c7699454",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-owning-fnmut-cancel-after-second-pending/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-owning-fnmut-cancel-after-second-pending/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "static-frame-fnonce",
+      "source_sha256": "2242e1d8cdee81254d767379cd8707b8ebfafcbf4429eff34ab931140059d539",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-VERIFY-SEMANTIC",
+          "message": "original Callable requirement has different complete modes/kind [original definition Some(SemanticDefinitionId { module: ModuleId(0), index: 5 }), expression NodeId(5)] [original definition Some(SemanticDefinitionId { module: ModuleId(0), index: 5 }), expression NodeId(4)] [original definition SemanticDefinitionId { module: ModuleId(0), index: 5 }]",
+          "span": {
+            "file": 0,
+            "start": 408,
+            "end": 445
+          },
+          "notes": []
+        }
+      ],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-fnonce/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-fnonce/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "static-frame-owning-fnonce",
+      "source_sha256": "5fa4d302873b57d654ac8f709a03f1fd5dbee8f3ad5516b992cd85f2b5374db4",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-VERIFY-SEMANTIC",
+          "message": "original Callable requirement has different complete modes/kind [original definition Some(SemanticDefinitionId { module: ModuleId(0), index: 9 }), expression NodeId(5)] [original definition Some(SemanticDefinitionId { module: ModuleId(0), index: 9 }), expression NodeId(4)] [original definition SemanticDefinitionId { module: ModuleId(0), index: 9 }]",
+          "span": {
+            "file": 0,
+            "start": 659,
+            "end": 696
+          },
+          "notes": []
+        }
+      ],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-owning-fnonce/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-owning-fnonce/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "static-frame-owning-fnonce-cancel-before-poll",
+      "source_sha256": "d9161be29a359952cd42143ce300bb4caa9ba31ff526fe6209448a8880e1dc23",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-VERIFY-SEMANTIC",
+          "message": "original Callable requirement has different complete modes/kind [original definition Some(SemanticDefinitionId { module: ModuleId(0), index: 9 }), expression NodeId(5)] [original definition Some(SemanticDefinitionId { module: ModuleId(0), index: 9 }), expression NodeId(4)] [original definition SemanticDefinitionId { module: ModuleId(0), index: 9 }]",
+          "span": {
+            "file": 0,
+            "start": 659,
+            "end": 696
+          },
+          "notes": []
+        }
+      ],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-owning-fnonce-cancel-before-poll/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-owning-fnonce-cancel-before-poll/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "static-frame-owning-fnonce-cancel-after-pending",
+      "source_sha256": "85bd761f67cb4203e46998d2d256f32b0b67d390e8295d200517946bd767d62e",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-VERIFY-SEMANTIC",
+          "message": "original Callable requirement has different complete modes/kind [original definition Some(SemanticDefinitionId { module: ModuleId(0), index: 9 }), expression NodeId(5)] [original definition Some(SemanticDefinitionId { module: ModuleId(0), index: 9 }), expression NodeId(4)] [original definition SemanticDefinitionId { module: ModuleId(0), index: 9 }]",
+          "span": {
+            "file": 0,
+            "start": 659,
+            "end": 696
+          },
+          "notes": []
+        }
+      ],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-owning-fnonce-cancel-after-pending/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-owning-fnonce-cancel-after-pending/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "static-frame-cancel-before-poll",
+      "source_sha256": "92f7824375d87480d43845bfc0af8ad02cde2efac09c9f1e61c403b7e373b282",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-cancel-before-poll/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-cancel-before-poll/phases",
+        "--json"
+      ]
+    },
+    {
+      "case": "static-frame-cancel-after-pending",
+      "source_sha256": "38f5a93cefa981dfb490966fdb3b2a461b85c1d86c07c4341975e3c55fab36aa",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-cancel-after-pending/source.zil",
+        "--work-profile",
+        "standard",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-cancel-after-pending/phases",
+        "--json"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "case": "fnmut-async-poll-close",
+  "source_sha256": "27b0e13f49a3b9f72c4eb3229010dcf6fbb1d553ca32209548c4455338e2fe9b",
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/frozen-cli/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures-alpha/fnmut-async-poll-close/source.zil",
+    "--work-profile",
+    "alpha",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures-alpha/fnmut-async-poll-close/phases",
+    "--json"
+  ],
+  "exit": 1,
+  "status": "SafeReject",
+  "phase": "types",
+  "verification_runs": 0,
+  "diagnostics": [
+    {
+      "phase": "types",
+      "category": "SafeReject",
+      "code": "E-ORIGINAL-CLEANUP",
+      "message": "live original Task default Drop cleanup may suspend and lacks a Closed fact or a Suspend execution root",
+      "span": {
+        "file": 0,
+        "start": 0,
+        "end": 0
+      },
+      "notes": [
+        "original scope cleanup binding \"callback\", retained lexical depth 0",
+        "original checked function SemanticDefinitionId { module: ModuleId(0), index: 9 }",
+        "original protocol method costs {\"async_head\": (33, 43, 33), \"block\": (47, 92432, 313), \"call\": (46, 9956, 1330), \"can_drop\": (4, 310, 310), \"capture_type\": (1, 144, 29), \"category\": (242, 8426, 8426), \"change\": (35, 936, 936), \"charge_state\": (86, 338, 0), \"charge_value\": (520, 617, 520), \"choice\": (8, 134, 89), \"cleanup\": (63, 2222, 78), \"cleanup_value\": (0, 0, 0), \"closure_child\": (2, 488, 468), \"closure_creator\": (0, 0, 0), \"condition\": (0, 0, 0), \"copy\": (57, 1757, 1545), \"definition\": (133, 665, 665), \"drop_value\": (80, 132, 115), \"expr\": (110, 41505, 558), \"expr_inner\": (110, 22100, 936), \"function\": (16, 77425, 28741), \"function_inputs\": (13, 1686, 722), \"hide_for_defer\": (0, 0, 0), \"items\": (46, 4279, 36), \"iteration\": (0, 0, 0), \"leave\": (106, 4014, 3944), \"loop_body\": (9, 13036, 11), \"matches\": (26, 158, 158), \"merge\": (0, 0, 0), \"move_place\": (26, 530, 0), \"nominal_value\": (48, 48, 48), \"observe\": (90, 1839, 1649), \"offer\": (18, 1262, 1136), \"output\": (15, 248, 248), \"ownership\": (53, 53, 53), \"pattern\": (37, 291, 206), \"pattern_query\": (0, 0, 0), \"place_path\": (73, 1400, 1391), \"present\": (0, 0, 0), \"query_async\": (23, 894, 0), \"query_ownership\": (53, 3439, 0), \"query_type\": (209, 11769, 11769), \"replace_place\": (26, 530, 294), \"restore\": (0, 0, 0), \"restore_defer\": (0, 0, 0), \"root\": (29, 63, 63), \"scope\": (70, 1251, 1251), \"selected\": (28, 1656, 172), \"site\": (111, 1726, 1171), \"statement\": (103, 89129, 357), \"typed\": (137, 3102, 1427), \"unknown_call\": (15, 772, 49), \"unselected\": (0, 0, 0), \"value_copy\": (111, 374, 243), \"view\": (123, 167, 165)}; function costs {SemanticDefinitionId { module: ModuleId(0), index: 0 }: (1, 13, 13), SemanticDefinitionId { module: ModuleId(0), index: 1 }: (1, 17, 17), SemanticDefinitionId { module: ModuleId(0), index: 2 }: (1, 16, 16), SemanticDefinitionId { module: ModuleId(0), index: 3 }: (3, 561, 561), SemanticDefinitionId { module: ModuleId(0), index: 4 }: (3, 11996, 11996), SemanticDefinitionId { module: ModuleId(0), index: 5 }: (1, 1619, 1456), SemanticDefinitionId { module: ModuleId(0), index: 6 }: (2, 50204, 44619), SemanticDefinitionId { module: ModuleId(0), index: 7 }: (1, 4157, 4157), SemanticDefinitionId { module: ModuleId(0), index: 8 }: (2, 1839, 1839), SemanticDefinitionId { module: ModuleId(0), index: 9 }: (1, 7003, 6981)}",
+        "Types request pass costs Stats { passes: {\"abi: collect original input\": PassStats { calls: 1, work: 13231, first_allowance: 63999988, last_remaining: 63986757 }, \"abi: original function heads\": PassStats { calls: 1, work: 10, first_allowance: 63999998, last_remaining: 63999988 }, \"abi: universal original body check\": PassStats { calls: 1, work: 134939, first_allowance: 63986757, last_remaining: 63851818 }}, original_bodies: {}, original_stages: {}, protocol_bodies: {}, protocol_methods: {}, phases: {} }"
+      ]
+    }
+  ],
+  "verified": false
+}

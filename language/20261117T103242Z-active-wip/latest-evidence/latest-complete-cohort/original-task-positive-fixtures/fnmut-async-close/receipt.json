@@ -1,0 +1,38 @@
+{
+  "case": "fnmut-async-close",
+  "source_sha256": "4b35acd441f3c2b59d28a5f426d2e8ca5057c2f10ce0ffd8d36c1d264f8330d5",
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/frozen-cli/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/fnmut-async-close/source.zil",
+    "--work-profile",
+    "standard",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures/fnmut-async-close/phases",
+    "--json"
+  ],
+  "exit": 1,
+  "status": "SafeReject",
+  "phase": "types",
+  "verification_runs": 0,
+  "diagnostics": [
+    {
+      "phase": "types",
+      "category": "SafeReject",
+      "code": "E-ORIGINAL-CLEANUP",
+      "message": "live original Task default Drop cleanup may suspend and lacks a Closed fact or a Suspend execution root",
+      "span": {
+        "file": 0,
+        "start": 0,
+        "end": 0
+      },
+      "notes": [
+        "original scope cleanup binding \"callback\", retained lexical depth 0",
+        "original checked function SemanticDefinitionId { module: ModuleId(0), index: 9 }",
+        "original protocol method costs {\"async_head\": (33, 43, 33), \"block\": (44, 90632, 300), \"call\": (46, 9921, 1332), \"can_drop\": (4, 310, 310), \"capture_type\": (1, 144, 29), \"category\": (242, 8243, 8243), \"change\": (35, 936, 936), \"charge_state\": (79, 310, 0), \"charge_value\": (490, 580, 490), \"choice\": (8, 134, 89), \"cleanup\": (59, 2094, 74), \"cleanup_value\": (0, 0, 0), \"closure_child\": (2, 488, 468), \"closure_creator\": (0, 0, 0), \"condition\": (0, 0, 0), \"copy\": (53, 1625, 1429), \"definition\": (133, 665, 665), \"drop_value\": (80, 132, 115), \"expr\": (110, 41241, 558), \"expr_inner\": (110, 22065, 936), \"function\": (16, 76518, 28727), \"function_inputs\": (13, 1670, 722), \"hide_for_defer\": (0, 0, 0), \"items\": (46, 4279, 36), \"iteration\": (0, 0, 0), \"leave\": (98, 3766, 3696), \"loop_body\": (8, 11977, 10), \"matches\": (24, 154, 154), \"merge\": (0, 0, 0), \"move_place\": (26, 530, 0), \"nominal_value\": (48, 48, 48), \"observe\": (90, 1839, 1649), \"offer\": (16, 1162, 1048), \"output\": (15, 248, 248), \"ownership\": (53, 53, 53), \"pattern\": (34, 280, 199), \"pattern_query\": (0, 0, 0), \"place_path\": (73, 1400, 1391), \"present\": (0, 0, 0), \"query_async\": (23, 857, 0), \"query_ownership\": (53, 3439, 0), \"query_type\": (209, 11924, 11924), \"replace_place\": (26, 530, 294), \"restore\": (0, 0, 0), \"restore_defer\": (0, 0, 0), \"root\": (29, 63, 63), \"scope\": (65, 1161, 1161), \"selected\": (26, 1572, 170), \"site\": (111, 1726, 1171), \"statement\": (100, 87524, 349), \"typed\": (137, 2795, 1173), \"unknown_call\": (15, 735, 49), \"unselected\": (0, 0, 0), \"value_copy\": (109, 370, 241), \"view\": (123, 167, 165)}; function costs {SemanticDefinitionId { module: ModuleId(0), index: 0 }: (1, 13, 13), SemanticDefinitionId { module: ModuleId(0), index: 1 }: (1, 17, 17), SemanticDefinitionId { module: ModuleId(0), index: 2 }: (1, 16, 16), SemanticDefinitionId { module: ModuleId(0), index: 3 }: (3, 561, 561), SemanticDefinitionId { module: ModuleId(0), index: 4 }: (3, 11996, 11996), SemanticDefinitionId { module: ModuleId(0), index: 5 }: (1, 1620, 1457), SemanticDefinitionId { module: ModuleId(0), index: 6 }: (2, 50205, 44620), SemanticDefinitionId { module: ModuleId(0), index: 7 }: (1, 4157, 4157), SemanticDefinitionId { module: ModuleId(0), index: 8 }: (2, 1809, 1809), SemanticDefinitionId { module: ModuleId(0), index: 9 }: (1, 6124, 6102)}",
+        "Types request pass costs Stats { passes: {\"abi: collect original input\": PassStats { calls: 1, work: 13276, first_allowance: 9999988, last_remaining: 9986712 }, \"abi: original function heads\": PassStats { calls: 1, work: 10, first_allowance: 9999998, last_remaining: 9999988 }, \"abi: universal original body check\": PassStats { calls: 1, work: 131183, first_allowance: 9986712, last_remaining: 9855529 }}, original_bodies: {}, original_stages: {}, protocol_bodies: {}, protocol_methods: {}, phases: {} }"
+      ]
+    }
+  ],
+  "verified": false
+}

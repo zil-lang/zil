@@ -1,0 +1,680 @@
+diff --git a/crates/zil-verify/src/dynamic_witness.rs b/crates/zil-verify/src/dynamic_witness.rs
+index 9a2cc513d..3b3188940 100644
+--- a/crates/zil-verify/src/dynamic_witness.rs
++++ b/crates/zil-verify/src/dynamic_witness.rs
+@@ -51,6 +51,7 @@ mod semantic_capabilities;
+ 
+ /// Complete actual Typed domain only. Pending sources remain pending; neither
+ /// the cardinality nor successful shape validation grants memory authority.
++#[track_caller]
+ pub(crate) fn intrinsic_domain(
+     module: &TypedModule,
+     ty: &Type,
+diff --git a/crates/zil-verify/src/dynamic_witness/semantic_patterns.rs b/crates/zil-verify/src/dynamic_witness/semantic_patterns.rs
+index d9e6c3cf4..8cdc2527d 100644
+--- a/crates/zil-verify/src/dynamic_witness/semantic_patterns.rs
++++ b/crates/zil-verify/src/dynamic_witness/semantic_patterns.rs
+@@ -7,6 +7,7 @@ use std::cell::RefCell;
+ 
+ pub(crate) struct Session {
+     module:usize,
++    frozen_execution:Option<(usize,Box<TypedModule>)>,
+     context:semantic::CheckedContext,
+     active:RefCell<semantic::ActiveQueries>,
+     worlds:Vec<(SemanticInstanceId,EvalEnv)>,
+@@ -14,10 +15,20 @@ pub(crate) struct Session {
+ }
+ impl Session {
+     pub(crate) fn new(module:&TypedModule,context:semantic::CheckedContext,active:semantic::ActiveQueries,worlds:Vec<(SemanticInstanceId,EvalEnv)>,results:Vec<(SemanticInstanceId,CheckedType)>)->Self{
+-        Self{module:module as *const TypedModule as usize,context,active:RefCell::new(active),worlds,results}
++        Self{module:module as *const TypedModule as usize,frozen_execution:None,context,active:RefCell::new(active),worlds,results}
+     }
+ }
+ 
++/// Called only by the independently checked frozen S/E construction. The
++/// already charged view is moved, not reconstructed from an execution claim.
++pub(crate) fn retain_frozen_execution_view(execution:&TypedModule,view:TypedModule,checked_address:usize,b:&mut Budget)->Check<()>{
++    b.spend(1)?;
++    let session=b.semantic_checked.as_mut().and_then(std::rc::Rc::get_mut).ok_or_else(||bad("frozen final obligations have no unique completed session"))?;
++    if session.module!=checked_address||session.frozen_execution.is_some(){return Err(bad("frozen final obligations select another checked source view"));}
++    let view=Box::new(view);session.module=view.as_ref() as *const TypedModule as usize;
++    session.frozen_execution=Some((execution as *const TypedModule as usize,view));Ok(())
++}
++
+ /// Bind a source parameter to its original universal capability theorem.
+ /// World substitution is deliberately not applied to the original subject.
+ pub(crate) fn closed_task_input(module:&TypedModule,function:&TypedFunction,position:&StoragePosition,b:&mut Budget)->Check<bool>{
+@@ -40,8 +51,12 @@ pub(crate) fn closed_task_input(module:&TypedModule,function:&TypedFunction,posi
+ pub(crate) fn finish_original_callable_retirements(module:&TypedModule,b:&mut Budget)->Check<()>{
+     if module.semantic.is_none(){return Ok(());}
+     let session=b.semantic_checked.clone().ok_or_else(||bad("callable retirement has no completed semantic session"))?;
+-    if session.module!=module as *const TypedModule as usize{return Err(bad("callable retirement session belongs to another actual module"));}
+-    session.context.finish_original_callable_retirements(module,&session.worlds,b)
++    let proof=if session.module==module as *const TypedModule as usize{module}else{
++        let Some((execution,view))=&session.frozen_execution else{return Err(bad("callable retirement session belongs to another actual module"));};
++        if *execution!=module as *const TypedModule as usize{return Err(bad("callable retirement frozen view belongs to another execution module"));}
++        view.as_ref()
++    };
++    session.context.finish_original_callable_retirements(proof,&session.worlds,b)
+ }
+ 
+ /// Only the completed exact-module semantic session exposes ordinary member
+@@ -295,3 +310,19 @@ pub(super) fn checked_result_sources(module:&TypedModule,function:&TypedFunction
+     }
+     Ok(sources)
+ }
++
++#[cfg(test)]
++mod retirement_session_tests{
++    use super::*;
++    #[test]
++    fn frozen_retirement_session_keeps_checked_view_and_exact_execution_identity(){
++        let limits=Limits::default();let mut b=Budget::new(&limits);
++        let(view,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../semantic/fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
++        let execution=view.clone();let checked_address=&view as *const TypedModule as usize;
++        semantic::check_program(&view,&mut b).unwrap();
++        retain_frozen_execution_view(&execution,view,checked_address,&mut b).unwrap();
++        finish_original_callable_retirements(&execution,&mut b).unwrap();
++        let other=execution.clone();
++        assert!(finish_original_callable_retirements(&other,&mut b).is_err(),"an equal cloned module is not this checked frozen execution and cannot borrow its final retirement proof");
++    }
++}
+diff --git a/crates/zil-verify/src/semantic/flow.rs b/crates/zil-verify/src/semantic/flow.rs
+index 7293f312c..b39f2b28e 100644
+--- a/crates/zil-verify/src/semantic/flow.rs
++++ b/crates/zil-verify/src/semantic/flow.rs
+@@ -41,6 +41,7 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
+     let mut original=original::CheckedOriginal::check(module,&context,&mut active,b)?;
+     b.diagnostic_stage("original frozen schemes");
+     original.frozen_schemes(module,&context,&mut active,b)?;
++    original.verify_direct_consuming_goals(module,&context,&mut active,b)?;
+     *context.original.borrow_mut()=Some(original);
+     let mut external=dynamic_witness::semantic_external::Proofs::default();
+     b.diagnostic_stage("task context metadata");
+diff --git a/crates/zil-verify/src/semantic/frozen.rs b/crates/zil-verify/src/semantic/frozen.rs
+index 23fadd39f..240cfe839 100644
+--- a/crates/zil-verify/src/semantic/frozen.rs
++++ b/crates/zil-verify/src/semantic/frozen.rs
+@@ -159,7 +159,9 @@ impl<'s> FrozenContext<'s> {
+         }
+         view.semantic=Some(semantic);
+         self.wrapper_identity(&view,execution,b)?;
+-        flow::check_program_mode(&view,Some(self),b)
++        let checked_address=&view as *const TypedModule as usize;
++        flow::check_program_mode(&view,Some(self),b)?;
++        dynamic_witness::semantic_patterns::retain_frozen_execution_view(execution,view,checked_address,b)
+     }
+     fn charge_execution(&self,module:&TypedModule,b:&mut Budget)->Check<()> {
+         b.spend(module.functions.len())?;
+diff --git a/crates/zil-verify/src/semantic/original/calls.rs b/crates/zil-verify/src/semantic/original/calls.rs
+index b15f820af..e0eb0545c 100644
+--- a/crates/zil-verify/src/semantic/original/calls.rs
++++ b/crates/zil-verify/src/semantic/original/calls.rs
+@@ -323,7 +323,26 @@ impl CheckedOriginal{
+         }
+         let actual=self.normalize_original_type(module,context,&actual.result,caller,active,b)?;
+         let wanted=self.normalize_original_type(module,context,&wanted.result,caller,active,b)?;
+-        self.callable_goal_type(&actual,&wanted,&flexible,b).map_err(|error|error.with_note(format!("Callable source receiver {:?}; target lexical frames {:?}; caller lexical frames {:?}",receiver,target.lexical.iter().map(|frame|(frame.definition,&frame.actuals,&frame.environment)).collect::<Vec<_>>(),caller.lexical.iter().map(|frame|(frame.definition,&frame.actuals,&frame.environment)).collect::<Vec<_>>())))
++        self.callable_goal_type(&actual,&wanted,&flexible,b).map_err(|error|error.with_note(format!("Callable source receiver {:?}; target lexical frames {:?}; caller lexical frames {:?}",receiver,target.lexical.iter().map(|frame|(frame.definition,&frame.actuals,&frame.environment)).collect::<Vec<_>>(),caller.lexical.iter().map(|frame|(frame.definition,&frame.actuals,&frame.environment)).collect::<Vec<_>>())))?;
++        if kind==CallableKind::FnOnce&&signature.call_kind==CallKind::Direct{
++            // An opaque Fn/FnMut source may be used through FnOnce without
++            // exposing more of its public interface. Its concrete provider
++            // must still prove complete Direct environment retirement.
++            let provider=if let Some(owner)=owner{Some((owner,self.resolved(&receiver,b)?,self.copy_environment(selected.as_ref().ok_or_else(||bad("original consuming provider has no exact creator environment"))?,b)?))}
++            else if let Ty::Opaque(opaque,arguments)=&receiver{
++                let hidden=self.opaque_hidden(module,context,*opaque,arguments,active,b)?;
++                if let Ty::Closure(id,own,sealed)=&hidden{
++                    let mut source=self.environment(module,context,*opaque,active,b)?;source.lexical[0].actuals=self.resolve_arguments(arguments,0,b)?;
++                    let selected=self.closure_creator_environment(module,context,*id,own,sealed,&source,active,b)?;
++                    Some((*id,hidden,selected))
++                }else{None}
++            }else{None};
++            if let Some((owner,receiver,creator))=provider{
++                if self.direct_consuming_goals.len()>=b.limits.max_nodes{return Err(limit("original Direct consuming goal inventory exceeded"));}
++                self.direct_consuming_goals.push((owner,receiver,creator));
++            }
++        }
++        Ok(())
+     }
+     fn callable_goal_source(&mut self,actual:&Prototype,wanted:&Prototype,owner:Option<SemanticDefinitionId>,selected:Option<&Env>,b:&mut Budget)->Check<(Prototype,BTreeSet<Life>)>{
+         if actual.parameters.len()!=wanted.parameters.len()||actual.modes!=wanted.modes||actual.result_mode!=wanted.result_mode||actual.call_kind!=wanted.call_kind{return Err(bad("original Callable requirement has different complete modes/kind"));}
+diff --git a/crates/zil-verify/src/semantic/original/cleanup.rs b/crates/zil-verify/src/semantic/original/cleanup.rs
+index 7dd93027a..e4e85cb0d 100644
+--- a/crates/zil-verify/src/semantic/original/cleanup.rs
++++ b/crates/zil-verify/src/semantic/original/cleanup.rs
+@@ -3,6 +3,8 @@
+ use super::*;
+ #[derive(Clone,Copy,Debug,PartialEq,Eq)]
+ pub(super) enum CallableRetirement{ActivationCapture,SuspendedOwner}
++#[derive(Clone,Copy)]
++enum DropPurpose{Ordinary{capture_exit:bool},DirectConsuming}
+ #[derive(Clone)]
+ pub(super) struct Cleanup {definition:SemanticDefinitionId,binding:Binding,path:Vec<String>,capture_exit:bool,uses:Uses,environment:Env}
+ impl CheckedOriginal {
+@@ -70,18 +72,28 @@ impl CheckedOriginal {
+     pub(super) fn check_cleanups(&mut self,module:&TypedModule,context:&CheckedContext,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+         let cleanups=std::mem::take(&mut self.cleanups);
+         for cleanup in cleanups{self.current=Some(cleanup.definition);
++            if cleanup.capture_exit&&matches!(cleanup.binding.identity,Binder::Capture{..}){
++                cleanup.binding.identity.charge_clone(b)?;
++                let ty=self.resolved(&cleanup.binding.ty,b)?;
++                for place in cleanup.uses.moved.iter().chain(&cleanup.uses.definite){place.binder.charge_clone(b)?;b.spend(place.fields.iter().map(String::len).sum::<usize>().saturating_add(1))?;}
++                b.spend(cleanup.path.iter().map(String::len).sum::<usize>().saturating_add(2))?;
++                let environment=self.copy_environment(&cleanup.environment,b)?;
++                self.direct_cleanup_snapshots.push(Cleanup{definition:cleanup.definition,binding:Binding{ty,mutable:cleanup.binding.mutable,identity:cleanup.binding.identity.clone()},path:cleanup.path.clone(),capture_exit:cleanup.capture_exit,uses:cleanup.uses.clone(),environment});
++            }
+             if cleanup.capture_exit&&matches!(cleanup.binding.identity,Binder::Capture{..})&&!self.prototypes.get(&cleanup.definition).is_some_and(|prototype|prototype.callable_kind==Some(CallableKind::FnOnce)){continue;}
+             let place=Place{binder:cleanup.binding.identity.clone(),fields:cleanup.path.clone()};
+-            self.remaining_drop(module,context,&cleanup.binding.ty,&place,&cleanup.uses,&cleanup.environment,cleanup.capture_exit,active,b)?;
++            self.remaining_drop(module,context,&cleanup.binding.ty,&place,&cleanup.uses,&cleanup.environment,DropPurpose::Ordinary{capture_exit:cleanup.capture_exit},active,b)?;
+         }self.current=None;Ok(())
+     }
+-    fn remaining_drop(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,place:&Place,uses:&Uses,env:&Env,capture_exit:bool,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
++    fn remaining_drop(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,place:&Place,uses:&Uses,env:&Env,purpose:DropPurpose,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
++        let capture_exit=matches!(purpose,DropPurpose::Ordinary{capture_exit:true});
++        let direct=matches!(purpose,DropPurpose::DirectConsuming);
+         b.spend(uses.moved.len().saturating_mul(place.fields.len().saturating_add(1)))?;
+         if uses.definite.iter().any(|moved|moved.binder==place.binder&&place.fields.starts_with(&moved.fields)){return Ok(());}
+         if self.is_copy(module,context,ty,env,active,b)?{return Ok(());}
+         if let Ty::Opaque(owner,arguments)=self.resolved(ty,b)?{
+             let hidden=self.opaque_hidden(module,context,owner,&arguments,active,b)?;
+-            return self.remaining_drop(module,context,&hidden,place,uses,env,capture_exit,active,b);
++            return self.remaining_drop(module,context,&hidden,place,uses,env,purpose,active,b);
+         }
+         let partial=uses.definite.iter().any(|moved|moved.binder==place.binder&&moved.fields.starts_with(&place.fields));
+         b.spend(self.task_closed_cleanups.len().saturating_add(self.task_async_cleanups.len()).saturating_add(self.task_synchronous_cleanups.len()).saturating_add(self.callable_retirements.len()))?;
+@@ -98,15 +110,17 @@ impl CheckedOriginal {
+                 },
+                 _=>return Err(unsupported("original partial cleanup needs its complete value/array debt ledger",None)),
+             };
+-            for(name,field)in fields{let mut child=place.clone();child.fields.push(name);self.remaining_drop(module,context,&field,&child,uses,env,capture_exit,active,b)?;}return Ok(());
++            for(name,field)in fields{let mut child=place.clone();child.fields.push(name);self.remaining_drop(module,context,&field,&child,uses,env,purpose,active,b)?;}return Ok(());
+         }
+         // This exact-place set is published only after the phase engine has
+         // proved every cleanup edge, including all old loop generations.
+-        if self.task_closed_cleanups.contains(&(env.current()?,place.clone()))&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
+-        if self.task_async_cleanups.contains(&(env.current()?,place.clone()))&&self.prototypes.get(&env.current()?).is_some_and(|prototype|prototype.call_kind==CallKind::Suspend)&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
++        if !direct&&self.task_closed_cleanups.contains(&(env.current()?,place.clone()))&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
++        if !direct&&self.task_async_cleanups.contains(&(env.current()?,place.clone()))&&self.prototypes.get(&env.current()?).is_some_and(|prototype|prototype.call_kind==CallKind::Suspend)&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
+         // This is a proved source/occupant relation, not Task<T>:SyncDrop.
+         // The actual worker/source graph and every real cleanup remain required.
+-        if self.task_synchronous_cleanups.contains(&(env.current()?,place.clone()))&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
++        if !direct&&self.task_synchronous_cleanups.contains(&(env.current()?,place.clone()))&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
++        if direct&&self.sync_drop(module,context,ty,env,active,b)?{return Ok(());}
++        if direct&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..}))&&self.direct_capture_retirement(env.current()?,place,b)?{return Ok(());}
+         if capture_exit&&self.callable_retirements.get(&(env.current()?,place.clone()))==Some(&CallableRetirement::ActivationCapture)
+             &&matches!(place.binder,Binder::Capture{definition,..}if definition==env.current()?)
+             &&self.prototypes.get(&env.current()?).is_some_and(|prototype|prototype.callable_kind==Some(CallableKind::FnOnce))
+@@ -118,7 +132,7 @@ impl CheckedOriginal {
+             return Ok(());
+         }
+         if self.sync_drop(module,context,ty,env,active,b)?{return Ok(());}
+-        if self.prototypes.get(&env.current()?).is_some_and(|prototype|prototype.call_kind==CallKind::Suspend)
++        if !direct&&self.prototypes.get(&env.current()?).is_some_and(|prototype|prototype.call_kind==CallKind::Suspend)
+             &&self.callable_premise(module,context,ty,env,active,b)?.is_some_and(|prototype|matches!(prototype.callable_kind,Some(CallableKind::Fn|CallableKind::FnMut|CallableKind::FnOnce)))
+             &&self.closed_value(module,context,ty,env,active,b)?{
+             // This is the declared Suspend upper for retiring this exact owner,
+@@ -128,6 +142,27 @@ impl CheckedOriginal {
+         }
+         Err(bad("original cleanup edge has no original SyncDrop proof"))
+     }
++    /// Prove concrete providers in their universal declaration, even with no
++    /// actual instance. The stored creator/receiver validates source identity;
++    /// it never specializes away an original unknown incoming capability.
++    pub(in crate::semantic) fn verify_direct_consuming_goals(&mut self,module:&TypedModule,context:&CheckedContext,active:&mut ActiveQueries,b:&mut Budget)->Check<()>{
++        let goals=std::mem::take(&mut self.direct_consuming_goals);
++        let snapshots=std::mem::take(&mut self.direct_cleanup_snapshots);
++        for(definition,receiver,creator)in goals{
++            if !matches!(receiver,Ty::Closure(id,..)if id==definition)||!self.checked.contains(&definition)||creator.lexical.first().is_none_or(|frame|frame.definition!=definition){return Err(bad("original Direct consuming provider loses its exact checked creator/receiver"));}
++            if !self.creator_moves.get(&definition).copied().ok_or_else(||bad("original consuming provider has no original capture mode"))?{continue;}
++            for cleanup in snapshots.iter().filter(|cleanup|cleanup.definition==definition){
++                self.current=Some(definition);
++                let place=Place{binder:cleanup.binding.identity.clone(),fields:cleanup.path.clone()};
++                // This is an original caller-closed substitution, never a
++                // Typed actual specialization. Declaration goals keep their
++                // rigid creator formals and cannot be washed by safe main.
++                let ty=self.apply_type(&cleanup.binding.ty,&creator,b)?;
++                self.remaining_drop(module,context,&ty,&place,&cleanup.uses,&creator,DropPurpose::DirectConsuming,active,b)?;
++            }
++        }
++        self.current=None;Ok(())
++    }
+     pub(super) fn remember_callable_retirement(&mut self,definition:SemanticDefinitionId,place:&Place,role:CallableRetirement,b:&mut Budget)->Check<()>{
+         place.binder.charge_clone(b)?;b.spend(place.fields.iter().fold(1usize,|n,field|n.saturating_add(field.len())).saturating_add(self.callable_retirements.len().checked_ilog2().map_or(1,|n|n as usize+1)))?;
+         if self.callable_retirements.len()>=b.limits.max_nodes{return Err(limit("original callable retirement inventory exceeded"));}
+@@ -152,7 +187,7 @@ impl CheckedOriginal {
+             }
+             // Zero actual instances supplies no additional original premise:
+             // the exact declaration/role/upper was proved above even when unused.
+-            for instance in program.instances.iter().filter(|instance|instance.definition==*definition){
++            for instance in program.instances.iter().filter(|instance|instance.definition==*definition&&matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(_)))){
+                 let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id))=instance.target else{return Err(bad("callable retirement substitutes a nonexecutable original world"));};
+                 if !worlds.iter().any(|(checked,_)|*checked==instance.id){return Err(bad("callable retirement has an unfinished exact actual world"));}
+                 let function=module.functions.get(id.0 as usize).filter(|function|function.id==id&&function.foreign.is_none()).ok_or_else(||bad("callable retirement actual function is absent"))?;
+diff --git a/crates/zil-verify/src/semantic/original/mod.rs b/crates/zil-verify/src/semantic/original/mod.rs
+index 56ebae1ce..505a0d803 100644
+--- a/crates/zil-verify/src/semantic/original/mod.rs
++++ b/crates/zil-verify/src/semantic/original/mod.rs
+@@ -86,6 +86,10 @@ pub(super) struct CheckedOriginal {
+     task_async_cleanups:BTreeSet<(SemanticDefinitionId,Place)>,
+     task_synchronous_cleanups:BTreeSet<(SemanticDefinitionId,Place)>,
+     callable_retirements:BTreeMap<(SemanticDefinitionId,Place),cleanup::CallableRetirement>,
++    direct_consuming_goals:Vec<(SemanticDefinitionId,Ty,Env)>,
++    direct_cleanup_snapshots:Vec<cleanup::Cleanup>,
++    capture_exit_snapshots:BTreeMap<SemanticDefinitionId,Vec<protocol::CaptureExit>>,
++    proven_synchronous_births:BTreeSet<(SemanticDefinitionId,NodeId)>,
+     callable_nodes:BTreeMap<(SemanticDefinitionId,NodeId),NodeId>,
+     code_sources:BTreeMap<(SemanticDefinitionId,NodeId),SemanticDefinitionId>,
+     prototypes:BTreeMap<SemanticDefinitionId,Prototype>,
+diff --git a/crates/zil-verify/src/semantic/original/protocol.rs b/crates/zil-verify/src/semantic/original/protocol.rs
+index 4a137ac0e..5741abe9a 100644
+--- a/crates/zil-verify/src/semantic/original/protocol.rs
++++ b/crates/zil-verify/src/semantic/original/protocol.rs
+@@ -9,6 +9,7 @@ mod walk;
+ use intrinsics::Intrinsic;
+ use state::*;
+ 
++pub(super) struct CaptureExit{root:Place,generation:u64,phase:u8,sources:Sources}
+ struct Engine<'a> {
+     original: &'a CheckedOriginal,
+     module: &'a TypedModule,
+@@ -21,6 +22,7 @@ struct Engine<'a> {
+     closed_tasks: BTreeSet<Place>,
+     async_tasks: BTreeSet<Place>,
+     retiring_captures:BTreeSet<Place>,
++    capture_exits:Vec<CaptureExit>,
+     synchronous_births:&'a mut tasks::SynchronousBirths,
+     result_sources_by_function:&'a BTreeMap<SemanticDefinitionId,ResultSources>,
+     returned_sources:Option<ResultSources>,
+@@ -29,6 +31,7 @@ struct Engine<'a> {
+     task_loop_keys: Vec<BTreeSet<Binder>>,
+     result_shapes:BTreeMap<NodeId,tasks::Shape>,
+     callable_roles:BTreeMap<NodeId,(CallableKind,Vec<PassingMode>)>,
++    callable_targets:BTreeMap<NodeId,SemanticDefinitionId>,
+     creation_shapes:BTreeMap<NodeId,Vec<tasks::Shape>>,
+ }
+ 
+@@ -41,9 +44,27 @@ impl CheckedOriginal {
+         active: &mut ActiveQueries,
+         b: &mut Budget,
+     ) -> Check<()> {
++        let mut closure_targets=BTreeMap::new();
++        for(&id,function)in &index.definitions{
++            let previous=self.current.replace(id);
++            for expression in function.expressions.values(){
++                let CoreExprKind::Call{callee,..}=&expression.kind else{continue;};
++                let Some(ty)=self.expressions.get(&(id,callee.id))else{continue;};
++                let mut ty=self.resolved(ty,b)?;let mut depth=0;
++                loop{b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("original closure call target depth exceeded"));}depth+=1;
++                    match ty{
++                        Ty::Address{inner,..}|Ty::Desc{inner,..}=>ty=self.resolved(&inner,b)?,
++                        Ty::Opaque(owner,arguments)=>ty=self.opaque_hidden(module,context,owner,&arguments,active,b)?,
++                        Ty::Closure(owner,..)=>{closure_targets.entry(id).or_insert_with(BTreeMap::new).insert(expression.id,owner);break;},
++                        _=>break,
++                    }
++                }
++            }
++            self.current=previous;
++        }
+         let mut synchronous_births=self.synchronous_task_births(module,context,index,active,b)?;
+         let mut result_sources_by_function=BTreeMap::new();
+-        for id in protocol_order(self,index,b)? {
++        for id in protocol_order(self,index,&closure_targets,b)? {
+             let function=&index.definitions[&id];
+             b.spend(1)?;
+             let SemanticDefinitionBody::FunctionWithBody {
+@@ -173,7 +194,7 @@ impl CheckedOriginal {
+                 next: 0,
+                 closed_tasks: BTreeSet::new(),
+                 async_tasks: BTreeSet::new(),
+-                retiring_captures:BTreeSet::new(),
++                retiring_captures:BTreeSet::new(),capture_exits:vec![],
+                 synchronous_births:&mut synchronous_births,
+                 result_sources_by_function:&result_sources_by_function,
+                 returned_sources:None,
+@@ -182,6 +203,7 @@ impl CheckedOriginal {
+                 task_loop_keys: Vec::new(),
+                 result_shapes,
+                 callable_roles,
++                callable_targets:closure_targets.get(&id).cloned().unwrap_or_default(),
+                 creation_shapes,
+             };
+             engine.poll = engine.poll_type(&prototype.result, b)?;
+@@ -290,8 +312,10 @@ impl CheckedOriginal {
+             let closed = std::mem::take(&mut engine.closed_tasks);
+             let asynchronous = std::mem::take(&mut engine.async_tasks);
+             let retiring_captures=std::mem::take(&mut engine.retiring_captures);
++            let capture_exits=std::mem::take(&mut engine.capture_exits);
+             let returned=engine.returned_sources.take();
+             drop(engine);
++            self.capture_exit_snapshots.insert(id,capture_exits);
+             for root in retiring_captures{self.remember_callable_retirement(id,&root,cleanup::CallableRetirement::ActivationCapture,b)?;}
+             if let Some(returned)=returned{b.spend(returned.len())?;result_sources_by_function.insert(id,returned);}
+             for root in closed {
+@@ -305,6 +329,7 @@ impl CheckedOriginal {
+             self.current=previous;
+         }
+         for(definition,root)in synchronous_births.finish(b)?{b.spend(1)?;self.task_synchronous_cleanups.insert((definition,root));}
++        self.proven_synchronous_births=synchronous_births.proven(b)?;
+         Ok(())
+     }
+ }
+@@ -567,9 +592,11 @@ impl<'a> Engine<'a> {
+ 
+ /// Visit statically selected original callees before their users. A recursive
+ /// edge does not assume its own Return summary: a missing summary stays unknown.
+-fn protocol_order(original:&CheckedOriginal,index:&index::Index<'_>,b:&mut Budget)->Check<Vec<SemanticDefinitionId>>{
++fn protocol_order(original:&CheckedOriginal,index:&index::Index<'_>,closures:&BTreeMap<SemanticDefinitionId,BTreeMap<NodeId,SemanticDefinitionId>>,b:&mut Budget)->Check<Vec<SemanticDefinitionId>>{
+     let mut edges=BTreeMap::<SemanticDefinitionId,BTreeSet<SemanticDefinitionId>>::new();
+     for((caller,_),callee)in &original.call_targets{b.spend(1)?;if index.definitions.contains_key(callee){edges.entry(*caller).or_default().insert(*callee);}}
++    for(&owner,function)in &index.definitions{for child in function.closures.values(){b.spend(1)?;edges.entry(owner).or_default().insert(*child);}}
++    for(&owner,targets)in closures{for child in targets.values(){b.spend(1)?;edges.entry(owner).or_default().insert(*child);}}
+     let mut entered=BTreeSet::new();let mut done=BTreeSet::new();let mut result=Vec::new();
+     for id in index.definitions.keys(){
+         let mut pending=vec![(*id,false)];
+@@ -577,3 +604,21 @@ fn protocol_order(original:&CheckedOriginal,index:&index::Index<'_>,b:&mut Budge
+     }
+     Ok(result)
+ }
++
++impl CheckedOriginal{
++    /// Every original exit contributes independently, including persistent
++    /// Fn/FnMut activations being offered as a consuming Direct capability.
++    pub(super) fn direct_capture_retirement(&self,definition:SemanticDefinitionId,place:&Place,b:&mut Budget)->Check<bool>{
++        let Some(exits)=self.capture_exit_snapshots.get(&definition)else{return Ok(false);};
++        let mut seen=false;
++        for exit in exits{
++            b.spend(source_width(&exit.sources).saturating_add(exit.root.fields.len()).saturating_add(1))?;
++            if exit.root!=*place{continue;}seen=true;
++            if exit.phase==DEAD||exit.phase!=0&&exit.phase&!CLOSED==0{continue;}
++            if exit.phase==0||exit.sources.is_empty()||!exit.sources.iter().all(|source|matches!(source,TaskSource::Birth{definition,node}if self.proven_synchronous_births.contains(&(*definition,*node)))){
++                return Err(bad("original Direct consuming provider has no all-exit synchronous capture retirement proof").with_note(format!("original provider {definition:?}, capture {place:?}, generation {}, phase {}, universal sources {:?}",exit.generation,exit.phase,exit.sources)));
++            }
++        }
++        Ok(seen)
++    }
++}
+diff --git a/crates/zil-verify/src/semantic/original/protocol/expressions.rs b/crates/zil-verify/src/semantic/original/protocol/expressions.rs
+index 9cadc9e7e..3a6c2fb04 100644
+--- a/crates/zil-verify/src/semantic/original/protocol/expressions.rs
++++ b/crates/zil-verify/src/semantic/original/protocol/expressions.rs
+@@ -476,6 +476,10 @@ impl Engine<'_> {
+             return self.static_call(target, site, node, values, state, b);
+         }
+         let role=self.callable_roles.get(&node.id).cloned();
++        // Full call-before sources survive the consuming activation's updates.
++        let receiver_sources=self.result_sources(state,receiver,b)?;
++        let mut input_sources=Vec::new();for value in values{input_sources.push(self.result_sources(state,value,b)?);}
++        let target=self.callable_targets.get(&node.id).copied();
+         if role.is_none()&&(tasks::owner_value(receiver)||values.iter().any(tasks::owner_value)){
+             return Err(unsupported("original callable owner transfer lacks its complete checked signature role",Some(node.span)));
+         }
+@@ -502,7 +506,9 @@ impl Engine<'_> {
+                 if !matches!(mode,PassingMode::Borrow|PassingMode::BorrowMut|PassingMode::Describe|PassingMode::Copy){self.task_transfer_value(state,value,b)?;}
+             }
+         }
+-        self.result_value(node,state,b)
++        let mut result=self.result_value(node,state,b)?;
++        if let Some(target)=target{if let Some(summary)=self.result_sources_by_function.get(&target){self.apply_result_sources(state,&mut result,summary,&input_sources,target,Some(&receiver_sources),b)?;}}
++        Ok(result)
+     }
+     fn result_value(&mut self, node: &SemanticOriginalExpr,state:&mut State, b: &mut Budget) -> Check<Value> {
+         if let Some(shape)=self.result_shapes.get(&node.id).cloned(){
+@@ -698,7 +704,7 @@ impl Engine<'_> {
+         } else {
+             let mut value=self.result_value(node,state,b)?;
+             if let Some(summary)=self.result_sources_by_function.get(&target){
+-                self.apply_result_sources(state,&mut value,summary,&input_sources,target,b)?;
++                self.apply_result_sources(state,&mut value,summary,&input_sources,target,None,b)?;
+             }
+             Ok(value)
+         }
+diff --git a/crates/zil-verify/src/semantic/original/protocol/state.rs b/crates/zil-verify/src/semantic/original/protocol/state.rs
+index 196ea40af..6834e21c4 100644
+--- a/crates/zil-verify/src/semantic/original/protocol/state.rs
++++ b/crates/zil-verify/src/semantic/original/protocol/state.rs
+@@ -26,11 +26,12 @@ pub(super) enum TaskSource{
+     Unknown,
+     Input{definition:SemanticDefinitionId,ordinal:u32,path:Vec<String>},
+     Birth{definition:SemanticDefinitionId,node:NodeId},
++    Capture{definition:SemanticDefinitionId,source:Box<Binder>,path:Vec<String>},
+ }
+ pub(super) type Sources=BTreeSet<TaskSource>;
+ pub(super) type ResultSources=BTreeMap<Vec<String>,Sources>;
+ pub(super) fn unknown_sources()->Sources{BTreeSet::from([TaskSource::Unknown])}
+-pub(super) fn source_width(sources:&Sources)->usize{sources.iter().fold(1usize,|n,source|n.saturating_add(match source{TaskSource::Input{path,..}=>path.iter().fold(2usize,|n,s|n.saturating_add(s.len())),_=>1}))}
++pub(super) fn source_width(sources:&Sources)->usize{sources.iter().fold(1usize,|n,source|n.saturating_add(match source{TaskSource::Input{path,..}=>path.iter().fold(2usize,|n,s|n.saturating_add(s.len())),TaskSource::Capture{source,path,..}=>path.iter().fold(binder_width(source).saturating_add(2),|n,s|n.saturating_add(s.len())),_=>1}))}
+ #[derive(Clone, Debug, PartialEq, Eq)]
+ pub(super) struct Owner {
+     pub(super) states: u8,
+@@ -418,13 +419,55 @@ impl Engine<'_> {
+ mod source_tests{
+     use super::*;
+     #[test]
++    fn consuming_direct_proof_keeps_every_original_capture_exit_generation(){
++        let limits=Limits::default();let mut b=Budget::new(&limits);
++        let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../../fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
++        let index=index::build(&module,&mut b).unwrap();let definition=index.definitions.keys().next().copied().unwrap();
++        let mut original=CheckedOriginal::default();
++        original.prototypes.insert(definition,Prototype{parameters:vec![],result:Ty::Atom(Type::I32),environment:Env{lexical:vec![],bounds:vec![],invocation:vec![],self_type:None},modes:vec![],result_mode:PassingMode::Infer,call_kind:CallKind::Direct,bound_lifetimes:0,invocation_lifetimes:0,premise_bounds:vec![],callable_kind:Some(CallableKind::FnMut)});
++        let mut births=tasks::SynchronousBirths::default();let summaries=BTreeMap::new();
++        let source=Binder::Parameter{definition,ordinal:0};let binder=Binder::Capture{definition,source:Box::new(source)};let root=root_place(&binder);
++        let mut state=State::default();state.owners.insert(root.clone(),Owner{states:CLOSED,generation:1,task:true,owned:true,sources:unknown_sources()});
++        let mut engine=Engine{original:&original,module:&module,index:&index,current:definition,contracts:vec![],inputs:BTreeMap::new(),poll:false,next:1,closed_tasks:BTreeSet::new(),async_tasks:BTreeSet::new(),retiring_captures:BTreeSet::new(),capture_exits:vec![],synchronous_births:&mut births,result_sources_by_function:&summaries,returned_sources:None,fallible_task_result:false,error_unwind:vec![],task_loop_keys:vec![],result_shapes:BTreeMap::new(),callable_roles:BTreeMap::new(),callable_targets:BTreeMap::new(),creation_shapes:BTreeMap::new()};
++        engine.task_exit(&mut state,&mut b).unwrap();
++        assert_eq!(state.owner(&root,&mut b).unwrap().states,CLOSED,"checking FnMut consumption never destroys its persistent activation");
++        let first=std::mem::take(&mut engine.capture_exits);
++        engine.invalidate_task_source(&mut state,&root,&mut b).unwrap();engine.update(&mut state,&root,LIVE,&mut b).unwrap();engine.task_exit(&mut state,&mut b).unwrap();
++        let second=std::mem::take(&mut engine.capture_exits);drop(engine);
++        original.capture_exit_snapshots.insert(definition,first);assert!(original.direct_capture_retirement(definition,&root,&mut b).unwrap());
++        original.capture_exit_snapshots.get_mut(&definition).unwrap().extend(second);
++        assert!(original.direct_capture_retirement(definition,&root,&mut b).is_err(),"a second live Unknown exit cannot borrow another generation's Closed witness");
++    }
++    #[test]
++    fn original_closure_result_substitutes_only_the_selected_capture_once(){
++        let limits=Limits::default();let mut b=Budget::new(&limits);
++        let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../../fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
++        let index=index::build(&module,&mut b).unwrap();let definition=index.definitions.keys().next().copied().unwrap();
++        let first=Binder::Parameter{definition,ordinal:0};let second=Binder::Parameter{definition,ordinal:1};
++        let mut original=CheckedOriginal::default();original.free_values.insert(definition,BTreeMap::from([("first".into(),Binding{ty:Ty::Atom(Type::I32),mutable:false,identity:first.clone()}),("second".into(),Binding{ty:Ty::Atom(Type::I32),mutable:false,identity:second.clone()})]));
++        let mut births=tasks::SynchronousBirths::default();let summaries=BTreeMap::new();
++        let mut engine=Engine{original:&original,module:&module,index:&index,current:definition,contracts:vec![],inputs:BTreeMap::new(),poll:false,next:2,closed_tasks:BTreeSet::new(),async_tasks:BTreeSet::new(),retiring_captures:BTreeSet::new(),capture_exits:vec![],synchronous_births:&mut births,result_sources_by_function:&summaries,returned_sources:None,fallible_task_result:false,error_unwind:vec![],task_loop_keys:vec![],result_shapes:BTreeMap::new(),callable_roles:BTreeMap::new(),callable_targets:BTreeMap::new(),creation_shapes:BTreeMap::new()};
++        let mut state=State::default();let a=root_place(&first);let z=root_place(&second);
++        let a_source=BTreeSet::from([TaskSource::Birth{definition,node:NodeId(7)}]);
++        let z_source=BTreeSet::from([TaskSource::Input{definition,ordinal:0,path:vec![]}]);
++        state.owners.insert(a.clone(),Owner{states:LIVE,generation:1,task:true,owned:true,sources:a_source.clone()});state.owners.insert(z.clone(),Owner{states:LIVE,generation:2,task:true,owned:true,sources:z_source.clone()});
++        let receiver=Value::Product(vec![("$capture:first".into(),Value::Owner{root:a,borrowed:false}),("$capture:second".into(),Value::Owner{root:z,borrowed:false})]);
++        let before=engine.result_sources(&state,&receiver,&mut b).unwrap();engine.task_transfer_value(&mut state,&receiver,&mut b).unwrap();
++        for(source,wanted)in [(second,z_source),(first,a_source)]{
++            let summary=BTreeMap::from([(vec![],BTreeSet::from([TaskSource::Capture{definition,source:Box::new(source),path:vec![]}]))]);
++            let mut result=Value::FreshTask(PendingTask{states:LIVE,sources:unknown_sources()});
++            engine.apply_result_sources(&mut state,&mut result,&summary,&[],definition,Some(&before),&mut b).unwrap();
++            let Value::FreshTask(result)=result else{unreachable!()};assert_eq!(result.sources,wanted,"same-type captures keep exact binder identity and call-before source; replacement Input is not substituted a second time");
++        }
++    }
++    #[test]
+     fn original_state_join_never_discards_a_conditional_owner_missing_on_either_edge(){
+         let limits=Limits::default();let mut b=Budget::new(&limits);
+         let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../../fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+         let original=CheckedOriginal::default();let index=index::build(&module,&mut b).unwrap();
+         let definition=index.definitions.keys().next().copied().unwrap();
+         let mut births=tasks::SynchronousBirths::default();let summaries=BTreeMap::new();
+-        let mut engine=Engine{original:&original,module:&module,index:&index,current:definition,contracts:vec![],inputs:BTreeMap::new(),poll:false,next:0,closed_tasks:BTreeSet::new(),async_tasks:BTreeSet::new(),retiring_captures:BTreeSet::new(),synchronous_births:&mut births,result_sources_by_function:&summaries,returned_sources:None,fallible_task_result:false,error_unwind:vec![],task_loop_keys:vec![],result_shapes:BTreeMap::new(),callable_roles:BTreeMap::new(),creation_shapes:BTreeMap::new()};
++        let mut engine=Engine{original:&original,module:&module,index:&index,current:definition,contracts:vec![],inputs:BTreeMap::new(),poll:false,next:0,closed_tasks:BTreeSet::new(),async_tasks:BTreeSet::new(),retiring_captures:BTreeSet::new(),capture_exits:vec![],synchronous_births:&mut births,result_sources_by_function:&summaries,returned_sources:None,fallible_task_result:false,error_unwind:vec![],task_loop_keys:vec![],result_shapes:BTreeMap::new(),callable_roles:BTreeMap::new(),callable_targets:BTreeMap::new(),creation_shapes:BTreeMap::new()};
+         let binder=Binder::Parameter{definition,ordinal:0};
+         let pending=Value::FallibleTask(PendingTask{sources:BTreeSet::from([TaskSource::Birth{definition,node:NodeId(4)}]),states:OPEN});
+         let mut present=State::default();present.values.insert(binder.clone(),pending.clone());
+diff --git a/crates/zil-verify/src/semantic/original/protocol/tasks.rs b/crates/zil-verify/src/semantic/original/protocol/tasks.rs
+index 983616378..2e930be30 100644
+--- a/crates/zil-verify/src/semantic/original/protocol/tasks.rs
++++ b/crates/zil-verify/src/semantic/original/protocol/tasks.rs
+@@ -78,7 +78,8 @@ impl SynchronousBirths{
+         root.binder.charge_clone(b)?;b.spend(root.fields.iter().map(String::len).sum::<usize>().saturating_add(source_width(&owner.sources)).saturating_add(2))?;
+         self.pending.push((definition,root.clone(),owner.generation,owner.states,owner.sources.clone()));Ok(())
+     }
+-    pub(super) fn finish(mut self,b:&mut Budget)->Check<Vec<(SemanticDefinitionId,Place)>>{
++    pub(super) fn proven(&self,b:&mut Budget)->Check<BTreeSet<Birth>>{b.spend(self.known.len())?;Ok(self.known.clone())}
++    pub(super) fn finish(&mut self,b:&mut Budget)->Check<Vec<(SemanticDefinitionId,Place)>>{
+         // Least fixed point of all-source obligations. Original Input/Unknown,
+         // absent creation observations and source-only cycles are not anchors.
+         let mut changed=true;
+@@ -88,7 +89,7 @@ impl SynchronousBirths{
+             if self.conditional.contains(birth)&&sources.iter().all(|source|matches!(source,TaskSource::Birth{definition,node}if self.known.contains(&(*definition,*node)))){self.known.insert(*birth);changed=true;}
+         }}
+         let mut ready=Vec::new();
+-        for(definition,root,generation,phase,sources)in self.pending{
++        for(definition,root,generation,phase,sources)in std::mem::take(&mut self.pending){
+             b.spend(source_width(&sources).saturating_add(1))?;
+             if !sources.iter().all(|source|matches!(source,TaskSource::Birth{definition,node}if self.known.contains(&(*definition,*node)))){
+                 return Err(bad("original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend").with_note(format!("original cleanup {definition:?} {root:?} generation {generation}, phase {phase}; incomplete all-source creation dependencies {sources:?}")));
+@@ -222,6 +223,15 @@ impl CheckedOriginal {
+     }
+ }
+ 
++fn entry_sources(place:&Place,b:&mut Budget)->Check<Sources>{
++    place.binder.charge_clone(b)?;b.spend(place.fields.iter().map(String::len).sum::<usize>().saturating_add(1))?;
++    Ok(match &place.binder{
++        Binder::Parameter{definition,ordinal}=>BTreeSet::from([TaskSource::Input{definition:*definition,ordinal:*ordinal,path:place.fields.clone()}]),
++        Binder::Capture{definition,source}=>BTreeSet::from([TaskSource::Capture{definition:*definition,source:source.clone(),path:place.fields.clone()}]),
++        _=>unknown_sources(),
++    })
++}
++
+ impl<'a> Engine<'a> {
+     pub(super) fn task_bind(
+         &mut self,
+@@ -339,7 +349,7 @@ impl<'a> Engine<'a> {
+             Shape::Plain => Value::Plain,
+             Shape::FallibleTask => Value::FallibleTask(PendingTask{
+                 states:LIVE,
+-                sources:match &place.binder{Binder::Parameter{definition,ordinal}=>BTreeSet::from([TaskSource::Input{definition:*definition,ordinal:*ordinal,path:place.fields.clone()}]),_=>unknown_sources()},
++                sources:entry_sources(place,b)?,
+             }),
+             Shape::Task { borrowed } => {
+                 if state.owners.get(place).is_some_and(|owner|owner.states!=DEAD){
+@@ -353,7 +363,7 @@ impl<'a> Engine<'a> {
+                         generation,
+                         task: true,
+                         owned: !*borrowed,
+-                        sources:match &place.binder{Binder::Parameter{definition,ordinal}=>BTreeSet::from([TaskSource::Input{definition:*definition,ordinal:*ordinal,path:place.fields.clone()}]),_=>unknown_sources()},
++                        sources:entry_sources(place,b)?,
+                     },
+                 );
+                 Value::Owner {
+@@ -523,6 +533,15 @@ impl<'a> Engine<'a> {
+         Ok(())
+     }
+     pub(super) fn task_exit(&mut self, state: &mut State, b: &mut Budget) -> Check<()> {
++        // Snapshot before activation exit changes ownership. Closed is tied
++        // to this generation; neither a later exit nor actual callers replace it.
++        for(root,owner)in &state.owners{
++            if owner.task&&owner.owned&&matches!(root.binder,Binder::Capture{definition,..}if definition==self.current){
++                root.binder.charge_clone(b)?;b.spend(root.fields.iter().map(String::len).sum::<usize>().saturating_add(source_width(&owner.sources)).saturating_add(3))?;
++                if self.capture_exits.len()>=b.limits.max_nodes{return Err(limit("original capture exit inventory exceeded"));}
++                self.capture_exits.push(CaptureExit{root:root.clone(),generation:owner.generation,phase:owner.states,sources:owner.sources.clone()});
++            }
++        }
+         b.spend(state.width())?;
+         let roots = state
+             .owners
+@@ -937,36 +956,43 @@ impl Engine<'_>{
+         }else{self.returned_sources=Some(incoming);}
+         Ok(())
+     }
+-    pub(super) fn apply_result_sources(&self,state:&mut State,value:&mut Value,summary:&ResultSources,inputs:&[ResultSources],target:SemanticDefinitionId,b:&mut Budget)->Check<()>{
+-        fn sources(path:&[String],summary:&ResultSources,inputs:&[ResultSources],target:SemanticDefinitionId,b:&mut Budget)->Check<Sources>{
++    pub(super) fn apply_result_sources(&self,state:&mut State,value:&mut Value,summary:&ResultSources,inputs:&[ResultSources],target:SemanticDefinitionId,receiver:Option<&ResultSources>,b:&mut Budget)->Check<()>{
++        fn sources(path:&[String],summary:&ResultSources,inputs:&[ResultSources],target:SemanticDefinitionId,receiver:Option<&ResultSources>,original:&CheckedOriginal,b:&mut Budget)->Check<Sources>{
+             let mut sources=Sources::new();
+                     if let Some(rows)=summary.get(path){for source in rows{b.spend(1)?;match source{
+                         TaskSource::Input{definition,ordinal,path}if *definition==target=>{
+                             if let Some(actual)=inputs.get(*ordinal as usize).and_then(|input|input.get(path)){b.spend(source_width(actual))?;sources.extend(actual.iter().cloned());}else{sources.insert(TaskSource::Unknown);}
+                         },
+-                        TaskSource::Input{..}|TaskSource::Unknown=>{sources.insert(TaskSource::Unknown);},
++                        TaskSource::Capture{definition,source,path}if *definition==target=>{
++                            let mut names=original.free_values.get(&target).into_iter().flat_map(|rows|rows.iter()).filter(|(_,binding)|binding.identity==**source);
++                            let Some((name,_))=names.next()else{sources.insert(TaskSource::Unknown);continue;};
++                            if names.next().is_some(){return Err(bad("closure result source has ambiguous original captured binders"));}
++                            let mut selected=vec![CheckedOriginal::capture_field(name,b)?];b.spend(path.iter().map(String::len).sum::<usize>().saturating_add(1))?;selected.extend_from_slice(path);
++                            if let Some(actual)=receiver.and_then(|rows|rows.get(&selected)){b.spend(source_width(actual))?;sources.extend(actual.iter().cloned());}else{sources.insert(TaskSource::Unknown);}
++                        },
++                        TaskSource::Input{..}|TaskSource::Capture{..}|TaskSource::Unknown=>{sources.insert(TaskSource::Unknown);},
+                         birth@TaskSource::Birth{..}=>{sources.insert(birth.clone());},
+                     }}}else{sources.insert(TaskSource::Unknown);}
+                     if sources.is_empty(){sources.insert(TaskSource::Unknown);}
+             Ok(sources)
+         }
+-        fn walk(state:&mut State,value:&mut Value,path:&mut Vec<String>,summary:&ResultSources,inputs:&[ResultSources],target:SemanticDefinitionId,b:&mut Budget)->Check<()>{
++        fn walk(state:&mut State,value:&mut Value,path:&mut Vec<String>,summary:&ResultSources,inputs:&[ResultSources],target:SemanticDefinitionId,receiver:Option<&ResultSources>,original:&CheckedOriginal,b:&mut Budget)->Check<()>{
+             b.spend(path.iter().fold(1usize,|n,s|n.saturating_add(s.len())))?;
+             match value{
+                 Value::Owner{root,..}=>{
+-                    let sources=sources(path,summary,inputs,target,b)?;
++                    let sources=sources(path,summary,inputs,target,receiver,original,b)?;
+                     let owner=state.owners.get_mut(root).ok_or_else(||bad("helper Return source lost its exact newly initialized owner"))?;
+                     if owner.task{owner.sources=sources;}
+                 },
+-                Value::FreshTask(task)|Value::FallibleTask(task)=>task.sources=sources(path,summary,inputs,target,b)?,
+-                Value::Product(fields)=>for(name,value)in fields{path.push(name.clone());walk(state,value,path,summary,inputs,target,b)?;path.pop();},
++                Value::FreshTask(task)|Value::FallibleTask(task)=>task.sources=sources(path,summary,inputs,target,receiver,original,b)?,
++                Value::Product(fields)=>for(name,value)in fields{path.push(name.clone());walk(state,value,path,summary,inputs,target,receiver,original,b)?;path.pop();},
+                 _=>{},
+             }
+             Ok(())
+         }
+         // The caller supplies the callee identity explicitly, never infers it
+         // from a compatible type, source name, or current concrete occupant.
+-        walk(state,value,&mut vec![],summary,inputs,target,b)
++        walk(state,value,&mut vec![],summary,inputs,target,receiver,self.original,b)
+     }
+ }
+ 
+diff --git a/crates/zil-verify/src/semantic/original/protocol/walk.rs b/crates/zil-verify/src/semantic/original/protocol/walk.rs
+index 8b3aaefff..40f915d4b 100644
+--- a/crates/zil-verify/src/semantic/original/protocol/walk.rs
++++ b/crates/zil-verify/src/semantic/original/protocol/walk.rs
+@@ -681,7 +681,7 @@ mod error_arm_coverage_tests{
+             }
+             let body:SemanticOriginalBlock=zil_ir::CoreBlock{statements:vec![zil_ir::CoreStatement{id:NodeId(901),kind:CoreStatementKind::Match{value:zil_ir::CoreExpr{id:NodeId(900),kind:CoreExprKind::Name("sum".into()),span},arms},span}],span};
+             let mut births=tasks::SynchronousBirths::default();let summaries=BTreeMap::new();
+-            let mut engine=Engine{original:&original,module:&module,index:&index,current:definition,contracts:vec![],inputs:BTreeMap::new(),poll:false,next:0,closed_tasks:BTreeSet::new(),async_tasks:BTreeSet::new(),retiring_captures:BTreeSet::new(),synchronous_births:&mut births,result_sources_by_function:&summaries,returned_sources:None,fallible_task_result:false,error_unwind:vec![],task_loop_keys:vec![],result_shapes:BTreeMap::new(),callable_roles:BTreeMap::new(),creation_shapes:BTreeMap::new()};
++            let mut engine=Engine{original:&original,module:&module,index:&index,current:definition,contracts:vec![],inputs:BTreeMap::new(),poll:false,next:0,closed_tasks:BTreeSet::new(),async_tasks:BTreeSet::new(),retiring_captures:BTreeSet::new(),capture_exits:vec![],synchronous_births:&mut births,result_sources_by_function:&summaries,returned_sources:None,fallible_task_result:false,error_unwind:vec![],task_loop_keys:vec![],result_shapes:BTreeMap::new(),callable_roles:BTreeMap::new(),callable_targets:BTreeMap::new(),creation_shapes:BTreeMap::new()};
+             let outcome=engine.block(&body,State::default(),&[],None,0,&mut b).unwrap();
+             assert_eq!(outcome.fall.is_none(),typed_sum&&complete&&!refutable,"a real exhaustive two-arm return has no third cleanup/source route; missing type/arm or refutable payload must retain it");
+         }
+diff --git a/crates/zil-verify/src/tasks/drop_sync.rs b/crates/zil-verify/src/tasks/drop_sync.rs
+index 0619793ed..c03a4a6cc 100644
+--- a/crates/zil-verify/src/tasks/drop_sync.rs
++++ b/crates/zil-verify/src/tasks/drop_sync.rs
+@@ -1075,6 +1075,7 @@ fn check_environment_mutations(module:&TypedModule,entry:FunctionId,b:&mut Budge
+ /// synchronous upper. Real constructors and environment writes must all agree.
+ pub(crate) fn require_direct_consuming_environment(module:&TypedModule,id:ClosureId,b:&mut Budget)->Check<()>{
+     let definition=crate::closures::definition(module,id,None)?;
++    if definition.captures.iter().map(|ty|Ok(contains_kind(module,ty,b,false)?||contains_kind(module,ty,b,true)?)).collect::<Check<Vec<_>>>()?.into_iter().any(|has|has){check_environment_mutations(module,definition.function,b)?;}
+     if once_cleanup_has_no_task(module,id,b)?||once_cleanup_closed(module,id,b)?{return Ok(());}
+     // The complete entry/helper execution graph is part of the consuming
+     // operation. Safe initial fields alone cannot certify its final occupant.
+@@ -1097,6 +1098,23 @@ pub(crate) fn require_direct_consuming_environment(module:&TypedModule,id:Closur
+ mod direct_consuming_tests{
+     use super::*;
+     #[test]
++    fn direct_consuming_closed_exit_cannot_survive_an_unmodelled_owner_replacement(){
++        let limits=Limits::default();let(mut module,_)=crate::tests::baseline();let span=module.functions[0].span;
++        let task=Type::Managed(Box::new(Type::Task{result:Box::new(Type::I32),retained_life:super::super::empty_context()}));
++        let op=|result:Option<u32>,kind|Instruction{result:result.map(ValueId),kind,span};
++        let entry=&mut module.functions[0];entry.environment=Some(ClosureId(0));entry.parameters=vec![LocalId(0)];entry.locals=vec![LocalDecl{id:LocalId(0),name:"new_occupant".into(),ty:task.clone(),mutable:true,span}];
++        entry.values=vec![Type::Address{mutable:true,inner:Box::new(task.clone())},super::super::task_poll_type(&Type::Unit),Type::I32,Type::I32,Type::Bool,Type::I32,task.clone()];
++        entry.blocks=vec![BasicBlock{id:BlockId(0),instructions:vec![op(Some(0),InstructionKind::BorrowCapture{index:0,mutable:true}),op(Some(1),InstructionKind::TaskPollClose{task:ValueId(0)}),op(Some(2),InstructionKind::VariantTag{value:ValueId(1)}),op(Some(3),InstructionKind::Constant(Constant::I32(1))),op(Some(4),InstructionKind::Binary{op:BinaryOp::Equal,left:ValueId(2),right:ValueId(3)})],terminator:Terminator::Branch{condition:ValueId(4),then_block:BlockId(1),else_block:BlockId(0)}},BasicBlock{id:BlockId(1),instructions:vec![op(Some(5),InstructionKind::Constant(Constant::I32(7)))],terminator:Terminator::Return(Some(ValueId(5)))}];
++        module.closures=vec![ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![task.clone()],parameters:vec![task],result:Type::I32,kind:CallableKind::FnMut,lending_captures:vec![],storage_life:None}];
++        for wire in [false,true]{
++            let decoded;let original=if wire{let bytes=zil_ir::wire::encode_module_candidate(&module,&CandidatePlan::empty_for(&module),&limits).unwrap();decoded=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0;decoded}else{module.clone()};
++            let mut b=Budget::new(&limits);b.task_origin_roots=true;assert!(once_cleanup_closed(&original,ClosureId(0),&mut b).unwrap());require_direct_consuming_environment(&original,ClosureId(0),&mut b).unwrap();
++            let mut changed=original;changed.functions[0].blocks[1].instructions.extend([op(Some(6),InstructionKind::TakeLocal{local:LocalId(0)}),op(None,InstructionKind::ReservePlaceAddress{reservation:ReservationId(0),address:ValueId(0),path:vec![]}),op(None,InstructionKind::CommitPlaceReplace{reservation:ReservationId(0),value:ValueId(6)})]);
++            let mut b=Budget::new(&limits);b.task_origin_roots=true;
++            assert!(require_direct_consuming_environment(&changed,ClosureId(0),&mut b).is_err(),"a prior Ready capture proof cannot certify its new live occupant, wire {wire}");
++        }
++    }
++    #[test]
+     fn direct_consuming_capability_checks_every_constructor_and_rejects_unknown_replacements_raw_wire(){
+         let limits=Limits::default();let(mut module,_)=crate::tests::baseline();let template=module.functions[0].clone();let span=template.span;
+         let task=Type::Managed(Box::new(Type::Task{result:Box::new(Type::I32),retained_life:super::super::empty_context()}));

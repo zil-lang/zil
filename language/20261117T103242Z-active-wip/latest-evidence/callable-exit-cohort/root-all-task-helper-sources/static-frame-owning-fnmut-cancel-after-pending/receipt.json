@@ -1,0 +1,19 @@
+{
+  "case": "static-frame-owning-fnmut-cancel-after-pending",
+  "source_sha256": "539499355c28e358ac1ddede2d57ceb48cafd062797919e086a0c2b20d924d4d",
+  "exit_code": 0,
+  "status": "Success",
+  "phase": "verify",
+  "verification_runs": 1,
+  "diagnostics": [],
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-owning-fnmut-cancel-after-pending/source.zil",
+    "--work-profile",
+    "standard",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/static-frame-owning-fnmut-cancel-after-pending/phases",
+    "--json"
+  ]
+}

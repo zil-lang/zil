@@ -1,0 +1,20 @@
+{
+  "case": "returned-task-result-fnonce",
+  "source_sha256": "481c3efa48432814220cfe69beefe3ac4f02402fd5df7e93dcbf6e231dfba240",
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/returned-task-result-fnonce/source.zil",
+    "--work-profile",
+    "standard",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/returned-task-result-fnonce/phases",
+    "--json"
+  ],
+  "exit": 0,
+  "status": "Success",
+  "phase": "verify",
+  "verification_runs": 1,
+  "diagnostics": [],
+  "verified": true
+}

@@ -1,0 +1,20 @@
+{
+  "case": "static-callable-input",
+  "source_sha256": "ce376838b851f4ac4529f189ba3254a225dfbafa8d9d357d472d62662f5309d2",
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/static-callable-input/source.zil",
+    "--work-profile",
+    "standard",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/static-callable-input/phases",
+    "--json"
+  ],
+  "exit": 0,
+  "status": "Success",
+  "phase": "verify",
+  "verification_runs": 1,
+  "diagnostics": [],
+  "verified": true
+}

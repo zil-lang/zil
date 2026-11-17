@@ -1,0 +1,10 @@
+from pathlib import Path
+import argparse,fcntl,json,shutil,hashlib,subprocess,sys
+sys.path.insert(0,'/workspace/.zil-env')
+from lossless_phase_logs import compress_phases
+p=argparse.ArgumentParser();p.add_argument('--run',required=True);p.add_argument('--candidate',required=True);a=p.parse_args();repo=Path('/workspace/zil-alpha-candidate');run=repo/'out/runs'/a.run
+with open('/workspace/.zil-env/language-build.lock','a')as lock:
+ fcntl.flock(lock,fcntl.LOCK_EX);identity=json.loads((run/'compiler-build-receipt.json').read_text());assert identity['status']=='Pass'and identity['source_commit']==a.candidate;assert subprocess.check_output(['git','rev-parse','HEAD'],cwd=repo,text=True).strip()==a.candidate
+ cli=run/'frozen-cli/zil';cli.parent.mkdir();shutil.copy2('/workspace/.zil-env/target-language-alpha/debug/zil',cli);assert hashlib.sha256(cli.read_bytes()).hexdigest()==identity['cli_sha256'];d=run/'real-nested-static-probe';d.mkdir();source=d/'source.zil';shutil.copy2('/tmp/zil-nested-static-capture-probe/source.zil',source);sha=hashlib.sha256(source.read_bytes()).hexdigest();assert sha=='528d69dc979d081fe8ad35cc30d9b4fba34e522011af0fd4bf22f78244c83544';cmd=[str(cli),'check',str(source),'--work-profile','standard','--emit-dir',str(d/'phases'),'--json'];r=subprocess.run(cmd,cwd=repo,capture_output=True);(d/'stdout.json').write_bytes(r.stdout);(d/'stderr.log').write_bytes(r.stderr);v=json.loads(r.stdout);receipt={'candidate':identity['source_commit'],'cli_sha256':identity['cli_sha256'],'source_sha256':sha,'exit_code':r.returncode,'report':v};(d/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n');compress_phases(d);print(json.dumps({'candidate':a.candidate,'status':v['status'],'phase':v.get('phase'),'verification_runs':v.get('verification_runs'),'diagnostics':[(x['code'],x['message'])for x in v.get('diagnostics',[])]}),flush=True)
+if r.returncode==0 and v['status']=='Success'and v['verification_runs']==1:raise SystemExit(subprocess.run(['python3','/workspace/.zil-env/check-real-nested-static-native.py','--run',a.run]).returncode)
+raise SystemExit(r.returncode)

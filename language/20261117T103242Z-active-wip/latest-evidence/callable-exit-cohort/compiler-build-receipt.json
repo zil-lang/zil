@@ -1,0 +1,16 @@
+{
+  "status": "Pass",
+  "exit_code": 0,
+  "git_status": "",
+  "source_commit": "ee66b10c1bfff43bee9b251cd678c795341a256b",
+  "cli_sha256": "59127a13614081aff67c2a4a32a55ea47fee028475a5c6ed7e11d76498c6f354",
+  "command": [
+    "cargo",
+    "build",
+    "--locked",
+    "-p",
+    "zil-cli"
+  ],
+  "build_log": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/build.log",
+  "completed_at_utc": "2026-11-17T10:23:38.267545+00:00"
+}

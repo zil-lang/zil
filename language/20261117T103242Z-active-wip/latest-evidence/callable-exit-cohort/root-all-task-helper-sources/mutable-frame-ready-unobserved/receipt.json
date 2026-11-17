@@ -1,0 +1,34 @@
+{
+  "case": "mutable-frame-ready-unobserved",
+  "source_sha256": "3a785daad3a93a69d3bb6f9a3a86a297b188bd2c727919158a2fa1e8e58e9f93",
+  "exit_code": 1,
+  "status": "SafeReject",
+  "phase": "analyze",
+  "verification_runs": 0,
+  "diagnostics": [
+    {
+      "phase": "analyze",
+      "category": "SafeReject",
+      "code": "E-TASK-ABI",
+      "message": "original Task cleanup needs a declaration-local root or an independent Closed proof",
+      "span": {
+        "file": 0,
+        "start": 630,
+        "end": 639
+      },
+      "notes": [
+        "original cleanup actual function 4 drive_callback, unresolved incoming parameters {0}, captures {}"
+      ]
+    }
+  ],
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/mutable-frame-ready-unobserved/source.zil",
+    "--work-profile",
+    "standard",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/mutable-frame-ready-unobserved/phases",
+    "--json"
+  ]
+}

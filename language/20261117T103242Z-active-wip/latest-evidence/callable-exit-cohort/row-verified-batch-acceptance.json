@@ -1,0 +1,96 @@
+{
+  "candidate": "ee66b10c1bfff43bee9b251cd678c795341a256b",
+  "cli_sha256": "59127a13614081aff67c2a4a32a55ea47fee028475a5c6ed7e11d76498c6f354",
+  "scope": "Selected Task Source/SDK/native batch only; product/CT/project/core/full native plan/recovery gates remain separate",
+  "command_exit_is_not_acceptance": true,
+  "observed_failures": true,
+  "missing_required_evidence": [
+    "address-product-controls/actual-test-evidence",
+    "existing-direct-cleanup-native/receipt.json",
+    "frame-consumer-controls/actual-test-evidence",
+    "original-simple-task-native/receipt.json",
+    "source-integrations/actual-test-evidence",
+    "source-static-controls/actual-test-evidence"
+  ],
+  "selected_batch_passed": false,
+  "success_set_preservation": {
+    "policy": "/workspace/.zil-env/root-recovered-task-success-baseline.json",
+    "profiles": {
+      "standard": {
+        "source_sha_identities_preserved": true,
+        "required_preserved_successes": [
+          "adapter-default-local",
+          "child-frame-cleanup",
+          "closed-task-fnonce",
+          "direct-default-local",
+          "equal-shared-task-classes",
+          "fnmut-async-close",
+          "fnmut-async-poll-close",
+          "returned-second-task-fnonce",
+          "returned-task-result-fnonce",
+          "static-callable-input"
+        ],
+        "regressions": [
+          "fnmut-async-close",
+          "fnmut-async-poll-close",
+          "returned-second-task-fnonce"
+        ],
+        "new_successes": [],
+        "current_successes": [
+          "adapter-default-local",
+          "child-frame-cleanup",
+          "closed-task-fnonce",
+          "direct-default-local",
+          "equal-shared-task-classes",
+          "returned-task-result-fnonce",
+          "static-callable-input"
+        ],
+        "passed": false
+      },
+      "alpha": {
+        "source_sha_identities_preserved": true,
+        "required_preserved_successes": [
+          "adapter-default-local",
+          "child-frame-cleanup",
+          "closed-task-fnonce",
+          "direct-default-local",
+          "equal-shared-task-classes",
+          "fnmut-async-close",
+          "fnmut-async-poll-close",
+          "returned-second-task-fnonce",
+          "returned-task-result-fnonce",
+          "static-callable-input"
+        ],
+        "regressions": [
+          "fnmut-async-close",
+          "fnmut-async-poll-close",
+          "returned-second-task-fnonce"
+        ],
+        "new_successes": [],
+        "current_successes": [
+          "adapter-default-local",
+          "child-frame-cleanup",
+          "closed-task-fnonce",
+          "direct-default-local",
+          "equal-shared-task-classes",
+          "returned-task-result-fnonce",
+          "static-callable-input"
+        ],
+        "passed": false
+      }
+    },
+    "passed": false
+  },
+  "actual_tests": [
+    {
+      "suite": "task-owner-complete",
+      "executed_passed": 21,
+      "executed_failed": 15,
+      "ignored": 0,
+      "command_exit": 101,
+      "passed": false
+    }
+  ],
+  "actual_native": [],
+  "alpha_acceptance_claim": false
+}
