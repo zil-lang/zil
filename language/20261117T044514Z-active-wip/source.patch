@@ -1,0 +1,886 @@
+diff --git a/crates/zil-analyze/src/semantic/closed/capture_creators.rs b/crates/zil-analyze/src/semantic/closed/capture_creators.rs
+index f74c8cf46..1d00c092e 100644
+--- a/crates/zil-analyze/src/semantic/closed/capture_creators.rs
++++ b/crates/zil-analyze/src/semantic/closed/capture_creators.rs
+@@ -329,13 +329,10 @@ impl Check<'_, '_> {
+                             b,
+                         )?;
+                         let value = self.ssa_value(parent, function, *operand, b, 0)?;
+-                        if original::strings::is_byte_type(&value.ty) && empty(&value.life)
+-                            && value.classes.is_empty() {
+-                            // A Static category is not its own provenance.
+-                            // Check every actual creator operand back to a
+-                            // literal through the complete real source graph.
+-                            crate::retained::check_dyn_static_return(self.module, function, *operand, &[], b)?;
+-                        }
++                        // The complete original category selects each exact
++                        // physical leaf. Every actual constructor still proves
++                        // that leaf back to a literal, including nested fields.
++                        self.check_static_value_sources(&value, function, *operand, b)?;
+                         let same_lexical = value == expected
+                             || !moved
+                                 && matches!(&value.ty, Type::Address { inner, .. } if inner.as_ref() == &expected.ty)
+diff --git a/crates/zil-analyze/src/semantic/closed/classes.rs b/crates/zil-analyze/src/semantic/closed/classes.rs
+index b6cb32f2b..f379b96d9 100644
+--- a/crates/zil-analyze/src/semantic/closed/classes.rs
++++ b/crates/zil-analyze/src/semantic/closed/classes.rs
+@@ -1785,6 +1785,7 @@ impl Check<'_, '_> {
+                 .task_domain(ty, b)?
+                 .is_none_or(|life| life.binder_count == 0)
+             && !self.contains_nonzero_closure(ty, b, 0)?
++            && self.physical_byte_paths(ty, b)?.is_empty()
+         {
+             // A complete independent zero-domain reconstruction needs no
+             // predecessor SSA class equation. Actual initialization, source,
+@@ -2270,6 +2271,20 @@ impl Check<'_, '_> {
+                 aggregate,
+                 index: field,
+             } => {
++                if !self.physical_byte_paths(ty, b)?.is_empty() {
++                    operations::available_before(function,
++                        (block, index, SemanticSiteEdge::Before), *aggregate, b)?;
++                    let parent = self.ssa_value(instance, function, *aggregate, b, depth + 1)?;
++                    if empty(&parent.life) && parent.classes.is_empty()
++                        && matches!(parent.ty, Type::Tuple(_)) {
++                        let selected = self.static_structural_child(&parent, *field, b)?;
++                        if !geometry::same_type(&selected.ty, ty, b)? {
++                            return Err(fail("Static Tuple extraction changes its exact child type"));
++                        }
++                        self.check_static_value_sources(&selected, function, id, b)?;
++                        return Ok(selected);
++                    }
++                }
+                 if self.contains_nonzero_closure(ty, b, 0)? {
+                     operations::available_before(
+                         function,
+@@ -2544,12 +2559,20 @@ impl Check<'_, '_> {
+                             Type::Array { element, .. } => element.as_ref(),
+                             _ => unreachable!(),
+                         };
+-                        // Class-bearing structural tuples/arrays require their
+-                        // own original embedding, rather than invented rows.
+-                        self.zero_data(field, b, depth + 1)?;
+-                        value::borrowed_scalar(field, self.inventory, b)?
++                        if matches!(storage, Type::Tuple(_))
++                            && !self.physical_byte_paths(field, b)?.is_empty()
++                        {
++                            self.static_structural_child(&expected,
++                                u32::try_from(ordinal).map_err(|_| fail("Static field ordinal overflow"))?, b)?
++                        } else {
++                            // Class-bearing structural tuples/arrays require
++                            // their own original embedding, never invented rows.
++                            self.zero_data(field, b, depth + 1)?;
++                            value::borrowed_scalar(field, self.inventory, b)?
++                        }
+                     };
+                     let actual = self.ssa_value(instance, function, *operand, b, depth + 1)?;
++                    self.check_static_value_sources(&field, function, *operand, b)?;
+                     if !actual.equal_paid(&field, b)? {
+                         if !self.outer_call_role(
+                             instance,
+@@ -2839,6 +2862,7 @@ impl Check<'_, '_> {
+                     .task_domain(ty, b)?
+                     .is_none_or(|life| life.binder_count == 0)
+                 && !self.contains_nonzero_closure(ty, b, 0)?
++            && self.physical_byte_paths(ty, b)?.is_empty()
+         {
+             // A zero-class fact does not depend on which loop iteration last
+             // initialized the occupant. Actual initialization and resources
+@@ -3115,6 +3139,92 @@ impl Check<'_, '_> {
+         Ok(output)
+     }
+ 
++    /// Physical byte leaves only: a closure or owning head does not expose its
++    /// hidden environment/retained children as fields of this value.
++    pub(super) fn physical_byte_paths(
++        &self, ty: &Type, b: &mut Budget,
++    ) -> CompileResult<BTreeSet<Vec<ContractProjection>>> {
++        fn visit(ty: &Type, path: &mut Vec<ContractProjection>,
++            out: &mut BTreeSet<Vec<ContractProjection>>, b: &mut Budget, depth: usize)
++            -> CompileResult<()> {
++            b.spend(path.len().saturating_add(1), WORK)?;
++            if depth > b.partial_depth {
++                return Err(unknown("physical Static occurrence traversal exceeds its finite depth"));
++            }
++            if original::strings::is_byte_type(ty) {
++                b.lookup(out.len(), WORK)?;
++                b.spend(path.len().saturating_add(1), WORK)?;
++                out.insert(path.clone());
++                return Ok(());
++            }
++            match ty {
++                Type::Tuple(fields) => {
++                    for (index, child) in fields.iter().enumerate() {
++                        b.spend(1, WORK)?;
++                        path.push(ContractProjection::Place(PlaceProjection::Field(
++                            u32::try_from(index).map_err(|_| fail("Static field ordinal overflow"))?)));
++                        visit(child, path, out, b, depth + 1)?;
++                        path.pop();
++                    }
++                }
++                Type::Record { fields, .. } | Type::Package { fields, .. } => {
++                    for (index, (_, child)) in fields.iter().enumerate() {
++                        b.spend(1, WORK)?;
++                        path.push(ContractProjection::Place(PlaceProjection::Field(
++                            u32::try_from(index).map_err(|_| fail("Static field ordinal overflow"))?)));
++                        visit(child, path, out, b, depth + 1)?;
++                        path.pop();
++                    }
++                }
++                Type::BorrowedStorage { storage, .. } => visit(storage, path, out, b, depth + 1)?,
++                _ => {}
++            }
++            Ok(())
++        }
++        let mut out = BTreeSet::new();
++        visit(ty, &mut Vec::new(), &mut out, b, 0)?;
++        Ok(out)
++    }
++
++    /// The input is a complete independently reconstructed original/creator
++    /// value. An omitted variable slot selects a Static obligation, never a
++    /// literal fact; each actual operand/return still proves that obligation.
++    pub(super) fn original_static_byte_paths(
++        &self, value: &Value, b: &mut Budget,
++    ) -> CompileResult<BTreeSet<Vec<ContractProjection>>> {
++        let mut out = BTreeSet::new();
++        for path in self.physical_byte_paths(&value.ty, b)? {
++            let mut variable = false;
++            for slot in &value.life.slots {
++                b.spend(slot.path.len().saturating_add(path.len() + 1), WORK)?;
++                if slot.path.len() == path.len() && slot.path.iter().zip(&path)
++                    .all(|(selector, actual)| *actual == ContractProjection::Place(*selector)) {
++                    variable = true;
++                }
++            }
++            if !variable {
++                b.lookup(out.len(), WORK)?;
++                out.insert(path);
++            }
++        }
++        Ok(out)
++    }
++
++    pub(super) fn check_static_value_sources(
++        &self, value: &Value, function: &TypedFunction, actual: ValueId, b: &mut Budget,
++    ) -> CompileResult<()> {
++        for path in self.original_static_byte_paths(value, b)? {
++            crate::retained::check_dyn_static_return(self.module, function, actual, &path, b)?;
++        }
++        Ok(())
++    }
++
++    fn static_structural_child(
++        &self, parent: &Value, field: u32, b: &mut Budget,
++    ) -> CompileResult<Value> {
++        parent.empty_tuple_child(field, b)
++    }
++
+     pub(super) fn static_byte_returns(
+         &self,
+         target: &TypedFunction,
+@@ -3689,6 +3799,7 @@ impl Check<'_, '_> {
+         Ok(actual)
+     }
+     pub(super) fn uses_full_value(&self, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
++        if !self.physical_byte_paths(ty, b)?.is_empty() { return Ok(true); }
+         match ty {
+             Type::BorrowedStorage { life, .. } => Ok(life.binder_count != 0),
+             Type::Address { .. } | Type::Desc(_) => Ok(true),
+diff --git a/crates/zil-analyze/src/semantic/value.rs b/crates/zil-analyze/src/semantic/value.rs
+index e8b5c918a..cdaa26d45 100644
+--- a/crates/zil-analyze/src/semantic/value.rs
++++ b/crates/zil-analyze/src/semantic/value.rs
+@@ -46,6 +46,17 @@ impl std::ops::Deref for Value {
+     }
+ }
+ impl Value {
++    /// Select the exact original child geometry from a fully reconstructed
++    /// class-free Tuple. No source, initialization or permission is produced.
++    pub(super) fn empty_tuple_child(&self, field: u32, b: &mut Budget) -> CompileResult<Self> {
++        if !empty_shape(&self.life) || !self.classes.is_empty()
++            || !matches!(self.ty, Type::Tuple(_)) {
++            return Err(fail("structural child requires its complete zero-domain Tuple"));
++        }
++        let child = geometry::project(&self.geometry,
++            geometry::Child::Field(None, field as usize), &empty(), b)?;
++        Ok(Self::from_geometry(child, Vec::new()))
++    }
+     pub(super) fn check_geometry(&self, b: &mut Budget) -> CompileResult<()> {
+         geometry::check_geometry(&self.geometry, b)
+     }
+diff --git a/crates/zil-analyze/src/signature_life.rs b/crates/zil-analyze/src/signature_life.rs
+index 414d5b835..1833a389a 100644
+--- a/crates/zil-analyze/src/signature_life.rs
++++ b/crates/zil-analyze/src/signature_life.rs
+@@ -755,6 +755,35 @@ fn relation_inner(
+                         path.pop();
+                     }
+                 }
++                Type::Address { inner, mutable }
++                    if matches!(inner.as_ref(), Type::Slice { element } if **element == Type::U8) =>
++                {
++                    let position = StoragePosition {
++                        base,
++                        path: path.iter().map(|step| match step {
++                            LifeTypeProjection::Place(selector) => Ok(zil_ir::ContractProjection::Place(*selector)),
++                            _ => Err(bad("compound address has a nonphysical occurrence path")),
++                        }).collect::<CompileResult<Vec<_>>>()?,
++                    };
++                    if self.c.static_bindings.get(self.constant) == Some(&position) {
++                        if *mutable {
++                            return Err(bad("static compound occurrence must be an immutable address"));
++                        }
++                        self.constant += 1;
++                    } else {
++                        let row = self.c.bindings.get(self.borrow)
++                            .ok_or_else(|| bad("compound signature omits its actual address occurrence"))?;
++                        if row.position != position
++                            || matches!(base, StorageBase::Capture(_))
++                                && !matches!(row.binder, StorageBinder::Fixed(_))
++                        {
++                            return Err(bad("compound address changes its exact physical path or persistence"));
++                        }
++                        let binder = row.binder;
++                        self.borrow += 1;
++                        self.binder(binder, matches!(base, StorageBase::Capture(_)))?;
++                    }
++                }
+                 Type::BorrowedStorage { life, .. } => {
+                     self.qualified_slots(life, base, path)?;
+                     if life.binder_count as usize > self.c.classes.len().saturating_sub(self.class)
+diff --git a/crates/zil-analyze/src/tasks/borrowed_loans.rs b/crates/zil-analyze/src/tasks/borrowed_loans.rs
+index cdfa2e832..8658495bb 100644
+--- a/crates/zil-analyze/src/tasks/borrowed_loans.rs
++++ b/crates/zil-analyze/src/tasks/borrowed_loans.rs
+@@ -93,18 +93,19 @@ fn put(state: &mut State, owner: Owner, carrier: Carrier, b: &mut Budget) -> Com
+ fn seed(shape: &Shape, all: &Roots, exclusive: &Roots, b: &mut Budget) -> CompileResult<Carrier> {
+     let mut carrier = Carrier::new();
+     fee(b, shape.len())?;
+-    for (path, mutable) in shape {
++    for (path, modes) in shape {
+         fee(
+             b,
+             path.len()
+                 .saturating_add(all.len())
+                 .saturating_add(exclusive.len()),
+         )?;
++        fee(b, modes.len())?;
+         carrier.insert(
+             path.clone(),
+             Debt {
+                 all: all.clone(),
+-                exclusive: if *mutable {
++                exclusive: if modes.iter().any(|mutable| *mutable) {
+                     exclusive.clone()
+                 } else {
+                     Roots::new()
+@@ -191,6 +192,55 @@ fn physical(
+         .collect())
+ }
+ 
++// Lifetime equations bound classes, not the actual roots retained by a
++// returned frame. Both ordinary and consuming calls use the independently
++// reconstructed actual port sources, in exact carrier/port coordinates.
++fn returned_carrier(
++    f: &TypedFunction,
++    output: ValueId,
++    shape: &Shape,
++    transferred: &Roots,
++    i: &Instruction,
++    b: &mut Budget,
++) -> CompileResult<Carrier> {
++    let ports = b.task_retained_roots.get(f.id.0 as usize)
++        .and_then(|rows| rows.get(output.0 as usize))
++        .ok_or_else(|| fail(i.span, "returned Task lacks its independently reconstructed actual ports"))?;
++    let work = ports.iter().fold(1usize, |work, (path, roots)|
++        work.saturating_add(path.len()).saturating_add(roots.len()));
++    fee(b, work)?;
++    let mut returned = Carrier::new();
++    for (owner, modes) in shape {
++        fee(b, owner.len().saturating_add(modes.len()).saturating_add(1))?;
++        let mut debt = Debt::default();
++        for (ordinal, exclusive) in modes.iter().enumerate() {
++            fee(b, owner.len().saturating_add(1))?;
++            let mut path = owner.clone();
++            path.push(ContractProjection::RetainedPort(u32::try_from(ordinal)
++                .map_err(|_| bad("returned Task port ordinal overflows"))?));
++            let ports = &b.task_retained_roots[f.id.0 as usize][output.0 as usize];
++            b.lookup(ports.len(), "returned Task exact actual port source")?;
++            let roots = ports.get(&path).ok_or_else(|| fail(i.span,
++                "returned Task omits an actual physical retained port source"))?;
++            fee(b, roots.len().saturating_mul(2))?;
++            let roots = &b.task_retained_roots[f.id.0 as usize][output.0 as usize][&path];
++            if roots.is_empty() || roots.iter().any(|root|
++                *root != HoldRoot::Static && !transferred.contains(root))
++            {
++                return Err(fail(i.span,
++                    "returned Task dependency is not an actual transferred input frame root"));
++            }
++            debt.all.extend(roots);
++            if *exclusive {
++                debt.exclusive.extend(roots);
++            }
++        }
++        returned.insert(owner.clone(), debt);
++    }
++    carrier_work(&returned, b)?;
++    Ok(returned)
++}
++
+ fn transfer(
+     module: &TypedModule,
+     f: &TypedFunction,
+@@ -319,39 +369,16 @@ fn transfer(
+                     fee(b, debt.all.len())?;
+                     transferred.extend(&debt.all);
+                 }
++                transferred.extend(physical(f, holds, *value, b)?);
+             }
+-            output.map(|output| {
+-                let ports = b.task_retained_roots.get(f.id.0 as usize)
+-                    .and_then(|rows| rows.get(output.0 as usize))
+-                    .ok_or_else(|| fail(i.span,"returned Task lacks its independently reconstructed actual ports"))?;
+-                let work = ports.iter().fold(1usize, |work,(path,roots)| work.saturating_add(path.len()).saturating_add(roots.len()));
+-                fee(b,work)?;
+-                let ports = &b.task_retained_roots[f.id.0 as usize][output.0 as usize];
+-                let mut returned = Carrier::new();
+-                for (owner,exclusive) in &catalog.values[output.0 as usize] {
+-                    let mut all = Roots::new();
+-                    for (path,roots) in ports {
+-                        if matches!(path.strip_prefix(owner.as_slice()),Some([ContractProjection::RetainedPort(_)])) {
+-                            all.extend(roots);
+-                        }
+-                    }
+-                    if all.is_empty() || all.iter().any(|root| *root!=HoldRoot::Static && !transferred.contains(root)) {
+-                        return Err(fail(i.span,"returned Task dependency is not an actual transferred environment frame root"));
+-                    }
+-                    returned.insert(owner.clone(),Debt {
+-                        exclusive: if *exclusive {all.clone()} else {Roots::new()},
+-                        all,
+-                    });
+-                }
+-                carrier_work(&returned,b)?;
+-                Ok(returned)
+-            }).transpose()?
++            output.map(|output| returned_carrier(f, output,
++                &catalog.values[output.0 as usize], &transferred, i, b)).transpose()?
+         }
+         InstructionKind::Call { function, arguments }
+         | InstructionKind::SuspendCall { function, arguments } => {
+             // Ownership arguments are discharged by the independently checked
+             // callee. Its returned carrier starts with the actual return roots.
+-            let mut carried_exclusive = Roots::new();
++            let mut transferred = Roots::new();
+             for argument in arguments {
+                 fee(b, 1)?;
+                 if !catalog.values[argument.0 as usize].is_empty() {
+@@ -362,10 +389,11 @@ fn transfer(
+                         ));
+                     }
+                     for debt in take(state, Owner::Value(*argument), b)?.values() {
+-                        fee(b, debt.exclusive.len())?;
+-                        carried_exclusive.extend(&debt.exclusive);
++                        fee(b, debt.all.len())?;
++                        transferred.extend(&debt.all);
+                     }
+                 }
++                transferred.extend(physical(f, holds, *argument, b)?);
+             }
+             if output.is_some() && module.functions[function.0 as usize].foreign.is_some() {
+                 return Err(fail(
+@@ -373,38 +401,8 @@ fn transfer(
+                     "foreign Task result has no reconstructed frame dependency",
+                 ));
+             }
+-            output
+-                .map(|v| {
+-                    let all = actual(holds, v, b)?;
+-                    let mut exclusive = carried_exclusive;
+-                    if catalog.values[v.0 as usize]
+-                        .values()
+-                        .any(|exclusive| *exclusive)
+-                    {
+-                        // A callee may create a fresh frame from any address input.
+-                        // Existing Task inputs retain their exact exclusive roots;
+-                        // address inputs add their actual target roots conservatively.
+-                        for argument in arguments {
+-                            fee(b, 1)?;
+-                            if matches!(f.values[argument.0 as usize], Type::Address { .. }) {
+-                                exclusive.extend(actual(holds, *argument, b)?);
+-                            }
+-                        }
+-                        if exclusive.is_empty() {
+-                            exclusive.extend(&all);
+-                        }
+-                    }
+-                    // The callee's actual capture sources and per-port relation
+-                    // are checked by the independent retained/stored consumers.
+-                    if all.is_empty() {
+-                        return Err(fail(
+-                            i.span,
+-                            "returned Task carrier lacks reconstructed actual input roots",
+-                        ));
+-                    }
+-                    seed(&catalog.values[v.0 as usize], &all, &exclusive, b)
+-                })
+-                .transpose()?
++            output.map(|output| returned_carrier(f, output,
++                &catalog.values[output.0 as usize], &transferred, i, b)).transpose()?
+         }
+         InstructionKind::Store { local, value } if !catalog.locals[local.0 as usize].is_empty() => {
+             let debt = take(state, Owner::Value(*value), b)?;
+diff --git a/crates/zil-analyze/src/tasks/borrowed_loans/carriers.rs b/crates/zil-analyze/src/tasks/borrowed_loans/carriers.rs
+index 45dffb829..441a7d00e 100644
+--- a/crates/zil-analyze/src/tasks/borrowed_loans/carriers.rs
++++ b/crates/zil-analyze/src/tasks/borrowed_loans/carriers.rs
+@@ -4,7 +4,9 @@ use super::*;
+ use zil_ir::{ContractProjection, PlaceProjection};
+ 
+ pub(super) type Path = Vec<ContractProjection>;
+-pub(super) type Shape = BTreeMap<Path, bool>;
++// Each physical port keeps its own mode; a carrier may mix shared and
++// exclusive ports even when their outside lifetime images coincide.
++pub(super) type Shape = BTreeMap<Path, Vec<bool>>;
+ pub(super) struct Catalog {
+     pub(super) values: Vec<Shape>,
+     pub(super) locals: Vec<Shape>,
+@@ -27,10 +29,8 @@ fn shape(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<Shape
+                 if !retained_life.ports.is_empty() {
+                     result.insert(
+                         path,
+-                        retained_life
+-                            .ports
+-                            .iter()
+-                            .any(|port| port.mode == zil_ir::StoredBorrowMode::ExclusiveAddress),
++                        retained_life.ports.iter().map(|port|
++                            port.mode == zil_ir::StoredBorrowMode::ExclusiveAddress).collect(),
+                     );
+                 }
+             }
+diff --git a/crates/zil-types/src/retained.rs b/crates/zil-types/src/retained.rs
+index c218631c0..bef8f08e1 100644
+--- a/crates/zil-types/src/retained.rs
++++ b/crates/zil-types/src/retained.rs
+@@ -735,19 +735,36 @@ impl Builder<'_, '_> {
+             ));
+         }
+         let bound = self.factory_bound.as_ref().expect("factory return").clone();
+-        let pending = &mut self.closures.pending[id.0 as usize];
+-        if pending.inference.arity() != bound.parameters.len() {
+-            return Err(error(
+-                "E-CALL-ARITY",
++        let (actual_kind, entry) = {
++            let pending = &mut self.closures.pending[id.0 as usize];
++            if pending.inference.arity() != bound.parameters.len() {
++                return Err(error(
++                    "E-CALL-ARITY",
++                    span,
++                    "returned closure differs from the public callable signature",
++                ));
++            }
++            for (index, ty) in bound.parameters.iter().enumerate() {
++                pending.inference.argument(index, ty, span)?;
++            }
++            pending.inference.expect_result(&bound.result, span)?;
++            (pending.callable_kind(), pending.function)
++        };
++        // An ordinary factory may explicitly expose a freshly constructed Fn
++        // environment through a consuming FnOnce interface. Its natural kind
++        // is not rewritten. Generic-F opaque factories and existing opaque
++        // values retain their exact declared mode; same ClosureId is no mint.
++        let contextual_once = if self.factory_modes.is_none()
++            && actual_kind == CallableKind::Fn && bound.kind == CallableKind::FnOnce
++        {
++            self.closures.snapshot(
++                self.closures.semantic_emission.frames.len().saturating_add(1).ilog2() as usize + 1,
+                 span,
+-                "returned closure differs from the public callable signature",
+-            ));
+-        }
+-        for (index, ty) in bound.parameters.iter().enumerate() {
+-            pending.inference.argument(index, ty, span)?;
+-        }
+-        pending.inference.expect_result(&bound.result, span)?;
+-        if pending.callable_kind() != bound.kind {
++            )?;
++            self.closures.semantic_emission.frames.get(&entry)
++                .is_some_and(|frame| frame.parent == Some((self.function.id, id)))
++        } else { false };
++        if actual_kind != bound.kind && !contextual_once {
+             return Err(error(
+                 "E-TYPE-MISMATCH",
+                 span,
+@@ -786,6 +803,11 @@ impl Builder<'_, '_> {
+                 if matches!(ty, Type::Address { mutable: true, .. } | Type::Desc(_)) {
+                     writes.push(index as u32);
+                 }
++            } else if stored::shared_compound(&ty, &mut self.match_work_left, self.limits, span)? {
++                // Preserve the complete captured carrier as a dependency.
++                // Static/variable source paths and result relations are still
++                // rebuilt from the original environment; this is not CE/N0.
++                hold.push(index as u32);
+             } else if !ty.is_copy_value() {
+                 return Err(unsupported(
+                     span,
+diff --git a/crates/zil-types/src/semantics/header_rows.rs b/crates/zil-types/src/semantics/header_rows.rs
+index 130c91445..47c5f8100 100644
+--- a/crates/zil-types/src/semantics/header_rows.rs
++++ b/crates/zil-types/src/semantics/header_rows.rs
+@@ -131,14 +131,7 @@ pub(in crate::semantics) fn append(
+             ));
+         }
+     }
+-    if matches!(ty, Type::Address { .. } | Type::Desc(_))
+-        && !life.slots.iter().any(|slot| slot.path.is_empty())
+-    {
+-        statics.push(StoragePosition {
+-            base,
+-            path: Vec::new(),
+-        });
+-    }
++    physical_statics(ty, life, base, statics, limits, left)?;
+     if covered.iter().any(|covered| !*covered) {
+         return Err(bad(
+             "header whole type has an unrepresented intrinsic class occurrence",
+@@ -146,3 +139,167 @@ pub(in crate::semantics) fn append(
+     }
+     Ok(())
+ }
++
++// Resolved here means evaluated in the complete original Gamma, not an
++// arbitrary physical hint. Static contributes no variable slot, but remains
++// a real physical borrow occurrence even inside an inline product or sum.
++fn physical_statics(
++    ty: &Type, life: &StorageLifeShape, base: StorageBase,
++    out: &mut Vec<StoragePosition>, limits: &Limits, left: &mut usize,
++) -> R<()> {
++    struct Walk<'a, 'b> {
++        life: &'a StorageLifeShape,
++        seen: Vec<bool>,
++        base: StorageBase,
++        out: &'b mut Vec<StoragePosition>,
++        limits: &'b Limits,
++        left: &'b mut usize,
++        nodes: usize,
++    }
++    impl Walk<'_, '_> {
++        fn leaf(&mut self, ty: &Type, prefix: &[PlaceProjection]) -> R<()> {
++            pay(self.left, self.life.slots.len().saturating_mul(prefix.len().saturating_add(1)))?;
++            let mut selected = None;
++            for (ordinal, slot) in self.life.slots.iter().enumerate() {
++                if slot.path.as_slice() != prefix { continue; }
++                if selected.replace(ordinal).is_some() {
++                    return Err(bad("physical header leaf has multiple variable slots"));
++                }
++                let valid = matches!((ty, slot.mode),
++                    (Type::Address { mutable: false, .. }, StoredBorrowMode::SharedAddress)
++                    | (Type::Address { mutable: true, .. }, StoredBorrowMode::ExclusiveAddress)
++                    | (Type::Desc(_), StoredBorrowMode::ReadOnlyDescription | StoredBorrowMode::WritableDescription));
++                if !valid { return Err(bad("physical header slot changes its actual borrow mode")); }
++            }
++            if let Some(ordinal) = selected {
++                self.seen[ordinal] = true;
++                return Ok(());
++            }
++            if !matches!(ty, Type::Address { mutable: false, .. }) {
++                return Err(bad("non-shared header leaf has no complete variable occurrence"));
++            }
++            path(self.left, self.limits, prefix.len())?;
++            self.out.push(StoragePosition {
++                base: self.base,
++                path: prefix.iter().copied().map(ContractProjection::Place).collect(),
++            });
++            Ok(())
++        }
++        fn visit(&mut self, ty: &Type, prefix: &mut Vec<PlaceProjection>, depth: usize) -> R<()> {
++            path(self.left, self.limits, depth)?;
++            if self.nodes >= self.limits.max_nodes {
++                return Err(Diagnostic::limit(Phase::Types, "physical header occurrence node limit exceeded", None));
++            }
++            self.nodes += 1;
++            match ty {
++                // This is one physical leaf. Its pointee is metadata, not a
++                // second inline borrow occurrence or permission to dereference.
++                Type::Address { .. } | Type::Desc(_) => self.leaf(ty, prefix),
++                Type::BorrowedStorage { storage, .. } => self.visit(storage, prefix, depth + 1),
++                Type::Tuple(fields) => {
++                    pay(self.left, fields.len())?;
++                    for (ordinal, field) in fields.iter().enumerate() {
++                        let ordinal = u32::try_from(ordinal).map_err(|_| bad("header Tuple field ordinal overflows"))?;
++                        prefix.push(PlaceProjection::Field(ordinal));
++                        self.visit(field, prefix, depth + 1)?;
++                        prefix.pop();
++                    }
++                    Ok(())
++                }
++                Type::Record { fields, .. } | Type::Package { fields, .. } => {
++                    pay(self.left, fields.len())?;
++                    for (ordinal, (_, field)) in fields.iter().enumerate() {
++                        let ordinal = u32::try_from(ordinal).map_err(|_| bad("header Product field ordinal overflows"))?;
++                        prefix.push(PlaceProjection::Field(ordinal));
++                        self.visit(field, prefix, depth + 1)?;
++                        prefix.pop();
++                    }
++                    Ok(())
++                }
++                Type::Array { element, length } => {
++                    if *length as usize > self.limits.max_nodes {
++                        return Err(Diagnostic::limit(Phase::Types, "physical header array length exceeded", None));
++                    }
++                    pay(self.left, *length as usize)?;
++                    for ordinal in 0..*length {
++                        prefix.push(PlaceProjection::Field(ordinal));
++                        self.visit(element, prefix, depth + 1)?;
++                        prefix.pop();
++                    }
++                    Ok(())
++                }
++                Type::Enum { variants, .. } => {
++                    pay(self.left, variants.len())?;
++                    for (variant, (_, fields)) in variants.iter().enumerate() {
++                        let variant = u32::try_from(variant).map_err(|_| bad("header Enum variant ordinal overflows"))?;
++                        pay(self.left, fields.len())?;
++                        for (ordinal, field) in fields.iter().enumerate() {
++                            let index = u32::try_from(ordinal).map_err(|_| bad("header Enum field ordinal overflows"))?;
++                            prefix.push(PlaceProjection::Variant(VariantProjection { variant, index }));
++                            self.visit(field, prefix, depth + 1)?;
++                            prefix.pop();
++                        }
++                    }
++                    Ok(())
++                }
++                Type::ErrorUnion { error, result } => {
++                    for (arm, ty) in [(true, error.as_ref()), (false, result.as_ref())] {
++                        prefix.push(PlaceProjection::ErrorArm(arm));
++                        self.visit(ty, prefix, depth + 1)?;
++                        prefix.pop();
++                    }
++                    Ok(())
++                }
++                // Managed/opaque storage and code signatures are not physical
++                // inline fields. Their complete child class/port/context and
++                // Static source obligations retain their separate consumers.
++                _ => Ok(()),
++            }
++        }
++    }
++    pay(left, life.slots.len().saturating_add(1))?;
++    let mut walk = Walk { life, seen: vec![false; life.slots.len()], base, out, limits, left, nodes: 0 };
++    walk.visit(ty, &mut Vec::new(), 0)?;
++    if walk.seen.iter().any(|seen| !seen) {
++        return Err(bad("header variable slot is not an actual physical borrow leaf"));
++    }
++    Ok(())
++}
++
++#[cfg(test)]
++mod static_physical_tests {
++    use super::*;
++    #[test]
++    fn compound_statics_remain_distinct_from_variable_and_exclusive_slots() {
++        let leaf = Type::Address { mutable: false,
++            inner: Box::new(Type::Slice { element: Box::new(Type::U8) }) };
++        let value = SemanticTypeValue::Resolved {
++            ty: Type::Tuple(vec![leaf.clone(), leaf]),
++            life: StorageLifeShape { binder_count: 1,
++                slots: vec![StorageLifeSlot { path: vec![PlaceProjection::Field(1)],
++                    binder: 0, mode: StoredBorrowMode::SharedAddress }],
++                retained: Vec::new(), nominal_arguments: Vec::new() },
++            classes: vec![SemanticClassExpr::Implicit { scope: SemanticScopeRef::Ancestor(0), ordinal: 0 }],
++        };
++        let limits = Limits::default(); let mut left = limits.max_analysis_steps;
++        let mut bindings = Vec::new(); let mut classes = Vec::new(); let mut statics = Vec::new();
++        append(&value, StorageBase::Capture(0), &mut bindings, &mut classes,
++            &mut statics, &limits, &mut left).unwrap();
++        assert_eq!(statics, vec![StoragePosition { base: StorageBase::Capture(0),
++            path: vec![ContractProjection::Place(PlaceProjection::Field(0))] }]);
++        assert_eq!(bindings.len(), 1);
++        assert_eq!(bindings[0].0.path, vec![ContractProjection::Place(PlaceProjection::Field(1))]);
++        let mut orphan = value.clone();
++        let SemanticTypeValue::Resolved { life, .. } = &mut orphan else { unreachable!() };
++        life.slots[0].path = vec![PlaceProjection::Field(2)];
++        assert!(append(&orphan, StorageBase::Capture(0), &mut Vec::new(), &mut Vec::new(),
++            &mut Vec::new(), &limits, &mut left).is_err());
++        let exclusive = SemanticTypeValue::Resolved {
++            ty: Type::Tuple(vec![Type::Address { mutable: true, inner: Box::new(Type::I32) }]),
++            life: StorageLifeShape { binder_count: 0, slots: Vec::new(), retained: Vec::new(), nominal_arguments: Vec::new() },
++            classes: Vec::new(),
++        };
++        assert!(append(&exclusive, StorageBase::Capture(0), &mut Vec::new(), &mut Vec::new(),
++            &mut Vec::new(), &limits, &mut left).is_err());
++    }
++}
+diff --git a/crates/zil-verify/src/registration.rs b/crates/zil-verify/src/registration.rs
+index 33a662447..4e468969f 100644
+--- a/crates/zil-verify/src/registration.rs
++++ b/crates/zil-verify/src/registration.rs
+@@ -684,20 +684,20 @@ pub(crate) fn transfer_callback(
+ mod static_capture_tests{
+     use super::*;
+     #[test]
+-    fn closed_static_capture_keeps_exact_nested_slot_and_final_grounding_raw_wire(){
++    fn closed_static_capture_keeps_exact_slot_and_final_grounding_raw_wire(){
+         let limits=Limits::default();
+         let(mut module,_)=crate::tests::baseline();let span=module.functions[0].span;
+         let leaf=Type::Address{mutable:false,inner:Box::new(Type::Slice{element:Box::new(Type::U8)})};
+-        let position=StoragePosition{base:StorageBase::Capture(0),path:vec![ContractProjection::Place(PlaceProjection::Field(0))]};
++        let position=StoragePosition{base:StorageBase::Capture(0),path:vec![]};
+         let header=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],static_bindings:vec![position.clone()],classes:vec![]};
+         let entry=&mut module.functions[0];entry.environment=Some(ClosureId(0));entry.storage_life=Some(header.clone());entry.parameters.clear();entry.locals.clear();entry.values=vec![Type::I32];entry.return_type=Type::I32;
+         entry.blocks[0].instructions=vec![Instruction{result:Some(ValueId(0)),kind:InstructionKind::Constant(Constant::I32(0)),span}];entry.blocks[0].terminator=Terminator::Return(Some(ValueId(0)));
+-        module.closures.push(ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![Type::Tuple(vec![leaf,Type::I32])],parameters:vec![],result:Type::I32,kind:CallableKind::Fn,storage_life:Some(header),lending_captures:vec![]});
++        module.closures.push(ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![leaf,Type::I32],parameters:vec![],result:Type::I32,kind:CallableKind::Fn,storage_life:Some(header),lending_captures:vec![]});
+         for mutation in 0..5{
+             let mut proposed=module.clone();
+             match mutation{
+-                1=>proposed.closures[0].storage_life.as_mut().unwrap().static_bindings[0].path[0]=ContractProjection::Place(PlaceProjection::Field(1)),
+-                2=>{let Type::Tuple(fields)=&mut proposed.closures[0].captures[0]else{unreachable!()};let Type::Address{mutable,..}=&mut fields[0]else{unreachable!()};*mutable=true;},
++                1=>proposed.closures[0].storage_life.as_mut().unwrap().static_bindings[0].path.push(ContractProjection::Place(PlaceProjection::Field(0))),
++                2=>{let Type::Address{mutable,..}=&mut proposed.closures[0].captures[0]else{unreachable!()};*mutable=true;},
+                 3=>proposed.functions[0].call_kind=CallKind::Suspend,
+                 4=>proposed.closures[0].storage_life=None,
+                 _=>{},
+@@ -710,6 +710,25 @@ mod static_capture_tests{
+                 if mutation==0{
+                     result.unwrap();assert!(b.proven_static_occurrences.is_empty());assert!(b.static_borrow_occurrences);assert!(b.semantic_static_occurrences.contains(&(ClosureId(0),position.clone())));
+                     assert!(crate::semantic::callable_obligations::drain(current,&mut b).is_err(),"a structural Static row is no actual source proof, wire {wire}");
++                    // Projection is a separate obligation from complete signature
++                    // formation. This raw nested directory exercises the selector
++                    // without claiming that the Tuple is a checked CE signature.
++                    let mut nested=current.clone();
++                    let original=nested.closures[0].captures[0].clone();
++                    nested.closures[0].captures[0]=Type::Tuple(vec![original,Type::I32]);
++                    let mut nested_position=position.clone();
++                    nested_position.path.push(ContractProjection::Place(PlaceProjection::Field(0)));
++                    nested.closures[0].storage_life.as_mut().unwrap().static_bindings=vec![nested_position.clone()];
++                    nested.functions[0].storage_life=nested.closures[0].storage_life.clone();
++                    assert!(semantic_closed_environment(&nested,ClosureId(0),&mut Budget::new(&limits)).is_err(),"the original raw nested Tuple has no complete signature directory, wire {wire}");
++                    let mut pending=Budget::new(&limits);
++                    crate::semantic::task_domains::defer_static_capture(&nested,ClosureId(0),&nested_position,&mut pending).unwrap();
++                    assert!(pending.proven_static_occurrences.is_empty());
++                    assert!(pending.semantic_static_occurrences.contains(&(ClosureId(0),nested_position.clone())));
++                    nested_position.path[0]=ContractProjection::Place(PlaceProjection::Field(1));
++                    nested.closures[0].storage_life.as_mut().unwrap().static_bindings=vec![nested_position.clone()];
++                    nested.functions[0].storage_life=nested.closures[0].storage_life.clone();
++                    assert!(crate::semantic::task_domains::defer_static_capture(&nested,ClosureId(0),&nested_position,&mut pending).is_err(),"scalar sibling is no static borrow leaf, wire {wire}");
+                 }else{assert!(result.is_err(),"closed Static capture attack {mutation}, wire {wire}");}
+             }
+         }
+diff --git a/crates/zil-verify/src/stored_flow.rs b/crates/zil-verify/src/stored_flow.rs
+index 9ea888ece..e59c8e0f0 100644
+--- a/crates/zil-verify/src/stored_flow.rs
++++ b/crates/zil-verify/src/stored_flow.rs
+@@ -1792,6 +1792,7 @@ pub(super) fn qualifications(
+                     && !replacements::operation(&i.kind)
+                     && !pure_copy::operation(&i.kind)
+                     && !pure_copy::ordinary_owned_union(module,f, i, b)?
++                    && !pure_copy::ordinary_owned_tuple(module,f, i, b)?
+                     && !pure_copy::ordinary_copy_field_borrow(f, i, b)?
+                     && !pure_copy::ordinary_package_borrow(f, i, b)?
+                     && !pure_copy::ordinary_package_read(f, i, b)?
+@@ -3505,6 +3506,9 @@ fn step(
+             // linear owner, and the unique checked release of the same head.
+         }
+ 
++        _ if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{
++            pure_copy::ordinary_tuple_transfer(f,i,state,values,&mut out,b)?;
++        }
+         InstructionKind::UnpackTuple { local, fields } if unpack_failure => {
+             task_failure::unpack_value(f, *local, fields, state, b)?;
+         }
+@@ -4983,6 +4987,11 @@ fn reverse(
+         {
+             live.assign(f.values.len() + local.0 as usize, true)?;
+         }
++        InstructionKind::UnpackTuple{local,ref fields} if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{
++            for target in fields{b.spend(1)?;live.assign(f.values.len()+target.0 as usize,false)?;}
++            live.assign(f.values.len()+local.0 as usize,true)?;
++        }
++        InstructionKind::TakeTupleField{local,..}|InstructionKind::DropTuple{local}if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{live.assign(f.values.len()+local.0 as usize,true)?;}
+         InstructionKind::CallClosureShared { callee, .. }
+         | InstructionKind::CallClosureMut { callee, .. }
+             if fixed_environment(module, &f.locals[callee.0 as usize].ty, b) =>
+@@ -5037,6 +5046,11 @@ fn reverse_bool(
+         {
+             live[f.values.len() + local.0 as usize] = true;
+         }
++        InstructionKind::UnpackTuple{local,ref fields} if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{
++            for target in fields{b.spend(1)?;live[f.values.len()+target.0 as usize]=false;}
++            live[f.values.len()+local.0 as usize]=true;
++        }
++        InstructionKind::TakeTupleField{local,..}|InstructionKind::DropTuple{local}if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{live[f.values.len()+local.0 as usize]=true;}
+         InstructionKind::CallClosureShared { callee, .. }
+         | InstructionKind::CallClosureMut { callee, .. }
+             if fixed_environment(module, &f.locals[callee.0 as usize].ty, b) =>
+diff --git a/crates/zil-verify/src/stored_flow_pure_copy.rs b/crates/zil-verify/src/stored_flow_pure_copy.rs
+index e5fbc63df..2e097ccdf 100644
+--- a/crates/zil-verify/src/stored_flow_pure_copy.rs
++++ b/crates/zil-verify/src/stored_flow_pure_copy.rs
+@@ -680,6 +680,53 @@ fn complete_owned_fields(module:&TypedModule,pending:Vec<(&Type,usize)>,b:&mut B
+     Ok(true)
+ }
+ 
++// Ordinary affine products may have no stored targets while still owning
++// resources. Complete actual type and Sum checks precede their transfers;
++// neither this lane nor a zero domain discharges tag/init/debt/cleanup facts.
++pub(super) fn ordinary_owned_tuple(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->Check<bool>{
++    let ty=match &i.kind{
++        InstructionKind::MakeOwnedTuple{..}=>vt(f,i.result.ok_or_else(||err("ordinary owning Tuple constructor lacks result"))?)?,
++        InstructionKind::UnpackTuple{local,..}|InstructionKind::DropTuple{local}|InstructionKind::TakeTupleField{local,..}=>&f.locals.get(local.0 as usize).ok_or_else(||err("ordinary owning Tuple has no actual local"))?.ty,
++        _=>return Ok(false),
++    };
++    if !matches!(ty,Type::Tuple(_))||ty.is_copy_value()||!complete_owned_value(module,ty,b)?{return Ok(false);}
++    crate::sums::check_instruction(f,i,&b.limits.clone(),b)?;
++    Ok(true)
++}
++
++pub(super) fn ordinary_tuple_transfer(f:&TypedFunction,i:&Instruction,state:&mut Frame,values:&[Payload],out:&mut Payload,b:&mut Budget)->Check<()>{
++    match &i.kind{
++        InstructionKind::MakeOwnedTuple{fields}=>{
++            for(index,value)in fields.iter().enumerate(){
++                let payload=values.get(value.0 as usize).ok_or_else(||err("ordinary owning Tuple input is absent"))?;
++                for(tail,permission)in &payload.leaves{b.spend(tail.len().saturating_add(1))?;let mut path=vec![PlaceProjection::Field(index as u32)];path.extend(tail);add_leaf(out,&path,permission,b)?;}
++            }
++        },
++        InstructionKind::UnpackTuple{local,fields}=>{
++            let payload=copy_payload(&state.locals[local.0 as usize],b)?;
++            for(index,target)in fields.iter().enumerate(){
++                let prefix=[PlaceProjection::Field(index as u32)];let mut child=Payload::default();
++                child.enum_variants=payload.enum_variants.project(&prefix,b)?;
++                for(path,permission)in &payload.leaves{b.spend(path.len().saturating_add(1))?;if let Some(tail)=path.strip_prefix(&prefix){add_leaf(&mut child,tail,permission,b)?;}}
++                clear_local_holes(state,*target,b)?;state.locals[target.0 as usize]=child;
++            }
++            state.locals[local.0 as usize]=Payload::default();clear_local_holes(state,*local,b)?;
++        },
++        InstructionKind::TakeTupleField{local,path}=>{
++            let holder=&mut state.locals[local.0 as usize];out.enum_variants=holder.enum_variants.project(path,b)?;
++            let mut remaining=Vec::new();
++            for(actual,permission)in std::mem::take(&mut holder.leaves).into_vec(b)?{
++                b.spend(actual.len().saturating_add(path.len()))?;
++                if let Some(tail)=actual.strip_prefix(path.as_slice()){add_leaf(out,tail,&permission,b)?;}else{b.spend(1)?;remaining.push((actual,permission));}
++            }
++            holder.leaves=leaf_rows::Rows::from_vec(remaining,b)?;
++        },
++        InstructionKind::DropTuple{local}=>{state.locals[local.0 as usize]=Payload::default();clear_local_holes(state,*local,b)?;},
++        _=>return Err(err("ordinary owning Tuple transfer has another actual opcode")),
++    }
++    let _=f;Ok(())
++}
++
+ // Only shared Copy endpoints of a complete address-free ordinary Package
+ // can enter this no-stored-target lane. Current lifetime and moved-field
+ // facts remain checked against the real local by the independent flow.
+@@ -782,6 +829,12 @@ pub(super) fn ordinary_error_borrow(
+         // Both arms must be target-free before an ordinary selected-arm view
+         // can omit stored permissions. An inactive sibling is not evidence.
+         ordinary(parent, b, 0)?;
++    } else if b.task_sources() && matches!(other,Type::Managed(inner)if matches!(inner.as_ref(),Type::Task{..})) {
++        // This does not classify the union or its Task arm as target-free.
++        // Only the selected pure Copy arm is borrowed below. The sibling's
++        // complete Task domain, actual ports, parents and phase stay in the
++        // existing Task and affine-sum consumers and in the same local state.
++        crate::dynamic_witness::intrinsic_domain(module,other,b)?;
+     } else if !matches!(other, Type::Package { .. }) || !ordinary_union_shape(module,parent, b)? {
+         return Ok(false);
+     }
