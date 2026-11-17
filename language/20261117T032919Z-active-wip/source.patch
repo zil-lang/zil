@@ -1,0 +1,314 @@
+diff --git a/crates/zil-analyze/src/stored_flow/nominal_zero.rs b/crates/zil-analyze/src/stored_flow/nominal_zero.rs
+index 5666ccdfc..bb79916ba 100644
+--- a/crates/zil-analyze/src/stored_flow/nominal_zero.rs
++++ b/crates/zil-analyze/src/stored_flow/nominal_zero.rs
+@@ -3,6 +3,11 @@
+ use super::*;
+ use std::hash::{Hash, Hasher};
+ 
++// Phantom Type arguments prove formation only. Runtime fields additionally
++// require their actual canonical resource/creator inventory.
++#[derive(Clone, Copy, PartialEq, Eq)]
++enum TypePurpose { Domain, Physical }
++
+ // This key only selects candidates. It deliberately does not hash child
+ // Types, domains or fields; every candidate still compares the complete Type.
+ fn candidate_hash(mut ty: &Type, b: &mut Budget) -> CompileResult<u64> {
+@@ -36,7 +41,7 @@ pub(super) fn validate(
+     limits: &Limits,
+     b: &mut Budget,
+ ) -> CompileResult<()> {
+-    instance_zero(module, instance, limits, b, &mut Vec::new(), 0)
++    instance_zero_at(module, instance, limits, b, &mut Vec::new(), 0, TypePurpose::Physical)
+ }
+ 
+ pub(super) fn validate_type(
+@@ -45,7 +50,7 @@ pub(super) fn validate_type(
+     limits: &Limits,
+     b: &mut Budget,
+ ) -> CompileResult<()> {
+-    type_zero(module, ty, limits, b, &mut Vec::new(), 0)
++    type_zero_at(module, ty, limits, b, &mut Vec::new(), 0, TypePurpose::Physical)
+ }
+ 
+ pub(super) fn exact_index(
+@@ -163,14 +168,14 @@ fn empty(life: &StorageLifeShape) -> bool {
+         && life.nominal_arguments.is_empty()
+ }
+ 
+-fn instance_zero(
++fn instance_zero_at(
+     module: &TypedModule,
+     instance: &LifeNominalInstance,
+     limits: &Limits,
+     b: &mut Budget,
+     active: &mut Vec<usize>,
+     depth: usize,
+-) -> CompileResult<()> {
++ purpose: TypePurpose) -> CompileResult<()> {
+     fee(b, active.len().saturating_add(1))?;
+     if depth > limits.max_call_depth {
+         return Err(failure("zero nominal domain exceeds the type depth limit"));
+@@ -181,7 +186,7 @@ fn instance_zero(
+     }
+     // A deep occurrence still runs its own depth-bounded proof. Reusing only
+     // depth-zero successes cannot hide a longer current dependency path.
+-    let cache = if depth == 0 && active.is_empty() {
++    let cache = if purpose == TypePurpose::Physical && depth == 0 && active.is_empty() {
+         fee(b, module.life_instances.len().saturating_add(8))?;
+         let root = module
+             .life_instances
+@@ -274,7 +279,7 @@ fn instance_zero(
+     for (formal, actual) in declaration.parameters.iter().zip(&instance.arguments) {
+         match (formal, actual) {
+             (LifeParameterKind::Type, LifeNominalActual::Type(ty)) => {
+-                type_zero(module, ty, limits, b, active, depth + 1)?;
++                type_zero_at(module, ty, limits, b, active, depth + 1, TypePurpose::Domain)?;
+             }
+             (LifeParameterKind::Type, LifeNominalActual::QualifiedType { ty, life }) => {
+                 fee(
+@@ -288,10 +293,10 @@ fn instance_zero(
+                 if !empty(life) {
+                     return Err(failure("plain nominal has a nonzero qualified Type actual"));
+                 }
+-                type_zero(module, ty, limits, b, active, depth + 1)?;
++                type_zero_at(module, ty, limits, b, active, depth + 1, TypePurpose::Domain)?;
+             }
+             (LifeParameterKind::Const(carrier), LifeNominalActual::Const(value)) => {
+-                type_zero(module, carrier, limits, b, active, depth + 1)?;
++                type_zero_at(module, carrier, limits, b, active, depth + 1, TypePurpose::Domain)?;
+                 b.type_work(carrier, false, "zero nominal constant carrier")?;
+                 if value.ty() != *carrier
+                     || !matches!(
+@@ -322,7 +327,7 @@ fn instance_zero(
+             }
+         }
+     }
+-    physical_zero(module, storage, limits, b, active, depth + 1)?;
++    physical_zero_at(module, storage, limits, b, active, depth + 1, purpose)?;
+     active.pop();
+     if let Some((module, phase, root)) = cache {
+         // No partial/negative/Pending result reaches this publication.
+@@ -423,20 +428,20 @@ fn compiler_zero(
+     Ok(())
+ }
+ 
+-fn physical_zero(
++fn physical_zero_at(
+     module: &TypedModule,
+     storage: &Type,
+     limits: &Limits,
+     b: &mut Budget,
+     active: &mut Vec<usize>,
+     depth: usize,
+-) -> CompileResult<()> {
++ purpose: TypePurpose) -> CompileResult<()> {
+     fee(b, 1)?;
+     match storage {
+         Type::Record { fields, .. } | Type::Package { fields, .. } => {
+             fee(b, fields.len())?;
+             for (_, ty) in fields {
+-                type_zero(module, ty, limits, b, active, depth)?;
++                type_zero_at(module, ty, limits, b, active, depth, purpose)?;
+             }
+         }
+         Type::Enum { variants, .. } => {
+@@ -444,7 +449,7 @@ fn physical_zero(
+             for (_, fields) in variants {
+                 fee(b, fields.len())?;
+                 for ty in fields {
+-                    type_zero(module, ty, limits, b, active, depth)?;
++                    type_zero_at(module, ty, limits, b, active, depth, purpose)?;
+                 }
+             }
+         }
+@@ -453,14 +458,14 @@ fn physical_zero(
+     Ok(())
+ }
+ 
+-fn type_zero(
++fn type_zero_at(
+     module: &TypedModule,
+     ty: &Type,
+     limits: &Limits,
+     b: &mut Budget,
+     active: &mut Vec<usize>,
+     depth: usize,
+-) -> CompileResult<()> {
++ purpose: TypePurpose) -> CompileResult<()> {
+     fee(b, 1)?;
+     if depth > limits.max_call_depth {
+         return Err(failure(
+@@ -497,14 +502,14 @@ fn type_zero(
+         | Type::CWideString
+         | Type::ByteBuffer
+         | Type::SyncCell(_) => Ok(()),
+-        Type::Record { .. } | Type::Package { .. } | Type::Enum { .. } => instance_zero(
++        Type::Record { .. } | Type::Package { .. } | Type::Enum { .. } => instance_zero_at(
+             module,
+             exact(module, ty, limits, b)?,
+             limits,
+             b,
+             active,
+             depth,
+-        ),
++         purpose),
+         Type::BorrowedStorage { storage, life } => {
+             if !empty(life) {
+                 return Err(failure("plain nominal contains a nonzero qualified domain"));
+@@ -513,23 +518,23 @@ fn type_zero(
+                 storage.as_ref(),
+                 Type::Record { .. } | Type::Package { .. } | Type::Enum { .. }
+             ) {
+-                instance_zero(
++                instance_zero_at(
+                     module,
+                     exact(module, ty, limits, b)?,
+                     limits,
+                     b,
+                     active,
+                     depth,
+-                )
++                 purpose)
+             } else {
+                 physical(ty, b)?;
+-                type_zero(module, storage, limits, b, active, depth + 1)
++                type_zero_at(module, storage, limits, b, active, depth + 1, purpose)
+             }
+         }
+         Type::Tuple(fields) => {
+             fee(b, fields.len())?;
+             for ty in fields {
+-                type_zero(module, ty, limits, b, active, depth + 1)?;
++                type_zero_at(module, ty, limits, b, active, depth + 1, purpose)?;
+             }
+             Ok(())
+         }
+@@ -538,24 +543,33 @@ fn type_zero(
+         | Type::OwnedStore { element }
+         | Type::Managed(element)
+         | Type::Mutex { payload: element } => {
+-            type_zero(module, element, limits, b, active, depth + 1)
++            type_zero_at(module, element, limits, b, active, depth + 1, purpose)
+         }
+         Type::ErrorUnion { error, result } => {
+-            type_zero(module, error, limits, b, active, depth + 1)?;
+-            type_zero(module, result, limits, b, active, depth + 1)
++            type_zero_at(module, error, limits, b, active, depth + 1, purpose)?;
++            type_zero_at(module, result, limits, b, active, depth + 1, purpose)
+         }
+         Type::FunctionPointer { parameters, result }
+         | Type::ForeignCallback { parameters, result } => {
+             fee(b, parameters.len())?;
+             for ty in parameters {
+-                type_zero(module, ty, limits, b, active, depth + 1)?;
++                type_zero_at(module, ty, limits, b, active, depth + 1, purpose)?;
+             }
+-            type_zero(module, result, limits, b, active, depth + 1)
++            type_zero_at(module, result, limits, b, active, depth + 1, purpose)
+         }
+         Type::Address { .. } | Type::Desc(_) => Err(failure(
+             "plain nominal contains an outer persistent borrow occurrence",
+         )),
+-        Type::Task { .. } => crate::tasks::semantic_resource_scope(module, ty, limits, b),
++        Type::Task { result, .. } => {
++            if purpose == TypePurpose::Physical {
++                crate::tasks::semantic_resource_scope(module, ty, limits, b)
++            } else {
++                crate::tasks::semantic_type_domain_zero(ty, b)?;
++                // The complete child formation is independent of the Task
++                // directory, including any nested nominal/phantom children.
++                type_zero_at(module, result, limits, b, active, depth + 1, TypePurpose::Domain)
++            }
++        },
+         Type::Closure(id) => {
+             b.lookup(
+                 b.semantic_zero_closures.len(),
+@@ -586,7 +600,7 @@ fn type_zero(
+                 }
+                 fee(b, closure.captures.len())?;
+                 for capture in &closure.captures {
+-                    type_zero(module, capture, limits, b, active, depth + 1)?;
++                    type_zero_at(module, capture, limits, b, active, depth + 1, purpose)?;
+                 }
+                 Ok(())
+             }
+@@ -647,7 +661,7 @@ fn type_zero(
+                     "zero registration has no concrete callback environment",
+                 ));
+             }
+-            type_zero(module, environment, limits, b, active, depth + 1)
++            type_zero_at(module, environment, limits, b, active, depth + 1, purpose)
+         }
+         // Their hidden class domains need the completed original/opaque
+         // consumer. Neither an empty port list nor Some(0) proves this case.
+diff --git a/crates/zil-analyze/src/tasks.rs b/crates/zil-analyze/src/tasks.rs
+index b5581e8e2..fdbbd3189 100644
+--- a/crates/zil-analyze/src/tasks.rs
++++ b/crates/zil-analyze/src/tasks.rs
+@@ -10,6 +10,11 @@ pub(super) use context_work::{
+ pub(super) mod input_scope;
+ mod owned;
+ mod semantic_scope;
++// A complete phantom Type domain is not a physical resource occurrence.
++pub(crate) fn semantic_type_domain_zero(payload: &Type, budget: &mut Budget) -> CompileResult<()> {
++    semantic_scope::type_domain_zero(payload, budget)
++}
++
+ pub(crate) fn semantic_resource_scope(
+     module: &TypedModule,
+     payload: &Type,
+diff --git a/crates/zil-analyze/src/tasks/semantic_scope.rs b/crates/zil-analyze/src/tasks/semantic_scope.rs
+index 26b33615b..3e26a64f9 100644
+--- a/crates/zil-analyze/src/tasks/semantic_scope.rs
++++ b/crates/zil-analyze/src/tasks/semantic_scope.rs
+@@ -2,6 +2,21 @@
+ //! This proves no closing state, synchronous cleanup, parent loan or access.
+ use super::*;
+ 
++/// Pure opaque-domain formation. The caller must recursively prove its
++/// result Type; no allocation, creator, phase, owner or cleanup fact is made.
++pub(super) fn type_domain_zero(payload: &Type, b: &mut Budget) -> CompileResult<()> {
++    let Type::Task { retained_life, .. } = payload else {
++        return Err(bad("Task type domain selects another payload family"));
++    };
++    crate::dyn_metadata::ty(payload, b)?;
++    if retained_life.binder_count != 0 || !retained_life.ports.is_empty()
++        || !retained_life.retained.is_empty() || !retained_life.nominal_arguments.is_empty() {
++        return Err(vec![Diagnostic::unsupported(Phase::Analyze,
++            "pure Task Type domain needs its complete nonzero class/port/phantom directory", None)]);
++    }
++    Ok(())
++}
++
+ pub(super) fn zero(
+     module: &TypedModule,
+     payload: &Type,
+@@ -17,18 +32,7 @@ pub(super) fn zero(
+             "semantic Task inventory selects another payload family",
+         ));
+     };
+-    crate::dyn_metadata::ty(payload, b)?;
+-    if retained_life.binder_count != 0
+-        || !retained_life.ports.is_empty()
+-        || !retained_life.retained.is_empty()
+-        || !retained_life.nominal_arguments.is_empty()
+-    {
+-        return Err(vec![Diagnostic::unsupported(
+-            Phase::Analyze,
+-            "nonzero Task scope needs its complete actual result/input/phantom directory",
+-            None,
+-        )]);
+-    }
++    type_domain_zero(payload, b)?;
+     // Prepay the whole raw type inventory before the existing worker graph can
+     // recurse, hash or clone any actual value outside a source type-use row.
+     for function in &module.functions {
+@@ -76,6 +80,7 @@ pub(super) fn zero(
+         let mut errors = bad("semantic Task scope has no exact unique sealed resource definition");
+         errors[0].notes.push(format!("requested complete Task payload {payload:?}; exact matching definitions {definitions}"));
+         for resource in &module.resources {
++            b.spend(resource.name.len(), "semantic Task resource diagnostic name")?;
+             b.type_work(&resource.payload, true, "semantic Task actual resource diagnostic")?;
+             errors[0].notes.push(format!("actual sealed resource {} payload {:?}", resource.name, resource.payload));
+         }

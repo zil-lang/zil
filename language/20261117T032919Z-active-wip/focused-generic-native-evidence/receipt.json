@@ -1,0 +1,88 @@
+{
+  "candidate": "84520ca637e4d71f5eaec83e31fe82525e4d8ef8",
+  "cli_sha256": "3d058ce008d472c903ceb7614bbb0c912aef45b94a547d71265a8ee67328929d",
+  "original_retain_bytes_preserved": true,
+  "source_sha256": "8aae2fe82df068484af4d9a3fc38f97b869195934dc211318194377d7f1bf529",
+  "exit": 0,
+  "report": {
+    "status": "Success",
+    "phase": "verify",
+    "diagnostics": [],
+    "artifacts": {
+      "candidate": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-exact-creator-frames-and-owned-slot-preparations/instantiated-generic-task-owner/phases/candidate.txt",
+      "core": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-exact-creator-frames-and-owned-slot-preparations/instantiated-generic-task-owner/phases/core.txt",
+      "ct-core": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-exact-creator-frames-and-owned-slot-preparations/instantiated-generic-task-owner/phases/ct-core.txt",
+      "interfaces": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-exact-creator-frames-and-owned-slot-preparations/instantiated-generic-task-owner/phases/interfaces.txt",
+      "source-map": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-exact-creator-frames-and-owned-slot-preparations/instantiated-generic-task-owner/phases/source-map.txt",
+      "syntax": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-exact-creator-frames-and-owned-slot-preparations/instantiated-generic-task-owner/phases/syntax.txt",
+      "task-interfaces": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-exact-creator-frames-and-owned-slot-preparations/instantiated-generic-task-owner/phases/task-interfaces.txt",
+      "typed": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-exact-creator-frames-and-owned-slot-preparations/instantiated-generic-task-owner/phases/typed.txt",
+      "verified": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-exact-creator-frames-and-owned-slot-preparations/instantiated-generic-task-owner/phases/verified.txt",
+      "verified-interfaces": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-exact-creator-frames-and-owned-slot-preparations/instantiated-generic-task-owner/phases/verified-interfaces.txt",
+      "verified-task-interfaces": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-exact-creator-frames-and-owned-slot-preparations/instantiated-generic-task-owner/phases/verified-task-interfaces.txt"
+    },
+    "input_fingerprint": "4e2f942590f5648a2058801bbc3411bd9f3b06d59a0c609ea71084632a35eba5",
+    "seconds": 0.43325284,
+    "cache_hit": false,
+    "commands": [],
+    "native_codegen": null,
+    "disk_cache": "disabled",
+    "query_events": [
+      {
+        "phase": "parse",
+        "disposition": "executed"
+      },
+      {
+        "phase": "expand",
+        "disposition": "executed"
+      },
+      {
+        "phase": "ct",
+        "disposition": "executed"
+      },
+      {
+        "phase": "types",
+        "disposition": "executed"
+      },
+      {
+        "phase": "analyze",
+        "disposition": "executed"
+      },
+      {
+        "phase": "verify",
+        "disposition": "executed"
+      }
+    ],
+    "verification_runs": 1,
+    "source_files": {
+      "0": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-exact-creator-frames-and-owned-slot-preparations/instantiated-generic-task-owner/source.zil"
+    },
+    "scalar_interfaces": [
+      {
+        "module": 0,
+        "signature_fingerprint": "4e24a6b8d7158c7ae4d61bea63e95a7cb175b5bb71a91689620de2ed19f0a640",
+        "implementation_fingerprint": "8aae2fe82df068484af4d9a3fc38f97b869195934dc211318194377d7f1bf529",
+        "contract_fingerprint": "35a3db312248c708958a098742cd190530deb580dc6b72d187062afa5799ea25",
+        "result_origins": [],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": []
+      }
+    ],
+    "work_profile": "standard",
+    "work_profile_revision": "standard-10m-v1",
+    "effective_limits": {
+      "max_source_bytes": 16777216,
+      "max_tokens": 1000000,
+      "max_nodes": 1000000,
+      "max_functions": 10000,
+      "max_blocks": 100000,
+      "max_instructions": 1000000,
+      "max_locals": 100000,
+      "max_values": 1000000,
+      "max_analysis_steps": 10000000,
+      "max_ct_steps": 1000000,
+      "max_call_depth": 256
+    }
+  }
+}
