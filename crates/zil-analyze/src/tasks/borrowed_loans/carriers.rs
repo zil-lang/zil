@@ -4,7 +4,9 @@ use super::*;
 use zil_ir::{ContractProjection, PlaceProjection};
 
 pub(super) type Path = Vec<ContractProjection>;
-pub(super) type Shape = BTreeMap<Path, bool>;
+// Each physical port keeps its own mode; a carrier may mix shared and
+// exclusive ports even when their outside lifetime images coincide.
+pub(super) type Shape = BTreeMap<Path, Vec<bool>>;
 pub(super) struct Catalog {
     pub(super) values: Vec<Shape>,
     pub(super) locals: Vec<Shape>,
@@ -27,10 +29,8 @@ fn shape(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<Shape
                 if !retained_life.ports.is_empty() {
                     result.insert(
                         path,
-                        retained_life
-                            .ports
-                            .iter()
-                            .any(|port| port.mode == zil_ir::StoredBorrowMode::ExclusiveAddress),
+                        retained_life.ports.iter().map(|port|
+                            port.mode == zil_ir::StoredBorrowMode::ExclusiveAddress).collect(),
                     );
                 }
             }

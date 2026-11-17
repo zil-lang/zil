@@ -93,18 +93,19 @@ fn put(state: &mut State, owner: Owner, carrier: Carrier, b: &mut Budget) -> Com
 fn seed(shape: &Shape, all: &Roots, exclusive: &Roots, b: &mut Budget) -> CompileResult<Carrier> {
     let mut carrier = Carrier::new();
     fee(b, shape.len())?;
-    for (path, mutable) in shape {
+    for (path, modes) in shape {
         fee(
             b,
             path.len()
                 .saturating_add(all.len())
                 .saturating_add(exclusive.len()),
         )?;
+        fee(b, modes.len())?;
         carrier.insert(
             path.clone(),
             Debt {
                 all: all.clone(),
-                exclusive: if *mutable {
+                exclusive: if modes.iter().any(|mutable| *mutable) {
                     exclusive.clone()
                 } else {
                     Roots::new()
@@ -189,6 +190,55 @@ fn physical(
         .iter()
         .copied()
         .collect())
+}
+
+// Lifetime equations bound classes, not the actual roots retained by a
+// returned frame. Both ordinary and consuming calls use the independently
+// reconstructed actual port sources, in exact carrier/port coordinates.
+fn returned_carrier(
+    f: &TypedFunction,
+    output: ValueId,
+    shape: &Shape,
+    transferred: &Roots,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<Carrier> {
+    let ports = b.task_retained_roots.get(f.id.0 as usize)
+        .and_then(|rows| rows.get(output.0 as usize))
+        .ok_or_else(|| fail(i.span, "returned Task lacks its independently reconstructed actual ports"))?;
+    let work = ports.iter().fold(1usize, |work, (path, roots)|
+        work.saturating_add(path.len()).saturating_add(roots.len()));
+    fee(b, work)?;
+    let mut returned = Carrier::new();
+    for (owner, modes) in shape {
+        fee(b, owner.len().saturating_add(modes.len()).saturating_add(1))?;
+        let mut debt = Debt::default();
+        for (ordinal, exclusive) in modes.iter().enumerate() {
+            fee(b, owner.len().saturating_add(1))?;
+            let mut path = owner.clone();
+            path.push(ContractProjection::RetainedPort(u32::try_from(ordinal)
+                .map_err(|_| bad("returned Task port ordinal overflows"))?));
+            let ports = &b.task_retained_roots[f.id.0 as usize][output.0 as usize];
+            b.lookup(ports.len(), "returned Task exact actual port source")?;
+            let roots = ports.get(&path).ok_or_else(|| fail(i.span,
+                "returned Task omits an actual physical retained port source"))?;
+            fee(b, roots.len().saturating_mul(2))?;
+            let roots = &b.task_retained_roots[f.id.0 as usize][output.0 as usize][&path];
+            if roots.is_empty() || roots.iter().any(|root|
+                *root != HoldRoot::Static && !transferred.contains(root))
+            {
+                return Err(fail(i.span,
+                    "returned Task dependency is not an actual transferred input frame root"));
+            }
+            debt.all.extend(roots);
+            if *exclusive {
+                debt.exclusive.extend(roots);
+            }
+        }
+        returned.insert(owner.clone(), debt);
+    }
+    carrier_work(&returned, b)?;
+    Ok(returned)
 }
 
 fn transfer(
@@ -319,39 +369,16 @@ fn transfer(
                     fee(b, debt.all.len())?;
                     transferred.extend(&debt.all);
                 }
+                transferred.extend(physical(f, holds, *value, b)?);
             }
-            output.map(|output| {
-                let ports = b.task_retained_roots.get(f.id.0 as usize)
-                    .and_then(|rows| rows.get(output.0 as usize))
-                    .ok_or_else(|| fail(i.span,"returned Task lacks its independently reconstructed actual ports"))?;
-                let work = ports.iter().fold(1usize, |work,(path,roots)| work.saturating_add(path.len()).saturating_add(roots.len()));
-                fee(b,work)?;
-                let ports = &b.task_retained_roots[f.id.0 as usize][output.0 as usize];
-                let mut returned = Carrier::new();
-                for (owner,exclusive) in &catalog.values[output.0 as usize] {
-                    let mut all = Roots::new();
-                    for (path,roots) in ports {
-                        if matches!(path.strip_prefix(owner.as_slice()),Some([ContractProjection::RetainedPort(_)])) {
-                            all.extend(roots);
-                        }
-                    }
-                    if all.is_empty() || all.iter().any(|root| *root!=HoldRoot::Static && !transferred.contains(root)) {
-                        return Err(fail(i.span,"returned Task dependency is not an actual transferred environment frame root"));
-                    }
-                    returned.insert(owner.clone(),Debt {
-                        exclusive: if *exclusive {all.clone()} else {Roots::new()},
-                        all,
-                    });
-                }
-                carrier_work(&returned,b)?;
-                Ok(returned)
-            }).transpose()?
+            output.map(|output| returned_carrier(f, output,
+                &catalog.values[output.0 as usize], &transferred, i, b)).transpose()?
         }
         InstructionKind::Call { function, arguments }
         | InstructionKind::SuspendCall { function, arguments } => {
             // Ownership arguments are discharged by the independently checked
             // callee. Its returned carrier starts with the actual return roots.
-            let mut carried_exclusive = Roots::new();
+            let mut transferred = Roots::new();
             for argument in arguments {
                 fee(b, 1)?;
                 if !catalog.values[argument.0 as usize].is_empty() {
@@ -362,10 +389,11 @@ fn transfer(
                         ));
                     }
                     for debt in take(state, Owner::Value(*argument), b)?.values() {
-                        fee(b, debt.exclusive.len())?;
-                        carried_exclusive.extend(&debt.exclusive);
+                        fee(b, debt.all.len())?;
+                        transferred.extend(&debt.all);
                     }
                 }
+                transferred.extend(physical(f, holds, *argument, b)?);
             }
             if output.is_some() && module.functions[function.0 as usize].foreign.is_some() {
                 return Err(fail(
@@ -373,38 +401,8 @@ fn transfer(
                     "foreign Task result has no reconstructed frame dependency",
                 ));
             }
-            output
-                .map(|v| {
-                    let all = actual(holds, v, b)?;
-                    let mut exclusive = carried_exclusive;
-                    if catalog.values[v.0 as usize]
-                        .values()
-                        .any(|exclusive| *exclusive)
-                    {
-                        // A callee may create a fresh frame from any address input.
-                        // Existing Task inputs retain their exact exclusive roots;
-                        // address inputs add their actual target roots conservatively.
-                        for argument in arguments {
-                            fee(b, 1)?;
-                            if matches!(f.values[argument.0 as usize], Type::Address { .. }) {
-                                exclusive.extend(actual(holds, *argument, b)?);
-                            }
-                        }
-                        if exclusive.is_empty() {
-                            exclusive.extend(&all);
-                        }
-                    }
-                    // The callee's actual capture sources and per-port relation
-                    // are checked by the independent retained/stored consumers.
-                    if all.is_empty() {
-                        return Err(fail(
-                            i.span,
-                            "returned Task carrier lacks reconstructed actual input roots",
-                        ));
-                    }
-                    seed(&catalog.values[v.0 as usize], &all, &exclusive, b)
-                })
-                .transpose()?
+            output.map(|output| returned_carrier(f, output,
+                &catalog.values[output.0 as usize], &transferred, i, b)).transpose()?
         }
         InstructionKind::Store { local, value } if !catalog.locals[local.0 as usize].is_empty() => {
             let debt = take(state, Owner::Value(*value), b)?;
