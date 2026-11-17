@@ -552,7 +552,7 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G10.5.1 | 编译效率复核、加权性能与真实覆盖扩展 | 进行中·首改仍输Rust | P1 | Chat编译专项 | full-push-native正式3fef2e582/结果a53568428，实际main9170未合。window23原30工作流/10功能格+12运行包装构建/4运行格完整过；冷3.650/R6.975s、重启直接首改1.871/R1.276s仍输。真实243机器模板恢复+101Core恢复；用户盘量40.9MB/R61.5–76.7MB。独立Verify/原预算/完整O2/研究默认关保持；工业/普通CLI/全面门开放。[精简记录](records/compiler-incremental-demand-continuation.json)。 |
+| G10.5.1 | 编译效率复核、加权性能与真实覆盖扩展 | 进行中·首改仍输Rust | P1 | Chat编译专项 | full-push-native正式861e9bb69/结果2df84f524，实际main9170未合。window25原30工作流/10功能格+12运行构建/4运行格完整过；冷2.947/R6.687s、重启直接首改1.477/R1.100s仍慢约34%。用户盘量43.1MB/R61.5–76.7MB。已补同路径Rust阶段诊断，机器重建/Source恢复仍短板；独立Verify/原预算/O2/默认关保持，工业/普通CLI/全面门开放。[精简记录](records/compiler-incremental-demand-continuation.json)。 |
 | G10.5.1.1 | 可选完整导入超预算时保持普通分区及生效决策 | 已合入 | — | Chat直接复核 | PR65@906940ea已合maine69091059；三生产文件与main2293逐blob相同，build.md长期规则及必要回归已保留。后来数组预算旧pin已由PR69修正，main2293三CI成功。旧实验tipda1e9412完整归档3ad41515后清理，历史失败不改写。 |
 | G10.5.1.2 | 单次构图回退索引复用与复杂调用图/trait/资源覆盖 | 实验完成·未采用 | P1 | 编译专项·20261109 | 候选49889241、交付929417b0，1764完整编译/1470正式、3780输出、504原生代码段一致、252运行通过。四加权净变化-0.09%/+0.57%/+0.06%/+0.37%，绝对不足1.3ms/请求，Hold不合入。首轮测量器失败与修正保留；原版bitmaps/syn/regex-automata仅Rust参考，大型等价应用仍缺。 |
 | G10.5.1.3 | 标量Types签名依赖分面及主线Rust对照 | 已合入 | — | Chat直接复核 · PR70 | PR70/cadc656c已合main21b1feef；两个原受测blob及incremental-types机制说明已核。官方/研究LLVM同树workspace5864/0、reference5750/0、text70/0、严格检查与原生分配失败控制通过；主线仅多出PR71测试恢复，完整保留。历史加权0.18%–0.37%不夸大，见[合入收据](records/compiler-signature-merge.json)。 |
@@ -567,7 +567,7 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 | G10.5.1.12 | 前置规范化与函数等价合并 | 未采用·已归档 | — | — | PR84关闭，旧130d不同码运行退化13%–24%；去额外inline新变体24构建/408运行反例筛通过，但单次编译诊断未保留大图收益，不投入全矩阵或放宽门。原源码/补丁/正负证据在固定archive e75ade94，生产ref已删除。 |
 | G10.5.1.13 | 完整请求关键路径与对象命中后的重复工作 | 本轮收束·候选未采用 | P1 | Chat编译专项 · root | main990保持；结构sink ee0与Builder定位9f0各84请求/42对同ELF与materialIR/252 I/O完整，wall+7.63%/+2.08%，不采用。identity/linear各36编译108运行仍编译NoGo；不将局部成本或跨窗口差额当净收益。全部源码、原始数据与否定结果已保全，父门仍开放。[本轮记录](records/compiler-next-optimization.json)。 |
 | G10.5.1.14 | 多点批量修改、并发候选及重编范围 | 本轮收束·目标未达成 | P1 | Chat编译专项 · root | 吸收Rust/Blaze actual imports与已优化body复用，原预算/owner/Verify/完整O2不放宽。进程内2321完成36编译108运行，质量Pass但编译+22.47%/+9.22%；full2458同规模完整，N256编译wall−9.48%/CPU−13.25%，但N64/256运行+34.50%/+46.23%，质量NoGo，均未采用。两次构建各64API/6proof/no-native通过；无新增多点/并发收益结论。四旧失败ref实际退役，一条研究入口保留，完整raw v1保存；父门开放。[本轮记录](records/compiler-next-optimization.json) · [前轮记录](records/compiler-multi-edit-continuation.json)。 |
-| G10.5.1.15 | 稳定语义节点、点对点分层传播及大项目真实编译接入 | 整链已测·首改仍落后 | P1 | Chat响应式专项 · root | 正式3fef2e582实际打通空语义目录冷编译播种→关进程→直接首改；243机器模板恢复/5候选未命中、SourceCore101恢复/1生产。Source上下文与发布扫描去重，缓存完整性校验/字节搬运复用；完整当前输入/费用/独立Verify/机器预检/O2保留。g54strict/原生发布3/fmt/release过；复用B381/DB39/E148/D243及未变独立核。原30/10及4运行门过；1.871/R1.276s仍未达Rust。Astra复核播种无阻塞，源码结果已推；下一整链处理机器分配/归类COW与Analyze重启消费，WIP不冒充本结果。[结果](records/compiler-incremental-demand-continuation.json)。 |
+| G10.5.1.15 | 稳定语义节点、点对点分层传播及大项目真实编译接入 | 整链已测·首改仍落后 | P1 | Chat响应式专项 · root | 正式861e9bb69打通冷保存等价Analyze计划→退出→直接首改共享恢复：248计划检查/4857共享、5104采用/1执行，正式Analyze35–43ms。strict/A316/D251含原生/fmt/release与原30/10+4运行门全过。配对诊断ZIL14/16对象命中仍重建机器约406ms，Rust在LLVM构造前复用：IR6ms/CGU判断1ms；Rust异步LLVM443ms不能与finish361ms相加。1.477/R1.100s仍未达标；下一整链修命中前机器归类/分区重建及Source物化/发布，尚未实施。不以命中替代收益。[结果](records/compiler-incremental-demand-continuation.json)。 |
 
 </details>
 

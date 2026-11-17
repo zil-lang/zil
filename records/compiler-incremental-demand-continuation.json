@@ -1,13 +1,13 @@
 {
-  "schema": "zil.compiler-current-native-continuation.v4",
+  "schema": "zil.compiler-current-native-continuation.v5",
   "branch": "research/full-push-native",
-  "source": "3fef2e582e0c93e051b8500c85dfe33b66319bda",
-  "production_source": "3fef2e582e0c93e051b8500c85dfe33b66319bda",
-  "result_commit": "a535684282051c69f1e2e223b7a0e266266ea4d1",
-  "binary_sha256": "85d6b2c71fc3121ca02f51dff6945b91884ee3074eae1cace00fcb5d0afa0a93",
+  "source": "861e9bb692baca50f9c7b2e8bbeceb5e7dfb8727",
+  "production_source": "861e9bb692baca50f9c7b2e8bbeceb5e7dfb8727",
+  "result_commit": "2df84f524ec16ee7ebff92aac04ad468499a027f",
+  "binary_sha256": "6d89c2f4ac4bc49837c966761db4b0b46d0dabd2b9c09d07aa3eedbfd735bda7",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "goal_read_sha": "d25352c82a7a6dbc957c928645e842845dc471ef",
-  "status": "Ongoing; real243 machine templates restored, firstedit1.871/Rust1.276s still slower; comprehensive/main gates OPEN",
+  "goal_read_sha": "b502127cb89a10f4123e599bb144dac7c4472c03",
+  "status": "Ongoing; formal25 firstedit1.477/Rust1.100s still34%slower, Analyze duplicate plans fixed; paired actual Rust phase diagnosis complete; no mainmerge",
   "latest_native": {
     "scope": "Original5105functions/102files/843875bytes, original257input domain; actualmain/currentcandidate/Rust only. Native O2/CGU16/compilerjobs1; explicit default-off bounded-class-imports128-v4. Closeprocess, edit, then newprocess first resident request. Startup separate; not full ordinaryCLI or OS-cold.",
     "completion": {
@@ -18,24 +18,24 @@
     },
     "compile_median_ms": {
       "cold": {
-        "candidate": 3650.3134069999996,
-        "rust": 6975.382796
+        "candidate": 2947.3958709999997,
+        "rust": 6686.782724500001
       },
       "unchanged": {
-        "candidate": 66.132976,
-        "rust": 26.021055
+        "candidate": 71.2272705,
+        "rust": 24.280037
       },
       "private-001": {
-        "candidate": 1870.5150265000002,
-        "rust": 1275.83535
+        "candidate": 1477.419286,
+        "rust": 1100.1786
       },
       "recovery": {
-        "candidate": 1868.5233185,
-        "rust": 5802.8285825
+        "candidate": 1952.2872240000002,
+        "rust": 5823.455824000001
       },
       "error": {
-        "candidate": 1145.432961,
-        "rust": 1803.486926
+        "candidate": 1209.0564415,
+        "rust": 1735.654503
       }
     },
     "functional_quality_valid": true,
@@ -43,26 +43,26 @@
     "user_disk_boundary_peak_physical_bytes": [
       {
         "block": 0,
-        "candidate": 40914944,
+        "candidate": 43061248,
         "rust": 76734464
       },
       {
         "block": 1,
-        "candidate": 40939520,
+        "candidate": 43048960,
         "rust": 61546496
       }
     ],
-    "raw": "out/runs/direct-firstedit-performance-direct-23",
-    "result": "https://github.com/zil-lang/zil/blob/a535684282051c69f1e2e223b7a0e266266ea4d1/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json"
+    "raw": "out/runs/direct-firstedit-performance-direct-25",
+    "result": "https://github.com/zil-lang/zil/blob/2df84f524ec16ee7ebff92aac04ad468499a027f/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json"
   },
   "changes": [
-    "Source/Core exact bounded binary context replaces Debug formatting; same dependency predicate memo shares admission/publication encoding. Unchanged module bytes skip publication guards; actual writes use held namespace identities and complete boundary guards, avoiding repeated full path-collision scans.",
-    "ArtifactCache content-key reads reuse the already computed envelope digest and remove headers in place. Packed readers memo successful unique immutable segments within original aggregate caps, still observe cancellation first, and publishers compare full current item bytes before reusing old locations.",
-    "Explicit trusted semantic-cache/push-reuse raw emitted functions retain bounded primitive machine DATA, full compiler/DSO/context/callee-summary/current body bindings, original reservations and complete current preflight/full O2. Per-body representatives plus aliases share actual decoded owners and retain accepted bytes. No Source/Verify/WorldBound permission serialized; defaults off.",
-    "Cold absent semantic roots are privately created only after complete destination planning, rechecked and pinned. Raw manifest commits only after successful guarded native publication. Fresh-session native regression proves cold seeding, direct first-edit restored+changed templates, exact outputs/current preflight and SafeReject without cache advancement."
+    "Cold raw Analyze publication groups independently allocated semantically equal Source functions using bounded randomized selector buckets; complete body and plan equality authorize every alias, original five fees remain per logical function. No digest/pointer grants permission.",
+    "Restart decodes each raw template once; fresh private current FunctionProduct + full decoder byte/header relation may adopt actual current owner, sensitive foreign/unsafe placement stays exact. Current independent Analyze obligations/Verify and original failure order remain.",
+    "Raw plan shape memo binds exactly the lengths and immutable plan columns actually read. Full body/header binding and aggregate quotas stay mandatory; malformed differing-local-bound test must reject.",
+    "Real Source128 separate-body regression covers reduced physical plans, fresh private edit with no warmup, reference/current plan equality, five fees/global cost, publication caps and cleanup."
   ],
-  "checks": "Same-source gates54 strict/nativepublication3/fmt/releasePASS. Rawmachine backend381g52, DB39/Expand148/Driver243g51 reused unchanged; independent CT78g49/Types121g43/IR94g39/Analyze310/Verify657g36/API105g35/qualifier31g48 unchanged.",
-  "reviews": "Root reviewed complete Astra raw-machine producer/consumer and Source/Core patch; Source Astra independently reviewed root transport and publication guard changes. Astra Euler independently reviewed exact cold-seed fix3849366c44d93e75086eae5e629bb303f91abcde: no blockers. New test upgraded to actual foreign input and precise SafeReject; all3 native publication contracts pass.",
+  "checks": "IR94/backend382/nativepublication3/qualifier31/recording2/default-host gate56 unchanged; CT78/E148/T121/V657/API105 previous receipts unchanged. All affected Analyze316 and Driver251 rerun with ignored native recovery. Full original30workflow+12wrapperbuilds/10cells+4runtime completed after same-source strict/fmt/release.",
+  "reviews": "Root nonauthor reviewed Astra cold semantic template producer/consumer: full equality, current strong-owner relation, bounded selector work, sensitive rows, original fees and guarded publication preserved. Astra nonauthor reviewed root plan_shape memo dimensions and bad-local-bound regression: PASS. No persisted Source/Types/Verify/WorldBound receipt.",
   "failures": [
     "gates47: new backend test imports used private IR identities; driver load result triggered strict type-complexity. Fixed mechanically, no old release used.",
     "gates48: driver237PASS/2FAIL; recovered parser-LRU/leaf identity lost CT continuation (210checks/96reuse instead1/305), and candidate retry reason precedence changed. Fixed actual retention/provenance, original assertions retained; gates49driver239PASS.",
@@ -70,9 +70,11 @@
     "gates50 strict: new test field_reassign_with_default; corrected test initialization; no old binary used.",
     "gates51 backend380PASS/1FAIL and nativepublication0PASS/2FAIL: launcher omitted ZIL_TEST_NATIVE_LINK_PROFILE. Same-source explicit-profile gates52backend381/publication2 PASS.",
     "Formal22 source951add3bef36ebac1a3ebe4b02898a2be59c305c binary0c75b8cc27bef4ae01ae1e2eafe0a9021d278729847973559347fd3589400a97: firstedit1.8920515635/Rust1.0873430315s; full30/10 and4runtime PASS. Cold absent root skipped raw producer, firstedit0restored/248misses; failure retained, not a machine-cache win.",
-    "gates53: existing native2PASS/new1FAIL because constant-input test legitimately fully folded to1CGU and exercised no raw producer. Real foreign-input dependency now exercises cold seed/directedit; existing unit/preflight/native assertions retained; SafeReject checks tightened."
+    "gates53: existing native2PASS/new1FAIL because constant-input test legitimately fully folded to1CGU and exercised no raw producer. Real foreign-input dependency now exercises cold seed/directedit; existing unit/preflight/native assertions retained; SafeReject checks tightened.",
+    "Formal24 e4cf6071eaeb firstedit1.818/Rust1.259s:5104 Analyze rows restored but5105 distinct plan checks; negative result033030437 retained.",
+    "Phase diagnostic25 wrapper used execv with PATH-only rustc, failed before Rustcompile. Diagnostic25b fixture lacked original Cargo.toml/Cargo.lock and discovered parent workspace; explicitly terminated wrong cargo subtree and retired only its generated target. Corrected25c copies exact original manifest/lock and verifies crate/workspace boundary. Both failures retained; formal25 unaffected."
   ],
-  "previous_native_result": "https://github.com/zil-lang/zil/blob/a68ede06531f443776029607ee69f3196fd41d35/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
+  "previous_native_result": "https://github.com/zil-lang/zil/blob/033030437ee0b29c81b7442d2cb2e6f7cd9b4279/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
   "previous_check": {
     "source": "54a0258ab9e081085254084e4b081309dc06eda9",
     "result_commit": "a7f499e8",
@@ -80,8 +82,151 @@
     "historical_goal_record": "https://github.com/zil-lang/zil/blob/fb6f393bab3bb73c7028ec2f8dfedb0c266c87e1/records/compiler-incremental-demand-continuation.json"
   },
   "invariants": "IndependentVerify/currentcompleteSource/LIR binding/originaldefaultbudgets/fullO2 unchanged. Explicitboundedresearchdefaultoff. SDK18/native-link reused; noLLVMrebuild/fullpack. Uniqueconstructionbranch. goal/archive nevermain.",
-  "remaining": "Firstedit remains slower. Real firstedit raw243hits/5misses in both balancedblocks; SourceCore101 restored/1producer. Formal machine emission118–134ms, classes265–607ms plus object119–127ms; diagnostic publication21ms, semanticpub111ms, Analyze105ms, Verify74ms. Phasevariation not causally attributed. Root implementing measured backend allocation/COW chain; Astra implementing fee-compatible raw Analyze restart consumer. WIP is not measured23.",
+  "remaining": "FormalAnalyze35-43ms after248planchecks/4857share and5104adopt/1execute; firstedit still1.477/R1.100s. Same-history diagnostic:ZILraw243hits but currentmachine406ms despite14/16objects; rustc LLVMIR6ms/CGUreuse1ms/codegencrate78ms. RustLLVMthinlto443ms overlapsfinish361ms; no sum/no newformalratio. Source/Core materialization, function cache read, semanticpublication remain. Next reuse currentdata before class/partition reconstruction; not implemented or accepted yet.",
   "unmeasured": "Actualmain defaultResourceLimit remains failure and excluded from ratios. Industrialmulti-crate/proc-macro/build.rs/minute/GB/currentnative ordinaryCLI coverage incomplete; no main merge; comprehensive Rust goal open.",
   "disk_accounting": "Peak of simultaneous per-arm totals in original workflow snapshots, global inode dedup st_blocks*512. Not sum of independent category peaks; not transient peaks; SDK/host/evidence excluded.",
-  "next": "Continue coherent restart recovery chain then concentrated affected acceptance and same-domain formal test. No mainmerge. SDK18/native-link reused; noLLVM rebuild/fullpack. Source/result safely pushed; independentVerify/defaultbudgets/fullO2/defaultoffresearch retained."
+  "next": "Continue current machine/class/partition producer-to-consumer recovery using exact rustc reuse-before-LLVM construction, whole chain thenconcentratedacceptance; preserve currentfullbinding/preflight/independentVerify/defaultbudgets/fullO2. No additional fullpack/LLVM rebuild; onlyconstructionbranch.",
+  "paired_phase_diagnostic": {
+    "path": "out/runs/paired-firstedit-phases-25c",
+    "diagnostic_only": true,
+    "formal_ratio": false,
+    "method": "Original cold -> process exit -> direct private001, no unchanged prewarm. Each language has retained private caches. Rust same O2/CGU16/jobs1 plus diagnostic-only -Ztime-passes/-Zincremental-info on both builds. ZIL profile-compilation; startup and process wall separately recorded. No LLVM rebuild, no budgets changed.",
+    "Rust_passes_ms_nested_or_async_not_additive": {
+      "macro_expand_crate": 85.815315,
+      "resolve_crate": 42.387595,
+      "type_check_crate": 36.354055,
+      "MIR_borrow_checking": 25.02458,
+      "partition_and_assert_distinct_symbols": 18.514638,
+      "find_cgu_reuse": 0.9613039999999999,
+      "codegen_to_LLVM_IR": 6.349709,
+      "LLVM_passes": 34.406808,
+      "codegen_crate": 78.191888,
+      "serialize_dep_graph": 69.924136,
+      "LLVM_thinlto": 442.533191,
+      "finish_ongoing_codegen": 361.455702,
+      "link": 31.060443,
+      "total": 1047.009963
+    },
+    "candidate_exclusive_costs": {
+      "total_ns": 1916992078,
+      "classified_ns": 1821632290,
+      "unassigned_ns": 95359788,
+      "overlap_ns": 0,
+      "overlap_errors_ns": {},
+      "segments_ns": {
+        "analyze": 42588720,
+        "codegen": 611250943,
+        "ct": 45896946,
+        "discovery_receipt_publication": 3527628,
+        "expand_assembly": 473611,
+        "expand_context": 12286664,
+        "expand_materialization": 195556742,
+        "expand_other": 119507310,
+        "expand_production": 12048403,
+        "expand_reuse": 2047745,
+        "frontend_product_publication": 18313063,
+        "frontend_product_read": 27943196,
+        "function_cache_publication": 15721301,
+        "function_cache_read": 142538874,
+        "function_checkpoint": 147573,
+        "lower": 4658610,
+        "owner_binding": 43405,
+        "parse": 196288,
+        "producer_checkpoint": 1034045,
+        "project_setup": 1305686,
+        "semantic_cache_read": 7357734,
+        "semantic_candidate_publication": 198186215,
+        "source_ingress": 82413387,
+        "types_cfg_execute": 145872,
+        "types_cfg_reuse": 78257413,
+        "types_cfg_store": 28663,
+        "types_context": 21247684,
+        "types_core_comparison": 0,
+        "types_graph_maintenance": 0,
+        "types_input_inventory": 2165824,
+        "types_other": 66258933,
+        "types_projection_context": 2387663,
+        "types_query_evaluation": 21635004,
+        "types_shape": 9077878,
+        "verify": 75383267
+      }
+    },
+    "candidate_phase_ms": {
+      "parse": 0.196288,
+      "expand": 341.920475,
+      "types": 201.204934,
+      "analyze": 42.58872,
+      "verify": 75.383267,
+      "lower": 4.65861,
+      "codegen": 611.250943,
+      "ct": 45.896946
+    },
+    "candidate_backend_ms": {
+      "machine": 406.440407,
+      "machine_emit": 243.921146,
+      "machine_transform": 158.401249,
+      "transform_ranges": 16.816399,
+      "transform_checked_add": 0.990709,
+      "transform_scalar": 1.654324,
+      "transform_call_classes": 138.107388,
+      "transform_purity": 0.428809,
+      "machine_preflight": 16.546539,
+      "partition": 10.787405,
+      "diagnostic": 15.966062,
+      "object": 109.165731,
+      "link_key": 30.036234,
+      "link_execution": 24.140812,
+      "other": 14.540198,
+      "total": 611.076849
+    },
+    "candidate_object_cache": {
+      "requested": true,
+      "enabled": true,
+      "hits": 14,
+      "misses": 2,
+      "corrupt": 0,
+      "stored": 2,
+      "write_failures": 0,
+      "key_ns": 952,
+      "lookup_ns": 1669458,
+      "current_preflight_ns": 2552122,
+      "object_hit_preflight_checked_units": 14,
+      "object_hit_preflight_reused_units": 0,
+      "disabled_reason": null
+    },
+    "candidate_semantic_publication": {
+      "serialized_functions": 5,
+      "reused_functions": 5100,
+      "written_segments": 4,
+      "existing_segments": 10212,
+      "written_bytes": 10844,
+      "manifest_bytes": 161214,
+      "canonical_functions": 5105,
+      "bound_functions": 0,
+      "encode_ns": 56464590,
+      "guard_ns": 6797287,
+      "item_io_ns": 73794888,
+      "manifest_io_ns": 6052176,
+      "physical_pack_writes": 1,
+      "physical_pack_bytes": 10944,
+      "manifest_writes": 2,
+      "compacted_items": 0,
+      "referenced_packs": 2,
+      "referenced_pack_payload_bytes": 8924081,
+      "serialized_function_plans": 248,
+      "reused_function_plans": 4857,
+      "serialized_function_plan_bytes": 287408,
+      "reused_function_plan_bytes": 1282248,
+      "function_bindings_checked": 5105,
+      "function_plan_bindings_compared": 0
+    },
+    "interpretation": "Current bottleneck is work before object reuse: ZIL reconstructs/transforms machine model406ms despite14/16 objecthits, versus rustc codegen_crate78ms including actual LLVMIR6ms/reusedecision1ms. RustLLVM_thinlto443ms is asynchronous and overlaps finish_ongoing_codegen361ms; never sum these. ZILobjectstage109ms. ZILsource/cache materialization+publication remains significant. Stage responsibilities differ; phase values diagnose concrete repeated work, not a new formal ratio or all377ms formalgap causally attributed to machine."
+  },
+  "rust_reference": {
+    "commit": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+    "CGU_reuse": "https://github.com/rust-lang/rust/blob/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_codegen_ssa/src/base.rs#L1238",
+    "dispatch": "https://github.com/rust-lang/rust/blob/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_codegen_ssa/src/base.rs#L842",
+    "postLTO": "https://github.com/rust-lang/rust/blob/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_codegen_ssa/src/back/write.rs#L2267",
+    "lesson": "Existing green dependency node plus actual workproduct allows reuse before LLVM module construction. ZILrawcache currently stops before canonical class graph, forcing fresh reconstruction after process exit; not two classpasses on successful earlyreduction."
+  }
 }
