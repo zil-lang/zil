@@ -1,10 +1,10 @@
 {
-  "schema": "zil.native-direct-firstedit-result.v4",
-  "source": "de43085b1416970a00d19c2b8b11da93172612f5",
-  "binary_sha256": "c01edb9b89b016aaf1d39524b825d4c0da5cdae3ebfa59dc380bec619964fb15",
+  "schema": "zil.native-direct-firstedit-result.v5",
+  "source": "bef2a67ee97e75d3609971269688cd11f23cce0e",
+  "binary_sha256": "607a32b3acd7ded7e0c04fd8b0e26ad4663880d5f040efbdb5ffd591c47d143a",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "result": "Firstedit still slower than Rust; semantic sharing fixed but total improvement not established",
-  "scope": "Original5105functions/102files/843875bytes, original257input domain; actualmain/currentcandidate/Rust only. Native O2/CGU16/compilerjobs1; explicit default-off bounded-class-imports128-v3. Closeprocess, edit, then newprocess first resident request. Startup separate; not full ordinaryCLI or OS-cold.",
+  "result": "Firstedit still slower than Rust; Source/Core and machine graph work reduced but absolute goal open",
+  "scope": "Original5105functions/102files/843875bytes, original257input domain; actualmain/currentcandidate/Rust only. Native O2/CGU16/compilerjobs1; explicit default-off bounded-class-imports128-v4. Closeprocess, edit, then newprocess first resident request. Startup separate; not full ordinaryCLI or OS-cold.",
   "execution_complete": true,
   "functional_quality_valid": true,
   "runtime_candidate_rust_accepted": true,
@@ -17,53 +17,53 @@
   },
   "compile_median_ms": {
     "cold": {
-      "candidate": 3151.0698709999997,
-      "rust": 6950.1117665
+      "candidate": 3930.0781785,
+      "rust": 6462.131964
     },
     "unchanged": {
-      "candidate": 60.917966,
-      "rust": 35.050548
+      "candidate": 57.707292499999994,
+      "rust": 28.3665025
     },
     "private-001": {
-      "candidate": 2119.716305,
-      "rust": 1096.3470565
+      "candidate": 1957.1914065,
+      "rust": 1006.574854
     },
     "recovery": {
-      "candidate": 2100.2443869999997,
-      "rust": 6285.3326655
+      "candidate": 2280.2095755,
+      "rust": 5780.336247499999
     },
     "error": {
-      "candidate": 1569.6091975,
-      "rust": 2089.4391505
+      "candidate": 1721.482324,
+      "rust": 1947.907298
     }
   },
   "runtime_ms": {
     "5105/cold": {
-      "candidate": 32.5191965,
-      "rust": 227.754975
+      "candidate": 30.5649175,
+      "rust": 197.69027499999999
     },
     "5105/unchanged": {
-      "candidate": 34.9338305,
-      "rust": 217.416556
+      "candidate": 30.913180500000003,
+      "rust": 185.9379945
     },
     "5105/private-001": {
-      "candidate": 33.2991915,
-      "rust": 193.44741199999999
+      "candidate": 33.3933785,
+      "rust": 210.63755700000002
     },
     "5105/recovery": {
-      "candidate": 29.769730000000003,
-      "rust": 192.99460950000002
+      "candidate": 33.223734,
+      "rust": 191.0533105
     }
   },
   "user_disk_boundary_peak_physical_bytes": [
     {
       "block": 0,
-      "candidate": 30347264,
-      "rust": 76742656
+      "candidate": 36696064,
+      "rust": 76734464
     },
     {
       "block": 1,
-      "candidate": 30392320,
+      "candidate": 36732928,
       "rust": 61546496
     }
   ],
@@ -71,96 +71,178 @@
   "direct_firstedit_costs": [
     {
       "block": 0,
-      "wall_ms": 1915.26307,
+      "wall_ms": 1904.727234,
+      "cpu_seconds": 1.87,
       "phases_ms": {
-        "analyze": 105.828583,
-        "codegen": 872.009586,
-        "ct": 54.679638,
-        "expand": 261.746169,
-        "lower": 3.175015,
-        "parse": 0.122644,
-        "types": 169.068254,
-        "verify": 63.74715
+        "analyze": 476.610717,
+        "codegen": 566.581422,
+        "ct": 45.041873,
+        "expand": 104.483463,
+        "lower": 3.128385,
+        "parse": 0.119928,
+        "types": 126.135689,
+        "verify": 74.224318
       },
       "backend_ms": {
-        "diagnostic": 45.9981,
-        "link_execution": 61.222621,
-        "link_key": 29.595797,
-        "machine_emit": 140.374332,
-        "machine": 316.139953,
-        "machine_preflight": 33.849185,
-        "machine_transform": 171.598194,
-        "object": 327.222795,
-        "other": 2.360471,
-        "partition": 83.038556,
-        "total": 865.578293,
-        "transform_call_classes": 23.029821,
-        "transform_checked_add": 8.270967,
-        "transform_purity": 11.921401,
-        "transform_ranges": 123.391853,
-        "transform_scalar": 4.727634
+        "diagnostic": 6.556725,
+        "link_execution": 29.385834,
+        "link_key": 30.858552,
+        "machine_emit": 156.256987,
+        "machine": 368.813365,
+        "machine_preflight": 25.498589,
+        "machine_transform": 208.759872,
+        "object": 116.829642,
+        "other": 1.233458,
+        "partition": 12.401575,
+        "total": 566.079151,
+        "transform_call_classes": 188.399112,
+        "transform_checked_add": 1.234409,
+        "transform_purity": 0.635432,
+        "transform_ranges": 15.183914,
+        "transform_scalar": 2.931988
+      },
+      "producer": {
+        "lower_modules": 1,
+        "normalize_modules": 1,
+        "recovered_frontend_modules": 101,
+        "restore_modules": 1,
+        "reused_lower_modules": 101
       },
       "backend_work": {
+        "checked_add_functions_checked": 161,
+        "checked_add_functions_reused": 0,
+        "lowered_functions": 5105,
+        "machine_preflights_checked": 3,
+        "machine_preflights_reused": 2,
+        "native_history_payload_bytes": 0,
+        "native_history_restored_units": 0,
+        "native_history_retained_epochs": 0,
         "produced_body_templates": 244,
+        "rebuilt_call_class_inputs": 252,
+        "rebuilt_call_class_keys": 243,
+        "rebuilt_partition_items": 1331,
+        "rebuilt_partition_units": 16,
+        "rendered_diagnostic_items": 166,
         "representation_functions_checked": 248,
         "representation_functions_reused": 4857,
         "reused_body_templates": 4857,
+        "reused_call_class_inputs": 4857,
+        "reused_call_class_keys": 4857,
+        "reused_diagnostic_items": 0,
+        "reused_functions": 0,
+        "reused_link": false,
+        "reused_machine_module": false,
+        "reused_machine_transforms": false,
+        "reused_object_keys": 0,
+        "reused_partition": false,
+        "reused_partition_items": 0,
+        "reused_partition_layout": false,
+        "reused_partition_recipe": false,
+        "reused_partition_units": 0,
+        "scoped_thread_functions_checked": 5105,
+        "scoped_thread_functions_reused": 0,
         "shared_admission_reuses": 4857,
-        "shared_body_template_reuses": 4857
+        "shared_body_template_reuses": 4857,
+        "source_projection_admission_reuses": 5105,
+        "source_projection_instruction_visits": 0,
+        "source_projection_reuses": 0,
+        "source_projection_traversals": 0,
+        "whole_machine_input_functions_compared": 0
       }
     },
     {
       "block": 1,
-      "wall_ms": 2324.16954,
+      "wall_ms": 2009.655579,
+      "cpu_seconds": 1.96,
       "phases_ms": {
-        "analyze": 342.812139,
-        "codegen": 782.454055,
-        "ct": 60.456393,
-        "expand": 317.385677,
-        "lower": 8.454418,
-        "parse": 0.167646,
-        "types": 228.390198,
-        "verify": 83.045541
+        "analyze": 105.245177,
+        "codegen": 948.381216,
+        "ct": 46.611245,
+        "expand": 104.991854,
+        "lower": 3.671847,
+        "parse": 0.116604,
+        "types": 140.454845,
+        "verify": 66.189827
       },
       "backend_ms": {
-        "diagnostic": 49.026391,
-        "link_execution": 31.78519,
-        "link_key": 33.452692,
-        "machine_emit": 164.49056,
-        "machine": 392.586683,
-        "machine_preflight": 41.366859,
-        "machine_transform": 222.750023,
-        "object": 170.491045,
-        "other": 1.407781,
-        "partition": 103.204567,
-        "total": 781.954349,
-        "transform_call_classes": 64.845779,
-        "transform_checked_add": 9.102955,
-        "transform_purity": 13.083108,
-        "transform_ranges": 129.996511,
-        "transform_scalar": 5.466282
+        "diagnostic": 9.956199,
+        "link_execution": 44.49288,
+        "link_key": 39.152156,
+        "machine_emit": 407.67702,
+        "machine": 708.846546,
+        "machine_preflight": 27.477746,
+        "machine_transform": 295.434045,
+        "object": 124.58735,
+        "other": 2.810672,
+        "partition": 17.851848,
+        "total": 947.697651,
+        "transform_call_classes": 274.850231,
+        "transform_checked_add": 1.280799,
+        "transform_purity": 0.621711,
+        "transform_ranges": 15.352715,
+        "transform_scalar": 2.88053
+      },
+      "producer": {
+        "lower_modules": 1,
+        "normalize_modules": 1,
+        "recovered_frontend_modules": 101,
+        "restore_modules": 1,
+        "reused_lower_modules": 101
       },
       "backend_work": {
+        "checked_add_functions_checked": 161,
+        "checked_add_functions_reused": 0,
+        "lowered_functions": 5105,
+        "machine_preflights_checked": 3,
+        "machine_preflights_reused": 2,
+        "native_history_payload_bytes": 0,
+        "native_history_restored_units": 0,
+        "native_history_retained_epochs": 0,
         "produced_body_templates": 244,
+        "rebuilt_call_class_inputs": 252,
+        "rebuilt_call_class_keys": 243,
+        "rebuilt_partition_items": 1331,
+        "rebuilt_partition_units": 16,
+        "rendered_diagnostic_items": 166,
         "representation_functions_checked": 248,
         "representation_functions_reused": 4857,
         "reused_body_templates": 4857,
+        "reused_call_class_inputs": 4857,
+        "reused_call_class_keys": 4857,
+        "reused_diagnostic_items": 0,
+        "reused_functions": 0,
+        "reused_link": false,
+        "reused_machine_module": false,
+        "reused_machine_transforms": false,
+        "reused_object_keys": 0,
+        "reused_partition": false,
+        "reused_partition_items": 0,
+        "reused_partition_layout": false,
+        "reused_partition_recipe": false,
+        "reused_partition_units": 0,
+        "scoped_thread_functions_checked": 5105,
+        "scoped_thread_functions_reused": 0,
         "shared_admission_reuses": 4857,
-        "shared_body_template_reuses": 4857
+        "shared_body_template_reuses": 4857,
+        "source_projection_admission_reuses": 5105,
+        "source_projection_instruction_visits": 0,
+        "source_projection_reuses": 0,
+        "source_projection_traversals": 0,
+        "whole_machine_input_functions_compared": 0
       }
     }
   ],
   "changes": [
-    "Same-request semantic body index retains the exact current verified root and requires exhaustive original executable body equality after optional hash selection; outer function ID/name and diagnostic spans only are rebound. Private class keys cannot be minted for detached functions. It now feeds all representation/admission/Copy/ABI/metadata/projection/emission consumers, with original fees and full fallback. Actual firstedit shared admission/template hits4857, representation248 checked/4857 reused.",
-    "Current-machine range analysis indexes immutable body transfers once and omits only unconditional Top operations. Every use still reads current return/argument/intrinsic facts, pays original complete fees and retains independent original-model preflight. Original walker remains reference oracle; budget-prefix/current-World/malformed-model parity tests added.",
-    "Per-transform nested timing now separates ranges, checked-add, scalar folding, call classes and purity. These overlap parent transform/preflight totals and must not be summed with parents."
+    "Trusted-local per-module raw Core/SourceMap/ordered frontend fee candidates bind exact current source bytes, placement, parser admission, full current context/target/limit domain. Current-source errors and insufficient budgets re-enter the original path; successful source/CT products never deserialize checker authority.",
+    "Close/edit/restart now recovers101 unchanged modules and produces1; Source/Core complete output and all fee-prefix controls pass. Parser eviction retains equal actual recovered inputs under exact parser configuration/source checks; after actual lowering equal Core leaves keep current-process CT owner continuity. Original1check/305reuse regression unchanged and passes.",
+    "Explicit bounded-classes-128-v4 constructs current classes before range/scalar planning, validates the complete original model, protects exports/address roots, atomically prunes unreachable definitions, restores surviving linkage, and passes only accounted source removals to partition. Original pre-prune source copy cap is bound to both planner/validator, layout keys, resident equality and fallback.",
+    "Independent qualifier reconstructs the exact compact current class-production snapshot, checks full class/source body equality at that boundary and recomputes source copy cap, then checks live ABI/purity/opcode/DAG/physical layouts and all257inputs. Full actual-unit preflight/fullO2 remain. Real private-edit machine graph166items, partition materialization1331items; hits alone are not a compile win."
   ],
   "gates": {
-    "source": "de43085b1416970a00d19c2b8b11da93172612f5",
-    "path": "out/runs/direct-firstedit-native-gates-46-de43085b1416",
+    "source": "bef2a67ee97e75d3609971269688cd11f23cce0e",
+    "path": "out/runs/direct-firstedit-native-gates-49-bef2a67ee97e",
     "checks": {
       "publication": {
-        "exit_code": 0,
         "valid": true,
         "test_results": [
           [
@@ -172,39 +254,103 @@
         ]
       },
       "fmt": {
-        "exit_code": 0,
         "valid": true,
         "test_results": []
       },
-      "backend": {
-        "exit_code": 0,
+      "expand": {
         "valid": true,
         "test_results": [
           [
             "ok",
-            "372",
+            "145",
+            "0",
+            "0"
+          ]
+        ]
+      },
+      "ct": {
+        "valid": true,
+        "test_results": [
+          [
+            "ok",
+            "78",
             "0",
             "0"
           ]
         ]
       },
       "release": {
-        "exit_code": 0,
         "valid": true,
         "test_results": [],
-        "sha256": "c01edb9b89b016aaf1d39524b825d4c0da5cdae3ebfa59dc380bec619964fb15"
+        "sha256": "607a32b3acd7ded7e0c04fd8b0e26ad4663880d5f040efbdb5ffd591c47d143a"
       },
       "strict": {
-        "exit_code": 0,
         "valid": true,
         "test_results": []
+      },
+      "driver": {
+        "valid": true,
+        "test_results": [
+          [
+            "ok",
+            "239",
+            "0",
+            "0"
+          ]
+        ]
       }
     }
   },
-  "unchanged_checks_reused": "Expand137/Driver235 gates45; Types121 gates43; CT78 gates42; IR94 gates39; Analyze310/Verify657 gates36; API105 gates35. Nativepublication2/strict/backend372/fmt/release gates46 cover this final chain. Independent A/V unchanged.",
-  "review": "Nonauthor Wegener reviewed all semantic body index consumers; root reviewed Astra range-plan semantics and independent reference tests. No permissions persisted, current full inputs/default limits/full O2 maintained.",
-  "raw": "out/runs/direct-firstedit-performance-direct-20",
-  "previous_formal_result": "https://github.com/zil-lang/zil/blob/75f459af5f01eef820f192081ad14d92b9140bf3/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
+  "unchanged_checks_reused": "Backend376 and toolpolicy31 gates48 ca7d32db5; changes since then confined to Core owner continuation, retry reason provenance and two Source controls. Independent A/V unchanged: Analyze310/Verify657 gates36, API105 gates35, IR94 gates39, Types121 gates43. CT78 rechecked49.",
+  "review": "Astra Euler reviewed backend fullchain and found resident-copy-cap and qualifier-boundary gaps; root fixed current inputs, Euler implemented independent qualifier; root reviewed witness, all qualifier31/backend376 controls passed. Root reviewed Astra Source/Core codec/replay and continuation exact paths. Default language fees/limits/fullO2 preserved.",
+  "failures_preserved": [
+    "gates47: new backend test imports used private IR identities; driver load result triggered strict type-complexity. Fixed mechanically, no old release used.",
+    "gates48: driver237PASS/2FAIL; recovered parser-LRU/leaf identity lost CT continuation (210checks/96reuse instead1/305), and candidate retry reason precedence changed. Fixed actual retention/provenance, original assertions retained; gates49driver239PASS.",
+    "profile tool perf task-clock userspace sampling unavailable under kernel policy, also outside outer sandbox; no kernel configuration changed."
+  ],
+  "raw": "out/runs/direct-firstedit-performance-direct-21",
+  "previous_formal_result": "https://github.com/zil-lang/zil/blob/81b569edb38e2612728acd97025f2da3304bb821/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
   "unresolved": "Actualmain defaultResourceLimit remains failure and excluded from ratios. Industrialmulti-crate/proc-macro/build.rs/minute/GB/currentnative ordinaryCLI coverage incomplete; no main merge; comprehensive Rust goal open.",
-  "diagnostic_failure": "First profile20 invocation lacked LD_LIBRARY_PATH; CLI loader exit127 before compiler ran. Kept separately, not performance or product failure."
+  "diagnostic_only": {
+    "path": "out/runs/native-direct-profile-21/private-001.json",
+    "not_formal_Rust_ratio": true,
+    "exclusive_ms": {
+      "analyze": 322.157026,
+      "codegen": 538.201064,
+      "ct": 50.904453,
+      "discovery_receipt_publication": 4.852553,
+      "expand_assembly": 0.445486,
+      "expand_context": 4.463835,
+      "expand_materialization": 20.492551,
+      "expand_other": 69.989213,
+      "expand_production": 13.136935,
+      "expand_reuse": 2.036836,
+      "frontend_product_publication": 98.089808,
+      "frontend_product_read": 12.055323,
+      "function_cache_publication": 19.137972,
+      "function_cache_read": 75.327713,
+      "function_checkpoint": 0.048895,
+      "lower": 4.353298,
+      "owner_binding": 0.038809,
+      "parse": 0.116659,
+      "producer_checkpoint": 0.021984,
+      "project_setup": 1.266296,
+      "semantic_cache_read": 7.116038,
+      "semantic_candidate_publication": 96.447533,
+      "source_ingress": 93.257376,
+      "types_cfg_execute": 0.132049,
+      "types_cfg_reuse": 23.297854,
+      "types_cfg_store": 0.028854,
+      "types_context": 15.547217,
+      "types_core_comparison": 0.0,
+      "types_graph_maintenance": 0.0,
+      "types_input_inventory": 2.391435,
+      "types_other": 52.360621,
+      "types_projection_context": 3.048974,
+      "types_query_evaluation": 24.44081,
+      "types_shape": 10.65904,
+      "verify": 67.791949
+    },
+    "unassigned_ms": 45.206758
+  }
 }
