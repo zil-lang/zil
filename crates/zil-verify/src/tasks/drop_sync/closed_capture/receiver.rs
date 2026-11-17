@@ -3,6 +3,10 @@
 use super::*;
 
 fn replaces(i: &InstructionKind, local: LocalId) -> bool {
+    // The same physical owner-write directory guards complete consuming
+    // proofs and per-drop Closed witnesses. A write without an exact after
+    // summary cannot retain this receiver's old occupant/generation.
+    if environment_owner_write(i).is_some(){return true;}
     match i {
         InstructionKind::Store { local: changed, .. }
         | InstructionKind::BorrowLocalMut { local: changed }
@@ -245,4 +249,15 @@ pub(super) fn allow_at(
         }
     }
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+    #[test]
+    fn every_physical_owner_write_forgets_the_previous_receiver_observation(){
+        let local=LocalId(0);let value=ValueId(0);
+        for kind in [InstructionKind::WriteAddress{address:ValueId(1),value},InstructionKind::WriteDesc{desc:ValueId(1),index:0,value},InstructionKind::CommitPlaceReplace{reservation:ReservationId(0),value},InstructionKind::StorePackageField{local:LocalId(1),index:0,value},InstructionKind::StoreOwnedArrayElement{local:LocalId(1),index:0,value},InstructionKind::OwnedStorePush{store:ValueId(1),value}]{assert!(replaces(&kind,local),"a physical owner write needs a complete after-source summary");}
+        assert!(!replaces(&InstructionKind::Store{local:LocalId(1),value},local),"a view-local store does not replace its referent");
+    }
 }

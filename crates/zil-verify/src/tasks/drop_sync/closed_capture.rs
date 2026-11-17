@@ -154,13 +154,17 @@ fn inventory(
 // The first closed-capture consumer deliberately requires stable task fields.
 // Replacement, escaping mutable heads, and nested invocations need their own
 // occupant summaries; none is inferred from matching closure/class numbers.
-fn stable_entry(code: &Code<'_>, d: &ClosureDefinition, b: &mut Budget) -> Check<bool> {
+fn stable_entry(module:&TypedModule,code: &Code<'_>, d: &ClosureDefinition, b: &mut Budget) -> Check<bool> {
     for (block, row) in code.f.blocks.iter().enumerate() {
         if !code.reachable[block] {
             continue;
         }
         for instruction in &row.instructions {
             b.spend(1)?;
+            if let Some(value)=environment_owner_write(&instruction.kind){
+                let Some(ty)=code.f.values.get(value.0 as usize)else{return Ok(false);};
+                if contains_kind(module,ty,b,false)?||contains_kind(module,ty,b,true)?{return Ok(false);}
+            }
             match &instruction.kind {
                 InstructionKind::TakeCapture { index }
                 | InstructionKind::WriteCapture { index, .. }
@@ -373,7 +377,7 @@ fn exits(module: &TypedModule, id: ClosureId, b: &mut Budget) -> Check<Option<Ex
         return Ok(None);
     };
     let code = Code::new(&module.functions[d.function.0 as usize], b)?;
-    if !stable_entry(&code, d, b)? {
+    if !stable_entry(module,&code, d, b)? {
         return Ok(None);
     }
     let mut proof = ExitProof::default();
@@ -443,4 +447,32 @@ pub(super) fn after_once(
     let Some(proof) = exits(module, id, b)? else { return Ok(false); };
     b.spend(tasks.len().saturating_mul(proof.always.len().saturating_add(1)))?;
     Ok(tasks.into_iter().all(|capture| proof.always.contains(&capture)))
+}
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+    fn model()->TypedModule{
+        let(mut module,_)=crate::tests::baseline();let span=module.functions[0].span;let op=|result:Option<u32>,kind|Instruction{result:result.map(ValueId),kind,span};
+        let task=Type::Managed(Box::new(Type::Task{result:Box::new(Type::I32),retained_life:super::super::super::empty_context()}));let address=Type::Address{mutable:true,inner:Box::new(task)};let poll=super::super::super::task_poll_type(&Type::Unit);
+        let mut entry=module.functions[0].clone();entry.id=FunctionId(1);entry.name="close_each_actual_capture".into();entry.environment=Some(ClosureId(0));entry.parameters.clear();entry.locals.clear();entry.values=vec![address.clone(),poll.clone(),Type::I32,Type::I32,Type::Bool,address,poll,Type::I32,Type::Bool,Type::I32];
+        entry.blocks=vec![BasicBlock{id:BlockId(0),instructions:vec![op(Some(0),InstructionKind::BorrowCapture{index:0,mutable:true}),op(Some(1),InstructionKind::TaskPollClose{task:ValueId(0)}),op(Some(2),InstructionKind::VariantTag{value:ValueId(1)}),op(Some(3),InstructionKind::Constant(Constant::I32(1))),op(Some(4),InstructionKind::Binary{op:BinaryOp::Equal,left:ValueId(2),right:ValueId(3)})],terminator:Terminator::Branch{condition:ValueId(4),then_block:BlockId(1),else_block:BlockId(0)}},BasicBlock{id:BlockId(1),instructions:vec![op(Some(5),InstructionKind::BorrowCapture{index:1,mutable:true}),op(Some(6),InstructionKind::TaskPollClose{task:ValueId(5)}),op(Some(7),InstructionKind::VariantTag{value:ValueId(6)}),op(Some(8),InstructionKind::Binary{op:BinaryOp::Equal,left:ValueId(7),right:ValueId(3)})],terminator:Terminator::Branch{condition:ValueId(8),then_block:BlockId(2),else_block:BlockId(1)}},BasicBlock{id:BlockId(2),instructions:vec![op(Some(9),InstructionKind::Constant(Constant::I32(0)))],terminator:Terminator::Return(Some(ValueId(9)))}];entry.entry=BlockId(0);
+        let caller=&mut module.functions[0];caller.environment=None;caller.parameters=vec![LocalId(0)];caller.locals=vec![LocalDecl{id:LocalId(0),name:"callback".into(),ty:Type::Closure(ClosureId(0)),mutable:true,span}];caller.values=vec![Type::I32];caller.blocks=vec![BasicBlock{id:BlockId(0),instructions:vec![op(Some(0),InstructionKind::CallClosureMut{callee:LocalId(0),arguments:vec![]})],terminator:Terminator::Return(Some(ValueId(0)))}];caller.entry=BlockId(0);
+        let Type::Address{inner:task,..}=&entry.values[0]else{unreachable!()};module.closures=vec![ClosureDefinition{id:ClosureId(0),function:FunctionId(1),captures:vec![*task.clone(),*task.clone()],parameters:vec![],result:Type::I32,kind:CallableKind::FnMut,storage_life:None,lending_captures:vec![]}];module.functions.push(entry);module
+    }
+    fn wire(module:&TypedModule)->TypedModule{let limits=Limits::default();let bytes=zil_ir::wire::encode_module_candidate(module,&CandidatePlan::empty_for(module),&limits).unwrap();zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0}
+    fn closed(module:&TypedModule)->(bool,bool){let mut b=Budget::new(&Limits::default());b.task_origin_roots=true;let at=module.functions[0].blocks[0].instructions.iter().position(|instruction|matches!(instruction.kind,InstructionKind::CallClosureMut{..})).unwrap()+1;(after_once(module,ClosureId(0),&mut b).unwrap(),allow_at(module,&module.functions[0],LocalId(0),(0,at),&mut b).unwrap())}
+    #[test]
+    fn both_same_type_captures_need_their_own_ready_edges_and_unchanged_occupants_raw_wire(){
+        let module=model();for module in [&module,&wire(&module)]{assert_eq!(closed(module),(true,true));}
+        for attack in 0..3{
+            let mut changed=module.clone();let entry=&mut changed.functions[1];let span=entry.span;
+            match attack{
+                0=>entry.blocks[1].instructions[1].kind=InstructionKind::TaskPollClose{task:ValueId(0)},
+                1=>{entry.values.push(Type::Unit);entry.blocks[1].instructions.insert(1,Instruction{result:Some(ValueId(10)),kind:InstructionKind::Constant(Constant::Unit),span});entry.blocks[1].instructions[2].kind=InstructionKind::MakeVariant{variant:1,fields:vec![ValueId(10)]};},
+                _=>{let task=changed.closures[0].captures[0].clone();changed.closures[0].parameters=vec![task.clone()];entry.parameters=vec![LocalId(0)];entry.locals=vec![LocalDecl{id:LocalId(0),name:"replacement".into(),ty:task.clone(),mutable:true,span}];entry.values.push(task.clone());entry.blocks[2].instructions.extend([Instruction{result:Some(ValueId(10)),kind:InstructionKind::TakeLocal{local:LocalId(0)},span},Instruction{result:None,kind:InstructionKind::ReservePlaceAddress{reservation:ReservationId(0),address:ValueId(0),path:vec![]},span},Instruction{result:None,kind:InstructionKind::CommitPlaceReplace{reservation:ReservationId(0),value:ValueId(10)},span}]);let caller=&mut changed.functions[0];caller.parameters.push(LocalId(1));caller.locals.push(LocalDecl{id:LocalId(1),name:"replacement_input".into(),ty:task.clone(),mutable:true,span});caller.values.push(task);caller.blocks[0].instructions[0].kind=InstructionKind::CallClosureMut{callee:LocalId(0),arguments:vec![ValueId(1)]};caller.blocks[0].instructions.insert(0,Instruction{result:Some(ValueId(1)),kind:InstructionKind::TakeLocal{local:LocalId(1)},span});},
+            }
+            for changed in [&changed,&wire(&changed)]{assert_eq!(closed(changed),(false,false),"same-type/Ready/replacement control {attack}");}
+        }
+    }
 }

@@ -1033,6 +1033,12 @@ pub(crate) fn closed_capture_sources(module:&TypedModule,id:ClosureId,index:u32,
 /// This is a conservative after-source boundary, not a source of permissions.
 /// View-local Store/StorageDead never mutates its referent. Physical writes of
 /// Task-bearing owners and unresolved call targets require an after-summary.
+fn environment_owner_write(kind:&InstructionKind)->Option<ValueId>{
+    match kind{
+        InstructionKind::WriteAddress{value,..}|InstructionKind::WriteDesc{value,..}|InstructionKind::CommitPlaceReplace{value,..}|InstructionKind::StorePackageField{value,..}|InstructionKind::StoreOwnedArrayElement{value,..}|InstructionKind::OwnedStorePush{value,..}=>Some(*value),
+        _=>None,
+    }
+}
 fn check_environment_mutations(module:&TypedModule,entry:FunctionId,b:&mut Budget)->Check<()>{
     let mut pending=vec![entry];let mut seen=BTreeSet::new();
     while let Some(id)=pending.pop(){
@@ -1046,10 +1052,7 @@ fn check_environment_mutations(module:&TypedModule,entry:FunctionId,b:&mut Budge
         }
         for block in &function.blocks{for instruction in &block.instructions{
             b.spend(1)?;
-            let written=match &instruction.kind{
-                InstructionKind::WriteAddress{value,..}|InstructionKind::WriteDesc{value,..}|InstructionKind::CommitPlaceReplace{value,..}|InstructionKind::StorePackageField{value,..}|InstructionKind::StoreOwnedArrayElement{value,..}|InstructionKind::OwnedStorePush{value,..}=>Some(*value),
-                _=>None,
-            };
+            let written=environment_owner_write(&instruction.kind);
             if let Some(value)=written{
                 let ty=function.values.get(value.0 as usize).ok_or_else(||reject("E-VERIFY-TASK",Some(instruction.span),"environment replacement operand is absent"))?;
                 if contains_kind(module,ty,b,false)?||contains_kind(module,ty,b,true)?{return Err(unsupported("environment owner replacement needs its complete after-source summary",Some(instruction.span)));}

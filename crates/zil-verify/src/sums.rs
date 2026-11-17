@@ -4,6 +4,8 @@ use super::*;
 use std::collections::{BTreeMap, VecDeque};
 #[cfg(test)]
 mod closure_product_tests;
+#[cfg(test)]
+mod task_cleanup_tests;
 mod dirty_tags;
 mod initialization;
 #[cfg(test)]
@@ -1866,8 +1868,6 @@ struct Flow<'a> {
     // Positive shape proofs only. The function borrow fixes each local Type;
     // strong references make cached Content identities immutable until eviction.
     tag_cache: Option<std::cell::RefCell<tag_cache::Cache<'a>>>,
-    address_replacement_tags: bool,
-    owned_creation: bool,
     replacements: Option<&'a replacements::Context<'a>>,
 }
 
@@ -1986,9 +1986,10 @@ impl Flow<'_> {
                     return Ok(false);
                 }
             }
-            if self.address_replacement_tags || self.owned_creation {
-                replacements::refine_actual_error_arm(state, local, tag, equal, budget)?;
-            }
+            // A live exact tag observes this current ErrorUnion occupant.
+            // Its active-arm facts do not depend on whether this function
+            // constructed the value or received it through a helper/input.
+            replacements::refine_actual_error_arm(state, local, tag, equal, budget)?;
         }
         let Terminator::Branch {
             condition,
@@ -2835,7 +2836,6 @@ impl Flow<'_> {
                         ));
                     }
                     if record
-                        && self.owned_creation
                         && !matches!(
                             instruction.kind,
                             InstructionKind::StorageLive(_) | InstructionKind::StorageDead(_)
@@ -3053,14 +3053,12 @@ fn run_retaining<'m>(
     let mut partial = false;
     let mut address_tag = false;
     let mut address_replacement = false;
-    let mut owned_creation = false;
     let mut definitions = vec![None; f.values.len()];
     let mut observers = vec![None; f.values.len()];
     for (b, block) in f.blocks.iter().enumerate() {
         for (i, instruction) in block.instructions.iter().enumerate() {
             budget.spend(1)?;
             address_tag |= matches!(instruction.kind, InstructionKind::PlaceTagAddress { .. });
-            owned_creation |= matches!(instruction.kind, InstructionKind::TaskCreateOwned { .. });
             address_replacement |= matches!(
                 instruction.kind,
                 InstructionKind::ReservePlaceAddress { .. }
@@ -3159,8 +3157,6 @@ fn run_retaining<'m>(
         summaries,
         partial,
         replacements,
-        address_replacement_tags,
-        owned_creation,
         tagged_locals,
         tag_cache: (partial && indexed_invalidation(budget))
             .then(|| std::cell::RefCell::new(tag_cache::Cache::new(f))),
