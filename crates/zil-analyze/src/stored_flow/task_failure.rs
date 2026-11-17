@@ -80,8 +80,7 @@ pub(super) fn plain_input_carrier(
     };
     if !matches!(view, Type::Package { name, .. }
             if name.starts_with("@std.task:v1:TaskCreateFailure:"))
-        && !matches!(view, Type::Tuple(fields)
-            if fields.iter().any(|field| matches!(field, Type::Closure(_))))
+        && !matches!(view, Type::Tuple(_))
     {
         return Ok(false);
     }
