@@ -26,6 +26,7 @@ mod nominal_fields;
 mod operations;
 mod parameter_classes;
 mod pattern_places;
+mod persistent_slots;
 mod protocol_values;
 mod registration;
 mod registration_observe;
