@@ -362,7 +362,7 @@ impl generics::products::Products {
                         continue;
                     }
                 }
-                let (name, ty, span) = if emission.enumeration {
+                let (_name, ty, span) = if emission.enumeration {
                     budget.identity_work(expanded.core.enums.len(), module.span)?;
                     let value = expanded
                         .core

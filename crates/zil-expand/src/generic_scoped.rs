@@ -328,45 +328,6 @@ impl Check<'_, '_, '_> {
         }
         Ok(())
     }
-    pub(super) fn scoped_callback_block(&mut self, block: &Block, depth: usize) -> R<bool> {
-        self.budget.node(block.span, depth)?;
-        for statement in &block.statements {
-            self.budget.node(statement.span, depth + 1)?;
-            match &statement.kind {
-                StmtKind::Return(Some(e))
-                | StmtKind::Expression(e)
-                | StmtKind::Binding { value: e, .. }
-                    if matches!(&e.kind,ExprKind::Call{callee,..} if matches!(super::super::super::foreign::bare_name(callee),Some("c_with_callback"|"c_register"|"c_register_async"))) =>
-                {
-                    return Ok(true);
-                }
-                StmtKind::Unsafe(body)
-                | StmtKind::Loop(body)
-                | StmtKind::While { body, .. }
-                | StmtKind::For { body, .. } => {
-                    if self.scoped_callback_block(body, depth + 1)? {
-                        return Ok(true);
-                    }
-                }
-                StmtKind::If {
-                    then_body,
-                    else_body,
-                    ..
-                } => {
-                    if self.scoped_callback_block(then_body, depth + 1)? {
-                        return Ok(true);
-                    }
-                    if let Some(ElseBranch::Block(body)) = else_body
-                        && self.scoped_callback_block(body, depth + 1)?
-                    {
-                        return Ok(true);
-                    }
-                }
-                _ => {}
-            }
-        }
-        Ok(false)
-    }
     pub(super) fn scoped_callback_call(
         &mut self,
         arguments: &[Argument],

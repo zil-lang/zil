@@ -3,7 +3,6 @@
 //! ordinary type/analyze/independent-Verify pipeline. No trait grants capability.
 use super::*;
 use crate::generics::{Budget as TraitBudget, trait_instances};
-use crate::receivers::substitute_self;
 
 fn plain_name(ty: &s::TypeRef) -> Option<&str> {
     match &ty.kind {
