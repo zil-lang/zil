@@ -47,10 +47,15 @@ enum Prototype<'a> {
     Formal { owner: usize, ordinal: u32 },
     Premises { owner: usize, ty: &'a SemanticTypeRecipe },
 }
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct InputRole { owner: usize, ordinal: u32 }
+
 struct Vertex {
     explicit: Option<CallKind>,
     suspend: bool,
     edges: Vec<usize>,
+    consumes: Vec<InputRole>,
+    forwards: Vec<(InputRole, InputRole)>,
 }
 struct Scan<'a, 'd, 'b, 'l> {
     definitions: &'d [&'a SemanticDefinition],
@@ -89,7 +94,111 @@ fn declaration_index(
         .iter()
         .position(|definition| definition.id == id))
 }
+// Only a real by-value original input can acquire a consuming upper. This
+// excludes opaque result promises, code signatures and non-consuming roles.
+fn input_formal(ty: &SemanticTypeRecipe) -> Option<u32> {
+    match ty {
+        SemanticTypeRecipe::Formal(SemanticFormalRef { scope: SemanticScopeRef::Ancestor(0), ordinal }) => Some(*ordinal),
+        _ => None,
+    }
+}
+fn once_requirements(
+    requirements: &[SemanticRequirementRecipe], ordinal: u32,
+    found: &mut bool, other: &mut bool, budget: &mut Budget<'_>, depth: usize,
+) -> R<()> {
+    for requirement in requirements {
+        budget.node(Span::default(), depth)?;
+        match requirement {
+            SemanticRequirementRecipe::Callable { ty, kind, .. } if input_formal(ty) == Some(ordinal) => {
+                if *kind == CallableKind::FnOnce { *found = true; } else { *other = true; }
+            }
+            SemanticRequirementRecipe::ForAll { requirements, .. } =>
+                once_requirements(requirements, ordinal, found, other, budget, depth + 1)?,
+            _ => {}
+        }
+    }
+    Ok(())
+}
+fn input_once(definition: &SemanticDefinition, ordinal: u32, budget: &mut Budget<'_>) -> R<bool> {
+    let Some(signature) = signature(definition) else { return Ok(false); };
+    budget.identity_work(signature.parameters.len(), Span::default())?;
+    if !signature.parameters.iter().any(|parameter| input_formal(&parameter.ty) == Some(ordinal)) {
+        return Ok(false);
+    }
+    let mut found = false;
+    let mut other = false;
+    if let Some(SemanticFormal::Type { requirements }) = definition.parameters.get(ordinal as usize) {
+        once_requirements(requirements, ordinal, &mut found, &mut other, budget, 0)?;
+    }
+    once_requirements(&definition.requirements, ordinal, &mut found, &mut other, budget, 0)?;
+    Ok(found && !other)
+}
+fn promote_once(
+    requirements: &mut [SemanticRequirementRecipe], ordinal: u32,
+    budget: &mut Budget<'_>, depth: usize,
+) -> R<bool> {
+    let mut changed = false;
+    for requirement in requirements {
+        budget.node(Span::default(), depth)?;
+        match requirement {
+            SemanticRequirementRecipe::Callable { ty, kind: CallableKind::FnOnce, signature }
+                if input_formal(ty) == Some(ordinal) => {
+                changed |= signature.call_kind != CallKind::Suspend;
+                signature.call_kind = CallKind::Suspend;
+            }
+            SemanticRequirementRecipe::ForAll { requirements, .. } =>
+                changed |= promote_once(requirements, ordinal, budget, depth + 1)?,
+            _ => {}
+        }
+    }
+    Ok(changed)
+}
 impl<'a> Scan<'a, '_, '_, '_> {
+    fn input_role(&mut self, target: Target, span: Span) -> R<Option<InputRole>> {
+        self.budget.node(span, 0)?;
+        let Target::Prototype(index, _) = target else { return Ok(None); };
+        let Prototype::Formal { owner, ordinal } = self.prototypes[index] else { return Ok(None); };
+        Ok(input_once(self.definitions[owner], ordinal, self.budget)?
+            .then_some(InputRole { owner, ordinal }))
+    }
+    fn forwarded_inputs(
+        &mut self, target: Target, arguments: &'a [SemanticOriginalExpr], receiver: bool, span: Span, depth: usize,
+    ) -> R<()> {
+        if self.observations.is_some() { return Ok(()); }
+        let owner = match target {
+            Target::Definition(owner) | Target::AppliedDefinition { owner, .. } => owner,
+            _ => return Ok(()),
+        };
+        let Some(signature) = signature(self.definitions[owner]) else { return Ok(()); };
+        // An actual receiver occupies its original value-parameter ordinal.
+        // No missing receiver/spread is guessed from an equal type or spelling.
+        let start = if signature.parameters.len() == arguments.len() { 0 }
+            else if receiver && signature.parameters.len() == arguments.len().saturating_add(1)
+                && matches!(&self.definitions[owner].body,
+                    SemanticDefinitionBody::FunctionWithBody { receiver_parameter: Some(0), .. }) { 1 }
+            else { return Ok(()); };
+        for (parameter, argument) in signature.parameters[start..].iter().zip(arguments) {
+            self.budget.node(argument.span, depth)?;
+            let Some(ordinal) = input_formal(&parameter.ty) else { continue; };
+            if !input_once(self.definitions[owner], ordinal, self.budget)? { continue; }
+            let actual = self.target(argument, depth + 1)?;
+            let mut pending = Vec::new();
+            self.budget.lineage_push(&mut pending, (actual, depth + 1), span)?;
+            while let Some((actual, depth)) = pending.pop() {
+                self.budget.node(span, depth)?;
+                if let Target::Alternatives(index) = actual {
+                    let (left, right) = self.alternatives[index];
+                    self.budget.lineage_push(&mut pending, (left, depth + 1), span)?;
+                    self.budget.lineage_push(&mut pending, (right, depth + 1), span)?;
+                } else if let Some(source) = self.input_role(actual, argument.span)? {
+                    self.budget.lineage_push(&mut self.vertex.forwards,
+                        (source, InputRole { owner, ordinal }), span)?;
+                }
+            }
+            self.budget.drop_lineage_vec(pending, span)?;
+        }
+        Ok(())
+    }
     fn requirement_prototypes(
         &mut self, ty: &SemanticTypeRecipe, requirements: &'a [SemanticRequirementRecipe],
         frames: &mut Vec<u32>, found: &mut Vec<(&'a SemanticSignatureRecipe, Vec<u32>)>,
@@ -201,9 +310,27 @@ impl<'a> Scan<'a, '_, '_, '_> {
         Ok(())
     }
     fn edge(&mut self, target: Target, span: Span) -> R<()> {
+        let mut pending = Vec::new();
+        self.budget.lineage_push(&mut pending, (target, 0usize), span)?;
+        while let Some((target, depth)) = pending.pop() {
+            self.budget.node(span, depth)?;
+            if let Target::Alternatives(index) = target {
+                let (left, right) = self.alternatives[index];
+                self.budget.lineage_push(&mut pending, (left, depth + 1), span)?;
+                self.budget.lineage_push(&mut pending, (right, depth + 1), span)?;
+            } else { self.edge_one(target, span)?; }
+        }
+        self.budget.drop_lineage_vec(pending, span)
+    }
+    fn edge_one(&mut self, target: Target, span: Span) -> R<()> {
         if self.collect_targets { self.budget.lineage_push(&mut self.resolved_targets, target, span)?; }
         if let Some(call) = self.call {
             self.observe_target(call, target, span)?;
+        }
+        if self.observations.is_none() {
+            if let Some(role) = self.input_role(target, span)? {
+                self.budget.lineage_push(&mut self.vertex.consumes, role, span)?;
+            }
         }
         match target {
             Target::Kind(CallKind::Direct) | Target::Prototype(_, CallKind::Direct) | Target::StoreBorrow | Target::OwnedDynFactory => {}
@@ -338,7 +465,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
     ) -> R<Target> {
         self.budget.node(span, depth)?;
         Ok(match ty {
-            SemanticTypeRecipe::Tuple(fields) if self.observations.is_some() => {
+            SemanticTypeRecipe::Tuple(fields) => {
                 let mut values = Vec::new();
                 for field in fields {
                     let target = self.bound_type(owner, field, context, depth + 1, span)?;
@@ -442,11 +569,12 @@ impl<'a> Scan<'a, '_, '_, '_> {
                     span,
                 )?;
                 if let Some(kind) = found {
-                    if self.observations.is_some() {
-                        let index = self.prototypes.len();
-                        self.budget.lineage_push(self.prototypes, Prototype::Formal { owner, ordinal: reference.ordinal }, span)?;
-                        Target::Prototype(index, kind)
-                    } else { Target::Kind(kind) }
+                    // Preserve the original role through aliases/captures, even
+                    // when no call-region observer is installed. A CallKind
+                    // summary alone loses whose complete consume bound it is.
+                    let index = self.prototypes.len();
+                    self.budget.lineage_push(self.prototypes, Prototype::Formal { owner, ordinal: reference.ordinal }, span)?;
+                    Target::Prototype(index, kind)
                 } else { Target::FormalReceiver { owner, ordinal: reference.ordinal } }
             }
             SemanticTypeRecipe::Array { .. } | SemanticTypeRecipe::Slice(_) => {
@@ -707,7 +835,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
     fn target(&mut self, expression: &'a SemanticOriginalExpr, depth: usize) -> R<Target> {
         self.budget.node(expression.span, depth)?;
         match &expression.kind {
-            CoreExprKind::Tuple(fields) | CoreExprKind::Array(fields) if self.observations.is_some() => {
+            CoreExprKind::Tuple(fields) | CoreExprKind::Array(fields) => {
                 let mut values = Vec::new();
                 for field in fields {
                     let target = self.target(field, depth + 1)?;
@@ -1370,14 +1498,13 @@ impl<'a> Scan<'a, '_, '_, '_> {
         self.budget.node(pattern.span, depth)?;
         match &pattern.kind {
             CorePatternKind::Name(name) => self.bind(name, target, pattern.span)?,
-            CorePatternKind::Tuple(fields) if self.observations.is_some() => {
+            CorePatternKind::Tuple(fields) => {
                 for (ordinal, field) in fields.iter().enumerate() {
                     let target = if let Target::Elements { index, tuple: true } = target { self.elements[index].get(ordinal).copied().unwrap_or(Target::Unknown) } else { Target::Unknown };
                     self.pattern_value(field, target, depth + 1)?;
                 }
             }
-            CorePatternKind::Tuple(fields)
-            | CorePatternKind::Variant { fields, .. }
+            CorePatternKind::Variant { fields, .. }
             | CorePatternKind::Constructor { fields, .. } => {
                 for field in fields {
                     self.pattern(field, depth + 1)?
@@ -1467,11 +1594,9 @@ impl<'a> Scan<'a, '_, '_, '_> {
                         .find(|(local, _)| *local == name)
                     {
                         if *old != target {
-                            if self.observations.is_some() {
-                                let index = self.alternatives.len();
-                                self.budget.lineage_push(self.alternatives, (*old, target), statement.span)?;
-                                *old = Target::Alternatives(index);
-                            } else { *old = Target::Unknown }
+                            let index = self.alternatives.len();
+                            self.budget.lineage_push(self.alternatives, (*old, target), statement.span)?;
+                            *old = Target::Alternatives(index);
                         }
                     }
                 }
@@ -1611,16 +1736,29 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 .then_some(arguments.len());
                 let previous = self.call;
                 self.call = Some(expression.id);
+                let previous_collect = self.collect_targets;
+                let previous_targets = std::mem::take(&mut self.resolved_targets);
+                self.collect_targets = true;
                 self.invoke(callee, arity, depth + 1)?;
+                self.collect_targets = previous_collect;
+                let targets = std::mem::replace(&mut self.resolved_targets, previous_targets);
+                let mut head = callee.as_ref();
+                while let E::Group(inner) | E::TypeApply { callee: inner, .. } | E::GenericApply { callee: inner, .. } = &head.kind { head = inner; }
+                let receiver = matches!(head.kind, E::Member { .. } | E::ReceiverMember(_));
+                for target in &targets {
+                    self.forwarded_inputs(*target, arguments, receiver, expression.span, depth + 1)?;
+                }
+                self.budget.drop_lineage_vec(targets, expression.span)?;
                 // A worker invocation is an actual call of the original worker
                 // prototype, at this builtin call's real occurrence.
-                if self.observations.is_some() && let Some(worker) = arguments.first() {
+                if let Some(worker) = arguments.first() {
                     let mut builtin = callee.as_ref();
                     while let E::Group(inner) | E::TypeApply { callee: inner, .. } | E::GenericApply { callee: inner, .. } = &builtin.kind { builtin = inner; }
                     if matches!(&builtin.kind, E::Name(name) if matches!(name.as_str(), "thread_scope" | "task_create" | "task_create_owned" | "task_await"))
                         && matches!(self.target(callee, depth + 1)?, Target::Kind(_)) {
                         let target = self.target(worker, depth + 1)?;
                         self.observe_target(expression.id, target, expression.span)?;
+                        self.forwarded_inputs(target, &arguments[1..], false, expression.span, depth + 1)?;
                     }
                 }
                 self.call = previous;
@@ -1629,6 +1767,8 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 self.expression(input, depth + 1)?;
                 self.expression(target, depth + 1)?;
                 self.invoke(target, Some(1), depth + 1)?;
+                let called = self.target(target, depth + 1)?;
+                self.forwarded_inputs(called, std::slice::from_ref(input.as_ref()), false, expression.span, depth + 1)?;
             }
             E::MakeDynBorrow { source: value, .. }
             | E::MakeDynOwned { source: value, .. }
@@ -1838,7 +1978,7 @@ pub(super) fn observe_call_prototypes(
         if let Some((_, environment)) = captures.iter().find(|(owner, _)| *owner == index) {
             for entry in environment { budget.lineage_push(&mut locals, *entry, span)?; }
         }
-        let mut vertex = Vertex { explicit: None, suspend: false, edges: Vec::new() };
+        let mut vertex = Vertex { explicit: None, suspend: false, edges: Vec::new(), consumes: Vec::new(), forwards: Vec::new() };
         let mut scan = Scan { definitions: &definitions, owner: index, locals,
             captures: &mut captures, applications: &mut applications, store_elements: &mut store_elements,
             vertex: &mut vertex, budget, prototypes: &mut prototypes, alternatives: &mut alternatives, quantifiers: &mut quantifiers, elements: &mut elements, active_quantifiers: None, observations: Some(&mut observations), call: None, collect_targets: false, resolved_targets: Vec::new() };
@@ -1854,6 +1994,8 @@ pub(super) fn observe_call_prototypes(
         let resolved = std::mem::take(&mut scan.resolved_targets);
         scan.budget.drop_lineage_vec(resolved, span)?;
         budget.drop_lineage_vec(vertex.edges, span)?;
+        budget.drop_lineage_vec(vertex.consumes, span)?;
+        budget.drop_lineage_vec(vertex.forwards, span)?;
     }
     for (_, environment) in &mut captures { budget.drop_lineage_vec(std::mem::take(environment), span)?; }
     budget.drop_lineage_vec(captures, span)?;
@@ -1898,6 +2040,8 @@ pub(super) fn propose(
             explicit,
             suspend: explicit == Some(CallKind::Suspend),
             edges: Vec::new(),
+            consumes: Vec::new(),
+            forwards: Vec::new(),
         };
         budget.lineage_push(&mut vertices, vertex, Span::default())?;
         let mut parent = definition.parent;
@@ -2017,11 +2161,76 @@ pub(super) fn propose(
             break;
         }
     }
+    // Complete operation contexts, not actual closure instances, determine
+    // the candidate upper of an original input role. A Direct use constrains
+    // the role to Direct even when another use occurs in a Task continuation.
+    let mut roles = Vec::new();
+    for vertex in &vertices {
+        for role in vertex.consumes.iter().copied().chain(vertex.forwards.iter().map(|(source, _)| *source)) {
+            budget.identity_work(roles.len(), Span::default())?;
+            if !roles.contains(&role) { budget.lineage_push(&mut roles, role, Span::default())?; }
+        }
+    }
+    let mut eligible = Vec::new();
+    let mut witnessed = Vec::new();
+    for role in &roles {
+        let mut permits_suspend = true;
+        let mut consume = false;
+        for vertex in &vertices {
+            budget.identity_work(vertex.consumes.len(), Span::default())?;
+            if vertex.consumes.contains(role) {
+                consume = true;
+                permits_suspend &= vertex.explicit.unwrap_or(if vertex.suspend { CallKind::Suspend } else { CallKind::Direct }) == CallKind::Suspend;
+            }
+        }
+        budget.lineage_push(&mut eligible, permits_suspend, Span::default())?;
+        budget.lineage_push(&mut witnessed, consume, Span::default())?;
+    }
+    // Forwarding cycles need a real consuming endpoint. Propagate both that
+    // witness and every Direct restriction; equality of actual images never
+    // joins roles. Each bit changes at most once, including recursive SCCs.
+    loop {
+        let mut progress = false;
+        for vertex in &vertices {
+            for (source, destination) in &vertex.forwards {
+                budget.identity_work(roles.len().saturating_mul(2), Span::default())?;
+                let source = roles.iter().position(|role| role == source).expect("enumerated forwarding source");
+                let destination = roles.iter().position(|role| role == destination);
+                if eligible[source] && !destination.is_some_and(|index| eligible[index]) {
+                    eligible[source] = false;
+                    progress = true;
+                }
+                if !witnessed[source] && destination.is_some_and(|index| witnessed[index]) {
+                    witnessed[source] = true;
+                    progress = true;
+                }
+            }
+        }
+        if !progress { break; }
+    }
+    let mut promoted = Vec::new();
+    for (index, role) in roles.iter().enumerate() {
+        budget.node(Span::default(), 0)?;
+        if eligible[index] && witnessed[index] {
+            budget.lineage_push(&mut promoted, *role, Span::default())?;
+        }
+    }
+    budget.drop_lineage_vec(eligible, Span::default())?;
+    budget.drop_lineage_vec(witnessed, Span::default())?;
+    budget.drop_lineage_vec(roles, Span::default())?;
     budget.drop_lineage_vec(definitions, Span::default())?;
     let mut index = 0;
     for (_, module) in modules {
         for definition in &mut module.definitions {
             let vertex = &vertices[index];
+            budget.identity_work(promoted.len(), Span::default())?;
+            for role in &promoted {
+                if role.owner != index { continue; }
+                if let Some(SemanticFormal::Type { requirements }) = definition.parameters.get_mut(role.ordinal as usize) {
+                    promote_once(requirements, role.ordinal, budget, 0)?;
+                }
+                promote_once(&mut definition.requirements, role.ordinal, budget, 0)?;
+            }
             index += 1;
             let kind = vertex.explicit.unwrap_or(if vertex.suspend {
                 CallKind::Suspend
@@ -2035,10 +2244,17 @@ pub(super) fn propose(
             }
         }
     }
+    budget.drop_lineage_vec(promoted, Span::default())?;
     for vertex in &mut vertices {
         budget.drop_lineage_vec(std::mem::take(&mut vertex.edges), Span::default())?;
+        budget.drop_lineage_vec(std::mem::take(&mut vertex.consumes), Span::default())?;
+        budget.drop_lineage_vec(std::mem::take(&mut vertex.forwards), Span::default())?;
     }
-    budget.drop_lineage_vec(vertices, Span::default())
+    budget.drop_lineage_vec(vertices, Span::default())?;
+    // Every actual consume use of a promoted role already belongs to a
+    // Suspend vertex. Thus publication cannot introduce a new function effect
+    // edge, and never bootstraps a Suspend premise from its own invocation.
+    Ok(())
 }
 
 #[cfg(test)]
@@ -2182,4 +2398,88 @@ mod tests {
         assert_eq!(kind(5), CallKind::Suspend);
         assert_eq!(kind(6), CallKind::Suspend);
     }
+    fn original_module(text: &str) -> SemanticModule {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "consume-upper.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let limits = Limits::default();
+        let (origins, _) = source_context::capture_original_required(
+            std::slice::from_ref(&source), &[&parsed],
+            SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id, aliases: &BTreeMap::new(),
+                declarations: DeclarationPlacement::Original,
+            }, &limits,
+        ).unwrap();
+        let mut remaining = limits;
+        let (_, mut program) = super::super::program::prepare(
+            &[&parsed], &origins, &[Vec::new()], &mut remaining,
+        ).unwrap();
+        program.modules.remove(0).1
+    }
+    fn function<'a>(module: &'a SemanticModule, name: &str) -> &'a SemanticDefinition {
+        module.definitions.iter().find(|definition|
+            definition.identity.declaration_path.last().is_some_and(|part| part == name)
+                && signature(definition).is_some()).unwrap()
+    }
+    fn callable_uppers(requirements: &[SemanticRequirementRecipe], output: &mut Vec<CallKind>) {
+        for requirement in requirements {
+            match requirement {
+                SemanticRequirementRecipe::Callable { signature, .. } => output.push(signature.call_kind),
+                SemanticRequirementRecipe::ForAll { requirements, .. } => callable_uppers(requirements, output),
+                _ => {}
+            }
+        }
+    }
+    fn assert_input_upper(definition: &SemanticDefinition, ordinal: usize, expected: CallKind) {
+        let SemanticFormal::Type { requirements } = &definition.parameters[ordinal] else { panic!("original Type formal"); };
+        let mut uppers = Vec::new();
+        callable_uppers(requirements, &mut uppers);
+        callable_uppers(&definition.requirements, &mut uppers);
+        assert!(!uppers.is_empty());
+        assert!(uppers.iter().all(|upper| *upper == expected), "{uppers:?}");
+    }
+    #[test]
+    fn consuming_bounds_follow_original_contexts_not_actual_instances() {
+        let module = original_module(r#"
+fn pending<F:FnOnce()->i32>(callback:F)->i32{task_yield();return callback();}
+fn direct<F:FnOnce()->i32>(callback:F)->i32{return callback();}
+fn declared<F:FnOnce()->i32>(callback:F)->i32 contract{effects(io);}{task_yield();return callback();}
+fn unused<F:FnOnce()->i32>(callback:F){task_yield();}
+fn reading<F:Fn()->i32>(callback:F)->i32{task_yield();return callback();}
+fn mutating<F:FnMut()->i32>(callback:F)->i32{var work=callback;task_yield();return work();}
+fn forwarded<F:FnOnce()->i32>(callback:F)->i32{return pending(callback);}
+fn sync_forwarded<F:FnOnce()->i32>(callback:F)->i32{task_yield();return direct(callback);}
+fn tuple_alias<F:FnOnce()->i32>(callback:F)->i32{let pair=(callback,);let (work,)=pair;task_yield();return work();}
+fn captured<F:FnOnce()->i32>(callback:F)->i32{let worker=move()=>{task_yield();return callback();};return worker();}
+fn ranked<F:for<life a> FnOnce(&'a i32)->i32>(callback:F,value:&i32)->i32{task_yield();return callback(value);}
+fn where_bound<F>(callback:F)->i32 where F:FnOnce()->i32{task_yield();return callback();}
+fn main(){}
+"#);
+        for name in ["pending", "forwarded", "tuple_alias", "captured", "ranked", "where_bound"] {
+            assert_input_upper(function(&module, name), 0, CallKind::Suspend);
+        }
+        for name in ["direct", "declared", "unused", "reading", "mutating", "sync_forwarded"] {
+            assert_input_upper(function(&module, name), 0, CallKind::Direct);
+        }
+        assert_eq!(signature(function(&module, "captured")).unwrap().call_kind, CallKind::Suspend);
+        assert_eq!(signature(function(&module, "declared")).unwrap().call_kind, CallKind::Direct);
+        assert_eq!(signature(function(&module, "sync_forwarded")).unwrap().call_kind, CallKind::Suspend);
+    }
+    #[test]
+    fn original_pending_fixtures_publish_the_complete_consuming_upper() {
+        for text in [
+            include_str!("../../../tests/language-readiness/task-owner-transport/once-pending-callable-cleanup.zil"),
+            include_str!("../../../tests/language-readiness/task-owner-transport/once-pending-owned-result-cleanup.zil"),
+            include_str!("../../../tests/language-readiness/task-owner-transport/once-pending-returned-task-cleanup.zil"),
+        ] {
+            let module = original_module(text);
+            let parent = function(&module, "parent");
+            assert_eq!(signature(parent).unwrap().call_kind, CallKind::Suspend);
+            assert_input_upper(parent, 0, CallKind::Suspend);
+            let keep = function(&module, "keep");
+            // Constructing a callable does not execute its body or cleanup,
+            // and the opaque callable result is not an input consuming role.
+            assert_eq!(signature(keep).unwrap().call_kind, CallKind::Direct);
+        }
+    }
+
 }
