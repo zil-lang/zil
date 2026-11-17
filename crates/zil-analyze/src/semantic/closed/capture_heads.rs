@@ -9,6 +9,7 @@ pub(super) enum Head {
     Capture(FunctionId, u32),
 }
 pub(super) type Heads = BTreeSet<Head>;
+type ActiveHeads = BTreeSet<(FunctionId, ValueId, Vec<PlaceProjection>, Option<u32>, bool)>;
 
 // An opaque child's Fixed class may have several original occurrences. Its
 // class equality theorem is not an actual storage/head selection interface.
@@ -266,6 +267,68 @@ impl Check<'_, '_> {
                         InstructionKind::ReadAddress { .. } => {
                             self.captured_read(function, value, b)?;
                         }
+                        InstructionKind::TakeOwnedArrayElement { local, index: 0 }
+                        | InstructionKind::BorrowOwnedArrayElement {
+                            local, index: 0, ..
+                        } => {
+                            let anchor = self
+                                .original
+                                .local_recipe_anchor(instance.definition, recipe, b)?
+                                .ok_or_else(|| {
+                                    fail("implicit element read lacks its exact original binding")
+                                })?;
+                            if matches!(anchor, original::LocalAnchor::Environment(_))
+                                || self.anchored_local(instance, function, anchor, b)? != *local
+                            {
+                                return Err(fail(
+                                    "implicit element read selects another original local",
+                                ));
+                            }
+                            let slot = self.persistent_slot(instance, function, *local, b)?
+                                .ok_or_else(|| fail("implicit element read lacks its original closure slot witness"))?;
+                            let at = self.definition_at(function, value, b)?;
+                            let actual = self.persistent_slot_value(
+                                instance,
+                                function,
+                                &slot,
+                                (at.0, at.1),
+                                b,
+                                0,
+                            )?;
+                            let SemanticSiteRecipeKind::TypeUse { expected } = &recipe.kind else {
+                                return Err(fail(
+                                    "implicit element read replaces its original Name operation",
+                                ));
+                            };
+                            let expected = self.recipe_value(instance, expected, b, 0)?;
+                            if !self.capture_values_equal(&actual, &expected, b)? {
+                                return Err(fail(
+                                    "implicit element read changes its complete original child value",
+                                ));
+                            }
+                            let output =
+                                function.values.get(value.0 as usize).ok_or_else(|| {
+                                    fail("implicit element read lacks its actual result type")
+                                })?;
+                            match self.instruction(function, value, b)? {
+                                InstructionKind::TakeOwnedArrayElement { .. }
+                                    if output == &actual.ty => {}
+                                InstructionKind::BorrowOwnedArrayElement { mutable, .. }
+                                    if matches!(output, Type::Address { mutable: mode, inner }
+                                        if mode == mutable && inner.as_ref() == &actual.ty) => {}
+                                _ => {
+                                    return Err(fail(
+                                        "implicit element read changes its complete child or access mode",
+                                    ));
+                                }
+                            }
+                            operations::available_before(
+                                function,
+                                (at.0, at.1, SemanticSiteEdge::After),
+                                value,
+                                b,
+                            )?;
+                        }
                         InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                             if let Some(anchor) =
                                 self.original
@@ -510,11 +573,22 @@ impl Check<'_, '_> {
         local: LocalId,
         class: Option<u32>,
         at: (BlockId, usize, SemanticSiteEdge),
-        active: &mut BTreeSet<(FunctionId, ValueId, Option<u32>)>,
+        active: &mut ActiveHeads,
         depth: usize,
         b: &mut Budget,
     ) -> CompileResult<Heads> {
-        self.place_heads(function, local, None, class, at, active, depth, b)
+        self.place_heads(
+            function,
+            local,
+            None,
+            &[],
+            false,
+            class,
+            at,
+            active,
+            depth,
+            b,
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -523,9 +597,11 @@ impl Check<'_, '_> {
         function: &TypedFunction,
         local: LocalId,
         slot: Option<&persistent_slots::Slot>,
+        projection: &[PlaceProjection],
+        pointee: bool,
         class: Option<u32>,
         at: (BlockId, usize, SemanticSiteEdge),
-        active: &mut BTreeSet<(FunctionId, ValueId, Option<u32>)>,
+        active: &mut ActiveHeads,
         depth: usize,
         b: &mut Budget,
     ) -> CompileResult<Heads> {
@@ -586,7 +662,28 @@ impl Check<'_, '_> {
                         } else {
                             value
                         };
-                        let sources = self.heads(function, source, class, active, depth + 1, b)?;
+                        let sources = if pointee {
+                            self.pointee_heads(
+                                function,
+                                source,
+                                class.ok_or_else(|| {
+                                    fail("implicit Pointee query omits its child class")
+                                })?,
+                                active,
+                                depth + 1,
+                                b,
+                            )?
+                        } else {
+                            self.projected_heads(
+                                function,
+                                source,
+                                projection,
+                                class,
+                                active,
+                                depth + 1,
+                                b,
+                            )?
+                        };
                         b.spend(out.len().saturating_add(sources.len()), WORK)?;
                         out.extend(sources);
                         found = true;
@@ -606,7 +703,28 @@ impl Check<'_, '_> {
                             value,
                             b,
                         )?;
-                        let sources = self.heads(function, value, class, active, depth + 1, b)?;
+                        let sources = if pointee {
+                            self.pointee_heads(
+                                function,
+                                value,
+                                class.ok_or_else(|| {
+                                    fail("implicit Pointee query omits its child class")
+                                })?,
+                                active,
+                                depth + 1,
+                                b,
+                            )?
+                        } else {
+                            self.projected_heads(
+                                function,
+                                value,
+                                projection,
+                                class,
+                                active,
+                                depth + 1,
+                                b,
+                            )?
+                        };
                         b.spend(out.len().saturating_add(sources.len()), WORK)?;
                         out.extend(sources);
                         found = true;
@@ -663,12 +781,414 @@ impl Check<'_, '_> {
                 ));
             }
         }
-        if out.is_empty() {
+        if out.is_empty() && depth == 0 {
             return Err(fail(
                 "implicit head has no actual reaching initialized local origin",
             ));
         }
         Ok(out)
+    }
+
+    fn head_projection_type<'t>(mut ty: &'t Type, path: &[PlaceProjection]) -> Option<&'t Type> {
+        for step in path {
+            while let Type::BorrowedStorage { storage, .. } = ty {
+                ty = storage;
+            }
+            ty = match (ty, step) {
+                (
+                    Type::Record { fields, .. } | Type::Package { fields, .. },
+                    PlaceProjection::Field(index),
+                ) => &fields.get(*index as usize)?.1,
+                (Type::Tuple(fields), PlaceProjection::Field(index)) => {
+                    fields.get(*index as usize)?
+                }
+                (Type::ErrorUnion { error, result }, PlaceProjection::ErrorArm(is_error)) => {
+                    if *is_error {
+                        error
+                    } else {
+                        result
+                    }
+                }
+                (Type::Enum { variants, .. }, PlaceProjection::Variant(field)) => variants
+                    .get(field.variant as usize)?
+                    .1
+                    .get(field.index as usize)?,
+                _ => return None,
+            };
+        }
+        Some(ty)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn projected_heads(
+        &self,
+        function: &TypedFunction,
+        value: ValueId,
+        path: &[PlaceProjection],
+        class: Option<u32>,
+        active: &mut ActiveHeads,
+        depth: usize,
+        b: &mut Budget,
+    ) -> CompileResult<Heads> {
+        if path.is_empty() {
+            return self.heads(function, value, class, active, depth, b);
+        }
+        if depth > b.partial_depth || path.len() > b.partial_depth {
+            return Err(unknown(
+                "implicit head projection exceeds its finite ancestry",
+            ));
+        }
+        let ty = function
+            .values
+            .get(value.0 as usize)
+            .ok_or_else(|| fail("implicit head projection has no actual SSA type"))?;
+        crate::dyn_metadata::ty(ty, b)?;
+        Self::head_projection_type(ty, path)
+            .ok_or_else(|| fail("implicit head projection leaves its complete actual layout"))?;
+        b.spend(
+            path.len()
+                .saturating_mul(2)
+                .saturating_add(active.len())
+                .saturating_add(1),
+            WORK,
+        )?;
+        let key = (function.id, value, path.to_vec(), class, false);
+        if !active.insert(key.clone()) {
+            return Ok(Heads::new());
+        }
+        let at = self.definition_at(function, value, b)?;
+        let result = match self.instruction(function, value, b)? {
+            InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => self
+                .place_heads(
+                    function,
+                    *local,
+                    None,
+                    path,
+                    false,
+                    class,
+                    at,
+                    active,
+                    depth + 1,
+                    b,
+                ),
+            InstructionKind::MakeAggregate { fields } | InstructionKind::MakePackage { fields } => {
+                let PlaceProjection::Field(field) = path[0] else {
+                    return Err(fail(
+                        "implicit aggregate head changes its actual field selector",
+                    ));
+                };
+                let input = *fields
+                    .get(field as usize)
+                    .ok_or_else(|| fail("implicit aggregate head selects no prepared field"))?;
+                operations::available_before(function, at, input, b)?;
+                self.projected_heads(function, input, &path[1..], class, active, depth + 1, b)
+            }
+            InstructionKind::MakeVariant { variant, fields } => {
+                let PlaceProjection::Variant(field) = path[0] else {
+                    return Err(fail("implicit variant head changes its checked selector"));
+                };
+                if field.variant != *variant {
+                    return Err(fail(
+                        "implicit variant head selects another active construction",
+                    ));
+                }
+                let input = *fields
+                    .get(field.index as usize)
+                    .ok_or_else(|| fail("implicit variant head selects no prepared field"))?;
+                operations::available_before(function, at, input, b)?;
+                self.projected_heads(function, input, &path[1..], class, active, depth + 1, b)
+            }
+            InstructionKind::MakeErrorUnion {
+                is_error,
+                value: input,
+            } => {
+                if path[0] != PlaceProjection::ErrorArm(*is_error) {
+                    return Err(fail(
+                        "implicit error head selects another active construction",
+                    ));
+                }
+                operations::available_before(function, at, *input, b)?;
+                self.projected_heads(function, *input, &path[1..], class, active, depth + 1, b)
+            }
+            InstructionKind::TaskCreateOwned { arguments, .. } => {
+                // The opcode returns exactly these original inputs on failure.
+                // Check the entire physical inputs tuple, not one equal field;
+                // original scheme/tag/resource checks remain independent.
+                let [
+                    PlaceProjection::ErrorArm(true),
+                    PlaceProjection::Field(1),
+                    PlaceProjection::Field(input),
+                    tail @ ..,
+                ] = path
+                else {
+                    return Err(unknown(
+                        "owned Task head requires its complete failure-input selector",
+                    ));
+                };
+                let inputs = Self::head_projection_type(
+                    ty,
+                    &[PlaceProjection::ErrorArm(true), PlaceProjection::Field(1)],
+                )
+                .ok_or_else(|| fail("owned Task head loses its actual failure input tuple"))?;
+                let Type::Tuple(fields) = inputs else {
+                    return Err(fail(
+                        "owned Task failure inputs have another physical constructor",
+                    ));
+                };
+                if fields.len() != arguments.len() {
+                    return Err(fail("owned Task failure omits an actual constructor input"));
+                }
+                for (field, argument) in fields.iter().zip(arguments) {
+                    operations::available_before(function, at, *argument, b)?;
+                    let actual = function
+                        .values
+                        .get(argument.0 as usize)
+                        .ok_or_else(|| fail("owned Task head lacks an actual input type"))?;
+                    if !geometry::same_type(field, actual, b)? {
+                        return Err(fail(
+                            "owned Task failure changes its complete actual input tuple",
+                        ));
+                    }
+                }
+                let input = *arguments
+                    .get(*input as usize)
+                    .ok_or_else(|| fail("owned Task head selects no actual constructor input"))?;
+                self.projected_heads(function, input, tail, class, active, depth + 1, b)
+            }
+            _ => self.head_projection_operation(function, value, path, class, active, depth + 1, b),
+        };
+        active.remove(&key);
+        result.and_then(|sources| {
+            if depth == 0 && sources.is_empty() {
+                Err(fail(
+                    "implicit projected head graph has no initialized source",
+                ))
+            } else {
+                Ok(sources)
+            }
+        })
+    }
+
+    // A projection transports a selector, never a representative class image.
+    #[allow(clippy::too_many_arguments)]
+    fn head_projection_operation(
+        &self,
+        function: &TypedFunction,
+        value: ValueId,
+        tail: &[PlaceProjection],
+        class: Option<u32>,
+        active: &mut ActiveHeads,
+        depth: usize,
+        b: &mut Budget,
+    ) -> CompileResult<Heads> {
+        let at = self.definition_at(function, value, b)?;
+        let instruction = self.instruction(function, value, b)?;
+        let (local, operand, prefix): (Option<LocalId>, Option<ValueId>, Vec<PlaceProjection>) =
+            match instruction {
+                InstructionKind::ExtractField { aggregate, index } => {
+                    b.spend(1, WORK)?;
+                    (None, Some(*aggregate), vec![PlaceProjection::Field(*index)])
+                }
+                InstructionKind::ReadPackageField { local, index }
+                | InstructionKind::TakePackageField { local, index } => {
+                    b.spend(1, WORK)?;
+                    (Some(*local), None, vec![PlaceProjection::Field(*index)])
+                }
+                InstructionKind::TakeTupleField { local, path }
+                | InstructionKind::TakeVariantField { local, path } => {
+                    b.spend(path.len(), WORK)?;
+                    (Some(*local), None, path.clone())
+                }
+                InstructionKind::ReadErrorUnion { value, is_error }
+                | InstructionKind::TakeErrorUnion { value, is_error } => {
+                    b.spend(1, WORK)?;
+                    (
+                        None,
+                        Some(*value),
+                        vec![PlaceProjection::ErrorArm(*is_error)],
+                    )
+                }
+                _ => {
+                    return Err(unknown(
+                        "implicit selected head needs its complete actual projection source",
+                    ));
+                }
+            };
+        b.spend(
+            prefix.len().saturating_add(tail.len()).saturating_add(1),
+            WORK,
+        )?;
+        let mut path = prefix;
+        path.extend_from_slice(tail);
+        let source_ty = if let Some(local) = local {
+            operations::initialized_local_before(function, (at.0, at.1), local, b)?;
+            &function
+                .locals
+                .get(local.0 as usize)
+                .filter(|entry| entry.id == local)
+                .ok_or_else(|| fail("implicit selected head has no actual local"))?
+                .ty
+        } else {
+            let operand =
+                operand.ok_or_else(|| fail("implicit projection lacks an actual source"))?;
+            operations::available_before(function, at, operand, b)?;
+            function
+                .values
+                .get(operand.0 as usize)
+                .ok_or_else(|| fail("implicit selected head has no actual SSA source type"))?
+        };
+        let output = function
+            .values
+            .get(value.0 as usize)
+            .ok_or_else(|| fail("implicit selected head has no result type"))?;
+        let selected = Self::head_projection_type(source_ty, &path)
+            .ok_or_else(|| fail("implicit selected head changes its complete source path"))?;
+        let expected = Self::head_projection_type(output, tail)
+            .ok_or_else(|| fail("implicit selected head changes its complete result path"))?;
+        if !geometry::same_type(selected, expected, b)? {
+            return Err(fail(
+                "implicit selected head changes its complete projected child type",
+            ));
+        }
+        match (local, operand) {
+            (Some(local), None) => self.place_heads(
+                function, local, None, &path, false, class, at, active, depth, b,
+            ),
+            (None, Some(operand)) => {
+                self.projected_heads(function, operand, &path, class, active, depth, b)
+            }
+            _ => Err(fail(
+                "implicit projection changes its actual source category",
+            )),
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn pointee_heads(
+        &self,
+        function: &TypedFunction,
+        value: ValueId,
+        class: u32,
+        active: &mut ActiveHeads,
+        depth: usize,
+        b: &mut Budget,
+    ) -> CompileResult<Heads> {
+        if depth > b.partial_depth {
+            return Err(unknown(
+                "implicit Pointee head exceeds its finite source ancestry",
+            ));
+        }
+        let Some(Type::Address {
+            mutable: output_mutable,
+            inner,
+        }) = function.values.get(value.0 as usize)
+        else {
+            return Err(fail("implicit Pointee selector requires an actual Address"));
+        };
+        if !matches!(inner.as_ref(), Type::Closure(_)) {
+            return Err(fail(
+                "implicit Pointee selector changes its complete closure child",
+            ));
+        }
+        b.spend(active.len().saturating_add(1), WORK)?;
+        let key = (function.id, value, Vec::new(), Some(class), true);
+        if !active.insert(key.clone()) {
+            return Ok(Heads::new());
+        }
+        let at = self.definition_at(function, value, b)?;
+        let result = match self.instruction(function, value, b)? {
+            InstructionKind::BorrowOwnedArrayElement {
+                local,
+                index: 0,
+                mutable,
+            } => {
+                let slot = self
+                    .head_slot(function, *local, b)?
+                    .ok_or_else(|| fail("implicit Pointee head lacks its exact original slot"))?;
+                if output_mutable != mutable || inner.as_ref() != &slot.logical().ty {
+                    return Err(fail(
+                        "implicit Pointee head changes its complete child or access mode",
+                    ));
+                }
+                self.place_heads(
+                    function,
+                    *local,
+                    Some(&slot),
+                    &[],
+                    false,
+                    Some(class),
+                    at,
+                    active,
+                    depth + 1,
+                    b,
+                )
+            }
+            InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => self
+                .place_heads(
+                    function,
+                    *local,
+                    None,
+                    &[],
+                    true,
+                    Some(class),
+                    at,
+                    active,
+                    depth + 1,
+                    b,
+                ),
+            InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
+                let mutable = matches!(
+                    self.instruction(function, value, b)?,
+                    InstructionKind::BorrowLocalMut { .. }
+                );
+                if *output_mutable != mutable
+                    || !function
+                        .locals
+                        .get(local.0 as usize)
+                        .is_some_and(|entry| entry.id == *local && &entry.ty == inner.as_ref())
+                {
+                    return Err(fail(
+                        "implicit Pointee local borrow changes its actual child or mode",
+                    ));
+                }
+                self.place_heads(
+                    function,
+                    *local,
+                    None,
+                    &[],
+                    false,
+                    Some(class),
+                    at,
+                    active,
+                    depth + 1,
+                    b,
+                )
+            }
+            InstructionKind::ReborrowAddress { address, mutable } => {
+                operations::available_before(function, at, *address, b)?;
+                if output_mutable != mutable
+                    || !matches!(function.values.get(address.0 as usize),
+                    Some(Type::Address { mutable: parent, inner: child })
+                    if (!*mutable || *parent) && child == inner)
+                {
+                    return Err(fail(
+                        "implicit Pointee reborrow changes its whole child or strengthens access",
+                    ));
+                }
+                self.pointee_heads(function, *address, class, active, depth + 1, b)
+            }
+            _ => Err(unknown(
+                "implicit Pointee head needs its complete actual pointer origin",
+            )),
+        };
+        active.remove(&key);
+        result.and_then(|sources| {
+            if depth == 0 && sources.is_empty() {
+                Err(fail("implicit Pointee graph has no initialized source"))
+            } else {
+                Ok(sources)
+            }
+        })
     }
 
     // heads() derives physical source identities without an original-world
@@ -791,7 +1311,7 @@ impl Check<'_, '_> {
         function: &TypedFunction,
         value: ValueId,
         class: Option<u32>,
-        active: &mut BTreeSet<(FunctionId, ValueId, Option<u32>)>,
+        active: &mut ActiveHeads,
         depth: usize,
         b: &mut Budget,
     ) -> CompileResult<Heads> {
@@ -801,9 +1321,11 @@ impl Check<'_, '_> {
             ));
         }
         b.spend(active.len().saturating_add(1), WORK)?;
-        let key = (function.id, value, class);
-        if !active.insert(key) {
-            return Err(fail("actual implicit-head source has an ungrounded cycle"));
+        let key = (function.id, value, Vec::new(), class, false);
+        if !active.insert(key.clone()) {
+            // A backedge adds no source. The outer query must still reach a
+            // real initialized seed; every non-cyclic predecessor is visited.
+            return Ok(Heads::new());
         }
         let result = match (self.instruction(function, value, b)?, class) {
             (InstructionKind::BorrowLocal { local }, None) => {
@@ -867,8 +1389,17 @@ impl Check<'_, '_> {
                     depth + 1,
                     b,
                 ),
-            (InstructionKind::TakeOwnedArrayElement { local, index }, Some(class))
-            | (InstructionKind::BorrowOwnedArrayElement { local, index, .. }, Some(class)) => {
+            (
+                InstructionKind::ExtractField { .. }
+                | InstructionKind::ReadPackageField { .. }
+                | InstructionKind::TakePackageField { .. }
+                | InstructionKind::TakeTupleField { .. }
+                | InstructionKind::TakeVariantField { .. }
+                | InstructionKind::ReadErrorUnion { .. }
+                | InstructionKind::TakeErrorUnion { .. },
+                class,
+            ) => self.head_projection_operation(function, value, &[], class, active, depth + 1, b),
+            (InstructionKind::TakeOwnedArrayElement { local, index }, Some(class)) => {
                 if *index != 0 {
                     return Err(fail(
                         "implicit closure head selects another persistent slot element",
@@ -881,27 +1412,15 @@ impl Check<'_, '_> {
                     .values
                     .get(value.0 as usize)
                     .ok_or_else(|| fail("implicit slot read omits its actual result type"))?;
-                match self.instruction(function, value, b)? {
-                    InstructionKind::TakeOwnedArrayElement { .. } => {
-                        if !geometry::same_type(output, &slot.logical().ty, b)? {
-                            return Err(fail("implicit slot take changes its complete child type"));
-                        }
-                    }
-                    InstructionKind::BorrowOwnedArrayElement { mutable, .. } => {
-                        if !matches!(output, Type::Address { mutable: actual, inner }
-                            if actual == mutable && inner.as_ref() == &slot.logical().ty)
-                        {
-                            return Err(fail(
-                                "implicit slot borrow changes its complete child or mode",
-                            ));
-                        }
-                    }
-                    _ => unreachable!(),
+                if !geometry::same_type(output, &slot.logical().ty, b)? {
+                    return Err(fail("implicit slot take changes its complete child type"));
                 }
                 self.place_heads(
                     function,
                     *local,
                     Some(&slot),
+                    &[],
+                    false,
                     Some(class),
                     self.definition_at(function, value, b)?,
                     active,
@@ -924,7 +1443,13 @@ impl Check<'_, '_> {
             )),
         };
         active.remove(&key);
-        result
+        result.and_then(|sources| {
+            if depth == 0 && sources.is_empty() {
+                Err(fail("actual implicit-head graph has no initialized source"))
+            } else {
+                Ok(sources)
+            }
+        })
     }
 
     pub(super) fn image_heads(
@@ -986,6 +1511,13 @@ impl Check<'_, '_> {
                     self.heads(function, *value, Some(*class), &mut BTreeSet::new(), 0, b)?
                 }
                 SemanticClassExpr::IntrinsicClass {
+                    operand: SemanticOperand::Value(value),
+                    path,
+                    class,
+                } if path.as_slice() == [LifeTypeProjection::Pointee] => {
+                    self.pointee_heads(function, *value, *class, &mut BTreeSet::new(), 0, b)?
+                }
+                SemanticClassExpr::IntrinsicClass {
                     operand: SemanticOperand::Local(local),
                     path,
                     class,
@@ -995,6 +1527,8 @@ impl Check<'_, '_> {
                         function,
                         *local,
                         slot.as_ref(),
+                        &[],
+                        false,
                         Some(*class),
                         at,
                         &mut BTreeSet::new(),
@@ -1027,16 +1561,31 @@ impl Check<'_, '_> {
         for (class, expected) in expected.iter().enumerate() {
             let actual = match operand {
                 SemanticOperand::Value(value) => {
-                    let slot = self.array_head_slot(instance, function, *value, b)?;
-                    let source = slot.as_ref().map_or(*value, |slot| slot.initial());
-                    self.heads(
-                        function,
-                        source,
-                        Some(class as u32),
-                        &mut BTreeSet::new(),
-                        0,
-                        b,
-                    )?
+                    if matches!(function.values.get(value.0 as usize),
+                        Some(Type::Address { inner, .. }) if matches!(inner.as_ref(), Type::Closure(_)))
+                    {
+                        // Select the Closure Pointee explicitly, not the
+                        // Address outer class of this original receiver.
+                        self.pointee_heads(
+                            function,
+                            *value,
+                            class as u32,
+                            &mut BTreeSet::new(),
+                            0,
+                            b,
+                        )?
+                    } else {
+                        let slot = self.array_head_slot(instance, function, *value, b)?;
+                        let source = slot.as_ref().map_or(*value, |slot| slot.initial());
+                        self.heads(
+                            function,
+                            source,
+                            Some(class as u32),
+                            &mut BTreeSet::new(),
+                            0,
+                            b,
+                        )?
+                    }
                 }
                 SemanticOperand::Local(local) => {
                     let slot = self.persistent_slot(instance, function, *local, b)?;
@@ -1044,6 +1593,8 @@ impl Check<'_, '_> {
                         function,
                         *local,
                         slot.as_ref(),
+                        &[],
+                        false,
                         Some(class as u32),
                         at,
                         &mut BTreeSet::new(),
