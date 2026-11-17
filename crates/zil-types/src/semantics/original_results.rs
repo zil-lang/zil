@@ -291,6 +291,66 @@ impl Check<'_, '_> {
         }
         Ok(())
     }
+    /// Canonicalize only original query equations. Opaque definitions and
+    /// their complete mixed arguments remain nominal; their hidden body is
+    /// never unfolded in the caller Gamma. A failed equation is not a mismatch.
+    fn closed_identity_type(
+        &mut self, owner: SemanticDefinitionId, ty: &SemanticTypeRecipe,
+        active: &mut Vec<SemanticTypeRecipe>, depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        self.pay(1, depth)?;
+        if matches!(ty, SemanticTypeRecipe::OriginalType { .. }
+            | SemanticTypeRecipe::AssociatedType { .. }
+            | SemanticTypeRecipe::SelfType { .. }
+            | SemanticTypeRecipe::Environment { scope: SemanticScopeRef::Ancestor(0), .. })
+        {
+            for previous in active.iter() {
+                crate::dyn_metadata::semantic_operand_snapshot(previous, self.limits, self.left, 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?;
+                if previous == ty {
+                    return Err(pending("original type identity has a cyclic defining equation"));
+                }
+            }
+            let saved = copy_recipe(ty, self.limits, self.left)?;
+            active.push(saved);
+            let result = (|| {
+                let value = if matches!(ty, SemanticTypeRecipe::Environment { .. }) {
+                    self.observation_type(owner, ty, depth + 1)?
+                } else {
+                    self.resolve(owner, ty, depth + 1)?
+                };
+                crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(&value, self.limits, self.left, 1)?;
+                if value == *ty {
+                    return Err(pending("original type identity has no finite defining equation"));
+                }
+                self.closed_identity_type(owner, &value, active, depth + 1)
+            })();
+            active.pop();
+            return result;
+        }
+        // This walker retains every inner domain and phantom argument, and
+        // deliberately excludes opaque hidden bodies in their defining Gamma.
+        let queries = substitute::delayed_types(ty, self.limits, self.left)?;
+        self.pay(queries.len(), depth)?;
+        let mut equations = Vec::new();
+        for query in queries {
+            let value = self.closed_identity_type(owner, &query.ty, active, depth + 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(&query.ty, self.limits, self.left, 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(&value, self.limits, self.left, 1)?;
+            if value != query.ty {
+                if query.bound_depth != 0 || query.invocation_depth != 0 {
+                    return Err(pending("original type identity requires its nested quantifier equation context"));
+                }
+                equations.push((query, value));
+            }
+        }
+        if equations.is_empty() {
+            copy_recipe(ty, self.limits, self.left)
+        } else {
+            substitute::replace_delayed(ty, &equations, self.limits, self.left)
+        }
+    }
 }
 
 impl Proof {
@@ -332,6 +392,37 @@ impl Proof {
             .ok_or_else(|| bad("closed opaque application has no complete defining result"))?;
         Ok(Some((*definition, result)))
     }
+    /// Original mixed Type/Const identity remains nominal even when both
+    /// applications erase to the same closed physical closure representation.
+    pub(in crate::semantics) fn equal_closed_actual_identity(
+        &self, program: &SemanticModule, owner: SemanticDefinitionId,
+        expected: &SemanticActualRecipe, actual: &SemanticActualRecipe,
+        limits: &Limits, left: &mut usize,
+    ) -> R<bool> {
+        let mut check = super::nominal_where::borrowed_check(program, self, owner, limits, left)?;
+        match (expected, actual) {
+            (SemanticActualRecipe::Type(expected), SemanticActualRecipe::Type(actual)) => {
+                let expected = check.closed_identity_type(owner, expected, &mut Vec::new(), 1)?;
+                let actual = check.closed_identity_type(owner, actual, &mut Vec::new(), 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(&expected, limits, check.left, 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(&actual, limits, check.left, 1)?;
+                Ok(expected == actual)
+            }
+            (SemanticActualRecipe::Const { carrier: expected, value: expected_value },
+             SemanticActualRecipe::Const { carrier: actual, value: actual_value }) => {
+                let expected = check.closed_identity_type(owner, expected, &mut Vec::new(), 1)?;
+                let actual = check.closed_identity_type(owner, actual, &mut Vec::new(), 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(&expected, limits, check.left, 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(&actual, limits, check.left, 1)?;
+                if expected != actual { return Ok(false); }
+                check.same_const(&expected, expected_value, actual_value)
+            }
+            // This optional bridge proves a wholly zero-domain application;
+            // it cannot supply any Life or unresolved inference operand.
+            _ => Ok(false),
+        }
+    }
+
     fn closed_opaque_result_inner<'a>(
         &'a self,
         program: &SemanticModule,

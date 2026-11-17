@@ -37,8 +37,12 @@ impl Eval<'_, '_, '_> {
             return Ok(None);
         };
         let mut expected_actuals = Vec::new();
+        let application_arguments = match recipe {
+            SemanticTypeRecipe::Opaque { arguments, .. } => arguments.as_slice(),
+            _ => unreachable!(),
+        };
         if generic {
-            let SemanticTypeRecipe::Opaque { arguments, .. } = recipe else { unreachable!() };
+            let arguments = application_arguments;
             self.fee(arguments.len().saturating_mul(
                 std::mem::size_of::<SemanticActual>().saturating_add(1),
             ))?;
@@ -61,6 +65,9 @@ impl Eval<'_, '_, '_> {
                 continue;
             }
             if generic {
+                if !self.closed_application_source_matches(
+                    caller, instance.id, application_arguments, depth + 1,
+                )? { continue; }
                 if !self.closed_application_actuals_match(instance, &expected_actuals, depth + 1)? {
                     continue;
                 }

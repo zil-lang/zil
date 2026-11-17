@@ -3,11 +3,93 @@
 use super::*;
 use std::collections::{BTreeMap, BTreeSet};
 
+// Optional type-world reuse may be cold only at an explicit provenance or
+// lexical-transport boundary. Original query failures are never mismatches.
+enum SourceFailure {
+    Unavailable(Diagnostic),
+    Invalid(Diagnostic),
+}
+type SourceResult<T> = Result<T, SourceFailure>;
+impl From<Diagnostic> for SourceFailure {
+    fn from(error: Diagnostic) -> Self { Self::Invalid(error) }
+}
+impl From<SourceFailure> for Diagnostic {
+    fn from(error: SourceFailure) -> Self {
+        match error {
+            SourceFailure::Unavailable(error) | SourceFailure::Invalid(error) => error,
+        }
+    }
+}
+impl SourceFailure {
+    // actual_in_domains has no original query resolver. Its Unsupported
+    // exits mean missing lexical/value/Invocation correspondence; malformed
+    // substitutions and resource failures retain their original diagnostics.
+    fn transport(error: Diagnostic) -> Self {
+        if error.category == zil_base::ResultCategory::Unsupported {
+            Self::Unavailable(error)
+        } else {
+            Self::Invalid(error)
+        }
+    }
+}
+
 struct SourceActual {
     scope: SemanticInstanceId,
     recipe: SemanticActualRecipe,
 }
 impl<'a> Eval<'a, '_, '_> {
+    /// A closed Type world still needs its complete original application
+    /// identity. Reuse original argument provenance, never resolved layouts or
+    /// an invented callsite, to compare every mixed position in one real Gamma.
+    pub(super) fn closed_application_source_matches(
+        &mut self, caller: SemanticInstanceId, holder: SemanticInstanceId,
+        arguments: &[SemanticActualRecipe], depth: usize,
+    ) -> R<bool> {
+        self.node(depth)?;
+        let row = self.scope_source_instance(holder)?;
+        self.fee(row.actuals.len().saturating_add(arguments.len()))?;
+        if row.actuals.len() != arguments.len() { return Ok(false); }
+        if let SemanticInstanceTarget::Function(SemanticFunctionTarget::Core { module, function }) = row.target {
+            self.fee(self.ledger.templates.len().saturating_add(1).ilog2() as usize + 1)?;
+            if self.ledger.templates.contains(&super::super::emission::Origin {
+                module, creator: function, closure: None,
+            }) && row.actuals.iter().enumerate().any(|(ordinal, actual)| {
+                matches!(actual, SemanticActual::CoreRecipe { scope, recipe }
+                    if *scope == holder && match recipe.as_ref() {
+                        SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(reference)) =>
+                            reference.scope == SemanticScopeRef::Ancestor(0) && reference.ordinal as usize == ordinal,
+                        SemanticActualRecipe::Const { value: SemanticConstRecipe::Formal(reference), .. } =>
+                            reference.scope == SemanticScopeRef::Ancestor(0) && reference.ordinal as usize == ordinal,
+                        _ => false,
+                    })
+            }) {
+                // This is an explicitly retained unspecialized source header,
+                // not an actual generic application with recoverable identity.
+                return Ok(false);
+            }
+        }
+        for (ordinal, expected) in arguments.iter().enumerate() {
+            let original: SourceResult<bool> = (|| {
+                let expected = self.source_specialize(caller, expected, &mut BTreeSet::new(), depth + 1)?;
+                let actual = self.source_actual(holder, ordinal as u32, &mut BTreeSet::new(), depth + 1)?;
+                let actual = self.source_relocate(&actual, expected.scope, depth + 1)?;
+                let owner = self.scope_source_instance(expected.scope)?.definition;
+                let proof = self.ledger.original.borrow();
+                let proof = proof.as_ref()
+                    .ok_or_else(|| bad("closed application identity lacks its original proof"))?;
+                proof.equal_closed_actual_identity(self.input, owner,
+                    &expected.recipe, &actual, self.limits, self.left).map_err(SourceFailure::Invalid)
+            })();
+            match original {
+                Ok(true) => {}
+                Ok(false) => return Ok(false),
+                Err(SourceFailure::Unavailable(_)) => return Ok(false),
+                Err(SourceFailure::Invalid(error)) => return Err(error),
+            }
+        }
+        Ok(true)
+    }
+
     /// Recover a Static view only from the immutable original actual recipe.
     /// A resolved physical address with an empty table is not such a source.
     pub(super) fn source_static_outer(
@@ -113,7 +195,7 @@ impl<'a> Eval<'a, '_, '_> {
         value: &SourceActual,
         target: SemanticInstanceId,
         depth: usize,
-    ) -> R<SemanticActualRecipe> {
+    ) -> SourceResult<SemanticActualRecipe> {
         self.node(depth)?;
         let source = self.scope_chain(value.scope, depth + 1)?;
         let destination = self.scope_chain(target, depth + 1)?;
@@ -144,7 +226,7 @@ impl<'a> Eval<'a, '_, '_> {
             value.scope == target,
             self.limits,
             self.left,
-        )
+        ).map_err(SourceFailure::transport)
     }
     fn source_actual(
         &mut self,
@@ -152,17 +234,17 @@ impl<'a> Eval<'a, '_, '_> {
         ordinal: u32,
         active: &mut BTreeSet<(SemanticInstanceId, u32)>,
         depth: usize,
-    ) -> R<SourceActual> {
+    ) -> SourceResult<SourceActual> {
         self.node(depth)?;
         self.fee(active.len().saturating_add(1))?;
         if !active.insert((holder, ordinal)) {
-            return Err(bad("original parent argument provenance is cyclic"));
+            return Err(bad("original parent argument provenance is cyclic").into());
         }
         let result = (|| {
             let row = self.scope_source_instance(holder)?;
             let original = self.definition(row.definition)?;
             if row.actuals.len() != original.parameters.len() {
-                return Err(bad("parent source omits complete mixed original arguments"));
+                return Err(bad("parent source omits complete mixed original arguments").into());
             }
             let value = row
                 .actuals
@@ -178,7 +260,7 @@ impl<'a> Eval<'a, '_, '_> {
                     formal,
                 } => {
                     if *formal != ordinal {
-                        return Err(bad("parent source changes a full mixed inference ordinal"));
+                        return Err(bad("parent source changes a full mixed inference ordinal").into());
                     }
                     if matches!(original.body, SemanticDefinitionBody::Scope(_)) {
                         let (source, actuals) =
@@ -212,7 +294,7 @@ impl<'a> Eval<'a, '_, '_> {
                             {
                                 return Err(bad(
                                     "parent source call does not target the actual definition",
-                                ));
+                                ).into());
                             }
                             proof.call_actual(owner, *call, *formal, self.limits, self.left)?
                         };
@@ -243,9 +325,9 @@ impl<'a> Eval<'a, '_, '_> {
                             }
                         }
                         _ => {
-                            return Err(unknown(
+                            return Err(SourceFailure::Unavailable(unknown(
                                 "parent source needs a complete original type recipe",
-                            ));
+                            )));
                         }
                     };
                     self.source_specialize(
@@ -255,9 +337,9 @@ impl<'a> Eval<'a, '_, '_> {
                         depth + 1,
                     )
                 }
-                _ => Err(unknown(
+                _ => Err(SourceFailure::Unavailable(unknown(
                     "parent inference cannot reconstruct original arguments from resolved runtime images",
-                )),
+                ))),
             }
         })();
         active.remove(&(holder, ordinal));
@@ -269,7 +351,7 @@ impl<'a> Eval<'a, '_, '_> {
         value: &SemanticActualRecipe,
         active: &mut BTreeSet<(SemanticInstanceId, u32)>,
         depth: usize,
-    ) -> R<SourceActual> {
+    ) -> SourceResult<SourceActual> {
         self.node(depth)?;
         let ancestry = self.scope_chain(scope, depth + 1)?;
         let mut arguments = Vec::new();
@@ -331,7 +413,7 @@ impl<'a> Eval<'a, '_, '_> {
             scope == destination,
             self.limits,
             self.left,
-        )?;
+        ).map_err(SourceFailure::transport)?;
         Ok(SourceActual {
             scope: destination,
             recipe,
@@ -344,7 +426,7 @@ impl<'a> Eval<'a, '_, '_> {
         holder: SemanticInstanceId,
         active: &mut BTreeSet<(SemanticInstanceId, u32)>,
         depth: usize,
-    ) -> R<(SemanticInstanceId, std::rc::Rc<Vec<SemanticActualRecipe>>)> {
+    ) -> SourceResult<(SemanticInstanceId, std::rc::Rc<Vec<SemanticActualRecipe>>)> {
         self.node(depth)?;
         let key = (caller, call, holder);
         if let Some(value) = self.module.parent_solution(
@@ -373,7 +455,7 @@ impl<'a> Eval<'a, '_, '_> {
         holder: SemanticInstanceId,
         active: &mut BTreeSet<(SemanticInstanceId, u32)>,
         depth: usize,
-    ) -> R<(SemanticInstanceId, std::rc::Rc<Vec<SemanticActualRecipe>>)> {
+    ) -> SourceResult<(SemanticInstanceId, std::rc::Rc<Vec<SemanticActualRecipe>>)> {
         self.node(depth)?;
         let caller_definition = self.scope_source_instance(caller)?.definition;
         let holder_definition = self.scope_source_instance(holder)?.definition;
@@ -388,7 +470,7 @@ impl<'a> Eval<'a, '_, '_> {
             .next()
             .ok_or_else(|| bad("parent inference has no actual call site"))?;
         if sites.next().is_some() {
-            return Err(bad("parent inference has multiple actual call sites"));
+            return Err(bad("parent inference has multiple actual call sites").into());
         }
         let (block, instruction) = self.actual_call_point(caller, site, depth + 1)?;
         self.fee(function.blocks.len())?;
@@ -405,9 +487,9 @@ impl<'a> Eval<'a, '_, '_> {
             function: target, ..
         }) = &op.kind
         else {
-            return Err(unknown(
+            return Err(SourceFailure::Invalid(unknown(
                 "parent inference requires its true direct method opcode",
-            ));
+            )));
         };
         let count = self.input.instances.len();
         self.fee(count.saturating_mul(count.saturating_add(1).ilog2() as usize + 1))?;
@@ -425,7 +507,7 @@ impl<'a> Eval<'a, '_, '_> {
                 if provider.replace(row.definition).is_some() {
                     return Err(bad(
                         "parent inference has several actual provider instances for its exact holder",
-                    ));
+                    ).into());
                 }
             }
         }
