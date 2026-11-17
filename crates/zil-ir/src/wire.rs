@@ -265,6 +265,10 @@ mod raw_plan;
 pub use raw_plan::{decode_raw_function_plan_shared_owner, encode_raw_function_plan};
 
 impl RawFunctionPlanEncoding {
+    /// Logical raw transport length without materializing another buffer.
+    pub fn byte_len(&self) -> usize {
+        self.encoding.byte_len()
+    }
     /// The immutable raw transport fragment, with no Verify authority.
     pub fn shared_bytes(&self) -> Arc<[u8]> {
         self.encoding.shared_bytes()
