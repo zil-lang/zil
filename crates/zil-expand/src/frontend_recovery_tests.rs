@@ -672,7 +672,7 @@ fn projected_namespace_still_binds_complete_local_source_before_recovery() {
 fn recovered_wide_modules_keep_original_demands_without_per_item_stage_products() {
     let limits = Limits::default();
     let wide = (0..64)
-        .map(|i| format!("pub fn f{i}(x:i32)->i32{{let y=x+{i};return y;}}"))
+        .map(|i| format!("pub fn f_{i}(x:i32)->i32{{let y=x+{i};return y;}}"))
         .collect::<String>();
     let unchanged = format!("import dep; extern \"C\" fn foreign(x:i32)->i32; {wide}");
     for fused in [false, true] {
