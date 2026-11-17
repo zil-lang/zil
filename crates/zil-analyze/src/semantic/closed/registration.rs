@@ -37,6 +37,7 @@ impl Check<'_, '_> {
             intrinsic,
             original::sealed::Intrinsic::AsyncValid
                 | original::sealed::Intrinsic::RegistrationValid
+                | original::sealed::Intrinsic::TaskValid
         ) {
             return self
                 .registration_observation(instance, site, intrinsic, function, block, index, b);

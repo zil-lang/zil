@@ -174,13 +174,16 @@ impl Solver<'_, '_> {
                                 })?
                                 .ty;
                             let vacant = self.copy_vacancies(vacant, b)?;
-                            Self::push(&mut remaining, (term, vacant), b)?;
+                            let local = &frame.locals[*index];
+                            let anchor = self.environment_anchor(frame, &local.name, b)?;
+                            Self::push(&mut remaining, (term, vacant, anchor), b)?;
                         }
                     }
                 }
             }
-            for (term, vacant) in remaining {
-                self.cleanup_partial(term, &[], &vacant, b, 0)?;
+            for (term, vacant, anchor) in remaining {
+                let origin = cleanup::Origin::local(definition, Some(anchor), cleanup::Event::CaptureExit);
+                self.cleanup_partial(term, &[], &vacant, &origin, b, 0)?;
             }
         }
         Ok(())

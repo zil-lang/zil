@@ -39,29 +39,19 @@ impl Proof<'_, '_> {
             Solver::push(&mut consumed, self.async_owner(self.expression_term(expression.id, b)?, b)?, b)?;
         }
         state.call_effect(arguments, &consumed, b)?;
-        let mut result = self.fresh_owner(state, node, b)?;
-        let result_role = result.alias.ok_or_else(|| fail("original owning Task loses its fresh result occurrence"))?;
+        let (mut result, result_role) = self.fresh_owner(state, node, arguments.iter().any(Data::borrow_exposure), b)?;
         let mut failure = before.phases;
         b.lookup(failure.len(), WORK)?;
         failure.insert(result_role, 0);
         for (index, input) in arguments.iter().skip(1).enumerate() {
-            input.charge_parts(b)?;
+            input.charge_sources(b)?;
             let ordinal = u32::try_from(index).map_err(|_| resource("original returned input ordinal overflow"))?;
             let prefix = [PlaceProjection::ErrorArm(true), PlaceProjection::Field(1), PlaceProjection::Field(ordinal)];
-            if let Some(role) = input.alias {
-                b.lookup(result.parts.len(), WORK)?;
-                result.parts.insert(prefix.to_vec(), role);
-            }
-            for (path, role) in &input.parts {
-                b.spend(path.len().saturating_add(prefix.len()), WORK)?;
-                let mut selected = prefix.to_vec();
-                selected.extend_from_slice(path);
-                b.lookup(result.parts.len(), WORK)?;
-                result.parts.insert(selected, *role);
-            }
+            result.sources.append_under(&prefix, &input.sources, b)?;
         }
         b.spend(state.phases.len(), WORK)?;
         Solver::push(&mut result.outcomes, (ProtocolExit::ErrorOk, state.phases.clone()), b)?;
+        b.spend(failure.len(), WORK)?;
         Solver::push(&mut result.outcomes, (ProtocolExit::ErrorErr, failure.clone()), b)?;
         for (role, phase) in failure {
             b.lookup(state.phases.len(), WORK)?;
@@ -133,8 +123,9 @@ impl Proof<'_, '_> {
         &self,
         state: &mut State,
         node: NodeId,
+        exposed: bool,
         b: &mut Budget,
-    ) -> CompileResult<Data> {
+    ) -> CompileResult<(Data, u32)> {
         let SemanticDefinitionBody::FunctionWithBody { parameters, .. } = &self.definition.body
         else {
             return Err(fail(
@@ -165,12 +156,10 @@ impl Proof<'_, '_> {
             ));
         }
         state.phases.insert(role, ANY);
-        Ok(Data {
-            parts: BTreeMap::new(),
-            alias: Some(role),
-            exposed: false,
+        Ok((Data {
+            sources: OwnerSources::exact(role).with_opaque(exposed),
             outcomes: Vec::new(),
-        })
+        }, role))
     }
 }
 
@@ -244,9 +233,7 @@ impl Proof<'_, '_> {
                 (
                     local.name.clone(),
                     Data {
-                        parts: BTreeMap::new(),
-                        alias,
-                        exposed: !head && self.captured_exposure(root, b, 0)?,
+                        sources: (alias.map(OwnerSources::exact).unwrap_or_default()).with_opaque(!head && self.captured_exposure(root, b, 0)?),
                         outcomes: Vec::new(),
                     },
                 ),

@@ -10,6 +10,8 @@ pub(super) mod borrow_places;
 mod buffers;
 mod capabilities;
 mod cleanup;
+pub(super) use cleanup::Source as CleanupSource;
+pub(super) use cleanup::Event as CleanupEvent;
 mod call_regions;
 mod captures;
 mod constructors;
@@ -283,6 +285,7 @@ pub(super) struct Checked {
     call_regions: BTreeMap<(SemanticDefinitionId, u32), call_regions::Region>,
     call_uses: BTreeMap<(SemanticDefinitionId, NodeId), Vec<call_regions::Use>>,
     pending_cleanups: Vec<cleanup::Pending>,
+    cleanup_writes: BTreeMap<(SemanticDefinitionId, NodeId), cleanup::Write>,
 }
 struct Solver<'a, 'i> {
     inventory: &'i Inventory<'a>,
@@ -296,8 +299,7 @@ struct Solver<'a, 'i> {
     literals: Vec<Literal>,
     integers: Vec<Term>,
     needs: Vec<Need>,
-    cleanup_terms: Vec<Term>,
-    cleanup_origins: BTreeMap<usize, (SemanticDefinitionId, LocalAnchor)>,
+    cleanup_terms: Vec<cleanup::Occurrence>,
     callable_needs: Vec<CallableNeed>,
     mutating_closures: BTreeSet<SemanticDefinitionId>,
     role_frames: Vec<roles::RoleFrame>,
@@ -2362,6 +2364,7 @@ impl Solver<'_, '_> {
                                 | sealed::Intrinsic::AsyncFinishChecked
                                 | sealed::Intrinsic::AsyncValid
                                 | sealed::Intrinsic::RegistrationValid
+                                | sealed::Intrinsic::TaskValid
                                 | sealed::Intrinsic::RegistrationClose),
                             ) => {
                                 let result = self.registration_call(
@@ -3093,7 +3096,7 @@ impl Solver<'_, '_> {
                 CoreStatementKind::Expression(value) => {
                     let discarded = self.expression(frame, value, b, depth + 1)?;
                     if frame.alive {
-                        Self::push(&mut self.cleanup_terms, discarded, b)?;
+                        self.record_cleanup(discarded, &cleanup::Origin::expression(frame.definition, value.id), &[], b)?;
                     }
                 }
                 CoreStatementKind::Return(value) => {
@@ -3223,10 +3226,10 @@ impl Solver<'_, '_> {
                         start, end, body, b, depth + 1)?;
                 }
                 CoreStatementKind::While { condition, body } => {
-                    self.loop_statement(frame, Some(condition), body, b, depth + 1)?;
+                    self.loop_statement(frame, statement.id, Some(condition), body, b, depth + 1)?;
                 }
                 CoreStatementKind::Loop(body) => {
-                    self.loop_statement(frame, None, body, b, depth + 1)?;
+                    self.loop_statement(frame, statement.id, None, body, b, depth + 1)?;
                 }
                 CoreStatementKind::Break | CoreStatementKind::Continue => {
                     self.loop_jump(
@@ -3389,7 +3392,7 @@ impl Solver<'_, '_> {
                     }
                 }
                 CoreStatementKind::Assign { target, value } => {
-                    if self.projected_assign(frame, target, value, b, depth + 1)? {
+                    if self.projected_assign(frame, statement.id, target, value, b, depth + 1)? {
                         continue;
                     }
                     let CoreExprKind::Name(name) = &target.kind else {
@@ -3418,6 +3421,10 @@ impl Solver<'_, '_> {
                         self.mutating_closures.insert(frame.definition);
                     }
                     let expected = frame.locals[index].ty;
+                    let anchor = if index < frame.inherited {
+                        Some(self.environment_anchor(frame, &frame.locals[index].name, b)?)
+                    } else { frame.locals[index].anchor };
+                    self.record_cleanup_write(frame.definition, statement.id, anchor, &[], value.id, b)?;
                     if let Some(binding) = self.reference_assignment_target(frame, index, b)? {
                         let actual = self.expression(frame, value, b, depth + 1)?;
                         self.reference_assignment(
@@ -3441,7 +3448,8 @@ impl Solver<'_, '_> {
                     if frame.alive {
                         let old = &frame.locals[index];
                         if old.live {
-                            self.cleanup_partial(old.ty, &[], &old.vacant, b, 0)?;
+                            let origin = cleanup::Origin::local(frame.definition, anchor, cleanup::Event::Replace(statement.id));
+                            self.cleanup_partial(old.ty, &[], &old.vacant, &origin, b, 0)?;
                         }
                         frame.locals[index].used = false;
                         frame.locals[index].initialized = true;
@@ -4146,6 +4154,7 @@ pub(super) fn check(
             call_regions: BTreeMap::new(),
             call_uses: BTreeMap::new(),
             pending_cleanups: Vec::new(),
+            cleanup_writes: BTreeMap::new(),
         },
         active: BTreeSet::new(),
         creators: BTreeMap::new(),
@@ -4155,7 +4164,6 @@ pub(super) fn check(
         integers: Vec::new(),
         needs: Vec::new(),
         cleanup_terms: Vec::new(),
-        cleanup_origins: BTreeMap::new(),
         callable_needs: Vec::new(),
         mutating_closures: BTreeSet::new(),
         role_frames: Vec::new(),
@@ -4603,14 +4611,8 @@ impl Solver<'_, '_> {
         for local in locals {
             b.spend(1, WORK)?;
             if local.live && !local.borrowed {
-                let first = self.cleanup_terms.len();
-                self.cleanup_partial(local.ty, &[], &local.vacant, b, 0)?;
-                if local.vacant.is_empty() && let Some(anchor) = local.anchor {
-                    for ordinal in first..self.cleanup_terms.len() {
-                        b.lookup(self.cleanup_origins.len(), WORK)?;
-                        self.cleanup_origins.insert(ordinal, (definition, anchor));
-                    }
-                }
+                let origin = cleanup::Origin::local(definition, local.anchor, cleanup::Event::Scope);
+                self.cleanup_partial(local.ty, &[], &local.vacant, &origin, b, 0)?;
             }
         }
         Ok(())

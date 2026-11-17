@@ -271,6 +271,12 @@ pub(crate) fn require_value(
 ) -> CompileResult<()> {
     require_origin(module, f, None, Some(value), budget, span, true)
 }
+pub(crate) fn require_original_value(
+    module: &TypedModule, f: &TypedFunction, value: ValueId,
+    budget: &mut Budget, span: Option<zil_base::Span>,
+) -> CompileResult<()> {
+    require_origin(module, f, None, Some(value), budget, span, false)
+}
 fn require_origin(
     module: &TypedModule,
     f: &TypedFunction,

@@ -56,12 +56,13 @@ impl Solver<'_, '_> {
     pub(super) fn loop_statement(
         &mut self,
         frame: &mut Frame,
+        statement: NodeId,
         condition: Option<&SemanticOriginalExpr>,
         body: &SemanticOriginalBlock,
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<()> {
-        self.loop_body(frame, condition, None, None, body, b, depth)
+        self.loop_body(frame, statement, condition, None, None, body, b, depth)
     }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn pattern_loop(
@@ -76,6 +77,7 @@ impl Solver<'_, '_> {
     ) -> CompileResult<()> {
         self.loop_body(
             frame,
+            statement,
             Some(value),
             Some((statement, pattern)),
             None,
@@ -107,6 +109,7 @@ impl Solver<'_, '_> {
         Self::push(&mut self.numeric, element, b)?;
         self.loop_body(
             frame,
+            statement,
             None,
             None,
             Some(RangeInput {
@@ -139,6 +142,7 @@ impl Solver<'_, '_> {
     fn loop_body(
         &mut self,
         frame: &mut Frame,
+        statement: NodeId,
         condition: Option<&SemanticOriginalExpr>,
         pattern: Option<(NodeId, &SemanticOriginalPattern)>,
         range: Option<RangeInput<'_>>,
@@ -263,9 +267,9 @@ impl Solver<'_, '_> {
                     "original loop changes its enclosing binding inventory",
                 ));
             }
-            for (old, next) in before.iter().zip(edge) {
+            for (index, (old, next)) in before.iter().zip(edge).enumerate() {
                 b.spend(1, WORK)?;
-                self.cleanup_reintroduced(old, next, b)?;
+                self.cleanup_reintroduced(frame, statement, index, old, next, b)?;
                 for hole in &next.maybe_vacant {
                     let mut was_missing = false;
                     for prior in &old.maybe_vacant {

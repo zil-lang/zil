@@ -3,13 +3,54 @@
 //! worker/frame proof until raw preflight and the resource ledger complete.
 use super::*;
 
+#[derive(Clone, Copy, Debug)]
+pub(in crate::semantic) enum Event { Scope, Replace(NodeId), Backedge(NodeId), CaptureExit, Discard(NodeId) }
+impl Event {
+    fn node(self) -> Option<NodeId> {
+        match self { Self::Replace(node) | Self::Discard(node) | Self::Backedge(node) => Some(node), _ => None }
+    }
+}
+#[derive(Clone, Copy)]
+pub(in crate::semantic) enum Source { Local(LocalAnchor), Expression(NodeId), Unknown }
+#[derive(Clone)]
+pub(super) struct Origin {
+    pub(in crate::semantic) definition: SemanticDefinitionId,
+    pub(in crate::semantic) source: Source,
+    pub(in crate::semantic) path: Vec<u32>,
+    pub(super) event: Event,
+}
+impl Origin {
+    pub(super) fn local(definition: SemanticDefinitionId, anchor: Option<LocalAnchor>, event: Event) -> Self {
+        Self { definition, source: anchor.map(Source::Local).unwrap_or(Source::Unknown), path: Vec::new(), event }
+    }
+    pub(super) fn expression(definition: SemanticDefinitionId, node: NodeId) -> Self {
+        Self { definition, source: Source::Expression(node), path: Vec::new(), event: Event::Discard(node) }
+    }
+}
+pub(super) struct Occurrence {
+    pub(super) term: Term,
+    pub(super) origin: Origin,
+}
 pub(in crate::semantic) struct Pending {
     pub(in crate::semantic) definition: SemanticDefinitionId,
-    pub(in crate::semantic) anchor: LocalAnchor,
+    pub(in crate::semantic) source: Source,
+    pub(in crate::semantic) path: Vec<u32>,
+    pub(in crate::semantic) event: Event,
     term: Term,
+}
+#[derive(PartialEq, Eq)]
+pub(in crate::semantic) struct Write {
+    pub(in crate::semantic) anchor: LocalAnchor,
+    pub(in crate::semantic) path: Vec<u32>,
+    pub(in crate::semantic) value: NodeId,
 }
 
 impl Checked {
+    pub(in crate::semantic) fn cleanup_write(&self, definition: SemanticDefinitionId,
+        node: NodeId, b: &mut Budget) -> CompileResult<Option<&Write>> {
+        b.lookup(self.cleanup_writes.len(), WORK)?;
+        Ok(self.cleanup_writes.get(&(definition, node)))
+    }
     pub(in crate::semantic) fn pending_cleanups(&self) -> &[Pending] { &self.pending_cleanups }
 
     pub(in crate::semantic) fn cleanup_value(&self, ordinal: usize,
@@ -24,6 +65,28 @@ impl Checked {
 }
 
 impl Solver<'_, '_> {
+    pub(super) fn record_cleanup_write(&mut self, definition: SemanticDefinitionId,
+        node: NodeId, anchor: Option<LocalAnchor>, path: &[u32], value: NodeId,
+        b: &mut Budget) -> CompileResult<()> {
+        let Some(anchor) = anchor else { return Ok(()); };
+        b.spend(path.len(), WORK)?;
+        let write = Write { anchor, path: path.to_vec(), value };
+        b.lookup(self.state.cleanup_writes.len(), WORK)?;
+        if let Some(previous) = self.state.cleanup_writes.get(&(definition, node)) {
+            b.spend(previous.path.len().saturating_add(path.len() + 1), WORK)?;
+            if *previous != write { return Err(fail("original assignment changes its exact cleanup source")); }
+        } else {
+            self.state.cleanup_writes.insert((definition, node), write);
+        }
+        Ok(())
+    }
+    pub(super) fn record_cleanup(&mut self, term: Term, origin: &Origin,
+        path: &[u32], b: &mut Budget) -> CompileResult<()> {
+        b.spend(path.len().saturating_add(origin.path.len() + 1), WORK)?;
+        let mut source = origin.clone();
+        source.path = path.to_vec();
+        Self::push(&mut self.cleanup_terms, Occurrence { term, origin: source }, b)
+    }
     fn task_cleanup_environment(
         &self,
         term: Term,
@@ -64,123 +127,53 @@ impl Solver<'_, '_> {
         }
     }
 
-    fn bind_cleanup(
-        &self,
-        module: &TypedModule,
-        term: Term,
-        b: &mut Budget,
-    ) -> CompileResult<bool> {
-        let mut term = self.root(term, b)?;
-        for depth in 0..=b.partial_depth {
-            self.step(depth, b)?;
-            if let Kind::CallResult { hidden, .. } = self.state.arena[term] {
-                term = self.root(hidden, b)?;
-            } else {
-                break;
-            }
-        }
-        let Kind::Closure { definition, .. } = self.state.arena[term] else {
-            return Ok(false);
-        };
-        if !self.task_cleanup_environment(term, b, 0)? {
-            return Ok(false);
-        }
-        let mut closures = BTreeSet::new();
-        for instance in &self.program.instances {
-            b.spend(1, WORK)?;
-            if instance.definition != definition {
-                continue;
-            }
-            let SemanticInstanceTarget::Function(target) = &instance.target else {
-                return Err(fail("original concrete cleanup has no actual function instance"));
-            };
-            let entry = self.inventory.function(target, b)?;
-            let id = entry.environment.ok_or_else(|| fail(
-                "original concrete cleanup loses its actual closure environment"))?;
-            let environment = instance.environment.as_ref().ok_or_else(|| fail(
-                "original concrete cleanup has no complete creator environment"))?;
-            let closure = module.closures.get(id.0 as usize)
-                .filter(|closure| closure.id == id && closure.function == entry.id)
-                .ok_or_else(|| fail("original concrete cleanup has another actual closure entry"))?;
-            if environment.closure != SemanticClosureTarget::Typed(closure.id) {
-                return Err(fail("original concrete cleanup changes its actual environment identity"));
-            }
-            b.lookup(closures.len(), WORK)?;
-            closures.insert(id);
-        }
-        if closures.is_empty() {
-            return Err(fail("original concrete cleanup has no complete actual closure instance"));
-        }
-        let mut found = BTreeSet::new();
-        for function in &module.functions {
-            for block in &function.blocks {
-                for (position, instruction) in block.instructions.iter().enumerate() {
-                    b.spend(1, WORK)?;
-                    let InstructionKind::DropClosure { local } = instruction.kind else {
-                        continue;
-                    };
-                    let Some(Type::Closure(id)) = function.locals.get(local.0 as usize)
-                        .filter(|declaration| declaration.id == local).map(|declaration| &declaration.ty)
-                    else { continue; };
-                    b.lookup(closures.len(), WORK)?;
-                    if !closures.contains(id) { continue; }
-                    b.lookup(b.semantic_cleanup_sites.len(), WORK)?;
-                    b.semantic_cleanup_sites.insert((function.id, block.id, position, local, Some(*id)));
-                    b.lookup(found.len(), WORK)?;
-                    found.insert(*id);
-                }
-            }
-        }
-        b.spend(closures.len().saturating_add(found.len()), WORK)?;
-        if found != closures {
-            return Err(fail("original concrete cleanup has no actual DropClosure site for every instance"));
-        }
-        Ok(true)
-    }
-
-    pub(super) fn check_cleanups(&mut self, module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
+    pub(super) fn check_cleanups(&mut self, _module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
         for ordinal in 0..self.cleanup_terms.len() {
-            let term = self.cleanup_terms[ordinal];
-            if self.satisfies(term, Predicate::SyncDrop, b, 0)? {
+            let occurrence = &self.cleanup_terms[ordinal];
+            let term = occurrence.term;
+            if self.satisfies(term, Predicate::SyncDrop, b, 0)? { continue; }
+            let origin = &occurrence.origin;
+            if let Some(node) = origin.event.node() {
+                b.lookup(self.indexes.len(), WORK)?;
+                self.indexes.get(&origin.definition)
+                    .ok_or_else(|| fail("original cleanup event has no declaration body"))?.node(node, b)?;
+            }
+            let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
+                &self.inventory.definition(origin.definition, b)?.body else {
+                    return Err(fail("original cleanup occurrence has no complete declaration ABI"));
+                };
+            let suspend = signature.call_kind == CallKind::Suspend;
+            if !matches!(origin.source, Source::Unknown)
+                && (self.task_cleanup_environment(term, b, 0)?
+                    || suspend && self.satisfies(term,
+                        Predicate::Capability(SemanticBuiltinTrait::ClosedEnvironment), b, 0)?)
+            {
+                b.spend(origin.path.len(), WORK)?;
+                let pending = Pending { definition: origin.definition, source: origin.source,
+                    path: origin.path.clone(), event: origin.event, term };
+                Self::push(&mut self.state.pending_cleanups, pending, b)?;
                 continue;
             }
-            b.lookup(self.cleanup_origins.len(), WORK)?;
-            if let Some((definition, anchor)) = self.cleanup_origins.get(&ordinal).copied() {
-                let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
-                    &self.inventory.definition(definition, b)?.body else {
-                        return Err(fail("original cleanup occurrence has no complete declaration ABI"));
-                    };
-                let suspend = signature.call_kind == CallKind::Suspend;
-                // A concrete owning Task can owe an actual cleanup theorem.
-                // An abstract closed environment can owe a Suspend frame
-                // theorem, never a SyncDrop predicate or Direct permission.
-                if self.task_cleanup_environment(term, b, 0)?
-                    || suspend && self.satisfies(term,
-                        Predicate::Capability(SemanticBuiltinTrait::ClosedEnvironment), b, 0)?
-                {
-                    Self::push(&mut self.state.pending_cleanups, Pending { definition, anchor, term }, b)?;
-                    continue;
-                }
-            }
-            if !self.bind_cleanup(module, term, b)? {
-                let mut errors = fail("original live cleanup edge requires SyncDrop or its complete actual Task cleanup proof");
-                errors[0].notes.push(format!("original cleanup term {}, whole kind {:?}",
-                    self.type_root(term, b)?, std::mem::discriminant(&self.state.arena[self.type_root(term, b)?])));
-                return Err(errors);
-            }
+            b.spend(160, WORK)?;
+            let mut errors = fail("original live cleanup edge requires SyncDrop or its complete actual Task cleanup proof");
+            errors[0].notes.push(format!("original cleanup definition {:?}, event {:?}, subject {}, selector {:?}, whole kind {:?}",
+                origin.definition, origin.event, self.type_root(term, b)?, origin.path,
+                std::mem::discriminant(&self.state.arena[self.type_root(term, b)?])));
+            return Err(errors);
         }
         Ok(())
     }
 }
 
 pub(super) fn finish(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
-    if b.semantic_cleanup_sites.is_empty() {
+    if b.semantic_cleanup_sites.is_empty() && b.semantic_capture_cleanups.is_empty() {
         return if b.semantic_cleanup_proofs.is_empty() { Ok(()) }
             else { Err(fail("actual Task cleanup proof has no original pending occurrence")) };
     }
     if b.task_input_scopes.is_none() {
         return Err(fail("original concrete cleanup has no complete actual Task input scopes"));
     }
+    finish_capture_cleanups(module, b)?;
     b.spend(b.semantic_cleanup_sites.len().saturating_mul(5), WORK)?;
     let sites: Vec<_> = b.semantic_cleanup_sites.iter().copied().collect();
     let mut frames = BTreeSet::new();
@@ -244,5 +237,59 @@ pub(super) fn finish(module: &TypedModule, b: &mut Budget) -> CompileResult<()> 
     // A failure above leaves every pending site intact in this request.
     b.semantic_cleanup_sites.clear();
     b.semantic_cleanup_proofs.clear();
+    Ok(())
+}
+
+fn finish_capture_cleanups(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
+    if b.semantic_capture_cleanups.is_empty() { return Ok(()); }
+    if !b.task_origin_roots || !b.tasks {
+        return Err(fail("original remaining capture cleanup reached no complete actual Task proof"));
+    }
+    let work = b.semantic_capture_cleanups.iter().fold(0usize,
+        |work, (_, _, path)| work.saturating_add(path.len().saturating_add(1)));
+    b.spend(work, WORK)?;
+    let pending: Vec<_> = b.semantic_capture_cleanups.iter().cloned().collect();
+    for (id, capture, path) in pending {
+        let closure = module.closures.get(id.0 as usize).filter(|closure| closure.id == id
+            && closure.kind == CallableKind::FnOnce)
+            .ok_or_else(|| fail("original remaining capture cleanup changes its actual entry"))?;
+        // These are unconditional actual entry theorems over every return,
+        // independent of one caller's concrete input or a Static/header claim.
+        if crate::tasks::once_cleanup_has_no_task(module, id, b)?
+            || crate::tasks::once_cleanup_closed(module, id, b)? { continue; }
+        if !path.is_empty() {
+            return Err(unknown("remaining capture cleanup needs its complete synchronous selected child source"));
+        }
+        let expected = closure.captures.get(capture as usize)
+            .ok_or_else(|| fail("original remaining cleanup selects no actual capture"))?;
+        let mut constructors = 0usize;
+        for function in &module.functions {
+            for block in &function.blocks {
+                for instruction in &block.instructions {
+                    b.spend(1, WORK)?;
+                    let InstructionKind::MakeClosure { closure: actual, captures } = &instruction.kind else { continue; };
+                    if *actual != id { continue; }
+                    if captures.len() != closure.captures.len() {
+                        return Err(fail("remaining capture cleanup constructor omits its complete original environment"));
+                    }
+                    let value = *captures.get(capture as usize)
+                        .ok_or_else(|| fail("remaining capture cleanup constructor has no selected operand"))?;
+                    let ty = function.values.get(value.0 as usize)
+                        .ok_or_else(|| fail("remaining capture cleanup operand has no complete actual type"))?;
+                    crate::dyn_metadata::ty(ty, b)?;
+                    crate::dyn_metadata::ty(expected, b)?;
+                    if ty != expected {
+                        return Err(fail("remaining capture cleanup constructor changes its complete selected type"));
+                    }
+                    crate::tasks::require_original_synchronous_value(module, function, value, b, Some(instruction.span))?;
+                    constructors += 1;
+                }
+            }
+        }
+        if constructors == 0 {
+            return Err(fail("remaining capture cleanup has no complete actual constructor sources"));
+        }
+    }
+    b.semantic_capture_cleanups.clear();
     Ok(())
 }

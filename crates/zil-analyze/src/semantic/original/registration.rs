@@ -131,7 +131,7 @@ impl Solver<'_, '_> {
         }
         let observing = matches!(
             intrinsic,
-            sealed::Intrinsic::AsyncValid | sealed::Intrinsic::RegistrationValid
+            sealed::Intrinsic::AsyncValid | sealed::Intrinsic::RegistrationValid | sealed::Intrinsic::TaskValid
         );
         let borrowed = observing
             || matches!(
@@ -187,7 +187,12 @@ impl Solver<'_, '_> {
             intrinsic,
             sealed::Intrinsic::RegistrationValid | sealed::Intrinsic::RegistrationClose
         );
-        if !matches!(self.state.arena[self.type_root(payload, b)?], Kind::Wrapped(wrapper, _) if wrapper == if synchronous { Wrapper::Registration } else { Wrapper::AsyncRegistration })
+        let valid_family = if intrinsic == sealed::Intrinsic::TaskValid {
+            matches!(self.state.arena[self.type_root(payload, b)?], Kind::Task(_))
+        } else {
+            matches!(self.state.arena[self.type_root(payload, b)?], Kind::Wrapped(wrapper, _) if wrapper == if synchronous { Wrapper::Registration } else { Wrapper::AsyncRegistration })
+        };
+        if !valid_family
         {
             return Err(fail(
                 "original registration operation selects another payload family",

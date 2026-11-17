@@ -136,9 +136,8 @@ impl Proof<'_, '_> {
         self.step(b, depth)?;
         match &pattern.kind {
             CorePatternKind::Name(name) => {
-                data.charge_parts(b)?;
-                b.spend(name.len().saturating_add(data.outcomes.len()), WORK)?;
-                Solver::push(&mut state.locals, (name.clone(), data.clone()), b)
+                b.spend(name.len().saturating_add(1), WORK)?;
+                Solver::push(&mut state.locals, (name.clone(), data.copy(b)?), b)
             }
             CorePatternKind::Wildcard | CorePatternKind::Bool(_) | CorePatternKind::Integer(_) => {
                 Ok(())
@@ -158,7 +157,7 @@ impl Proof<'_, '_> {
             }
             CorePatternKind::Record { fields, .. }
             | CorePatternKind::RecordConstructor { fields, .. } => {
-                if data.alias.is_some() || !data.parts.is_empty() {
+                if data.sources.has_exact() {
                     return Err(unknown(
                         "original protocol product pattern needs its complete nested owner-place mapping",
                     ));
@@ -168,9 +167,7 @@ impl Proof<'_, '_> {
                         state,
                         field,
                         &Data {
-                            parts: BTreeMap::new(),
-                            alias: None,
-                            exposed: data.exposed,
+                            sources: OwnerSources::opaque(data.sources.opaque_exposure()),
                             outcomes: Vec::new(),
                         },
                         b,
@@ -180,7 +177,7 @@ impl Proof<'_, '_> {
                 Ok(())
             }
             CorePatternKind::Tuple(fields) => {
-                if data.alias.is_some() {
+                if data.sources.only_exact_root().is_some() {
                     return Err(unknown("original tuple pattern cannot project an unexpanded owning head"));
                 }
                 for (index, field) in fields.iter().enumerate() {
@@ -192,7 +189,7 @@ impl Proof<'_, '_> {
             }
             CorePatternKind::Constructor { fields, .. }
             | CorePatternKind::Variant { fields, .. } => {
-                if data.alias.is_some() || !data.parts.is_empty() {
+                if data.sources.has_exact() {
                     return Err(unknown(
                         "original protocol sum/tuple pattern needs its complete nested owner-place mapping",
                     ));
@@ -202,9 +199,7 @@ impl Proof<'_, '_> {
                         state,
                         field,
                         &Data {
-                            parts: BTreeMap::new(),
-                            alias: None,
-                            exposed: data.exposed,
+                            sources: OwnerSources::opaque(data.sources.opaque_exposure()),
                             outcomes: Vec::new(),
                         },
                         b,
@@ -334,9 +329,9 @@ impl Proof<'_, '_> {
                 if matches!(
                     arm.pattern.kind,
                     CorePatternKind::ErrorArm { is_error: true, .. }
-                ) && let Some(role) = data.alias
+                )
                 {
-                    branch.phases.insert(role, 0);
+                    data.sources.retire_absent_success(&mut branch, b)?;
                 }
                 Solver::push(&mut branches, branch, b)?;
             }
@@ -402,13 +397,11 @@ impl Proof<'_, '_> {
         } else {
             let mut matched = state.copy(b)?;
             let mut unmatched = state.copy(b)?;
-            if let CorePatternKind::ErrorArm { is_error, .. } = pattern.kind
-                && let Some(role) = data.alias
-            {
+            if let CorePatternKind::ErrorArm { is_error, .. } = pattern.kind {
                 if is_error {
-                    matched.phases.insert(role, 0);
+                    data.sources.retire_absent_success(&mut matched, b)?;
                 } else {
-                    unmatched.phases.insert(role, 0);
+                    data.sources.retire_absent_success(&mut unmatched, b)?;
                 }
             }
             Solver::push(&mut yes, matched, b)?;

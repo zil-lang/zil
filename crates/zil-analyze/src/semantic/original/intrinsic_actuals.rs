@@ -115,7 +115,7 @@ impl Checked {
                     true,
                 )
             }
-            I::TaskPoll | I::TaskPollClose | I::TaskCancel | I::TaskFinish => (
+            I::TaskPoll | I::TaskPollClose | I::TaskCancel | I::TaskFinish | I::TaskValid => (
                 *inputs
                     .first()
                     .ok_or_else(|| fail("original Task operation has no selected head"))?,

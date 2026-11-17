@@ -1,6 +1,7 @@
 //! Readonly registration observation may form a weak description of the exact
 //! original owning head. It never upgrades a description to owning authority.
 use super::*;
+use crate::semantic::value;
 impl Check<'_, '_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn registration_observation(
@@ -27,6 +28,10 @@ impl Check<'_, '_> {
             | (
                 original::sealed::Intrinsic::AsyncValid,
                 InstructionKind::AsyncRegistrationValid { registration },
+            )
+            | (
+                original::sealed::Intrinsic::TaskValid,
+                InstructionKind::TaskValid { task: registration },
             ) => *registration,
             _ => {
                 return Err(fail(
@@ -46,106 +51,21 @@ impl Check<'_, '_> {
         let anchor = self
             .original
             .intrinsic_anchor(instance, site, self.inventory, b)?;
-        let local = self.anchored_local(instance, function, anchor, b)?;
-        let (source_block, source_index, source) = self.defining(function, desc, b)?;
-        let payload = match &expected.ty {
-            Type::Desc(payload) => {
-                if !matches!(source.kind, InstructionKind::Load(actual) | InstructionKind::TakeLocal { local: actual } if actual == local)
-                    || self.local_value(
-                        instance,
-                        function,
-                        local,
-                        (source_block, source_index),
-                        b,
-                        0,
-                    )? != *expected
-                {
-                    return Err(fail(
-                        "actual registration observation loads another complete original descriptor",
-                    ));
-                }
-                payload
-            }
-            Type::Managed(payload) => {
-                let actual = match source.kind {
-                    InstructionKind::DescribeLocal { local: actual } => {
-                        if actual != local {
-                            return Err(fail(
-                                "actual observation describes another original owner",
-                            ));
-                        }
-                        self.local_value(
-                            instance,
-                            function,
-                            local,
-                            (source_block, source_index),
-                            b,
-                            0,
-                        )?
-                    }
-                    InstructionKind::DescribeAddress { address } => {
-                        operations::available_before(
-                            function,
-                            (source_block, source_index, SemanticSiteEdge::Before),
-                            address,
-                            b,
-                        )?;
-                        let (at_block, at_index, actual, _) =
-                            self.borrow_root(function, address, b, 0)?;
-                        if actual != local {
-                            return Err(fail("actual observation borrows another original owner"));
-                        }
-                        self.local_value(instance, function, local, (at_block, at_index), b, 0)?
-                    }
-                    _ => {
-                        return Err(fail(
-                            "actual observation has no real weak description of its original owning head",
-                        ));
-                    }
-                };
-                if actual != *expected {
-                    return Err(fail(
-                        "actual observation changes its complete original owner domain",
-                    ));
-                }
-                payload
-            }
-            Type::Address { inner, .. } => {
-                let Type::Managed(payload) = inner.as_ref() else {
-                    return Err(fail(
-                        "original observation address selects a descriptor slot",
-                    ));
-                };
-                let InstructionKind::DescribeAddress { address } = source.kind else {
-                    return Err(fail(
-                        "actual observation does not describe its original borrowed owning head",
-                    ));
-                };
-                operations::available_before(
-                    function,
-                    (source_block, source_index, SemanticSiteEdge::Before),
-                    address,
-                    b,
-                )?;
-                if self.receiver_local(function, address, b, 0)? != local {
-                    return Err(fail(
-                        "actual observation selects another original borrowed head",
-                    ));
-                }
-                let actual = self.ssa_value(instance, function, address, b, 0)?;
-                if !self.outer_call_role(instance, function, (block, index), 0, address, &actual, expected, b, 0)? {
-                    return Err(fail(
-                        "actual observation changes its complete original borrowed-head relation",
-                    ));
-                }
-                payload
-            }
-            _ => {
-                return Err(fail(
-                    "original observation loses its owning-head or descriptor category",
-                ));
-            }
+        let selected = match &expected.ty {
+            Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)) =>
+                value::pointee(expected, b)?,
+            _ => expected.copy(b)?,
         };
+        let payload = match &selected.ty {
+            Type::Managed(payload) | Type::Desc(payload) => payload,
+            _ => return Err(fail("original observation loses its exact owning/description category")),
+        };
+        // This is the same independently checked original place relation used
+        // by implicit descriptions. It follows every actual descriptor temp
+        // Store/Load and the exact original Capture/Binding/Parameter anchor;
+        // equal payload Types never select another owner or physical capture.
+        self.sealed_resource_place(instance, function, desc, anchor, expected,
+            &selected, &[], payload, b)?;
         crate::dyn_metadata::ty(payload, b)?;
         if function.values.get(desc.0 as usize) != Some(&Type::Desc(payload.clone())) {
             return Err(fail(

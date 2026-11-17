@@ -344,6 +344,12 @@ fn compiler_zero(
     storage: &Type,
     b: &mut Budget,
 ) -> CompileResult<()> {
+    if task_failure::declaration(declaration) {
+        // The plain product is distinct from an enum. This only authenticates
+        // its complete constructor; instance_zero still recursively proves
+        // both original actuals and every physical child before publishing N0.
+        return task_failure::plain_instance(declaration, instance, storage, b);
+    }
     let Type::Enum { name, variants } = storage else {
         return Err(failure(
             "plain compiler nominal has no supported complete enum body",

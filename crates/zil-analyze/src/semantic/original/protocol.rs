@@ -6,6 +6,10 @@ mod canonical;
 mod control;
 mod outcomes;
 mod owners;
+mod sources;
+#[cfg(test)]
+mod tests;
+use sources::OwnerSources;
 const OPEN: u8 = 1;
 const CLOSING: u8 = 2;
 const CLOSED: u8 = 4;
@@ -148,52 +152,33 @@ fn shape(
 }
 #[derive(Clone, PartialEq, Eq, Default)]
 struct Data {
-    alias: Option<u32>,
-    // Exact owning subplaces transported by a checked constructor. Equal
-    // Types/classes never establish these original source identities.
-    parts: BTreeMap<Vec<PlaceProjection>, u32>,
-    // A value may hide access to a tracked original head through a callable
-    // or an aggregate. Calls must not preserve a phase through that exposure.
-    exposed: bool,
+    sources: OwnerSources,
     outcomes: Vec<(ProtocolExit, BTreeMap<u32, u8>)>,
 }
 impl Data {
-    fn charge_parts(&self, b: &mut Budget) -> CompileResult<()> {
-        for path in self.parts.keys() {
-            b.spend(path.len().saturating_add(1), WORK)?;
-        }
-        Ok(())
+    fn copy(&self, b: &mut Budget) -> CompileResult<Self> {
+        self.charge_sources(b)?;
+        let work = self.outcomes.iter().fold(self.outcomes.len().saturating_add(1),
+            |work, (_, phases)| work.saturating_add(phases.len()));
+        b.spend(work, WORK)?;
+        Ok(self.clone())
+    }
+    fn charge_sources(&self, b: &mut Budget) -> CompileResult<()> { self.sources.charge(b) }
+    fn borrow_exposure(&self) -> bool {
+        self.sources.has_any() || !self.outcomes.is_empty()
+    }
+    fn expose(&self) -> Self {
+        Self { sources: OwnerSources::opaque(self.borrow_exposure()), outcomes: Vec::new() }
     }
     fn project(&self, step: PlaceProjection, b: &mut Budget) -> CompileResult<Self> {
-        let mut result = Self { exposed: self.exposed || self.alias.is_some(), ..Self::default() };
-        for (path, role) in &self.parts {
-            b.spend(path.len().saturating_add(1), WORK)?;
-            if path.first() != Some(&step) { continue; }
-            if path.len() == 1 {
-                if result.alias.replace(*role).is_some() {
-                    return Err(fail("original projected owner has competing source identities"));
-                }
-            } else {
-                b.lookup(result.parts.len(), WORK)?;
-                result.parts.insert(path[1..].to_vec(), *role);
-            }
-        }
-        Ok(result)
+        Ok(Self { sources: self.sources.project(step, b)?, outcomes: Vec::new() })
     }
     fn error_payload(&self, is_error: bool, b: &mut Budget) -> CompileResult<Self> {
-        let mut result = self.project(PlaceProjection::ErrorArm(is_error), b)?;
-        if !is_error {
-            if result.alias.is_some_and(|role| Some(role) != self.alias) {
-                return Err(fail("original success payload changes its owning result identity"));
-            }
-            result.alias = self.alias;
-        }
-        result.exposed = self.exposed;
-        Ok(result)
+        Ok(Self { sources: self.sources.error_payload(is_error, b)?, outcomes: Vec::new() })
     }
     fn payload(&self, b: &mut Budget) -> CompileResult<Self> {
-        self.charge_parts(b)?;
-        Ok(Self { alias: self.alias, parts: self.parts.clone(), exposed: self.exposed, outcomes: Vec::new() })
+        self.charge_sources(b)?;
+        Ok(Self { sources: self.sources.clone(), outcomes: Vec::new() })
     }
 }
 #[derive(Clone, PartialEq, Eq)]
@@ -215,18 +200,8 @@ impl State {
     fn copy(&self, b: &mut Budget) -> CompileResult<Self> {
         let mut locals = Vec::new();
         for (name, data) in &self.locals {
-            data.charge_parts(b)?;
-            b.spend(
-                name.len().saturating_add(
-                    data.outcomes
-                        .iter()
-                        .map(|(_, states)| states.len() + 1)
-                        .sum::<usize>()
-                        + 1,
-                ),
-                WORK,
-            )?;
-            Solver::push(&mut locals, (name.clone(), data.clone()), b)?;
+            b.spend(name.len().saturating_add(1), WORK)?;
+            Solver::push(&mut locals, (name.clone(), data.copy(b)?), b)?;
         }
         b.spend(self.phases.len(), WORK)?;
         Ok(Self {
@@ -272,8 +247,8 @@ impl State {
             *self.phases.entry(*role).or_insert(0) |= *value;
         }
         for ((name, data), (other_name, other_data)) in self.locals.iter_mut().zip(&other.locals) {
-            data.charge_parts(b)?;
-            other_data.charge_parts(b)?;
+            data.charge_sources(b)?;
+            other_data.charge_sources(b)?;
             b.spend(
                 name.len().saturating_add(
                     other_name.len()
@@ -294,12 +269,7 @@ impl State {
             if name != other_name {
                 return Err(fail("original protocol join changes a lexical binder"));
             }
-            if data.alias != other_data.alias || data.parts != other_data.parts {
-                return Err(unknown(
-                    "original protocol alias join requires its complete possible-head relation",
-                ));
-            }
-            data.exposed |= other_data.exposed;
+            data.sources.join(&other_data.sources, b)?;
             if data.outcomes != other_data.outcomes {
                 data.outcomes.clear();
             }
@@ -363,6 +333,17 @@ impl Proof<'_, '_> {
             ));
         }
         Ok(())
+    }
+    fn call_receiver(&self, state: &mut State, callee: &SemanticOriginalExpr,
+        b: &mut Budget, depth: usize) -> CompileResult<Data> {
+        self.step(b, depth)?;
+        match &callee.kind {
+            CoreExprKind::TypeApply { callee, type_arguments } => {
+                b.spend(type_arguments.len(), WORK)?;
+                self.call_receiver(state, callee, b, depth + 1)
+            }
+            _ => self.expression(state, callee, b, depth + 1),
+        }
     }
     fn exit(&self, state: &State, data: &Data, b: &mut Budget) -> CompileResult<()> {
         if !state.alive {
@@ -430,8 +411,7 @@ impl Proof<'_, '_> {
                         WORK,
                     )?;
                     if key == name {
-                        data.charge_parts(b)?;
-                        return Ok(data.clone());
+                        return data.copy(b);
                     }
                 }
                 Ok(Data::default())
@@ -452,6 +432,8 @@ impl Proof<'_, '_> {
                 operand,
             } => self.expression(state, operand, b, depth + 1),
             CoreExprKind::Call { callee, arguments } => {
+                let receiver = self.call_receiver(state, callee, b, depth + 1)?;
+                self.plain(&receiver)?;
                 let mut actuals = Vec::new();
                 for argument in arguments {
                     let data = self.expression(state, argument, b, depth + 1)?;
@@ -464,6 +446,10 @@ impl Proof<'_, '_> {
                     .enum_constructors
                     .get(&(self.definition.id, value.id))
                 {
+                    if actuals.iter().any(|data| data.sources.has_exact()) {
+                        return Err(unknown("original protocol constructor needs its complete owning payload source transport"));
+                    }
+                    let exposed = actuals.iter().any(Data::borrow_exposure);
                     let Kind::Nominal { .. } =
                         &self.checked.arena[self.checked.root(constructor.value, b)?]
                     else {
@@ -483,13 +469,14 @@ impl Proof<'_, '_> {
                         };
                         b.spend(state.phases.len(), WORK)?;
                         return Ok(Data {
-                            parts: BTreeMap::new(),
-                            alias: None,
-                            exposed: false,
+                            sources: OwnerSources::opaque(exposed),
                             outcomes: vec![(exit, state.phases.clone())],
                         });
                     }
-                    return Ok(Data::default());
+                    return Ok(Data {
+                        sources: OwnerSources::opaque(exposed),
+                        ..Data::default()
+                    });
                 }
                 let mut names = BTreeSet::new();
                 for (name, _) in &state.locals {
@@ -517,7 +504,7 @@ impl Proof<'_, '_> {
                                 "original registration operation changes its state-role arity",
                             ));
                         };
-                        let role=data.alias.ok_or_else(||unknown("original registration operation needs its exact live parameter head"))?;
+                        let role = data.sources.receiver_with_effect(state, b)?;
                         let old = *state.phases.get(&role).ok_or_else(|| {
                             fail("original registration state parameter is absent")
                         })?;
@@ -526,7 +513,6 @@ impl Proof<'_, '_> {
                                 "original registration operation uses a retired parameter head",
                             ));
                         }
-                        state.invalidate(b)?;
                         match id {
                             sealed::Intrinsic::AsyncRequest | sealed::Intrinsic::TaskCancel => {
                                 state.phases.insert(
@@ -581,9 +567,7 @@ impl Proof<'_, '_> {
                                     },
                                 );
                                 Ok(Data {
-                                    parts: BTreeMap::new(),
-                                    alias: None,
-                                    exposed: false,
+                                    sources: OwnerSources::opaque(false),
                                     outcomes,
                                 })
                             }
@@ -599,9 +583,7 @@ impl Proof<'_, '_> {
                                     },
                                 );
                                 Ok(Data {
-                                    parts: BTreeMap::new(),
-                                    alias: None,
-                                    exposed: true,
+                                    sources: OwnerSources::opaque(true),
                                     outcomes: Vec::new(),
                                 })
                             }
@@ -615,8 +597,12 @@ impl Proof<'_, '_> {
                         | sealed::Intrinsic::CCallback
                         | sealed::Intrinsic::AsyncValid
                         | sealed::Intrinsic::RegistrationValid
+                        | sealed::Intrinsic::TaskValid
                         | sealed::Intrinsic::SliceLength,
-                    ) => Ok(Data::default()),
+                    ) => Ok(Data {
+                        sources: OwnerSources::opaque(actuals.iter().any(Data::borrow_exposure)),
+                        ..Data::default()
+                    }),
                     sealed::Resolution::Intrinsic(sealed::Intrinsic::TaskCreateOwned) => {
                         self.owned_creation(state, value.id, arguments, &actuals, b)
                     }
@@ -624,29 +610,42 @@ impl Proof<'_, '_> {
                         sealed::Intrinsic::RegisterAsync | sealed::Intrinsic::TaskCreate,
                     ) => {
                         state.call_effect(&actuals, &[], b)?;
-                        self.fresh_owner(state, value.id, b)
+                        self.fresh_owner(state, value.id, actuals.iter().any(Data::borrow_exposure), b).map(|(data, _)| data)
                     }
                     sealed::Resolution::Definition(target) => {
                         let data = self.call(state, target, &actuals, b)?;
                         let frame = self.checked.frames.get(&target).ok_or_else(|| {
                             fail("original protocol callee has no checked declaration domain")
                         })?;
-                        if data.alias.is_none()
+                        if !data.sources.has_exact()
                             && data.outcomes.is_empty()
                             && self.async_owner(frame.result, b)?
                         {
-                            self.fresh_owner(state, value.id, b)
+                            self.fresh_owner(state, value.id, data.borrow_exposure(), b).map(|(data, _)| data)
                         } else {
                             Ok(data)
                         }
                     }
                     sealed::Resolution::Intrinsic(_) => {
                         state.call_effect(&actuals, &[], b)?;
-                        Ok(Data::default())
+                        Ok(Data {
+                            sources: OwnerSources::opaque(actuals.iter().any(Data::borrow_exposure)),
+                            ..Data::default()
+                        })
                     }
                     _ => {
                         state.opaque(b)?;
-                        Ok(Data::default())
+                        if self.async_owner(self.expression_term(value.id, b)?, b)? {
+                            self.fresh_owner(state, value.id,
+                                receiver.borrow_exposure() || actuals.iter().any(Data::borrow_exposure), b).map(|(data, _)| data)
+                        } else {
+                            Ok(Data {
+                                sources: OwnerSources::opaque(receiver.borrow_exposure()
+                                || actuals.iter().any(Data::borrow_exposure)
+                                || state.phases.values().any(|phase| *phase != 0)),
+                                ..Data::default()
+                            })
+                        }
                     }
                 }
             }
@@ -661,8 +660,8 @@ impl Proof<'_, '_> {
                 let left_value = self.expression(state, then_value, b, depth + 1)?;
                 let right_value = self.expression(&mut right, else_value, b, depth + 1)?;
                 state.join(&right, b)?;
-                left_value.charge_parts(b)?;
-                right_value.charge_parts(b)?;
+                left_value.charge_sources(b)?;
+                right_value.charge_sources(b)?;
                 if left_value != right_value {
                     return Err(unknown(
                         "original protocol conditional result requires its complete outcome relation",
@@ -681,7 +680,10 @@ impl Proof<'_, '_> {
                 let right = self.expression(state, right, b, depth + 1)?;
                 self.plain(&right)?;
                 state.join(&skipped, b)?;
-                Ok(Data::default())
+                Ok(Data {
+                    sources: OwnerSources::opaque(left.borrow_exposure() || right.borrow_exposure()),
+                    ..Data::default()
+                })
             }
             CoreExprKind::Binary { left, right, .. }
             | CoreExprKind::Range {
@@ -692,7 +694,10 @@ impl Proof<'_, '_> {
                 self.plain(&left)?;
                 let right = self.expression(state, right, b, depth + 1)?;
                 self.plain(&right)?;
-                Ok(Data::default())
+                Ok(Data {
+                    sources: OwnerSources::opaque(left.borrow_exposure() || right.borrow_exposure()),
+                    ..Data::default()
+                })
             }
             CoreExprKind::Index { object, index } => {
                 let object = self.expression(state, object, b, depth + 1)?;
@@ -700,9 +705,7 @@ impl Proof<'_, '_> {
                 let index = self.expression(state, index, b, depth + 1)?;
                 self.plain(&index)?;
                 Ok(Data {
-                    parts: BTreeMap::new(),
-                    alias: None,
-                    exposed: object.exposed || object.alias.is_some(),
+                    sources: OwnerSources::opaque(object.borrow_exposure() || index.borrow_exposure()),
                     outcomes: Vec::new(),
                 })
             }
@@ -712,50 +715,38 @@ impl Proof<'_, '_> {
             } => {
                 let data = self.expression(state, operand, b, depth + 1)?;
                 self.plain(&data)?;
-                Ok(Data {
-                    parts: BTreeMap::new(),
-                    alias: None,
-                    exposed: data.exposed || data.alias.is_some(),
-                    outcomes: Vec::new(),
-                })
+                Ok(data.expose())
             }
             CoreExprKind::Unary { operand, .. }
             | CoreExprKind::NumericConvert { value: operand, .. }
             | CoreExprKind::IntegerConvert { value: operand, .. } => {
                 let data = self.expression(state, operand, b, depth + 1)?;
                 self.plain(&data)?;
-                Ok(Data::default())
+                Ok(data.expose())
             }
             CoreExprKind::Member { object, member, .. } => {
                 let data = self.expression(state, object, b, depth + 1)?;
                 self.plain(&data)?;
-                if !data.parts.is_empty() {
+                if data.sources.has_exact() {
                     let ordinal = self.projected_field(object.id, member, b)?;
                     return data.project(PlaceProjection::Field(ordinal), b);
                 }
-                Ok(Data {
-                    parts: BTreeMap::new(),
-                    alias: None,
-                    exposed: data.exposed || data.alias.is_some(),
-                    outcomes: Vec::new(),
-                })
+                Ok(data.expose())
             }
             CoreExprKind::Tuple(fields) | CoreExprKind::Array(fields) => {
                 let mut exposed = false;
                 for field in fields {
                     let data = self.expression(state, field, b, depth + 1)?;
                     self.plain(&data)?;
-                    exposed |= data.exposed;
-                    if data.alias.is_some() {
+                    exposed |= data.sources.opaque_exposure();
+                    if data.sources.has_exact() {
                         return Err(unknown(
                             "original protocol aggregate needs its complete nested owner-place identity",
                         ));
                     }
                 }
                 Ok(Data {
-                    parts: BTreeMap::new(),
-                    alias: None,
-                    exposed,
+                    sources: OwnerSources::opaque(exposed),
                     outcomes: Vec::new(),
                 })
             }
@@ -765,25 +756,23 @@ impl Proof<'_, '_> {
                 for (_, field) in fields {
                     let data = self.expression(state, field, b, depth + 1)?;
                     self.plain(&data)?;
-                    exposed |= data.exposed;
-                    if data.alias.is_some() {
+                    exposed |= data.sources.opaque_exposure();
+                    if data.sources.has_exact() {
                         return Err(unknown(
                             "original protocol product needs its complete nested owner-place identity",
                         ));
                     }
                 }
                 Ok(Data {
-                    parts: BTreeMap::new(),
-                    alias: None,
-                    exposed,
+                    sources: OwnerSources::opaque(exposed),
                     outcomes: Vec::new(),
                 })
             }
             CoreExprKind::RecordUpdate { base, fields, .. } => {
                 let data = self.expression(state, base, b, depth + 1)?;
                 self.plain(&data)?;
-                let mut exposed = data.exposed;
-                if data.alias.is_some() {
+                let mut exposed = data.sources.opaque_exposure();
+                if data.sources.has_exact() {
                     return Err(unknown(
                         "original protocol update needs its complete old and new owning-head identities",
                     ));
@@ -791,17 +780,15 @@ impl Proof<'_, '_> {
                 for (_, field) in fields {
                     let data = self.expression(state, field, b, depth + 1)?;
                     self.plain(&data)?;
-                    exposed |= data.exposed;
-                    if data.alias.is_some() {
+                    exposed |= data.sources.opaque_exposure();
+                    if data.sources.has_exact() {
                         return Err(unknown(
                             "original protocol update needs its complete nested owner-place identity",
                         ));
                     }
                 }
                 Ok(Data {
-                    parts: BTreeMap::new(),
-                    alias: None,
-                    exposed,
+                    sources: OwnerSources::opaque(exposed),
                     outcomes: Vec::new(),
                 })
             }
@@ -819,23 +806,21 @@ impl Proof<'_, '_> {
             CoreExprKind::Slice { object, start, end } => {
                 let data = self.expression(state, object, b, depth + 1)?;
                 self.plain(&data)?;
+                let mut exposed = data.borrow_exposure();
                 for bound in start.iter().chain(end) {
                     let data = self.expression(state, bound, b, depth + 1)?;
                     self.plain(&data)?;
+                    exposed |= data.borrow_exposure();
                 }
                 Ok(Data {
-                    parts: BTreeMap::new(),
-                    alias: None,
-                    exposed: data.exposed || data.alias.is_some(),
+                    sources: OwnerSources::opaque(exposed),
                     outcomes: Vec::new(),
                 })
             }
             CoreExprKind::Closure { .. } => {
                 state.cleanup_unknown = true;
                 Ok(Data {
-                    parts: BTreeMap::new(),
-                    alias: None,
-                    exposed: state.phases.values().any(|phase| *phase != 0),
+                    sources: OwnerSources::opaque(state.phases.values().any(|phase| *phase != 0)),
                     outcomes: Vec::new(),
                 })
             }
@@ -881,26 +866,25 @@ impl Proof<'_, '_> {
             }
             state.call_effect(arguments, &consumed, b)?;
             return Ok(Data {
-                parts: BTreeMap::new(),
-                alias: None,
-                exposed: arguments
+                sources: OwnerSources::opaque(arguments
                     .iter()
-                    .any(|argument| argument.exposed || argument.alias.is_some()),
+                    .any(|argument| argument.borrow_exposure())),
                 outcomes: Vec::new(),
             });
+        }
+        let mut roots = Vec::new();
+        for contract in protocol_contracts {
+            let argument = arguments.get(contract.parameter as usize)
+                .ok_or_else(|| fail("original protocol call omits its complete head argument"))?;
+            let root = argument.sources.receiver_with_effect(state, b)?;
+            Solver::push(&mut roots, root, b)?;
         }
         let before = state.copy(b)?;
         state.invalidate(b)?;
         let mut exits: BTreeMap<ProtocolExit, BTreeMap<u32, u8>> = BTreeMap::new();
         let mut mapped = BTreeSet::new();
         let mut outputs: BTreeMap<(u32, ProtocolExit), u8> = BTreeMap::new();
-        for contract in protocol_contracts {
-            let role = arguments
-                .get(contract.parameter as usize)
-                .and_then(|data| data.alias)
-                .ok_or_else(|| {
-                    unknown("original state call needs its actual registration argument identity")
-                })?;
+        for (contract, role) in protocol_contracts.iter().zip(roots) {
             b.lookup(mapped.len(), WORK)?;
             if !mapped.insert(role) {
                 return Err(unknown(
@@ -980,9 +964,7 @@ impl Proof<'_, '_> {
             Ok(Data::default())
         } else {
             Ok(Data {
-                parts: BTreeMap::new(),
-                alias: None,
-                exposed: false,
+                sources: OwnerSources::opaque(false),
                 outcomes,
             })
         }
@@ -1117,7 +1099,7 @@ impl Proof<'_, '_> {
                     self.plain(&target)?;
                     let value = self.expression(state, value, b, depth + 1)?;
                     self.plain(&value)?;
-                    if target.alias.is_some() || value.alias.is_some() {
+                    if target.sources.has_any() || value.sources.has_any() {
                         return Err(fail(
                             "original protocol head cannot be a scalar compound-write operand",
                         ));
@@ -1138,14 +1120,16 @@ impl Proof<'_, '_> {
                         continue;
                     };
                     let mut found = false;
+                    let mut opaque_cleanup = false;
                     for (key, old) in state.locals.iter_mut().rev() {
                         b.spend(key.len().saturating_add(name.len() + 1), WORK)?;
                         if key == name {
-                            if old.alias.is_some() {
+                            if old.sources.has_exact() {
                                 return Err(unknown(
                                     "original registration parameter replacement requires its new object state and responsibility",
                                 ));
                             }
+                            opaque_cleanup = old.borrow_exposure();
                             *old = data;
                             found = true;
                             break;
@@ -1156,6 +1140,7 @@ impl Proof<'_, '_> {
                             "original protocol assignment has no actual lexical binder",
                         ));
                     }
+                    if opaque_cleanup { state.opaque(b)?; }
                 }
                 CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
                     self.block(state, body, b, depth + 1)?
@@ -1276,9 +1261,7 @@ pub(super) fn check(
                         (
                             parameter.name.clone(),
                             Data {
-                                parts: BTreeMap::new(),
-                                alias,
-                                exposed: false,
+                                sources: (alias.map(OwnerSources::exact).unwrap_or_default()).with_opaque(false),
                                 outcomes: Vec::new(),
                             },
                         ),
@@ -1310,11 +1293,9 @@ pub(super) fn check(
                 for (ordinal, parameter) in parameters.iter().enumerate() {
                     b.spend(parameter.name.len(), WORK)?;
                     let data = Data {
-                        parts: BTreeMap::new(),
-                        alias: phases
+                        sources: (phases
                             .contains_key(&(ordinal as u32))
-                            .then_some(ordinal as u32),
-                        exposed: false,
+                            .then(|| OwnerSources::exact(ordinal as u32)).unwrap_or_default()).with_opaque(false),
                         outcomes: Vec::new(),
                     };
                     Solver::push(&mut locals, (parameter.name.clone(), data), b)?;

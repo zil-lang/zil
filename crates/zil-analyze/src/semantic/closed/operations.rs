@@ -985,6 +985,7 @@ impl Check<'_, '_> {
                         | original::sealed::Intrinsic::AsyncFinishChecked
                         | original::sealed::Intrinsic::AsyncValid
                         | original::sealed::Intrinsic::RegistrationValid
+                        | original::sealed::Intrinsic::TaskValid
                         | original::sealed::Intrinsic::RegistrationClose) => {
                             let output = self.registration_operation(
                                 instance,

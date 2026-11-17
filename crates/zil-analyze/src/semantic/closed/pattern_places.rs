@@ -39,6 +39,18 @@ impl Check<'_, '_> {
                         subject: SemanticOperand::Value(value),
                         ..
                     } => Some(*value),
+                    SemanticSiteAction::TypeUse { subject, .. } => {
+                        let Some(actual) = function.blocks.get(block.0 as usize).filter(|item| item.id == block)
+                            .and_then(|item| item.instructions.get(instruction as usize)) else { continue; };
+                        let matches = match (subject, &actual.kind) {
+                            (SemanticOperand::Local(expected), InstructionKind::TakeLocal { local }
+                                | InstructionKind::Load(local)) => expected == local,
+                            (SemanticOperand::Capture(expected), InstructionKind::ReadCapture { index }
+                                | InstructionKind::TakeCapture { index }) => expected == index,
+                            _ => false,
+                        };
+                        if matches { actual.result } else { None }
+                    }
                     SemanticSiteAction::BodyCall { .. }
                     | SemanticSiteAction::Call { .. }
                     | SemanticSiteAction::CallableCall { .. }
@@ -68,7 +80,7 @@ impl Check<'_, '_> {
         Ok(result)
     }
 
-    fn stored_pattern_value(
+    pub(super) fn stored_pattern_value(
         &self,
         function: &TypedFunction,
         value: ValueId,
@@ -242,7 +254,7 @@ impl Check<'_, '_> {
         }
         Ok(true)
     }
-    fn pattern_child_type(ty: &Type, selector: PlaceProjection) -> Option<&Type> {
+    pub(super) fn pattern_child_type(ty: &Type, selector: PlaceProjection) -> Option<&Type> {
         let storage = match ty {
             Type::BorrowedStorage { storage, .. } => storage.as_ref(),
             ty => ty,

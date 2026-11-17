@@ -25,6 +25,44 @@ pub(super) fn declaration(d: &LifeNominalDeclaration) -> bool {
             ]
         && d.identity.generation_path.is_empty()
 }
+/// Authenticate the plain compiler product before the independent complete
+/// zero-domain visitor checks every physical child and both phantom actuals.
+/// No registration/Task ownership, protocol phase or cleanup is inferred here.
+pub(super) fn plain_instance(d: &LifeNominalDeclaration, i: &LifeNominalInstance,
+    storage: &Type, b: &mut Budget) -> CompileResult<()> {
+    if !declaration(d) || i.declaration != d.id {
+        return Err(failure("plain Task failure changes its complete canonical declaration"));
+    }
+    let (name, fields) = match storage {
+        Type::Record { name, fields } if d.kind == LifeNominalKind::Record => (name, fields),
+        Type::Package { name, fields } if d.kind == LifeNominalKind::Package => (name, fields),
+        _ => return Err(failure("plain Task failure changes its original product family")),
+    };
+    fee(b, name.len().saturating_add(fields.len() + 1))?;
+    let [(reason_name, error), (inputs_name, inputs)] = fields.as_slice() else {
+        return Err(failure("plain Task failure omits its complete ordered fields"));
+    };
+    let [LifeNominalActual::Type(actual_inputs), LifeNominalActual::Type(Type::Task { result, retained_life })]
+        = i.arguments.as_slice() else {
+            return Err(failure("plain Task failure omits its full Inputs and Task Context actuals"));
+        };
+    crate::dyn_metadata::ty(inputs, b)?;
+    crate::dyn_metadata::ty(actual_inputs, b)?;
+    crate::dyn_metadata::retained_shape(retained_life, b)?;
+    if reason_name != "reason" || inputs_name != "inputs" || !reason(error)
+        || !matches!(inputs, Type::Tuple(_)) || inputs != actual_inputs
+        || result.as_ref() != &Type::Unit || retained_life.binder_count != 0
+        || !retained_life.ports.is_empty() || !retained_life.retained.is_empty()
+        || !retained_life.nominal_arguments.is_empty()
+    {
+        return Err(failure("plain Task failure changes its complete reason/Inputs/Context relation"));
+    }
+    b.type_work(inputs, true, "plain failure complete input identity")?;
+    if *name != format!("@std.task:v1:TaskCreateFailure:{}", inputs.fingerprint()) {
+        return Err(failure("plain Task failure changes its complete input identity"));
+    }
+    Ok(())
+}
 fn complete_inputs(inputs: &[Type], b: &mut Budget) -> CompileResult<bool> {
     for t in inputs {
         if t.is_copy_value()

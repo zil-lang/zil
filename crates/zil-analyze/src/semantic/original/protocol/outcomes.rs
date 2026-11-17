@@ -9,25 +9,25 @@ impl State {
         b: &mut Budget,
     ) -> CompileResult<()> {
         self.invalidate(b)?;
-        let exposed = arguments.iter().any(|argument| argument.exposed || !argument.parts.is_empty());
-        for argument in arguments { argument.charge_parts(b)?; }
+        // Exact whole/projected roles are visited below; only an opaque value
+        // can reach an otherwise unmentioned original head.
+        let exposed = arguments.iter().any(|argument| argument.sources.opaque_exposure() || !argument.outcomes.is_empty());
+        for argument in arguments { argument.charge_sources(b)?; }
+        for (index, argument) in arguments.iter().enumerate() {
+            if consumed.get(index) == Some(&true) { argument.sources.retire_consumed(self, b)?; }
+        }
         for (role, phase) in &mut self.phases {
-            b.spend(arguments.iter().fold(arguments.len().saturating_add(1),
-                |work, argument| work.saturating_add(argument.parts.len())), WORK)?;
+            b.spend(arguments.len().saturating_add(1), WORK)?;
             let mut passed = false;
-            let mut retired = false;
-            for (index, argument) in arguments.iter().enumerate() {
-                if argument.alias == Some(*role) || argument.parts.values().any(|source| *source == *role) {
+            for argument in arguments {
+                if argument.sources.contains(*role, b)? {
                     passed = true;
-                    retired |= argument.alias == Some(*role) && consumed.get(index) == Some(&true);
                 }
             }
             if *phase == 0 {
                 continue;
             }
-            *phase = if retired {
-                0
-            } else if passed || exposed {
+            *phase = if passed || exposed {
                 ANY
             } else {
                 // No actual typed head/borrow was passed. Other ordinary and
@@ -66,16 +66,12 @@ impl Proof<'_, '_> {
         }
         if data.outcomes.is_empty() {
             let mut failure = state.copy(b)?;
-            if let Some(role) = data.alias {
-                failure.phases.insert(role, 0);
-            }
+            data.sources.retire_absent_success(&mut failure, b)?;
             b.spend(failure.phases.len(), WORK)?;
             self.exit(
                 &failure,
                 &Data {
-                    parts: BTreeMap::new(),
-                    alias: None,
-                    exposed: false,
+                    sources: OwnerSources::opaque(false),
                     outcomes: vec![(ProtocolExit::ErrorErr, failure.phases.clone())],
                 },
                 b,
@@ -89,16 +85,12 @@ impl Proof<'_, '_> {
             branch.phases = phases.clone();
             match exit {
                 ProtocolExit::ErrorErr => {
-                    if let Some(role) = data.alias {
-                        branch.phases.insert(role, 0);
-                    }
+                    data.sources.retire_absent_success(&mut branch, b)?;
                     b.spend(branch.phases.len(), WORK)?;
                     self.exit(
                         &branch,
                         &Data {
-                            parts: BTreeMap::new(),
-                            alias: None,
-                            exposed: false,
+                            sources: OwnerSources::opaque(false),
                             outcomes: vec![(*exit, branch.phases.clone())],
                         },
                         b,

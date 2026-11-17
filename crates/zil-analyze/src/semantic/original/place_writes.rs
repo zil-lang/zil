@@ -180,6 +180,7 @@ impl Solver<'_, '_> {
         term: Term,
         path: &[u32],
         vacant: &BTreeSet<Vec<u32>>,
+        origin: &cleanup::Origin,
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<()> {
@@ -193,7 +194,7 @@ impl Solver<'_, '_> {
             partial |= hole.starts_with(path);
         }
         if !partial {
-            return Self::push(&mut self.cleanup_terms, term, b);
+            return self.record_cleanup(term, origin, path, b);
         }
         let fields = match &self.state.arena[self.type_root(term, b)?] {
             Kind::Tuple(fields) => {
@@ -232,18 +233,24 @@ impl Solver<'_, '_> {
                     .map_err(|_| resource("original cleanup field ordinal overflow"))?,
                 b,
             )?;
-            self.cleanup_partial(*field, &child, vacant, b, depth + 1)?;
+            self.cleanup_partial(*field, &child, vacant, origin, b, depth + 1)?;
         }
         Ok(())
     }
     pub(super) fn cleanup_reintroduced(
         &mut self,
+        frame: &Frame,
+        statement: NodeId,
+        index: usize,
         old: &Local,
         next: &Local,
         b: &mut Budget,
     ) -> CompileResult<()> {
+        let anchor = if index < frame.inherited { Some(self.environment_anchor(frame, &old.name, b)?) }
+            else { old.anchor };
+        let origin = cleanup::Origin::local(frame.definition, anchor, cleanup::Event::Backedge(statement));
         if !old.live && next.live {
-            return self.cleanup_partial(old.ty, &[], &next.vacant, b, 0);
+            return self.cleanup_partial(old.ty, &[], &next.vacant, &origin, b, 0);
         }
         if !next.live {
             return Ok(());
@@ -262,7 +269,7 @@ impl Solver<'_, '_> {
                     _ => return Err(fail("original loop vacancy has no exact product path")),
                 };
             }
-            self.cleanup_partial(term, path, &next.vacant, b, 0)?;
+            self.cleanup_partial(term, path, &next.vacant, &origin, b, 0)?;
         }
         Ok(())
     }
@@ -611,6 +618,7 @@ impl Solver<'_, '_> {
     pub(super) fn projected_assign(
         &mut self,
         frame: &mut Frame,
+        statement: NodeId,
         target: &SemanticOriginalExpr,
         value: &SemanticOriginalExpr,
         b: &mut Budget,
@@ -623,6 +631,11 @@ impl Solver<'_, '_> {
         let Some(place) = self.write_place(frame, target, false, b, depth + 1)? else {
             return Ok(false);
         };
+        let anchor = if let Some(index) = place.local.filter(|_| !place.indirect) {
+            if index < frame.inherited { Some(self.environment_anchor(frame, &frame.locals[index].name, b)?) }
+            else { frame.locals[index].anchor }
+        } else { None };
+        self.record_cleanup_write(frame.definition, statement, anchor, &place.path, value.id, b)?;
         self.write_access(frame, &place, place.projected, b)?;
         let actual = self.expression_expected(frame, value, place.selected, b, depth + 1)?;
         self.unify(actual, place.selected, depth + 1, b)?;
@@ -632,10 +645,13 @@ impl Solver<'_, '_> {
                 let local = &frame.locals[index];
                 if local.live {
                     let vacant = self.copy_vacancies(&local.vacant, b)?;
-                    self.cleanup_partial(place.selected, &place.path, &vacant, b, depth + 1)?;
+                    let origin = cleanup::Origin::local(frame.definition, anchor, cleanup::Event::Replace(statement));
+                    self.cleanup_partial(place.selected, &place.path, &vacant, &origin, b, depth + 1)?;
                 }
             } else {
-                Self::push(&mut self.cleanup_terms, place.selected, b)?;
+                let mut origin = cleanup::Origin::expression(frame.definition, target.id);
+                origin.event = cleanup::Event::Replace(statement);
+                self.record_cleanup(place.selected, &origin, &place.path, b)?;
             }
         }
         self.write_complete(frame, &place, b)?;
