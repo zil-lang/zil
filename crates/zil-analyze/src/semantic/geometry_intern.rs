@@ -183,6 +183,10 @@ pub(super) fn node(owner: &Geometry, selector: Node) -> CompileResult<&Type> {
                 ty => ty,
             };
             match (storage, variant) {
+                // Anonymous products use the same exact physical field
+                // coordinate; their complete domain is supplied separately
+                // by the caller, just as for a nominal product.
+                (Type::Tuple(fields), None) => fields.get(field),
                 (Type::Record { fields, .. } | Type::Package { fields, .. }, None) => {
                     fields.get(field).map(|(_, ty)| ty)
                 }
@@ -191,7 +195,7 @@ pub(super) fn node(owner: &Geometry, selector: Node) -> CompileResult<&Type> {
                     .and_then(|(_, fields)| fields.get(field)),
                 _ => None,
             }
-            .ok_or_else(|| fail("nominal child geometry has no exact physical field coordinate"))
+            .ok_or_else(|| fail("child geometry has no exact physical field coordinate"))
         }
     }
 }
