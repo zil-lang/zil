@@ -104,18 +104,9 @@ impl Check<'_, '_> {
                         }
                     }
                 }
-                for site in self.inventory.sites_for_value(self.program, instance.id, source_operand, b)? {
-                    let SemanticSiteAction::TypeUse { subject: SemanticOperand::Value(value), .. } = site.action else { continue; };
-                    if value != source_operand { continue; }
-                    let definition = self.inventory.definition(instance.definition, b)?;
-                    let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
-                        return Err(fail("call argument has no complete original function"));
-                    };
-                    for link in site_nodes {
-                        b.spend(nodes.len().saturating_add(1), WORK)?;
-                        if link.site == site.recipe && matches!(link.node, SemanticOriginalNode::Expression(node) if nodes.contains(&node)) {
-                            return Ok(true);
-                        }
+                for node in &nodes {
+                    if self.original_subject_value(instance,function,*node,b)?==Some(source_operand) {
+                        return Ok(true);
                     }
                 }
             }
@@ -150,7 +141,7 @@ impl Check<'_, '_> {
 }
 
 impl Check<'_, '_> {
-    fn call_operand_origins(&self, function: &TypedFunction, operand: ValueId,
+    pub(super) fn call_operand_origins(&self, function: &TypedFunction, operand: ValueId,
         b: &mut Budget) -> CompileResult<Vec<ValueId>> {
         let initialized = crate::shared_initialization(function, b)?;
         let mut values = vec![operand];
@@ -212,6 +203,9 @@ impl Check<'_, '_> {
             }
         }
         if origins.is_empty() { return Err(fail("call staging cycle has no concrete incoming source")); }
+        if !self.operation_operands_cover(function, operand, &origins, b)? {
+            return Err(unknown("call staging has an ungrounded reaching-source dependency"));
+        }
         b.spend(origins.len(), WORK)?;
         Ok(origins.into_iter().collect())
     }

@@ -2,6 +2,10 @@
 //! equations are local to a role and never update the global type/life graph.
 use super::*;
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum ReceiverSource { Expression(SemanticDefinitionId, NodeId), Binding(SemanticDefinitionId, NodeId) }
+
+
 pub(super) struct RoleFrame {
     pub(super) owner: SemanticDefinitionId,
     pub(super) lifetimes: Vec<Term>,
@@ -759,14 +763,14 @@ impl Checked {
             b.lookup(frame.expressions.len(), WORK)?;
             let Some(term) = frame.expressions.get(&value.id) else { return Ok(None); };
             if self.root(*term, b)? != self.root(frame.result, b)?
-                || !self.receiver_expression_source(owner, value.id, inventory, &mut sources, &mut BTreeSet::new(), &mut BTreeSet::new(), b, 0)? {
+                || !self.receiver_expression_source(owner, value.id, inventory, &mut sources, b)? {
                 return Ok(None);
             }
         } else {
             for value in returns {
                 b.spend(1, WORK)?;
                 let Some(value) = value else { return Ok(None); };
-                if !self.receiver_expression_source(owner, value.id, inventory, &mut sources, &mut BTreeSet::new(), &mut BTreeSet::new(), b, 0)? { return Ok(None); }
+                if !self.receiver_expression_source(owner, value.id, inventory, &mut sources, b)? { return Ok(None); }
             }
         }
         // A literal-only result has no capture root. Its separate genuine
@@ -774,7 +778,7 @@ impl Checked {
         Ok(Some(sources))
     }
 
-    fn receiver_value_root(&self, term: Term, b: &mut Budget) -> CompileResult<Term> {
+    pub(super) fn receiver_value_root(&self, term: Term, b: &mut Budget) -> CompileResult<Term> {
         let mut root = self.root(term, b)?;
         for _ in 0..=b.partial_depth {
             b.spend(1, WORK)?;
@@ -790,137 +794,139 @@ impl Checked {
     /// captured owner, and helper spellings carry no authority.
     fn receiver_expression_source(
         &self, owner: SemanticDefinitionId, node: NodeId, inventory: &Inventory<'_>,
-        sources: &mut BTreeSet<u32>, active: &mut BTreeSet<(SemanticDefinitionId, NodeId)>,
-        grounded: &mut BTreeSet<(SemanticDefinitionId, NodeId)>,
-        b: &mut Budget, depth: usize,
+        sources: &mut BTreeSet<u32>, b: &mut Budget,
     ) -> CompileResult<bool> {
-        b.spend(1, WORK)?;
-        if depth > b.partial_depth { return Err(resource("Receiver original source depth exceeded")); }
-        b.lookup(active.len(), WORK)?;
-        if !active.insert((owner, node)) {
-            // Only a real read of an initializer-grounded binding closes this
-            // dependency. Its complete write inventory is still being checked
-            // by the owning traversal; an arbitrary source cycle proves nothing.
-            b.lookup(self.local_reads.len(), WORK)?;
-            if let Some(LocalAnchor::Binding(binding)) = self.local_reads.get(&(owner,node)) {
-                b.lookup(grounded.len(), WORK)?;
-                if grounded.contains(&(owner,*binding)) { return Ok(true); }
-            }
-            return Err(unknown("Receiver source cycle has no independently grounded binding"));
-        }
-        let answer = (|| -> CompileResult<bool> {
-            b.lookup(self.string_literals.len(), WORK)?;
-            if self.string_literals.contains_key(&(owner, node)) { return Ok(true); }
-            let directory = inventory.original_index(owner, b)?;
-            let value = directory.get_expr(node, b)?;
-            b.lookup(self.borrows.len(), WORK)?;
-            if let Some(source) = self.borrows.get(&(owner, node)) {
-                if let Some(LocalAnchor::Environment(ordinal)) = source.anchor {
-                    b.spend(source.path.len().saturating_add(1), WORK)?;
-                    b.lookup(sources.len(), WORK)?; sources.insert(ordinal);
-                    return Ok(true);
-                }
-                // Borrowing a copied local payload still borrows that local,
-                // never its initializer. Only an actual pointer traversal can
-                // inherit an earlier captured/external permission.
-                if !source.indirect && !source.slice.is_some_and(|slice| slice.address) { return Ok(false); }
-                if let Some(expression) = source.expression {
-                    return self.receiver_expression_source(owner, expression, inventory, sources, active, grounded, b, depth + 1);
-                }
-                if let Some(LocalAnchor::Binding(binding)) = source.anchor {
-                    return self.receiver_binding_sources(owner, binding, inventory, sources, active, grounded, b, depth + 1);
-                }
-                return Ok(false);
-            }
-            b.lookup(self.environment_reads.len(), WORK)?;
-            if let Some(ordinal) = self.environment_reads.get(&(owner, node)) {
-                b.lookup(sources.len(), WORK)?; sources.insert(*ordinal);
-                return Ok(true);
-            }
-            b.lookup(self.intrinsics.len().saturating_add(self.intrinsic_anchors.len()), WORK)?;
-            if self.intrinsics.get(&(owner, node)) == Some(&sealed::Intrinsic::BytesView) {
-                return match self.intrinsic_anchors.get(&(owner, node)) {
-                    Some(LocalAnchor::Environment(ordinal)) => {
-                        b.lookup(sources.len(), WORK)?; sources.insert(*ordinal); Ok(true)
+        let root = ReceiverSource::Expression(owner, node);
+        let mut pending = vec![root];
+        let mut graph: BTreeMap<ReceiverSource, Vec<ReceiverSource>> = BTreeMap::new();
+        let mut users: BTreeMap<ReceiverSource, Vec<ReceiverSource>> = BTreeMap::new();
+        let mut grounded = BTreeSet::new();
+        while let Some(query) = pending.pop() {
+            b.lookup(graph.len(), WORK)?;
+            if graph.contains_key(&query) { continue; }
+            if graph.len() >= b.helper_nodes { return Err(resource("Receiver source directory exceeds finite node budget")); }
+            let mut edges = Vec::new();
+            let mut seed = false;
+            match query {
+                ReceiverSource::Binding(owner, binding) => {
+                    let directory = inventory.original_index(owner, b)?;
+                    let statement = directory.get_stmt(binding, b)?;
+                    let CoreStatementKind::Binding { initializer: Some(initializer), .. } = &statement.kind
+                        else { return Ok(false); };
+                    Solver::push(&mut edges, ReceiverSource::Expression(owner, initializer.id), b)?;
+                    for ((scope, _), write) in &self.cleanup_writes {
+                        b.spend(write.path.len().saturating_add(1), WORK)?;
+                        if *scope == owner && write.anchor == LocalAnchor::Binding(binding) {
+                            if !write.path.is_empty() { return Ok(false); }
+                            Solver::push(&mut edges, ReceiverSource::Expression(owner, write.value), b)?;
+                        }
                     }
-                    // A newly created local manager cannot supply an escaping
-                    // environment view. Its actual heap does not extend Γ.
-                    _ => Ok(false),
-                };
-            }
-            match &value.kind {
-                CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. }
-                | CoreExprKind::Sequence { value: inner, .. }
-                | CoreExprKind::Member { object: inner, .. }
-                | CoreExprKind::Index { object: inner, .. }
-                | CoreExprKind::Unary { op: UnaryOp::Dereference, operand: inner } =>
-                    return self.receiver_expression_source(owner, inner.id, inventory, sources, active, grounded, b, depth + 1),
-                CoreExprKind::If { then_value, else_value, .. } => return Ok(
-                    self.receiver_expression_source(owner, then_value.id, inventory, sources, active, grounded, b, depth + 1)?
-                    && self.receiver_expression_source(owner, else_value.id, inventory, sources, active, grounded, b, depth + 1)?),
-                CoreExprKind::Name(_) => {
-                    b.lookup(self.local_reads.len(), WORK)?;
-                    return match self.local_reads.get(&(owner, node)) {
-                        Some(LocalAnchor::Binding(binding)) => self.receiver_binding_sources(owner, *binding,
-                            inventory, sources, active, grounded, b, depth + 1),
-                        _ => Ok(false),
-                    };
                 }
-                _ => {}
-            }
-            // Ordinary and abstract helpers transport the exact outer result
-            // role through their checked original parameter-to-result scheme.
-            // Follow every real argument receipt for that role, not all args.
-            b.lookup(self.frames.len(), WORK)?;
-            let frame = self.frames.get(&owner).ok_or_else(|| fail("Receiver helper source frame absent"))?;
-            b.lookup(frame.expressions.len(), WORK)?;
-            let Some(term) = frame.expressions.get(&node) else { return Ok(false); };
-            let root = self.receiver_value_root(*term, b)?;
-            let Kind::Address { mutable: false, life, .. } = self.arena[root] else { return Ok(false); };
-            let life = self.root(life, b)?;
-            b.lookup(self.call_uses.len(), WORK)?;
-            let mut found = false;
-            if let Some(uses) = self.call_uses.get(&(owner, node)) {
-                for input in uses {
-                    b.spend(1, WORK)?;
-                    if self.root(input.target, b)? != life { continue; }
-                    found = true;
-                    if !self.receiver_expression_source(owner, input.source.node, inventory,
-                        sources, active, grounded, b, depth + 1)? { return Ok(false); }
+                ReceiverSource::Expression(owner, node) => {
+                    b.lookup(self.string_literals.len(), WORK)?;
+                    if self.string_literals.contains_key(&(owner, node)) { seed = true; }
+                    else {
+                        let directory = inventory.original_index(owner, b)?;
+                        let value = directory.get_expr(node, b)?;
+                        b.lookup(self.borrows.len(), WORK)?;
+                        if let Some(source) = self.borrows.get(&(owner, node)) {
+                            if let Some(LocalAnchor::Environment(ordinal)) = source.anchor {
+                                b.spend(source.path.len().saturating_add(1), WORK)?;
+                                b.lookup(sources.len(), WORK)?; sources.insert(ordinal); seed = true;
+                            } else {
+                                if !source.indirect && !source.slice.is_some_and(|slice| slice.address) { return Ok(false); }
+                                if let Some(expression) = source.expression {
+                                    Solver::push(&mut edges, ReceiverSource::Expression(owner, expression), b)?;
+                                } else if let Some(LocalAnchor::Binding(binding)) = source.anchor {
+                                    Solver::push(&mut edges, ReceiverSource::Binding(owner, binding), b)?;
+                                } else { return Ok(false); }
+                            }
+                        } else {
+                            b.lookup(self.environment_reads.len(), WORK)?;
+                            if let Some(ordinal) = self.environment_reads.get(&(owner, node)) {
+                                b.lookup(sources.len(), WORK)?; sources.insert(*ordinal); seed = true;
+                            } else {
+                                b.lookup(self.intrinsics.len().saturating_add(self.intrinsic_anchors.len()), WORK)?;
+                                if self.intrinsics.get(&(owner, node)) == Some(&sealed::Intrinsic::BytesView) {
+                                    let Some(LocalAnchor::Environment(ordinal)) = self.intrinsic_anchors.get(&(owner, node))
+                                        else { return Ok(false); };
+                                    b.lookup(sources.len(), WORK)?; sources.insert(*ordinal); seed = true;
+                                } else {
+                                    match &value.kind {
+                                        CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. }
+                                        | CoreExprKind::Sequence { value: inner, .. }
+                                        | CoreExprKind::Member { object: inner, .. }
+                                        | CoreExprKind::Index { object: inner, .. }
+                                        | CoreExprKind::Unary { op: UnaryOp::Dereference, operand: inner } =>
+                                            Solver::push(&mut edges, ReceiverSource::Expression(owner, inner.id), b)?,
+                                        CoreExprKind::If { then_value, else_value, .. } => {
+                                            Solver::push(&mut edges, ReceiverSource::Expression(owner, then_value.id), b)?;
+                                            Solver::push(&mut edges, ReceiverSource::Expression(owner, else_value.id), b)?;
+                                        }
+                                        CoreExprKind::Name(_) => {
+                                            b.lookup(self.local_reads.len(), WORK)?;
+                                            let Some(LocalAnchor::Binding(binding)) = self.local_reads.get(&(owner, node))
+                                                else { return Ok(false); };
+                                            Solver::push(&mut edges, ReceiverSource::Binding(owner, *binding), b)?;
+                                        }
+                                        _ => {
+                                            b.lookup(self.frames.len(), WORK)?;
+                                            let frame = self.frames.get(&owner).ok_or_else(|| fail("Receiver helper source frame absent"))?;
+                                            b.lookup(frame.expressions.len(), WORK)?;
+                                            let Some(term) = frame.expressions.get(&node) else { return Ok(false); };
+                                            let root = self.receiver_value_root(*term, b)?;
+                                            let Kind::Address { mutable: false, life, .. } = self.arena[root] else { return Ok(false); };
+                                            let life = self.root(life, b)?;
+                                            b.lookup(self.call_uses.len(), WORK)?;
+                                            if let Some(uses) = self.call_uses.get(&(owner, node)) {
+                                                for input in uses {
+                                                    b.spend(1, WORK)?;
+                                                    if self.root(input.target, b)? == life {
+                                                        Solver::push(&mut edges, ReceiverSource::Expression(owner, input.source.node), b)?;
+                                                    }
+                                                }
+                                            }
+                                            if edges.is_empty() {
+                                                if !matches!(self.arena[life], Kind::Life(Life::Receiver(scope, call)) if scope == owner && call == node)
+                                                    { return Ok(false); }
+                                                let CoreExprKind::Call { callee, .. } = &value.kind else { return Ok(false); };
+                                                Solver::push(&mut edges, ReceiverSource::Expression(owner, callee.id), b)?;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
-            if found { return Ok(true); }
-            if matches!(self.arena[life], Kind::Life(Life::Receiver(scope, call)) if scope == owner && call == node) {
-                let CoreExprKind::Call { callee, .. } = &value.kind else { return Ok(false); };
-                return self.receiver_expression_source(owner, callee.id, inventory, sources, active, grounded, b, depth + 1);
+            for edge in &edges {
+                b.lookup(users.len(), WORK)?;
+                Solver::push(users.entry(*edge).or_default(), query, b)?;
+                Solver::push(&mut pending, *edge, b)?;
             }
-            Ok(false)
-        })();
-        b.lookup(active.len(), WORK)?; active.remove(&(owner, node));
-        answer
-    }
-
-    fn receiver_binding_sources(
-        &self, owner: SemanticDefinitionId, binding: NodeId, inventory: &Inventory<'_>,
-        sources: &mut BTreeSet<u32>, active: &mut BTreeSet<(SemanticDefinitionId, NodeId)>,
-        grounded: &mut BTreeSet<(SemanticDefinitionId, NodeId)>,
-        b: &mut Budget, depth: usize,
-    ) -> CompileResult<bool> {
-        if depth > b.partial_depth { return Err(resource("Receiver binding source depth exceeded")); }
-        b.lookup(grounded.len(), WORK)?;
-        if grounded.contains(&(owner,binding)) { return Ok(true); }
-        let directory = inventory.original_index(owner, b)?;
-        let statement = directory.get_stmt(binding, b)?;
-        let CoreStatementKind::Binding { initializer: Some(initializer), .. } = &statement.kind else { return Ok(false); };
-        if !self.receiver_expression_source(owner, initializer.id, inventory, sources, active, grounded, b, depth + 1)? { return Ok(false); }
-        b.lookup(grounded.len(), WORK)?;
-        grounded.insert((owner,binding));
-        for ((scope, _), write) in &self.cleanup_writes {
-            b.spend(write.path.len().saturating_add(1), WORK)?;
-            if *scope == owner && write.anchor == LocalAnchor::Binding(binding) {
-                if !write.path.is_empty() { return Ok(false); }
-                if !self.receiver_expression_source(owner, write.value, inventory, sources, active, grounded, b, depth + 1)? { return Ok(false); }
+            if seed { b.lookup(grounded.len(), WORK)?; grounded.insert(query); }
+            b.lookup(graph.len(), WORK)?;
+            graph.insert(query, edges);
+        }
+        // A finite alias/loop component is admissible only when every source
+        // dependency is initialized from a genuine capture or Static producer.
+        // All writes were expanded before this closure, including writes in an
+        // otherwise grounded cycle; cycles alone never establish a source.
+        let mut work = Vec::new();
+        for query in &grounded { Solver::push(&mut work, *query, b)?; }
+        while let Some(query) = work.pop() {
+            b.lookup(users.len(), WORK)?;
+            if let Some(parents) = users.get(&query) {
+                for parent in parents {
+                    b.lookup(grounded.len(), WORK)?;
+                    if grounded.insert(*parent) { Solver::push(&mut work, *parent, b)?; }
+                }
             }
+        }
+        for query in graph.keys() {
+            b.lookup(grounded.len(), WORK)?;
+            if !grounded.contains(query) { return Ok(false); }
         }
         Ok(true)
     }

@@ -2,6 +2,7 @@
 //! have been checked. Original Gamma premises and actual frame proofs stay
 //! separate: no concrete caller supplies an abstract SyncDrop predicate.
 use super::*;
+type ReplacementSource = (ValueId, Vec<PlaceProjection>);
 
 impl Check<'_, '_> {
     pub(super) fn cleanup_occurrences(&self, b: &mut Budget) -> CompileResult<()> {
@@ -308,51 +309,28 @@ impl Check<'_, '_> {
 
     fn cleanup_replacement_values(&self, instance: &SemanticInstance, function: &TypedFunction,
         source: original::CleanupSource, path: &[u32],
-        event: original::CleanupEvent, b: &mut Budget) -> CompileResult<BTreeSet<ValueId>> {
-        use crate::semantic::original_index::Node;
+        event: original::CleanupEvent, b: &mut Budget) -> CompileResult<BTreeSet<ReplacementSource>> {
         let node = match event {
             original::CleanupEvent::Replace(node) | original::CleanupEvent::Backedge(node) => node,
             _ => return Ok(BTreeSet::new()),
         };
         let index = self.inventory.original_index(instance.definition, b)?;
-        let Node::Statement(statement) = index.node(node, b)? else {
-            return Err(fail("original cleanup replacement/loop loses its exact statement"));
-        };
-        let mut pending = vec![statement];
         let mut result = BTreeSet::new();
-        while let Some(statement) = pending.pop() {
-            b.spend(1, WORK)?;
-            match &statement.kind {
-                CoreStatementKind::Assign { .. } => {
-                    let Some(write) = self.original.cleanup_write(instance.definition, statement.id, b)? else { continue; };
-                    b.spend(path.len().saturating_add(write.path.len() + 1), WORK)?;
-                    if !matches!(source, original::CleanupSource::Local(anchor) if anchor == write.anchor)
-                        || !path.starts_with(&write.path) { continue; }
-                    if let Some(value) = self.original_subject_value(instance, function, write.value, b)? {
-                        b.lookup(result.len(), WORK)?;
-                        result.insert(value);
-                    } else {
-                        return Err(unknown("original cleanup replacement needs its complete actual RHS emission"));
-                    }
+        for statement in index.active_writes_under(node, b)? {
+            let Some(write) = self.original.cleanup_write(instance.definition, statement.id, b)? else { continue; };
+            b.spend(path.len().saturating_add(write.path.len()).saturating_add(1), WORK)?;
+            if !matches!(source, original::CleanupSource::Local(anchor) if anchor == write.anchor)
+                || !path.starts_with(&write.path) { continue; }
+            if let Some(value) = self.original_subject_value(instance, function, write.value, b)? {
+                let mut selected = Vec::new();
+                for field in &path[write.path.len()..] {
+                    self.push_value(&mut selected, PlaceProjection::Field(*field), b)?;
                 }
-                CoreStatementKind::If { then_body, else_body, .. }
-                | CoreStatementKind::IfLet { then_body, else_body, .. } => {
-                    for body in std::iter::once(then_body).chain(else_body.iter()) {
-                        for statement in &body.statements { self.push_value(&mut pending, statement, b)?; }
-                    }
-                }
-                CoreStatementKind::Loop(body) | CoreStatementKind::Block(body)
-                | CoreStatementKind::Unsafe(body) | CoreStatementKind::While { body, .. }
-                | CoreStatementKind::WhileLet { body, .. } | CoreStatementKind::ForRange { body, .. }
-                | CoreStatementKind::ForEach { body, .. } | CoreStatementKind::With { body, .. } => {
-                    for statement in &body.statements { self.push_value(&mut pending, statement, b)?; }
-                }
-                CoreStatementKind::Match { arms, .. } => {
-                    for arm in arms { for statement in &arm.body.statements {
-                        self.push_value(&mut pending, statement, b)?;
-                    }}
-                }
-                _ => {}
+                b.lookup(result.len(), WORK)?;
+                b.spend(selected.len().saturating_add(1), WORK)?;
+                result.insert((value, selected));
+            } else {
+                return Err(unknown("original cleanup replacement needs its complete actual RHS emission"));
             }
         }
         if result.is_empty() {
@@ -363,35 +341,100 @@ impl Check<'_, '_> {
 
     fn cleanup_event_matches(&self, function: &TypedFunction, local: LocalId,
         block: BlockId, position: usize, event: original::CleanupEvent,
-        replacements: &BTreeSet<ValueId>, b: &mut Budget) -> CompileResult<bool> {
+        replacements: &BTreeSet<ReplacementSource>, b: &mut Budget) -> CompileResult<bool> {
         match event {
             original::CleanupEvent::Scope | original::CleanupEvent::Discard(_) =>
                 self.cleanup_scope_boundary(function, local, block, position + 1, b),
             original::CleanupEvent::Replace(_) | original::CleanupEvent::Backedge(_) => {
-                let body = function.blocks.get(block.0 as usize).filter(|body| body.id == block)
-                    .ok_or_else(|| fail("original cleanup replacement has no actual block"))?;
-                for (offset, instruction) in body.instructions.iter().enumerate().skip(position + 1) {
-                    b.spend(1, WORK)?;
-                    let stored = match instruction.kind {
-                        InstructionKind::Store { local: target, value } if target == local => Some(value),
-                        InstructionKind::StoreOwnedArrayElement { local: target, index: 0, value } if target == local => Some(value),
-                        InstructionKind::StorageLive(target) | InstructionKind::StorageDead(target) if target == local => return Ok(false),
-                        InstructionKind::DropManaged { local: target } | InstructionKind::DropClosure { local: target }
-                            if target == local => return Ok(false),
-                        _ => None,
-                    };
-                    if let Some(value) = stored {
-                        b.lookup(replacements.len(), WORK)?;
-                        if !replacements.contains(&value) { return Ok(false); }
-                        operations::available_before(function, (block, position, SemanticSiteEdge::Before), value, b)?;
-                        // A backedge obligation is tied to a real cyclic write,
-                        // not another same-local replacement elsewhere.
+                let root = (block, position + 1);
+                let mut pending = vec![root];
+                let mut seen = BTreeSet::new();
+                let mut graph = BTreeMap::new();
+                let mut settled = BTreeSet::new();
+                while let Some((next, start)) = pending.pop() {
+                    b.lookup(seen.len(), WORK)?;
+                    if !seen.insert((next, start)) { continue; }
+                    let body = function.blocks.get(next.0 as usize).filter(|body| body.id == next)
+                        .ok_or_else(|| fail("original cleanup replacement has no actual CFG block"))?;
+                    let mut wrote = false;
+                    for (offset, instruction) in body.instructions.iter().enumerate().skip(start) {
+                        b.spend(1, WORK)?;
+                        let stored = match instruction.kind {
+                            InstructionKind::Store { local: target, value } if target == local => Some(value),
+                            InstructionKind::StoreOwnedArrayElement { local: target, index: 0, value } if target == local => Some(value),
+                            InstructionKind::StorageLive(target) | InstructionKind::StorageDead(target)
+                            | InstructionKind::DropManaged { local: target } | InstructionKind::DropClosure { local: target }
+                                if target == local => return Ok(false),
+                            _ => None,
+                        };
+                        let Some(value) = stored else { continue; };
+                        let mut matched = false;
+                        for (producer, path) in replacements {
+                            b.spend(path.len().saturating_add(1), WORK)?;
+                            if !operations::value_available_before(function,
+                                (block, position, SemanticSiteEdge::Before), *producer, b)? { continue; }
+                            let same = if path.is_empty() {
+                                self.operation_operand_matches(function, value, *producer, b)?
+                            } else {
+                                let origins = self.call_operand_origins(function, value, b)?;
+                                let mut complete = true;
+                                for origin in origins {
+                                    complete &= self.pattern_ssa_path(function, origin, *producer, path, b, 0)?;
+                                }
+                                complete
+                            };
+                            if same {
+                                // Preparation precedes destruction. A later load of
+                                // its owning temporary is still this same RHS.
+                                matched = true;
+                            }
+                        }
+                        if !matched { return Ok(false); }
                         if matches!(event, original::CleanupEvent::Backedge(_))
-                            && !self.cleanup_cyclic_write(function, local, block, position, offset, b)? { return Ok(false); }
-                        return Ok(true);
+                            && !self.cleanup_cyclic_write(function, local, block, position, next, offset, b)? {
+                            return Ok(false);
+                        }
+                        b.lookup(settled.len(), WORK)?;
+                        settled.insert((next, start));
+                        wrote = true;
+                        break;
                     }
+                    if wrote { continue; }
+                    let successors = match body.terminator {
+                        Terminator::Jump(target) => [Some((target, 0)), None],
+                        Terminator::Branch { then_block, else_block, .. } => [Some((then_block, 0)), Some((else_block, 0))],
+                        _ => return Ok(false),
+                    };
+                    let mut edges = Vec::new();
+                    for successor in successors.into_iter().flatten() {
+                        self.push_value(&mut edges, successor, b)?;
+                        self.push_value(&mut pending, successor, b)?;
+                    }
+                    b.lookup(graph.len(), WORK)?;
+                    graph.insert((next, start), edges);
                 }
-                Ok(false)
+                // Every continuation must reach its matching replacement;
+                // an ungrounded loop is not evidence of a completed event.
+                loop {
+                    let mut progress = false;
+                    for (node, edges) in &graph {
+                        b.lookup(settled.len(), WORK)?;
+                        if settled.contains(node) { continue; }
+                        let mut complete = true;
+                        for edge in edges {
+                            b.lookup(settled.len(), WORK)?;
+                            complete &= settled.contains(edge);
+                        }
+                        if complete {
+                            b.lookup(settled.len(), WORK)?;
+                            settled.insert(*node);
+                            progress = true;
+                        }
+                    }
+                    b.lookup(settled.len(), WORK)?;
+                    if settled.contains(&root) { return Ok(true); }
+                    if !progress { return Ok(false); }
+                }
             }
             original::CleanupEvent::CaptureExit(_) => Err(fail("remaining capture cleanup lost its exact environment source")),
         }
@@ -463,8 +506,8 @@ impl Check<'_, '_> {
 
     #[allow(clippy::too_many_arguments)]
     fn cleanup_cyclic_write(&self, function: &TypedFunction, local: LocalId,
-        block: BlockId, drop_position: usize, store_position: usize, b: &mut Budget) -> CompileResult<bool> {
-        let mut pending = vec![(block, store_position + 1)];
+        block: BlockId, drop_position: usize, store_block: BlockId, store_position: usize, b: &mut Budget) -> CompileResult<bool> {
+        let mut pending = vec![(store_block, store_position + 1)];
         let mut seen = BTreeSet::new();
         while let Some((next, start)) = pending.pop() {
             b.lookup(seen.len(), WORK)?;

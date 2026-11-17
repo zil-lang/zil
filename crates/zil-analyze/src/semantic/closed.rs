@@ -24,6 +24,7 @@ mod local_reference_roles;
 mod mutex;
 mod nominal_fields;
 mod operations;
+mod operation_transport;
 mod parameter_classes;
 mod pattern_places;
 mod persistent_slots;
@@ -67,6 +68,7 @@ struct Check<'a, 'i> {
     inventory: &'i Inventory<'a>,
     original: &'i original::Checked,
     scope_queries: std::cell::RefCell<BTreeSet<ClosureId>>,
+    capture_directories: std::cell::RefCell<BTreeMap<ClosureId,capture_heads::CaptureDirectory>>,
     value_queries: std::cell::RefCell<BTreeSet<(SemanticInstanceId, ValueId)>>,
     slot_queries: std::cell::RefCell<
         BTreeMap<(SemanticInstanceId, FunctionId, LocalId), Option<value::Value>>,
@@ -229,9 +231,10 @@ impl Check<'_, '_> {
             .get(id.0 as usize)
             .filter(|definition| definition.id == *id)
             .ok_or_else(|| fail("actual closure inventory identity differs"))?;
-        // The complete actual directory also binds every active implicit
-        // captured head to its original name occurrence and creator operand.
-        self.capture_directory(*id, b)?;
+        // Classification checks this declaration's physical/signature shape.
+        // Reentering its full body occurrence proof from a captured Type is a
+        // false dependency cycle. Every closure's complete capture directory
+        // is separately mandatory before semantic proof publication below.
         b.spend(
             definition
                 .captures
@@ -1097,6 +1100,7 @@ pub(super) fn check(
         inventory,
         original,
         scope_queries: std::cell::RefCell::new(BTreeSet::new()),
+        capture_directories: Default::default(),
         value_queries: std::cell::RefCell::new(BTreeSet::new()),
         slot_queries: Default::default(),
         trait_queries: std::cell::RefCell::new(Vec::new()),
@@ -1106,6 +1110,10 @@ pub(super) fn check(
     checker.dyn_tables(b)?;
     inventory.profile_stage("instances", b);
     checker.instances(b)?;
+    inventory.profile_stage("complete captured directories",b);
+    for closure in &module.closures {
+        checker.capture_directory(closure.id,b)?;
+    }
     inventory.profile_stage("sites", b);
     checker.sites(b)?;
     inventory.profile_stage("constructor class sources", b);

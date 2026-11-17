@@ -12,7 +12,7 @@ impl Check<'_, '_> {
         if let Type::Closure(id) = ty {
             let definition = self.module.closures.get(id.0 as usize).filter(|d| d.id == *id)
                 .ok_or_else(|| fail("abstract Copy receiver has no exact environment"))?;
-            if definition.kind != CallableKind::Fn { return Ok(false); }
+            if !matches!(definition.kind, CallableKind::Fn | CallableKind::FnMut) { return Ok(false); }
             self.capture_directory(*id, b)?;
             for capture in &definition.captures {
                 if !self.abstract_copy_type(capture, b, depth + 1)? { return Ok(false); }

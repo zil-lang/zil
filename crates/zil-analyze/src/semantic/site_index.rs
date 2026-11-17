@@ -62,11 +62,12 @@ pub(super) fn operand(site: &SemanticSite) -> Option<OperandKey> {
 pub(super) struct Index {
     addresses: BTreeMap<Address, Vec<usize>>,
     operands: BTreeMap<(SemanticInstanceId, OperandKey), Vec<usize>>,
+    expressions: BTreeMap<(SemanticInstanceId, zil_base::NodeId), Vec<usize>>,
 }
-pub(super) fn append<K: Ord>(
-    rows: &mut BTreeMap<K, Vec<usize>>,
+pub(super) fn append<K: Ord, T>(
+    rows: &mut BTreeMap<K, Vec<T>>,
     key: K,
-    position: usize,
+    position: T,
     b: &mut Budget,
 ) -> CompileResult<()> {
     b.lookup(rows.len(), WORK)?;
@@ -89,9 +90,38 @@ impl Index {
         let mut index = Self {
             addresses: BTreeMap::new(),
             operands: BTreeMap::new(),
+            expressions: BTreeMap::new(),
         };
+        let mut nodes = BTreeMap::new();
+        for definition in &program.definitions {
+            b.spend(1, WORK)?;
+            if let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body {
+                for link in site_nodes {
+                    b.spend(1, WORK)?;
+                    if let SemanticOriginalNode::Expression(node) = link.node {
+                        append(&mut nodes, (definition.id,link.site),node,b)?;
+                    }
+                }
+            }
+        }
+        let mut definitions = BTreeMap::new();
+        for instance in &program.instances {
+            b.lookup(definitions.len(),WORK)?;
+            if definitions.insert(instance.id,instance.definition).is_some() {
+                return Err(fail("actual operation directory repeats an instance identity"));
+            }
+        }
         for (position, site) in program.sites.iter().enumerate() {
             b.spend(1, WORK)?;
+            b.lookup(definitions.len(),WORK)?;
+            let owner=definitions.get(&site.instance)
+                .ok_or_else(||fail("actual operation has no registered original instance"))?;
+            b.lookup(nodes.len(),WORK)?;
+            if let Some(originals)=nodes.get(&(*owner,site.recipe)) {
+                for original in originals {
+                    append(&mut index.expressions,(site.instance,*original),position,b)?;
+                }
+            }
             if let SemanticSiteAddress::Typed {
                 block,
                 instruction,
@@ -126,5 +156,11 @@ impl Index {
             .operands
             .get(&(instance, key))
             .map_or(&[], Vec::as_slice))
+    }
+    pub(super) fn expression(
+        &self, instance:SemanticInstanceId, node:zil_base::NodeId,b:&mut Budget,
+    ) -> CompileResult<&[usize]> {
+        b.lookup(self.expressions.len(),WORK)?;
+        Ok(self.expressions.get(&(instance,node)).map_or(&[],Vec::as_slice))
     }
 }

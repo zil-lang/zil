@@ -40,6 +40,28 @@ impl<'a> Index<'a> {
         Ok(returns)
     }
 
+    /// Runtime assignments under this original event, using the same exhaustive
+    /// expression/body walk and nested-definition boundary as the main index.
+    pub(super) fn active_writes_under(&self, id: NodeId, b: &mut Budget)
+        -> CompileResult<Vec<&'a SemanticOriginalStatement>> {
+        let root = match self.node(id, b)? {
+            Node::Statement(statement) => Work::Stmt(statement),
+            Node::Expression(expression) => Work::Expr(expression),
+        };
+        let subtree = walk_from(root, b)?;
+        let mut result = Vec::new();
+        for (id, node) in &subtree.nodes {
+            b.spend(1, WORK)?;
+            let Node::Statement(statement) = *node else { continue; };
+            if !matches!(statement.kind, CoreStatementKind::Assign { .. }
+                | CoreStatementKind::CompoundAssign { .. }) || subtree.erased(*id, b)? { continue; }
+            b.spend(1, WORK)?;
+            result.try_reserve(1).map_err(|_| bad("original event directory allocation failed"))?;
+            result.push(statement);
+        }
+        Ok(result)
+    }
+
     pub(super) fn recipe(&self, id: SemanticSiteId, b: &mut Budget) -> CompileResult<&'a SemanticSiteRecipe> {
         b.lookup(self.recipes.len(), WORK)?;
         self.recipes.get(&id.0).copied()
@@ -122,12 +144,15 @@ fn insert<'a>(
     Ok(())
 }
 fn walk<'a>(body: &'a SemanticOriginalBlock, b: &mut Budget) -> CompileResult<Index<'a>> {
+    walk_from(Work::Block(body), b)
+}
+fn walk_from<'a>(root: Work<'a>, b: &mut Budget) -> CompileResult<Index<'a>> {
     let mut nodes = BTreeMap::new();
     let mut erased = BTreeSet::new();
     let mut navigation = BTreeSet::new();
     let mut erased_depth = 0usize;
     let mut stack = Vec::new();
-    push(&mut stack, Work::Block(body), b)?;
+    push(&mut stack, root, b)?;
     while let Some(next) = stack.pop() {
         b.spend(1, WORK)?;
         match next {

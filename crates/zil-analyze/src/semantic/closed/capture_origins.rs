@@ -30,6 +30,8 @@ struct Graph<'c, 'a, 'i, 'f> {
     initialization: std::sync::Arc<crate::Initialization>,
     definitions: std::sync::Arc<Vec<Option<crate::SsaDefinition>>>,
     producer: Option<ValueId>,
+    producers: Option<BTreeSet<ValueId>>,
+    probe: bool,
     indices: BTreeMap<Query, usize>,
     nodes: Vec<Node>,
 }
@@ -55,6 +57,8 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
             initialization,
             definitions,
             producer: None,
+            producers: None,
+            probe: false,
             indices: BTreeMap::new(),
             nodes: Vec::new(),
         })
@@ -86,7 +90,7 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
         Ok(index)
     }
     fn capture(&self, index: u32, b: &mut Budget) -> CompileResult<()> {
-        if self.producer.is_some() {
+        if self.producer.is_some() && !self.probe {
             return Err(fail("original expression transport selects another actual environment source"));
         }
         let environment = self
@@ -237,7 +241,7 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
                     index,
                 } if *target == local => {
                     self.capture(*index, b)?;
-                    return Ok((Some(*index), Vec::new()));
+                    return Ok((Some(if self.probe {1}else{*index}), Vec::new()));
                 }
                 InstructionKind::EndPackageCapture { local: target, .. } if *target == local => {
                     return Err(fail(
@@ -311,6 +315,10 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
         // function parameter is not a physical capture merely because a loop
         // later overwrites its same-numbered local with a captured value.
         if block == self.function.entry {
+            b.spend(self.function.parameters.len().saturating_add(1), WORK)?;
+            if self.probe && self.function.parameters.contains(&local) {
+                return Ok((Some(1), Vec::new()));
+            }
             return Err(fail(
                 "capture provenance entry local has no actual environment origin",
             ));
@@ -343,9 +351,11 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
                 if !self.initialization.reachable[definition.block.0 as usize] {
                     return Err(fail("capture provenance SSA value is unreachable"));
                 }
-                if self.producer == Some(value) {
-                    return Ok((Some(0), Vec::new()));
-                }
+                let selected = if let Some(producers) = &self.producers {
+                    b.lookup(producers.len(), WORK)?;
+                    producers.contains(&value)
+                } else { self.producer == Some(value) };
+                if selected { return Ok((Some(0), Vec::new())); }
                 let instruction = &self.function.blocks[definition.block.0 as usize].instructions
                     [definition.instruction];
                 match instruction.kind {
@@ -354,7 +364,7 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
                     | InstructionKind::DescribeCapture { index }
                     | InstructionKind::BorrowCapture { index, .. } => {
                         self.capture(index, b)?;
-                        Ok((Some(index), Vec::new()))
+                        Ok((Some(if self.probe {1}else{index}), Vec::new()))
                     }
                     InstructionKind::ReborrowAddress { address, .. }
                     | InstructionKind::DescribeAddress { address } => Ok((
@@ -372,6 +382,7 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
                             b,
                         )?,
                     )),
+                    _ if self.probe => Ok((Some(1),Vec::new())),
                     _ => {
                         let mut errors = unknown(
                             "whole capture provenance requires the exact actual capture/local transport operation",
@@ -428,6 +439,13 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
                 b.spend(1, WORK)?;
                 let user = self.nodes[index].users[offset];
                 match self.nodes[user].origin {
+                    Some(previous) if previous != origin && self.probe => {
+                        if previous!=1 {
+                            self.nodes[user].origin=Some(1);
+                            b.spend(1,WORK)?;
+                            pending.push_back(user);
+                        }
+                    }
                     Some(previous) if previous != origin => {
                         return Err(unknown(
                             "capture provenance has several actual physical environment origins",
@@ -448,6 +466,7 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
         for node in &self.nodes {
             b.spend(1, WORK)?;
             if node.origin.is_none() {
+                if self.probe {return Ok(1);}
                 return Err(unknown(
                     "capture provenance contains an ungrounded actual CFG source cycle",
                 ));
@@ -459,6 +478,24 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
     }
 }
 impl Check<'_, '_> {
+    /// Select a genuine original operation before interpreting its value.
+    /// False is a mismatching/ungrounded candidate, never a successful proof.
+    pub(super) fn operation_operand_matches(
+        &self,function:&TypedFunction,value:ValueId,producer:ValueId,b:&mut Budget,
+    )->CompileResult<bool> {
+        let mut graph=Graph::new(self,function,b)?;
+        graph.producer=Some(producer);
+        graph.probe=true;
+        Ok(graph.solve(Query::Value(value),b)?==0)
+    }
+    pub(super) fn operation_operands_cover(&self, function: &TypedFunction,
+        value: ValueId, producers: &BTreeSet<ValueId>, b: &mut Budget) -> CompileResult<bool> {
+        let mut graph = Graph::new(self, function, b)?;
+        b.spend(producers.len().saturating_add(1), WORK)?;
+        graph.producers = Some(producers.clone());
+        graph.probe = true;
+        Ok(graph.solve(Query::Value(value), b)? == 0)
+    }
     /// The same complete transport graph, grounded at one actual emitted SSA
     /// instead of a physical capture ordinal. All incoming paths must retain
     /// this exact producer; equal types/classes grant no source identity.

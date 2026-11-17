@@ -27,6 +27,16 @@ impl CaptureDirectory {
     pub(super) fn is_empty(&self) -> bool {
         self.len() == 0
     }
+    fn copy_paid(&self,b:&mut Budget)->CompileResult<Self> {
+        match self {
+            Self::Address(rows)=>{b.spend(rows.len().saturating_add(1),WORK)?;Ok(Self::Address(rows.clone()))}
+            Self::Ghost(rows)=>{
+                b.spend(rows.len().saturating_add(1),WORK)?;
+                for row in rows {b.spend(row.len().saturating_add(1),WORK)?;}
+                Ok(Self::Ghost(rows.clone()))
+            }
+        }
+    }
     fn address(self) -> CompileResult<Vec<u32>> {
         match self {
             Self::Address(rows) => Ok(rows),
@@ -127,17 +137,35 @@ impl Check<'_, '_> {
         b: &mut Budget,
     ) -> CompileResult<CaptureDirectory> {
         {
+            let completed=self.capture_directories.borrow();
+            b.lookup(completed.len(),WORK)?;
+            if let Some(directory)=completed.get(&id) {return directory.copy_paid(b);}
+        }
+        {
             let mut active = self.scope_queries.borrow_mut();
             b.lookup(active.len(), WORK)?;
             if !active.insert(id) {
-                return Err(fail(
-                    "actual environment scope query is cyclic without a completed original inventory",
+                return Err(unknown(
+                    "captured directory retains an unresolved declaration dependency",
                 ));
             }
         }
         let result = self.capture_directory_inner(id, b);
         self.scope_queries.borrow_mut().remove(&id);
+        if let Ok(directory)=&result {
+            let retained=directory.copy_paid(b)?;
+            let mut completed=self.capture_directories.borrow_mut();
+            b.lookup(completed.len(),WORK)?;
+            completed.insert(id,retained);
+        }
         result
+    }
+    pub(super) fn ghost_capture_directory(&self, id: ClosureId, b: &mut Budget)
+        -> CompileResult<Vec<BTreeSet<(u32, u32)>>> {
+        match self.capture_directory(id, b)? {
+            CaptureDirectory::Ghost(rows) => Ok(rows),
+            CaptureDirectory::Address(_) => Err(fail("opaque capture query selects an address-only directory")),
+        }
     }
     fn capture_directory_inner(
         &self,
@@ -146,7 +174,7 @@ impl Check<'_, '_> {
     ) -> CompileResult<CaptureDirectory> {
         if self.has_ghost_capture(id, b)? {
             return self
-                .ghost_capture_directory(id, b)
+                .form_ghost_capture_directory(id, b)
                 .map(CaptureDirectory::Ghost);
         }
         b.spend(self.module.closures.len().saturating_add(1), WORK)?;

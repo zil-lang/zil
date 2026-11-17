@@ -27,7 +27,7 @@ impl Checked {
             .ok_or_else(|| fail("Receiver call lacks its checked original frame"))?;
         b.lookup(frame.expressions.len(), WORK)?;
         let Some(term) = frame.expressions.get(&node) else { return Ok(false); };
-        let root = self.root(*term, b)?;
+        let root = self.receiver_value_root(*term, b)?;
         let Kind::Address { mutable: false, life, .. } = self.arena[root] else { return Ok(false); };
         Ok(matches!(self.arena[self.root(life, b)?],
             Kind::Life(Life::Receiver(owner, call)) if owner == context.definition && call == node))
@@ -57,6 +57,36 @@ impl Checked {
         }
         self.source_value(context, SemanticScopeRef::Ancestor(0),
             &SemanticOriginalTypeSource::Expression(node), program, inventory, b)
+    }
+
+    /// The caller-domain mixed vector is independently inferred from this
+    /// exact original call. It is not reconstructed from an actual callee's
+    /// coincident class images or from a representative specialization.
+    pub(in crate::semantic) fn call_arguments(&self, context: &SemanticInstance,
+        site: SemanticSiteId, program: &SemanticModule, inventory: &Inventory<'_>,
+        b: &mut Budget) -> CompileResult<(SemanticDefinitionId, Vec<Argument>)> {
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } =
+            &inventory.definition(context.definition, b)?.body else {
+                return Err(fail("call mixed vector has no complete original body"));
+            };
+        let mut node = None;
+        for link in site_nodes {
+            b.spend(1, WORK)?;
+            if link.site != site { continue; }
+            let SemanticOriginalNode::Expression(id) = link.node else {
+                return Err(fail("call mixed vector selects an original statement"));
+            };
+            if node.replace(id).is_some() { return Err(fail("call mixed vector repeats its original occurrence")); }
+        }
+        b.lookup(self.calls.len(), WORK)?;
+        let call = self.calls.get(&(context.definition,
+            node.ok_or_else(|| fail("call mixed vector has no original occurrence"))?))
+            .ok_or_else(|| fail("call mixed vector has no independently checked original scheme"))?;
+        let mut arguments = Vec::new();
+        for argument in &call.actuals {
+            Solver::push(&mut arguments, self.argument(*argument, context, program, inventory, b, 0)?, b)?;
+        }
+        Ok((call.target, arguments))
     }
 
     pub(in crate::semantic) fn description_source(

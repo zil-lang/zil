@@ -548,6 +548,39 @@ impl<'a> Inventory<'a> {
         }
         Ok(selected)
     }
+    fn sites_for_expression<'p>(
+        &self, program:&'p SemanticModule, instance:&SemanticInstance,
+        node:zil_base::NodeId,b:&mut Budget,
+    ) -> CompileResult<Vec<&'p SemanticSite>> {
+        if !self.ensure_actual_sites(program,b)? {
+            let definition=self.definition(instance.definition,b)?;
+            let SemanticDefinitionBody::FunctionWithBody {site_nodes,..}=&definition.body else {
+                return Err(fail("original operation has no complete body directory"));
+            };
+            let mut selected=Vec::new();
+            for link in site_nodes {
+                b.spend(1,WORK)?;
+                if link.node!=SemanticOriginalNode::Expression(node) {continue;}
+                for site in &program.sites {
+                    b.spend(1,WORK)?;
+                    if site.instance==instance.id && site.recipe==link.site {
+                        Self::push_site(&mut selected,site,b)?;
+                    }
+                }
+            }
+            return Ok(selected);
+        }
+        let indexes=self.actual_site_indexes.borrow();
+        let index=indexes.get(&(program as *const SemanticModule as usize))
+            .ok_or_else(||fail("original operation index has no exact program owner"))?;
+        let mut selected=Vec::new();
+        for position in index.expression(instance.id,node,b)? {
+            let site=program.sites.get(*position).filter(|site|site.instance==instance.id)
+                .ok_or_else(||fail("original operation leaves its exact actual instance"))?;
+            Self::push_site(&mut selected,site,b)?;
+        }
+        Ok(selected)
+    }
     fn push_site<'p>(
         rows: &mut Vec<&'p SemanticSite>,
         site: &'p SemanticSite,

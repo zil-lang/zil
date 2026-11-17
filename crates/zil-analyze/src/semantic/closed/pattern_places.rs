@@ -11,70 +11,41 @@ impl Check<'_, '_> {
         node: zil_base::NodeId,
         b: &mut Budget,
     ) -> CompileResult<Option<ValueId>> {
-        let definition = self.inventory.definition(instance.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
-            return Err(fail("pattern subject has no complete original body"));
-        };
         let mut result = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.node != SemanticOriginalNode::Expression(node) {
-                continue;
-            }
-            for site in &self.program.sites {
-                b.spend(1, WORK)?;
-                if site.instance != instance.id || site.recipe != link.site {
-                    continue;
+        for site in self.inventory.sites_for_expression(self.program,instance,node,b)? {
+            let SemanticSiteAddress::Typed {block,instruction,edge}=site.at else {
+                return Err(fail("original operation retains a Core occurrence in an actual function"));
+            };
+            let actual=function.blocks.get(block.0 as usize).filter(|row|row.id==block)
+                .and_then(|row|row.instructions.get(instruction as usize));
+            let selected=match &site.action {
+                SemanticSiteAction::TypeUse {subject:SemanticOperand::Value(value),..}=>Some(*value),
+                SemanticSiteAction::TypeUse {subject,..}=>match (subject,actual.map(|row|&row.kind)) {
+                    (SemanticOperand::Local(expected),Some(InstructionKind::Load(local)
+                        |InstructionKind::TakeLocal {local})) if expected==local=>actual.and_then(|row|row.result),
+                    (SemanticOperand::Capture(expected),Some(InstructionKind::ReadCapture {index}
+                        |InstructionKind::TakeCapture {index})) if expected==index=>actual.and_then(|row|row.result),
+                    _=>None,
+                },
+                SemanticSiteAction::Construct {result,..}|SemanticSiteAction::Closure {result,..}=>{
+                    let actual=actual.ok_or_else(||fail("original constructor has no actual operation"))?;
+                    let SemanticOperand::Value(value)=result else {
+                        return Err(fail("actual constructor output is not an SSA occurrence"));
+                    };
+                    if actual.result!=Some(*value) {return Err(fail("constructor occurrence selects another actual output"));}
+                    Some(*value)
                 }
-                let SemanticSiteAddress::Typed {
-                    block,
-                    instruction,
-                    edge,
-                } = site.at
-                else {
-                    return Err(fail("actual pattern subject retains a Core site"));
-                };
-                let selected = match &site.action {
-                    SemanticSiteAction::TypeUse {
-                        subject: SemanticOperand::Value(value),
-                        ..
-                    } => Some(*value),
-                    SemanticSiteAction::TypeUse { subject, .. } => {
-                        let Some(actual) = function.blocks.get(block.0 as usize).filter(|item| item.id == block)
-                            .and_then(|item| item.instructions.get(instruction as usize)) else { continue; };
-                        let matches = match (subject, &actual.kind) {
-                            (SemanticOperand::Local(expected), InstructionKind::TakeLocal { local }
-                                | InstructionKind::Load(local)) => expected == local,
-                            (SemanticOperand::Capture(expected), InstructionKind::ReadCapture { index }
-                                | InstructionKind::TakeCapture { index }) => expected == index,
-                            _ => false,
-                        };
-                        if matches { actual.result } else { None }
-                    }
-                    SemanticSiteAction::BodyCall { .. }
-                    | SemanticSiteAction::Call { .. }
-                    | SemanticSiteAction::CallableCall { .. }
-                    | SemanticSiteAction::Construct { .. }
-                        if edge == SemanticSiteEdge::After =>
-                    {
-                        function
-                            .blocks
-                            .get(block.0 as usize)
-                            .filter(|item| item.id == block)
-                            .and_then(|item| item.instructions.get(instruction as usize))
-                            .ok_or_else(|| {
-                                fail("pattern subject emission has no actual instruction")
-                            })?
-                            .result
-                    }
-                    _ => None,
-                };
-                if let Some(value) = selected {
-                    if result.is_some_and(|old| old != value) {
-                        return Err(fail("pattern subject has competing actual SSA emissions"));
-                    }
-                    result = Some(value);
-                }
+                SemanticSiteAction::Call {..}|SemanticSiteAction::BodyCall {..}
+                    |SemanticSiteAction::CallableCall {..} if edge==SemanticSiteEdge::After=>
+                    actual.ok_or_else(||fail("original invocation has no actual operation"))?.result,
+                SemanticSiteAction::Call {..}|SemanticSiteAction::BodyCall {..}
+                    |SemanticSiteAction::CallableCall {..}|SemanticSiteAction::DeclareLocal {..}=>None,
+                SemanticSiteAction::CoreBodyCall=>return Err(fail("actual operation retains an unfinished Core call")),
+            };
+            if let Some(value)=selected {
+                if function.values.get(value.0 as usize).is_none() {return Err(fail("original operation selects no actual SSA"));}
+                if result.is_some_and(|old|old!=value) {return Err(fail("original operation has competing actual outputs"));}
+                result=Some(value);
             }
         }
         Ok(result)
@@ -198,7 +169,7 @@ impl Check<'_, '_> {
         value::address(false, class, value::scalar(inner.as_ref().clone()), b)
     }
 
-    fn pattern_ssa_path(
+    pub(super) fn pattern_ssa_path(
         &self,
         function: &TypedFunction,
         value: ValueId,
@@ -212,7 +183,7 @@ impl Check<'_, '_> {
             return Err(unknown("actual pattern SSA path exceeds its finite depth"));
         }
         let Some((last, prefix)) = path.split_last() else {
-            return Ok(value == root);
+            return self.operation_operand_matches(function, value, root, b);
         };
         let (block, index, producer) = self.defining(function, value, b)?;
         let source = match (&producer.kind, last) {

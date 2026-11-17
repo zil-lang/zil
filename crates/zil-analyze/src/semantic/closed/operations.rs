@@ -33,6 +33,20 @@ pub(super) fn available_before(
     Ok(())
 }
 
+/// Candidate occurrence selection uses the same paid dominance relation as
+/// mandatory operands. An unavailable candidate is a mismatch; malformed CFG
+/// identities and resource exhaustion remain errors.
+pub(super) fn value_available_before(function: &TypedFunction,
+    at: (BlockId, usize, SemanticSiteEdge), value: ValueId, b: &mut Budget)
+    -> CompileResult<bool> {
+    let initialization = crate::shared_initialization(function, b)?;
+    let block = function.blocks.get(at.0.0 as usize)
+        .filter(|block| block.id == at.0 && at.1 <= block.instructions.len())
+        .ok_or_else(|| fail("candidate occurrence has no actual emission boundary"))?;
+    Ok(Point { function, block, instruction: at.1, edge: at.2,
+        initialization: &initialization }.unavailable(value, b)?.is_none())
+}
+
 pub(super) fn initialized_local_before(
     function: &TypedFunction,
     at: (BlockId, usize),
@@ -110,22 +124,24 @@ impl Point<'_> {
     }
 
     fn value(&self, value: ValueId, b: &mut Budget) -> CompileResult<&Type> {
-        let ty = self
-            .function
-            .values
-            .get(value.0 as usize)
+        let ty = self.function.values.get(value.0 as usize)
             .ok_or_else(|| fail("semantic operand selects an absent actual SSA value"))?;
+        if let Some(reason) = self.unavailable(value, b)? { return Err(fail(reason)); }
+        Ok(ty)
+    }
+    fn unavailable(&self, value: ValueId, b: &mut Budget) -> CompileResult<Option<&'static str>> {
+        if self.function.values.get(value.0 as usize).is_none() {
+            return Err(fail("semantic operand selects an absent actual SSA value"));
+        }
         let definition = crate::shared_definition(self.function, value, b)?;
         let (block, ordinal) = (definition.block, definition.instruction);
         if block == self.block.id {
             if ordinal < self.instruction
                 || (ordinal == self.instruction && self.edge == SemanticSiteEdge::After)
             {
-                return Ok(ty);
+                return Ok(None);
             }
-            return Err(fail(
-                "semantic SSA operand is read before its actual definition",
-            ));
+            return Ok(Some("semantic SSA operand is read before its actual definition"));
         }
         // An actual path to this site which avoids the definition disproves
         // dominance. Walk real CFG edges; an asserted type is not a def/use edge.
@@ -138,9 +154,7 @@ impl Point<'_> {
                 continue;
             }
             if current == self.block.id {
-                return Err(fail(
-                    "semantic SSA operand does not dominate its actual use",
-                ));
+                return Ok(Some("semantic SSA operand does not dominate its actual use"));
             }
             let actual = self
                 .function
@@ -172,11 +186,9 @@ impl Point<'_> {
             .copied()
             .unwrap_or(false)
         {
-            return Err(fail(
-                "semantic SSA definition is not on an actual reachable path",
-            ));
+            return Ok(Some("semantic SSA definition is not on an actual reachable path"));
         }
-        Ok(ty)
+        Ok(None)
     }
 }
 

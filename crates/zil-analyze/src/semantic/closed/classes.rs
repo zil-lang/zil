@@ -816,7 +816,7 @@ impl Check<'_, '_> {
     ) -> CompileResult<u32> {
         self.capture_origin_local(function, local, at, b, depth)
     }
-    pub(super) fn ghost_capture_directory(
+    pub(super) fn form_ghost_capture_directory(
         &self,
         id: ClosureId,
         b: &mut Budget,
@@ -2156,14 +2156,16 @@ impl Check<'_, '_> {
             }
             InstructionKind::CallClosure { callee, .. }
             | InstructionKind::CallClosureOnce { callee, .. } => {
+                if let Some(result)=self.abstract_operation(instance,function,block,index,b)? {return Ok(result);}
                 let receiver = self.ssa_value(instance, function, *callee, b, depth + 1)?;
-                self.static_closure_result(instance, block, index, &receiver, ty, b)
+                self.concrete_call_output(instance, block, index, &receiver, ty, b)
             }
             InstructionKind::CallClosureShared { callee, .. }
             | InstructionKind::CallClosureMut { callee, .. } => {
+                if let Some(result)=self.abstract_operation(instance,function,block,index,b)? {return Ok(result);}
                 let receiver =
                     self.local_value(instance, function, *callee, (block, index), b, depth + 1)?;
-                self.static_closure_result(instance, block, index, &receiver, ty, b)
+                self.concrete_call_output(instance, block, index, &receiver, ty, b)
             }
             InstructionKind::CallClosureBorrowed { callee, .. } => {
                 if let Some(result) =
@@ -2185,7 +2187,7 @@ impl Check<'_, '_> {
                 // BodyCall separately proves the exact original lexical place,
                 // requested mode, fresh borrow and whole pointee class value.
                 let whole = self.pointee(&receiver, b)?;
-                self.static_closure_result(instance, block, index, &whole, ty, b)
+                self.concrete_call_output(instance, block, index, &whole, ty, b)
             }
             InstructionKind::ReadAddress { address } => {
                 operations::available_before(
@@ -2853,7 +2855,7 @@ impl Check<'_, '_> {
                     return Ok(value);
                 }
                 let expected_parameters =
-                    self.static_call_values(instance, function, block, index, *callee, b)?;
+                    self.original_call_inputs(instance, function, block, index, *callee, b)?;
                 if expected_parameters.len() != arguments.len() {
                     return Err(fail(
                         "actual call changes its complete original input arity",
@@ -2865,11 +2867,11 @@ impl Check<'_, '_> {
                 // Every class-bearing call transports its complete original
                 // result. A list of selected physical constructors omitted
                 // Task/ErrorUnion results and lost their child domains.
-                let output = self.static_call_result(instance, block, index, b)?;
+                let output = self.original_call_output(instance, block, index, b)?;
                 if !geometry::same_type(&output.ty, ty, b)? {
                     return Err(fail("call output changes its complete original result Type"));
                 }
-                let original_output = Some(output);
+                let original_output = output;
                 self.call_output_from_entry(
                     instance,
                     function,
@@ -3172,268 +3174,77 @@ impl Check<'_, '_> {
         Ok(true)
     }
 
-    fn static_closure_result(
-        &self,
-        instance: &SemanticInstance,
-        block: BlockId,
-        index: usize,
-        receiver: &Value,
-        ty: &Type,
-        b: &mut Budget,
-    ) -> CompileResult<Value> {
-        let Type::Closure(id) = &receiver.ty else {
-            return Err(fail(
-                "concrete closure result has another actual receiver type",
-            ));
+    fn concrete_call_output(
+        &self,instance:&SemanticInstance,block:BlockId,index:usize,receiver:&Value,
+        ty:&Type,b:&mut Budget,
+    )->CompileResult<Value> {
+        let Type::Closure(id)=receiver.ty else {
+            return Err(fail("concrete invocation has another complete receiver type"));
         };
-        let closure = self
-            .module
-            .closures
-            .get(id.0 as usize)
-            .filter(|row| row.id == *id)
-            .ok_or_else(|| fail("concrete closure result has no actual closure definition"))?;
-        let output = self.static_call_result(instance, block, index, b)?;
-        let mut receiver_view = false;
-        for site in self.inventory.sites_at(self.program, instance.id, block, index, SemanticSiteEdge::After, b)? {
-            if matches!(site.action, SemanticSiteAction::BodyCall { .. }) {
-                receiver_view |= self.original.call_receiver_view(instance, site.recipe, self.inventory, b)?;
-            }
+        let closure=self.module.closures.get(id.0 as usize).filter(|row|row.id==id)
+            .ok_or_else(||fail("concrete invocation has no actual closure identity"))?;
+        let SemanticInstanceTarget::Function(target)=&instance.target else {
+            return Err(fail("concrete invocation has no actual caller function"));
+        };
+        let function=self.inventory.function(target,b)?;
+        let instruction=function.blocks.get(block.0 as usize).filter(|row|row.id==block)
+            .and_then(|row|row.instructions.get(index))
+            .ok_or_else(||fail("concrete invocation has no actual instruction"))?;
+        let arguments=match &instruction.kind {
+            InstructionKind::CallClosure {arguments,..}|InstructionKind::CallClosureOnce {arguments,..}
+            |InstructionKind::CallClosureShared {arguments,..}|InstructionKind::CallClosureMut {arguments,..}
+            |InstructionKind::CallClosureBorrowed {arguments,..}=>arguments,
+            _=>return Err(fail("concrete invocation changes its actual operation")),
+        };
+        let entry=self.inventory.function(&SemanticFunctionTarget::Typed(closure.function),b)?;
+        let output=self.original_call_output(instance,block,index,b)?;
+        if !geometry::same_type(&output.ty,ty,b)? || !geometry::same_type(&entry.return_type,ty,b)? {
+            return Err(fail("concrete invocation changes its whole original result"));
         }
-        if receiver_view {
+        let parameters=self.original_call_inputs(instance,function,block,index,entry.id,b)?;
+        let mut receiving=None;
+        let mut subject=None;
+        for site in self.inventory.sites_at(self.program,instance.id,block,index,SemanticSiteEdge::After,b)? {
+            if !matches!(site.action,SemanticSiteAction::BodyCall {..}) {continue;}
+            if subject.replace(site).is_some() {return Err(fail("concrete invocation repeats its original subject"));}
+        }
+        let site=subject.ok_or_else(||fail("concrete invocation lacks its original operation receipt"))?;
+        let source=self.original.borrowed_closure_receiver(instance,site.recipe,self.program,self.inventory,b)?;
+        self.known_call_place(instance,function,(block,index),instruction,&source,b)?;
+        if self.original.call_receiver_view(instance,site.recipe,self.inventory,b)? {
+            if entry.call_kind!=CallKind::Direct || !matches!(closure.kind,CallableKind::Fn|CallableKind::FnMut)
+                || !matches!(output.ty,Type::Address {mutable:false,..}) {
+                return Err(fail("Receiver view changes its original reusable Direct shared mode"));
+            }
+            self.original.receiver_sources(self.function_instance(entry.id,b)?.definition,self.inventory,b)?
+                .ok_or_else(||fail("Receiver result has no complete original all-return source proof"))?;
+            self.known_receiver_place(instance,function,(block,index),instruction,&source,b)?;
             if !crate::stored_callables::receiver_access_head(closure) {
                 if !crate::stored_callables::constant_result(closure) {
-                    return Err(fail("original Receiver view loses its actual invocation access head"));
+                    return Err(fail("Receiver view has no actual access head or independent Static source"));
                 }
-                // A genuinely Static byte source independently outlives this
-                // shorter window. Neither an empty capture list nor N=0
-                // establishes that stronger source theorem.
-                self.static_byte_returns(self.inventory.function(
-                    &SemanticFunctionTarget::Typed(closure.function), b)?, &closure.result, b)?;
+                self.static_byte_returns(entry,ty,b)?;
             }
-            self.capture_directory(*id, b)?;
-            let SemanticInstanceTarget::Function(target) = &instance.target else {
-                return Err(fail("Receiver result has no actual caller function"));
+            let [outer]=output.life.slots.as_slice() else {
+                return Err(fail("Receiver output loses its exact full shared outer occurrence"));
             };
-            let function = self.inventory.function(target, b)?;
-            let instruction = function.blocks.get(block.0 as usize).filter(|row| row.id == block)
-                .and_then(|row| row.instructions.get(index))
-                .ok_or_else(|| fail("Receiver result has no actual call operation"))?;
-            let mut checked = false;
-            for site in self.inventory.sites_at(self.program, instance.id, block, index, SemanticSiteEdge::After, b)? {
-                if !matches!(site.action, SemanticSiteAction::BodyCall { .. }) { continue; }
-                let source = self.original.borrowed_closure_receiver(instance, site.recipe,
-                    self.program, self.inventory, b)?;
-                self.known_receiver_place(instance, function, (block, index), instruction, &source, b)?;
-                if checked { return Err(fail("Receiver result has competing original call subjects")); }
-                checked = true;
+            if !outer.path.is_empty() || outer.mode!=StoredBorrowMode::SharedAddress {
+                return Err(fail("Receiver output changes its complete outer projection"));
             }
-            if !checked { return Err(fail("Receiver result lacks its original actual subject binding")); }
-            if !geometry::same_type(&output.ty, ty, b)? || !geometry::same_type(&closure.result, ty, b)?
-                || !matches!(ty, Type::Address { mutable: false, .. }) {
-                return Err(fail("Receiver call result changes its complete shared type"));
+            self.pointee(&output,b)?;
+            receiving=Some(outer.binder);
+            let result=instruction.result.ok_or_else(||fail("Receiver invocation loses its actual output SSA"))?;
+            let key=(function.id,result,id);
+            b.lookup(b.semantic_receiver_views.len(),WORK)?;
+            if b.semantic_receiver_views.insert(key,(block,index)).is_some_and(|old|old!=(block,index)) {
+                return Err(fail("Receiver result changes its original operation identity"));
             }
-            let [slot] = output.life.slots.as_slice() else {
-                return Err(fail("Receiver call result loses its complete outer view domain"));
-            };
-            if !slot.path.is_empty() || slot.mode != StoredBorrowMode::SharedAddress {
-                return Err(fail("Receiver call changes its exact shared outer occurrence"));
-            }
-            // Reconstruct the entire child, including phantom/nominal rows;
-            // the shortened root never supplies a missing invariant class.
-            self.pointee(&output, b)?;
-            let contract = closure.storage_life.as_ref()
-                .ok_or_else(|| fail("Receiver result loses its complete actual header"))?;
-            if receiver.classes.len() != contract.fixed_binder_count as usize {
-                return Err(fail("Receiver result omits the complete actual captured domain"));
-            }
-            let mut covered = BTreeSet::new();
-            covered.insert(slot.binder);
-            for child in &output.life.retained {
-                let mut selected = None;
-                for row in &contract.classes {
-                    b.spend(row.position.path.len().saturating_add(child.path.len() + 1), WORK)?;
-                    if row.position.base == StorageBase::Result && row.position.path == child.path
-                        && row.position.class == child.class && selected.replace(row.binder).is_some() {
-                        return Err(fail("Receiver result repeats an invariant child occurrence"));
-                    }
-                }
-                let Some(StorageBinder::Fixed(index)) = selected else {
-                    return Err(unknown("Receiver invariant child requires its complete original parameter class transport"));
-                };
-                let source = receiver.classes.get(index as usize)
-                    .ok_or_else(|| fail("Receiver invariant child selects no captured class"))?;
-                let actual = output.classes.get(child.binder as usize)
-                    .ok_or_else(|| fail("Receiver invariant child leaves its complete result domain"))?;
-                if self.capture_class_image(source.clone(), b)? != self.capture_class_image(actual.clone(), b)? {
-                    return Err(fail("Receiver short view changes an invariant captured child class"));
-                }
-                b.lookup(covered.len(), WORK)?;
-                covered.insert(child.binder);
-            }
-            if covered.len() != output.classes.len() {
-                return Err(fail("Receiver short view omits an invariant or phantom result class"));
-            }
-            // Source/result role and actual head ancestry are separate. The
-            // explicit header and original call receipt are checked here;
-            // receiver_results retains the current environment loan and epoch.
-            let target = self.inventory.function(&SemanticFunctionTarget::Typed(closure.function), b)?;
-            crate::stored_callables::check_role_relation(self.module, closure,
-                target.storage_life.as_ref().ok_or_else(|| fail("Receiver entry has no actual complete header"))?, b)?;
-            let result = instruction.result.ok_or_else(|| fail("Receiver call has no actual result SSA"))?;
-            let key = (function.id, result, *id);
-            b.lookup(b.semantic_receiver_views.len(), WORK)?;
-            if let Some(previous) = b.semantic_receiver_views.insert(key, (block, index)) {
-                if previous != (block, index) { return Err(fail("Receiver view changes its exact actual call site")); }
-            }
-            return Ok(output);
         }
-        if matches!(output.ty, Type::Address { mutable: false, .. })
-            && matches!(closure.storage_life.as_ref().and_then(|contract|
-                crate::signature_life::outer(contract,StorageBase::Result)),Some(StorageBinder::Fixed(_)))
-            && geometry::same_type(&output.ty, ty, b)?
-            && geometry::same_type(&closure.result, ty, b)? {
-            self.capture_directory(*id, b)?;
-            let contract = closure.storage_life.as_ref()
-                .ok_or_else(|| fail("Fixed callable result omits its complete actual header"))?;
-            if receiver.classes.len() != contract.fixed_binder_count as usize {
-                return Err(fail("Fixed callable result omits its captured class domain"));
-            }
-            let mut covered = BTreeSet::new();
-            for slot in &output.life.slots {
-                let mut selected = None;
-                for row in &contract.bindings {
-                    b.spend(row.position.path.len().saturating_add(slot.path.len()).saturating_add(1), WORK)?;
-                    if row.position.base == StorageBase::Result
-                        && row.position.path.len() == slot.path.len()
-                        && row.position.path.iter().zip(&slot.path).all(|(actual, expected)|
-                            matches!(actual, ContractProjection::Place(projection) if projection == expected)) {
-                        if selected.replace(row.binder).is_some() {
-                            return Err(fail("Fixed result repeats an outer occurrence"));
-                        }
-                    }
-                }
-                let Some(StorageBinder::Fixed(index)) = selected else {
-                    return Err(unknown("concrete shared result needs its complete input or invocation transport"));
-                };
-                self.fixed_result_class(receiver, &output, index, slot.binder, b)?;
-                b.lookup(covered.len(), WORK)?; covered.insert(slot.binder);
-            }
-            for child in &output.life.retained {
-                let mut selected = None;
-                for row in &contract.classes {
-                    b.spend(row.position.path.len().saturating_add(child.path.len()).saturating_add(1), WORK)?;
-                    if row.position.base == StorageBase::Result && row.position.path == child.path
-                        && row.position.class == child.class {
-                        if selected.replace(row.binder).is_some() {
-                            return Err(fail("Fixed result repeats an invariant occurrence"));
-                        }
-                    }
-                }
-                let Some(StorageBinder::Fixed(index)) = selected else {
-                    return Err(unknown("concrete shared result needs its complete invariant parameter transport"));
-                };
-                self.fixed_result_class(receiver, &output, index, child.binder, b)?;
-                b.lookup(covered.len(), WORK)?; covered.insert(child.binder);
-            }
-            if covered.len() != output.classes.len() {
-                return Err(fail("Fixed result omits an invariant or phantom class"));
-            }
-            self.pointee(&output, b)?;
-            return Ok(output);
-        }
-        if self.task_domain(ty, b)?.is_some() {
-            if !geometry::same_type(&output.ty, ty, b)?
-                || !geometry::same_type(&closure.result, ty, b)?
-                || self.task_domain(ty, b)?.as_ref() != Some(&output.life)
-            {
-                return Err(fail(
-                    "concrete Task result changes its full original carrier or domain",
-                ));
-            }
-            let target = self
-                .inventory
-                .function(&SemanticFunctionTarget::Typed(closure.function), b)?;
-            let contract = target
-                .storage_life
-                .as_ref()
-                .ok_or_else(|| fail("Task callable result omits its complete entry header"))?;
-            if receiver.classes.len() != contract.fixed_binder_count as usize {
-                return Err(fail(
-                    "Task callable receiver omits its complete Fixed capture domain",
-                ));
-            }
-            let mut mapped = BTreeSet::new();
-            for row in &output.life.retained {
-                let mut selected = None;
-                for actual in &contract.classes {
-                    b.spend(
-                        actual
-                            .position
-                            .path
-                            .len()
-                            .saturating_add(row.path.len() + 1),
-                        WORK,
-                    )?;
-                    if actual.position.base == StorageBase::Result
-                        && actual.position.path == row.path
-                        && actual.position.class == row.class
-                        && selected.replace(actual.binder).is_some()
-                    {
-                        return Err(fail(
-                            "Task callable result repeats a complete intrinsic occurrence",
-                        ));
-                    }
-                }
-                let Some(StorageBinder::Fixed(binder)) = selected else {
-                    return Err(unknown(
-                        "Task callable result needs its complete input or invocation class relation",
-                    ));
-                };
-                if receiver.classes.get(binder as usize) != output.classes.get(row.binder as usize)
-                {
-                    return Err(fail(
-                        "Task callable result substitutes another actual captured class source",
-                    ));
-                }
-                b.lookup(mapped.len(), WORK)?;
-                mapped.insert(row.binder);
-            }
-            if mapped.len() != output.classes.len() {
-                return Err(fail(
-                    "Task callable result omits a retained or phantom class",
-                ));
-            }
-            return Ok(output);
-        }
-        if !original::strings::is_byte_type(&output.ty)
-            || !empty(&output.life)
-            || !output.classes.is_empty()
-            || !geometry::same_type(&output.ty, ty, b)?
-            || !geometry::same_type(&closure.result, ty, b)?
-        {
-            return Err(unknown(
-                "concrete closure result needs its complete non-Static class boundary",
-            ));
-        }
-        let target = self
-            .inventory
-            .function(&SemanticFunctionTarget::Typed(closure.function), b)?;
-        self.static_byte_returns(target, ty, b)?;
-        Ok(output)
-    }
-
-    fn fixed_result_class(
-        &self, receiver: &Value, output: &Value, captured: u32, result: u32, b: &mut Budget,
-    ) -> CompileResult<()> {
-        let source = receiver.classes.get(captured as usize)
-            .ok_or_else(|| fail("Fixed result selects no captured class"))?;
-        let actual = output.classes.get(result as usize)
-            .ok_or_else(|| fail("Fixed result leaves its complete result domain"))?;
-        b.spend(2, WORK)?;
-        if self.capture_class_image(source.clone(), b)? != self.capture_class_image(actual.clone(), b)? {
-            return Err(fail("Fixed result changes an original captured class source"));
-        }
-        Ok(())
+        self.capture_directory(id,b)?;
+        crate::stored_callables::check_role_relation(self.module, closure,
+            entry.storage_life.as_ref().ok_or_else(|| fail("call entry has no complete role directory"))?, b)?;
+        self.transport_operation_output(instance,function,(block,index),entry,arguments,&parameters,
+            output,Some(&receiver.classes),receiving,b,0)
     }
 
     /// Physical byte leaves only: a closure or owning head does not expose its
@@ -3966,7 +3777,7 @@ impl Check<'_, '_> {
     // signature class boundary. Keep its complete transport forest, and omit
     // only the wrapper occurrence whose exact child map is independently
     // present. The real Task occurrence, including phantom coordinates, stays.
-    fn signature_retained_classes<'v>(
+    pub(super) fn signature_retained_classes<'v>(
         &self,
         value: &'v Value,
         b: &mut Budget,

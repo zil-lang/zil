@@ -13,7 +13,10 @@ impl Check<'_, '_> {
         let id = function
             .environment
             .ok_or_else(|| fail("original environment place has no actual closure entry"))?;
-        self.capture_directory(id, b)?;
+        // Identity is formed from every real creator before whole-directory
+        // validation. Requiring that validation here creates a false dependency
+        // from a directory's own occurrence checks back to itself. Publication
+        // still requires every complete directory and every actual site.
         let closure = self
             .module
             .closures
@@ -117,12 +120,9 @@ impl Check<'_, '_> {
             .get(index as usize)
             .ok_or_else(|| fail("actual whole capture ordinal is absent"))?;
         self.actual_type(ty, b)?;
-        self.capture_directory(closure.id, b)?;
-        if matches!(
-            ty,
-            Type::Address { .. } | Type::Desc(_) | Type::BorrowedStorage { .. } | Type::Closure(_)
-        ) || self.task_domain(ty, b)?.is_some()
-            || !self.physical_byte_paths(ty, b)?.is_empty() {
+        // This reconstructs the selected creator-bound value; it is not a
+        // certificate for the containing directory. The publication pass checks
+        // that directory separately after all identities have been formed.
             let creators = self.capture_creator_bindings(instance, closure, b)?;
             let mut selected = None;
             for binding in creators.values() {
@@ -136,9 +136,16 @@ impl Check<'_, '_> {
                     ));
                 }
             }
-            let stored = selected.ok_or_else(|| {
-                fail("actual captured head has no complete original creator binding")
-            })?;
+            let Some(stored) = selected else {
+                // A scalar contributes no class domain, but its exact capture
+                // identity/read is still checked at every original occurrence.
+                if !ty.is_b0_scalar() {
+                    return Err(unknown("actual captured value has no complete original creator binding"));
+                }
+                self.zero_data(ty, b, depth + 1)?;
+                crate::dyn_metadata::ty(ty, b)?;
+                return Ok(value::scalar(ty.clone()));
+            };
             let contract = closure
                 .storage_life
                 .as_ref()
@@ -157,10 +164,7 @@ impl Check<'_, '_> {
                 }
                 self.push_value(&mut classes, source.clone(), b)?;
             }
-            return stored.with_classes(classes, b);
-        }
-        self.zero_data(ty, b, depth + 1)?;
-        crate::dyn_metadata::ty(ty, b)?;
-        Ok(value::scalar(ty.clone()))
+            stored.with_classes(classes, b)
+
     }
 }

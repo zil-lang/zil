@@ -201,6 +201,8 @@ impl Check<'_, '_> {
                 let mut matched = false;
                 for write in &role.writes {
                     b.spend(1, WORK)?;
+                    let Some(emitted)=self.original_subject_value(instance,function,write.expression,b)? else {continue;};
+                    if !self.operation_operand_matches(function,value,emitted,b)? {continue;}
                     let Some(source) = self.reference_write_source(
                         instance,
                         function,
@@ -719,7 +721,7 @@ impl Check<'_, '_> {
         {
             return Ok(None);
         }
-        let original = self.static_call_result(caller, at.0, at.1, b)?;
+        let original = self.original_call_output(caller, at.0, at.1, b)?;
         if !original.equal_paid(expected, b)?
             || function.values.get(
                 function
