@@ -2974,8 +2974,19 @@ impl World<'_, '_> {
                                             || matches!(
                                                 stored::physical(source),
                                                 Type::Address { .. } | Type::Desc(_)
-                                            )) =>
+                                            )
+                                            || stored::shared_compound(
+                                                source,
+                                                self.left,
+                                                self.limits,
+                                                instruction.span,
+                                            )?) =>
                                 {
+                                    // This is a complete shared value view,
+                                    // not a Copy bound or an owner transfer.
+                                    // Keep the exact checked capture value:
+                                    // every leaf's source and full class domain
+                                    // remain unchanged by the actual read.
                                     Some(value)
                                 }
                                 (
