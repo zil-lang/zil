@@ -25,6 +25,20 @@ pub(super) fn signature(
     definition: Option<&SemanticDefinition>, signature: &SemanticSignatureRecipe,
     outer_frames: &[u32], budget: &mut Budget<'_>, span: Span,
 ) -> R<()> {
+    if matches!(&signature.result, SemanticTypeRecipe::Address {
+        mutable: false,
+        lifetime: SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::OuterOccurrence {
+            operand: SemanticRecipeOperand::Receiver, path, mode: StoredBorrowMode::SharedAddress,
+        }), ..
+    } if path.is_empty()) || definition.is_some_and(|row|
+        row.kind == SemanticDefinitionKind::Closure && matches!(&signature.result,
+            SemanticTypeRecipe::OriginalType { scope: SemanticScopeRef::Ancestor(0),
+                source: SemanticOriginalTypeSource::Result })) {
+        // The original Call itself is the receiver-borrow occurrence. This
+        // is only a directory identity; its actual callee and source window
+        // must be independently reconstructed by each consumer.
+        selector(rows, owner, call, &[], budget, span)?;
+    }
     inputs(rows, owner, call, definition.map(|row| row.parameters.as_slice()), signature.parameters.iter().map(|row| &row.ty), budget, span)?;
     for index in 0..signature.invocation_lifetimes {
         budget.node(span, 0)?;

@@ -1187,6 +1187,7 @@ pub(in crate::semantics) fn complete_invocation_embeddings(
                 left,
             )?;
         }
+        receiver_binding(&mut bindings, limits, left)?;
         if bindings.len() != header.bindings.len()
             || classes.len() != header.classes.len()
             || statics.len() != header.static_bindings.len()
@@ -1585,13 +1586,14 @@ fn emitted_operands(
 }
 
 fn complete_rows<F: FnMut(&SemanticClassExpr, &SemanticClassExpr, &mut usize) -> R<bool>>(
-    bindings: Vec<(StoragePosition, SemanticClassExpr)>,
+    mut bindings: Vec<(StoragePosition, SemanticClassExpr)>,
     classes: Vec<(SignatureLifeClass, SemanticClassExpr)>,
     statics: Vec<StoragePosition>,
     equal: &mut F,
     limits: &Limits,
     left: &mut usize,
 ) -> R<(StorageLifeContract, Vec<SemanticHeaderBinding>)> {
+    receiver_binding(&mut bindings, limits, left)?;
     let mut directory = StorageLifeContract {
         fixed_binder_count: 0,
         invocation_binder_count: 0,
@@ -1655,6 +1657,35 @@ fn complete_rows<F: FnMut(&SemanticClassExpr, &SemanticClassExpr, &mut usize) ->
             .push(SignatureLifeClassBinding { position, binder });
     }
     Ok((directory, mapping))
+}
+
+/// Receiver is a synthetic invocation access head, not another captured value.
+/// It has no semantic-class rows; capture domains remain on their actual Types.
+pub(in crate::semantics) fn receiver_binding(
+    bindings: &mut Vec<(StoragePosition, SemanticClassExpr)>,
+    limits: &Limits, left: &mut usize,
+) -> R<bool> {
+    pay(left, bindings.len())?;
+    let mut receiver = None;
+    for (position, image) in bindings.iter() {
+        if position.base == StorageBase::Result && position.path.is_empty()
+            && matches!(image, SemanticClassExpr::OuterOccurrence {
+                operand: SemanticOperand::Receiver, path, mode: StoredBorrowMode::SharedAddress,
+            } if path.is_empty())
+        {
+            if receiver.replace(image).is_some() {
+                return Err(bad("closure receiver has multiple original result occurrences"));
+            }
+        }
+    }
+    let Some(image) = receiver else { return Ok(false); };
+    crate::dyn_metadata::semantic_operand_snapshot(image, limits, left, 1)?;
+    let image = image.clone();
+    let at = bindings.iter().position(|(position, _)| position.base == StorageBase::Result)
+        .unwrap_or(bindings.len());
+    pay(left, bindings.len().saturating_add(1))?;
+    bindings.insert(at, (StoragePosition { base: StorageBase::Receiver, path: Vec::new() }, image));
+    Ok(true)
 }
 
 /// Recheck the complete actual operand directory at the early metadata consumer.

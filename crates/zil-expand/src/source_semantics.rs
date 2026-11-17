@@ -233,6 +233,9 @@ struct InvocationFrame {
     result: bool,
     input_addresses: usize,
     result_life: Option<SemanticLifeRecipe>,
+    /// Exact root result path of a non-consuming callable's implicit receiver
+    /// contract. It is neither an Invocation input nor a retained Fixed class.
+    receiver_result: Option<Vec<u32>>,
 }
 struct Builder<'s, 'i, 'b, 'l> {
     inventory: &'i SourceDeclarationInventory<'s>,

@@ -41,6 +41,15 @@ impl Builder<'_, '_, '_, '_> {
                 span,
             )?;
             if frame.result {
+                if frame.input_addresses == 0
+                    && frame.receiver_result.as_deref() == Some(path)
+                {
+                    return Ok(SemanticLifeRecipe::OuterOccurrence {
+                        operand: SemanticRecipeOperand::Receiver,
+                        path: Vec::new(),
+                        mode: StoredBorrowMode::SharedAddress,
+                    });
+                }
                 if frame.input_addresses != 1 {
                     return Err(error(
                         span,
@@ -91,6 +100,7 @@ impl Builder<'_, '_, '_, '_> {
         path: &mut Vec<u32>,
         depth: usize,
         static_result: bool,
+        receiver: bool,
     ) -> R<SemanticSignatureRecipe> {
         self.budget.node(result.span, depth)?;
         let mut frames = std::mem::take(&mut self.invocations);
@@ -101,6 +111,7 @@ impl Builder<'_, '_, '_, '_> {
                 result: false,
                 input_addresses: 0,
                 result_life: None,
+                receiver_result: None,
             },
             result.span,
         )?;
@@ -152,6 +163,22 @@ impl Builder<'_, '_, '_, '_> {
                 .expect("actual callable frame")
                 .result = true;
             path.push(parameters.len() as u32);
+            if receiver {
+                let mut leaf = result;
+                while let s::TypeKind::Group(inner) = &leaf.kind {
+                    self.budget.node(leaf.span, depth)?;
+                    leaf = inner;
+                }
+                if matches!(leaf.kind, s::TypeKind::Reference {
+                    mutable: false, lifetime: None, ..
+                }) {
+                    self.budget.lineage_bytes(
+                        path.len().saturating_mul(std::mem::size_of::<u32>()), result.span,
+                    )?;
+                    self.invocations.last_mut().expect("actual callable frame")
+                        .receiver_result = Some(path.clone());
+                }
+            }
             let result = if static_result
                 && self.invocations.last().expect("actual callable frame").input_addresses == 0
             {
@@ -920,7 +947,7 @@ impl Builder<'_, '_, '_, '_> {
             }
             s::TypeKind::Function { params, result }
             | s::TypeKind::ForeignFunction { params, result, .. } => {
-                let signature = self.callable_signature(params, result, path, depth + 1, false)?;
+                let signature = self.callable_signature(params, result, path, depth + 1, false, false)?;
                 self.budget
                     .lineage_bytes(std::mem::size_of::<SemanticSignatureRecipe>(), ty.span)?;
                 Ok(SemanticTypeRecipe::Code {
@@ -1040,7 +1067,10 @@ impl Builder<'_, '_, '_, '_> {
                     "callable premise parameters are not the parser's actual tuple",
                 ));
             };
-            let signature = self.callable_signature(parameters, result, path, depth + 1, static_result)?;
+            let signature = self.callable_signature(
+                parameters, result, path, depth + 1, static_result,
+                matches!(kind, CallableKind::Fn | CallableKind::FnMut),
+            )?;
             self.budget
                 .lineage_bytes(std::mem::size_of::<SemanticSignatureRecipe>(), bound.span)?;
             return Ok(SemanticRequirementRecipe::Callable {
@@ -1706,6 +1736,37 @@ mod static_result_tests {
         let mut remaining = limits;
         collect_original_semantics(&[&parsed], &origins, &[Vec::new()], &mut remaining)
             .unwrap().modules.remove(0).1.definitions
+    }
+
+    #[test]
+    fn elided_nonconsuming_environment_result_has_only_its_signature_local_receiver() {
+        for (text, kind) in [
+            ("pub fn make(n:i32)->impl Fn()->&i32{return move()=>&n}fn main()->i32{return *make(3)()}", CallableKind::Fn),
+            ("fn make(n:i32)->impl FnMut()->&i32{var count=0;return move()=>{count+=1;return &n;};}fn main(){}", CallableKind::FnMut),
+        ] {
+            let definitions = inventory(text);
+            let make = definitions.iter().find(|definition| definition.identity.declaration_path.last().is_some_and(|name| name == "make")).unwrap();
+            let (actual_kind, signature) = make.requirements.iter().find_map(|row| match row {
+                SemanticRequirementRecipe::Callable { kind, signature, .. } => Some((*kind, signature)),
+                _ => None,
+            }).unwrap();
+            assert_eq!(actual_kind, kind);
+            assert_eq!(signature.call_kind, CallKind::Direct);
+            assert_eq!(signature.invocation_lifetimes, 0);
+            assert_eq!(signature.bound_lifetimes, 0);
+            assert!(signature.parameters.is_empty());
+            assert!(matches!(&signature.result, SemanticTypeRecipe::Address {
+                mutable: false,
+                lifetime: SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::OuterOccurrence {
+                    operand: SemanticRecipeOperand::Receiver, path, mode: StoredBorrowMode::SharedAddress,
+                }), inner,
+            } if path.is_empty() && matches!(inner.as_ref(), SemanticTypeRecipe::Atom(Type::I32))));
+            let child = definitions.iter().find(|definition| definition.kind == SemanticDefinitionKind::Closure).unwrap();
+            let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &child.body else { panic!("missing original child body") };
+            assert!(matches!(&signature.result, SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result,
+            }));
+        }
     }
 
     #[test]

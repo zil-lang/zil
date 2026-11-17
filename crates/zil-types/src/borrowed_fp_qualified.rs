@@ -327,6 +327,18 @@ fn relation_types<'p>(
             check.ty(capture, StorageBase::Capture(ordinal), false)?;
         }
     }
+    if captures.is_some() && life.bindings.get(check.binding).is_some_and(|row| row.position.base == StorageBase::Receiver) {
+        if !matches!(result, Type::Address { mutable: false, .. }) {
+            return Err(check.invalid("receiver lending requires its shared result constructor"));
+        }
+        let binding = life.bindings.get(check.binding)
+            .ok_or_else(|| check.invalid("receiver lending omits its actual input occurrence"))?;
+        if !matches!(binding.binder, StorageBinder::Invocation(_)) {
+            return Err(check.invalid("receiver access cannot become a captured Fixed class"));
+        }
+        check.address(StorageBase::Receiver, false, false)?;
+
+    }
     check.input_fixed = check.next_fixed;
     check.input_invocation = check.next_invocation;
     check.ty(result, StorageBase::Result, true)?;

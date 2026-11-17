@@ -68,6 +68,18 @@ pub(crate) struct BorrowRole {
     pub inner: SemanticTypeRecipe,
     pub steps: Vec<ViewBorrowStep>,
 }
+pub(super) fn receiver_upper() -> SemanticOuterLifeRecipe {
+    SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::OuterOccurrence {
+        operand: SemanticRecipeOperand::Receiver,
+        path: Vec::new(),
+        mode: StoredBorrowMode::SharedAddress,
+    })
+}
+pub(super) fn is_receiver_upper(life: &SemanticOuterLifeRecipe) -> bool {
+    matches!(life, SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::OuterOccurrence {
+        operand: SemanticRecipeOperand::Receiver, path, mode: StoredBorrowMode::SharedAddress,
+    }) if path.is_empty())
+}
 pub(super) fn snapshot_bound(
     value: &ViewBorrowBound,
     limits: &Limits,
@@ -111,6 +123,117 @@ pub(super) fn snapshot_bound(
     Ok(value.clone())
 }
 impl Check<'_, '_> {
+    pub(super) fn bind_receiver_call_result(
+        &mut self,
+        owner: SemanticDefinitionId,
+        call: &SemanticOriginalExpr,
+        callee: &SemanticOriginalExpr,
+        callee_type: &SemanticTypeRecipe,
+        signature: &mut SemanticSignatureRecipe,
+        variables: &BTreeMap<String, Binding>,
+        depth: usize,
+    ) -> R<bool> {
+        let SemanticTypeRecipe::Address { mutable: false, lifetime, .. } = &mut signature.result else {
+            return Ok(false);
+        };
+        if !is_receiver_upper(lifetime) { return Ok(false); }
+        let source = match callee_type {
+            SemanticTypeRecipe::Address { lifetime, .. } => {
+                crate::dyn_metadata::semantic_operand_snapshot(lifetime, self.limits, self.left, 1)?;
+                lifetime.clone()
+            }
+            _ => self.borrow_life(owner, call.id)?,
+        };
+        let bound = self.borrow_life(owner, call.id)?;
+        *lifetime = bound.clone();
+        {
+            let SemanticOuterLifeRecipe::Class(life) = bound else {
+                return Err(bad("owned callable receiver lacks its original occurrence"));
+            };
+            let escape = if matches!(callee_type, SemanticTypeRecipe::Address { .. }) {
+                self.role_source(owner, callee, &source, variables, depth + 1)?
+            } else { OriginalRoleEscape::LocalPlace { owner, node: callee.id } };
+            let role = LocalRole {
+                kind: LocalRoleKind::Address { mutable: false },
+                binding: call.id,
+                lifetime: life.clone(),
+                ty: copy_recipe(&signature.result, self.limits, self.left)?,
+                sources: vec![LocalRoleSource {
+                    at: SemanticOriginalNode::Expression(callee.id),
+                    lifetime: source,
+                    escape,
+                }],
+                escapes: false,
+            };
+            self.pay(self.proof.local_roles.len().saturating_add(1).ilog2() as usize + 3, depth)?;
+            if let Some(previous) = self.proof.local_roles.get(&(owner, call.id)) {
+                crate::dyn_metadata::semantic_operand_snapshot(&previous.ty, self.limits, self.left, 1)?;
+                if previous.binding != role.binding || previous.kind != role.kind
+                    || previous.lifetime != role.lifetime || previous.ty != role.ty
+                    || previous.sources != role.sources {
+                    return Err(bad("receiver occurrence changes its exact original call sources"));
+                }
+            } else { self.proof.proof_mut()?.local_roles.insert((owner, call.id), role); }
+        }
+        Ok(true)
+    }
+    /// A logical shared result upper for an actual environment projection.
+    /// The expression keeps its original sigma and complete inner Type; this
+    /// records a directed view, not a lifetime equality or a new Fixed class.
+    pub(super) fn receiver_return_value(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        variables: &BTreeMap<String, Binding>,
+        actual: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<Option<SemanticTypeRecipe>> {
+        if self.definition(owner)?.kind != SemanticDefinitionKind::Closure {
+            return Ok(None);
+        }
+        let SemanticTypeRecipe::Address { mutable: false, lifetime, inner } = actual else {
+            return Ok(None);
+        };
+        if matches!(lifetime, SemanticOuterLifeRecipe::Static) || is_receiver_upper(lifetime) {
+            return Ok(None);
+        }
+        self.view_bound(owner, expression, variables, depth + 1)?;
+        self.pay(self.proof.view_bounds.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+        let Some(bound) = self.proof.view_bounds.get(&(owner, Query::Expression(expression.id))) else {
+            return Ok(None);
+        };
+        if !matches!(bound.root, ViewBorrowRoot::Capture(_)) {
+            return Ok(None);
+        }
+        let bound = snapshot_bound(bound, self.limits, self.left, depth + 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(lifetime, self.limits, self.left, 2)?;
+        let role = BorrowRole {
+            root: bound.root,
+            source_lifetime: bound.lifetime.unwrap_or_else(|| lifetime.clone()),
+            target_lifetime: receiver_upper(),
+            occurrence_lifetime: lifetime.clone(),
+            inner: copy_recipe(inner, self.limits, self.left)?,
+            steps: bound.steps,
+        };
+        self.pay(self.proof.return_borrows.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+        let rows = &mut self.proof.proof_mut()?.return_borrows;
+        if let Some(old) = rows.get(&(owner, expression.id)) {
+            if old != &role { return Err(bad("receiver result changes its exact original view")); }
+        } else {
+            rows.insert((owner, expression.id), role);
+        }
+        if matches!(lifetime, SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit {
+            scope: SemanticScopeRef::Ancestor(0), ..
+        })) && self.input_lifetime(owner, lifetime, depth + 1)?.is_none() {
+            Ok(Some(SemanticTypeRecipe::Address {
+                mutable: false, lifetime: receiver_upper(),
+                inner: Box::new(copy_recipe(inner, self.limits, self.left)?),
+            }))
+        } else {
+            // An existing rigid outside lifetime stays an outside lifetime.
+            Ok(None)
+        }
+    }
     /// An explicit shared binding/ascription observes an exclusive input;
     /// it does not transfer or copy that input. Only the root mode changes.
     /// Its original read keeps its exact exclusive sigma and whole pointee.
@@ -567,11 +690,21 @@ impl Check<'_, '_> {
                     else {
                         return Ok(());
                     };
-                    let lifetime = match ty {
+                    let mut lifetime = match ty {
                         SemanticTypeRecipe::Address { lifetime, .. }
                         | SemanticTypeRecipe::Desc { lifetime, .. } => lifetime,
                         _ => return Ok(()),
                     };
+                    if self.proof.callable_calls.get(&(owner, site)).is_some_and(|call| {
+                        matches!(&call.signature.result, SemanticTypeRecipe::Address { lifetime, .. }
+                            if is_receiver_upper(lifetime))
+                    }) && let Some(role) = self.proof.local_roles.get(&(owner, expression.id))
+                    {
+                        if role.sources.len() != 1 {
+                            return Err(bad("receiver call has no unique original access source"));
+                        }
+                        lifetime = &role.sources[0].lifetime;
+                    }
                     crate::dyn_metadata::semantic_operand_snapshot(
                         lifetime,
                         self.limits,

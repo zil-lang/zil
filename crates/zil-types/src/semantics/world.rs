@@ -1970,6 +1970,16 @@ impl World<'_, '_> {
             }
             return Err(bad("actual nonempty header class directory is unknown"));
         };
+        if super::headers::receiver_binding(&mut expected_bindings, self.limits, self.left)? {
+            let closure = f.environment.ok_or_else(|| bad("receiver header is outside a real closure entry"))?;
+            let (definition, _) = self.child(closure)?;
+            if !matches!(definition.kind, CallableKind::Fn | CallableKind::FnMut) {
+                return Err(bad("consuming environment cannot publish a lending receiver head"));
+            }
+            if f.call_kind != CallKind::Direct {
+                return Err(bad("suspending entry cannot publish a receiver access head"));
+            }
+        }
         self.pay(
             header
                 .bindings
@@ -2049,6 +2059,18 @@ impl World<'_, '_> {
         locals: &[Option<SharedType>],
         implicit: &BTreeMap<u32, SemanticClassExpr>,
     ) -> R<SharedType> {
+        let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(caller_id)) = instance.target else {
+            return Err(bad("callable invocation has no exact actual caller"));
+        };
+        let caller = self.function(caller_id)?;
+        self.pay(caller.blocks.len())?;
+        if let Some(output) = caller.blocks.iter().find(|row| row.id == block)
+            .and_then(|row| row.instructions.get(index)).and_then(|op| op.result)
+        {
+            // A repeated CFG visit must not reuse the previous invocation's
+            // receiver occupant. The actual operation may install fresh roots.
+            self.value_roots.remove(&output);
+        }
         let raw_value = self.copy(value)?;
         let value = if matches!(Self::type_of(value)?, Type::Address { .. }) {
             self.pointee(value)?
@@ -2077,7 +2099,7 @@ impl World<'_, '_> {
         for site in self.point_sites(sites, block, index)? {
             if let SemanticSiteAction::BodyCall { actuals } = &site.action {
                 if let Some(result) = methods::callable(
-                    self, instance, original, site, &raw_value, &value, d, child, target,
+                    self, instance, original, site, &operand, &raw_value, &value, d, child, target,
                     requested, actuals, arguments, values, locals, implicit,
                 )? {
                     if selected {
@@ -4478,6 +4500,14 @@ impl World<'_, '_> {
                 if let Some(result) = instruction.result {
                     let value = produced
                         .ok_or_else(|| bad("actual SSA producer has no complete class equation"))?;
+                    if matches!(instruction.kind,
+                        InstructionKind::CallClosure { .. } | InstructionKind::CallClosureOnce { .. }
+                        | InstructionKind::CallClosureShared { .. } | InstructionKind::CallClosureMut { .. }
+                        | InstructionKind::CallClosureBorrowed { .. })
+                        && let Some(roots) = self.value_roots.remove(&result)
+                    {
+                        propagated_roots = roots;
+                    }
                     let value = self.normalize(instance.id, &value, &implicit)?;
                     if Self::type_of(&value)?
                         != f.values

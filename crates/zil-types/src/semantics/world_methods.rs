@@ -717,6 +717,7 @@ pub(super) fn callable(
     instance: &SemanticInstance,
     original: &SemanticDefinition,
     site: &SemanticSite,
+    operand: &SemanticOperand,
     raw_value: &SemanticTypeValue,
     closure_value: &SemanticTypeValue,
     definition: &ClosureDefinition,
@@ -921,14 +922,38 @@ pub(super) fn callable(
         )?;
         world.same(instance.id, &target, expected, implicit)?;
     }
-    let expected = call_result(
-        world,
-        instance,
-        site,
-        &signature.result,
-        &function.return_type,
-    )?;
+    let receiver = matches!(&signature.result, SemanticTypeRecipe::Address {
+        mutable: false,
+        lifetime: SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::OuterOccurrence {
+            operand: SemanticRecipeOperand::Receiver, path, mode: StoredBorrowMode::SharedAddress,
+        }), ..
+    } if path.is_empty());
+    let expected = if receiver {
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
+            return Err(bad("receiver call has no immutable original node directory"));
+        };
+        world.pay(site_nodes.len())?;
+        let mut nodes = site_nodes.iter().filter(|row| row.site == site.recipe);
+        let Some(SemanticOriginalNode::Expression(node)) = nodes.next().map(|row| row.node) else {
+            return Err(bad("receiver result is not its actual original Call"));
+        };
+        if nodes.next().is_some() { return Err(bad("receiver result repeats its original Call")); }
+        world.physical_type(instance.id, &SemanticTypeRecipe::OriginalType {
+            scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Expression(node),
+        }, &function.return_type)?
+    } else {
+        call_result(world, instance, site, &signature.result, &function.return_type)?
+    };
     let target = world.result_value(child.id, &function.return_type)?;
+    if receiver {
+        if signature.call_kind != CallKind::Direct || function.call_kind != CallKind::Direct {
+            return Err(bad("suspending operation cannot return a receiver loan"));
+        }
+        receiver_result(
+            world, instance, site, operand, raw_value, definition, child,
+            requested, header, &target, &expected, values, locals, &mut invocation, implicit,
+        )?;
+    }
     result_invocation(
         world,
         instance,
@@ -948,6 +973,83 @@ pub(super) fn callable(
     )?;
     world.same(instance.id, &target, &expected, implicit)?;
     Ok(Some(expected))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn receiver_result(
+    world: &mut World<'_, '_>, caller: &SemanticInstance, site: &SemanticSite,
+    operand: &SemanticOperand, raw: &SemanticTypeValue,
+    definition: &ClosureDefinition, child: &SemanticInstance, requested: CallableKind,
+    header: &StorageLifeContract, target: &SemanticTypeValue, expected: &SemanticTypeValue,
+    values: &[Option<SharedType>], locals: &[Option<SharedType>],
+    mapping: &mut invocation::Inputs, implicit: &BTreeMap<u32, SemanticClassExpr>,
+) -> R<()> {
+    if !matches!(requested, CallableKind::Fn | CallableKind::FnMut)
+        || !matches!(definition.kind, CallableKind::Fn | CallableKind::FnMut)
+    { return Err(bad("consuming invocation cannot return a receiver loan")); }
+    world.pay(header.bindings.len().saturating_mul(2))?;
+    let mut rows = header.bindings.iter().filter(|row|
+        row.position.base == StorageBase::Receiver && row.position.path.is_empty());
+    let receiver = rows.next().ok_or_else(|| bad("lending call omits its explicit Receiver input"))?;
+    if rows.next().is_some() || !matches!(receiver.binder, StorageBinder::Invocation(_))
+        || header.bindings.iter().filter(|row| row.position.base == StorageBase::Result
+            && row.position.path.is_empty() && row.binder == receiver.binder).count() != 1
+    { return Err(bad("receiver result changes its complete explicit access relation")); }
+    let source = world.binding(child, receiver.binder)?;
+    if !matches!(&source, SemanticClassExpr::OuterOccurrence {
+        operand: SemanticOperand::Receiver, path, mode: StoredBorrowMode::SharedAddress,
+    } if path.is_empty()) { return Err(bad("receiver header lacks its original signature-local source")); }
+    let roles::Source::Class(target_source) = roles::outer(world, target)? else {
+        return Err(bad("receiver result unexpectedly changes to Static"));
+    };
+    world.same_class(child.id, &source, &target_source, &BTreeMap::new())?;
+    let roles::Source::Class(image) = roles::outer(world, expected)? else {
+        return Err(bad("receiver result lacks its real caller access occurrence"));
+    };
+    insert_invocation(world, caller, &mut mapping.classes, source, &image, implicit)?;
+    let SemanticSiteAddress::Typed { block, instruction, edge: SemanticSiteEdge::After } = site.at else {
+        return Err(bad("receiver result has no exact post-call boundary"));
+    };
+    let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) = caller.target else {
+        return Err(bad("receiver result has no actual caller frame"));
+    };
+    let function = world.function(function)?;
+    world.pay(function.blocks.len())?;
+    let op = function.blocks.iter().find(|row| row.id == block)
+        .and_then(|row| row.instructions.get(instruction as usize))
+        .ok_or_else(|| bad("receiver result leaves its actual Call instruction"))?;
+    let output = op.result.ok_or_else(|| bad("receiver result has no real output SSA"))?;
+    let roots = match (&op.kind, operand) {
+        (InstructionKind::CallClosureShared { callee, .. }, SemanticOperand::Local(local))
+        | (InstructionKind::CallClosureMut { callee, .. }, SemanticOperand::Local(local))
+            if callee == local => {
+                let actual = world.local(locals, *local)?;
+                world.same(caller.id, &actual, raw, implicit)?;
+                if requested == CallableKind::FnMut {
+                    places::local_mutable(world, function, *local, true)?;
+                }
+                world.pay(1)?;
+                BTreeSet::from([arguments::Root { local: *local, path: Vec::new() }])
+            }
+        (InstructionKind::CallClosureBorrowed { callee, kind, .. }, SemanticOperand::Value(value))
+            if callee == value && kind == &requested => {
+                let actual = world.get(values, *value)?;
+                world.same(caller.id, &actual, raw, implicit)?;
+                places::address_mutable(world, &actual, requested == CallableKind::FnMut)?;
+                arguments::roots(world, *value, &actual)?
+            }
+        _ => return Err(bad("receiver result has no real stored or borrowed callee access")),
+    };
+    for root in &roots {
+        world.pay(root.path.len().saturating_add(world.vacant.len()).saturating_add(1))?;
+        if world.stale_locals.contains(&root.local)
+            || locals.get(root.local.0 as usize).and_then(Option::as_ref).is_none()
+            || world.vacant.iter().any(|(local, path)| *local == root.local
+                && (path.starts_with(&root.path) || root.path.starts_with(path)))
+        { return Err(bad("receiver result refers to stale or vacant actual storage")); }
+    }
+    if !roots.is_empty() { world.value_roots.insert(output, roots); }
+    Ok(())
 }
 
 fn result_invocation(

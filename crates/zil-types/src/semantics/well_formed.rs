@@ -167,14 +167,9 @@ impl<'a> Check<'a, '_> {
                 }
                 Ok(())
             }
-            SemanticRecipeOperand::Receiver => {
-                if self.definition(owner)?.kind != SemanticDefinitionKind::Closure {
-                    return Err(fail(
-                        "semantic receiver operand is outside a closure definition",
-                    ));
-                }
-                Ok(())
-            }
+            SemanticRecipeOperand::Receiver => Err(fail(
+                "receiver is only a Direct non-consuming callable's root shared result upper",
+            )),
         }
     }
     fn life(
@@ -455,10 +450,22 @@ impl<'a> Check<'a, '_> {
         bound: &mut Vec<u32>,
         depth: usize,
     ) -> R<()> {
+        self.signature_context(owner, value, bound, None, false, depth)
+    }
+    fn signature_context(
+        &mut self,
+        owner: SemanticDefinitionId,
+        value: &SemanticSignatureRecipe,
+        bound: &mut Vec<u32>,
+        callable: Option<CallableKind>,
+        closure_entry: bool,
+        depth: usize,
+    ) -> R<()> {
         self.node(depth)?;
         if value.bound_lifetimes > 0 {
             bound.push(value.bound_lifetimes);
         }
+        let result = (|| {
         for parameter in &value.parameters {
             self.ty(
                 owner,
@@ -468,17 +475,26 @@ impl<'a> Check<'a, '_> {
                 depth + 1,
             )?;
         }
-        self.ty(
-            owner,
-            &value.result,
-            bound,
-            value.invocation_lifetimes,
-            depth + 1,
-        )?;
+        if let SemanticTypeRecipe::Address {
+            mutable: false,
+            lifetime: SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::OuterOccurrence {
+                operand: SemanticRecipeOperand::Receiver, path, mode: StoredBorrowMode::SharedAddress,
+            }), inner,
+        } = &value.result
+            && path.is_empty()
+            && (matches!(callable, Some(CallableKind::Fn | CallableKind::FnMut)) || closure_entry)
+            && value.call_kind == CallKind::Direct
+        {
+            self.ty(owner, inner, bound, value.invocation_lifetimes, depth + 1)?;
+        } else {
+            self.ty(owner, &value.result, bound, value.invocation_lifetimes, depth + 1)?;
+        }
+        Ok(())
+        })();
         if value.bound_lifetimes > 0 {
             bound.pop();
         }
-        Ok(())
+        result
     }
     fn ty(
         &mut self,
@@ -799,9 +815,9 @@ impl Check<'_, '_> {
                 self.ty(owner, ty, bound, invocation, depth + 1)?;
                 self.trait_recipe(owner, application, bound, invocation, depth + 1)
             }
-            SemanticRequirementRecipe::Callable { ty, signature, .. } => {
+            SemanticRequirementRecipe::Callable { ty, signature, kind } => {
                 self.ty(owner, ty, bound, invocation, depth + 1)?;
-                self.signature(owner, signature, bound, depth + 1)
+                self.signature_context(owner, signature, bound, Some(*kind), false, depth + 1)
             }
             SemanticRequirementRecipe::TypeEqual { left, right } => {
                 self.ty(owner, left, bound, invocation, depth + 1)?;
@@ -939,7 +955,8 @@ impl Check<'_, '_> {
                         "semantic executable signature belongs to a nonfunction declaration",
                     ));
                 }
-                self.signature(owner, signature, &mut bound, 0)?;
+                self.signature_context(owner, signature, &mut bound, None,
+                    definition.kind == SemanticDefinitionKind::Closure, 0)?;
                 if signature.bound_lifetimes > 0 {
                     bound.push(signature.bound_lifetimes);
                 }

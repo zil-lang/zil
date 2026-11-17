@@ -1823,7 +1823,14 @@ impl Check<'_, '_> {
         } else {
             signature
         };
-        let signature = self.inference_template(&signature, &[], false, depth + 1)?;
+        let mut signature = self.inference_template(&signature, &[], false, depth + 1)?;
+        let receiver_result = self.bind_receiver_call_result(
+            owner, expression, base, &callee_type, &mut signature, variables, depth + 1,
+        )?;
+        if receiver_result && (!matches!(kind, CallableKind::Fn | CallableKind::FnMut)
+            || signature.call_kind != CallKind::Direct) {
+            return Err(bad("consuming or thin code cannot borrow a callable receiver"));
+        }
         let (actuals, signature) = self.solve_signature_roles(
             owner,
             expression,
@@ -1843,7 +1850,15 @@ impl Check<'_, '_> {
         if !actuals.is_empty() {
             return Err(bad("abstract callable fabricates named generic parameters"));
         }
-        crate::dyn_metadata::semantic_operand_snapshot(&signature, self.limits, self.left, 1)?;
+        let result = copy_recipe(&signature.result, self.limits, self.left)?;
+        let mut operation = signature;
+        if receiver_result {
+            let SemanticTypeRecipe::Address { lifetime, .. } = &mut operation.result else {
+                return Err(bad("callable receiver result changes its complete constructor"));
+            };
+            *lifetime = views::receiver_upper();
+        }
+        crate::dyn_metadata::semantic_operand_snapshot(&operation, self.limits, self.left, 1)?;
         self.pay(2, depth)?;
         self.proof.proof_mut()?.callable_calls.insert(
             (owner, site),
@@ -1851,14 +1866,14 @@ impl Check<'_, '_> {
                 callee: callee_type,
                 callee_node: base.id,
                 kind,
-                signature: signature.clone(),
+                signature: operation,
             },
         );
         self.proof
             .proof_mut()?
             .calls
             .insert((owner, site), Vec::new());
-        Ok(Some(signature.result))
+        Ok(Some(result))
     }
     pub(super) fn prove_trait(
         &mut self,

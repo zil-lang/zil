@@ -1908,12 +1908,20 @@ impl<'a> Check<'a, '_> {
                 .saturating_add(definition.implicit_lifetimes.len()),
             0,
         )?;
+        // A receiver borrow belongs to the actual OriginalCall occurrence,
+        // not to another TypeUse observation of the same expression node.
+        self.pay(site_nodes.len().saturating_mul(sites.len().saturating_add(1)), 0)?;
+        let call = site_nodes.iter().any(|row|
+            row.node == SemanticOriginalNode::Expression(node)
+                && sites.iter().any(|site| site.id == row.site
+                    && matches!(site.kind, SemanticSiteRecipeKind::OriginalCall)));
         let mut selected = None;
         for row in site_nodes {
             if row.node == SemanticOriginalNode::Expression(node) {
                 if let Some(site) = sites.iter().find(|site| {
                     site.id == row.site
-                        && matches!(site.kind, SemanticSiteRecipeKind::TypeUse { .. })
+                        && if call { matches!(site.kind, SemanticSiteRecipeKind::OriginalCall) }
+                        else { matches!(site.kind, SemanticSiteRecipeKind::TypeUse { .. }) }
                 }) {
                     for implicit in &definition.implicit_lifetimes {
                         if implicit.occurrence_path == site.occurrence_path {
@@ -5071,8 +5079,16 @@ impl<'a> Check<'a, '_> {
                         self.task_return_value(owner, value, variables, result, depth + 1)?
                     } else {
                         let target = self.resolve(owner, result, depth + 1).ok();
-                        self.expr(owner, value, variables, target.as_ref(), depth + 1)?
+                        // A receiver is a boundary upper, never a replacement
+                        // for the original borrow expression's own sigma.
+                        let target = target.as_ref().filter(|value| !matches!(value,
+                            SemanticTypeRecipe::Address { lifetime, .. }
+                                if views::is_receiver_upper(lifetime)));
+                        self.expr(owner, value, variables, target, depth + 1)?
                     };
+                    let value = self.receiver_return_value(
+                        owner, value_node, variables, &value, depth + 1,
+                    )?.unwrap_or(value);
                     self.ensure_escape(owner, &value, depth + 1)?;
                     let infer = matches!(
                         result,
@@ -5992,6 +6008,12 @@ impl<'a> Check<'a, '_> {
             0,
         )?;
         names.sort_unstable();
+        if (kind == CallableKind::FnOnce || signature.call_kind != CallKind::Direct)
+            && matches!(self.proof.types.get(&(definition.id, Query::Result)),
+                Some(SemanticTypeRecipe::Address { lifetime, .. }) if views::is_receiver_upper(lifetime))
+        {
+            return Err(bad("consuming closure cannot return a loan of its own environment"));
+        }
         self.proof.proof_mut()?.kinds.insert(definition.id, kind);
         self.pay(names.len(), 0)?;
         for name in &names {

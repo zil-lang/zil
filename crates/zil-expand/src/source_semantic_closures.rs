@@ -30,6 +30,7 @@ impl Builder<'_, '_, '_, '_> {
                 result: false,
                 input_addresses: 0,
                 result_life: None,
+                receiver_result: None,
             },
             span,
         )?;
@@ -92,6 +93,18 @@ impl Builder<'_, '_, '_, '_> {
                 .expect("closure header frame")
                 .result = true;
             let result = if let Some(result) = result {
+                let mut leaf = result;
+                while let s::TypeKind::Group(inner) = &leaf.kind {
+                    self.budget.node(leaf.span, 0)?;
+                    leaf = inner;
+                }
+                if matches!(leaf.kind, s::TypeKind::Reference {
+                    mutable: false, lifetime: None, ..
+                }) {
+                    self.budget.lineage_bytes(std::mem::size_of::<u32>(), result.span)?;
+                    self.invocations.last_mut().expect("closure header frame")
+                        .receiver_result = Some(vec![2]);
+                }
                 self.ty(result, &mut vec![2], 0, false)?
             } else {
                 SemanticTypeRecipe::OriginalType {
