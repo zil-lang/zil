@@ -53,7 +53,7 @@ impl Check<'_, '_> {
             .intrinsic_anchor(instance, site, self.inventory, b)?;
         let selected = match &expected.ty {
             Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)) =>
-                value::pointee(expected, b)?,
+                value::pointee(expected, self.inventory, b)?,
             _ => expected.copy(b)?,
         };
         let payload = match &selected.ty {
