@@ -10,9 +10,6 @@ enum SourceFailure {
     Invalid(Diagnostic),
 }
 type SourceResult<T> = Result<T, SourceFailure>;
-impl From<Diagnostic> for SourceFailure {
-    fn from(error: Diagnostic) -> Self { Self::Invalid(error) }
-}
 impl From<SourceFailure> for Diagnostic {
     fn from(error: SourceFailure) -> Self {
         match error {
@@ -73,10 +70,10 @@ impl<'a> Eval<'a, '_, '_> {
                 let expected = self.source_specialize(caller, expected, &mut BTreeSet::new(), depth + 1)?;
                 let actual = self.source_actual(holder, ordinal as u32, &mut BTreeSet::new(), depth + 1)?;
                 let actual = self.source_relocate(&actual, expected.scope, depth + 1)?;
-                let owner = self.scope_source_instance(expected.scope)?.definition;
+                let owner = self.scope_source_instance(expected.scope).map_err(SourceFailure::Invalid)?.definition;
                 let proof = self.ledger.original.borrow();
                 let proof = proof.as_ref()
-                    .ok_or_else(|| bad("closed application identity lacks its original proof"))?;
+                    .ok_or_else(|| bad("closed application identity lacks its original proof")).map_err(SourceFailure::Invalid)?;
                 proof.equal_closed_actual_identity(self.input, owner,
                     &expected.recipe, &actual, self.limits, self.left).map_err(SourceFailure::Invalid)
             })();
@@ -196,15 +193,15 @@ impl<'a> Eval<'a, '_, '_> {
         target: SemanticInstanceId,
         depth: usize,
     ) -> SourceResult<SemanticActualRecipe> {
-        self.node(depth)?;
-        let source = self.scope_chain(value.scope, depth + 1)?;
-        let destination = self.scope_chain(target, depth + 1)?;
+        self.node(depth).map_err(SourceFailure::Invalid)?;
+        let source = self.scope_chain(value.scope, depth + 1).map_err(SourceFailure::Invalid)?;
+        let destination = self.scope_chain(target, depth + 1).map_err(SourceFailure::Invalid)?;
         self.fee(
             source
                 .len()
                 .saturating_mul(destination.len())
                 .saturating_add(1),
-        )?;
+        ).map_err(SourceFailure::Invalid)?;
         let mut scopes = BTreeMap::new();
         for (hop, id) in source.iter().enumerate() {
             if let Some(index) = destination.iter().position(|other| other == id) {
@@ -235,21 +232,21 @@ impl<'a> Eval<'a, '_, '_> {
         active: &mut BTreeSet<(SemanticInstanceId, u32)>,
         depth: usize,
     ) -> SourceResult<SourceActual> {
-        self.node(depth)?;
-        self.fee(active.len().saturating_add(1))?;
+        self.node(depth).map_err(SourceFailure::Invalid)?;
+        self.fee(active.len().saturating_add(1)).map_err(SourceFailure::Invalid)?;
         if !active.insert((holder, ordinal)) {
-            return Err(bad("original parent argument provenance is cyclic").into());
+            return Err(SourceFailure::Invalid(bad("original parent argument provenance is cyclic")));
         }
         let result = (|| {
-            let row = self.scope_source_instance(holder)?;
-            let original = self.definition(row.definition)?;
+            let row = self.scope_source_instance(holder).map_err(SourceFailure::Invalid)?;
+            let original = self.definition(row.definition).map_err(SourceFailure::Invalid)?;
             if row.actuals.len() != original.parameters.len() {
-                return Err(bad("parent source omits complete mixed original arguments").into());
+                return Err(SourceFailure::Invalid(bad("parent source omits complete mixed original arguments")));
             }
             let value = row
                 .actuals
                 .get(ordinal as usize)
-                .ok_or_else(|| bad("parent argument has no full original ordinal"))?;
+                .ok_or_else(|| bad("parent argument has no full original ordinal")).map_err(SourceFailure::Invalid)?;
             match value {
                 SemanticActual::CoreRecipe { scope, recipe } => {
                     self.source_specialize(*scope, recipe, active, depth + 1)
@@ -260,43 +257,43 @@ impl<'a> Eval<'a, '_, '_> {
                     formal,
                 } => {
                     if *formal != ordinal {
-                        return Err(bad("parent source changes a full mixed inference ordinal").into());
+                        return Err(SourceFailure::Invalid(bad("parent source changes a full mixed inference ordinal")));
                     }
                     if matches!(original.body, SemanticDefinitionBody::Scope(_)) {
                         let (source, actuals) =
                             self.source_parent_solution(*scope, *call, holder, active, depth + 1)?;
                         let recipe = actuals
                             .get(ordinal as usize)
-                            .ok_or_else(|| bad("parent solution omits a full mixed ordinal"))?;
+                            .ok_or_else(|| bad("parent solution omits a full mixed ordinal")).map_err(SourceFailure::Invalid)?;
                         crate::dyn_metadata::semantic_operand_snapshot(
                             recipe,
                             self.limits,
                             self.left,
                             1,
-                        )?;
+                        ).map_err(SourceFailure::Invalid)?;
                         let recipe = recipe.clone();
                         Ok(SourceActual {
                             scope: source,
                             recipe,
                         })
                     } else {
-                        let owner = self.scope_source_instance(*scope)?.definition;
+                        let owner = self.scope_source_instance(*scope).map_err(SourceFailure::Invalid)?.definition;
                         let recipe = {
                             let proof = self.ledger.original.borrow();
                             let proof = proof
                                 .as_ref()
-                                .ok_or_else(|| bad("parent source has no original proof"))?;
+                                .ok_or_else(|| bad("parent source has no original proof")).map_err(SourceFailure::Invalid)?;
                             let target = proof
-                                .inferred_call_target(owner, *call, self.limits, self.left)?
-                                .ok_or_else(|| bad("parent source call has no original target"))?;
+                                .inferred_call_target(owner, *call, self.limits, self.left).map_err(SourceFailure::Invalid)?
+                                .ok_or_else(|| bad("parent source call has no original target")).map_err(SourceFailure::Invalid)?;
                             if target != original.id
                                 && proof.providers.get(&original.id) != Some(&target)
                             {
-                                return Err(bad(
+                                return Err(SourceFailure::Invalid(bad(
                                     "parent source call does not target the actual definition",
-                                ).into());
+                                )));
                             }
-                            proof.call_actual(owner, *call, *formal, self.limits, self.left)?
+                            proof.call_actual(owner, *call, *formal, self.limits, self.left).map_err(SourceFailure::Invalid)?
                         };
                         self.source_specialize(*scope, &recipe, active, depth + 1)
                     }
@@ -309,7 +306,7 @@ impl<'a> Eval<'a, '_, '_> {
                                 self.limits,
                                 self.left,
                                 1,
-                            )?;
+                            ).map_err(SourceFailure::Invalid)?;
                             recipe.as_ref().clone()
                         }
                         SemanticCoreTypeSource::OriginalExpression { source, .. } => {
@@ -318,7 +315,7 @@ impl<'a> Eval<'a, '_, '_> {
                                 self.limits,
                                 self.left,
                                 1,
-                            )?;
+                            ).map_err(SourceFailure::Invalid)?;
                             SemanticTypeRecipe::OriginalType {
                                 scope: SemanticScopeRef::Ancestor(0),
                                 source: source.clone(),
@@ -352,13 +349,13 @@ impl<'a> Eval<'a, '_, '_> {
         active: &mut BTreeSet<(SemanticInstanceId, u32)>,
         depth: usize,
     ) -> SourceResult<SourceActual> {
-        self.node(depth)?;
-        let ancestry = self.scope_chain(scope, depth + 1)?;
+        self.node(depth).map_err(SourceFailure::Invalid)?;
+        let ancestry = self.scope_chain(scope, depth + 1).map_err(SourceFailure::Invalid)?;
         let mut arguments = Vec::new();
         let mut destination = None;
         for id in &ancestry {
-            let row = self.scope_source_instance(*id)?;
-            self.fee(row.actuals.len().saturating_add(1))?;
+            let row = self.scope_source_instance(*id).map_err(SourceFailure::Invalid)?;
+            self.fee(row.actuals.len().saturating_add(1)).map_err(SourceFailure::Invalid)?;
             let mut frame = Vec::new();
             for ordinal in 0..row.actuals.len() {
                 let actual = self.source_actual(*id, ordinal as u32, active, depth + 1)?;
@@ -371,22 +368,22 @@ impl<'a> Eval<'a, '_, '_> {
         }
         let destination = destination.unwrap_or(scope);
         let mut mapped = Vec::new();
-        self.fee(arguments.len())?;
+        self.fee(arguments.len()).map_err(SourceFailure::Invalid)?;
         for frame in &arguments {
             let mut values = Vec::new();
-            self.fee(frame.len())?;
+            self.fee(frame.len()).map_err(SourceFailure::Invalid)?;
             for actual in frame {
                 values.push(self.source_relocate(actual, destination, depth + 1)?);
             }
             mapped.push(values);
         }
-        let destination_chain = self.scope_chain(destination, depth + 1)?;
+        let destination_chain = self.scope_chain(destination, depth + 1).map_err(SourceFailure::Invalid)?;
         self.fee(
             ancestry
                 .len()
                 .saturating_mul(destination_chain.len())
                 .saturating_add(mapped.len()),
-        )?;
+        ).map_err(SourceFailure::Invalid)?;
         let mut scopes = BTreeMap::new();
         for (hop, id) in ancestry.iter().enumerate() {
             if let Some(index) = destination_chain.iter().position(|other| other == id) {
@@ -427,14 +424,14 @@ impl<'a> Eval<'a, '_, '_> {
         active: &mut BTreeSet<(SemanticInstanceId, u32)>,
         depth: usize,
     ) -> SourceResult<(SemanticInstanceId, std::rc::Rc<Vec<SemanticActualRecipe>>)> {
-        self.node(depth)?;
+        self.node(depth).map_err(SourceFailure::Invalid)?;
         let key = (caller, call, holder);
         if let Some(value) = self.module.parent_solution(
             self.input,
             self.ledger.original.context(),
             key,
             self.left,
-        )? {
+        ).map_err(SourceFailure::Invalid)? {
             return Ok(value);
         }
         let value = self.source_parent_solution_uncached(caller, call, holder, active, depth)?;
@@ -445,7 +442,7 @@ impl<'a> Eval<'a, '_, '_> {
             &value,
             self.limits,
             self.left,
-        )?;
+        ).map_err(SourceFailure::Invalid)?;
         Ok(value)
     }
     fn source_parent_solution_uncached(
@@ -456,11 +453,11 @@ impl<'a> Eval<'a, '_, '_> {
         active: &mut BTreeSet<(SemanticInstanceId, u32)>,
         depth: usize,
     ) -> SourceResult<(SemanticInstanceId, std::rc::Rc<Vec<SemanticActualRecipe>>)> {
-        self.node(depth)?;
-        let caller_definition = self.scope_source_instance(caller)?.definition;
-        let holder_definition = self.scope_source_instance(holder)?.definition;
-        let function = self.function(caller)?;
-        self.fee(self.input.sites.len())?;
+        self.node(depth).map_err(SourceFailure::Invalid)?;
+        let caller_definition = self.scope_source_instance(caller).map_err(SourceFailure::Invalid)?.definition;
+        let holder_definition = self.scope_source_instance(holder).map_err(SourceFailure::Invalid)?.definition;
+        let function = self.function(caller).map_err(SourceFailure::Invalid)?;
+        self.fee(self.input.sites.len()).map_err(SourceFailure::Invalid)?;
         let mut sites = self
             .input
             .sites
@@ -468,18 +465,18 @@ impl<'a> Eval<'a, '_, '_> {
             .filter(|row| row.instance == caller && row.recipe == call);
         let site = sites
             .next()
-            .ok_or_else(|| bad("parent inference has no actual call site"))?;
+            .ok_or_else(|| bad("parent inference has no actual call site")).map_err(SourceFailure::Invalid)?;
         if sites.next().is_some() {
-            return Err(bad("parent inference has multiple actual call sites").into());
+            return Err(SourceFailure::Invalid(bad("parent inference has multiple actual call sites")));
         }
-        let (block, instruction) = self.actual_call_point(caller, site, depth + 1)?;
-        self.fee(function.blocks.len())?;
+        let (block, instruction) = self.actual_call_point(caller, site, depth + 1).map_err(SourceFailure::Invalid)?;
+        self.fee(function.blocks.len()).map_err(SourceFailure::Invalid)?;
         let op = function
             .blocks
             .iter()
             .find(|row| row.id == block)
             .and_then(|row| row.instructions.get(instruction as usize))
-            .ok_or_else(|| bad("parent inference call leaves the actual CFG"))?;
+            .ok_or_else(|| bad("parent inference call leaves the actual CFG")).map_err(SourceFailure::Invalid)?;
         let (InstructionKind::Call {
             function: target, ..
         }
@@ -492,28 +489,28 @@ impl<'a> Eval<'a, '_, '_> {
             )));
         };
         let count = self.input.instances.len();
-        self.fee(count.saturating_mul(count.saturating_add(1).ilog2() as usize + 1))?;
+        self.fee(count.saturating_mul(count.saturating_add(1).ilog2() as usize + 1)).map_err(SourceFailure::Invalid)?;
         let mut ids = BTreeSet::new();
         for row in &self.input.instances {
             ids.insert(row.id);
         }
         let mut provider = None;
         for id in ids {
-            let row = self.instance(id)?;
+            let row = self.instance(id).map_err(SourceFailure::Invalid)?;
             if row.parent == Some(holder)
                 && row.target
                     == SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(*target))
             {
                 if provider.replace(row.definition).is_some() {
-                    return Err(bad(
+                    return Err(SourceFailure::Invalid(bad(
                         "parent inference has several actual provider instances for its exact holder",
-                    ).into());
+                    )));
                 }
             }
         }
         let provider = provider.ok_or_else(|| {
             bad("parent inference has no actual provider with the exact lexical holder")
-        })?;
+        }).map_err(SourceFailure::Invalid)?;
         let (receiver, application) = {
             let proof = self.ledger.original.borrow();
             let method = proof
@@ -521,20 +518,20 @@ impl<'a> Eval<'a, '_, '_> {
                 .and_then(|proof| proof.method_calls.get(&(caller_definition, call)))
                 .ok_or_else(|| {
                     bad("parent inference lacks its original method receiver theorem")
-                })?;
+                }).map_err(SourceFailure::Invalid)?;
             crate::dyn_metadata::semantic_operand_snapshot(
                 &method.self_type,
                 self.limits,
                 self.left,
                 1,
-            )?;
+            ).map_err(SourceFailure::Invalid)?;
             if let Some(application) = &method.application {
                 crate::dyn_metadata::semantic_operand_snapshot(
                     application,
                     self.limits,
                     self.left,
                     1,
-                )?;
+                ).map_err(SourceFailure::Invalid)?;
             }
             (method.self_type.clone(), method.application.clone())
         };
@@ -549,7 +546,7 @@ impl<'a> Eval<'a, '_, '_> {
         };
         let application = if let Some(application) = application {
             let mut actuals = Vec::new();
-            self.fee(application.arguments.len())?;
+            self.fee(application.arguments.len()).map_err(SourceFailure::Invalid)?;
             for actual in &application.arguments {
                 let actual = self.source_specialize(caller, actual, active, depth + 1)?;
                 actuals.push(self.source_relocate(&actual, source.scope, depth + 1)?);
@@ -561,12 +558,12 @@ impl<'a> Eval<'a, '_, '_> {
         } else {
             None
         };
-        let source_owner = self.scope_source_instance(source.scope)?.definition;
+        let source_owner = self.scope_source_instance(source.scope).map_err(SourceFailure::Invalid)?.definition;
         let actuals = {
             let proof = self.ledger.original.borrow();
             proof
                 .as_ref()
-                .ok_or_else(|| bad("parent specialization lost its original proof"))?
+                .ok_or_else(|| bad("parent specialization lost its original proof")).map_err(SourceFailure::Invalid)?
                 .specialized_parent(
                     self.input,
                     source_owner,
@@ -578,7 +575,7 @@ impl<'a> Eval<'a, '_, '_> {
                     application.as_ref(),
                     self.limits,
                     self.left,
-                )?
+                ).map_err(SourceFailure::Invalid)?
         };
         Ok((source.scope, actuals))
     }
