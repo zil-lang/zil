@@ -1,4 +1,18 @@
 use super::*;
+
+#[test]
+fn shared_projection_rebinds_self_without_rewriting_actual_callee_ids() {
+    let original = SourceProjection {
+        block_lengths: Arc::new(vec![2]),
+        slots: Arc::new(vec![(0, 1, FunctionId(7))]),
+        observed: vec![FunctionId(7)],
+    };
+    let rebound = original.rebind(FunctionId(9));
+    assert_eq!(rebound.observed, vec![FunctionId(7), FunctionId(9)]);
+    assert_eq!(*rebound.slots, vec![(0, 1, FunctionId(7))]);
+    assert!(Arc::ptr_eq(&original.slots, &rebound.slots));
+    assert!(Arc::ptr_eq(&original.block_lengths, &rebound.block_lengths));
+}
 use zil_base::{Fingerprint, Limits, ModuleId, SCHEMA_VERSION};
 use zil_ir::*;
 

@@ -258,26 +258,6 @@ fn validate_module(
         .map(|(_, receipt)| receipt.functions.clone())
         .unwrap_or_default();
     rows.resize(core.functions.len(), FunctionReceipt::default());
-    let mut fuel = limits.max_nodes.min(1_000_000);
-    let mut stack = Vec::new();
-    let mut shapes = Vec::with_capacity(core.functions.len());
-    let mut reusable = Vec::with_capacity(core.functions.len());
-    for (index, function) in core.functions.iter().enumerate() {
-        let same_owner = prior.is_some_and(|(old, _)| {
-            matches!((old.functions.owner(index), core.functions.owner(index)),
-                (Some(old), Some(current)) if Arc::ptr_eq(old, current))
-        });
-        reusable.push(same_owner);
-        let before = fuel;
-        if same_owner {
-            fuel = fuel.checked_sub(rows[index].shape_cost)?;
-            stats.shape_reuses += 1;
-        } else {
-            stats.shape_checks += 1;
-            unchanged_function_shape(function, limits, &mut fuel, &mut stack)?;
-        }
-        shapes.push(before.checked_sub(fuel)?);
-    }
     if core.schema_version != SCHEMA_VERSION {
         return None;
     }
@@ -292,18 +272,26 @@ fn validate_module(
         context: Some(context),
         compiler: None,
         scopes: Vec::new(),
+        plain: Some(PlainVisit {
+            fuel: limits.max_nodes.min(1_000_000),
+            hints: Default::default(),
+        }),
     };
     stats.declaration_modules += 1;
     walker.declarations().ok()?;
     for (index, function) in core.functions.iter().enumerate() {
         let before = Ledger::of(&walker);
-        // Local hint scopes must not escape a function; this is the complete
-        // mutable Walker state and every other input is independently bound.
-        let hints = if reusable[index] {
-            rows[index].hints.clone()
+        let reusable = prior.is_some_and(|(old, _)| {
+            matches!((old.functions.owner(index), core.functions.owner(index)),
+                (Some(old), Some(current)) if Arc::ptr_eq(old, current))
+        });
+        if reusable {
+            stats.shape_reuses += 1;
         } else {
-            plain_hint_reads(function, core.module_id, context)?.into()
-        };
+            stats.shape_checks += 1;
+        }
+        let shape_before = walker.plain.as_ref()?.fuel;
+        let mut hints = rows[index].hints.clone();
         let same_hints = headers.is_some_and(|headers| {
             hints.iter().all(|(module, name)| {
                 let previous = headers
@@ -322,18 +310,25 @@ fn validate_module(
                 }
             })
         });
-        if reusable[index] && same_hints {
+        if reusable && same_hints {
+            let plain = walker.plain.as_mut()?;
+            plain.fuel = plain.fuel.checked_sub(rows[index].shape_cost)?;
             rows[index].body_cost.replay(&mut walker)?;
             stats.body_reuses += 1;
         } else {
             stats.body_checks += 1;
+            walker.plain.as_mut()?.hints.get_mut().clear();
             walker.unchanged_function(function).ok()?;
+            let mut reads = std::mem::take(walker.plain.as_mut()?.hints.get_mut());
+            reads.sort_unstable();
+            reads.dedup();
+            hints = reads.into();
         }
         if !walker.scopes.is_empty() {
             return None;
         }
         let row = FunctionReceipt {
-            shape_cost: shapes[index],
+            shape_cost: shape_before.checked_sub(walker.plain.as_ref()?.fuel)?,
             body_cost: before.cost_to(Ledger::of(&walker))?,
             hints,
         };
@@ -346,147 +341,6 @@ fn validate_module(
         nodes: walker.nodes,
     };
     Some((ModuleReceipt { functions: rows }, usage))
-}
-
-// All external reads in unchanged_function/block/expr are call_hints and
-// hint(Call), both through Walker::function -> SourceProgramContext::function.
-// Every Call executes call_hints, so collecting its lexical lookup covers
-// hint(Call)'s repeated reads as well. No branch is evaluated/selected here.
-// The preceding shape admission bounds recursion to 128 and excludes every
-// other hint consumer (nominals, templates, closures, CT and rewritten nodes).
-// Unexpected extensions decline the optimization instead of omitting an edge.
-fn plain_hint_reads(
-    function: &CoreFunction,
-    module: zil_base::ModuleId,
-    context: &SourceProgramContext<'_>,
-) -> Option<Vec<(zil_base::ModuleId, String)>> {
-    struct Reads<'a, 'p> {
-        module: zil_base::ModuleId,
-        context: &'a SourceProgramContext<'p>,
-        scopes: Vec<BTreeSet<String>>,
-        keys: Vec<(zil_base::ModuleId, String)>,
-    }
-    impl Reads<'_, '_> {
-        fn expr(&mut self, e: &CoreExpr) -> Option<()> {
-            match &e.kind {
-                CoreExprKind::Literal(_)
-                | CoreExprKind::Integer(_)
-                | CoreExprKind::Float(_)
-                | CoreExprKind::Bool(_)
-                | CoreExprKind::Unit
-                | CoreExprKind::Name(_) => {}
-                CoreExprKind::Unary { operand, .. } => self.expr(operand)?,
-                CoreExprKind::IntegerConvert { value, .. }
-                | CoreExprKind::NumericConvert { value, .. } => self.expr(value)?,
-                CoreExprKind::Binary { left, right, .. } => {
-                    self.expr(left)?;
-                    self.expr(right)?;
-                }
-                CoreExprKind::Call { callee, arguments } => {
-                    let lookup = match &callee.kind {
-                        CoreExprKind::Name(name) => Some((name, None, name)),
-                        CoreExprKind::Member {
-                            object,
-                            member,
-                            owner: None,
-                        } => match &object.kind {
-                            CoreExprKind::Name(alias) => Some((alias, Some(alias), member)),
-                            _ => None,
-                        },
-                        _ => None,
-                    };
-                    if let Some((first, alias, name)) = lookup
-                        && !self.scopes.iter().rev().any(|scope| scope.contains(first))
-                    {
-                        let owner = if let Some(alias) = alias {
-                            self.context
-                                .imports
-                                .get(&(self.module, alias.as_str()))
-                                .copied()
-                                .flatten()
-                        } else {
-                            Some(self.module)
-                        };
-                        // An absent/ambiguous alias stays bound by complete
-                        // import equality. A missing function needs a key too.
-                        if let Some(owner) = owner {
-                            self.keys.push((owner, name.clone()));
-                        }
-                    }
-                    for argument in arguments {
-                        self.expr(argument)?;
-                    }
-                    self.expr(callee)?;
-                }
-                CoreExprKind::Member { object, .. } => self.expr(object)?,
-                CoreExprKind::If {
-                    condition,
-                    then_value,
-                    else_value,
-                } => {
-                    self.expr(condition)?;
-                    self.expr(then_value)?;
-                    self.expr(else_value)?;
-                }
-                _ => return None,
-            }
-            Some(())
-        }
-        fn block(&mut self, block: &CoreBlock) -> Option<()> {
-            self.scopes.push(BTreeSet::new());
-            for statement in &block.statements {
-                match &statement.kind {
-                    CoreStatementKind::Binding {
-                        name, initializer, ..
-                    } => {
-                        if let Some(e) = initializer {
-                            self.expr(e)?;
-                        }
-                        self.scopes.last_mut()?.insert(name.clone());
-                    }
-                    CoreStatementKind::Assign { target, value } => {
-                        self.expr(target)?;
-                        self.expr(value)?;
-                    }
-                    CoreStatementKind::Expression(e) | CoreStatementKind::Return(Some(e)) => {
-                        self.expr(e)?
-                    }
-                    CoreStatementKind::If {
-                        condition,
-                        then_body,
-                        else_body,
-                    } => {
-                        self.expr(condition)?;
-                        self.block(then_body)?;
-                        if let Some(block) = else_body {
-                            self.block(block)?;
-                        }
-                    }
-                    CoreStatementKind::While { condition, body } => {
-                        self.expr(condition)?;
-                        self.block(body)?;
-                    }
-                    CoreStatementKind::Block(block)
-                    | CoreStatementKind::Defer(block)
-                    | CoreStatementKind::Unsafe(block) => self.block(block)?,
-                    CoreStatementKind::Return(None)
-                    | CoreStatementKind::Break
-                    | CoreStatementKind::Continue => {}
-                    _ => return None,
-                }
-            }
-            self.scopes.pop();
-            Some(())
-        }
-    }
-    let mut reads = Reads {
-        module,
-        context,
-        scopes: vec![function.parameters.iter().map(|p| p.name.clone()).collect()],
-        keys: Vec::new(),
-    };
-    reads.block(&function.body)?;
-    Some(reads.keys)
 }
 
 // This is only equality of the non-function inputs consumed by plain hints.

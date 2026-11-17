@@ -6,6 +6,9 @@ use super::*;
 pub trait Visitor {
     fn node(&mut self, span: Span, depth: usize) -> CompileResult<()>;
     fn text(&mut self, value: &str, span: Span) -> CompileResult<()>;
+    fn function_name(&mut self, name: &str, span: Span) -> CompileResult<()> {
+        self.text(name, span)
+    }
     fn type_binder(&mut self, _: &str, _: Span) -> CompileResult<()> {
         Ok(())
     }
@@ -145,7 +148,7 @@ fn parameter<V: Visitor + ?Sized>(v: &mut V, p: &s::Param, depth: usize) -> Comp
 }
 fn function<V: Visitor + ?Sized>(v: &mut V, f: &s::Function, depth: usize) -> CompileResult<()> {
     v.node(f.span, depth)?;
-    v.text(&f.name, f.span)?;
+    v.function_name(&f.name, f.span)?;
     generics(v, &f.generics, depth + 1)?;
     for p in &f.params {
         parameter(v, p, depth + 1)?;

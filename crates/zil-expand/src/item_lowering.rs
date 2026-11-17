@@ -436,3 +436,83 @@ fn scalar_exports(module: &modules::SharedScalarModule, core: &CoreModule) -> Ve
         })
         .collect()
 }
+
+/// Cold scalar production keeps the original body owner through the final
+/// consumer. Core IDs, temporaries, source maps and function bindings are all
+/// produced by the ordinary Expander in the original declaration order.
+pub(super) fn expand_borrowed_scalar<S: std::borrow::Borrow<SourceUnit>>(
+    sources: &[S],
+    modules: &[modules::scalar_walk::ModuleView],
+    limits: &Limits,
+    products: &mut generics::products::Products,
+    reuse: &mut incremental::Reuse<'_>,
+) -> CompileResult<Option<SharedProgramModules>> {
+    let mut remaining = products.trait_limits(limits);
+    let mut output = Vec::with_capacity(modules.len());
+    for (source, module) in sources.iter().zip(modules) {
+        let source: &SourceUnit = source.borrow();
+        let input_limits = remaining.clone();
+        let declarations = BTreeMap::new();
+        let mut e = Expander::new(module.id, true, &remaining, None, &declarations);
+        e.capture_lower_bindings = true;
+        e.member_patterns = Some(&products.member_patterns);
+        e.dynamic_catalog = Some(&products.dynamic);
+        e.storage_catalog = Some(&products.storage);
+        e.method_providers = Some(&products.method_providers);
+        reuse.lower_executed();
+        let clock = reuse.clock();
+        for (ordinal, view) in module.items.iter().enumerate() {
+            // Restore returns the original declaration spelling in this closed
+            // domain. Only expression names need an override during Lower.
+            debug_assert!(match &view.item().kind {
+                s::ItemKind::Function(f) | s::ItemKind::Extern { function: f, .. } =>
+                    f.name == view.name,
+                _ => false,
+            });
+            e.source_item_ordinal = ordinal;
+            e.scalar_expressions = (!view.expressions.is_empty()).then(|| view.expressions.clone());
+            e.lower_item(source, ordinal, view.item(), None);
+        }
+        e.scalar_expressions = None;
+        let expanded = if e.diagnostics.is_empty() {
+            finish_lowering(source, module.id, sources, &remaining, &remaining, e)
+        } else {
+            Err(e.diagnostics)
+        };
+        reuse.production(clock);
+        let mut expanded = expanded?;
+        let work = debit_expanded(&expanded, &mut remaining, sources.len(), module.span)?;
+        expanded.source_map_work = Some(work);
+        expanded.lowering_demand.work = expanded.lowering_demand.work.max(work);
+        reuse.save_lower(module.span.file, &input_limits, &expanded);
+        let names: BTreeMap<_, _> = expanded
+            .core
+            .functions
+            .iter()
+            .map(|function| (&function.name, function.id))
+            .collect();
+        let exports = module
+            .items
+            .iter()
+            .filter_map(|view| {
+                let item = view.item();
+                if item.public && matches!(item.kind, s::ItemKind::Function(_)) {
+                    names.get(&view.name).copied()
+                } else {
+                    None
+                }
+            })
+            .collect();
+        output.push((
+            ProgramModule {
+                exports,
+                core: expanded.core,
+                imports: module.imports.clone(),
+            },
+            expanded.source_map,
+        ));
+    }
+    products.finish_closure_contexts(limits)?;
+    products.finish_callable_contexts(limits)?;
+    Ok(Some(output))
+}

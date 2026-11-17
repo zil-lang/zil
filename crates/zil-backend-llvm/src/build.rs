@@ -437,6 +437,8 @@ pub fn build_view_with_cancellation_and_session(
         session.summary.reused_functions = session.lower.hits;
         session.summary.reused_body_templates = session.lower.reused_body_templates;
         session.summary.produced_body_templates = session.lower.produced_body_templates;
+        session.summary.shared_body_template_reuses = session.lower.shared_body_template_reuses;
+        session.summary.shared_admission_reuses = session.lower.shared_admission_reuses;
         session.summary.reused_machine_module = session.lower.reused_machine_module;
         session.summary.whole_machine_input_functions_compared =
             session.lower.whole_machine_input_functions_compared;

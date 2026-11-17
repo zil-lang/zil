@@ -93,6 +93,8 @@ impl Cache {
             }
         }
         let mut per_function = Vec::with_capacity(owner.len());
+        let mut bodies =
+            std::collections::HashMap::<scalar_bodies::Owners, (&TypedFunction, usize)>::new();
         for (index, function) in owner.iter().enumerate() {
             let input = owner
                 .owner(index)
@@ -105,7 +107,18 @@ impl Cache {
                 per_function.push(Arc::clone(*product));
             } else {
                 let old = *work;
-                stored_borrows::reserve_callable_function_metadata(function, limits, work)?;
+                let body = scalar_bodies::Owners::of(function);
+                if let Some((_, cost)) = bodies.get(&body).filter(|(previous, cost)| {
+                    *work >= *cost && scalar_bodies::Owners::same(previous, function)
+                }) {
+                    // Current successful visitor result only, with fixed Limits.
+                    // Tight budgets execute the original visitor so its partial
+                    // ledger and first diagnostic remain exact at this ID.
+                    *work -= cost;
+                } else {
+                    stored_borrows::reserve_callable_function_metadata(function, limits, work)?;
+                    bodies.insert(body, (function, old - *work));
+                }
                 per_function.push(Arc::new(FunctionProduct {
                     input: input.clone(),
                     cost: old - *work,
@@ -155,6 +168,32 @@ impl Session {
 pub(crate) fn test_contract(original: &TypedModule, limits: &Limits) {
     // Raw cost-visitor probes only; no cached value grants a language capability.
     assert!(original.closures.is_empty() && original.resources.is_empty());
+    let mut shared = original.clone();
+    shared.functions = (0..3)
+        .map(|id| {
+            let mut function = original.functions[0].clone();
+            function.id = FunctionId(id);
+            function.name = format!("metadata_shared_{id}");
+            function
+        })
+        .collect();
+    let mut work = usize::MAX;
+    stored_borrows::reserve_callable_metadata(&shared, limits, &mut work).unwrap();
+    let shared_cost = usize::MAX - work;
+    for budget in [
+        0,
+        shared_cost / 2,
+        shared_cost - 1,
+        shared_cost,
+        shared_cost + 1,
+    ] {
+        let mut actual = budget;
+        let got = Cache::default().reserve(&shared, limits, &mut actual);
+        let mut expected = budget;
+        let fresh = stored_borrows::reserve_callable_metadata(&shared, limits, &mut expected);
+        assert_eq!(got.as_ref().map(|_| ()), fresh.as_ref().map(|_| ()));
+        assert_eq!(actual, expected, "cold shared metadata ledger at {budget}");
+    }
     let mut cache = Cache::default();
     let mut work = usize::MAX;
     let pending = cache.reserve(original, limits, &mut work).unwrap();

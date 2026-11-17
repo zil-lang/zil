@@ -230,7 +230,21 @@ pub(super) fn plan(
             }
         }
     }
+    // All current signatures are complete before this helper check. Repeated
+    // immutable bodies read the same actual helper IDs and current ABI table;
+    // no source-to-machine permission or previous request enters this cache.
+    let mut helper_bodies =
+        std::collections::HashMap::<scalar_bodies::Owners, (&TypedFunction, usize)>::new();
     for function in lir.functions {
+        let owner = scalar_bodies::Owners::of(function);
+        if let Some((_, cost)) = helper_bodies
+            .get(&owner)
+            .filter(|(old, cost)| *remaining >= *cost && scalar_bodies::Owners::same(old, function))
+        {
+            *remaining -= cost;
+            continue;
+        }
+        let before = *remaining;
         for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
             if let InstructionKind::StaticUtf8 { bytes } = &instruction.kind {
                 // Reuse the existing full instruction inventory. Reserve exact
@@ -297,6 +311,7 @@ pub(super) fn plan(
                 );
             }
         }
+        helper_bodies.insert(owner, (function, before - *remaining));
     }
     Ok(plans)
 }

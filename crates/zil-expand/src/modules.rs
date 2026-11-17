@@ -45,6 +45,8 @@ pub(super) fn owned_products(
 }
 #[path = "scalar_products.rs"]
 pub(crate) mod scalar_products;
+#[path = "scalar_walk.rs"]
+pub(crate) mod scalar_walk;
 
 type ModuleProducts = Vec<(ModuleProduct, Vec<CoreImport>)>;
 /// Complete real scalar items, shared through the actual Lower consumer. No
@@ -60,11 +62,26 @@ pub(super) struct SharedScalarModule {
 pub(super) enum SpecializedModules {
     Ordinary(ModuleProducts),
     SharedScalar(Vec<Arc<SharedScalarModule>>),
+    BorrowedScalar(Vec<scalar_walk::ModuleView>),
 }
 impl SpecializedModules {
     fn into_ordinary(self) -> ModuleProducts {
         match self {
             Self::Ordinary(modules) => modules,
+            Self::BorrowedScalar(modules) => modules
+                .into_iter()
+                .map(|module| {
+                    let items = module.items.iter().map(|item| item.materialize()).collect();
+                    (
+                        ModuleProduct::Owned(Module {
+                            id: module.id,
+                            span: module.span,
+                            items,
+                        }),
+                        module.imports,
+                    )
+                })
+                .collect(),
             // Explicit compatibility materialization for the standalone API.
             // Actual cached expansion dispatches SharedScalar to borrowed items.
             Self::SharedScalar(modules) => modules
@@ -1176,6 +1193,17 @@ fn normalize_scalar(
     mut budget: Budget<'_>,
     reuse: &mut crate::incremental::Reuse<'_>,
 ) -> R<Option<SpecializedModules>> {
+    if reuse.fuse_distribution()
+        && reuse.cold_scalar_request()
+        && let Some(owners) = modules
+            .iter()
+            .map(|module| reuse.current_parser(module))
+            .collect::<Option<Vec<_>>>()
+    {
+        return scalar_walk::normalize(
+            modules, &owners, imports, limits, products, index, &functions, budget, reuse,
+        );
+    }
     use crate::incremental::NormalizedCache;
     use crate::incremental::Stage;
     use scalar_products::{Declaration, NormalizedProduct};

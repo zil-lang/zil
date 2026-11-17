@@ -309,6 +309,10 @@ statistics!(
     visited_nodes,
     syntax_clone_receipt_nodes,
     normalized_item_deep_clones,
+    borrowed_scalar_items,
+    fused_restore_items,
+    fused_restore_nodes,
+    borrowed_restore_fallback_items,
     normalized_recipe_hits,
     normalized_materializations,
     normalized_reconstruction_nodes,
@@ -1622,6 +1626,23 @@ fn nanos(start: Instant) -> u64 {
     start.elapsed().as_nanos().min(u64::MAX as u128) as u64
 }
 impl Reuse<'_> {
+    pub(crate) fn borrowed_scalar_item(&mut self) {
+        self.stats.borrowed_scalar_items += 1;
+    }
+    pub(crate) fn fused_restore(&mut self, nodes: usize) {
+        self.stats.fused_restore_items += 1;
+        self.stats.fused_restore_nodes += nodes as u64;
+    }
+    pub(crate) fn borrowed_restore_fallback(&mut self) {
+        self.stats.borrowed_restore_fallback_items += 1;
+    }
+    pub(crate) fn cold_scalar_request(&self) -> bool {
+        self.prior_entries.is_empty()
+    }
+    pub(crate) fn current_parser(&mut self, module: &s::Module) -> Option<ParsedSource> {
+        let parsed = &self.entry(module.span.file).parsed;
+        std::ptr::eq(&parsed.parsed().module, module).then(|| parsed.clone())
+    }
     pub(crate) fn save_probed_lifetimes(&mut self, span: Span, demand: lifetimes::scalar::Demand) {
         self.probed_lifetimes.insert(span, demand);
     }

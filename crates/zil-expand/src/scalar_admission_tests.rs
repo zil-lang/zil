@@ -134,7 +134,9 @@ fn first_request_after_edit_collects_current_lifetimes_without_a_prior_epoch() {
     assert_eq!(current, raw(&inputs, &imports, &limits).unwrap());
     assert_eq!(session.last_stats().fused_lifetime_items, 3);
     assert_eq!(session.last_stats().plain_lifetimes_modules, 0);
-    assert_eq!(session.last_stats().normalized_item_deep_clones, 3);
+    assert_eq!(session.last_stats().normalized_item_deep_clones, 0);
+    assert_eq!(session.last_stats().borrowed_scalar_items, 3);
+    assert_eq!(session.last_stats().fused_restore_items, 3);
     let fees = |session: &ExpandSession| {
         session
             .entries

@@ -9,6 +9,10 @@ use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::rc::Rc;
 
+#[path = "inference_observation.rs"]
+mod observation;
+pub(super) use observation::BodyObservation;
+
 struct Budget<'a> {
     limits: &'a Limits,
     work: usize,
@@ -21,6 +25,10 @@ struct Budget<'a> {
     shared_arrays: bool,
     products: aggregate_templates::Products,
     current_module: zil_base::ModuleId,
+    // Current headers only: membership is conservative across all modules and
+    // lexical scopes. No retained capability or result is consulted.
+    factory_names: BTreeSet<String>,
+    observation: Option<BodyObservation>,
 }
 impl<'a> Budget<'a> {
     fn new(limits: &'a Limits) -> Self {
@@ -36,6 +44,8 @@ impl<'a> Budget<'a> {
             shared_arrays: false,
             products: None,
             current_module: zil_base::ModuleId(0),
+            factory_names: BTreeSet::new(),
+            observation: None,
         }
     }
     fn work(&mut self, count: usize, span: Span) -> R<()> {
@@ -344,7 +354,16 @@ pub(super) fn infer_program_closures_borrowed<'a>(
 pub(super) fn infer_program_recording<'a>(
     program: &'a CoreProgram,
     limits: &Limits,
+    receipts: Option<&mut inference_receipts::Work>,
+) -> CompileResult<Cow<'a, CoreProgram>> {
+    infer_program_visiting(program, limits, receipts, true)
+}
+
+fn infer_program_visiting<'a>(
+    program: &'a CoreProgram,
+    limits: &Limits,
     mut receipts: Option<&mut inference_receipts::Work>,
+    observe: bool,
 ) -> CompileResult<Cow<'a, CoreProgram>> {
     let original = program;
     let mut budget = Budget::new(limits);
@@ -453,6 +472,7 @@ pub(super) fn infer_program_recording<'a>(
         return Err(vec![replay_requires_fresh()]);
     }
     let mut flags = Vec::with_capacity(program.modules.len());
+    let mut observations = Vec::with_capacity(count);
     let mut function_index = 0;
     for module in &program.modules {
         let mut module_flags = Vec::with_capacity(module.core.functions.len());
@@ -469,8 +489,10 @@ pub(super) fn infer_program_recording<'a>(
                         Some(function.span),
                     )]
                 })?;
+                observations.push(None);
                 false
             } else {
+                budget.observation = observe.then(BodyObservation::default);
                 let before = (budget.work, budget.nodes);
                 let found =
                     contains_closure(&function.body, 0, &mut budget).map_err(|e| vec![e])?;
@@ -483,6 +505,7 @@ pub(super) fn infer_program_recording<'a>(
                         },
                     );
                 }
+                observations.push(budget.observation.take());
                 found || !function.state_parameters.is_empty()
             };
             module_flags.push(flag);
@@ -495,17 +518,13 @@ pub(super) fn infer_program_recording<'a>(
     {
         return Err(vec![replay_requires_fresh()]);
     }
-    if let Some(receipts) = receipts.as_deref_mut() {
-        names::check_modules_reusing(
-            program.modules.iter().map(|m| m.core.as_ref()),
-            limits,
-            receipts,
-        )
-        .map_err(|e| vec![e])?;
-    } else {
-        names::check_modules(program.modules.iter().map(|m| m.core.as_ref()), limits)
-            .map_err(|e| vec![e])?;
-    }
+    names::check_modules_observed(
+        program.modules.iter().map(|m| m.core.as_ref()),
+        limits,
+        receipts.as_deref_mut(),
+        &observations,
+    )
+    .map_err(|e| vec![e])?;
     let normalized = if flags.iter().flatten().any(|f| *f)
         || program.modules.iter().any(|m| {
             !m.core.aggregate_templates.is_empty() || !m.core.aggregate_applications.is_empty()
@@ -587,15 +606,42 @@ pub(super) fn infer_program_recording<'a>(
                 functions.push(Cow::Borrowed(function));
             } else {
                 let before = budget.work;
-                let prepared = prepare(
-                    function,
-                    table,
-                    Some(&imports),
-                    &enum_types,
-                    flag,
-                    &mut budget,
-                )
-                .map_err(|e| vec![e])?;
+                let observed_fee = normalized
+                    .is_none()
+                    .then(|| observations.get(function_index).and_then(Option::as_ref))
+                    .flatten()
+                    .and_then(|body| body.dependencies_fee(function, flag, limits));
+                let prepared = if let Some(fee) = observed_fee {
+                    // Pay at prepare's original position. An insufficient sum
+                    // must run prepare to preserve its exact first failing span.
+                    if budget.work >= fee {
+                        budget.work -= fee;
+                        if let Some(receipts) = receipts.as_deref_mut() {
+                            receipts.stats.dependency_bodies_observed += 1;
+                        }
+                        Cow::Borrowed(function)
+                    } else {
+                        prepare(
+                            function,
+                            table,
+                            Some(&imports),
+                            &enum_types,
+                            flag,
+                            &mut budget,
+                        )
+                        .map_err(|e| vec![e])?
+                    }
+                } else {
+                    prepare(
+                        function,
+                        table,
+                        Some(&imports),
+                        &enum_types,
+                        flag,
+                        &mut budget,
+                    )
+                    .map_err(|e| vec![e])?
+                };
                 if receipts.as_ref().is_some_and(|r| r.is_reusing())
                     && !matches!(prepared, Cow::Borrowed(_))
                 {
@@ -801,6 +847,14 @@ fn headers(
         }
         if let Some(receiver) = &function.receiver {
             validate_type(&receiver.ty, 0, function.span, budget)?;
+        }
+        if function.callable_return.is_some()
+            && function.callable_parameters.is_empty()
+            && function.type_parameters.is_empty()
+            && function.state_parameters.is_empty()
+            && function.foreign.is_none()
+        {
+            budget.factory_names.insert(function.name.clone());
         }
         // These raw headers provide context only. Formal signature/resource
         // checks run afterwards and remain the authority for admission.
@@ -1249,9 +1303,15 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
     Ok(signature.clone())
 }
 fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) -> R<bool> {
+    if let Some(body) = &mut budget.observation {
+        body.block(depth);
+    }
     budget.node(depth, block.span)?;
     let mut found = false;
     for statement in &block.statements {
+        if let Some(body) = &mut budget.observation {
+            body.statement(statement, depth + 1);
+        }
         budget.node(depth + 1, statement.span)?;
         match &statement.kind {
             CoreStatementKind::TupleBinding {
@@ -1354,6 +1414,9 @@ fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) ->
     Ok(found)
 }
 fn expression_has_closure(e: &CoreExpr, depth: usize, budget: &mut Budget<'_>) -> R<bool> {
+    if let Some(body) = &mut budget.observation {
+        body.expression(e, depth, &budget.factory_names);
+    }
     budget.node(depth, e.span)?;
     let direct_type_callee = std::mem::take(&mut budget.direct_type_callee);
     match &e.kind {

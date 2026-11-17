@@ -37,16 +37,20 @@ pub(super) fn check_function(function: &CoreFunction, limits: &Limits) -> R<usiz
     Ok(checker.visited)
 }
 
-pub(super) fn check_modules_reusing<'a>(
+// Consume successful observations only at the original names phase. Headers
+// still use the original checker, and aggregate/depth failures use its full
+// visitor so no speculative observation can select a delivered diagnostic.
+pub(super) fn check_modules_observed<'a>(
     modules: impl IntoIterator<Item = &'a CoreModule>,
     limits: &Limits,
-    receipts: &mut inference_receipts::Work,
+    mut receipts: Option<&mut inference_receipts::Work>,
+    observations: &[Option<inference::BodyObservation>],
 ) -> R<()> {
     let mut checker = Names { limits, visited: 0 };
     let mut index = 0;
     for module in modules {
         for function in &module.functions {
-            if let Some(fee) = receipts.names_fee(index) {
+            if let Some(fee) = receipts.as_deref_mut().and_then(|r| r.names_fee(index)) {
                 checker.visited = checker
                     .visited
                     .checked_add(fee)
@@ -60,13 +64,34 @@ pub(super) fn check_modules_reusing<'a>(
                     })?;
             } else {
                 let before = checker.visited;
-                checker.function(function)?;
-                receipts.record_names(index, checker.visited - before);
+                let fee = observations
+                    .get(index)
+                    .and_then(Option::as_ref)
+                    .and_then(|body| body.names_fee(limits));
+                if let Some(total) = fee
+                    .and_then(|fee| checker.visited.checked_add(fee))
+                    .filter(|total| *total <= limits.max_nodes)
+                {
+                    checker.header(function)?;
+                    checker.visited = total;
+                    if let Some(receipts) = receipts.as_deref_mut() {
+                        receipts.stats.name_bodies_observed += 1;
+                    }
+                } else {
+                    checker.function(function)?;
+                }
+                if let Some(receipts) = receipts.as_deref_mut() {
+                    receipts.record_names(index, checker.visited - before);
+                }
             }
             index += 1;
         }
     }
     Ok(())
+}
+
+pub(super) fn plain_binding_name(name: &str) -> bool {
+    name != "self" && !primitive_name(name)
 }
 
 fn reserved(span: Span) -> Diagnostic {
@@ -158,6 +183,10 @@ struct Names<'a> {
 }
 impl Names<'_> {
     fn function(&mut self, f: &CoreFunction) -> R<()> {
+        self.header(f)?;
+        self.block(&f.body, f.receiver.is_some(), 0)
+    }
+    fn header(&self, f: &CoreFunction) -> R<()> {
         if primitive_name(&f.name) {
             return Err(primitive_reserved(&f.name, f.span));
         }
@@ -169,7 +198,7 @@ impl Names<'_> {
                 return Err(reserved(p.span));
             }
         }
-        self.block(&f.body, f.receiver.is_some(), 0)
+        Ok(())
     }
 
     fn charge(&mut self, depth: usize, span: Span) -> R<()> {

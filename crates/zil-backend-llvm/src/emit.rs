@@ -430,6 +430,7 @@ pub(crate) fn lower_output_with_session(
         }
         session.reused_body_templates = scalar_bodies.hits;
         session.produced_body_templates = scalar_bodies.produced;
+        session.shared_body_template_reuses = scalar_bodies.owner_hits;
         if batches.is_empty() {
             batches.push(FunctionBatch {
                 body: Vec::new().into(),

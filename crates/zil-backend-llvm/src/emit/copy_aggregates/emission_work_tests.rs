@@ -253,6 +253,70 @@ fn complete_frozen_max_plan_and_machine_module_agree() {
 }
 
 #[test]
+fn current_shared_snapshot_plans_rebind_ids_and_preserve_original_budget_failures() {
+    let limits = Limits::default();
+    for mode in 0..=2 {
+        let mut module = fixture(mode);
+        let first = module.functions[0].clone();
+        module.functions = (0..3)
+            .map(|id| {
+                let mut f = first.clone();
+                f.id = FunctionId(id);
+                f.name = format!("shared_snapshot_{id}");
+                f.span.start = id as usize;
+                f.span.end = id as usize + 1;
+                f
+            })
+            .collect();
+        let shared = raw_lir(&module);
+        let mut separate = shared.clone();
+        for f in &mut separate.functions {
+            f.locals = f.locals.to_vec().into();
+            f.values = f.values.to_vec().into();
+            f.blocks = f.blocks.to_vec().into();
+        }
+        let expected = plan(&separate.as_view(), &limits, usize::MAX).unwrap();
+        assert_eq!(
+            plan(&shared.as_view(), &limits, usize::MAX).unwrap(),
+            expected
+        );
+        assert_eq!(
+            expected.values.keys().copied().collect::<Vec<_>>(),
+            vec![FunctionId(0), FunctionId(1), FunctionId(2)]
+        );
+        let cost = usize::MAX - expected.remaining_work;
+        // Include boundaries inside the second and third body and exact N/N-1.
+        for budget in [
+            0,
+            1,
+            cost / 3,
+            cost / 2,
+            cost * 2 / 3,
+            cost - 1,
+            cost,
+            cost + 1,
+        ] {
+            assert_eq!(
+                plan(&shared.as_view(), &limits, budget),
+                plan(&separate.as_view(), &limits, budget),
+                "mode {mode}, budget {budget}",
+            );
+        }
+        // A COW type edit changes both the retained slots and their original fee.
+        let mut edited = shared;
+        edited.functions[1].values[1] = Type::I64;
+        let mut separate = edited.clone();
+        for f in &mut separate.functions {
+            f.values = f.values.to_vec().into();
+        }
+        assert_eq!(
+            plan(&edited.as_view(), &limits, usize::MAX),
+            plan(&separate.as_view(), &limits, usize::MAX)
+        );
+    }
+}
+
+#[test]
 fn wide_struct_clones_are_not_flattened_to_array_cardinality() {
     let limits = Limits::default();
     let array = fixture(0);

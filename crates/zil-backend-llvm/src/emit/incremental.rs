@@ -25,6 +25,8 @@ pub(crate) struct Session {
     pub(crate) misses: usize,
     pub(crate) reused_body_templates: usize,
     pub(crate) produced_body_templates: usize,
+    pub(crate) shared_body_template_reuses: usize,
+    pub(crate) shared_admission_reuses: usize,
     pub(crate) source_projection_traversals: usize,
     pub(crate) source_projection_instruction_visits: usize,
     pub(crate) source_projection_reuses: usize,
@@ -158,8 +160,8 @@ struct Entry {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct SourceProjection {
-    block_lengths: Vec<usize>,
-    slots: Vec<(usize, usize, FunctionId)>,
+    block_lengths: Arc<Vec<usize>>,
+    slots: Arc<Vec<(usize, usize, FunctionId)>>,
     observed: Vec<FunctionId>,
 }
 impl SourceProjection {
@@ -169,8 +171,9 @@ impl SourceProjection {
                 .blocks
                 .iter()
                 .map(|block| block.instructions.len())
-                .collect(),
-            slots: Vec::new(),
+                .collect::<Vec<_>>()
+                .into(),
+            slots: Arc::default(),
             observed: vec![function.id],
         }
     }
@@ -187,6 +190,22 @@ impl SourceProjection {
     fn same_slots(&self, other: &Self) -> bool {
         self.block_lengths == other.block_lengths && self.slots == other.slots
     }
+    fn rebind(&self, id: FunctionId) -> Self {
+        let mut source = Self {
+            block_lengths: self.block_lengths.clone(),
+            slots: self.slots.clone(),
+            observed: vec![id],
+        };
+        // The old self ID may ALSO occur as a real callee. Rebuild from exact
+        // call slots instead of substituting IDs in the previous observed set.
+        source.finish(id);
+        source
+    }
+}
+struct AdmittedBody<'a> {
+    input: &'a TypedFunction,
+    callees: Vec<FunctionId>,
+    source: Option<Arc<SourceProjection>>,
 }
 fn scalar(ty: &Type) -> bool {
     matches!(
@@ -234,9 +253,11 @@ fn eligible(
                     if matches!(&instruction.kind, InstructionKind::Call { .. })
                         && let Some(source) = &mut source
                     {
-                        source
-                            .slots
-                            .push((block_index, instruction_index, *function));
+                        Arc::make_mut(&mut source.slots).push((
+                            block_index,
+                            instruction_index,
+                            *function,
+                        ));
                     }
                 }
                 InstructionKind::Load(_)
@@ -272,8 +293,9 @@ fn same_input(previous: &TypedFunction, current: &TypedFunction) -> bool {
     previous.id == current.id && previous.name == current.name && same_body_input(previous, current)
 }
 
-// For request-local call-free scalar production, only the outer defined symbol
-// changes with id/name. Every executable input below remains compared in full.
+// For request-local scalar production, only the outer defined symbol changes
+// with id/name. Actual call IDs are never rebound. Every executable input below
+// remains compared in full and current global facts are fixed for the request.
 pub(super) fn same_body_input(previous: &TypedFunction, current: &TypedFunction) -> bool {
     let TypedFunction {
         storage_life,
@@ -357,6 +379,8 @@ impl Session {
         // immutable and are published separately after complete emission.
         self.hits = 0;
         self.misses = 0;
+        self.shared_body_template_reuses = 0;
+        self.shared_admission_reuses = 0;
         self.source_projection_traversals = 0;
         self.source_projection_instruction_visits = 0;
         self.source_projection_reuses = 0;
@@ -470,6 +494,10 @@ impl Session {
             .map(|f| (f.id, f))
             .collect::<BTreeMap<_, _>>();
         let mut admission_sources = BTreeMap::new();
+        // Borrowed only for this prepare call. The full current LIR binding and
+        // per-ID role/ABI checks precede this lookup; it is not a capability.
+        let mut bodies =
+            std::collections::HashMap::<scalar_bodies::Owners, AdmittedBody<'_>>::new();
         self.admitted = Arc::new(
             lir.functions
                 .iter()
@@ -491,11 +519,34 @@ impl Session {
                     {
                         return None;
                     }
-                    let (callees, source) = eligible(
-                        function,
-                        self.entries.get(&function.id).map(Arc::as_ref),
-                        scalar_policy,
-                    )?;
+                    let owner = scalar_bodies::Owners::of(function);
+                    let (callees, source) = if let Some(body) = bodies
+                        .get(&owner)
+                        .filter(|body| scalar_bodies::Owners::same(body.input, function))
+                    {
+                        self.shared_admission_reuses += 1;
+                        (
+                            body.callees.clone(),
+                            body.source
+                                .as_ref()
+                                .map(|source| Arc::new(source.rebind(function.id))),
+                        )
+                    } else {
+                        let (callees, source) = eligible(
+                            function,
+                            self.entries.get(&function.id).map(Arc::as_ref),
+                            scalar_policy,
+                        )?;
+                        bodies.insert(
+                            owner,
+                            AdmittedBody {
+                                input: function,
+                                callees: callees.clone(),
+                                source: source.clone(),
+                            },
+                        );
+                        (callees, source)
+                    };
                     if !callees.iter().all(|id| {
                         functions.get(id).is_some_and(|callee| {
                             callee.environment.is_none()
@@ -611,9 +662,11 @@ impl Session {
                 for (instruction_index, instruction) in block.instructions.iter().enumerate() {
                     self.source_projection_instruction_visits += 1;
                     if let InstructionKind::Call { function, .. } = &instruction.kind {
-                        source
-                            .slots
-                            .push((block_index, instruction_index, *function));
+                        Arc::make_mut(&mut source.slots).push((
+                            block_index,
+                            instruction_index,
+                            *function,
+                        ));
                     }
                 }
             }

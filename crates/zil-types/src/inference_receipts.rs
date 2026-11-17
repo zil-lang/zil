@@ -17,12 +17,14 @@ pub struct RawInferenceStats {
     pub name_functions_reused: usize,
     pub dependency_bodies_checked: usize,
     pub dependency_bodies_reused: usize,
+    pub name_bodies_observed: usize,
+    pub dependency_bodies_observed: usize,
 }
 
 impl RawInferenceStats {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"full_runs\":{},\"sparse_batches\":{},\"replay_fallbacks\":{},\"closure_bodies_checked\":{},\"closure_bodies_reused\":{},\"name_functions_checked\":{},\"name_functions_reused\":{},\"dependency_bodies_checked\":{},\"dependency_bodies_reused\":{}}}",
+            "{{\"full_runs\":{},\"sparse_batches\":{},\"replay_fallbacks\":{},\"closure_bodies_checked\":{},\"closure_bodies_reused\":{},\"name_functions_checked\":{},\"name_functions_reused\":{},\"dependency_bodies_checked\":{},\"dependency_bodies_reused\":{},\"name_bodies_observed\":{},\"dependency_bodies_observed\":{}}}",
             self.full_runs,
             self.sparse_batches,
             self.replay_fallbacks,
@@ -32,6 +34,8 @@ impl RawInferenceStats {
             self.name_functions_reused,
             self.dependency_bodies_checked,
             self.dependency_bodies_reused,
+            self.name_bodies_observed,
+            self.dependency_bodies_observed,
         )
     }
 }
@@ -384,6 +388,10 @@ mod tests {
             .collect::<Vec<_>>();
         let initial = produced(&mut expand, &sources, &limits);
         let (cold, stats) = prepare(&mut session, &initial, &limits).unwrap();
+        assert_eq!(
+            (stats.name_bodies_observed, stats.dependency_bodies_observed),
+            (425, 425)
+        );
         assert_eq!(
             (
                 stats.full_runs,

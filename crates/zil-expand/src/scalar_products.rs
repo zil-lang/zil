@@ -28,6 +28,7 @@ impl Declaration {
 // allocating another per-declaration owner. This request-local table is bounded.
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum NormalizedProduct<'a> {
+    View(Arc<super::scalar_walk::BodyView>),
     Owned(Item),
     Shared(Arc<Item>),
     Deferred {
@@ -44,6 +45,7 @@ pub(crate) enum NormalizedProduct<'a> {
 impl NormalizedProduct<'_> {
     pub(crate) fn span(&self) -> Span {
         match self {
+            Self::View(view) => view.item().span,
             Self::Owned(item) => item.span,
             Self::Shared(item) => item.span,
             Self::Deferred { recipe, .. } => recipe.span(),
@@ -51,6 +53,7 @@ impl NormalizedProduct<'_> {
     }
     pub(super) fn function_name(&self) -> Option<&str> {
         match self {
+            Self::View(view) => Some(&view.name),
             Self::Owned(item) => match &item.kind {
                 ItemKind::Function(function) => Some(&function.name),
                 _ => None,
@@ -105,6 +108,7 @@ impl NormalizedProduct<'_> {
             *self = Self::Owned(item);
         }
         match self {
+            Self::View(view) => Ok(view.item()),
             Self::Owned(item) => Ok(item),
             Self::Shared(item) => Ok(item),
             Self::Deferred { .. } => unreachable!("materialized normalized product"),
@@ -113,6 +117,7 @@ impl NormalizedProduct<'_> {
     pub(super) fn into_owned(mut self, reuse: &mut Reuse<'_>) -> CompileResult<Item> {
         self.ensure(reuse)?;
         match self {
+            Self::View(view) => Ok(view.materialize()),
             Self::Owned(item) => {
                 reuse.owned_restore_item();
                 Ok(item)
@@ -143,6 +148,12 @@ pub(crate) enum Input<'i, 'a> {
     Product(&'i mut NormalizedProduct<'a>),
 }
 impl Input<'_, '_> {
+    pub(crate) fn view(&self) -> Option<Arc<super::scalar_walk::BodyView>> {
+        match self {
+            Self::Product(NormalizedProduct::View(view)) => Some(view.clone()),
+            _ => None,
+        }
+    }
     pub(crate) fn span(&self) -> Span {
         match self {
             Self::Borrowed(item) => item.span,

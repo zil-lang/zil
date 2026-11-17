@@ -137,6 +137,97 @@ fn checked(
 }
 
 #[test]
+fn fused_cold_shape_costs_match_classifier_and_depth_boundary_declines_safely() {
+    let limits = Limits {
+        max_call_depth: 256,
+        ..Limits::default()
+    };
+    let target = TargetProfile::default();
+    for depth in [1, 127, 128, 129] {
+        let mut input = program();
+        let mut value = expr(CoreExprKind::Integer("1".into()));
+        // Return expressions begin at depth one in both visitors.
+        for _ in 1..depth {
+            value = expr(CoreExprKind::Unary {
+                op: UnaryOp::Negate,
+                operand: Box::new(value),
+            });
+        }
+        replace_return(&mut input, 2, value.kind);
+        let mut session = PlainSourceSession::default();
+        checked(&mut session, &input, &target, &limits);
+        if depth > 128 {
+            assert_eq!(session.stats.fallbacks, 1);
+            assert!(session.current.is_none());
+        } else {
+            assert_eq!(session.stats.fallbacks, 0);
+            let epoch = session.current.as_ref().unwrap();
+            let mut fuel = limits.max_nodes.min(1_000_000);
+            let mut stack = Vec::new();
+            for (index, function) in input.modules[0].core.functions.iter().enumerate() {
+                let before = fuel;
+                unchanged_function_shape(function, &limits, &mut fuel, &mut stack).unwrap();
+                assert_eq!(epoch.modules[0].functions[index].shape_cost, before - fuel);
+            }
+        }
+    }
+}
+
+#[test]
+fn fused_lookup_observation_includes_inactive_branch_misses_and_original_errors() {
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let mut input = program();
+    replace_return(
+        &mut input,
+        0,
+        CoreExprKind::If {
+            condition: Box::new(expr(CoreExprKind::Bool(false))),
+            then_value: Box::new(expr(CoreExprKind::Call {
+                callee: Box::new(expr(CoreExprKind::Name("missing".into()))),
+                arguments: vec![expr(CoreExprKind::Integer("7".into()))],
+            })),
+            else_value: Box::new(expr(CoreExprKind::Integer("3".into()))),
+        },
+    );
+    let mut session = PlainSourceSession::default();
+    checked(&mut session, &input, &target, &limits);
+    assert_eq!(
+        session.current.as_ref().unwrap().modules[0].functions[0]
+            .hints
+            .as_ref(),
+        &[(ModuleId(0), "missing".into())]
+    );
+    Arc::make_mut(&mut input.modules[0].core).functions[1].name = "missing".into();
+    checked(&mut session, &input, &target, &limits);
+    assert_eq!(
+        (session.stats.body_checks, session.stats.body_reuses),
+        (2, 1)
+    );
+
+    // A later unsupported child must not hide an earlier evaluator error.
+    replace_return(
+        &mut input,
+        0,
+        CoreExprKind::IntegerConvert {
+            target: Type::F32,
+            value: Box::new(expr(CoreExprKind::Integer("7".into()))),
+        },
+    );
+    replace_return(
+        &mut input,
+        2,
+        CoreExprKind::CompileTime(Box::new(expr(CoreExprKind::Integer("4".into())))),
+    );
+    let expected = fresh(&input, &target, &limits).unwrap_err();
+    assert_eq!(
+        run(&mut session, &input, &target, &limits).unwrap_err(),
+        expected
+    );
+    assert_eq!(session.stats.fallbacks, 1);
+}
+
+#[test]
 fn unchanged_body_consumers_reuse_only_exact_inputs_under_current_declarations() {
     let limits = Limits::default();
     let target = TargetProfile::default();

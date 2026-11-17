@@ -12,6 +12,7 @@ fn observed(item: &Item, limits: &Limits) -> Option<crate::lifetimes::scalar::De
         present: false,
         tasks: false,
         scalar: crate::lifetimes::scalar::Probe::new(item),
+        view: None,
     };
     crate::ct_selection::Visitor::item(&mut probe, item, 0).unwrap();
     probe

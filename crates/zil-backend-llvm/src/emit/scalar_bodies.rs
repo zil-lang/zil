@@ -9,21 +9,51 @@ struct Product<'a> {
     input: &'a TypedFunction,
     output: FunctionBatch,
 }
+/// Allocation selectors live only while the current LIR is borrowed. Check all
+/// three immutable owners as well as the complete outer input on every hit.
+/// In particular, neither an ID nor an empty slice address proves body equality.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub(super) struct Owners(
+    *const Vec<zil_ir::LocalDecl>,
+    *const Vec<Type>,
+    *const Vec<zil_ir::BasicBlock>,
+);
+impl Owners {
+    pub(super) fn of(function: &TypedFunction) -> Self {
+        Self(
+            std::ptr::from_ref(&*function.locals),
+            std::ptr::from_ref(&*function.values),
+            std::ptr::from_ref(&*function.blocks),
+        )
+    }
+    pub(super) fn same(left: &TypedFunction, right: &TypedFunction) -> bool {
+        left.locals.ptr_eq(&right.locals)
+            && left.values.ptr_eq(&right.values)
+            && left.blocks.ptr_eq(&right.blocks)
+            && incremental::same_body_input(left, right)
+    }
+}
 pub(super) struct Cache<'a> {
-    products: HashMap<u64, Vec<Product<'a>>>,
+    products: Vec<Product<'a>>,
+    buckets: HashMap<u64, Vec<usize>>,
+    owners: HashMap<Owners, usize>,
     selector: RandomState,
     fuel: usize,
     pub(super) hits: usize,
     pub(super) produced: usize,
+    pub(super) owner_hits: usize,
 }
 impl Default for Cache<'_> {
     fn default() -> Self {
         Self {
-            products: HashMap::new(),
+            products: Vec::new(),
+            buckets: HashMap::new(),
+            owners: HashMap::new(),
             selector: RandomState::new(),
             fuel: 1_000_000,
             hits: 0,
             produced: 0,
+            owner_hits: 0,
         }
     }
 }
@@ -58,8 +88,10 @@ fn cost(function: &TypedFunction) -> Option<usize> {
     for block in &function.blocks {
         cost = cost.checked_add(block.instructions.len().checked_add(1)?)?;
         for instruction in &block.instructions {
-            // No global data, hidden interfaces, current scalar summaries or
-            // source-id-dependent helpers. Even direct calls are excluded.
+            // No global data, hidden interfaces or source-id-dependent helpers.
+            // Direct calls retain their EXACT callee IDs and argument slots.
+            // All current callee headers, ABI plans and summary facts are fixed
+            // for this request; admission checked each caller's scalar ABI.
             match &instruction.kind {
                 InstructionKind::Constant(c) if primitive(&c.ty()) => {}
                 InstructionKind::Load(_)
@@ -72,7 +104,8 @@ fn cost(function: &TypedFunction) -> Option<usize> {
                 | InstructionKind::UnsafeExit { .. }
                 | InstructionKind::Unary { .. }
                 | InstructionKind::Binary { .. }
-                | InstructionKind::ConvertInteger { .. } => {}
+                | InstructionKind::ConvertInteger { .. }
+                | InstructionKind::Call { .. } => {}
                 _ => return None,
             }
         }
@@ -122,6 +155,12 @@ impl Hash for Selector<'_> {
                     InstructionKind::Unary { op, operand } => (op, operand).hash(h),
                     InstructionKind::Binary { op, left, right } => (op, left, right).hash(h),
                     InstructionKind::ConvertInteger { value, target } => (value, target).hash(h),
+                    InstructionKind::Call {
+                        function,
+                        arguments,
+                    } => {
+                        (function, arguments).hash(h);
+                    }
                     // Marker fields are compared in full below; ignoring their
                     // payload here affects collisions, never admission.
                     _ => {}
@@ -147,14 +186,28 @@ impl<'a> Cache<'a> {
         if !admitted || self.fuel == 0 {
             return lower();
         }
+        let owner = Owners::of(function);
+        if let Some(&index) = self.owners.get(&owner)
+            && Owners::same(self.products[index].input, function)
+        {
+            // No body walk, hashing, CFG reconstruction, promotion or early
+            // optimization. Pay only lookup work in this optional ledger; the
+            // original current compiler reservation below is unchanged.
+            self.fuel -= 1;
+            reserve()?;
+            self.hits += 1;
+            self.owner_hits += 1;
+            return Ok(rebind(&self.products[index].output, function.id));
+        }
         let cost = cost(function);
         let Some(cost) = cost.filter(|cost| *cost <= self.fuel) else {
             return lower();
         };
         self.fuel -= cost;
         let selector = self.selector.hash_one(Selector(function));
-        if let Some(products) = self.products.get(&selector) {
-            for product in products {
+        if let Some(products) = self.buckets.get(&selector) {
+            for &index in products {
+                let product = &self.products[index];
                 let Some(remaining) = self.fuel.checked_sub(cost) else {
                     self.fuel = 0;
                     return lower();
@@ -166,11 +219,14 @@ impl<'a> Cache<'a> {
                 // Run the original CURRENT ordered fee consumer. Any error is
                 // reported at the current source, before publishing a body.
                 reserve()?;
-                let mut output = product.output.clone();
-                let m::Item::Function(machine) = &mut output.body[0] else {
-                    unreachable!("only one successful definition is retained")
-                };
-                machine.name = symbol(function.id);
+                let output = rebind(&product.output, function.id);
+                // Retain the current owner too: its siblings need no repeated
+                // content scan even if this was independently allocated input.
+                self.owners.insert(owner, self.products.len());
+                self.products.push(Product {
+                    input: function,
+                    output: output.clone(),
+                });
                 self.hits += 1;
                 return Ok(output);
             }
@@ -182,11 +238,25 @@ impl<'a> Cache<'a> {
                 if f.name == symbol(function.id) && f.blocks.is_some())
         {
             self.produced += 1;
-            self.products.entry(selector).or_default().push(Product {
+            self.owners.insert(owner, self.products.len());
+            self.buckets
+                .entry(selector)
+                .or_default()
+                .push(self.products.len());
+            self.products.push(Product {
                 input: function,
                 output: output.clone(),
             });
         }
         Ok(output)
     }
+}
+
+fn rebind(output: &FunctionBatch, id: FunctionId) -> FunctionBatch {
+    let mut output = output.clone();
+    let m::Item::Function(machine) = &mut output.body[0] else {
+        unreachable!("only one successful definition is retained")
+    };
+    machine.name = symbol(id);
+    output
 }

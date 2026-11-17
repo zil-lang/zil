@@ -30,9 +30,23 @@ impl Session {
         // input. No digest, diagnostic fingerprint or previous capability grants
         // the result; mutations and independently allocated inputs are rechecked.
         self.representation_reused = lir.functions.len() - changed.len();
+        let mut bodies = std::collections::HashMap::<scalar_bodies::Owners, &TypedFunction>::new();
         for index in changed {
+            let function = &lir.functions[index];
+            let owner = scalar_bodies::Owners::of(function);
+            if bodies
+                .get(&owner)
+                .is_some_and(|old| scalar_bodies::Owners::same(old, function))
+            {
+                // Successful pure predicates read no self ID/name/source span.
+                // Reuse only within this current nominal-free LIR view, after
+                // complete binding; failures always run at the current site.
+                self.representation_reused += 1;
+                continue;
+            }
             self.representation_checked += 1;
-            check_function_representation(&lir.functions[index], lir)?;
+            check_function_representation(function, lir)?;
+            bodies.insert(owner, function);
         }
         // Publish only the complete successful sequence. Failed checks preserve
         // the original first diagnostic and do not retain a partial new root.

@@ -129,8 +129,13 @@ struct Probe<'a> {
     present: bool,
     tasks: bool,
     scalar: Option<crate::lifetimes::scalar::Probe>,
+    view: Option<std::sync::Arc<crate::modules::scalar_walk::BodyView>>,
 }
 impl crate::ct_selection::Visitor for Probe<'_> {
+    fn function_name(&mut self, name: &str, span: Span) -> CompileResult<()> {
+        let name = self.view.as_ref().map_or(name, |view| view.name.as_str());
+        self.budget.text(name, span).map_err(|error| vec![error])
+    }
     fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
         self.budget.node(span, depth).map_err(|e| vec![e])?;
         if let Some(scalar) = &mut self.scalar {
@@ -161,6 +166,18 @@ impl crate::ct_selection::Visitor for Probe<'_> {
         crate::ct_selection::walk_type(self, ty, depth)
     }
     fn expression(&mut self, e: &Expr, depth: usize) -> CompileResult<()> {
+        if let Some(expression) = self
+            .view
+            .as_ref()
+            .and_then(|view| view.replacement(e))
+            .cloned()
+        {
+            if let Some(scalar) = &mut self.scalar {
+                scalar.expression(&expression);
+            }
+            // Normalize replacements in this view are Name leaves only.
+            return crate::ct_selection::walk_expression(self, &expression, depth);
+        }
         if let Some(scalar) = &mut self.scalar {
             scalar.expression(e);
         }
@@ -238,6 +255,7 @@ fn probe_inputs<'a, 'i, 'p: 'i>(
         present: false,
         tasks: false,
         scalar: None,
+        view: None,
     };
     for mut input in items {
         let span = input.span();
@@ -248,6 +266,7 @@ fn probe_inputs<'a, 'i, 'p: 'i>(
         }
         let before = probe.budget.remaining_limits();
         let scalar_product = matches!(&input, crate::modules::scalar_products::Input::Product(_));
+        probe.view = input.view();
         let item = input.ensure(reuse.as_deref_mut())?;
         probe.scalar = scalar_product
             .then(|| crate::lifetimes::scalar::Probe::new(item))

@@ -1301,3 +1301,73 @@ fn relative_scalar_versions_never_admit_constants_ct_generics_or_capture_rewrite
 #[cfg(all(feature = "llvm-api", target_os = "linux"))]
 #[path = "mixed_machine_reuse_tests.rs"]
 mod mixed_machine_reuse_tests;
+
+#[test]
+fn cold_borrowed_source_chain_and_restart_edit_match_complete_original_types() {
+    let directory = Directory::new();
+    let options = CompileOptions {
+        push_reuse: true,
+        ..Default::default()
+    };
+    let original = CompileOptions {
+        push_reuse: false,
+        producer_reuse: false,
+        ..options.clone()
+    };
+    let mut resident = CompilationSession::default();
+    for (index, (left, right)) in [
+        (LEFT, RIGHT),
+        (
+            "pub fn value(x:i32)->i32{let y=x+7;if y<9{return y;}else{return x;}}",
+            RIGHT,
+        ),
+        ("pub fn value(x:i32)->i32{return absent(x);}", RIGHT),
+        (
+            LEFT,
+            "pub fn value(x:i32)->i32{if false{return missing;}else{return x;}}",
+        ),
+        (LEFT, RIGHT),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        // Runtime identifiers named emit exercise the ordinary materializer
+        // and its sealed scalar distribution, as in the native workload.
+        let main = MAIN.replace("value", "emit");
+        let left = left.replace("value", "emit");
+        let right = right.replace("value", "emit");
+        let project = directory.scalar(&main, &left, &right);
+        let mut fresh = CompilationSession::default();
+        let expected = fresh.compile_project(&project, &original);
+        // New sessions model first edit without an unchanged prewarm. The
+        // resident session independently exercises the retained warm path.
+        let mut restarted = CompilationSession::default();
+        let cold = restarted.compile_project(&project, &options);
+        let warm = resident.compile_project(&project, &options);
+        for report in [&cold, &warm] {
+            assert_eq!(
+                (report.status, report.phase),
+                (expected.status, expected.phase),
+                "case={index}: {}",
+                report.to_json()
+            );
+            assert_eq!(report.diagnostics, expected.diagnostics);
+            assert_eq!(report.scalar_interfaces, expected.scalar_interfaces);
+            assert_eq!(report.verification_runs, expected.verification_runs);
+        }
+        if expected.status == ResultCategory::Success {
+            assert_eq!(typed(&restarted, &cold), typed(&fresh, &expected));
+            assert_eq!(typed(&resident, &warm), typed(&fresh, &expected));
+            assert!(cold.producer_work.as_ref().unwrap().borrowed_scalar_items > 0);
+            assert_eq!(
+                cold.producer_work
+                    .as_ref()
+                    .unwrap()
+                    .normalized_item_deep_clones,
+                0
+            );
+        }
+        assert_eq!(restarted.active_query_count(), 0);
+        assert_eq!(resident.active_query_count(), 0);
+    }
+}

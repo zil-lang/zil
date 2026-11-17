@@ -38,6 +38,8 @@ pub struct BackendSessionSummary {
     /// Same-request equal scalar CFGs share one successful producer execution.
     pub reused_body_templates: usize,
     pub produced_body_templates: usize,
+    pub shared_body_template_reuses: usize,
+    pub shared_admission_reuses: usize,
     pub reused_partition: bool,
     pub reused_partition_recipe: bool,
     pub reused_partition_units: usize,

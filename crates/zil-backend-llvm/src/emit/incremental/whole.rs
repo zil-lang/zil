@@ -198,6 +198,8 @@ impl Session {
         self.misses = 0;
         self.reused_body_templates = 0;
         self.produced_body_templates = 0;
+        self.shared_body_template_reuses = 0;
+        self.shared_admission_reuses = 0;
         self.source_projection_traversals = 0;
         self.source_projection_instruction_visits = 0;
         self.source_projection_reuses = 0;

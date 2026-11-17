@@ -757,6 +757,15 @@ fn expand_program_impl<S: std::borrow::Borrow<zil_base::SourceUnit>>(
                     reuse,
                 );
             }
+            modules::SpecializedModules::BorrowedScalar(modules) => {
+                return item_lowering::expand_borrowed_scalar(
+                    sources,
+                    &modules,
+                    limits,
+                    &mut products,
+                    reuse,
+                );
+            }
         }
     } else if let Some(runtime_ct) = runtime_ct {
         modules::specialize_with_runtime(
@@ -1207,6 +1216,7 @@ struct Expander<'a> {
     next: u32,
     next_temporary: u32,
     capture_lower_bindings: bool,
+    scalar_expressions: Option<std::sync::Arc<BTreeMap<usize, s::Expr>>>,
     function_lower_bindings: BTreeMap<NodeId, FunctionLowerBinding>,
     node_named_functions: BTreeSet<NodeId>,
     unsupported: Vec<UnsupportedFeature>,
@@ -1272,6 +1282,7 @@ impl<'a> Expander<'a> {
             next: 0,
             next_temporary: 0,
             capture_lower_bindings: false,
+            scalar_expressions: None,
             function_lower_bindings: BTreeMap::new(),
             node_named_functions: BTreeSet::new(),
             unsupported: Vec::new(),
@@ -1870,6 +1881,17 @@ impl Expander<'_> {
         self.expr_expected(e, None)
     }
     fn expr_expected(&mut self, e: &s::Expr, expected: Option<&Type>) -> CoreExpr {
+        if let Some(expression) = self
+            .scalar_expressions
+            .as_ref()
+            .and_then(|expressions| expressions.get(&(std::ptr::from_ref(e) as usize)))
+            .cloned()
+        {
+            return self.expr_unpatched(&expression, expected);
+        }
+        self.expr_unpatched(e, expected)
+    }
+    fn expr_unpatched(&mut self, e: &s::Expr, expected: Option<&Type>) -> CoreExpr {
         // A thin variant dispatcher keeps unrelated reconstruction/diagnostic
         // storage off every recursive lowering edge. Group/receiver/record/
         // pipeline retain their original early-return node behavior.
@@ -2037,6 +2059,14 @@ impl Expander<'_> {
     fn lower_expr_call(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
         let kind = match &e.kind {
             s::ExprKind::Call { callee, arguments } => {
+                let replacement = self
+                    .scalar_expressions
+                    .as_ref()
+                    .and_then(|expressions| {
+                        expressions.get(&(std::ptr::from_ref(callee.as_ref()) as usize))
+                    })
+                    .cloned();
+                let callee = replacement.as_ref().unwrap_or(callee);
                 if let Some(value) = self.foreign_constructor(callee, arguments, e.span) {
                     value
                 } else if let Some(name) = integer_conversion_name(callee) {

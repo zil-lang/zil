@@ -748,6 +748,7 @@ pub fn validate_unchanged_source(
             context,
             compiler: None,
             scopes: Vec::new(),
+            plain: None,
         };
         walker.declarations()?;
         for f in &core.functions {
@@ -792,31 +793,32 @@ fn unchanged_shape(core: &CoreModule, limits: &Limits) -> Option<()> {
     }
     Some(())
 }
+fn plain_scalar(ty: &Type) -> bool {
+    matches!(
+        ty,
+        Type::Unit
+            | Type::Bool
+            | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
+            | Type::I64
+            | Type::U8
+            | Type::U16
+            | Type::U32
+            | Type::F32
+            | Type::U64
+            | Type::Usize
+            | Type::F64
+    )
+}
+
 fn unchanged_function_shape<'a>(
     f: &'a CoreFunction,
     limits: &Limits,
     fuel: &mut usize,
     stack: &mut Vec<(PlainShapeNode<'a>, usize)>,
 ) -> Option<()> {
-    fn scalar(ty: &Type) -> bool {
-        matches!(
-            ty,
-            Type::Unit
-                | Type::Bool
-                | Type::I32
-                | Type::I8
-                | Type::I16
-                | Type::Isize
-                | Type::I64
-                | Type::U8
-                | Type::U16
-                | Type::U32
-                | Type::F32
-                | Type::U64
-                | Type::Usize
-                | Type::F64
-        )
-    }
     fn push<'a>(
         stack: &mut Vec<(PlainShapeNode<'a>, usize)>,
         fuel: &mut usize,
@@ -833,8 +835,8 @@ fn unchanged_function_shape<'a>(
         || !f.callable_parameters.is_empty()
         || f.callable_return.is_some()
         || f.receiver.is_some()
-        || !scalar(&f.return_type)
-        || !f.parameters.iter().all(|p| scalar(&p.ty))
+        || !plain_scalar(&f.return_type)
+        || !f.parameters.iter().all(|p| plain_scalar(&p.ty))
     {
         return None;
     }
@@ -853,7 +855,7 @@ fn unchanged_function_shape<'a>(
                         CoreStatementKind::Binding {
                             ty, initializer, ..
                         } => {
-                            if ty.as_ref().is_some_and(|ty| !scalar(ty)) {
+                            if ty.as_ref().is_some_and(|ty| !plain_scalar(ty)) {
                                 return None;
                             }
                             if let Some(e) = initializer {
@@ -900,13 +902,13 @@ fn unchanged_function_shape<'a>(
                 | CoreExprKind::Bool(_)
                 | CoreExprKind::Unit
                 | CoreExprKind::Name(_) => {}
-                CoreExprKind::Literal(c) if scalar(&c.ty()) => {}
+                CoreExprKind::Literal(c) if plain_scalar(&c.ty()) => {}
                 CoreExprKind::Unary { operand, .. } => {
                     push(stack, fuel, PlainShapeNode::Expr(operand), next)?
                 }
                 CoreExprKind::IntegerConvert { value, target }
                 | CoreExprKind::NumericConvert { value, target }
-                    if scalar(target) =>
+                    if plain_scalar(target) =>
                 {
                     push(stack, fuel, PlainShapeNode::Expr(value), next)?
                 }
@@ -965,6 +967,7 @@ fn evaluate_with_context(
         context,
         compiler,
         scopes: Vec::new(),
+        plain: None,
     };
     // Every declaration is borrowed and bounded before the first body, query,
     // or forward-reference hint can copy any of its metadata.
@@ -1028,6 +1031,12 @@ fn evaluate_with_context(
 fn unsupported(span: Span, message: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::unsupported(Phase::Ct, message, Some(span))]
 }
+// Request-local observation of the actual no-rewrite visitor. No raw input can
+// supply this state. Failed admission is discarded by PlainSourceSession.
+struct PlainVisit {
+    fuel: usize,
+    hints: std::cell::RefCell<Vec<(zil_base::ModuleId, String)>>,
+}
 struct Walker<'a> {
     core: &'a CoreModule,
     target: &'a TargetProfile,
@@ -1042,9 +1051,38 @@ struct Walker<'a> {
     // still check the entire rewritten module after CT execution.
     // An unknown closure parameter still shadows an outer type hint.
     scopes: Vec<BTreeMap<String, Option<Type>>>,
+    plain: Option<PlainVisit>,
 }
 impl<'a> Walker<'a> {
+    fn plain_node(&mut self, depth: usize, span: Span, count: usize) -> CompileResult<()> {
+        if let Some(plain) = &mut self.plain {
+            if depth > self.limits.max_call_depth.min(128) {
+                return Err(unsupported(span, "plain shape depth exceeded"));
+            }
+            plain.fuel = plain
+                .fuel
+                .checked_sub(count)
+                .ok_or_else(|| unsupported(span, "plain shape allowance exceeded"))?;
+        }
+        Ok(())
+    }
     fn unchanged_function(&mut self, function: &CoreFunction) -> CompileResult<()> {
+        if let Some(plain) = &mut self.plain {
+            plain.fuel = plain
+                .fuel
+                .checked_sub(function.parameters.len().saturating_add(1))
+                .ok_or_else(|| unsupported(function.span, "plain shape allowance exceeded"))?;
+            if !function.type_parameters.is_empty()
+                || !function.state_parameters.is_empty()
+                || !function.callable_parameters.is_empty()
+                || function.callable_return.is_some()
+                || function.receiver.is_some()
+                || !plain_scalar(&function.return_type)
+                || !function.parameters.iter().all(|p| plain_scalar(&p.ty))
+            {
+                return Err(unsupported(function.span, "plain function shape required"));
+            }
+        }
         let mut scope = BTreeMap::new();
         for parameter in &function.parameters {
             self.text(&parameter.name, Some(parameter.span))?;
@@ -1056,18 +1094,22 @@ impl<'a> Walker<'a> {
         self.scopes.pop();
         Ok(())
     }
-    // Only called after unchanged_shape has classified the complete module.
-    // Every hint below observes the original child, which that classification
-    // proves the rebuilding evaluator would leave byte-for-byte unchanged.
+    // Either unchanged_shape ran, or PlainVisit checks eligibility as this
+    // speculative visitor reaches each child. Only a complete success publishes
+    // costs; any unsupported child restarts the original rebuilding evaluator.
     fn unchanged_block(
         &mut self,
         block: &CoreBlock,
         result: Option<&Type>,
         depth: usize,
     ) -> CompileResult<()> {
+        self.plain_node(depth, block.span, 1)?;
         self.charge(depth, block.span)?;
         self.scopes.push(BTreeMap::new());
         for s in &block.statements {
+            // The shape classifier counts statements but checks depth only on
+            // blocks/expressions. Preserve that exact separate fuel boundary.
+            self.plain_node(depth, s.span, 1)?;
             self.charge(depth + 1, s.span)?;
             match &s.kind {
                 CoreStatementKind::Binding {
@@ -1076,6 +1118,9 @@ impl<'a> Walker<'a> {
                     initializer,
                     ..
                 } => {
+                    if ty.as_ref().is_some_and(|ty| !plain_scalar(ty)) {
+                        return Err(unsupported(s.span, "plain binding shape required"));
+                    }
                     self.text(name, Some(s.span))?;
                     if let Some(ty) = ty {
                         self.pattern_type_shape(ty, depth + 1, s.span)?;
@@ -1130,7 +1175,7 @@ impl<'a> Walker<'a> {
                     self.unchanged_block(b, result, depth + 1)?
                 }
                 CoreStatementKind::Break | CoreStatementKind::Continue => {}
-                _ => unreachable!("complete unchanged Core classification"),
+                _ => return Err(unsupported(s.span, "plain statement shape required")),
             }
         }
         self.scopes.pop();
@@ -1142,20 +1187,22 @@ impl<'a> Walker<'a> {
         expected: Option<&Type>,
         depth: usize,
     ) -> CompileResult<()> {
+        self.plain_node(depth, e.span, 1)?;
         self.charge(depth, e.span)?;
         match &e.kind {
-            CoreExprKind::Literal(_) | CoreExprKind::Bool(_) | CoreExprKind::Unit => {}
+            CoreExprKind::Literal(c) if plain_scalar(&c.ty()) => {}
+            CoreExprKind::Bool(_) | CoreExprKind::Unit => {}
             CoreExprKind::Integer(text) | CoreExprKind::Float(text) | CoreExprKind::Name(text) => {
                 self.text(text, Some(e.span))?
             }
-            CoreExprKind::NumericConvert { value, target } => {
+            CoreExprKind::NumericConvert { value, target } if plain_scalar(target) => {
                 self.pattern_type_shape(target, depth + 1, e.span)?;
                 if !target.is_numeric() {
                     return Err(unsupported(e.span, "numeric conversion target required"));
                 }
                 self.unchanged_expr(value, None, depth + 1)?;
             }
-            CoreExprKind::IntegerConvert { value, target } => {
+            CoreExprKind::IntegerConvert { value, target } if plain_scalar(target) => {
                 self.pattern_type_shape(target, depth + 1, e.span)?;
                 if !target.is_integer() {
                     return Err(unsupported(
@@ -1212,7 +1259,7 @@ impl<'a> Walker<'a> {
                 self.unchanged_expr(then_value, expected, depth + 1)?;
                 self.unchanged_expr(else_value, expected, depth + 1)?;
             }
-            _ => unreachable!("complete unchanged Core classification"),
+            _ => return Err(unsupported(e.span, "plain expression shape required")),
         }
         Ok(())
     }
@@ -2792,6 +2839,33 @@ impl<'a> Walker<'a> {
             return None;
         }
         if let Some(context) = self.context {
+            if let Some(plain) = &self.plain {
+                // Observe the actual lookup after lexical shadowing, including
+                // misses/ambiguity. Import misses remain bound by exact imports.
+                let key = match &callee.kind {
+                    CoreExprKind::Name(name) => Some((self.core.module_id, name)),
+                    CoreExprKind::Member {
+                        object,
+                        member,
+                        owner: None,
+                    } => {
+                        if let CoreExprKind::Name(alias) = &object.kind {
+                            context
+                                .imports
+                                .get(&(self.core.module_id, alias.as_str()))
+                                .copied()
+                                .flatten()
+                                .map(|module| (module, member))
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                };
+                if let Some((module, name)) = key {
+                    plain.hints.borrow_mut().push((module, name.clone()));
+                }
+            }
             context.function(self.core.module_id, original)
         } else if matches!(callee.kind, CoreExprKind::Name(_)) {
             self.core

@@ -51,6 +51,7 @@ fn validate_inputs<'i, 'p: 'i>(
     mut reuse: Option<&mut crate::incremental::Reuse<'_>>,
 ) -> CompileResult<()> {
     struct Walk<'a, 'l> {
+        view: Option<std::sync::Arc<modules::scalar_walk::BodyView>>,
         budget: &'a mut generics::Budget<'l>,
         binders: Vec<String>,
         headers: Vec<*const s::TypeRef>,
@@ -70,6 +71,22 @@ fn validate_inputs<'i, 'p: 'i>(
         }
     }
     impl ct_selection::Visitor for Walk<'_, '_> {
+        fn function_name(&mut self, name: &str, span: Span) -> CompileResult<()> {
+            let name = self.view.as_ref().map_or(name, |view| view.name.as_str());
+            self.budget.text(name, span).map_err(|error| vec![error])
+        }
+        fn expression(&mut self, expression: &s::Expr, depth: usize) -> CompileResult<()> {
+            if let Some(replacement) = self
+                .view
+                .as_ref()
+                .and_then(|view| view.replacement(expression))
+                .cloned()
+            {
+                ct_selection::walk_expression(self, &replacement, depth)
+            } else {
+                ct_selection::walk_expression(self, expression, depth)
+            }
+        }
         fn type_binder(&mut self, name: &str, span: Span) -> CompileResult<()> {
             self.budget
                 .note_type_binder(name, span)
@@ -384,6 +401,7 @@ fn validate_inputs<'i, 'p: 'i>(
         }
     }
     let mut walk = Walk {
+        view: None,
         budget,
         binders: Vec::new(),
         headers: Vec::new(),
@@ -404,6 +422,7 @@ fn validate_inputs<'i, 'p: 'i>(
             continue;
         }
         let before = walk.budget.remaining_limits();
+        walk.view = input.view();
         let item = input.ensure(reuse.as_deref_mut())?;
         if reuse
             .as_deref_mut()

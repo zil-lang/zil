@@ -62,7 +62,24 @@ pub(super) fn plan(
     let mut work = remaining_work;
     let mut plans = BTreeMap::new();
     let store_protocols = dynamic_store::plan(lir.resources, limits, &mut work)?;
+    // Current immutable bodies share their complete physical planning result,
+    // including a negative (empty) plan. The nominal world and Limits are fixed
+    // for this invocation. The original successful cost is still paid per ID.
+    let mut bodies =
+        std::collections::HashMap::<scalar_bodies::Owners, (&TypedFunction, usize, Plan)>::new();
     for function in lir.functions {
+        let owner = scalar_bodies::Owners::of(function);
+        if let Some((_, cost, values)) = bodies
+            .get(&owner)
+            .filter(|(old, cost, _)| work >= *cost && scalar_bodies::Owners::same(old, function))
+        {
+            work -= cost;
+            if !values.is_empty() {
+                plans.insert(function.id, values.clone());
+            }
+            continue;
+        }
+        let before_function = work;
         dynamic_store::reserve_operations(
             function,
             lir.resources.len(),
@@ -199,8 +216,11 @@ pub(super) fn plan(
             {
                 super::copy_slots::coalesce(function, &mut values, &mut work)?;
             }
-            plans.insert(function.id, values);
+            plans.insert(function.id, values.clone());
         }
+        // An insufficient aggregate budget misses above and uses this original
+        // visitor, preserving the first failing operation and partial charges.
+        bodies.insert(owner, (function, before_function - work, values));
     }
     let abi = super::large_copy_abi::plan(lir, limits, &mut work)?;
     if !plans.is_empty()

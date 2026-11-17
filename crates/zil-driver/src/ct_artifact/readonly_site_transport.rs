@@ -124,6 +124,12 @@ impl Materializer<'_, '_> {
             active: None,
             live: 0,
         });
+        if let Some(current) = transport.as_mut()
+            && self.bind_observed_readonly(module, current)?
+        {
+            self.bound_source_sites.readonly = transport;
+            return Ok(());
+        }
         self.bind_source_items_inner(
             module,
             &module.items,
@@ -132,6 +138,121 @@ impl Materializer<'_, '_> {
         )?;
         self.bound_source_sites.readonly = transport.filter(|t| t.valid);
         Ok(())
+    }
+
+    // The immutable original is also the receiving tree. Observe its actual
+    // complete shape once, then replay the original count/collect/bind ledger.
+    // This is private to the non-rewriting executor, not a clone bridge or a
+    // persisted SourceSite proof. A failed probe leaves the ordinary path whole.
+    fn bind_observed_readonly(
+        &mut self,
+        module: &s::Module,
+        transport: &mut Transport,
+    ) -> CompileResult<bool> {
+        type Observed = ((bool, usize), SourceSite);
+        let planned = (|| {
+            let mut meter = probe(&self.environment.budget)?;
+            let available = meter
+                .remaining()
+                .max_temporary_bytes
+                .saturating_sub(meter.live_temporary_bytes());
+            let maximum = (available as usize).min(1_048_576) / std::mem::size_of::<Observed>();
+            let mut nodes = Vec::<Observed>::new();
+            let mut rows = Vec::new();
+            rows.try_reserve_exact(module.items.len()).ok()?;
+            let mut work = 0u64;
+            for item in &module.items {
+                let start = nodes.len();
+                let before = work;
+                compiler::source_sites::observe_item(
+                    item,
+                    module.id,
+                    SourceTreeId::Original,
+                    self.max_depth,
+                    |event| {
+                        match event {
+                            SiteEvent::Work(amount) => {
+                                meter.reserve_analysis_work(amount as u64)?;
+                                work = work.checked_add(amount as u64).ok_or_else(|| {
+                                    category("source observation work overflow", item.span)
+                                })?;
+                            }
+                            SiteEvent::Node(node) => {
+                                if nodes.len() >= maximum {
+                                    return Err(category(
+                                        "optional source observation bound",
+                                        item.span,
+                                    ));
+                                }
+                                if nodes.len() == nodes.capacity() {
+                                    let extra = maximum.saturating_sub(nodes.len()).min(256);
+                                    nodes.try_reserve_exact(extra).map_err(|_| {
+                                        category(
+                                            "optional source observation allocation",
+                                            item.span,
+                                        )
+                                    })?;
+                                }
+                                let ordinal = u32::try_from(nodes.len()).map_err(|_| {
+                                    category("source observation ordinal overflow", item.span)
+                                })?;
+                                nodes.push((
+                                    key(node.node),
+                                    SourceSite {
+                                        ordinal,
+                                        ..node.site
+                                    },
+                                ));
+                            }
+                        }
+                        Ok(())
+                    },
+                )
+                .ok()?;
+                rows.push(Row {
+                    item: item as *const s::Item as usize,
+                    start,
+                    count: nodes.len() - start,
+                    work: work - before,
+                });
+            }
+            let canonical_bytes =
+                nodes.len() as u64 * std::mem::size_of::<(bool, SourceSite)>() as u64;
+            meter.reserve_temporary_bytes(canonical_bytes).ok()?;
+            // The old collection and binding walks visit exactly this same
+            // immutable ordered tree. All operations must fit before grouping
+            // positive fees; otherwise the original first failing operation runs.
+            meter.reserve_analysis_work(work).ok()?;
+            for row in &rows {
+                meter.reserve_analysis_work(row.work).ok()?;
+                for index in row.start..row.start + row.count {
+                    meter
+                        .reserve_analysis_work(1 + index.checked_ilog2().unwrap_or(0) as u64)
+                        .ok()?;
+                    meter.reserve_temporary_bytes(96).ok()?;
+                }
+            }
+            meter.release_temporary_bytes(canonical_bytes);
+            if !replayable(&self.environment.budget, &meter) {
+                return None;
+            }
+            // Construct the same current address/site associations once. A
+            // repeated address cannot lend an ordinal to another current node.
+            let count = nodes.len();
+            let nodes: BTreeMap<_, _> = nodes.into_iter().collect();
+            if nodes.len() != count {
+                return None;
+            }
+            Some((meter, nodes, rows, count))
+        })();
+        let Some((meter, nodes, rows, count)) = planned else {
+            return Ok(false);
+        };
+        replay(&mut self.environment.budget, &meter)?;
+        self.bound_source_sites.nodes = nodes;
+        self.bound_source_sites.bytes = count as u64 * 96;
+        transport.rows = rows;
+        Ok(true)
     }
 
     pub(in super::super) fn take_readonly_source_sites(
