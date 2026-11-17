@@ -24,6 +24,7 @@ struct Engine<'a> {
     synchronous_births:&'a BTreeSet<(SemanticDefinitionId,NodeId)>,
     result_sources_by_function:&'a BTreeMap<SemanticDefinitionId,ResultSources>,
     returned_sources:Option<ResultSources>,
+    fallible_task_result:bool,
     error_unwind: Vec<&'a SemanticOriginalBlock>,
     task_loop_keys: Vec<BTreeSet<Binder>>,
     result_shapes:BTreeMap<NodeId,tasks::Shape>,
@@ -117,6 +118,7 @@ impl CheckedOriginal {
                     relevant = true;
                 }
             }
+            let fallible_task_result=matches!(self.task_shape(module,context,&prototype.result,false,active,b,0)?,tasks::Shape::FallibleTask);
             let mut result_shapes=BTreeMap::new();
             for expression in function.expressions.values(){
                 let CoreExprKind::Call{..}=&expression.kind else{continue;};
@@ -165,6 +167,7 @@ impl CheckedOriginal {
                 synchronous_births:&synchronous_births,
                 result_sources_by_function:&result_sources_by_function,
                 returned_sources:None,
+                fallible_task_result,
                 error_unwind: Vec::new(),
                 task_loop_keys: Vec::new(),
                 result_shapes,

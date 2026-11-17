@@ -46,6 +46,17 @@ pub(super) struct Conditional {
     pub(super) pending: u8,
     pub(super) ready: u8,
 }
+/// A pending value carries its phase uncertainty as well as its universal
+/// source. Only the real Task constructor supplies OPEN; a helper boundary
+/// supplies LIVE until an original protocol edge refines that exact owner.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct PendingTask {
+    pub(super) sources: Sources,
+    pub(super) states: u8,
+}
+impl PendingTask {
+    pub(super) fn width(&self)->usize{source_width(&self.sources).saturating_add(1)}
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum Value {
     Plain,
@@ -54,9 +65,9 @@ pub(super) enum Value {
         borrowed: bool,
     },
     Fresh,
-    FreshTask(Sources),
-    FallibleTask(Sources),
-    FallibleTaskOwned(Vec<Value>,Sources),
+    FreshTask(PendingTask),
+    FallibleTask(PendingTask),
+    FallibleTaskOwned(Vec<Value>,PendingTask),
     Product(Vec<(String, Value)>),
     Poll {
         relations: Vec<Conditional>,
@@ -70,10 +81,10 @@ impl Value {
             Self::Product(fields) => fields.iter().fold(1usize, |n, (name, value)| {
                 n.saturating_add(name.len()).saturating_add(value.width())
             }),
-            Self::FallibleTaskOwned(fields,sources) => fields
+            Self::FallibleTaskOwned(fields,task) => fields
                 .iter()
-                .fold(source_width(sources), |n, value| n.saturating_add(value.width())),
-            Self::FreshTask(sources)|Self::FallibleTask(sources)=>source_width(sources),
+                .fold(task.width(), |n, value| n.saturating_add(value.width())),
+            Self::FreshTask(task)|Self::FallibleTask(task)=>task.width(),
             Self::Poll { relations, .. } => relations.iter().fold(1usize, |n, row| {
                 n.saturating_add(place_width(&row.root)).saturating_add(3)
             }),
@@ -114,6 +125,18 @@ impl State {
                 n.saturating_add(binder_width(key))
                     .saturating_add(value.width())
             }))
+    }
+    pub(super) fn invalidate_pending_tasks(&mut self,b:&mut Budget)->Check<()>{
+        fn walk(value:&mut Value,b:&mut Budget)->Check<()>{
+            b.spend(1)?;
+            match value{
+                Value::FreshTask(task)|Value::FallibleTask(task)=>{b.spend(task.width())?;task.sources=unknown_sources();task.states=LIVE;},
+                Value::FallibleTaskOwned(inputs,task)=>{b.spend(task.width())?;task.sources=unknown_sources();task.states=LIVE;for input in inputs{walk(input,b)?;}},
+                Value::Product(fields)=>for(_,value)in fields{walk(value,b)?;},
+                _=>{},
+            }Ok(())
+        }
+        b.spend(self.values.len())?;for value in self.values.values_mut(){walk(value,b)?;}Ok(())
     }
     pub(super) fn copy(&self, b: &mut Budget) -> Check<Self> {
         b.spend(self.width())?;
@@ -210,11 +233,25 @@ impl State {
 
 pub(super) fn union_value(left: &Value, right: &Value, b: &mut Budget) -> Check<Value> {
     b.spend(left.width().saturating_add(right.width()))?;
-    Ok(if left == right {
-        left.clone()
-    } else {
-        Value::Plain
-    })
+    if left==right{return Ok(left.clone());}
+    fn pending(left:&PendingTask,right:&PendingTask,b:&mut Budget)->Check<PendingTask>{
+        b.spend(left.width().saturating_add(right.width()))?;
+        let mut sources=left.sources.clone();sources.extend(right.sources.iter().cloned());
+        Ok(PendingTask{sources,states:left.states|right.states})
+    }
+    match(left,right){
+        (Value::FreshTask(left),Value::FreshTask(right))=>Ok(Value::FreshTask(pending(left,right,b)?)),
+        (Value::FallibleTask(left),Value::FallibleTask(right))=>Ok(Value::FallibleTask(pending(left,right,b)?)),
+        (Value::FallibleTaskOwned(left,a),Value::FallibleTaskOwned(right,z))if left.len()==right.len()=>{
+            let mut fields=Vec::new();for(left,right)in left.iter().zip(right){fields.push(union_value(left,right,b)?);}
+            Ok(Value::FallibleTaskOwned(fields,pending(a,z,b)?))
+        },
+        (Value::Product(left),Value::Product(right))if left.len()==right.len()=>{
+            let mut fields=Vec::new();for((a,left),(z,right))in left.iter().zip(right){if a!=z{return Err(bad("original owner join changes its complete field identity"));}fields.push((a.clone(),union_value(left,right,b)?));}Ok(Value::Product(fields))
+        },
+        _ if tasks::owner_value(left)||tasks::owner_value(right)=>Err(unsupported("original owner join has no complete common conditional value/source",None)),
+        _=>Ok(Value::Plain),
+    }
 }
 
 impl Engine<'_> {
@@ -379,6 +416,26 @@ impl Engine<'_> {
 #[cfg(test)]
 mod source_tests{
     use super::*;
+    #[test]
+    fn conditional_task_values_keep_phase_uncertainty_and_invalidate_all_nested_sources(){
+        let mut b=Budget::new(&Limits::default());
+        let definition=SemanticDefinitionId{module:zil_base::ModuleId(0),index:0};
+        let birth=TaskSource::Birth{definition,node:NodeId(4)};
+        let fresh=Value::FallibleTask(PendingTask{sources:BTreeSet::from([birth.clone()]),states:OPEN});
+        let helper=Value::FallibleTask(PendingTask{sources:unknown_sources(),states:LIVE});
+        let joined=union_value(&fresh,&helper,&mut b).unwrap();
+        let Value::FallibleTask(task)=&joined else{panic!("conditional owner information was erased")};
+        assert_eq!(task.states,LIVE);assert!(task.sources.contains(&birth));assert!(task.sources.contains(&TaskSource::Unknown));
+        let binder=Binder::Parameter{definition,ordinal:0};let mut state=State::default();
+        state.values.insert(binder.clone(),Value::Product(vec![("wrapped".into(),fresh.clone())]));
+        state.invalidate_pending_tasks(&mut b).unwrap();
+        let Value::Product(fields)=&state.values[&binder]else{unreachable!()};
+        let Value::FallibleTask(task)=&fields[0].1 else{unreachable!()};
+        assert_eq!(task.sources,unknown_sources());assert_eq!(task.states,LIVE);
+        assert!(union_value(&fresh,&Value::Plain,&mut b).is_err(),"a missing conditional owner cannot become Plain at a join");
+        let owner=Value::Owner{root:root_place(&binder),borrowed:false};
+        assert!(union_value(&fresh,&owner,&mut b).is_err(),"unresolved and initialized generations cannot be interchanged");
+    }
     #[test]
     fn task_source_loop_identity_keeps_unknown_and_every_birth(){
         let limits=Limits::default();let mut b=Budget::new(&limits);

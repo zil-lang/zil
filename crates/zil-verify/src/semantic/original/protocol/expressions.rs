@@ -455,6 +455,7 @@ impl Engine<'_> {
                     };
                 }
                 _ => {
+                    if values.iter().any(tasks::pending_value){state.invalidate_pending_tasks(b)?;}
                     for value in values {
                         let mut roots=Vec::new();tasks::task_roots(value,&mut roots,b)?;
                         for(root,_)in roots{
@@ -482,6 +483,7 @@ impl Engine<'_> {
         // actual FnOnce role alone transfers all remaining affine subowners.
         // Unknown body effects still invalidate old phase observations.
         b.spend(state.width())?;
+        state.invalidate_pending_tasks(b)?;
         let roots = state.owners.keys().cloned().collect::<Vec<_>>();
         for root in roots {
             if state
@@ -513,7 +515,7 @@ impl Engine<'_> {
         let ty = self.original.resolved(ty, b)?;
         match owner_type(&ty) {
             Some(false) => Ok(if tasks::is_task(&ty) {
-                Value::FreshTask(unknown_sources())
+                Value::FreshTask(PendingTask{states:LIVE,sources:unknown_sources()})
             } else {
                 Value::Fresh
             }),
@@ -672,6 +674,7 @@ impl Engine<'_> {
         }
         for(ordinal,value)in values.iter().enumerate(){
             if self.preserving_parameter_source(target,site,ordinal,b)?{continue;}
+            if tasks::pending_value(value){state.invalidate_pending_tasks(b)?;}
             let mut roots=Vec::new();tasks::task_roots(value,&mut roots,b)?;
             for(root,_)in roots{if pending.iter().any(|(changed,states,_)|*changed==root&&*states!=DEAD){self.invalidate_task_source(state,&root,b)?;}}
         }
@@ -693,9 +696,9 @@ impl Engine<'_> {
                 tag: None,
             })
         } else {
-            let value=self.result_value(node,state,b)?;
+            let mut value=self.result_value(node,state,b)?;
             if let Some(summary)=self.result_sources_by_function.get(&target){
-                self.apply_result_sources(state,&value,summary,&input_sources,target,b)?;
+                self.apply_result_sources(state,&mut value,summary,&input_sources,target,b)?;
             }
             Ok(value)
         }

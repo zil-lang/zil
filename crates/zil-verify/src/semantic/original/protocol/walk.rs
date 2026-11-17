@@ -141,11 +141,12 @@ impl<'a> Engine<'a> {
                 self.expression(value, &mut state, depth + 1, b)?;
             }
             Return(value) => {
+                let source=value.as_ref();
                 let value = match value {
                     Some(value) => self.expression(value, &mut state, depth + 1, b)?,
                     None => Value::Plain,
                 };
-                self.record_result_sources(&state,&value,b)?;
+                self.record_result_sources(&state,&value,source,b)?;
                 self.task_transfer_value(&mut state, &value, b)?;
                 let state = self.unwind(state, deferred, 0, depth + 1, b)?;
                 self.check_exit(state, value, b)?;

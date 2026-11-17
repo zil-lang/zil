@@ -17,13 +17,14 @@ pub(super) fn is_task(ty: &Ty) -> bool {
 pub(in crate::semantic::original) enum Shape {
     Plain,
     Task { borrowed: bool },
+    FallibleTask,
     Product(Vec<(String, Shape)>),
 }
 impl Shape {
     pub(in crate::semantic::original) fn has_task(&self) -> bool {
         match self {
             Self::Plain => false,
-            Self::Task { .. } => true,
+            Self::Task { .. } | Self::FallibleTask => true,
             Self::Product(fields) => fields.iter().any(|(_, field)| field.has_task()),
         }
     }
@@ -50,6 +51,15 @@ impl CheckedOriginal {
             });
         }
         Ok(match ty {
+            Ty::ErrorUnion(error,result) if !borrowed => {
+                let success=self.task_shape(module,context,&result,false,active,b,depth+1)?;
+                let env=self.environment(module,context,self.current.ok_or_else(||bad("conditional Task shape has no original declaration Gamma"))?,active,b)?;
+                if matches!(success,Shape::Task{borrowed:false})&&self.is_copy(module,context,&error,&env,active,b)? {
+                    // Copy is a universal no-owning-error premise, not proof
+                    // that the success arm is freshly created or already closed.
+                    Shape::FallibleTask
+                }else{Shape::Plain}
+            },
             Ty::Tuple(fields) => {
                 let mut product = Vec::new();
                 for (index, field) in fields.iter().enumerate() {
@@ -144,7 +154,8 @@ impl<'a> Engine<'a> {
                 }
                 Ok(Value::Product(result))
             }
-            Value::FreshTask(sources) => {
+            Value::FreshTask(task) => {
+                if task.states==0||task.states&!LIVE!=0||task.sources.is_empty(){return Err(bad("pending Task omits a live phase or complete universal source"));}
                 if state
                     .owners
                     .get(&destination.clone())
@@ -156,11 +167,11 @@ impl<'a> Engine<'a> {
                 state.owners.insert(
                     destination.clone(),
                     Owner {
-                        states: OPEN,
+                        states: task.states,
                         generation,
                         task: true,
                         owned: true,
-                        sources,
+                        sources:task.sources,
                     },
                 );
                 Ok(Value::Owner {
@@ -219,6 +230,10 @@ impl<'a> Engine<'a> {
         b.spend(1)?;
         Ok(match shape {
             Shape::Plain => Value::Plain,
+            Shape::FallibleTask => Value::FallibleTask(PendingTask{
+                states:LIVE,
+                sources:match &place.binder{Binder::Parameter{definition,ordinal}=>BTreeSet::from([TaskSource::Input{definition:*definition,ordinal:*ordinal,path:place.fields.clone()}]),_=>unknown_sources()},
+            }),
             Shape::Task { borrowed } => {
                 if state.owners.get(place).is_some_and(|owner|owner.states!=DEAD){
                     return Err(bad("Task input/result entry reuses an unsettled owner generation"));
@@ -433,7 +448,7 @@ impl<'a> Engine<'a> {
         if matches!(kind, Intrinsic::TaskCreate | Intrinsic::TaskCreateOwned) {
             b.spend(values.len())?;
             let inputs = values.iter().skip(1).cloned().collect::<Vec<_>>();
-            let sources=BTreeSet::from([TaskSource::Birth{definition:self.current,node}]);
+            let sources=PendingTask{states:OPEN,sources:BTreeSet::from([TaskSource::Birth{definition:self.current,node}])};
             if kind == Intrinsic::TaskCreateOwned {
                 return Ok(Some(Value::FallibleTaskOwned(inputs,sources)));
             }
@@ -739,6 +754,9 @@ pub(super) fn task_borrow_value(value: Value) -> Value {
     }
 }
 
+pub(super) fn pending_value(value:&Value)->bool{
+    match value{Value::FreshTask(_)|Value::FallibleTask(_)|Value::FallibleTaskOwned(_,_)=>true,Value::Product(fields)=>fields.iter().any(|(_,value)|pending_value(value)),_=>false}
+}
 pub(super) fn owner_value(value: &Value) -> bool {
     match value {
         Value::Owner { .. }
@@ -784,7 +802,7 @@ impl Engine<'_>{
             b.spend(path.iter().fold(1usize,|n,s|n.saturating_add(s.len())))?;
             match value{
                 Value::Owner{root,..}=>{let owner=state.owner(root,b)?;if owner.task{b.spend(source_width(&owner.sources))?;out.insert(path.clone(),owner.sources.clone());}},
-                Value::FreshTask(sources)=>{b.spend(source_width(sources))?;out.insert(path.clone(),sources.clone());},
+                Value::FreshTask(task)|Value::FallibleTask(task)=>{b.spend(task.width())?;out.insert(path.clone(),task.sources.clone());},
                 Value::Product(fields)=>for(name,value)in fields{path.push(name.clone());walk(state,value,path,out,b)?;path.pop();},
                 _=>{},
             }
@@ -792,7 +810,13 @@ impl Engine<'_>{
         }
         let mut out=BTreeMap::new();walk(state,value,&mut vec![],&mut out,b)?;Ok(out)
     }
-    pub(super) fn record_result_sources(&mut self,state:&State,value:&Value,b:&mut Budget)->Check<()>{
+    pub(super) fn record_result_sources(&mut self,state:&State,value:&Value,node:Option<&SemanticOriginalExpr>,b:&mut Budget)->Check<()>{
+        b.spend(self.original.injections.len().checked_ilog2().map_or(1,|width|width as usize+1))?;
+        if self.fallible_task_result&&node.is_some_and(|node|self.original.injections.get(&(self.current,node.id)).is_some_and(|(failed,_)|*failed)){
+            // This exact original injection returns the independently proved
+            // nonowning error arm. It is not a missing success-source path.
+            return Ok(());
+        }
         let incoming=self.result_sources(state,value,b)?;
         if let Some(previous)=&mut self.returned_sources{
             b.spend(previous.len().saturating_add(incoming.len()))?;
@@ -801,12 +825,9 @@ impl Engine<'_>{
         }else{self.returned_sources=Some(incoming);}
         Ok(())
     }
-    pub(super) fn apply_result_sources(&self,state:&mut State,value:&Value,summary:&ResultSources,inputs:&[ResultSources],target:SemanticDefinitionId,b:&mut Budget)->Check<()>{
-        fn walk(state:&mut State,value:&Value,path:&mut Vec<String>,summary:&ResultSources,inputs:&[ResultSources],target:SemanticDefinitionId,b:&mut Budget)->Check<()>{
-            b.spend(path.iter().fold(1usize,|n,s|n.saturating_add(s.len())))?;
-            match value{
-                Value::Owner{root,..}=>{
-                    let mut sources=Sources::new();
+    pub(super) fn apply_result_sources(&self,state:&mut State,value:&mut Value,summary:&ResultSources,inputs:&[ResultSources],target:SemanticDefinitionId,b:&mut Budget)->Check<()>{
+        fn sources(path:&[String],summary:&ResultSources,inputs:&[ResultSources],target:SemanticDefinitionId,b:&mut Budget)->Check<Sources>{
+            let mut sources=Sources::new();
                     if let Some(rows)=summary.get(path){for source in rows{b.spend(1)?;match source{
                         TaskSource::Input{definition,ordinal,path}if *definition==target=>{
                             if let Some(actual)=inputs.get(*ordinal as usize).and_then(|input|input.get(path)){b.spend(source_width(actual))?;sources.extend(actual.iter().cloned());}else{sources.insert(TaskSource::Unknown);}
@@ -815,9 +836,17 @@ impl Engine<'_>{
                         birth@TaskSource::Birth{..}=>{sources.insert(birth.clone());},
                     }}}else{sources.insert(TaskSource::Unknown);}
                     if sources.is_empty(){sources.insert(TaskSource::Unknown);}
+            Ok(sources)
+        }
+        fn walk(state:&mut State,value:&mut Value,path:&mut Vec<String>,summary:&ResultSources,inputs:&[ResultSources],target:SemanticDefinitionId,b:&mut Budget)->Check<()>{
+            b.spend(path.iter().fold(1usize,|n,s|n.saturating_add(s.len())))?;
+            match value{
+                Value::Owner{root,..}=>{
+                    let sources=sources(path,summary,inputs,target,b)?;
                     let owner=state.owners.get_mut(root).ok_or_else(||bad("helper Return source lost its exact newly initialized owner"))?;
                     if owner.task{owner.sources=sources;}
                 },
+                Value::FreshTask(task)|Value::FallibleTask(task)=>task.sources=sources(path,summary,inputs,target,b)?,
                 Value::Product(fields)=>for(name,value)in fields{path.push(name.clone());walk(state,value,path,summary,inputs,target,b)?;path.pop();},
                 _=>{},
             }
