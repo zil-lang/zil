@@ -1,15 +1,15 @@
 {
-  "schema": "zil.compiler-current-native-continuation.v3",
+  "schema": "zil.compiler-current-native-continuation.v4",
   "branch": "research/full-push-native",
-  "source": "fdab589a19507301cd6fcfa3ab39d54451c870f3",
-  "production_source": "fdab589a19507301cd6fcfa3ab39d54451c870f3",
-  "result_commit": "a68ede06531f443776029607ee69f3196fd41d35",
-  "binary_sha256": "0c91121ee97e0b42dc1620fa9cf5264c3ebe020001e095cb61bb014086f21b29",
+  "source": "3fef2e582e0c93e051b8500c85dfe33b66319bda",
+  "production_source": "3fef2e582e0c93e051b8500c85dfe33b66319bda",
+  "result_commit": "a535684282051c69f1e2e223b7a0e266266ea4d1",
+  "binary_sha256": "85d6b2c71fc3121ca02f51dff6945b91884ee3074eae1cace00fcb5d0afa0a93",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "goal_read_sha": "f914a87f2179c6b14a73be2551eefc8bc7c62df1",
-  "status": "Ongoing; firstedit2.103/Rust1.220s, still slower; comprehensive/main gates OPEN",
+  "goal_read_sha": "d25352c82a7a6dbc957c928645e842845dc471ef",
+  "status": "Ongoing; real243 machine templates restored, firstedit1.871/Rust1.276s still slower; comprehensive/main gates OPEN",
   "latest_native": {
-    "scope": "Original5105functions/102files/843875bytes, original257input domain; actualmain/currentcandidate/Rust only. Native O2/CGU16/compilerjobs1; explicit default-off bounded-class-imports128-v3. Closeprocess, edit, then newprocess first resident request. Startup separate; not full ordinaryCLI or OS-cold.",
+    "scope": "Original5105functions/102files/843875bytes, original257input domain; actualmain/currentcandidate/Rust only. Native O2/CGU16/compilerjobs1; explicit default-off bounded-class-imports128-v4. Closeprocess, edit, then newprocess first resident request. Startup separate; not full ordinaryCLI or OS-cold.",
     "completion": {
       "formal_workflow_requests": 30,
       "runtime_profile_build_requests": 12,
@@ -18,24 +18,24 @@
     },
     "compile_median_ms": {
       "cold": {
-        "candidate": 3583.5624895,
-        "rust": 6069.4414560000005
+        "candidate": 3650.3134069999996,
+        "rust": 6975.382796
       },
       "unchanged": {
-        "candidate": 31.930059,
-        "rust": 13.9200525
+        "candidate": 66.132976,
+        "rust": 26.021055
       },
       "private-001": {
-        "candidate": 2102.7423995,
-        "rust": 1219.606451
+        "candidate": 1870.5150265000002,
+        "rust": 1275.83535
       },
       "recovery": {
-        "candidate": 1634.0686114999999,
-        "rust": 5846.945461
+        "candidate": 1868.5233185,
+        "rust": 5802.8285825
       },
       "error": {
-        "candidate": 1304.7348895,
-        "rust": 1698.7493220000001
+        "candidate": 1145.432961,
+        "rust": 1803.486926
       }
     },
     "functional_quality_valid": true,
@@ -43,32 +43,36 @@
     "user_disk_boundary_peak_physical_bytes": [
       {
         "block": 0,
-        "candidate": 30371840,
+        "candidate": 40914944,
         "rust": 76734464
       },
       {
         "block": 1,
-        "candidate": 30359552,
+        "candidate": 40939520,
         "rust": 61546496
       }
     ],
-    "raw": "out/runs/direct-firstedit-performance-direct-17",
-    "result": "https://github.com/zil-lang/zil/blob/a68ede06531f443776029607ee69f3196fd41d35/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json"
+    "raw": "out/runs/direct-firstedit-performance-direct-23",
+    "result": "https://github.com/zil-lang/zil/blob/a535684282051c69f1e2e223b7a0e266266ea4d1/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json"
   },
   "changes": [
-    "Types raw-cache restore retains a completed result-body projection only after exact decoder byte equality except outerID/name; current identity appended fresh, all original target/manifest/aggregate six fees/currentTypes/Verify obligations retained.",
-    "IR plan Writer shares completed current immutable block/hold columns with current outerID encoding; full ordered writer fallback on insufficient aggregate budget or unmatched owners.",
-    "Current Source Probe collects scalar Lifetime demand on actual immutable normalized Item owner, pays original node/work/depth fees at original Lifetime position; rich/mismatched/tight cases use ordinary walker. Scope names share until mutation, original fees retained.",
-    "Machine integer-range facts retained across rounds only for exact current body/signature/inputbounds; original per-round fees retained. Scalar planning shares exact caller bodies and original partial fuel behavior, combines leaf/summary edits before COW, preserves complete original machine preflight.",
-    "CGU materialization shares same-body direct-call rewrites within one current mapping; bounded-class layout key hashes complete current headers plus shared-body digests, allocation independent. No old Source-to-Machine permission or enabled-by-default research flag."
+    "Source/Core exact bounded binary context replaces Debug formatting; same dependency predicate memo shares admission/publication encoding. Unchanged module bytes skip publication guards; actual writes use held namespace identities and complete boundary guards, avoiding repeated full path-collision scans.",
+    "ArtifactCache content-key reads reuse the already computed envelope digest and remove headers in place. Packed readers memo successful unique immutable segments within original aggregate caps, still observe cancellation first, and publishers compare full current item bytes before reusing old locations.",
+    "Explicit trusted semantic-cache/push-reuse raw emitted functions retain bounded primitive machine DATA, full compiler/DSO/context/callee-summary/current body bindings, original reservations and complete current preflight/full O2. Per-body representatives plus aliases share actual decoded owners and retain accepted bytes. No Source/Verify/WorldBound permission serialized; defaults off.",
+    "Cold absent semantic roots are privately created only after complete destination planning, rechecked and pinned. Raw manifest commits only after successful guarded native publication. Fresh-session native regression proves cold seeding, direct first-edit restored+changed templates, exact outputs/current preflight and SafeReject without cache advancement."
   ],
-  "checks": "Same-source gates39strict/IR94/Expand135/Types118/backend364/fmt; gates40driver234; gates41nativepublication2/releasePASS. No source fix between these batches: host disk then outer sandbox blocked unfinished checks. Original failures retained; only unfinished checks resumed. Independent unchangedAnalyze310/Verify657/API105 receipts reused.",
-  "reviews": "Nonauthor Parfit reviewed root Types/IR/driver patch; root reviewed Astra backend and Kuhn frontend patches. Exact quotas, all current input bindings and full O2 preserved.",
+  "checks": "Same-source gates54 strict/nativepublication3/fmt/releasePASS. Rawmachine backend381g52, DB39/Expand148/Driver243g51 reused unchanged; independent CT78g49/Types121g43/IR94g39/Analyze310/Verify657g36/API105g35/qualifier31g48 unchanged.",
+  "reviews": "Root reviewed complete Astra raw-machine producer/consumer and Source/Core patch; Source Astra independently reviewed root transport and publication guard changes. Astra Euler independently reviewed exact cold-seed fix3849366c44d93e75086eae5e629bb303f91abcde: no blockers. New test upgraded to actual foreign input and precise SafeReject; all3 native publication contracts pass.",
   "failures": [
-    "gates39 driver/publication: host disk full before test execution; completed tests reused, host scratch retired.",
-    "gates40 nativepublication: outer sandbox bwrap uid-map read-only; identical gate41 outside outer sandbox passed both tests with native-link isolation unchanged."
+    "gates47: new backend test imports used private IR identities; driver load result triggered strict type-complexity. Fixed mechanically, no old release used.",
+    "gates48: driver237PASS/2FAIL; recovered parser-LRU/leaf identity lost CT continuation (210checks/96reuse instead1/305), and candidate retry reason precedence changed. Fixed actual retention/provenance, original assertions retained; gates49driver239PASS.",
+    "profile tool perf task-clock userspace sampling unavailable under kernel policy, also outside outer sandbox; no kernel configuration changed.",
+    "gates50 strict: new test field_reassign_with_default; corrected test initialization; no old binary used.",
+    "gates51 backend380PASS/1FAIL and nativepublication0PASS/2FAIL: launcher omitted ZIL_TEST_NATIVE_LINK_PROFILE. Same-source explicit-profile gates52backend381/publication2 PASS.",
+    "Formal22 source951add3bef36ebac1a3ebe4b02898a2be59c305c binary0c75b8cc27bef4ae01ae1e2eafe0a9021d278729847973559347fd3589400a97: firstedit1.8920515635/Rust1.0873430315s; full30/10 and4runtime PASS. Cold absent root skipped raw producer, firstedit0restored/248misses; failure retained, not a machine-cache win.",
+    "gates53: existing native2PASS/new1FAIL because constant-input test legitimately fully folded to1CGU and exercised no raw producer. Real foreign-input dependency now exercises cold seed/directedit; existing unit/preflight/native assertions retained; SafeReject checks tightened."
   ],
-  "previous_native_result": "https://github.com/zil-lang/zil/blob/061ca0628c6695d368ee9e047e67f6353e40e672/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
+  "previous_native_result": "https://github.com/zil-lang/zil/blob/a68ede06531f443776029607ee69f3196fd41d35/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
   "previous_check": {
     "source": "54a0258ab9e081085254084e4b081309dc06eda9",
     "result_commit": "a7f499e8",
@@ -76,8 +80,8 @@
     "historical_goal_record": "https://github.com/zil-lang/zil/blob/fb6f393bab3bb73c7028ec2f8dfedb0c266c87e1/records/compiler-incremental-demand-continuation.json"
   },
   "invariants": "IndependentVerify/currentcompleteSource/LIR binding/originaldefaultbudgets/fullO2 unchanged. Explicitboundedresearchdefaultoff. SDK18/native-link reused; noLLVMrebuild/fullpack. Uniqueconstructionbranch. goal/archive nevermain.",
-  "remaining": "Firstedit still slower. Same-source diagnostic: backend586.3ms, Expand236.2ms, Types117.1ms, semanticpublication109.9ms, Analyze99.5ms, CT82.6ms, sourceingress79.7ms, rawcache69.5ms, Verify62.6ms. Diagnostic not substituted for formal2.103s or Rust ratio; per-phase variation is not causally attributed. FullSource/Core and machine reconstruction still remain.",
+  "remaining": "Firstedit remains slower. Real firstedit raw243hits/5misses in both balancedblocks; SourceCore101 restored/1producer. Formal machine emission118–134ms, classes265–607ms plus object119–127ms; diagnostic publication21ms, semanticpub111ms, Analyze105ms, Verify74ms. Phasevariation not causally attributed. Root implementing measured backend allocation/COW chain; Astra implementing fee-compatible raw Analyze restart consumer. WIP is not measured23.",
   "unmeasured": "Actualmain defaultResourceLimit remains failure and excluded from ratios. Industrialmulti-crate/proc-macro/build.rs/minute/GB/currentnative ordinaryCLI coverage incomplete; no main merge; comprehensive Rust goal open.",
   "disk_accounting": "Peak of simultaneous per-arm totals in original workflow snapshots, global inode dedup st_blocks*512. Not sum of independent category peaks; not transient peaks; SDK/host/evidence excluded.",
-  "next": "Continue reducing actual restart reconstruction; no pending helper. All requested source/result changes pushed, no main merge. Raw usercache persistence counters: current decode/result4727shared; currentplan248encoded+4857rebound, Lifetime5105fused. Not comprehensive Rust success."
+  "next": "Continue coherent restart recovery chain then concentrated affected acceptance and same-domain formal test. No mainmerge. SDK18/native-link reused; noLLVM rebuild/fullpack. Source/result safely pushed; independentVerify/defaultbudgets/fullO2/defaultoffresearch retained."
 }
