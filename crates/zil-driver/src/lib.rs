@@ -906,6 +906,8 @@ fn add_function_work(
         cfg_relocated_functions,
         body_key_executions,
         body_key_reuses,
+        body_key_current_projections,
+        names_current_replays,
         core_function_eq_comparisons,
         body_key_visited_nodes,
         graph_edges,
@@ -1026,6 +1028,8 @@ mod report_attempt_tests {
             reused_functions: 2,
             restored_reused_functions: 2,
             body_key_executions: 4,
+            body_key_current_projections: 5,
+            names_current_replays: 7,
             ..Default::default()
         };
         first.graph.executed = 4;
@@ -1062,6 +1066,8 @@ mod report_attempt_tests {
             reused_functions: 1,
             restored_reused_functions: 1,
             body_key_executions: 6,
+            body_key_current_projections: 11,
+            names_current_replays: 13,
             ..Default::default()
         };
         final_work.graph.executed = 6;
@@ -1108,6 +1114,8 @@ mod report_attempt_tests {
         assert_eq!(work.executed_functions, 8);
         assert_eq!(work.restored_reused_functions, 3);
         assert_eq!(work.body_key_executions, 10);
+        assert_eq!(work.body_key_current_projections, 16);
+        assert_eq!(work.names_current_replays, 20);
         assert_eq!(work.graph.executed, 10);
         assert_eq!(
             (work.graph.retained_nodes, work.graph.retained_edges),
