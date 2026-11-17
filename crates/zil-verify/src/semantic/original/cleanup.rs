@@ -72,6 +72,16 @@ impl CheckedOriginal {
     pub(super) fn check_cleanups(&mut self,module:&TypedModule,context:&CheckedContext,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         let cleanups=std::mem::take(&mut self.cleanups);
         for cleanup in cleanups{self.current=Some(cleanup.definition);
+            if let Binder::Capture{definition,..}=&cleanup.binding.identity{
+                if *definition!=cleanup.definition{return Err(bad("original cleanup Capture belongs to another body"));}
+                cleanup.binding.identity.charge_clone(b)?;b.spend(1)?;
+                // free_values is the complete creator name lookup universe.
+                // Only body-used exact binders actually form this environment.
+                // Filter here, after every original branch has been checked;
+                // filtering an early Return while discovering uses would erase
+                // a real capture that is used on a later branch.
+                if !self.used.get(definition).is_some_and(|used|used.contains(&cleanup.binding.identity)){continue;}
+            }
             if cleanup.capture_exit&&matches!(cleanup.binding.identity,Binder::Capture{..}){
                 cleanup.binding.identity.charge_clone(b)?;
                 let ty=self.resolved(&cleanup.binding.ty,b)?;
@@ -277,5 +287,26 @@ mod capture_subject_tests{
         // this original environment entry.
         checked.name_binders_at.insert((original.parent.unwrap(),false,at,name),Binder::Local{definition:original.parent.unwrap(),node:NodeId(8124),name:"other".into()});
         assert!(checked.closure_capture_types(&module,&context,id,&arguments,&sealed,&mut b).is_err());
+    }
+}
+
+#[cfg(test)]
+mod materialized_capture_cleanup_tests{
+    use super::*;
+    #[test]
+    fn unused_creator_bindings_form_no_capture_debt_but_real_unknown_capture_stays_strict(){
+        let limits=Limits::default();let mut b=Budget::new(&limits);let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+        let context=CheckedContext::catalogue(&module,&mut b).unwrap();let definition=module.semantic.as_ref().unwrap().definitions.iter().find(|row|matches!(row.kind,SemanticDefinitionKind::Function)).unwrap().id;
+        let source=Binder::Parameter{definition,ordinal:0};let capture=Binder::Capture{definition,source:Box::new(source)};
+        let env=Env{lexical:vec![Frame{definition,actuals:vec![],environment:vec![]}],bounds:vec![],invocation:vec![],self_type:None};
+        let ty=Ty::Managed(Box::new(Ty::Carrier{kind:CarrierKind::Task,child:Box::new(Ty::Atom(Type::I32)),retained:Box::default()}));
+        for materialized in [false,true]{
+            let mut checked=CheckedOriginal::default();if materialized{checked.used.insert(definition,BTreeSet::from([capture.clone()]));}
+            checked.prototypes.insert(definition,Prototype{parameters:vec![],result:Ty::Atom(Type::Unit),environment:env.clone(),modes:vec![],result_mode:PassingMode::Infer,call_kind:CallKind::Direct,bound_lifetimes:0,invocation_lifetimes:0,premise_bounds:vec![],callable_kind:Some(CallableKind::FnOnce)});
+            checked.cleanups.push(Cleanup{definition,binding:Binding{ty:ty.clone(),mutable:true,identity:capture.clone()},path:vec![],capture_exit:true,uses:Uses::default(),environment:env.clone()});
+            let mut active=ActiveQueries::new();let result=checked.check_cleanups(&module,&context,&mut active,&mut b);
+            if materialized{assert!(result.is_err(),"a genuinely captured unknown Task still needs an original retirement proof");assert_eq!(checked.direct_cleanup_snapshots.len(),1);}
+            else{result.unwrap();assert!(checked.direct_cleanup_snapshots.is_empty());assert!(checked.callable_retirements.is_empty(),"unused creator lookup names produce neither an owner nor a cleanup capability");}
+        }
     }
 }
