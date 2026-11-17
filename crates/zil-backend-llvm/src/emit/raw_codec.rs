@@ -298,22 +298,35 @@ impl<'a> Reader<'a> {
     pub(super) fn finish(&self) -> bool {
         self.bytes.is_empty()
     }
+    // Option's fallible collector hides its exact lower size hint. Reserve the
+    // validated count once for ordinary lists, with a small fixed cap so a
+    // malformed large count cannot force a large allocation before decoding.
+    // Every node/byte/depth check and the ordered element decode stays intact.
+    fn list<T>(
+        &mut self,
+        count: usize,
+        mut decode: impl FnMut(&mut Self) -> Option<T>,
+    ) -> Option<Vec<T>> {
+        let mut values = Vec::with_capacity(count.min(4096));
+        for _ in 0..count {
+            values.push(decode(self)?);
+        }
+        Some(values)
+    }
     fn attrs(&mut self) -> Option<Vec<m::Attr>> {
         let count = self.count()?;
-        (0..count)
-            .map(|_| {
-                Some(match self.tag()? {
-                    0 => m::Attr::ZeroExt,
-                    1 => m::Attr::NonLazyBind,
-                    2 => m::Attr::NoInline,
-                    3 => m::Attr::SignExt,
-                    4 => m::Attr::NoUnwind,
-                    5 => m::Attr::WillReturn,
-                    6 => m::Attr::MemoryNone,
-                    _ => return None,
-                })
+        self.list(count, |input| {
+            Some(match input.tag()? {
+                0 => m::Attr::ZeroExt,
+                1 => m::Attr::NonLazyBind,
+                2 => m::Attr::NoInline,
+                3 => m::Attr::SignExt,
+                4 => m::Attr::NoUnwind,
+                5 => m::Attr::WillReturn,
+                6 => m::Attr::MemoryNone,
+                _ => return None,
             })
-            .collect()
+        })
     }
     fn ty(&mut self, depth: usize) -> Option<m::Ty> {
         if depth > MAX_DEPTH {
@@ -332,11 +345,7 @@ impl<'a> Reader<'a> {
             2 => m::Ty::Ptr,
             3 => {
                 let count = self.count()?;
-                m::Ty::Struct(
-                    (0..count)
-                        .map(|_| self.ty(depth + 1))
-                        .collect::<Option<_>>()?,
-                )
+                m::Ty::Struct(self.list(count, |input| input.ty(depth + 1))?)
             }
             _ => return None,
         })
@@ -412,10 +421,10 @@ impl<'a> Reader<'a> {
                 let result_attrs = self.attrs()?;
                 let callee = self.val()?;
                 let count = self.count()?;
-                let args = (0..count).map(|_| self.arg()).collect::<Option<_>>()?;
+                let args = self.list(count, |input| input.arg())?;
                 let vararg = if self.boolean()? {
                     let count = self.count()?;
-                    Some((0..count).map(|_| self.ty(0)).collect::<Option<_>>()?)
+                    Some(self.list(count, |input| input.ty(0))?)
                 } else {
                     None
                 };
@@ -431,9 +440,7 @@ impl<'a> Reader<'a> {
             10 => {
                 let ty = self.ty(0)?;
                 let count = self.count()?;
-                let incoming = (0..count)
-                    .map(|_| Some((self.val()?, self.text()?)))
-                    .collect::<Option<_>>()?;
+                let incoming = self.list(count, |input| Some((input.val()?, input.text()?)))?;
                 Op::Phi { ty, incoming }
             }
             11 => Op::Branch(self.text()?),
@@ -538,15 +545,13 @@ pub(super) fn decode(
     if count > limits.max_locals {
         return None;
     }
-    let params = (0..count)
-        .map(|_| {
-            Some(m::Param {
-                ty: input.ty(0)?,
-                name: input.optional_text()?,
-                attrs: input.attrs()?,
-            })
+    let params = input.list(count, |input| {
+        Some(m::Param {
+            ty: input.ty(0)?,
+            name: input.optional_text()?,
+            attrs: input.attrs()?,
         })
-        .collect::<Option<_>>()?;
+    })?;
     let variadic = input.boolean()?;
     let attrs = input.attrs()?;
     let count = input.count()?;
@@ -559,14 +564,12 @@ pub(super) fn decode(
         let name = input.text()?;
         let count = input.count()?;
         instructions_left = instructions_left.checked_sub(count)?;
-        let instructions = (0..count)
-            .map(|_| {
-                Some(m::Inst {
-                    result: input.optional_text()?,
-                    op: input.op()?,
-                })
+        let instructions = input.list(count, |input| {
+            Some(m::Inst {
+                result: input.optional_text()?,
+                op: input.op()?,
             })
-            .collect::<Option<_>>()?;
+        })?;
         blocks.push(m::Block { name, instructions });
     }
     let count = input.count()?;

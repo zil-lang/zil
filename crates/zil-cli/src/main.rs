@@ -1,4 +1,12 @@
 #![forbid(unsafe_code)]
+// rustc 58cf8f9c35b355199727627d07ae34a4e2846d67 uses this same dependency
+// and feature to override malloc/free across the binary and loaded LLVM. Merely
+// replacing Rust's GlobalAlloc would leave LLVM on another allocator. The sys
+// crate's retained linkage supplies the C symbols; this binary adds no unsafe
+// allocator implementation. Explicit host experiment; target output is separate.
+#[cfg(all(feature = "host-jemalloc", target_os = "linux", target_arch = "x86_64"))]
+extern crate tikv_jemalloc_sys as _;
+
 mod qc;
 mod resident;
 use std::env;

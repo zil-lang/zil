@@ -129,3 +129,14 @@ python3 tools/research/native-api-validation/validate.py --repo . --cli target/r
 `native-products` Cargo feature 默认关闭。它需要与固定 LLVM 提交匹配的头文件和 C++ 编译器；构建时显式设置 `ZIL_LLVM_INCLUDE_DIR`、`ZIL_LLVM_CONFIG`、`ZIL_CLANG`。使用 `tools/llvm/build_function_products.py` 可在新的前缀生成固定补丁的 LLVM DSO，原 SDK 保留。构建 `cargo build --locked --release -p zil-cli --features native-products` 后，仍需运行时显式 `--push-reuse` 才请求工作产物复用。
 
 优化和机器函数产品由当前依赖检查决定是否适用；原 O2 管线及独立 ZIL Verify 保留。只通过普通编译或报告 `available=0` 不证明原生复用生效，原生验收必须检查实际优化和机器函数复用计数、完整产物质量及失败后重试成本。该研究能力尚未作为默认产品路径验收。
+
+
+## 可选宿主分配器
+
+Linux x86_64 上可显式构建与 Rust 发行版采用相同整进程分配方式的编译器：
+
+```sh
+cargo build --release -p zil-cli --features native-products,host-jemalloc
+```
+
+`host-jemalloc` 默认关闭，不改变目标程序的分配器、语言限额或优化等级。它通过编译器本身的静态链接保留 jemalloc 的 C 分配符号，覆盖宿主 Rust 与 LLVM 的分配；不设置 `LD_PRELOAD`，也不替换 LLVM SDK。性能采用条件见[成本合同](compiler-cost-contract.md)。

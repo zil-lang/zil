@@ -183,6 +183,15 @@ fn first_request_shares_actual_facts_normalized_bodies_and_rewritten_bodies() {
             function(&actual, &format!("zil.fn.{i}"))
         ));
     }
+    // The exact normalized call body also supplies the source definition's
+    // rewritten body, avoiding a second COW clone at the same current mapping.
+    assert!(same_body_owner(normalized, function(&actual, "zil.fn.96")));
+    for i in (COPIES + 1)..2 * COPIES {
+        assert!(Arc::ptr_eq(
+            cache.functions[COPIES].normalized.as_ref().unwrap(),
+            cache.functions[i].normalized.as_ref().unwrap(),
+        ));
+    }
     // Normalization really rewrote the call, making one new immutable owner.
     assert!(!same_body_owner(normalized, &caller));
     assert_eq!(target(&source, "zil.fn.96"), "zil.fn.0");
@@ -432,4 +441,94 @@ fn new_argument_global_and_protected_exclusions_apply_to_each_current_symbol() {
     assert_eq!(function(&actual, "sink"), function(&edited, "sink"));
     assert_eq!(target(&actual, "sink"), "foreign");
     assert!(target(&actual, "main").starts_with("zil.class."));
+}
+
+#[test]
+fn old_normalized_caller_cannot_rewrite_newly_protected_callee_or_caller() {
+    let call_inst = |result, name: &str| {
+        Inst::new(
+            Some(result),
+            Op::Call {
+                result: Ty::Int(32),
+                result_attrs: vec![],
+                callee: Val::Global(name.into()),
+                args: vec![],
+                vararg: None,
+            },
+        )
+    };
+    let caller = body(
+        "zil.fn.2",
+        vec![
+            call_inst("a".into(), "zil.fn.0"),
+            call_inst("b".into(), "zil.fn.1"),
+            Inst::new(
+                Some("sum".into()),
+                Op::Binary {
+                    opcode: "add".into(),
+                    ty: Ty::Int(32),
+                    left: Val::Local("a".into()),
+                    right: Val::Local("b".into()),
+                },
+            ),
+            ret(Val::Local("sum".into())),
+        ],
+    );
+    let source = module(vec![
+        leaf("zil.fn.0", 7),
+        leaf("zil.fn.1", 9),
+        caller,
+        call("main", "zil.fn.2"),
+    ]);
+    zil_llvm_api::validate_module(&source).unwrap();
+    let (_, _, previous) = compare_unshared(&source, &BTreeSet::new(), None);
+    assert!(previous.functions[2].normalized.is_some());
+    let targets = |model: &Module| {
+        function(model, "zil.fn.2").blocks.as_ref().unwrap()[0]
+            .instructions
+            .iter()
+            .filter_map(|instruction| match &instruction.op {
+                Op::Call {
+                    callee: Val::Global(name),
+                    ..
+                } => Some(name.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    // One target is no longer classifiable. The other still needs its current
+    // rewrite, so an old normalized body would incorrectly replace both.
+    let protected = BTreeSet::from(["zil.fn.0".into()]);
+    let (actual, _, _) = compare_unshared(&source, &protected, Some(&previous));
+    let calls = targets(&actual);
+    assert_eq!(calls[0], "zil.fn.0");
+    assert!(calls[1].starts_with("zil.class."));
+    zil_llvm_api::validate_module(&actual).unwrap();
+    // Protect the caller itself and change a callee's actual class. Its old
+    // normalized row survives in the cache but cannot supply current output.
+    let mut edited = source.clone();
+    function_mut(&mut edited, "zil.fn.1")
+        .blocks
+        .as_mut()
+        .unwrap()[0]
+        .instructions[0] = ret(Val::Int(10));
+    let protected = BTreeSet::from(["zil.fn.2".into()]);
+    let (actual, _, _) = compare_unshared(&edited, &protected, Some(&previous));
+    let calls = targets(&actual);
+    assert!(calls.iter().all(|name| name.starts_with("zil.class.")));
+    let old = &previous.functions[2].normalized.as_ref().unwrap().function;
+    let old_calls = old.blocks.as_ref().unwrap()[0]
+        .instructions
+        .iter()
+        .filter_map(|instruction| match &instruction.op {
+            Op::Call {
+                callee: Val::Global(name),
+                ..
+            } => Some(name.clone()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(calls[0], old_calls[0]);
+    assert_ne!(calls[1], old_calls[1]);
+    zil_llvm_api::validate_module(&actual).unwrap();
 }

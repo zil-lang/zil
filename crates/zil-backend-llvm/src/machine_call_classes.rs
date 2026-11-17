@@ -40,7 +40,7 @@ struct FunctionReads {
     addresses: std::sync::Arc<BTreeSet<String>>,
     dependencies: std::sync::Arc<Option<BTreeSet<usize>>>,
     cost: usize,
-    normalized: Option<Normalized>,
+    normalized: Option<std::sync::Arc<Normalized>>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Normalized {
@@ -591,7 +591,7 @@ fn canonicalize_inner(
     // Cached selectors only locate a bucket. Complete normalized Function Eq
     // still authorizes every class, including deliberate hash collisions.
     let mut classes: HashMap<zil_base::Fingerprint, Vec<(Function, usize)>> = HashMap::new();
-    let mut current_keys: HashMap<usize, Normalized> = HashMap::new();
+    let mut current_keys: HashMap<usize, std::sync::Arc<Normalized>> = HashMap::new();
     let mut class_count = 0usize;
     let mut stats = Stats::default();
     while !ready.is_empty() {
@@ -600,36 +600,54 @@ fn canonicalize_inner(
             if cancelled() {
                 return None;
             }
-            let callees = cache.functions[index]
-                .dependencies
-                .as_ref()
-                .as_ref()?
-                .iter()
-                .map(|&callee| {
-                    let name = if stable {
-                        stable_names[callee].as_ref()?.clone()
-                    } else {
-                        functions[representatives[callee]?].name.clone()
-                    };
-                    Some((callee, name))
-                })
-                .collect::<Option<Vec<_>>>()?;
+            let dependencies = cache.functions[index].dependencies.as_ref().as_ref()?;
+            // Compare the actual current callee names while borrowed. The
+            // successful normalized product owns them once, not per alias.
+            let matches = |old: &Normalized| {
+                old.callees.len() == dependencies.len()
+                    && old
+                        .callees
+                        .iter()
+                        .zip(dependencies)
+                        .all(|((id, name), callee)| {
+                            if id != callee {
+                                return false;
+                            }
+                            let current = if stable {
+                                stable_names[*callee].as_deref()
+                            } else {
+                                representatives[*callee].map(|rep| functions[rep].name.as_str())
+                            };
+                            current == Some(name.as_str())
+                        })
+            };
             let cached = stable
                 .then(|| cache.functions[index].normalized.as_ref())
                 .flatten()
-                .filter(|old| old.callees == callees);
+                .filter(|old| matches(old));
             let normalized = if let Some(cached) = cached {
                 cache.reused_keys += 1;
                 cached.clone()
             } else if let Some(shared) = current_keys
                 .get(&input_owners[index])
-                .filter(|shared| shared.callees == callees)
+                .filter(|shared| matches(shared))
             {
                 cache.reused_keys += 1;
                 cache.shared_keys += 1;
                 shared.clone()
             } else {
                 cache.rebuilt_keys += 1;
+                let callees = dependencies
+                    .iter()
+                    .map(|&callee| {
+                        let name = if stable {
+                            stable_names[callee].as_ref()?.clone()
+                        } else {
+                            functions[representatives[callee]?].name.clone()
+                        };
+                        Some((callee, name))
+                    })
+                    .collect::<Option<Vec<_>>>()?;
                 let function = normalized_key_inner(
                     functions[index],
                     &functions,
@@ -642,11 +660,11 @@ fn canonicalize_inner(
                 let mut hash = crate::object_cache::BufferedHasher::new();
                 b"ZIL-CLOSED-CALL-CLASS-v1".hash(&mut hash);
                 function.hash(&mut hash);
-                Normalized {
+                std::sync::Arc::new(Normalized {
                     callees,
                     function,
                     selector: hash.digest(),
-                }
+                })
             };
             current_keys
                 .entry(input_owners[index])
@@ -686,7 +704,7 @@ fn canonicalize_inner(
                     implementations.insert(name.clone(), implementation);
                     stable_names[index] = Some(name);
                 }
-                bucket.push((normalized.function, index));
+                bucket.push((normalized.function.clone(), index));
                 class_count += 1;
                 index
             };
@@ -753,22 +771,43 @@ fn canonicalize_inner(
             continue;
         }
         let mut calls = 0;
-        if function.blocks.iter().flatten().any(|block| block.instructions.iter().any(|inst| {
-            matches!(&inst.op, Op::Call { callee: Val::Global(name), .. } if replacements.contains_key(name))
-        })) {
-            for block in function.blocks.as_mut()?.iter_mut() {
-                for inst in &mut block.instructions {
-                    if cancelled() {
-                        return None;
-                    }
-                    if let Op::Call {
-                        callee: Val::Global(name),
-                        ..
-                    } = &mut inst.op
-                        && let Some(rep) = replacements.get(name)
-                    {
-                        *name = rep.clone();
-                        calls += 1;
+        for block in function.blocks.iter().flatten() {
+            for inst in &block.instructions {
+                if cancelled() {
+                    return None;
+                }
+                if matches!(&inst.op, Op::Call { callee: Val::Global(name), .. } if replacements.contains_key(name))
+                {
+                    calls += 1;
+                }
+            }
+        }
+        if calls != 0 {
+            // Only a function CLASSIFIED in this current pass may consume the
+            // normalized data. A previous normalized row for a now-protected
+            // function or unclassified dependency never supplies this output.
+            // Current normalized_key changed precisely these target atoms;
+            // its complete input/header/callee binding was checked above.
+            let normalized = stable
+                .then_some(representatives[index])
+                .flatten()
+                .and_then(|_| cache.functions[index].normalized.as_ref());
+            if let Some(normalized) = normalized {
+                function.blocks = normalized.function.blocks.clone();
+            } else {
+                for block in function.blocks.as_mut()?.iter_mut() {
+                    for inst in &mut block.instructions {
+                        if cancelled() {
+                            return None;
+                        }
+                        if let Op::Call {
+                            callee: Val::Global(name),
+                            ..
+                        } = &mut inst.op
+                            && let Some(rep) = replacements.get(name)
+                        {
+                            *name = rep.clone();
+                        }
                     }
                 }
             }
@@ -1378,11 +1417,13 @@ mod tests {
         let (_, _, mut cache) =
             canonicalize_stable_cached(&mut first, &BTreeSet::new(), &|| false, None).unwrap();
         let selector = cache.functions[0].normalized.as_ref().unwrap().selector;
-        std::sync::Arc::make_mut(&mut cache.functions[1])
-            .normalized
-            .as_mut()
-            .unwrap()
-            .selector = selector;
+        std::sync::Arc::make_mut(
+            std::sync::Arc::make_mut(&mut cache.functions[1])
+                .normalized
+                .as_mut()
+                .unwrap(),
+        )
+        .selector = selector;
         let mut actual = original.clone();
         assert!(
             canonicalize_stable_cached(&mut actual, &BTreeSet::new(), &|| false, Some(&cache))
