@@ -315,10 +315,86 @@ fn sources(
 /// without treating source names or source annotations as provenance shortcuts.
 pub(super) fn populate(module: &mut TypedModule, static_origins: &retained::StaticOrigins, remaining: &mut usize) -> R<()> {
     let mut work = Work(*remaining);
-    let result = populate_inner(module, static_origins, &mut work);
+    let result = populate_inner(module, static_origins, &mut work)
+        .and_then(|()| check_actual_calls(module, &mut work));
     *remaining = work.0;
     result
 }
+
+/// Consume the completed source classification at the actual invocation.
+/// A pending reference result was only a proposal during emission: Static
+/// returns and argument transfers have now been separated from environment
+/// lending. The operation and its real storage/borrow window are not rewritten.
+fn check_actual_calls(module: &TypedModule, work: &mut Work) -> R<()> {
+    work.spend(module.functions.len(), Span::default())?;
+    for function in &module.functions {
+        work.spend(function.blocks.len(), function.span)?;
+        for block in &function.blocks {
+            work.spend(block.instructions.len(), function.span)?;
+            for instruction in &block.instructions {
+                let (ty, consuming, stored) = match &instruction.kind {
+                    InstructionKind::CallClosure { callee, .. } => (
+                        function.values.get(callee.0 as usize), false, false,
+                    ),
+                    InstructionKind::CallClosureOnce { callee, .. } => (
+                        function.values.get(callee.0 as usize), true, false,
+                    ),
+                    InstructionKind::CallClosureShared { callee, .. }
+                    | InstructionKind::CallClosureMut { callee, .. } => (
+                        function.locals.get(callee.0 as usize).map(|local| &local.ty),
+                        false, true,
+                    ),
+                    InstructionKind::CallClosureBorrowed { callee, kind, .. } => {
+                        if *kind == CallableKind::FnOnce {
+                            return Err(error("E-LENDING-CALL", instruction.span,
+                                "borrowed closure invocation cannot consume its environment"));
+                        }
+                        let Some(Type::Address { mutable, inner }) =
+                            function.values.get(callee.0 as usize)
+                        else {
+                            return Err(error("E-LENDING-CALL", instruction.span,
+                                "borrowed closure call has no exact actual address operand"));
+                        };
+                        if *kind == CallableKind::FnMut && !*mutable {
+                            return Err(error("E-LENDING-CALL", instruction.span,
+                                "exclusive closure call has only a shared actual receiver"));
+                        }
+                        (Some(inner.as_ref()), false, true)
+                    }
+                    _ => continue,
+                };
+                let Some(Type::Closure(id)) = ty else {
+                    return Err(error("E-LENDING-CALL", instruction.span,
+                        "closure call has no exact complete actual closure type"));
+                };
+                work.spend(1, instruction.span)?;
+                let Some(closure) = module.closures.get(id.0 as usize)
+                    .filter(|closure| closure.id == *id)
+                else {
+                    return Err(error("E-LENDING-CALL", instruction.span,
+                        "closure call leaves its exact actual definition directory"));
+                };
+                if closure.lending_captures.is_empty() {
+                    continue;
+                }
+                // A genuinely consuming entry has its independent transferred
+                // result contract. A non-consuming entry restricted by a
+                // public FnOnce upper cannot lend its destroyed environment.
+                let invalid = if consuming {
+                    closure.kind != CallableKind::FnOnce
+                } else {
+                    !stored
+                };
+                if invalid {
+                    return Err(error("E-LENDING-ORIGIN", instruction.span,
+                        "environment lending requires a non-consuming call on an actual stored closure position"));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 fn populate_inner(module: &mut TypedModule, static_origins: &retained::StaticOrigins, work: &mut Work) -> R<()> {
     work.spend(module.closures.len(), Span::default())?;
     if !module

@@ -4349,16 +4349,11 @@ impl<'a, 'c> Builder<'a, 'c> {
             )
         });
         let owns_resources = self.closures.pending[id.0 as usize].owns_resources();
+        // This is only a representation proposal while the actual CFG and
+        // return sources are still being emitted. Complete Static provenance
+        // may discharge it. lending::populate checks the real operation after
+        // finish, without changing the public operation kind selected above.
         let lends = self.lending_closure(Some(id))?;
-        if lends
-            && (kind == CallableKind::FnOnce
-                || (existing_place.is_none() && borrowed_callee.is_none()))
-        {
-            return Err(unsupported(
-                span,
-                "environment lending requires a non-consuming call on an actual stored closure position",
-            ));
-        }
         if kind == CallableKind::FnOnce
             && let Some(local) = existing_place
         {
