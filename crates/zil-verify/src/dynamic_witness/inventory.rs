@@ -158,12 +158,11 @@ impl Walk<'_> {
             Type::Address { inner, .. } | Type::Desc(inner) => {
                 b.spend(parent.life.slots.len())?;
                 let mut rows = parent.life.slots.iter().filter(|row| row.path == *physical);
-                let row = rows
-                    .next()
-                    .ok_or_else(|| bad("Self actual borrowed position is absent"))?;
+                let row = rows.next();
                 if rows.next().is_some() {
                     return Err(bad("Self actual borrowed position is duplicated"));
                 }
+                let (outer,mode)=if let Some(row)=row {
                 if !matches!(
                     (ty, row.mode),
                     (
@@ -183,6 +182,14 @@ impl Walk<'_> {
                     ));
                 }
                 let term = parent.term(row.binder, b)?;
+                (requests::Borrow::Variable {binder:term.image,origin:headers::symbol(term)},row.mode)
+                }else{
+                    if !matches!(ty,Type::Address{mutable:false,..}){return Err(bad("Self actual borrowed position is absent"));}
+                    // Complete shape validation classified this exact readonly
+                    // occurrence as pending Static. This is no actual target
+                    // or literal receipt; CFG/source discharge is unchanged.
+                    (requests::Borrow::Static,StoredBorrowMode::SharedAddress)
+                };
                 let mut prefix = semantic.clone();
                 prefix.push(LifeTypeProjection::Pointee);
                 let mut classes = inner_classes(self.module, parent, inner, &prefix, b)?;
@@ -193,11 +200,8 @@ impl Walk<'_> {
                 self.leaves.push(requests::Leaf {
                     source: selected(source, physical, b)?,
                     kind: requests::LeafKind::Physical {
-                        outer: requests::Borrow::Variable {
-                            binder: term.image,
-                            origin: headers::symbol(term),
-                        },
-                        mode: row.mode,
+                        outer,
+                        mode,
                     },
                     ty: ty.clone(),
                     classes,
@@ -548,7 +552,9 @@ impl Walk<'_> {
         semantic: &[LifeTypeProjection],
         b: &mut Budget,
     ) -> Check<(StorageLifeShape, Vec<terms::LifeTerm>)> {
-        let life = crate::tasks::frame_shape::declared_life(self.module, ty, b)?;
+        let life = if let Some(physical)=physical {
+            crate::tasks::frame_shape::header_life(self.module,ty,header,base,physical,b)?
+        }else{crate::tasks::frame_shape::declared_life(self.module, ty, b)?};
         b.spend(life.binder_count as usize)?;
         let mut terms = vec![None; life.binder_count as usize];
         // An opaque root has actual root class rows. An ordinary wrapper is
@@ -595,10 +601,18 @@ impl Walk<'_> {
                 if matches!(cursor,Type::BorrowedStorage{..}|Type::Closure(_)|Type::Task{..}|Type::MutexGuard{..}|Type::Dyn{..}|Type::OwnedDyn{..}){visible=false;break;}
                 match (cursor,step) {
                     (Type::Managed(inner)|Type::Address{inner,..}|Type::Desc(inner),LifeTypeProjection::Pointee)=>cursor=inner,
+                    (Type::Tuple(fields),LifeTypeProjection::Place(PlaceProjection::Field(index)))=>cursor=fields.get(*index as usize).ok_or_else(||bad("capture whole-child field is absent"))?,
+                    (Type::Record{fields,..}|Type::Package{fields,..},LifeTypeProjection::Place(PlaceProjection::Field(index)))=>cursor=&fields.get(*index as usize).ok_or_else(||bad("capture whole-child field is absent"))?.1,
+                    (Type::ErrorUnion{error,result},LifeTypeProjection::Place(PlaceProjection::ErrorArm(arm)))=>cursor=if *arm{error}else{result},
+                    (Type::Array{element,..},LifeTypeProjection::Element)=>cursor=element,
                     _=>break,
                 }
             }
             if !visible {continue;}
+            // A raw scope retains the complete Managed whole→pointee map.
+            // The runtime header has only the real opaque pointee boundary;
+            // it must not acquire another transparent-wrapper class row.
+            if matches!(cursor,Type::Managed(_)){continue;}
             b.spend(semantic.len().saturating_add(row.path.len()).saturating_add(1))?;
             let mut path=semantic.to_vec();path.extend_from_slice(&row.path);
             let term=self.capture_header_term(owner,header,base,&path,row.class,b)?;

@@ -474,14 +474,28 @@ impl<'a> Inventory<'a> {
     // traversal validates the nested semantic domains without counting them a
     // second time or inventing capture/parameter paths in opaque Self.
     fn children(&mut self, ty: &'a Type, b: &mut Budget) -> Check<()> {
+        dynamic_metadata::bounds_type(ty,b)?;
+        self.children_at(ty,b,0)
+    }
+    fn children_at(&mut self, ty: &'a Type, b: &mut Budget, depth:usize) -> Check<()> {
+        b.spend(1)?;
+        if depth>b.limits.max_call_depth.min(128){return Err(limit("complete child inventory depth exceeded"));}
         match ty {
-            Type::Address { inner, .. } | Type::Desc(inner) => self.children(inner, b),
+            Type::Address { inner, .. } | Type::Desc(inner) | Type::Managed(inner) => self.children_at(inner,b,depth+1),
             Type::Tuple(fields) => {
+                b.spend(fields.len())?;
                 for child in fields {
-                    self.children(child, b)?;
+                    self.children_at(child,b,depth+1)?;
                 }
                 Ok(())
             }
+            Type::Record{fields,..}|Type::Package{fields,..}=>{
+                b.spend(fields.len())?;for(_,child)in fields{self.children_at(child,b,depth+1)?;}Ok(())
+            },
+            Type::Enum{variants,..}=>{
+                b.spend(variants.len())?;for(_,fields)in variants{b.spend(fields.len())?;for child in fields{self.children_at(child,b,depth+1)?;}}Ok(())
+            },
+            Type::ErrorUnion{error,result}=>{b.spend(2)?;self.children_at(error,b,depth+1)?;self.children_at(result,b,depth+1)},
             _ => self.domain(ty, b).map(|_| ()),
         }
     }
@@ -540,6 +554,7 @@ impl<'a> Inventory<'a> {
         } else if matches!(
             *ty,
             Type::Managed(_) | Type::Address { .. } | Type::Desc(_) | Type::Tuple(_)
+                | Type::Record{..} | Type::Package{..} | Type::ErrorUnion{..}
         ) {
             // An explicit complete value directory distinguishes persistent
             // variable rows from pending constant physical occurrences. A bare
@@ -595,6 +610,12 @@ pub(super) fn intrinsic(module: &TypedModule, ty: &Type, b: &mut Budget) -> Chec
     let result=Inventory {module,active:vec![]}.domain(ty,b);
     query_consumer(result,caller,b)
 }
+/// A structural bound neither flattens child classes nor supplies outside
+/// images. Independently check the complete opaque/qualified child domains;
+/// no aggregate domain, zero claim, permission or Static proof is returned.
+pub(super) fn structural_children(module:&TypedModule,ty:&Type,b:&mut Budget)->Check<()> {
+    Inventory{module,active:vec![]}.children(ty,b)
+}
 /// Proves only a zero class domain, never ClosedEnvironment or static sources.
 #[track_caller]
 pub(super) fn closed(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<()> {
@@ -613,6 +634,35 @@ fn query_consumer<T>(result:Check<T>,caller:&std::panic::Location<'_>,b:&mut Bud
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn structural_inventory_preserves_nonzero_children_without_claiming_a_bare_parent_domain_raw_wire(){
+        let mut m=closure(1);
+        let aggregate=Type::ErrorUnion{error:Box::new(Type::Enum{name:"Allocation".into(),variants:vec![("Failure".into(),vec![])]}),result:Box::new(Type::Closure(ClosureId(0)))};
+        m.functions[0].values=vec![aggregate.clone()];
+        let limits=Limits::default();let bytes=zil_ir::wire::encode_module_candidate(&m,&CandidatePlan::empty_for(&m),&limits).unwrap();
+        let(wire,_)=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap();
+        for m in [&m,&wire]{
+            assert!(intrinsic(m,&aggregate,&mut Budget::new(&limits)).is_err());
+            structural_children(m,&aggregate,&mut Budget::new(&limits)).unwrap();
+            super::super::structural_actual(m,&aggregate,DynStructuralBound::Value,&mut Budget::new(&limits)).unwrap();
+            assert!(super::super::structural_actual(m,&aggregate,DynStructuralBound::Copy,&mut Budget::new(&limits)).is_err());
+            assert_eq!(intrinsic(m,&Type::Closure(ClosureId(0)),&mut Budget::new(&limits)).unwrap().count,1);
+            let mut missing=m.clone();missing.closures[0].storage_life=None;
+            assert!(structural_children(&missing,&aggregate,&mut Budget::new(&limits)).is_err());
+            let task=Type::Task{result:Box::new(Type::I32),retained_life:RetainedLifeShape{binder_count:2,ports:vec![],retained:vec![StorageRetainedBinding{path:vec![LifeTypeProjection::Parameter(0)],class:0,binder:0},StorageRetainedBinding{path:vec![LifeTypeProjection::Parameter(0)],class:1,binder:1}],nominal_arguments:vec![]}};
+            let task_outcome=Type::ErrorUnion{error:Box::new(Type::I32),result:Box::new(Type::Managed(Box::new(task)))};
+            assert!(intrinsic(m,&task_outcome,&mut Budget::new(&limits)).is_err());
+            structural_children(m,&task_outcome,&mut Budget::new(&limits)).unwrap();
+            let arm=LifeTypeProjection::Place(PlaceProjection::ErrorArm(false));
+            let mut full=StorageLifeShape{binder_count:2,slots:vec![],retained:vec![],nominal_arguments:vec![]};
+            for path in [vec![arm],vec![arm,LifeTypeProjection::Pointee]]{for class in 0..2{full.retained.push(StorageRetainedBinding{path:path.clone(),class,binder:class});}}
+            shape(m,&task_outcome,&full,&mut Budget::new(&limits)).unwrap();
+            let mut omitted=full.clone();omitted.retained.pop();assert!(shape(m,&task_outcome,&omitted,&mut Budget::new(&limits)).is_err());
+            let mut swapped=full.clone();swapped.retained[2].binder=1;swapped.retained[3].binder=0;assert!(shape(m,&task_outcome,&swapped,&mut Budget::new(&limits)).is_err());
+            let mut coalesced=full.clone();coalesced.retained[1].binder=0;assert!(shape(m,&task_outcome,&coalesced,&mut Budget::new(&limits)).is_err());
+            let mut phantom=full.clone();phantom.binder_count=3;assert!(shape(m,&task_outcome,&phantom,&mut Budget::new(&limits)).is_err());
+        }
+    }
     #[test]
     fn borrowed_cycle_stack_keeps_full_identity_including_child_and_life_fields() {
         let nominal=|child|Type::Record{name:"same_nominal_head".into(),fields:vec![("value".into(),child)]};

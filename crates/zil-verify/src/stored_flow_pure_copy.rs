@@ -683,7 +683,8 @@ fn complete_owned_fields(module:&TypedModule,pending:Vec<(&Type,usize)>,b:&mut B
 // A concrete callback keeps its own complete opaque boundary. This lane
 // transports its real physical captured pointers; it does not classify that
 // environment target-free or infer CE/SyncDrop from its number of classes.
-fn callable_tuple(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+pub(super) fn callable_tuple(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    if !matches!(ty,Type::Tuple(_)){return Ok(false);}
     let mut pending = vec![(ty, 0usize)];
     let mut callable = false;
     while let Some((ty, depth)) = pending.pop() {

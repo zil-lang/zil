@@ -262,3 +262,36 @@ fn callback_array_is_not_empty_cleanup_until_its_actual_element_is_moved() {
     assert!(!callback.no_cleanup_debt(&mut b).unwrap());assert_eq!(callback.fresh(),2);
     assert!(cell.take_place(&[PlaceProjection::Field(0)],true,&mut b).is_err());
 }
+
+#[test]
+fn allocation_failure_reason_and_affine_inputs_keep_the_complete_content_shape_raw_wire(){
+    let mut m=module();
+    let reason=Type::Enum{name:"@std.task:v1:TaskCreateError".into(),variants:vec![("Allocation".into(),vec![])]};
+    let inputs=Type::Tuple(vec![Type::Closure(ClosureId(0))]);
+    let error=Type::Package{name:format!("@std.task:v1:TaskCreateFailure:{}",inputs.fingerprint()),fields:vec![("reason".into(),reason.clone()),("inputs".into(),inputs)]};
+    let ty=Type::ErrorUnion{error:Box::new(error.clone()),result:Box::new(Type::Managed(Box::new(Type::Task{result:Box::new(Type::I32),retained_life:RetainedLifeShape{binder_count:0,ports:vec![],retained:vec![],nominal_arguments:vec![]}})))};
+    m.functions[0].values=vec![ty];
+    for m in [&m,&roundtrip(&m)]{
+        let ty=&m.functions[0].values[0];let mut b=budget();
+        let source=Source::Input(7,vec![0,1]);
+        let actual=allocation_content(ty,Some(Content::Product(vec![Content::Leaf(BTreeSet::from([source.clone()]))])),&mut b).unwrap();
+        let mut fixed=content(ty,None,&mut vec![],true,&mut b).unwrap();fixed.merge(&actual,&mut b).unwrap();
+        let Content::Sum(arms,_)=&fixed else{unreachable!()};
+        let Content::Product(fields)=&arms[&0][0]else{unreachable!()};
+        assert!(matches!(&fields[0],Content::Sum(tags,_)if tags.contains_key(&0)),"reason keeps its actual Enum tag domain");
+        let callback=fixed.take_place(&[PlaceProjection::ErrorArm(true),PlaceProjection::Field(1),PlaceProjection::Field(0)],true,&mut b).unwrap();
+        assert_eq!(callback,Content::Leaf(BTreeSet::from([source])));assert!(!callback.no_cleanup_debt(&mut b).unwrap());
+        assert!(fixed.take_place(&[PlaceProjection::ErrorArm(true),PlaceProjection::Field(1),PlaceProjection::Field(0)],true,&mut b).is_err());
+        let Type::ErrorUnion{result:owner,..}=ty else{unreachable!()};
+        let copy_inputs=Type::Tuple(vec![Type::I32]);
+        let record=Type::Record{name:format!("@std.task:v1:TaskCreateFailure:{}",copy_inputs.fingerprint()),fields:vec![("reason".into(),reason.clone()),("inputs".into(),copy_inputs)]};
+        let copy_outcome=Type::ErrorUnion{error:Box::new(record),result:owner.clone()};
+        let actual=allocation_content(&copy_outcome,Some(Content::Product(vec![Content::Copy])),&mut b).unwrap();
+        let Content::Sum(arms,_)=actual else{unreachable!()};assert_eq!(arms[&0],vec![Content::Copy]);
+        assert!(allocation_content(&copy_outcome,Some(Content::Product(vec![Content::Leaf(BTreeSet::from([Source::Fresh]))])),&mut b).is_err(),"Record cannot erase live affine input debt");
+        let plain=Type::ErrorUnion{error:Box::new(reason.clone()),result:owner.clone()};
+        let mut default=content(&plain,None,&mut vec![],false,&mut b).unwrap();
+        default.merge(&allocation_content(&plain,None,&mut b).unwrap(),&mut b).unwrap();
+        assert!(Content::Product(vec![Content::Copy]).merge(&Content::Product(vec![]),&mut b).is_err());
+    }
+}

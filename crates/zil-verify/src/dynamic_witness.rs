@@ -67,9 +67,17 @@ pub(crate) fn intrinsic_domain(
 
 /// Complete actual inventory and the existing independent structural rule.
 /// Pending source/loan/phase obligations remain with their normal consumers.
+#[track_caller]
 pub(crate) fn structural_actual(module:&TypedModule,ty:&Type,bound:DynStructuralBound,b:&mut Budget)->Check<()> {
-    intrinsic_domain(module,ty,b)?;
-    structural::actual(module,ty,bound,b)
+    // A structural predicate does not request an outside parent class map.
+    // Validate every complete child independently, preserving its own domain;
+    // a bare aggregate's zero-domain query is a different obligation.
+    let caller=std::panic::Location::caller();
+    let result=(||{values::structural_children(module,ty,b)?;structural::actual(module,ty,bound,b)})();
+    match result{Ok(())=>Ok(()),Err(error)=>{
+        b.spend(caller.file().len().saturating_add(96))?;
+        Err(error.with_note(format!("actual structural {bound:?} consumer {}:{}:{}",caller.file(),caller.line(),caller.column())))
+    }}
 }
 
 /// Reuse the independent full Typed inventory while the semantic context

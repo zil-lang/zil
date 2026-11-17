@@ -737,6 +737,17 @@ enum Content {
     Sum(BTreeMap<u32, Vec<Content>>, Option<(u32, Vec<u32>)>),
 }
 
+fn transfer_context<T>(result:Check<T>,context:&str,first:usize,second:usize,b:&mut Budget)->Check<T>{
+    match result{Ok(value)=>Ok(value),Err(error)=>{
+        b.spend(context.len().saturating_add(64))?;
+        Err(error.with_note(format!("actual Sum {context}: {first}/{second}")))
+    }}
+}
+
+fn content_kind(value:&Content)->&'static str{
+    match value{Content::Copy=>"Copy",Content::Missing(_)=>"Missing",Content::Leaf(_)=>"Leaf",Content::Product(_)=>"Product",Content::Sum(..)=>"Sum"}
+}
+
 impl Content {
     fn no_cleanup_debt(&self, b: &mut Budget) -> Check<bool> {
         b.spend(1)?;
@@ -983,8 +994,9 @@ impl Content {
                 changed = old != a.len();
             }
             (Self::Product(a), Self::Product(b)) => {
-                for (a, b) in a.iter_mut().zip(b) {
-                    changed |= a.merge(b, budget)?;
+                if a.len()!=b.len(){return Err(bad(None,"Sum Product complete field counts differ at transfer"));}
+                for (index,(a, b)) in a.iter_mut().zip(b).enumerate() {
+                    changed |= transfer_context(a.merge(b, budget),"Product field",index,0,budget)?;
                 }
             }
             (Self::Sum(a, route), Self::Sum(b, other_route)) => {
@@ -996,8 +1008,9 @@ impl Content {
                 }
                 for (&tag, fields) in b {
                     if let Some(target) = a.get_mut(&tag) {
-                        for (a, b) in target.iter_mut().zip(fields) {
-                            changed |= a.merge(b, budget)?;
+                        if target.len()!=fields.len(){return Err(bad(None,"Sum alternative complete field counts differ at transfer"));}
+                        for (index,(a, b)) in target.iter_mut().zip(fields).enumerate() {
+                            changed |= transfer_context(a.merge(b, budget),"alternative/field",tag as usize,index,budget)?;
                         }
                     } else {
                         for field in fields {
@@ -1010,7 +1023,10 @@ impl Content {
                 }
             }
             (Self::Copy, Self::Copy) => {}
-            _ => return Err(bad(None, "Sum source shapes differ at transfer")),
+            (a,b) => {
+                budget.spend(80)?;
+                return Err(bad(None, "Sum source shapes differ at transfer").with_note(format!("actual source Content {} versus {}",content_kind(a),content_kind(b))));
+            },
         }
         Ok(changed)
     }
@@ -1682,6 +1698,30 @@ fn content(
     })
 }
 
+// Allocation introduces the owner, but never changes the structural Content
+// representation of the actual failure. In particular its reason is a Sum,
+// not a scalar Copy atom, and Copy records are not affine Products.
+fn allocation_content(ty:&Type,inputs:Option<Content>,b:&mut Budget)->Check<Content>{
+    b.spend(12)?;
+    let Type::ErrorUnion{error,result}=ty else{return Err(bad(None,"actual allocation lacks its complete outcome type"));};
+    if !matches!(result.as_ref(),Type::Managed(_)|Type::OwnedDyn{..}){return Err(bad(None,"actual allocation success is not its owning value"));}
+    let mut raw=error.as_ref();
+    while let Type::BorrowedStorage{storage,..}=raw{b.spend(1)?;raw=storage;}
+    let failure=if let Some(inputs)=inputs{
+        let(fields,copy)=match raw{Type::Package{fields,..}=>(fields,false),Type::Record{fields,..}=>(fields,true),_=>return Err(bad(None,"Task allocation failure loses its complete input product"))};
+        let[(reason,reason_type),(input_name,input_type)]=fields.as_slice()else{return Err(bad(None,"Task allocation failure changes its full field directory"));};
+        b.spend(reason.len().saturating_add(input_name.len()))?;
+        if reason!="reason"||input_name!="inputs"{return Err(bad(None,"Task allocation failure changes its actual field identities"));}
+        if copy{
+            if !input_type.is_copy_value()||!inputs.no_cleanup_debt(b)?{return Err(bad(None,"Copy allocation failure cannot erase an affine input responsibility"));}
+            Content::Copy
+        }else{
+            Content::Product(vec![content(reason_type,None,&mut vec![],false,b)?,inputs])
+        }
+    }else{content(error,None,&mut vec![],false,b)?};
+    Ok(Content::Sum(BTreeMap::from([(0,vec![failure]),(1,vec![Content::Leaf(BTreeSet::from([Source::Fresh]))])]),None))
+}
+
 type Prefix = Vec<(u32, u32)>;
 type Fact = (LocalId, Prefix, u32);
 #[derive(Clone, PartialEq, Eq)]
@@ -1740,7 +1780,7 @@ impl State {
                 if Arc::strong_count(a) > 1 {
                     a.cost(budget)?;
                 }
-                let local_changed = Arc::make_mut(a).merge(b, budget)?;
+                let local_changed = transfer_context(Arc::make_mut(a).merge(b, budget),"local",local,0,budget)?;
                 changed |= local_changed;
                 if local_changed && let Some(pending) = &mut self.dirty_tags {
                     pending.mark(local, budget)?;
@@ -2333,13 +2373,8 @@ impl Flow<'_> {
                     // Failed allocation contains only the canonical error;
                     // the independent dyn proof checks its Self cleanup.
                     dynamic_dispatch::type_owned(self.module, *interface, budget)?;
-                    result = Some(Content::Sum(
-                        BTreeMap::from([
-                            (0, vec![Content::Copy]),
-                            (1, vec![Content::Leaf(BTreeSet::from([Source::Fresh]))]),
-                        ]),
-                        None,
-                    ));
+                    let output=instruction.result.ok_or_else(||bad(Some(instruction.span),"erased allocation lacks its actual result"))?;
+                    result=Some(allocation_content(&self.f.values[output.0 as usize],None,budget)?);
                 }
                 InstructionKind::MakePackage { fields }
                 | InstructionKind::MakeOwnedTuple { fields } => {
@@ -2356,6 +2391,10 @@ impl Flow<'_> {
                     budget.spend(elements.len())?;
                     result=Some(Content::Product(elements.iter().map(|value|state.values.get(value.0 as usize,budget)?.duplicate(budget)).collect::<Check<_>>()?));
                 }
+                InstructionKind::TaskCreate { .. } => {
+                    let output=instruction.result.ok_or_else(||bad(Some(instruction.span),"Task allocation lacks its actual result"))?;
+                    result=Some(allocation_content(&self.f.values[output.0 as usize],None,budget)?);
+                }
                 InstructionKind::TaskCreateOwned { arguments, .. } => {
                     budget.spend(arguments.len().saturating_add(12))?;
                     let inputs = Content::Product(
@@ -2364,14 +2403,8 @@ impl Flow<'_> {
                             .map(|v| state.values.get(v.0 as usize, budget)?.duplicate(budget))
                             .collect::<Check<_>>()?,
                     );
-                    let failure = Content::Product(vec![Content::Copy, inputs]);
-                    result = Some(Content::Sum(
-                        BTreeMap::from([
-                            (0, vec![failure]),
-                            (1, vec![Content::Leaf(BTreeSet::from([Source::Fresh]))]),
-                        ]),
-                        None,
-                    ));
+                    let output=instruction.result.ok_or_else(||bad(Some(instruction.span),"Task allocation lacks its actual result"))?;
+                    result=Some(allocation_content(&self.f.values[output.0 as usize],Some(inputs),budget)?);
                 }
                 InstructionKind::WithScopedThread { argument, .. }
                     if tasks::transfer::task_owner(&self.f.values[argument.0 as usize]) =>
@@ -3166,7 +3199,7 @@ fn run_retaining<'m>(
                 excluded_edges.remove(&(block, next));
             }
             let changed = if let Some(input) = &mut inputs[next] {
-                input.merge(&edge, budget)?
+                transfer_context(input.merge(&edge, budget),"function/block",f.id.0 as usize,next,budget)?
             } else {
                 inputs[next] = Some(edge);
                 true
@@ -3428,7 +3461,7 @@ pub(super) fn check_module(
             false,
             budget,
         )?;
-        if summaries[index].merge(&result, budget)? {
+        if transfer_context(summaries[index].merge(&result, budget),"function result",module.functions[index].id.0 as usize,0,budget)? {
             budget.spend(users[index].len())?;
             for &user in &users[index] {
                 if !queued[user] {

@@ -12,13 +12,6 @@ impl CheckedContext {
             return Ok(parent.clone());
         }
         let ty=lifetimes::select(&parent.ty,path,b)?;
-        let mut life=crate::tasks::frame_shape::declared_life(module,ty,b)?;
-        if let Some(mode)=outer_mode{
-            if !matches!((ty,mode),(Type::Address{mutable:false,..},StoredBorrowMode::SharedAddress)|(Type::Address{mutable:true,..},StoredBorrowMode::ExclusiveAddress)|(Type::Desc(_),StoredBorrowMode::ReadOnlyDescription|StoredBorrowMode::WritableDescription)){return Err(bad("stored child mode changes its complete actual Address/Desc kind"));}
-            let mut rows=life.slots.iter_mut().filter(|row|row.path.is_empty());
-            let row=rows.next().ok_or_else(||bad("stored child has no declared outer occurrence"))?;row.mode=mode;
-            if rows.next().is_some(){return Err(bad("stored child repeats its outer occurrence"));}
-        }
         let physical=path.iter().map(|step|match step{LifeTypeProjection::Place(step)=>Some(*step),_=>None}).collect::<Option<Vec<_>>>();
         let mut statics=Vec::new();
         for row in &parent.statics {
@@ -37,15 +30,19 @@ impl CheckedContext {
                 _=>{},
             }
         }
-        // A static outer occurrence is absent from κ. The whole pointee
-        // domain and every logical/static invariant remain represented.
-        if matches!(ty,Type::Address{..}|Type::Desc(_))&&statics.iter().any(|row|matches!(row,StaticOccurrence::Direct{path,..}if path.is_empty())) {
-            if !life.slots.iter().any(|row|row.path.is_empty()&&row.binder==0){return Err(bad("static child omits its exact outer occurrence"));}
-            life.binder_count=life.binder_count.checked_sub(1).ok_or_else(||bad("static child has no outer class to remove"))?;
-            life.slots.retain(|row|!(row.path.is_empty()&&row.binder==0));
-            for row in &mut life.slots{row.binder=row.binder.checked_sub(1).ok_or_else(||bad("static child removes an inner class"))?;}
-            for row in &mut life.retained{row.binder=row.binder.checked_sub(1).ok_or_else(||bad("static child removes an intrinsic class"))?;}
-            for row in &mut life.nominal_arguments{row.binder=row.binder.checked_sub(1).ok_or_else(||bad("static child removes a nominal class"))?;}
+        // Select the already checked complete child occurrence, not a fresh
+        // context-free raw Type domain. In particular a nested Static field
+        // has no variable outer κ, while its pointee/phantom domain survives.
+        b.spend(parent.life.retained.len().saturating_mul(path.len().saturating_add(1)))?;
+        let opaque=matches!(ty,Type::BorrowedStorage{..}|Type::Closure(_)|Type::Task{..}|Type::MutexGuard{..}|Type::Dyn{..}|Type::OwnedDyn{..});
+        let mut life=if !opaque&&(statics.iter().any(|row|matches!(row,StaticOccurrence::Direct{..}))||parent.life.retained.iter().any(|row|row.path==path)){
+            projected_life(parent,path,physical.as_deref(),b)?
+        }else{crate::tasks::frame_shape::declared_life(module,ty,b)?};
+        if let Some(mode)=outer_mode{
+            if !matches!((ty,mode),(Type::Address{mutable:false,..},StoredBorrowMode::SharedAddress)|(Type::Address{mutable:true,..},StoredBorrowMode::ExclusiveAddress)|(Type::Desc(_),StoredBorrowMode::ReadOnlyDescription|StoredBorrowMode::WritableDescription)){return Err(bad("stored child mode changes its complete actual Address/Desc kind"));}
+            let mut rows=life.slots.iter_mut().filter(|row|row.path.is_empty());
+            if let Some(row)=rows.next(){row.mode=mode;}else if !statics.iter().any(|row|matches!(row,StaticOccurrence::Direct{path,mode:actual,..}if path.is_empty()&&*actual==mode)){return Err(bad("stored child has no exact declared outer mode/occurrence"));}
+            if rows.next().is_some(){return Err(bad("stored child repeats its outer occurrence"));}
         }
         let mut classes=Vec::new();let mut origins=Vec::new();let mut injective=std::collections::BTreeSet::new();
         for class in 0..life.binder_count {
@@ -84,6 +81,37 @@ impl CheckedContext {
         child.origins=origins;child.statics=statics;Ok(child)
     }
 }
+fn projected_life(parent:&CheckedType,path:&[LifeTypeProjection],physical:Option<&[PlaceProjection]>,b:&mut Budget)->Check<StorageLifeShape>{
+    let mut map=Vec::new();
+    for row in &parent.life.retained {
+        b.spend(path.len().saturating_add(row.path.len()).saturating_add(1))?;
+        if row.path!=path{continue;}
+        b.spend(map.len().saturating_add(1))?;
+        if row.class as usize!=map.len()||map.contains(&row.binder){return Err(bad("selected child omits, reorders or coalesces its complete intrinsic classes"));}
+        map.push(row.binder);
+    }
+    let mut result=empty_life();
+    result.binder_count=u32::try_from(map.len()).map_err(|_|limit("projected child full domain exceeds u32"))?;
+    let local=|binder:u32,b:&mut Budget|->Check<u32>{
+        b.spend(map.len())?;
+        map.iter().position(|image|*image==binder).map(|index|index as u32).ok_or_else(||bad("selected child occurrence escapes its complete whole-child map"))
+    };
+    if let Some(prefix)=physical{
+        for row in &parent.life.slots{
+            b.spend(row.path.len().saturating_add(prefix.len()))?;
+            if let Some(tail)=row.path.strip_prefix(prefix){b.spend(tail.len().saturating_add(1))?;result.slots.push(StorageLifeSlot{path:tail.to_vec(),mode:row.mode,binder:local(row.binder,b)?});}
+        }
+    }
+    for row in &parent.life.retained{
+        b.spend(row.path.len().saturating_add(path.len()))?;
+        if let Some(tail)=row.path.strip_prefix(path){if !tail.is_empty(){b.spend(tail.len().saturating_add(1))?;result.retained.push(StorageRetainedBinding{path:tail.to_vec(),class:row.class,binder:local(row.binder,b)?});}}
+    }
+    for row in &parent.life.nominal_arguments{
+        b.spend(row.path.len().saturating_add(path.len()))?;
+        if let Some(tail)=row.path.strip_prefix(path){b.spend(tail.len().saturating_add(1))?;result.nominal_arguments.push(NominalLifeArgument{path:tail.to_vec(),declaration:row.declaration,argument:row.argument,binder:local(row.binder,b)?});}
+    }
+    Ok(result)
+}
 fn contains_closure(ty:&Type,closure:ClosureId,b:&mut Budget)->Check<bool>{
     let mut pending=vec![ty];
     while let Some(ty)=pending.pop(){b.spend(1)?;match ty{
@@ -95,4 +123,25 @@ fn contains_closure(ty:&Type,closure:ClosureId,b:&mut Budget)->Check<bool>{
         Type::ErrorUnion{error,result}=>{pending.push(error);pending.push(result);},
         _=>{},
     }}Ok(false)
+}
+
+#[cfg(test)]
+mod projected_scope_tests {
+    use super::*;
+    #[test]
+    fn complete_projection_preserves_local_indices_descendants_and_phantoms(){
+        let field=LifeTypeProjection::Place(PlaceProjection::Field(0));
+        let prefix=vec![field];
+        let mut parent=CheckedType{type_cell:crate::semantic::CheckedTypeData::new(Type::Unit),life:empty_life(),classes:vec![],origins:vec![],statics:vec![]};
+        parent.life.binder_count=3;
+        for(class,binder)in [2,0,1].into_iter().enumerate(){parent.life.retained.push(StorageRetainedBinding{path:prefix.clone(),class:class as u32,binder});}
+        parent.life.slots.push(StorageLifeSlot{path:vec![PlaceProjection::Field(0)],binder:2,mode:StoredBorrowMode::SharedAddress});
+        parent.life.retained.extend([StorageRetainedBinding{path:vec![field,LifeTypeProjection::Pointee],class:0,binder:0},StorageRetainedBinding{path:vec![field,LifeTypeProjection::Pointee],class:1,binder:1}]);
+        parent.life.nominal_arguments.push(NominalLifeArgument{path:vec![field,LifeTypeProjection::Pointee],declaration:zil_ir::builtin_life::OPTION,argument:0,binder:1});
+        let query=|parent:&CheckedType|projected_life(parent,&prefix,Some(&[PlaceProjection::Field(0)]),&mut Budget::new(&Limits::default()));
+        let child=query(&parent).unwrap();assert_eq!(child.binder_count,3);assert_eq!(child.slots[0].binder,0);assert_eq!(child.retained.iter().map(|row|row.binder).collect::<Vec<_>>(),vec![1,2]);assert_eq!(child.nominal_arguments[0].binder,2);
+        let mut missing=parent.clone();missing.life.retained.remove(1);assert!(query(&missing).is_err());
+        let mut coalesced=parent.clone();coalesced.life.retained[1].binder=2;assert!(query(&coalesced).is_err());
+        let mut escaped=parent.clone();escaped.life.nominal_arguments[0].binder=3;assert!(query(&escaped).is_err());
+    }
 }

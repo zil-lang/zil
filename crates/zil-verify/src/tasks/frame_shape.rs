@@ -223,6 +223,9 @@ pub(crate) fn life(
     b: &mut Budget,
     depth: usize,
 ) -> Check<StorageLifeShape> {
+    if depth==0&&let Some(header)=&f.storage_life{
+        return header_life(module,ty,header,base,&[],b);
+    }
     let static_outer = depth == 0
         && f.storage_life.as_ref().is_some_and(|header| {
             header
@@ -240,6 +243,62 @@ pub(crate) fn declared_life(
     b: &mut Budget,
 ) -> Check<StorageLifeShape> {
     type_life(module, ty, false, None, b, 0)
+}
+
+/// A real signature's immutable static positions are a directory context,
+/// not a literal/source receipt. Raw Type-only queries deliberately lack it.
+pub(crate) fn header_life(module:&TypedModule,ty:&Type,header:&StorageLifeContract,base:StorageBase,prefix:&[PlaceProjection],b:&mut Budget)->Check<StorageLifeShape>{
+    dynamic_metadata::bounds_type(ty,b)?;
+    signature_life::charge(header,b)?;
+    let mut positions=Vec::new();
+    for row in &header.static_bindings{
+        b.spend(prefix.len().saturating_add(row.path.len()))?;
+        if row.base!=base{continue;}
+        let Some(path)=row.path.iter().map(|step|match step{ContractProjection::Place(step)=>Some(*step),_=>None}).collect::<Option<Vec<_>>>()else{continue;};
+        if let Some(tail)=path.strip_prefix(prefix){b.spend(tail.len().saturating_add(1))?;positions.push(tail.to_vec());}
+    }
+    if positions.is_empty(){return declared_life(module,ty,b);}
+    header_node(module,ty,&positions,&mut vec![],b,0)
+}
+fn header_node(module:&TypedModule,ty:&Type,statics:&[Vec<PlaceProjection>],path:&mut Vec<PlaceProjection>,b:&mut Budget,depth:usize)->Check<StorageLifeShape>{
+    b.spend(1)?;
+    if depth>b.limits.max_call_depth.min(128){return Err(limit("contextual header child domain depth exceeded"));}
+    let children:Vec<(PlaceProjection,&Type)>=match ty{
+        Type::Tuple(fields)=>{b.spend(fields.len())?;fields.iter().enumerate().map(|(i,t)|(PlaceProjection::Field(i as u32),t)).collect()},
+        Type::Record{fields,..}|Type::Package{fields,..}=>{b.spend(fields.len())?;fields.iter().enumerate().map(|(i,(_,t))|(PlaceProjection::Field(i as u32),t)).collect()},
+        Type::ErrorUnion{error,result}=>{b.spend(2)?;vec![(PlaceProjection::ErrorArm(true),error),(PlaceProjection::ErrorArm(false),result)]},
+        _=>vec![],
+    };
+    if !children.is_empty()||matches!(ty,Type::Tuple(_)|Type::Record{..}|Type::Package{..}|Type::ErrorUnion{..}){
+        let mut result=StorageLifeShape{binder_count:0,slots:vec![],retained:vec![],nominal_arguments:vec![]};
+        for(step,child_type)in children{
+            b.spend(path.len().saturating_add(1))?;path.push(step);
+            let child=header_node(module,child_type,statics,path,b,depth+1)?;path.pop();
+            let offset=result.binder_count;
+            result.binder_count=offset.checked_add(child.binder_count).ok_or_else(||limit("header complete aggregate domain overflow"))?;
+            if result.binder_count as usize>b.limits.max_nodes{return Err(limit("header complete aggregate domain exceeded"));}
+            let opaque=matches!(child_type,Type::BorrowedStorage{..}|Type::Closure(_)|Type::Task{..}|Type::MutexGuard{..}|Type::Dyn{..}|Type::OwnedDyn{..});
+            if opaque||matches!(child_type,Type::Managed(_)){
+                b.spend(child.binder_count as usize)?;
+                for class in 0..child.binder_count{result.retained.push(StorageRetainedBinding{path:vec![LifeTypeProjection::Place(step)],class,binder:offset+class});}
+            }
+            for row in &child.slots{b.spend(row.path.len().saturating_add(1))?;let mut full=vec![step];full.extend_from_slice(&row.path);result.slots.push(StorageLifeSlot{path:full,mode:row.mode,binder:row.binder+offset});}
+            if !opaque{for row in &child.retained{b.spend(row.path.len().saturating_add(1))?;let mut full=vec![LifeTypeProjection::Place(step)];full.extend_from_slice(&row.path);result.retained.push(StorageRetainedBinding{path:full,class:row.class,binder:row.binder+offset});}}
+            for row in &child.nominal_arguments{b.spend(row.path.len().saturating_add(1))?;let mut full=vec![LifeTypeProjection::Place(step)];full.extend_from_slice(&row.path);result.nominal_arguments.push(NominalLifeArgument{path:full,declaration:row.declaration,argument:row.argument,binder:row.binder+offset});}
+        }
+        result.retained.sort();result.nominal_arguments.sort();return Ok(result);
+    }
+    if matches!(ty,Type::Address{mutable:false,..}|Type::Desc(_)){
+        b.spend(statics.len().saturating_mul(path.len().saturating_add(1)))?;
+        // Only the exact physical readonly head is static. Pointee κ are
+        // rebuilt by type_life independently and are never subtracted.
+        return type_life(module,ty,statics.iter().any(|candidate|candidate==path),None,b,depth);
+    }
+    // Mutable heads are not promoted by a missing variable row. A description
+    // only uses the explicit header Static context above, never slot absence.
+    // Opaque
+    // children keep their own complete declared scope and phantom classes.
+    declared_life(module,ty,b)
 }
 
 fn type_life(
@@ -386,4 +445,43 @@ fn type_life(
     shape.retained.sort();
     shape.nominal_arguments.sort();
     Ok(shape)
+}
+
+#[cfg(test)]
+mod static_capture_context_tests {
+    use super::*;
+    fn header(path: Vec<ContractProjection>) -> StorageLifeContract {
+        StorageLifeContract { fixed_binder_count: 0, invocation_binder_count: 0,
+            bindings: vec![], classes: vec![], static_bindings: vec![StoragePosition{base:StorageBase::Capture(0),path}] }
+    }
+    #[test]
+    fn static_tuple_capture_uses_exact_header_position_without_erasing_pointee_classes_raw_wire(){
+        let (mut module,_)=crate::tests::baseline();
+        let pointer=Type::Address{mutable:false,inner:Box::new(Type::Slice{element:Box::new(Type::U8)})};
+        let tuple=Type::Tuple(vec![pointer,Type::I32]);
+        module.functions[0].locals[0].ty=tuple.clone();
+        let limits=Limits::default();
+        let bytes=zil_ir::wire::encode_module_candidate(&module,&CandidatePlan::empty_for(&module),&limits).unwrap();
+        let (wire,_)=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap();
+        for module in [&module,&wire]{
+            let actual=&module.functions[0].locals[0].ty;
+            let query=|header:&StorageLifeContract|header_life(module,actual,header,StorageBase::Capture(0),&[],&mut Budget::new(&limits));
+            let exact=header(vec![ContractProjection::Place(PlaceProjection::Field(0))]);
+            let life=query(&exact).unwrap();assert_eq!(life.binder_count,0);assert!(life.slots.is_empty());
+            assert!(crate::dynamic_witness::intrinsic_domain(module,actual,&mut Budget::new(&limits)).is_err(),"bare Type cannot invent the header's Static context");
+            let mut missing=exact.clone();missing.static_bindings.clear();assert!(query(&missing).is_err());
+            let wrong=header(vec![ContractProjection::Place(PlaceProjection::Field(1))]);
+            assert_eq!(query(&wrong).unwrap().binder_count,1,"another field does not certify this pointer");
+            let Type::Tuple(fields)=actual else{unreachable!()};
+            let mut mutable=fields.clone();let Type::Address{mutable:mode,..}=&mut mutable[0]else{unreachable!()};*mode=true;
+            assert_eq!(header_life(module,&Type::Tuple(mutable),&exact,StorageBase::Capture(0),&[],&mut Budget::new(&limits)).unwrap().binder_count,1);
+            // The opaque pointee's entire two-class domain survives a Static
+            // outer. This metadata check grants neither target nor phase.
+            let task=Type::Task{result:Box::new(Type::I32),retained_life:RetainedLifeShape{binder_count:2,ports:vec![],retained:vec![],nominal_arguments:vec![]}};
+            let qualified=Type::Tuple(vec![Type::Address{mutable:false,inner:Box::new(task)}]);
+            let life=header_life(module,&qualified,&exact,StorageBase::Capture(0),&[],&mut Budget::new(&limits)).unwrap();
+            assert_eq!(life.binder_count,2);assert!(life.slots.is_empty());
+            assert_eq!(life.retained,vec![StorageRetainedBinding{path:vec![LifeTypeProjection::Place(PlaceProjection::Field(0)),LifeTypeProjection::Pointee],class:0,binder:0},StorageRetainedBinding{path:vec![LifeTypeProjection::Place(PlaceProjection::Field(0)),LifeTypeProjection::Pointee],class:1,binder:1}]);
+        }
+    }
 }

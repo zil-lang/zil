@@ -27,6 +27,14 @@ pub(super) fn operation(
         }
         _ => return Ok(false),
     };
+    if !admitted_value(module,ty,b)?{return Ok(false);}
+    crate::check_instruction(module, f, i, b)?;
+    Ok(true)
+}
+/// Type integration reuses the same complete callback-cell qualification as
+/// actual operations. Initialization, original slot identity and replacement
+/// epochs are checked for every operation, never inferred from this result.
+pub(super) fn admitted_value(module:&TypedModule,ty:&Type,b:&mut Budget)->Check<bool>{
     let Type::Array { element, length: 1 } = ty else {
         return Ok(false);
     };
@@ -39,7 +47,7 @@ pub(super) fn operation(
         return Ok(false);
     }
     returned_environment::leaves(module, *id, b)?;
-    crate::check_instruction(module, f, i, b)?;
+    crate::resources::arrays::check_internal_single_slot_type_for(module,ty,None,b)?;
     Ok(true)
 }
 fn drop_field(holder: &mut Payload, index: u32, b: &mut Budget) -> Check<Payload> {
@@ -211,6 +219,7 @@ mod tests {
         for m in [&m, &wire] {
             let f = &m.functions[0];
             let mut b = Budget::new(&limits);
+            assert!(admitted_value(m,&f.locals[0].ty,&mut b).unwrap());
             b.function_count = m.functions.len();
             let op = |result: Option<u32>, kind| Instruction {
                 result: result.map(ValueId),

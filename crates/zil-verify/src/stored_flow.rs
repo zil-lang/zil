@@ -7279,17 +7279,20 @@ fn check_with_mask(
                 super::stored_callables::owned_entry(module, d, b)?;
             }
         }
-        for ty in f
+        for (type_ordinal,ty) in f
             .locals
             .iter()
             .map(|l| &l.ty)
             .chain(&f.values)
             .chain(std::iter::once(&f.return_type))
+            .enumerate()
         {
             type_work(ty, &b.limits.clone(), b)?;
             let ordinary_value = super::stored_owned::ordinary_store_value(module,ty, b)?
                 || super::stored_owned::ordinary_byte_value(ty, b)?
                 || pure_copy::complete_owned_value(module,ty, b)?
+                || pure_copy::callable_tuple(module,ty,b)?
+                || callable_cells::admitted_value(module,ty,b)?
                 || ordinary_owner_address(module, ty, b)?;
             let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
             let closed_dyn_value =
@@ -7353,10 +7356,11 @@ fn check_with_mask(
                 || pure_inline(module, ty, b)?
                 || matches!(ty, Type::Address { inner, mutable: false } if pure_inline(module, inner, b)?))
             {
+                b.spend(128)?;
                 return Err(unsupported(
                     "owned or opaque executable value lacks actual stored permission integration",
                     Some(f.span),
-                ));
+                ).with_note(format!("actual function {:?}; complete type ordinal {type_ordinal} (locals, SSA values, result)",f.id)));
             }
         }
     }
