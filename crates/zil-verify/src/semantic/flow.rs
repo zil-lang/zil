@@ -552,7 +552,11 @@ impl CheckedContext {
             b.spend(1)?;self.origin_aliases.borrow_mut().insert(origin.clone(),canonical.clone());
             origins.push(canonical.clone());classes.push(key);
         }
-        if anchored.len()!=anchors.len(){return Err(bad("Closure intrinsic domain omits an actual capture/ghost class occurrence"));}
+        if anchored.len()!=anchors.len(){
+            let detail=format!("Closure {closure:?} child {:?} complete sealed {:?}; original anchors {anchors:?}; actual header {:?}; used anchors {anchored:?}",child.id,sealed,child.header_embedding);
+            b.spend(detail.len())?;
+            return Err(bad("Closure intrinsic domain omits an actual capture/ghost class occurrence").with_note(detail));
+        }
         for (index,_) in captures.iter().enumerate() {
             if let Some(ordinal)=logical_captures.get(&(index as u32)){
                 let CheckedActual::Type(value)=&sealed[*ordinal]else{unreachable!()};
