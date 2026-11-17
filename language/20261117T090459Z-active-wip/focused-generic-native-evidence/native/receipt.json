@@ -1,0 +1,152 @@
+{
+  "candidate": "84520ca637e4d71f5eaec83e31fe82525e4d8ef8",
+  "cli_sha256": "3d058ce008d472c903ceb7614bbb0c912aef45b94a547d71265a8ee67328929d",
+  "source_sha256": "8aae2fe82df068484af4d9a3fc38f97b869195934dc211318194377d7f1bf529",
+  "observer_sha256": "faad11be691182cd155d5c5ebe0e58c0409e9b50721f8dc2638780d8581b2f06",
+  "wrapper_sha256": "2ba4032536b4294fbd540f46a01484c9ea11413ed82de9f1ee330e7ba9647bef",
+  "observer_compile_command": [
+    "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+    "-std=c11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-DZIL_TASK_EXPECTED_FRAMES=1",
+    "-DZIL_TASK_EXPECTED_QUIET=0",
+    "-DZIL_TASK_EXPECTED_QUIET_CALLS=0",
+    "-c",
+    "/workspace/zil-alpha-candidate/tests/language-readiness/task-aggregate-results/frame-observer.c",
+    "-o",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-exact-creator-frames-and-owned-slot-preparations/instantiated-generic-task-owner/native/observer.o"
+  ],
+  "scope": "Instantiated generic retain<T> returning and driving real Task<I32>; exact existing frame observer, not full Alpha acceptance",
+  "rows": [
+    {
+      "backend": "clang",
+      "opt": "O0",
+      "build_exit": 0,
+      "status": "Success",
+      "diagnostics": [],
+      "source_sha256": "8aae2fe82df068484af4d9a3fc38f97b869195934dc211318194377d7f1bf529",
+      "executions": [
+        {
+          "case": "normal",
+          "environment": {},
+          "actual_exit": 0,
+          "expected_exit": 0,
+          "stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        },
+        {
+          "case": "allocation-failure",
+          "environment": {
+            "ZIL_TASK_AGGREGATE_FAIL": "1"
+          },
+          "actual_exit": 1,
+          "expected_exit": 1,
+          "stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        }
+      ],
+      "passed": true,
+      "executable_sha256": "4d6232f5486069155ca96dc798b835f47335ca88c45c6aa7c7f324c158cfaacc"
+    },
+    {
+      "backend": "clang",
+      "opt": "O2",
+      "build_exit": 0,
+      "status": "Success",
+      "diagnostics": [],
+      "source_sha256": "8aae2fe82df068484af4d9a3fc38f97b869195934dc211318194377d7f1bf529",
+      "executions": [
+        {
+          "case": "normal",
+          "environment": {},
+          "actual_exit": 0,
+          "expected_exit": 0,
+          "stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        },
+        {
+          "case": "allocation-failure",
+          "environment": {
+            "ZIL_TASK_AGGREGATE_FAIL": "1"
+          },
+          "actual_exit": 1,
+          "expected_exit": 1,
+          "stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        }
+      ],
+      "passed": true,
+      "executable_sha256": "f9016254383174985d274ab507fe6387f5c460f347dd16adb4fade57a52d73a1"
+    },
+    {
+      "backend": "llvm-api",
+      "opt": "O0",
+      "build_exit": 0,
+      "status": "Success",
+      "diagnostics": [],
+      "source_sha256": "8aae2fe82df068484af4d9a3fc38f97b869195934dc211318194377d7f1bf529",
+      "executions": [
+        {
+          "case": "normal",
+          "environment": {},
+          "actual_exit": 0,
+          "expected_exit": 0,
+          "stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        },
+        {
+          "case": "allocation-failure",
+          "environment": {
+            "ZIL_TASK_AGGREGATE_FAIL": "1"
+          },
+          "actual_exit": 1,
+          "expected_exit": 1,
+          "stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        }
+      ],
+      "passed": true,
+      "executable_sha256": "cf31da8823f104e32aaa53dca0c2e6de20f9b51d21baf95bee5f4c20e9327cb8"
+    },
+    {
+      "backend": "llvm-api",
+      "opt": "O2",
+      "build_exit": 0,
+      "status": "Success",
+      "diagnostics": [],
+      "source_sha256": "8aae2fe82df068484af4d9a3fc38f97b869195934dc211318194377d7f1bf529",
+      "executions": [
+        {
+          "case": "normal",
+          "environment": {},
+          "actual_exit": 0,
+          "expected_exit": 0,
+          "stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        },
+        {
+          "case": "allocation-failure",
+          "environment": {
+            "ZIL_TASK_AGGREGATE_FAIL": "1"
+          },
+          "actual_exit": 1,
+          "expected_exit": 1,
+          "stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        }
+      ],
+      "passed": true,
+      "executable_sha256": "729e7db47828dc11609c03fde4067c53b6ae9cb723e58b6e616ee62bfd346cc6"
+    }
+  ]
+}
