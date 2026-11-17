@@ -1,24 +1,26 @@
 {
-  "schema": "zil.compiler-pain-continuation.v20",
+  "schema": "zil.compiler-pain-continuation.v22",
   "construction_branch": "research/full-push-native",
-  "compiled_source": "861e9bb692baca50f9c7b2e8bbeceb5e7dfb8727",
-  "production_source": "861e9bb692baca50f9c7b2e8bbeceb5e7dfb8727",
-  "binary_sha256": "6d89c2f4ac4bc49837c966761db4b0b46d0dabd2b9c09d07aa3eedbfd735bda7",
-  "binary": "/workspace/zil-push-main/out/binaries/861e9bb692baca50f9c7b2e8bbeceb5e7dfb8727/zil",
+  "compiled_source": "3c418570aa6e0582bd2be63c2f9d50fb15baa58f",
+  "production_source": "3c418570aa6e0582bd2be63c2f9d50fb15baa58f",
+  "binary_sha256": "dfecb4bf95f5a0a863d7d6c5be3f1c7bc055735efa531e9631e29a01903b8bd8",
+  "binary": "/workspace/zil-push-main/out/binaries/3c418570aa6e0582bd2be63c2f9d50fb15baa58f/zil",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "status": "NoGo: firstedit1.477/Rust1.100s (34.28% slower). Cold2.947/Rust6.687s. Analyze physical template duplication fixed but comprehensive Rust goal remains OPEN.",
+  "status": "window27 directfirstedit 1.551812/Rust1.042106s, candidate/Rust=1.489112; NoGo, firstedit still slower; comprehensive goal remains open",
   "current_result": "tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
-  "previous_native_result": "https://github.com/zil-lang/zil/blob/033030437ee0b29c81b7442d2cb2e6f7cd9b4279/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
+  "previous_native_result": "https://github.com/zil-lang/zil/blob/2c6ee02df6a15c90723b666a379884fd96b37fd9/tools/research/incremental-demand/native-direct-edit-chain-20261116/window26.json",
   "previous_check_source": "54a0258ab9e081085254084e4b081309dc06eda9",
   "previous_check_result": "tools/research/incremental-demand/check-restart-scope-chain-20261116/summary.json",
   "work_in_this_commit": [
-    "Cold raw Analyze publication groups independently allocated semantically equal Source functions using bounded randomized selector buckets; complete body and plan equality authorize every alias, original five fees remain per logical function. No digest/pointer grants permission.",
-    "Restart decodes each raw template once; fresh private current FunctionProduct + full decoder byte/header relation may adopt actual current owner, sensitive foreign/unsafe placement stays exact. Current independent Analyze obligations/Verify and original failure order remain.",
-    "Raw plan shape memo binds exactly the lengths and immutable plan columns actually read. Full body/header binding and aggregate quotas stay mandatory; malformed differing-local-bound test must reject.",
-    "Real Source128 separate-body regression covers reduced physical plans, fresh private edit with no warmup, reference/current plan equality, five fees/global cost, publication caps and cleanup."
+    "Whole current body-admission consumer chain: source-function indexes now reach distinct LIR wrapper nodes through actual current ID, three strong immutable array owners and complete executable header equality; existing current reservation/planning/emission/rawpublication consumers reuse those exact semantic identities. No ID/pointer alone grants authority.",
+    "Cost and selector scans share exact current owners/headers while preserving the original per-logical-row optional fuel and collision charges; unsupported/header/COW changes take original traversal. One bounded current inventory, no serialized receipt.",
+    "Scope correction: the formal driver uses lower_view borrowing verified.module().functions. The distinct-wrapper case is an interface regression fix, NOT an established cause of the formal5105 slowdown. Do not attribute timing changes to that bridge without measured consumer evidence.",
+    "Scoped runtime combines presence and declaration needs, binding both block and value owners for mutex selection. Linker fold observes each current body once, still updates every logical slot and preserves checkpoint isolation and current target/ABI failures.",
+    "Raw machine call validation borrows current ABI operands instead of constructing a temporary parameter vector per call; every occurrence is checked, declaration ordering unchanged, parameter names normalized once. Tests reject a changed128thcall ABI, currentcallee change and missingcallee.",
+    "Prior source58 checker-chain and rawpack snapshot changes retained, with its complete negative window26 separately recorded. Independent Verify/defaultbudgets/fullO2/researchdefaults unchanged."
   ],
   "invariants": "Default research off; current full Source/LIR bindings, original budgets, independent Verify, full default<O2>; main/goal/archive separate; no LLVM rebuild or evidence packing.",
   "sdk": "Installed SDK18/native-link reused, V32 pins unchanged; no assumption of historical local caches. Completed old user caches retired only after raw/results preserved; not product disk improvement.",
   "goal_status": "Full Rust/main/industrial gates OPEN; old7e/98fa/021997/54a/e402/f828 figures stay source-bound.",
-  "active_work": "Formal25 and paired samehistory phase diagnostic25c complete. No active agents/builds. Source861 pushed. Biggest current avoidable work lies before object hit: fresh machine class/reachability/partition reconstruction; Source materialization/cache read/semantic publication also remain. Next change must follow actual rustc CGU reuse-before-build logic, current raw full bindings and preflight retained; not implemented/accepted yet. No mainmerge/fullpack/LLVM rebuild."
+  "active_work": "Formal27 and pairedphase27 complete; no active builds/agents. No speedup established: firstedit1.552/R1.042s, scopedbodychecks5105/reuse0. Source3c418570 pushed; source58 negativewindow26 kept. The wrapper bridge is a real interface test case but formal lower_view borrows source nodes, not proven rootcause. Next work must eliminate measured Source/Types restoration, metadata publication and machine classgraph/partition work; consider Rust asyncmetadata+LLVM sequencing with unchanged success-onlypublication. These larger changes NOT implemented. No main merge/fullpack/LLVM rebuild."
 }
