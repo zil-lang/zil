@@ -106,7 +106,7 @@ impl Walker<'_> {
                         .ok_or_else(|| bad("Task input borrow escapes its full domain map"))?;
                     self.push(ty, row.mode, class, source, b)?;
                 }
-                if opaque(inner) {
+                if opaque(inner,b)? {
                     b.spend(semantic.len().saturating_add(1))?;
                     let mut child = semantic.to_vec();
                     child.push(LifeTypeProjection::Pointee);
@@ -117,10 +117,14 @@ impl Walker<'_> {
             Type::Managed(inner) => {
                 // An owning pointer does not turn metadata into a physical
                 // field address. Only an existing opaque directory is exposed.
-                if opaque(inner) {
-                    let mut next = semantic.to_vec();
-                    b.spend(next.len().saturating_add(1))?;
-                    next.push(LifeTypeProjection::Pointee);
+                if opaque(inner,b)? {
+                    let child=crate::tasks::frame_shape::declared_life(self.module,inner,b)?;
+                    let whole=boundary(life,map,semantic,child.binder_count,b)?;
+                    b.spend(semantic.len().saturating_add(1))?;
+                    let mut next = semantic.to_vec();next.push(LifeTypeProjection::Pointee);
+                    let pointee=boundary(life,map,&next,child.binder_count,b)?;
+                    b.spend(whole.len().saturating_add(pointee.len()))?;
+                    if whole!=pointee{return Err(bad("Task Managed port child changes its complete transparent class indices"));}
                     self.node(inner, life, map, &next, physical, source, depth + 1, b)
                 } else {
                     Ok(())
@@ -390,7 +394,7 @@ impl Walker<'_> {
                         "Task capture borrow has neither a variable occurrence nor a pending static declaration",
                     ));
                 }
-                if opaque(inner) {
+                if opaque(inner,b)? {
                     b.spend(semantic.len().saturating_add(1))?;
                     let mut child = semantic.to_vec();
                     child.push(LifeTypeProjection::Pointee);
@@ -460,10 +464,17 @@ impl Walker<'_> {
                 )
             }
             Type::Managed(inner) => {
-                if opaque(inner) {
+                if opaque(inner,b)? {
                     b.spend(semantic.len().saturating_add(1))?;
                     let mut sem = semantic.to_vec();
                     sem.push(LifeTypeProjection::Pointee);
+                    if !semantic.is_empty() {
+                        let child=crate::tasks::frame_shape::declared_life(self.module,inner,b)?;
+                        let whole=header_map(header,base,map,semantic,child.binder_count,b)?;
+                        let pointee=header_map(header,base,map,&sem,child.binder_count,b)?;
+                        b.spend(whole.len().saturating_add(pointee.len()))?;
+                        if whole!=pointee{return Err(bad("Task captured Managed child changes its complete transparent class indices"));}
+                    }
                     self.header_node(
                         inner,
                         header,
@@ -630,18 +641,21 @@ fn empty_domain(count: u32) -> StorageLifeShape {
         nominal_arguments: vec![],
     }
 }
-fn opaque(mut ty: &Type) -> bool {
-    while let Type::BorrowedStorage { storage, .. } = ty {
+fn opaque(mut ty: &Type,b:&mut Budget) -> Check<bool> {
+    let mut depth=0usize;
+    while let Type::BorrowedStorage { storage, .. } | Type::Managed(storage) = ty {
+        b.spend(1)?;depth+=1;
+        if depth>b.limits.max_call_depth.min(128){return Err(limit("Task transparent port boundary nesting exceeded"));}
         ty = storage;
     }
-    matches!(
+    Ok(matches!(
         ty,
         Type::Task { .. }
             | Type::MutexGuard { .. }
             | Type::Dyn { .. }
             | Type::OwnedDyn { .. }
             | Type::Closure(_)
-    )
+    ))
 }
 fn boundary(
     life: &StorageLifeShape,

@@ -599,6 +599,17 @@ impl CheckedContext {
                 binder: *binder,
             });
         }
+        // A whole child occurrence does not replace an ordinary wrapper's
+        // own complete descendants. Keep every original local index under
+        // the new prefix; an opaque child retains its own separate scope.
+        if !matches!(child.ty,Type::BorrowedStorage{..}|Type::Closure(_)|Type::Task{..}|Type::MutexGuard{..}|Type::Dyn{..}|Type::OwnedDyn{..}) {
+            for row in &child.life.retained {
+                b.spend(prefix.len().saturating_add(row.path.len()).saturating_add(1))?;
+                let mut path=prefix.clone();path.extend_from_slice(&row.path);
+                let binder=*map.get(row.binder as usize).ok_or_else(||bad("constructed child descendant escapes its complete original class map"))?;
+                parent.life.retained.push(StorageRetainedBinding{path,class:row.class,binder});
+            }
+        }
         for row in &child.life.nominal_arguments {
             let mut path = prefix.clone();
             path.extend_from_slice(&row.path);
@@ -764,5 +775,53 @@ impl CheckedContext {
             declaration: recipe.declaration,
             arguments,
         })
+    }
+}
+
+#[cfg(test)]
+mod constructed_task_descendant_tests {
+    use super::*;
+    #[test]
+    fn error_union_preserves_every_task_wrapper_occurrence_without_merging_equal_images_raw_wire(){
+        let limits=Limits::default();
+        let(base,_)=zil_ir::wire::decode_module_candidate(include_bytes!("fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+        let context=CheckedContext::catalogue(&base,&mut Budget::new(&limits)).unwrap();
+        let scope=ScopeKey::Instance(base.semantic.as_ref().unwrap().instances[0].id);
+        let environment=EvalEnv{lexical:vec![],assumptions:vec![],images:vec![],bounds:vec![],invocations:vec![],at:None};
+        let leaf=Type::Address{mutable:true,inner:Box::new(Type::I32)};
+        let task=Type::Task{result:Box::new(Type::I32),retained_life:RetainedLifeShape{
+            binder_count:2,ports:vec![RetainedBorrowPort{leaf:leaf.clone(),mode:StoredBorrowMode::ExclusiveAddress,binder:1}],
+            retained:(0..2).map(|class|StorageRetainedBinding{path:vec![LifeTypeProjection::Parameter(0)],class,binder:class}).collect(),
+            nominal_arguments:vec![NominalLifeArgument{path:vec![LifeTypeProjection::Parameter(0)],declaration:zil_ir::builtin_life::OPTION,argument:0,binder:0}],
+        }};
+        let owner=Type::Managed(Box::new(task));
+        for ty in [owner.clone(),Type::Address{mutable:true,inner:Box::new(owner.clone())},Type::Desc(Box::new(owner.clone())),Type::Managed(Box::new(owner))] {
+            let mut module=base.clone();module.functions[0].values.push(ty);
+            let bytes=zil_ir::wire::encode_module_candidate(&module,&CandidatePlan::empty_for(&module),&limits).unwrap();
+            let(wire,_)=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap();
+            for actual in [&module,&wire]{
+                let ty=actual.functions[0].values.last().unwrap();let mut b=Budget::new(&limits);
+                let life=crate::tasks::frame_shape::declared_life(actual,ty,&mut b).unwrap();let count=life.binder_count;
+                let image=ClassKey::Formal{scope,ordinal:0};
+                // Synthetic metadata facts: different intrinsic child indices
+                // have equal outside images. No target or actual loan follows.
+                let child=CheckedType{type_cell:CheckedTypeData::new(ty.clone()),life:life.clone(),classes:vec![image;count as usize],origins:(0..count).map(|class|IntrinsicOrigin::Existing{scope,operand:OperandKey::Receiver,path:vec![],class}).collect(),statics:vec![]};
+                let mut parent=CheckedType{type_cell:CheckedTypeData::new(Type::ErrorUnion{error:Box::new(Type::Unit),result:Box::new(ty.clone())}),life:empty_life(),classes:vec![],origins:vec![],statics:vec![]};
+                let prefix=LifeTypeProjection::Place(PlaceProjection::ErrorArm(false));
+                context.attach_child(&environment,&mut parent,&child,vec![prefix],Some(PlaceProjection::ErrorArm(false)),&mut b).unwrap();
+                parent.life.binder_count=parent.classes.len() as u32;
+                assert_eq!(parent.life.binder_count,count);assert_eq!(parent.origins,child.origins);
+                assert_eq!(parent.life.retained.len(),count as usize+child.life.retained.len());
+                for row in &child.life.retained{let mut path=vec![prefix];path.extend_from_slice(&row.path);assert!(parent.life.retained.contains(&StorageRetainedBinding{path,class:row.class,binder:row.binder}));}
+                let ports=task_domains::raw_input_ports(actual,&parent.ty,&parent.life,&mut b).unwrap();
+                let expected_class=if matches!(ty,Type::Address{..}|Type::Desc(_)){2}else{1};
+                assert!(ports.iter().any(|(actual_leaf,mode,class,path)|actual_leaf==&leaf&&*mode==StoredBorrowMode::ExclusiveAddress&&*class==expected_class&&path.as_slice()==[ContractProjection::Place(PlaceProjection::ErrorArm(false)),ContractProjection::RetainedPort(0)]));
+                for attack in 0..3{
+                    let mut forged=parent.life.clone();let end=forged.retained.len();
+                    match attack{0=>{forged.retained.pop();},1=>{forged.retained[end-1].binder=forged.retained[end-2].binder;},2=>{let binder=forged.retained[end-1].binder;forged.retained[end-1].binder=forged.retained[end-2].binder;forged.retained[end-2].binder=binder;},_=>unreachable!()}
+                    assert!(task_domains::raw_input_ports(actual,&parent.ty,&forged,&mut b).is_err(),"wrapper child attack {attack} cannot use equal images to omit, coalesce or swap κ");
+                }
+            }
+        }
     }
 }
