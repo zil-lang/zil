@@ -161,8 +161,6 @@ fn old_run_with_replacements(
         summaries,
         partial,
         replacements,
-        address_replacement_tags,
-        owned_creation: false,
         tagged_locals,
         tag_cache: (partial && indexed_invalidation(budget))
             .then(|| std::cell::RefCell::new(tag_cache::Cache::new(f))),

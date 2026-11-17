@@ -59,8 +59,6 @@ struct EntrySnapshot {
     partial: bool,
     place_meta: bool,
     tagged_locals: Option<Vec<usize>>,
-    address_replacement_tags: bool,
-    owned_creation: bool,
 }
 fn entry_snapshot(entry: &Entry<'_>) -> EntrySnapshot {
     EntrySnapshot {
@@ -78,8 +76,6 @@ fn entry_snapshot(entry: &Entry<'_>) -> EntrySnapshot {
         partial: entry.plan.partial,
         place_meta: entry.plan.place_meta.is_some(),
         tagged_locals: entry.plan.tagged_locals.clone(),
-        address_replacement_tags: entry.plan.address_replacement_tags,
-        owned_creation: entry.plan.owned_creation,
     }
 }
 #[derive(Debug, PartialEq, Eq)]

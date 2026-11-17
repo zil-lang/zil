@@ -753,8 +753,6 @@ fn flow<'m>(
         summaries,
         partial: true,
         replacements: None,
-        address_replacement_tags: false,
-        owned_creation: false,
         tagged_locals: tagged.then(|| (0..f.locals.len()).collect()),
         tag_cache: indexed_invalidation(&budget(profile, 1_000_000))
             .then(|| std::cell::RefCell::new(tag_cache::Cache::new(f))),
