@@ -487,7 +487,14 @@ fn analyze_budgeted_context(
                         actual_holds[index][value] = stored.clone();
                     }
                 }
-            } else if budget.task_sources() || budget.composition_stored[index] {
+            } else if budget.task_sources()
+                || budget.composition_stored.is_empty()
+                || budget.composition_stored.get(index).copied()
+                    .ok_or_else(|| bad("stored composition proof omitted function coverage"))?
+            {
+                // An empty composition mask means the complete stored solver
+                // checked every function. Operation-only modules reach this
+                // merge after their separate ordinary cleanup proof as well.
                 if rows.len() != module.functions[index].values.len() {
                     return Err(bad("stored composition solver omitted an owned function"));
                 }
