@@ -1,9 +1,9 @@
 {
   "schema": "zil.native-direct-firstedit-result.v10",
-  "source": "7bc2bc0d8fad62092cd9a1addf2be48821837998",
-  "binary_sha256": "536fcc9909bdf5e868768931d3e04a7ed871a6131c06040c356f3e4ce2630508",
+  "source": "15f858c4ce183fedee9eb3a46082b4ee74ee404b",
+  "binary_sha256": "0bc88ec30978d8f3869354fca77747372bfbd9a7828008111ed0fde8dacbb0ee",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "result": "NoGo: first-edit target unmet; ordinaryCLI C1890.425/Rust1141.811ms; all6pairsfaster=False; comprehensive goal remains open.",
+  "result": "NoGo: first-edit target unmet; ordinaryCLI C1796.207/Rust1238.061ms; all6pairsfaster=False; comprehensive goal remains open.",
   "scope": "5105functions/102files; actualmain/candidate/Rust; fullO2/CGU16/compilerjobs1; SDK18/native-link reused, noLLVMrebuild; explicit default-off research flags and host-jemalloc.",
   "execution_complete": true,
   "functional_quality_valid": true,
@@ -19,20 +19,20 @@
   },
   "compile_median_ms": {
     "cold": {
-      "candidate": 3463.705288,
-      "rust": 6582.309095500001
+      "candidate": 3270.9233480000003,
+      "rust": 6154.448856
     },
     "unchanged": {
-      "candidate": 58.5296405,
-      "rust": 25.411745500000002
+      "candidate": 109.76647,
+      "rust": 22.4452995
     },
     "private-001": {
-      "candidate": 1599.0015195,
-      "rust": 1386.3974389999998
+      "candidate": 1739.0862204999999,
+      "rust": 1445.6581715
     },
     "recovery": {
-      "candidate": 1967.1633965,
-      "rust": 5778.311153500001
+      "candidate": 1989.996701,
+      "rust": 5898.5681325000005
     }
   },
   "ordinary_cli": {
@@ -41,41 +41,41 @@
     "blocks": 6,
     "first_edit_pairs_ms": [
       {
-        "candidate": 1921.348174,
-        "rust": 1003.188999
+        "candidate": 2268.5122,
+        "rust": 1729.099337
       },
       {
-        "candidate": 1719.948372,
-        "rust": 1395.866048
+        "candidate": 1232.588115,
+        "rust": 1246.904712
       },
       {
-        "candidate": 1932.115357,
-        "rust": 1137.611354
+        "candidate": 1832.118169,
+        "rust": 1384.304415
       },
       {
-        "candidate": 1508.43656,
-        "rust": 1351.489711
+        "candidate": 1736.391125,
+        "rust": 976.316553
       },
       {
-        "candidate": 1859.501729,
-        "rust": 1146.01074
+        "candidate": 1760.29613,
+        "rust": 976.391084
       },
       {
-        "candidate": 1938.151521,
-        "rust": 990.423745
+        "candidate": 2104.304783,
+        "rust": 1229.218121
       }
     ],
     "candidate_faster_in_every_first_edit_pair": false,
     "median_ms": {
       "cold": {
-        "baseline": 505.4369855,
-        "candidate": 3209.1675225,
-        "rust": 6678.3620654999995
+        "baseline": 528.606162,
+        "candidate": 2715.801643,
+        "rust": 6352.213339
       },
       "private-001": {
-        "baseline": 589.0111655000001,
-        "candidate": 1890.4249515000001,
-        "rust": 1141.811047
+        "baseline": 566.6687105000001,
+        "candidate": 1796.2071495,
+        "rust": 1238.0614165000002
       }
     },
     "clock": "ordinary CLI launch through process exit; default session capacity; no diagnostic flags",
@@ -85,20 +85,20 @@
   },
   "runtime_ms": {
     "5105/cold": {
-      "candidate": 33.9769635,
-      "rust": 192.718708
+      "candidate": 31.217326999999997,
+      "rust": 190.63201700000002
     },
     "5105/unchanged": {
-      "candidate": 32.773967,
-      "rust": 203.022471
+      "candidate": 32.212877500000005,
+      "rust": 193.475593
     },
     "5105/private-001": {
-      "candidate": 35.843442499999995,
-      "rust": 207.8680255
+      "candidate": 33.448847,
+      "rust": 196.77203150000003
     },
     "5105/recovery": {
-      "candidate": 33.861172999999994,
-      "rust": 191.1340055
+      "candidate": 32.085559,
+      "rust": 185.1607475
     }
   },
   "disk_accounting": "Peak of simultaneous per-arm totals in original globally inode-deduplicated snapshots; physical=st_blocks*512; excludes SDK, host build and research evidence; boundary peaks not transient peak.",
@@ -106,8 +106,8 @@
     {
       "block": 0,
       "candidate": {
-        "logical_bytes": 29505034,
-        "physical_bytes": 30019584
+        "logical_bytes": 29544957,
+        "physical_bytes": 30048256
       },
       "rust": {
         "logical_bytes": 76553667,
@@ -117,12 +117,12 @@
     {
       "block": 1,
       "candidate": {
-        "logical_bytes": 29465904,
+        "logical_bytes": 29464411,
         "physical_bytes": 29966336
       },
       "rust": {
-        "logical_bytes": 61371066,
-        "physical_bytes": 61554688
+        "logical_bytes": 61371067,
+        "physical_bytes": 61546496
       }
     }
   ],
@@ -130,66 +130,66 @@
     {
       "block": 0,
       "candidate": {
-        "logical_bytes": 27983513,
-        "physical_bytes": 28471296
+        "logical_bytes": 27984222,
+        "physical_bytes": 28459008
       },
       "rust": {
-        "logical_bytes": 60994380,
+        "logical_bytes": 60994590,
         "physical_bytes": 61153280
       }
     },
     {
       "block": 1,
       "candidate": {
-        "logical_bytes": 27964761,
-        "physical_bytes": 28438528
+        "logical_bytes": 28048151,
+        "physical_bytes": 28524544
       },
       "rust": {
-        "logical_bytes": 60994380,
+        "logical_bytes": 60994590,
         "physical_bytes": 61153280
       }
     },
     {
       "block": 2,
       "candidate": {
-        "logical_bytes": 27981004,
-        "physical_bytes": 28459008
+        "logical_bytes": 27989070,
+        "physical_bytes": 28467200
       },
       "rust": {
-        "logical_bytes": 60994380,
+        "logical_bytes": 60994589,
         "physical_bytes": 61153280
       }
     },
     {
       "block": 3,
       "candidate": {
-        "logical_bytes": 28005661,
-        "physical_bytes": 28483584
+        "logical_bytes": 28011977,
+        "physical_bytes": 28487680
       },
       "rust": {
-        "logical_bytes": 60994380,
+        "logical_bytes": 60994589,
         "physical_bytes": 61153280
       }
     },
     {
       "block": 4,
       "candidate": {
-        "logical_bytes": 28000394,
-        "physical_bytes": 28483584
+        "logical_bytes": 28000290,
+        "physical_bytes": 28475392
       },
       "rust": {
-        "logical_bytes": 60994380,
+        "logical_bytes": 60994590,
         "physical_bytes": 61153280
       }
     },
     {
       "block": 5,
       "candidate": {
-        "logical_bytes": 27990055,
-        "physical_bytes": 28471296
+        "logical_bytes": 28012140,
+        "physical_bytes": 28487680
       },
       "rust": {
-        "logical_bytes": 60994380,
+        "logical_bytes": 60994590,
         "physical_bytes": 61153280
       }
     }
@@ -233,14 +233,14 @@
       "valid": true,
       "test_results": []
     },
-    "expand": {
+    "ir": {
       "command": [
         "cargo",
         "test",
         "--locked",
         "--offline",
         "-p",
-        "zil-expand",
+        "zil-ir",
         "--lib"
       ],
       "exit_code": 0,
@@ -248,7 +248,7 @@
       "test_results": [
         [
           "ok",
-          "151",
+          "95",
           "0",
           "0"
         ]
@@ -273,7 +273,7 @@
       "test_results": [
         [
           "ok",
-          "399",
+          "402",
           "0",
           "0"
         ]
@@ -294,27 +294,6 @@
       "exit_code": 0,
       "valid": true,
       "test_results": []
-    },
-    "types": {
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "zil-types",
-        "--lib"
-      ],
-      "exit_code": 0,
-      "valid": true,
-      "test_results": [
-        [
-          "ok",
-          "134",
-          "0",
-          "0"
-        ]
-      ]
     },
     "strict": {
       "command": [
@@ -377,231 +356,288 @@
     }
   },
   "source_review": {
-    "source": "7bc2bc0d8fad62092cd9a1addf2be48821837998",
-    "reviewer": "gpt-6-astra",
-    "verdict": "PASS source review; no blockers; not performance acceptance",
-    "scope": "All20 production/test files since43e19dea; final test-only strict-lint fix included, production identical164475f92.",
+    "source": "15f858c4ce183fedee9eb3a46082b4ee74ee404b",
+    "reviewer": "Astra — independent source review",
+    "verdict": "PASS",
+    "scope": {
+      "base": "7285f97b0bda17ae150fd61d626b482e283c1cb8",
+      "files": [
+        "crates/zil-backend-llvm/src/emit/raw_products.rs",
+        "crates/zil-backend-llvm/src/emit/raw_codec.rs",
+        "crates/zil-backend-llvm/src/emit/raw_products_tests.rs",
+        "crates/zil-ir/src/wire.rs"
+      ],
+      "binding": "Frozen four-file diff exactly matches the final reviewed diff; working files match HEAD."
+    },
     "preserved": [
-      "Current Analyze complete binding, per-row fees, decode budgets, exact live owner relationships",
-      "Current class dependencies/COW invalidation and runtime consumers",
-      "Complete original preflight beforeprune and cancellation beforecommit",
-      "Physical checkedkeys and logical dictionary boundaries; complete current envelope/payload comparison",
-      "Independent Verify, original budgets, success-only publication"
+      "Checked same-owner byte ranges retain immutable backing storage throughout borrowed decoding and pending publication.",
+      "Borrowed decoding preserves exact consumption, remaining-node accounting, byte limits and failure behavior.",
+      "Scatter serialization preserves the wire schema, byte order and complete SHA-256; repeated views retain full logical byte charges under the original 16 MiB aggregate cap.",
+      "Existing-payload reuse compares complete current bytes and EOF, with underlying reads bounded to length plus one; permissions, no-follow and opened-inode checks remain.",
+      "Publication checks total written length, flushes and syncs before rename, and publishes the manifest last through the existing success-only commit path.",
+      "Current semantic and machine checks, independent Verify and optimization policy remain unchanged."
     ],
-    "tests_by_reviewer": false
+    "blockers": [],
+    "tests_by_reviewer": false,
+    "performance_claim": false
   },
-  "raw": "out/runs/direct-firstedit-performance-direct-30",
-  "paired_phase_diagnostic": "out/runs/paired-firstedit-phases-30/current.json",
+  "raw": "out/runs/direct-firstedit-performance-direct-31",
   "changes": [
-    "Current canonical shared bodies flow into Analyze restoration: complete nonsensitive columns compared once per immutable owner pair, each current header and original fee remain. Raw wire expansion per alias removed.",
-    "Current normalized machine classes classified once per strong normalized owner. Complete actual original machine preflight before closed graph pruning; temporary linkage model clone and restore removed. Runtime absence observations reach actual emitter and linker consumers.",
-    "Packed publication binds actual immutable item bytes once, revalidates complete current envelope and payload against checked snapshot, avoiding repeated allocation and hashing; stale payload bytes and races still checked.",
-    "Frontend raw scalar enum decoding constructs selected value only, bounded list reservation and current Types traversal scratch storage reused; original budgets and error precedence retained."
+    "One immutable checked raw-file owner supplies all bounded record and machine-product views; restore does not copy every blob or allocate unused wire ownership.",
+    "Original bounded function decoder consumes borrowed fragments with the same remaining aggregate node limit and exact EOF.",
+    "Pending cache publication retains immutable byte segments, hashes and writes the identical wire stream through bounded buffers; removes full payload concatenation and repeated growth/copies. Same complete payload comparisons, byte cap, file guards and manifest-last transaction."
   ],
   "remaining": [
     "OrdinaryCLI firstedit still fails target. Do not claim success based on cache reductions or local counters.",
+    "Same work counters still exhibit hundreds-of-ms phase/process-exit variation. Exact cause is unproven; do not attribute it to fsync/purge from a fast diagnostic sample, or infer regression causality from cross-window clocks.",
     "All conclusions limited to measured5105function102file directrestartfirstedit chain; original budgets/Verify/fullO2 remain.",
     "Actualmain originalResourceLimit, industrial multicrate/procmacro/build.rs/minute-scale and comprehensive compile goal remain unproven."
   ],
-  "previous_result": "window29.json",
+  "previous_result": "window30.json",
   "ordinary_cli_phase_samples": [
     {
       "block": 0,
-      "wall_ms": 1921.348174,
-      "reported_ms": 1792.680035,
+      "wall_ms": 2268.5122,
+      "reported_ms": 2141.940826,
       "phase_ms": {
-        "parse": 0.119462,
-        "expand": 94.761927,
-        "types": 84.280896,
-        "analyze": 44.578508,
-        "verify": 89.812289,
-        "lower": 21.039393,
-        "codegen": 1035.110182,
-        "ct": 51.117273
+        "parse": 0.411474,
+        "expand": 99.273527,
+        "types": 80.119715,
+        "analyze": 98.785633,
+        "verify": 617.244695,
+        "lower": 8.002382,
+        "codegen": 760.013222,
+        "ct": 53.102315
       },
       "backend_ms": {
-        "machine_ns": 773.353512,
-        "machine_emit_ns": 639.074985,
-        "machine_transform_ns": 132.969424,
-        "transform_ranges_ns": 16.921059,
-        "transform_checked_add_ns": 1.706473,
-        "transform_scalar_ns": 2.072407,
-        "transform_call_classes_ns": 110.860254,
-        "transform_purity_ns": 0.50875,
-        "machine_preflight_ns": 35.081425,
-        "partition_ns": 13.949162,
-        "diagnostic_ns": 11.64864,
-        "object_ns": 149.062221,
-        "link_key_ns": 33.764131,
-        "link_execution_ns": 30.015637,
-        "other_ns": 22.466613,
-        "total_ns": 1034.259916
+        "machine_ns": 529.87996,
+        "machine_emit_ns": 297.34464,
+        "machine_transform_ns": 231.20653,
+        "transform_ranges_ns": 11.884987,
+        "transform_checked_add_ns": 1.134117,
+        "transform_scalar_ns": 2.542368,
+        "transform_call_classes_ns": 213.171877,
+        "transform_purity_ns": 0.378744,
+        "machine_preflight_ns": 44.152185,
+        "partition_ns": 13.344275,
+        "diagnostic_ns": 10.112604,
+        "object_ns": 129.278731,
+        "link_key_ns": 32.329998,
+        "link_execution_ns": 31.880052,
+        "other_ns": 11.955157,
+        "total_ns": 758.780777
       }
     },
     {
       "block": 1,
-      "wall_ms": 1719.948372,
-      "reported_ms": 1600.562164,
+      "wall_ms": 1232.588115,
+      "reported_ms": 1114.096454,
       "phase_ms": {
-        "parse": 0.130638,
-        "expand": 99.777,
-        "types": 99.427261,
-        "analyze": 46.990369,
-        "verify": 97.182338,
-        "lower": 5.958779,
-        "codegen": 764.954969,
-        "ct": 56.489486
+        "parse": 0.115038,
+        "expand": 111.049731,
+        "types": 76.912973,
+        "analyze": 33.286548,
+        "verify": 59.132463,
+        "lower": 3.704486,
+        "codegen": 436.215377,
+        "ct": 49.856235
       },
       "backend_ms": {
-        "machine_ns": 502.609937,
-        "machine_emit_ns": 295.821893,
-        "machine_transform_ns": 205.449358,
-        "transform_ranges_ns": 13.27394,
-        "transform_checked_add_ns": 1.232485,
-        "transform_scalar_ns": 1.312186,
-        "transform_call_classes_ns": 188.032107,
-        "transform_purity_ns": 0.379524,
-        "machine_preflight_ns": 35.50002,
-        "partition_ns": 10.385329,
-        "diagnostic_ns": 8.505352,
-        "object_ns": 124.47869,
-        "link_key_ns": 30.706614,
-        "link_execution_ns": 35.565172,
-        "other_ns": 51.846518,
-        "total_ns": 764.097612
+        "machine_ns": 241.001312,
+        "machine_emit_ns": 121.777984,
+        "machine_transform_ns": 117.813303,
+        "transform_ranges_ns": 13.713575,
+        "transform_checked_add_ns": 1.131923,
+        "transform_scalar_ns": 1.455443,
+        "transform_call_classes_ns": 100.230603,
+        "transform_purity_ns": 0.378173,
+        "machine_preflight_ns": 35.724789,
+        "partition_ns": 18.539099,
+        "diagnostic_ns": 6.560639,
+        "object_ns": 115.08152,
+        "link_key_ns": 28.034248,
+        "link_execution_ns": 18.581401,
+        "other_ns": 7.606811,
+        "total_ns": 435.40503
       }
     },
     {
       "block": 2,
-      "wall_ms": 1932.115357,
-      "reported_ms": 1423.683968,
+      "wall_ms": 1832.118169,
+      "reported_ms": 1719.679126,
       "phase_ms": {
-        "parse": 0.156047,
-        "expand": 196.968691,
-        "types": 91.957069,
-        "analyze": 44.945491,
-        "verify": 94.529403,
-        "lower": 7.782899,
-        "codegen": 579.926501,
-        "ct": 55.170436
+        "parse": 0.18729,
+        "expand": 192.167224,
+        "types": 213.364399,
+        "analyze": 30.194707,
+        "verify": 72.903644,
+        "lower": 5.400904,
+        "codegen": 640.450679,
+        "ct": 51.664941
       },
       "backend_ms": {
-        "machine_ns": 322.924589,
-        "machine_emit_ns": 154.302924,
-        "machine_transform_ns": 166.793117,
-        "transform_ranges_ns": 16.579101,
-        "transform_checked_add_ns": 1.601314,
-        "transform_scalar_ns": 1.893646,
-        "transform_call_classes_ns": 145.194179,
-        "transform_purity_ns": 0.465835,
-        "machine_preflight_ns": 37.985199,
-        "partition_ns": 12.307927,
-        "diagnostic_ns": 9.010705,
-        "object_ns": 125.773418,
-        "link_key_ns": 36.496435,
-        "link_execution_ns": 29.032628,
-        "other_ns": 43.361927,
-        "total_ns": 578.907629
+        "machine_ns": 456.495969,
+        "machine_emit_ns": 272.934274,
+        "machine_transform_ns": 182.22399,
+        "transform_ranges_ns": 12.007281,
+        "transform_checked_add_ns": 1.238303,
+        "transform_scalar_ns": 1.729567,
+        "transform_call_classes_ns": 165.980848,
+        "transform_purity_ns": 0.41621,
+        "machine_preflight_ns": 31.840707,
+        "partition_ns": 10.740405,
+        "diagnostic_ns": 8.648368,
+        "object_ns": 102.848273,
+        "link_key_ns": 25.591781,
+        "link_execution_ns": 17.880469,
+        "other_ns": 17.459034,
+        "total_ns": 639.664299
       }
     },
     {
       "block": 3,
-      "wall_ms": 1508.43656,
-      "reported_ms": 1392.236237,
+      "wall_ms": 1736.391125,
+      "reported_ms": 1623.671761,
       "phase_ms": {
-        "parse": 0.184875,
-        "expand": 100.904374,
-        "types": 100.568357,
-        "analyze": 35.160141,
-        "verify": 70.649819,
-        "lower": 4.874058,
-        "codegen": 613.590347,
-        "ct": 49.510888
+        "parse": 0.136301,
+        "expand": 107.583922,
+        "types": 189.372484,
+        "analyze": 32.718548,
+        "verify": 75.145778,
+        "lower": 4.685121,
+        "codegen": 629.894067,
+        "ct": 46.281835
       },
       "backend_ms": {
-        "machine_ns": 391.078168,
-        "machine_emit_ns": 188.838316,
-        "machine_transform_ns": 200.942628,
-        "transform_ranges_ns": 12.513051,
-        "transform_checked_add_ns": 1.272386,
-        "transform_scalar_ns": 1.267609,
-        "transform_call_classes_ns": 184.515263,
-        "transform_purity_ns": 0.410682,
-        "machine_preflight_ns": 33.556242,
-        "partition_ns": 10.865618,
-        "diagnostic_ns": 7.205557,
-        "object_ns": 103.769346,
-        "link_key_ns": 26.513102,
-        "link_execution_ns": 23.304601,
-        "other_ns": 49.674649,
-        "total_ns": 612.411041
+        "machine_ns": 407.702062,
+        "machine_emit_ns": 221.169897,
+        "machine_transform_ns": 185.253429,
+        "transform_ranges_ns": 11.948664,
+        "transform_checked_add_ns": 1.187287,
+        "transform_scalar_ns": 1.047745,
+        "transform_call_classes_ns": 169.898521,
+        "transform_purity_ns": 0.391242,
+        "machine_preflight_ns": 30.43529,
+        "partition_ns": 10.201651,
+        "diagnostic_ns": 14.097154,
+        "object_ns": 120.22311,
+        "link_key_ns": 31.932578,
+        "link_execution_ns": 26.718477,
+        "other_ns": 18.264784,
+        "total_ns": 629.139816
       }
     },
     {
       "block": 4,
-      "wall_ms": 1859.501729,
-      "reported_ms": 1742.390598,
+      "wall_ms": 1760.29613,
+      "reported_ms": 1616.398708,
       "phase_ms": {
-        "parse": 0.121073,
-        "expand": 96.069806,
-        "types": 81.217908,
-        "analyze": 33.016639,
-        "verify": 59.240227,
-        "lower": 2.799206,
-        "codegen": 1072.417183,
-        "ct": 51.636278
+        "parse": 0.120695,
+        "expand": 115.467194,
+        "types": 200.910588,
+        "analyze": 38.743476,
+        "verify": 56.184132,
+        "lower": 4.870491,
+        "codegen": 477.51204,
+        "ct": 56.609035
       },
       "backend_ms": {
-        "machine_ns": 809.244408,
-        "machine_emit_ns": 652.420935,
-        "machine_transform_ns": 155.318846,
-        "transform_ranges_ns": 14.808392,
-        "transform_checked_add_ns": 1.511227,
-        "transform_scalar_ns": 1.494843,
-        "transform_call_classes_ns": 135.664781,
-        "transform_purity_ns": 0.870648,
-        "machine_preflight_ns": 34.879311,
-        "partition_ns": 14.327974,
-        "diagnostic_ns": 9.71941,
-        "object_ns": 144.94096,
-        "link_key_ns": 37.541437,
-        "link_execution_ns": 33.097771,
-        "other_ns": 22.499081,
-        "total_ns": 1071.371041
+        "machine_ns": 276.333908,
+        "machine_emit_ns": 132.757547,
+        "machine_transform_ns": 142.246248,
+        "transform_ranges_ns": 14.134071,
+        "transform_checked_add_ns": 1.460941,
+        "transform_scalar_ns": 1.353568,
+        "transform_call_classes_ns": 123.663574,
+        "transform_purity_ns": 0.4626,
+        "machine_preflight_ns": 37.128603,
+        "partition_ns": 11.095583,
+        "diagnostic_ns": 8.040559,
+        "object_ns": 117.234047,
+        "link_key_ns": 26.636954,
+        "link_execution_ns": 19.523438,
+        "other_ns": 17.848161,
+        "total_ns": 476.71265
       }
     },
     {
       "block": 5,
-      "wall_ms": 1938.151521,
-      "reported_ms": 1816.0220599999998,
+      "wall_ms": 2104.304783,
+      "reported_ms": 1978.6742080000001,
       "phase_ms": {
-        "parse": 0.463846,
-        "expand": 164.618773,
-        "types": 192.377965,
-        "analyze": 43.081602,
-        "verify": 70.517766,
-        "lower": 3.800252,
-        "codegen": 611.548346,
-        "ct": 45.490318
+        "parse": 0.219089,
+        "expand": 317.821086,
+        "types": 234.515856,
+        "analyze": 44.181775,
+        "verify": 80.808956,
+        "lower": 5.046497,
+        "codegen": 682.761369,
+        "ct": 60.989822
       },
       "backend_ms": {
-        "machine_ns": 373.267653,
-        "machine_emit_ns": 188.428768,
-        "machine_transform_ns": 183.333437,
-        "transform_ranges_ns": 11.874261,
-        "transform_checked_add_ns": 1.138554,
-        "transform_scalar_ns": 1.253567,
-        "transform_call_classes_ns": 167.875521,
-        "transform_purity_ns": 0.381327,
-        "machine_preflight_ns": 33.511649,
-        "partition_ns": 10.225826,
-        "diagnostic_ns": 10.47258,
-        "object_ns": 112.549718,
-        "link_key_ns": 29.192902,
-        "link_execution_ns": 24.867094,
-        "other_ns": 50.031598,
-        "total_ns": 610.607371
+        "machine_ns": 468.458585,
+        "machine_emit_ns": 254.257223,
+        "machine_transform_ns": 212.91836,
+        "transform_ranges_ns": 15.634471,
+        "transform_checked_add_ns": 1.340368,
+        "transform_scalar_ns": 1.457596,
+        "transform_call_classes_ns": 188.340073,
+        "transform_purity_ns": 0.422369,
+        "machine_preflight_ns": 38.974552,
+        "partition_ns": 11.317818,
+        "diagnostic_ns": 7.473941,
+        "object_ns": 121.183999,
+        "link_key_ns": 26.915794,
+        "link_execution_ns": 38.723073,
+        "other_ns": 7.85564,
+        "total_ns": 681.92885
       }
     }
-  ]
+  ],
+  "diagnostic_only": {
+    "source": "15f858c4ce183fedee9eb3a46082b4ee74ee404b",
+    "raw": "out/runs/native-direct-syscalls-31",
+    "method": "Fresh own-child cold -> exit -> private001, strace seccomp-bpf fsync/fdatasync/madvise only; profile-compilation enabled. Not formal timing/ratio.",
+    "syscall_count": {
+      "madvise": 68,
+      "fsync": 13
+    },
+    "syscall_ms": {
+      "madvise": 13.291,
+      "fsync": 12.335999999999997
+    },
+    "finding": "This sample did not reproduce the hundreds-of-ms spikes. No fsync/allocator policy change justified by these small observed costs."
+  },
+  "ordinary_cli_phase_median_ms": {
+    "note": "Each phase median computed separately; nested backend fields are not additive and these are not paired Rust phase equivalents.",
+    "phases": {
+      "parse": 0.1617955,
+      "expand": 113.25846250000001,
+      "types": 195.14153599999997,
+      "analyze": 36.015012,
+      "verify": 74.024711,
+      "lower": 4.958494,
+      "codegen": 635.172373,
+      "ct": 52.383628
+    },
+    "backend": {
+      "machine_ns": 432.0990155,
+      "machine_emit_ns": 237.71356,
+      "machine_transform_ns": 183.7387095,
+      "transform_ranges_ns": 12.860428,
+      "transform_checked_add_ns": 1.2127949999999998,
+      "transform_scalar_ns": 1.4565195,
+      "transform_call_classes_ns": 167.9396845,
+      "transform_purity_ns": 0.40372600000000003,
+      "machine_preflight_ns": 36.426696,
+      "partition_ns": 11.2067005,
+      "diagnostic_ns": 8.3444635,
+      "object_ns": 118.7285785,
+      "link_key_ns": 27.475021,
+      "link_execution_ns": 23.1209575,
+      "other_ns": 14.7070955,
+      "total_ns": 634.4020575
+    },
+    "process_minus_report": 122.06111799999996
+  }
 }
