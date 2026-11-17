@@ -864,9 +864,16 @@ impl Eval<'_, '_, '_> {
             )?;
             inference::charge_type_snapshot(hint, Span::default(), self.limits, self.left, 1)?;
             if hint != actual_result {
-                return Err(bad(
+                let mut diagnostic = bad(
                     "original result alias changes the actual call's whole result type",
+                );
+                diagnostic.notes.push(format!(
+                    "original result alias boundary: caller {caller:?}, original call {:?}, callee {:?}, actual target {target:?}, block {block:?}, instruction {instruction}, result {output:?}",
+                    boundary.call, boundary.callee
                 ));
+                diagnostic.notes.push(format!("actual alias type: {hint:?}"));
+                diagnostic.notes.push(format!("actual call result type: {actual_result:?}"));
+                return Err(diagnostic);
             }
         }
         let hint = Some(actual_result);
