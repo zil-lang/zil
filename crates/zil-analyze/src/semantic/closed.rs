@@ -2,11 +2,11 @@
 //! Empty metadata never selects a proof: the complete type, original signature,
 //! creator, occurrence and operation inventories must independently agree.
 use super::*;
-mod call_regions;
 mod abstract_calls;
 mod borrow_places;
 mod borrows;
 mod buffers;
+mod call_regions;
 mod callable_roles;
 mod capabilities;
 mod capture_creators;
@@ -61,6 +61,9 @@ struct Check<'a, 'i> {
     original: &'i original::Checked,
     scope_queries: std::cell::RefCell<BTreeSet<ClosureId>>,
     value_queries: std::cell::RefCell<BTreeSet<(SemanticInstanceId, ValueId)>>,
+    slot_queries: std::cell::RefCell<
+        BTreeMap<(SemanticInstanceId, FunctionId, LocalId), Option<value::Value>>,
+    >,
     trait_queries: std::cell::RefCell<Vec<traits::ActiveQuery>>,
     nominal_definitions: std::cell::RefCell<BTreeMap<LifeDeclarationId, SemanticDefinitionId>>,
 }
@@ -107,10 +110,7 @@ impl Check<'_, '_> {
             ));
         }
         b.lookup(self.inventory.sealed_byte_buffers.borrow().len(), WORK)?;
-        self.inventory
-            .sealed_byte_buffers
-            .borrow_mut()
-            .insert(key);
+        self.inventory.sealed_byte_buffers.borrow_mut().insert(key);
         Ok(())
     }
     fn ordinary_type(&self, ty: &Type, b: &mut Budget) -> CompileResult<()> {
@@ -271,7 +271,9 @@ impl Check<'_, '_> {
         }
         if let Some(domain) = self.task_domain(ty, b)? {
             if domain != *life {
-                return Err(fail("semantic Task type view changes its full original child-domain forest"));
+                return Err(fail(
+                    "semantic Task type view changes its full original child-domain forest",
+                ));
             }
             // A physical type view consumes the same complete directory as
             // actual SSA/environment values. It creates no class equation,
@@ -283,7 +285,9 @@ impl Check<'_, '_> {
         if let Some(domain) = self.dyn_value_domain(ty, b, 0)? {
             crate::dyn_metadata::shape(&domain.life, b)?;
             if domain.life != *life {
-                return Err(fail("semantic Dyn value changes its complete Context, sum or pointer domain"));
+                return Err(fail(
+                    "semantic Dyn value changes its complete Context, sum or pointer domain",
+                ));
             }
             self.actual_type(ty, b)?;
             crate::dyn_metadata::ty(ty, b)?;
@@ -335,12 +339,16 @@ impl Check<'_, '_> {
                 let expected = value::address(
                     *mutable,
                     value::Class::Local(0),
-                    value::Value::new(inner.as_ref().clone(), StorageLifeShape {
+                    value::Value::new(
+                        inner.as_ref().clone(),
+                        StorageLifeShape {
                             binder_count: 1,
                             slots: Vec::new(),
                             retained: Vec::new(),
                             nominal_arguments: Vec::new(),
-                        }, vec![value::Class::Local(row.binder)]),
+                        },
+                        vec![value::Class::Local(row.binder)],
+                    ),
                     b,
                 )?;
                 if expected.life != *life {
@@ -375,7 +383,8 @@ impl Check<'_, '_> {
             _ => {
                 crate::dyn_metadata::ty(ty, b)?;
                 b.spend(classes.len().saturating_add(192), WORK)?;
-                let mut errors = unknown("semantic value needs its full type/class occurrence reconstruction");
+                let mut errors =
+                    unknown("semantic value needs its full type/class occurrence reconstruction");
                 errors[0].notes.push(format!("physical complete Type {ty:?}; shape {life:?}; classes {classes:?}; consumer {}", std::panic::Location::caller()));
                 return Err(errors);
             }
@@ -643,15 +652,25 @@ impl Check<'_, '_> {
         depth: usize,
     ) -> CompileResult<()> {
         if depth > b.partial_depth {
-            return Err(unknown("actual quantified premises exceed their finite depth"));
+            return Err(unknown(
+                "actual quantified premises exceed their finite depth",
+            ));
         }
         b.spend(requirements.len(), WORK)?;
         for requirement in requirements {
             match requirement {
-                SemanticRequirementRecipe::ForAll { lifetimes, requirements } => {
-                    if *lifetimes != 0 { self.push_value(bounds, *lifetimes, b)?; }
-                    let result = self.quantified_requirements(context, requirements, bounds, b, depth + 1);
-                    if *lifetimes != 0 { bounds.pop(); }
+                SemanticRequirementRecipe::ForAll {
+                    lifetimes,
+                    requirements,
+                } => {
+                    if *lifetimes != 0 {
+                        self.push_value(bounds, *lifetimes, b)?;
+                    }
+                    let result =
+                        self.quantified_requirements(context, requirements, bounds, b, depth + 1);
+                    if *lifetimes != 0 {
+                        bounds.pop();
+                    }
                     result?;
                 }
                 SemanticRequirementRecipe::Structural { ty, bound } => {
@@ -705,7 +724,9 @@ impl Check<'_, '_> {
                     if bounds.is_empty() {
                         self.callable_requirement(context, ty, *kind, signature, b)?;
                     } else {
-                        self.quantified_callable_requirement(context, ty, *kind, signature, bounds, b)?;
+                        self.quantified_callable_requirement(
+                            context, ty, *kind, signature, bounds, b,
+                        )?;
                     }
                 }
                 SemanticRequirementRecipe::TypeEqual { left, right } => {
@@ -935,7 +956,11 @@ impl Check<'_, '_> {
                     match (&formal.kind, value) {
                         (SemanticFormal::Type { requirements }, SemanticActual::Type(value)) => {
                             if let Err(mut errors) = self.value_type(value, b) {
-                                if errors.iter().any(|error| error.category == zil_base::ResultCategory::ResourceLimit) { return Err(errors); }
+                                if errors.iter().any(|error| {
+                                    error.category == zil_base::ResultCategory::ResourceLimit
+                                }) {
+                                    return Err(errors);
+                                }
                                 b.spend(192, WORK)?;
                                 for error in &mut errors {
                                     error.notes.push(format!("actual environment world {}:{} original definition {}:{} function {} parent world {}:{} original source {:?}",
@@ -1066,6 +1091,7 @@ pub(super) fn check(
         original,
         scope_queries: std::cell::RefCell::new(BTreeSet::new()),
         value_queries: std::cell::RefCell::new(BTreeSet::new()),
+        slot_queries: Default::default(),
         trait_queries: std::cell::RefCell::new(Vec::new()),
         nominal_definitions: std::cell::RefCell::new(BTreeMap::new()),
     };
@@ -1154,16 +1180,32 @@ pub(super) fn check(
     }
     for function in &module.functions {
         b.spend(1, WORK)?;
-        if !matches!(function.return_type, Type::Closure(_)) { continue; }
-        let Some(header) = &function.storage_life else { continue; };
+        if !matches!(function.return_type, Type::Closure(_)) {
+            continue;
+        }
+        let Some(header) = &function.storage_life else {
+            continue;
+        };
         for row in &header.classes {
             b.spend(row.position.path.len().saturating_add(1), WORK)?;
-            if row.position.base != StorageBase::Result || !row.position.path.is_empty()
-                || !matches!(row.binder, StorageBinder::Invocation(_)) { continue; }
-            if checker.reference_result_role(function, row.position.class, b, 0)? == Some(row.binder)
-                || checker.input_reference_result_role(function, row.position.class, row.binder, b)? {
+            if row.position.base != StorageBase::Result
+                || !row.position.path.is_empty()
+                || !matches!(row.binder, StorageBinder::Invocation(_))
+            {
+                continue;
+            }
+            if checker.reference_result_role(function, row.position.class, b, 0)?
+                == Some(row.binder)
+                || checker.input_reference_result_role(
+                    function,
+                    row.position.class,
+                    row.binder,
+                    b,
+                )?
+            {
                 b.lookup(b.semantic_reference_results.len(), WORK)?;
-                b.semantic_reference_results.insert((function.id, row.position.class, row.binder));
+                b.semantic_reference_results
+                    .insert((function.id, row.position.class, row.binder));
             }
         }
     }

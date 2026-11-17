@@ -308,6 +308,100 @@ impl Check<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Value> {
+        // Always prove this exact read's initialization and reaching writes,
+        // including when a transfer equation recursively reads the same slot.
+        self.persistent_slot_sources(instance, function, slot, at, b, depth)?;
+        let key = (instance.id, function.id, slot.local);
+        {
+            let active = self.slot_queries.borrow();
+            b.lookup(active.len(), WORK)?;
+            if let Some(seed) = active.get(&key) {
+                return match seed {
+                    Some(seed) => seed.copy(b),
+                    None => Err(unknown(
+                        "persistent slot has a cyclic initializer without an actual seed",
+                    )),
+                };
+            }
+        }
+        {
+            let mut active = self.slot_queries.borrow_mut();
+            b.lookup(active.len(), WORK)?;
+            if active.len() >= b.helper_nodes {
+                return Err(vec![zil_base::Diagnostic::limit(
+                    zil_base::Phase::Analyze,
+                    "persistent slot value equations exceed their finite query limit",
+                    None,
+                )]);
+            }
+            active.insert(key, None);
+        }
+        let result = (|| {
+            // This seed comes from the actual dominating constructor, not the
+            // local's asserted type/class metadata. Mark it only after proof.
+            let seed = self.ssa_value(instance, function, slot.initial, b, depth + 1)?;
+            if !seed.equal_paid(&slot.logical, b)? {
+                return Err(fail(
+                    "persistent slot initial value changes its complete original domain",
+                ));
+            }
+            let copy = seed.copy(b)?;
+            {
+                let mut active = self.slot_queries.borrow_mut();
+                b.lookup(active.len(), WORK)?;
+                active.insert(key, Some(copy));
+            }
+            // Induction over every real refill, not just the current CFG arm.
+            // Recursive reads may use the proved seed only while all these
+            // transfer equations remain required by the enclosing query.
+            for block in &function.blocks {
+                for (index, instruction) in block.instructions.iter().enumerate() {
+                    b.spend(1, WORK)?;
+                    let InstructionKind::StoreOwnedArrayElement {
+                        local,
+                        index: element,
+                        value,
+                    } = instruction.kind
+                    else {
+                        continue;
+                    };
+                    if local != slot.local {
+                        continue;
+                    }
+                    if element != 0 {
+                        return Err(fail("persistent slot refill changes its element selector"));
+                    }
+                    operations::available_before(
+                        function,
+                        (block.id, index, SemanticSiteEdge::Before),
+                        value,
+                        b,
+                    )?;
+                    let incoming = self.ssa_value(instance, function, value, b, depth + 1)?;
+                    if !incoming.equal_paid(&seed, b)? {
+                        return Err(fail(
+                            "persistent slot refill changes its independently seeded whole value",
+                        ));
+                    }
+                }
+            }
+            Ok(seed)
+        })();
+        let mut active = self.slot_queries.borrow_mut();
+        // No provisional seed survives its complete proof transaction.
+        active.remove(&key);
+        result
+    }
+
+    fn persistent_slot_sources(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        slot: &Slot,
+        at: (BlockId, usize),
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<BTreeSet<ValueId>> {
         b.spend(1, WORK)?;
         if function.id != slot.function || instance.id != slot.instance {
             return Err(fail(
@@ -321,7 +415,7 @@ impl Check<'_, '_> {
         let initialization = crate::shared_initialization(function, b)?;
         let mut pending = vec![at];
         let mut seen = BTreeSet::new();
-        let mut selected: Option<Value> = None;
+        let mut selected = BTreeSet::new();
         while let Some((block, end)) = pending.pop() {
             b.lookup(seen.len(), WORK)?;
             if !seen.insert((block, end)) {
@@ -384,20 +478,17 @@ impl Check<'_, '_> {
                 }
             }
             if let Some(source) = source {
-                let value = self.ssa_value(instance, function, source, b, depth + 1)?;
-                if !value.equal_paid(&slot.logical, b)? {
+                let actual = function
+                    .values
+                    .get(source.0 as usize)
+                    .ok_or_else(|| fail("persistent slot source has no complete actual type"))?;
+                if !geometry::same_type(actual, &slot.logical.ty, b)? {
                     return Err(fail(
-                        "persistent slot write changes its complete original child domain",
+                        "persistent slot reaching write changes its complete child type",
                     ));
                 }
-                if let Some(old) = &selected {
-                    if !old.equal_paid(&value, b)? {
-                        return Err(fail(
-                            "persistent slot join changes its complete child classes",
-                        ));
-                    }
-                }
-                selected = Some(value);
+                b.lookup(selected.len(), WORK)?;
+                selected.insert(source);
                 continue;
             }
             if block == function.entry {
@@ -420,7 +511,12 @@ impl Check<'_, '_> {
                 return Err(fail("persistent slot read has no initialized predecessor"));
             }
         }
-        selected.ok_or_else(|| fail("persistent slot cycle has no initialized element origin"))
+        if selected.is_empty() {
+            return Err(fail(
+                "persistent slot cycle has no initialized element origin",
+            ));
+        }
+        Ok(selected)
     }
 
     /// Physical shell geometry preserves the whole child forest, including

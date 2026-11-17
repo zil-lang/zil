@@ -1447,7 +1447,8 @@ impl Check<'_, '_> {
         b: &mut Budget,
     ) -> CompileResult<()> {
         let prefix = LifeTypeProjection::Place(selector);
-        let binder = |index: u32| {
+        let binder = |index: u32, b: &mut Budget| {
+            b.lookup(direct.len(), WORK)?;
             direct
                 .get(&index)
                 .copied()
@@ -1465,7 +1466,7 @@ impl Check<'_, '_> {
                 &mut expected.slots,
                 StorageLifeSlot {
                     path,
-                    binder: binder(row.binder)?,
+                    binder: binder(row.binder, b)?,
                     mode: row.mode,
                 },
                 b,
@@ -1481,7 +1482,7 @@ impl Check<'_, '_> {
                 StorageRetainedBinding {
                     path,
                     class: row.class,
-                    binder: binder(row.binder)?,
+                    binder: binder(row.binder, b)?,
                 },
                 b,
             )?;
@@ -1497,7 +1498,7 @@ impl Check<'_, '_> {
                     path,
                     declaration: row.declaration,
                     argument: row.argument,
-                    binder: binder(row.binder)?,
+                    binder: binder(row.binder, b)?,
                 },
                 b,
             )?;
@@ -1603,10 +1604,13 @@ impl Check<'_, '_> {
         let mut direct = BTreeMap::new();
         for row in &parent.life.retained {
             b.spend(row.path.len().saturating_add(1), WORK)?;
-            if row.path.as_slice() == [prefix] && direct.insert(row.class, row.binder).is_some() {
-                return Err(fail(
-                    "closure child repeats a complete intrinsic occurrence",
-                ));
+            if row.path.as_slice() == [prefix] {
+                b.lookup(direct.len(), WORK)?;
+                if direct.insert(row.class, row.binder).is_some() {
+                    return Err(fail(
+                        "closure child repeats a complete intrinsic occurrence",
+                    ));
+                }
             }
         }
         let count = match child {
@@ -1644,6 +1648,7 @@ impl Check<'_, '_> {
         }
         let mut classes = Vec::new();
         for class in 0..count {
+            b.lookup(direct.len(), WORK)?;
             let binder = *direct
                 .get(&class)
                 .ok_or_else(|| fail("closure child class directory has a gap"))?;
