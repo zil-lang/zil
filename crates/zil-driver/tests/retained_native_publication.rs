@@ -487,7 +487,7 @@ fn cold_build_seeds_raw_machine_products_before_restart_first_edit() {
     let case = Case::new();
     fs::write(
         case.0.join("main.zil"),
-        "import left\nimport right\nfn main()->i32{return left.value(1)+right.value(2);}",
+        "import left\nimport right\nextern \"C\" fn getchar()->i32;\nfn main()->i32{unsafe{let x=getchar();return left.value(x)+right.value(x);}}",
     )
     .unwrap();
     let left = |value| {
@@ -514,7 +514,7 @@ fn cold_build_seeds_raw_machine_products_before_restart_first_edit() {
         &options,
         "cold-raw-seed",
     );
-    successful(&cold, 42);
+    successful(&cold, 7);
     assert!(
         cold.backend_work
             .as_ref()
@@ -531,7 +531,7 @@ fn cold_build_seeds_raw_machine_products_before_restart_first_edit() {
         &options,
         "restart-first-edit-raw-hit",
     );
-    successful(&edited, 43);
+    successful(&edited, 8);
     let work = edited.backend_work.as_ref().unwrap();
     assert!(work.restored_emission_templates > 0, "{}", edited.to_json());
     assert!(
@@ -565,13 +565,22 @@ fn cold_build_seeds_raw_machine_products_before_restart_first_edit() {
             .keys()
             .any(|path| path.file_name().unwrap() == "current.manifest")
     );
-    fs::write(case.0.join("left.zil"), INVALID).unwrap();
+    fs::write(
+        case.0.join("left.zil"),
+        INVALID.replace("pub fn value()->i32", "pub fn value(x:i32)->i32"),
+    )
+    .unwrap();
     let rejected = case.compile(
         &mut CompilationSession::default(),
         &options,
         "invalid-source-no-raw-publication",
     );
-    assert_ne!(rejected.status, zil_base::ResultCategory::Success);
+    assert_eq!(
+        rejected.status,
+        zil_base::ResultCategory::SafeReject,
+        "{}",
+        rejected.to_json()
+    );
     assert_eq!(
         inventory(),
         before,
