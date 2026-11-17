@@ -43,6 +43,112 @@ fn compatible(actual: CallableKind, required: CallableKind) -> bool {
     )
 }
 impl Check<'_, '_> {
+    // A declared opaque result exports its original operation contract. Its
+    // hidden closure's entry ABI is checked separately and cannot replace it.
+    fn opaque_callable_operation(
+        &mut self,
+        value: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<
+        Option<(
+            CallableKind,
+            SemanticSignatureRecipe,
+            BTreeMap<u32, call_regions::Role>,
+        )>,
+    > {
+        self.pay(1, depth)?;
+        let SemanticTypeRecipe::Opaque {
+            definition,
+            arguments,
+            hidden,
+        } = value
+        else {
+            return Ok(None);
+        };
+        let owner = *self
+            .contexts
+            .last()
+            .ok_or_else(|| bad("opaque callable has no original Gamma"))?;
+        let declaration = self.definition(*definition)?;
+        if declaration.parameters.len() != arguments.len() {
+            return Err(bad(
+                "original opaque callable omits full explicit arguments",
+            ));
+        }
+        if !self.proof.complete.contains(definition) {
+            return Err(bad(
+                "opaque callable operation lacks its completed original creator proof",
+            ));
+        }
+        let result = SemanticTypeRecipe::OriginalType {
+            scope: SemanticScopeRef::Ancestor(0),
+            source: SemanticOriginalTypeSource::Result,
+        };
+        let mut selected = None;
+        for requirement in &declaration.requirements {
+            for (_, kind, signature, origins) in
+                self.callable_premises(requirement, &result, &mut Vec::new(), depth + 1)?
+            {
+                if selected.is_some() {
+                    return Err(pending(
+                        "original opaque callable has several complete result roles",
+                    ));
+                }
+                let signature = super::super::instantiate::callable_signature(
+                    self.program,
+                    &self.proof,
+                    &signature,
+                    super::super::instantiate::DomainMapping {
+                        source: *definition,
+                        use_definition: owner,
+                        arguments,
+                        parent_call: None,
+                    },
+                    None,
+                    self.limits,
+                    self.left,
+                )?;
+                selected = Some((kind, signature, origins));
+            }
+        }
+        if selected.is_some() {
+            if !matches!(&declaration.body, SemanticDefinitionBody::FunctionWithBody {
+                signature: SemanticSignatureRecipe { result: SemanticTypeRecipe::Opaque { definition: declared, .. }, .. },
+                body: SemanticOriginalFunctionBody::Defined(_), ..
+            } if declared == definition)
+            {
+                return Err(bad(
+                    "opaque callable operation does not name its original result creator",
+                ));
+            }
+            self.call_requirements(owner, declaration, arguments, depth + 1)?;
+            if !matches!(
+                hidden.as_ref(),
+                SemanticTypeRecipe::OriginalType {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    source: SemanticOriginalTypeSource::Result,
+                }
+            ) {
+                let equation = self
+                    .proof
+                    .types
+                    .get(&(*definition, Query::Result))
+                    .ok_or_else(|| {
+                        bad("opaque callable operation loses its complete all-return equation")
+                    })?;
+                let equation = copy_recipe(equation, self.limits, self.left)?;
+                self.contexts.push(*definition);
+                let result = (|| {
+                    let hidden = self.resolve(*definition, hidden, depth + 1)?;
+                    self.same(&hidden, &equation)
+                })();
+                self.contexts.pop();
+                result?;
+            }
+        }
+        Ok(selected)
+    }
+
     pub(super) fn inference_template(
         &mut self,
         signature: &SemanticSignatureRecipe,
@@ -977,6 +1083,9 @@ impl Check<'_, '_> {
                 arguments,
                 hidden,
             } => {
+                if let Some((kind, signature, _)) = self.opaque_callable_operation(value, depth + 1)? {
+                    return Ok(Some((kind, signature)));
+                }
                 let declaration = self.definition(*definition)?;
                 if declaration.parameters.len() != arguments.len() {
                     return Err(bad(
@@ -1088,11 +1197,23 @@ impl Check<'_, '_> {
         universal: &[u32],
         depth: usize,
     ) -> R<()> {
+        self.compare_callable_operation(actual, wanted, false, universal, depth)
+    }
+    fn compare_callable_operation(
+        &mut self,
+        actual: &SemanticSignatureRecipe,
+        wanted: &SemanticSignatureRecipe,
+        consuming: bool,
+        universal: &[u32],
+        depth: usize,
+    ) -> R<()> {
         self.pay(actual.parameters.len(), depth)?;
         if actual.parameters.len() != wanted.parameters.len()
             || actual.bound_lifetimes != wanted.bound_lifetimes
             || universal.is_empty() && actual.invocation_lifetimes != wanted.invocation_lifetimes
             || actual.call_kind != wanted.call_kind
+                && !(consuming && actual.call_kind == CallKind::Direct
+                    && wanted.call_kind == CallKind::Suspend)
             || actual.result_mode != wanted.result_mode
         {
             self.pay(384, depth)?;
@@ -1309,7 +1430,7 @@ impl Check<'_, '_> {
                     "original concrete callable lacks the required invocation kind",
                 ));
             }
-            self.compare_callable_under(&actual, wanted, universal, depth + 1)?;
+            self.compare_callable_operation(&actual, wanted, required == CallableKind::FnOnce, universal, depth + 1)?;
             // Type compatibility does not settle a consuming invocation's
             // environment. The original protocol pass checks each real call
             // against its actual inputs and execution root.
@@ -1320,7 +1441,14 @@ impl Check<'_, '_> {
                 self.callable_premises(requirement, &value, &mut Vec::new(), depth + 1)?
             {
                 if premise == &value && compatible(kind, required) {
-                    self.compare_callable_under(&signature, wanted, universal, depth + 1)?;
+                    if required == CallableKind::FnOnce && wanted.call_kind == CallKind::Direct
+                        && kind != CallableKind::FnOnce
+                        && !self.cleanup_capability(owner, &value, depth + 1)? {
+                        // A separate, stronger original FnOnce premise may
+                        // still supply the complete consuming operation.
+                        continue;
+                    }
+                    self.compare_callable_operation(&signature, wanted, required == CallableKind::FnOnce, universal, depth + 1)?;
                     return Ok(());
                 }
             }
@@ -1328,6 +1456,184 @@ impl Check<'_, '_> {
         Err(bad(
             "original caller lacks a complete callable role premise",
         ))
+    }
+    pub(super) fn direct_callable_premise(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe,
+        consuming: bool,
+        depth: usize,
+    ) -> R<bool> {
+        let value = self.observation_type(owner, ty, depth + 1)?;
+        for requirement in self.original_requirements(owner, depth + 1)?.iter() {
+            for (_, kind, signature, _) in
+                self.callable_premises(requirement, &value, &mut Vec::new(), depth + 1)?
+            {
+                if signature.call_kind == CallKind::Direct
+                    && (!consuming
+                        || kind == CallableKind::FnOnce
+                        || self.cleanup_capability(owner, &value, depth + 1)?)
+                {
+                    return Ok(true);
+                }
+            }
+        }
+        if let Some((kind, signature)) = self.concrete_callable(&value, depth + 1)? {
+            // An opaque operation is proved at every real defining return.
+            // A bare closure entry alone never proves its remaining cleanup.
+            return Ok(signature.call_kind == CallKind::Direct
+                && (!consuming
+                    || matches!(value, SemanticTypeRecipe::Opaque { .. })
+                        && kind == CallableKind::FnOnce
+                    || self.cleanup_capability(owner, &value, depth + 1)?));
+        }
+        Ok(false)
+    }
+    pub(super) fn direct_consuming_bound(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<bool> {
+        for requirement in self.original_requirements(owner, depth + 1)?.iter() {
+            for (_, kind, signature, _) in
+                self.callable_premises(requirement, ty, &mut Vec::new(), depth + 1)?
+            {
+                if kind == CallableKind::FnOnce && signature.call_kind == CallKind::Direct {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
+    pub(super) fn direct_consuming_inputs(
+        &mut self,
+        requirements: &[SemanticRequirementRecipe],
+        inputs: &mut Vec<SemanticTypeRecipe>,
+        depth: usize,
+    ) -> R<()> {
+        for requirement in requirements {
+            self.pay(1, depth)?;
+            match requirement {
+                SemanticRequirementRecipe::Callable {
+                    ty,
+                    kind: CallableKind::FnOnce,
+                    signature,
+                } if signature.call_kind == CallKind::Direct
+                    && !matches!(
+                        ty,
+                        SemanticTypeRecipe::OriginalType {
+                            scope: SemanticScopeRef::Ancestor(0),
+                            source: SemanticOriginalTypeSource::Result,
+                        }
+                    ) =>
+                {
+                    inputs.push(copy_recipe(ty, self.limits, self.left)?);
+                }
+                SemanticRequirementRecipe::ForAll { requirements, .. } => {
+                    self.direct_consuming_inputs(requirements, inputs, depth + 1)?;
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+    pub(super) fn result_callable_requirements(
+        &mut self,
+        owner: SemanticDefinitionId,
+        requirements: &[SemanticRequirementRecipe],
+        universal: &mut Vec<u32>,
+        depth: usize,
+    ) -> R<()> {
+        for requirement in requirements {
+            self.pay(1, depth)?;
+            match requirement {
+                SemanticRequirementRecipe::Callable {
+                    ty:
+                        ty @ SemanticTypeRecipe::OriginalType {
+                            scope: SemanticScopeRef::Ancestor(0),
+                            source: SemanticOriginalTypeSource::Result,
+                        },
+                    kind,
+                    signature,
+                } => {
+                    let actual = self.resolve(owner, ty, depth + 1)?;
+                    self.callable_requirement_under(
+                        owner,
+                        &actual,
+                        *kind,
+                        signature,
+                        universal,
+                        depth + 1,
+                    )?;
+                }
+                SemanticRequirementRecipe::ForAll {
+                    lifetimes,
+                    requirements,
+                } => {
+                    self.pay(universal.len().saturating_add(1), depth)?;
+                    if *lifetimes != 0 {
+                        universal.push(*lifetimes);
+                    }
+                    let result = self.result_callable_requirements(
+                        owner,
+                        requirements,
+                        universal,
+                        depth + 1,
+                    );
+                    if *lifetimes != 0 {
+                        universal.pop();
+                    }
+                    result?;
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+    pub(super) fn input_requirement(
+        &mut self,
+        requirement: &SemanticRequirementRecipe,
+        depth: usize,
+    ) -> R<Option<SemanticRequirementRecipe>> {
+        self.pay(1, depth)?;
+        match requirement {
+            SemanticRequirementRecipe::Callable {
+                ty:
+                    SemanticTypeRecipe::OriginalType {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        source: SemanticOriginalTypeSource::Result,
+                    },
+                ..
+            } => Ok(None),
+            SemanticRequirementRecipe::ForAll {
+                lifetimes,
+                requirements,
+            } => {
+                let mut inputs = Vec::new();
+                for requirement in requirements {
+                    if let Some(input) = self.input_requirement(requirement, depth + 1)? {
+                        self.pay(1, depth)?;
+                        inputs.push(input);
+                    }
+                }
+                Ok(
+                    (!inputs.is_empty()).then_some(SemanticRequirementRecipe::ForAll {
+                        lifetimes: *lifetimes,
+                        requirements: inputs,
+                    }),
+                )
+            }
+            _ => {
+                crate::dyn_metadata::semantic_operand_snapshot(
+                    requirement,
+                    self.limits,
+                    self.left,
+                    1,
+                )?;
+                Ok(Some(requirement.clone()))
+            }
+        }
     }
     pub(super) fn callable_premises<'p>(
         &mut self,
@@ -1454,8 +1760,12 @@ impl Check<'_, '_> {
             _ => (None, &callee_type),
         };
         let value = self.observation_type(owner, value, depth + 1)?;
-        let mut selected = self.concrete_callable(&value, depth + 1)?;
-        let mut invocation_origins = BTreeMap::new();
+        let operation = self.opaque_callable_operation(&value, depth + 1)?;
+        let (mut selected, mut invocation_origins) = if let Some((kind, signature, origins)) = operation {
+            (Some((kind, signature)), origins)
+        } else {
+            (self.concrete_callable(&value, depth + 1)?, BTreeMap::new())
+        };
         if selected.is_none() {
             for requirement in self.original_requirements(owner, depth + 1)?.iter() {
                 let candidates =

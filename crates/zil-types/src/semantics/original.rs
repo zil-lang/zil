@@ -2859,19 +2859,15 @@ impl<'a> Check<'a, '_> {
                 _ => &[],
             }))
         {
-            if matches!(
-                requirement,
-                SemanticRequirementRecipe::Callable {
-                    ty: SemanticTypeRecipe::OriginalType {
-                        scope: SemanticScopeRef::Ancestor(0),
-                        source: SemanticOriginalTypeSource::Result
-                    },
-                    ..
-                }
-            ) && self.proof.complete.contains(&target.id)
-            {
-                continue;
-            }
+            let input;
+            let requirement = if self.proof.complete.contains(&target.id)
+                && matches!(&target.body, SemanticDefinitionBody::FunctionWithBody {
+                    body: SemanticOriginalFunctionBody::Defined(_), ..
+                }) {
+                input = self.input_requirement(requirement, depth + 1)?;
+                let Some(input) = input.as_ref() else { continue; };
+                input
+            } else { requirement };
             let requirement =
                 substitute::requirement(requirement, &substitution, self.limits, self.left)?;
             self.satisfy_requirement(owner, &requirement, depth + 1)?;
@@ -6018,25 +6014,7 @@ impl<'a> Check<'a, '_> {
                 .types
                 .insert((definition.id, Query::Result), result);
         }
-        for requirement in &definition.requirements {
-            if let SemanticRequirementRecipe::Callable {
-                ty,
-                kind: required,
-                signature: wanted,
-            } = requirement
-            {
-                if matches!(
-                    ty,
-                    SemanticTypeRecipe::OriginalType {
-                        scope: SemanticScopeRef::Ancestor(0),
-                        source: SemanticOriginalTypeSource::Result
-                    }
-                ) {
-                    let actual = self.resolve(definition.id, ty, 0)?;
-                    self.callable_requirement(definition.id, &actual, *required, wanted, 0)?;
-                }
-            }
-        }
+        self.result_callable_requirements(definition.id, &definition.requirements, &mut Vec::new(), 0)?;
         self.recheck_escaping_roles(definition.id, 0)?;
         if let Some(declaration) = provider {
             self.proof

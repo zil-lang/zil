@@ -2471,7 +2471,9 @@ impl<'a> Engine<'a, '_> {
                         let callee = state.temporaries.remove(callee_slot);
                         if state.reachable {
                             if once {
-                                self.check_consuming_invocation(&callee, &values, consuming_incoming.as_ref().ok_or_else(|| failure("consuming call lost its actual prepared inputs"))?, depth + 1)?;
+                                let operation = self.proof.callable_calls.get(&(owner, site.ok_or_else(|| failure("consuming call lost its original site"))?))
+                                    .ok_or_else(|| failure("consuming call lost its complete original operation"))?.signature.call_kind;
+                                self.check_consuming_invocation(&callee, &values, operation, consuming_incoming.as_ref().ok_or_else(|| failure("consuming call lost its actual prepared inputs"))?, depth + 1)?;
                             } else if !consume {
                                 self.drop_value(&callee, state, depth + 1)?;
                             }
@@ -4425,44 +4427,8 @@ impl<'a> Engine<'a, '_> {
                         )?;
                     }
                     self.pay(parameter.name.len().saturating_add(1), depth)?;
-                    let value =
-                        if self.query_async(owner, Query::Parameter(index as u32), depth + 1)? {
-                            let root = Root::Parameter(owner, index as u32);
-                            state.roots.insert(
-                                root,
-                                inputs
-                                    .get(&(index as u32))
-                                    .copied()
-                                    .map(bit)
-                                    .unwrap_or(UNKNOWN),
-                            );
-                            let owning = self
-                                .query_ownership(owner, Query::Parameter(index as u32), depth + 1)?
-                                .unwrap_or(false);
-                            Value::Root(root, true, owning, None)
-                        } else {
-                            Value::Plain
-                        };
-                    let ty = self
-                        .query_type(owner, Query::Parameter(index as u32), depth + 1)?
-                        .ok_or_else(|| {
-                            failure(
-                                "original cleanup parameter has no independent solved Gamma type",
-                            )
-                        })?;
-                    let value = if let Some(task) = self.task_input(
-                        owner,
-                        &ty,
-                        Root::Parameter(owner, index as u32),
-                        &mut state,
-                        depth + 1,
-                    )? {
-                        task
-                    } else {
-                        value
-                    };
-                    let mut value = self.typed(owner, &ty, value, depth + 1)?;
-                    self.input_sources(&mut value, Root::Parameter(owner, index as u32), &mut Vec::new(), depth + 1)?;
+                    let value = self.consumption_parameter(owner, index as u32,
+                        inputs.get(&(index as u32)).copied().map(bit), &mut state, depth + 1)?;
                     state
                         .names
                         .entry(parameter.name.clone())
@@ -4519,6 +4485,7 @@ impl<'a> Engine<'a, '_> {
                         })?;
                         }
                     }
+                    self.check_consuming_result(owner, &state, depth + 1)?;
                     self.output(owner, &state, protocol_contracts, &inputs, depth + 1)?;
                     self.task_record_exit(owner, &state, depth + 1)?;
                 }

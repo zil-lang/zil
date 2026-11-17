@@ -24,6 +24,23 @@ impl Projection {
     fn work(&self) -> usize { self.path.iter().fold(1usize, |n, step| n.saturating_add(step.work())) }
 }
 impl Engine<'_, '_> {
+    pub(super) fn input_source_root(&mut self, source: Root, depth: usize) -> R<Root> {
+        self.pay(1, depth)?;
+        if let Root::Projection(owner, index) = source {
+            let projection = self.projected_sources.get(index as usize).ok_or_else(|| {
+                failure("consuming contract loses its original projection directory")
+            })?;
+            if !matches!(projection.root, Root::Parameter(domain, _) | Root::Capture(domain, _) if domain == owner)
+            {
+                return Err(failure(
+                    "consuming contract changes its exact projection root domain",
+                ));
+            }
+            Ok(projection.root)
+        } else {
+            Ok(source)
+        }
+    }
     fn projected_source(&mut self, root: Root, path: &[Step], depth: usize) -> R<Root> {
         if path.is_empty() { return Ok(root); }
         let (Root::Parameter(owner, _) | Root::Capture(owner, _)) = root else {

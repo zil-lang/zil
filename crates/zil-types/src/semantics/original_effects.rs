@@ -92,6 +92,9 @@ impl Check<'_, '_> {
                 if self.proof.compile_time_calls.contains(key) {
                     continue;
                 }
+                // For FnOnce this is the complete operation upper, including
+                // remaining environment cleanup. A concrete Direct entry does
+                // not lower an opaque result's exported Suspend operation.
                 if call.signature.call_kind == CallKind::Suspend {
                     if self.proof.cleanup_calls.contains(key) {
                         return Err(bad("original deferred cleanup invokes a Suspend callable"));

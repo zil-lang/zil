@@ -67,6 +67,52 @@ pub(super) fn capability(
         check.cleanup_capability(owner, ty, 0)
     })
 }
+/// Invocation promises are separate from the capability to drop an uncalled
+/// value. In particular this query never contributes a SyncDrop premise.
+pub(super) fn direct_callable(
+    program: &SemanticModule,
+    proof: &mut Proof,
+    owner: SemanticDefinitionId,
+    ty: &SemanticTypeRecipe,
+    consuming: bool,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<bool> {
+    with_check(program, proof, owner, limits, left, |check| {
+        check.direct_callable_premise(owner, ty, consuming, 0)
+    })
+}
+pub(super) fn direct_consuming_bound(
+    program: &SemanticModule,
+    proof: &mut Proof,
+    owner: SemanticDefinitionId,
+    ty: &SemanticTypeRecipe,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<bool> {
+    with_check(program, proof, owner, limits, left, |check| {
+        check.direct_consuming_bound(owner, ty, 0)
+    })
+}
+pub(super) fn direct_consuming_inputs(
+    program: &SemanticModule,
+    proof: &mut Proof,
+    owner: SemanticDefinitionId,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<Vec<SemanticTypeRecipe>> {
+    with_check(program, proof, owner, limits, left, |check| {
+        let declaration = check.definition(owner)?;
+        let mut inputs = Vec::new();
+        check.direct_consuming_inputs(&declaration.requirements, &mut inputs, 0)?;
+        for formal in &declaration.parameters {
+            if let SemanticFormal::Type { requirements } = formal {
+                check.direct_consuming_inputs(requirements, &mut inputs, 0)?;
+            }
+        }
+        Ok(inputs)
+    })
+}
 /// A sealed callable can be retained by a real Task continuation while its
 /// complete environment cleanup runs. This is not a SyncDrop theorem.
 pub(super) fn resumable_callable(
