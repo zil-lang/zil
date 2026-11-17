@@ -267,8 +267,10 @@ fn exact_context_malformed_machine_and_changed_summary_facts_refuse_raw_data() {
         lower(&verified, &source, None)
     );
     assert_eq!(restored.hits, 0);
-    let mut limits = Limits::default();
-    limits.max_source_bytes = 64;
+    let limits = Limits {
+        max_source_bytes: 64,
+        ..Limits::default()
+    };
     let mut narrow = request(&directory.0);
     narrow.bind(
         Some(vec![0]),
