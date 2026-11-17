@@ -36,6 +36,49 @@ impl Slot {
 }
 
 impl Check<'_, '_> {
+    pub(super) fn persistent_array_slot(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        value: ValueId,
+        b: &mut Budget,
+    ) -> CompileResult<Option<Slot>> {
+        if !matches!(function.values.get(value.0 as usize),
+            Some(Type::Array { length: 1, element }) if matches!(element.as_ref(), Type::Closure(_)))
+        {
+            return Ok(None);
+        }
+        let mut selected = None;
+        for block in &function.blocks {
+            for instruction in &block.instructions {
+                b.spend(1, WORK)?;
+                let InstructionKind::Store {
+                    local,
+                    value: stored,
+                } = instruction.kind
+                else {
+                    continue;
+                };
+                if stored != value {
+                    continue;
+                }
+                let Some(slot) = self.persistent_slot(instance, function, local, b)? else {
+                    continue;
+                };
+                if slot.array != value {
+                    continue;
+                }
+                if selected.is_some() {
+                    return Err(fail(
+                        "persistent array has competing original slot destinations",
+                    ));
+                }
+                selected = Some(slot);
+            }
+        }
+        Ok(selected)
+    }
+
     pub(super) fn persistent_slot(
         &self,
         instance: &SemanticInstance,

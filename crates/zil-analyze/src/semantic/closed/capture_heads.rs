@@ -1451,37 +1451,11 @@ impl Check<'_, '_> {
         {
             return Ok(None);
         }
-        let mut selected = None;
-        for block in &function.blocks {
-            for instruction in &block.instructions {
-                b.spend(1, WORK)?;
-                let InstructionKind::Store {
-                    local,
-                    value: actual,
-                } = instruction.kind
-                else {
-                    continue;
-                };
-                if actual != value {
-                    continue;
-                }
-                let Some(slot) = self.persistent_slot(instance, function, local, b)? else {
-                    continue;
-                };
-                if slot.array() != value {
-                    continue;
-                }
-                if selected.is_some() {
-                    return Err(fail(
-                        "implicit array source has competing original slot destinations",
-                    ));
-                }
-                selected = Some(slot);
-            }
-        }
-        selected.map(Some).ok_or_else(|| {
-            unknown("implicit array source lacks its complete original slot witness")
-        })
+        self.persistent_array_slot(instance, function, value, b)?
+            .map(Some)
+            .ok_or_else(|| {
+                unknown("implicit array source lacks its complete original slot witness")
+            })
     }
 
     fn definition_at(
