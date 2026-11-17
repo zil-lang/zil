@@ -540,7 +540,7 @@ impl ProducerStats {
             as u64;
     }
 }
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Stage {
     Preflight,
     Normalize,
