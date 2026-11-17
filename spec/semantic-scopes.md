@@ -26,6 +26,10 @@
 
 原函数 signature.call_kind 是固定、尚未核验的调用约定上界。Source 的显式约定原样保留；未显式选择时，候选由完整原 body、真实调用绑定及 Callable/清理合同产生，不能从首个具体实例反推，也不能将未解析的边默认成 Direct。各消费者独立证明原 body 的全称效果不超过该选择，并核实际 Typed ABI 与之相等，不能私自升级 Direct 或降级 Suspend。显式 Direct 的函数执行 task_yield 必须拒绝；显式 Suspend 的空 body 仍保留 Suspend。task_create 引用挂起 worker 不等于创建者执行其挂起正文；IntrinsicCall.effects 同样需要真实封闭 intrinsic 身份和操作证明。封闭递归调用图的效果从真实来源闭包推导，悬而未决的调用边不作零效果。
 
+缺省 `FnOnce` 角色的调用约定包含本体及剩余环境的完整消费。若源码没有显式选择该角色的执行约定，Source 只可在发布原 Γ 前，遍历该角色的全部真实消费、别名及转发端点选择候选：必须至少有一个真实消费见证，追踪全部别名和转发关系后，所有实际消费端点均有独立成立的 Suspend 执行依据，且该完整关系中不存在已声明的 Direct 角色限制，才能选择 Suspend；否则保持 Direct。真实 `task_yield`、外部已固定的 Suspend 合同及原 Γ 已知 Task 的必要剩余清理可以提供独立依据；待提升角色自身的调用、无种子的转发环、未解析调用和抽象 F 缺少 SyncDrop 都不能提供此依据。未消费的 F 仍须独立满足原清理义务，不能由候选上界替它获得 SyncDrop。
+
+候选完成后，角色的执行上界固定进入原 Callable signature、公开接口及其依赖/cache 身份；各消费者再分别全称核验原定义及实际 Typed 调用与完整清理。调用者不能把已固定 Direct 角色升级成 Suspend，外层 Suspend 也不能豁免内部 Direct 合同。正文改变推导出的公开上界属于接口变化；薄 Code、FFI 和显式 Direct 的约定不参与此推导。该规则仅推导已有 FnOnce 角色的完整操作上界，不授予其他效果泛型、同步 Drop、借用来源或挂起执行根。
+
 语言封闭的 trait 使用 `SemanticBuiltinTrait` 原身份：`BuiltinImpl` 保留真实 self recipe 和原 impl 词法域，`Builtin` 要求保留实际被约束类型。不能给 Drop、Transfer、ClosedEnvironment 等捏造用户 nominal declaration，也不能把封闭 impl 改成 inherent impl。名字、原要求或某个 scope 的存在均不授予能力；每个消费者仍须证明该 kind 合法适用、真实 provider/body、清理与跨线程等具体义务。Send/Sync 的原拼写保留，其合法性或别名语义不能仅凭同一枚举族推导。Fn/FnMut/FnOnce 继续使用包含完整签名的 Callable 要求。
 
 实例指向真实 Core 函数、Core 闭包发生点、Typed 函数或词法作用域。原始形参序号与内在类序号不同；完整类型已有的内在类不能因实际生命周期图像相等而合并。缺失语义目录是 Unknown，不能解释为零类。语义自由变量也不能伪装成物理捕获字段。
@@ -33,6 +37,10 @@
 每个实际 Type/Const 特化保留真实 rigid 代表程序。原始生命周期在该代表中保持独立；具体生命周期分组必须指向同一特化的真实代表，并独立证明完整 CFG、操作数、类型、资源、闭包和清理的替换对应。不能只比较 ABI。`bad<a,b>(Marker<a>)->Marker<b>` 必须在 rigid 检查失败，即使所有当前调用者碰巧选择 `a=b`。
 
 Rigid 使用原生命周期的新鲜身份及完整原声明允许的前提，不是无条件两两不等。定义检查只使用 definition/formal 的原 requirements、真实词法前提、已核环境要求和原签名关系。显式 LifeEqual 可以证明这些身份相等；Outlives 不能当成相等，调用者碰巧同图像不能成为定义前提。原 Callable 前提只能按完整 P/R/Receiver、Fixed、Invocation/Bound 关系推理，不能额外授予 TypeEqual、全类合并或 Bound 实例化。
+
+`Callable{ty, kind, signature}` 内的 Receiver 发生属于该 `ty` 的本次真实接收者访问窗口，不是包围该要求的工厂函数或方法接收者。沿用[闭包接收者借用合同](closure-receiver-borrows.md)，只有非消费的 Direct `Fn`/`FnMut` 入口或绑定该已独立核验入口的角色可以使用此窗口；没有显式地址输入时，省略生命周期的根 shared Address 结果可以要求此窗口，唯一显式地址输入沿用原输入省略规则，多输入歧义仍须显式关系。这个签名局部发生不增加捕获 Type 的类，不生成无来源的 Fixed 或 Invocation，不改变参数、结果内部类及实际捕获的完整域；薄 Code、Suspend 签名和 `FnOnce` 不因此获得环境借用结果。
+
+原定义必须分别证明每个实际返回的来源满足该接收者上界。实际签名用已有 `StorageBase::Receiver` 与 Result 的显式关系连接真实接收者访问域；调用须绑定真实 callee 的存储、借入和发生身份，并保留其父 loan 与代次。`make()()` 的接收者来自一次真实调用表达式，不得在原声明中伪造局部或重复求值；实际临时存储存活到完整表达式的最后使用。原要求和签名关系只建立待证义务，不能代替真实捕获、每条返回路径、替换失效或退出清理的证明；独立 Static 来源仍按自身规则证明。
 
 Type 实参的完整内在域在 callee 自身实例域中封闭。`IntrinsicClass(TypeArgument(Ancestor(0),完整形参序号),[],k)` 是已核完整类型给出的原子内在锚，不能递归读取自己的 classes，也不是实际来源证明。每个真实 Call 在 caller 已成立的上下文求值实参，独立证明全部要求和实际 callee/entry/header/env/资源对应，再建立边界映射；不能使用目标正假设的 where 循环自证，不能把 caller 作用域或 SSA 偷放入 callee，也不能回写 rigid Life 实参。已有 whole T 的 N2 不因两个图像相等降成 N1；新求值的 Nominal recipe 只可使用当前合法前提证明的相等归一。
 
