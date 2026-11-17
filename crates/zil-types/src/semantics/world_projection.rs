@@ -541,6 +541,62 @@ pub(super) fn place(
             return Err(bad("field repeats or collapses its complete intrinsic class map"));
         }
     }
+    // A qualified nominal Type argument can expose its one outer Address
+    // occurrence through the exact physical slot. Its complete parent domain
+    // is anchored at TypeArgument, so the equivalent Place boundary row is
+    // optional (nominal_catalog::field_type_class checks the same convention).
+    // This recovers only that real outer class; an inner or phantom class
+    // still requires its complete retained projection.
+    let mut slot_only_shape = None;
+    if binders.is_empty() {
+        let address = match field {
+            Type::Address { mutable, inner } => Some((
+                inner.as_ref(),
+                if *mutable { StoredBorrowMode::ExclusiveAddress }
+                else { StoredBorrowMode::SharedAddress },
+            )),
+            Type::Desc(inner) => Some((inner.as_ref(), StoredBorrowMode::WritableDescription)),
+            _ => None,
+        };
+        if let Some((inner, mode)) = address {
+            let mut selected = None;
+            for slot in &life.slots {
+                world.pay(slot.path.len().saturating_add(1))?;
+                if slot.path.as_slice() == [selector] {
+                    if slot.mode != mode || slot.binder >= life.binder_count
+                        || selected.replace(slot.binder).is_some()
+                    {
+                        return Err(bad("field outer slot changes its exact mode or class"));
+                    }
+                }
+            }
+            if let Some(binder) = selected {
+                world.view.ordinary_zero(
+                    inner, world.limits, world.left, &world.ledger.ordinary_stats,
+                )?;
+                let child = type_shape(world, inner)?;
+                if child.binder_count != 0 {
+                    return Err(bad("slot-only field omits its complete nonzero child domain"));
+                }
+                if world.limits.max_nodes == 0 {
+                    return Err(Diagnostic::limit(Phase::Types, "projected complete field domain exceeds node limit", None));
+                }
+                world.pay(index::search(binders.len()).saturating_add(index::search(reverse.len())).saturating_add(3))?;
+                binders.insert(0, binder);
+                reverse.insert(binder, 0);
+                let mut canonical = StorageLifeShape {
+                    binder_count: 1,
+                    slots: vec![StorageLifeSlot { path: Vec::new(), binder: 0, mode }],
+                    ..empty()
+                };
+                super::super::materialize::inherit_child_shape(
+                    &mut canonical, &child, LifeTypeProjection::Pointee, &[],
+                    world.limits, world.left,
+                )?;
+                slot_only_shape = Some(canonical);
+            }
+        }
+    }
     let count = u32::try_from(binders.len()).map_err(|_| bad("field class count overflows"))?;
     let mut images = Vec::new();
     world.pay(count as usize)?;
@@ -577,12 +633,12 @@ pub(super) fn place(
     // Explicit intrinsic carriers must agree with their immutable declaration
     // domain as well. Inline compounds inherit the complete parent subforest;
     // no context-free zero query is used for a raw Tuple containing addresses.
-    let canonical = match field {
+    let canonical = if slot_only_shape.is_some() { slot_only_shape } else { match field {
         Type::Address { .. } | Type::Desc(_) => Some(address_child_shape(world, life, &mut vec![prefix], field, 0)?),
         Type::Tuple(_) | Type::Record { .. } | Type::Package { .. }
             | Type::Array { .. } | Type::Enum { .. } | Type::ErrorUnion { .. } => None,
         _ => Some(type_shape(world, field)?),
-    };
+    } };
     if let Some(canonical) = canonical {
         world.pay(shape.slots.len().saturating_mul(3).saturating_add(shape.retained.len().saturating_mul(3)).saturating_add(shape.nominal_arguments.len().saturating_mul(5)).saturating_add(1))?;
         for row in &shape.slots { world.pay(row.path.len())?; }

@@ -8,7 +8,7 @@ use std::{
 };
 use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
 use zil_driver::{
-    CompileOptions, CompileReport, Optimization, ProjectSources, Stage, compile_project,
+    CompileOptions, CompileReport, NativeBackend, Optimization, ProjectSources, Stage, compile_project,
 };
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 fn project(files: &[(&str, &str)]) -> ProjectSources {
@@ -65,12 +65,16 @@ fn check(source: &str) -> CompileReport {
     compile(&[("main", source)], CompileOptions::default(), &dir)
 }
 fn native(files: &[(&str, &str)], exit: i32) {
+    native_on(files, exit, CompileOptions::default().backend);
+}
+fn native_on(files: &[(&str, &str)], exit: i32, backend: NativeBackend) {
     for optimization in [Optimization::O0, Optimization::O2] {
         let dir = directory();
         let executable = dir.join("program");
         let report = compile(
             files,
             CompileOptions {
+                backend,
                 stop_after: Stage::Build,
                 optimization,
                 output: Some(executable.clone()),
@@ -145,7 +149,6 @@ fn environment_results_reject_local_external_and_temporary_sources() {
         "fn make()->impl Fn()->&i32{return move()=>{let n=3;return &n}}fn main(){}".to_string(),
         "fn main(){let n=3;let p=&n;let f=move()=>p;let v=f();}".to_string(),
         "fn main(){let f=(n:i32)=>&n;let v=f(3);}".to_string(),
-        format!("{MAKE}fn main()->i32{{return *make(3)()}}"),
         format!("{MAKE}fn main()->i32{{let f=make(3);return *FnOnce.call_once(f,())}}"),
         format!("{MAKE}fn bad()->&i32{{let f=make(3);return f()}}fn main(){{}}"),
         "fn main(){var n=3;let f=move()=>&mut n;}".to_string(),
@@ -157,6 +160,18 @@ fn environment_results_reject_local_external_and_temporary_sources() {
             "{source}: {}",
             report.to_json()
         );
+    }
+}
+#[test]
+fn temporary_environment_survives_its_complete_call_and_dereference() {
+    // Preserve the original source previously placed in the negative census.
+    // Its actual dereference precedes cleanup of the temporary environment.
+    let source = format!("{MAKE}fn main()->i32{{return *make(3)()}}");
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        native_on(&[("main", &source)], 3, backend);
     }
 }
 #[test]
