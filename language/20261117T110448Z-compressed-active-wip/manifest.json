@@ -1,0 +1,41 @@
+{
+  "source_base": "39bd2510593e9adb1c68cb9f8b657754b247ab82",
+  "status": "Unverified active WIP; no functional acceptance",
+  "snapshot_utc": "20261117T110448Z",
+  "scope": [
+    "crates",
+    "tests/language-readiness/task-owner-transport"
+  ],
+  "changed_files": {
+    "crates/zil-driver/tests/task_owner_transport.rs": "3a4caa9d420a74bcc5538650d683ea4c2888f820f359af2b4665f2c10a8ea115",
+    "crates/zil-driver/tests/task_owner_transport/source_contracts.rs": "7a70bfa4e35c4ab0acf69d660a161c6fa072c7c587c625bdf2571092a597f6b7",
+    "crates/zil-expand/src/source_semantic_call_regions.rs": "996f4d01484cdfdee3e13e6cbd4f1de3cf97254d465fdc5c894a6d134642a8ac",
+    "crates/zil-expand/src/source_semantic_cleanup_candidates.rs": "f7ab311c928d2f336fcf2ccaf5c33d82021d5d3dc3f3841782a995804e6d7962",
+    "crates/zil-expand/src/source_semantic_closures.rs": "7cc368e20f0ac480506d7e1088f3b47d983cb7857cd6085894319c98b3c8054e",
+    "crates/zil-expand/src/source_semantic_types.rs": "28fcf5790e8aa9423e4906fe574c905c5ac75a2b067599ad40f6071865f87dab",
+    "crates/zil-expand/src/source_semantics.rs": "10fe9b4894de6e6b7e5301427d75299e2cf287476847c34c1c4fe933e8751459",
+    "crates/zil-types/src/borrowed_fp_qualified.rs": "c5784c45cf9122003e071945baa4d9d38b00abf1cc198acd7b1c12fdd964fa43",
+    "crates/zil-types/src/semantics/header_captures.rs": "94b81cb242121c7ef7b37d4427c2af30e0f821284cacfbad6d40079911f8fc55",
+    "crates/zil-types/src/semantics/original.rs": "3999b338e193954b78027fe1a536eae29eced684662490411844dd65ebed1652",
+    "crates/zil-types/src/semantics/original_calls.rs": "fe79bbfd58736cb62a9d26873539911deec4aeee1972a54f9d6477a60505421c",
+    "crates/zil-types/src/semantics/original_views.rs": "b99b36a8b9db4b2abb02f2eddb45ccbc9b93c65b686e2120a8fae838872e907e",
+    "crates/zil-types/src/semantics/well_formed.rs": "8be4f83f6f015873dfec02538b5d153d9dc4adf8d38577ac7b4f34258ec9abb1",
+    "crates/zil-verify/src/dynamic_witness/compound.rs": "7926f2778b7fe8c4c52d7181c8123b58b27b09442849e2ae51b6b10b3504e6c2",
+    "crates/zil-verify/src/dynamic_witness/values.rs": "90cdd8ce834d1fe600ad4063fdf396dcff48d6ead925729ce35f8d250b7d8fa2",
+    "crates/zil-verify/src/semantic/flow/owner_sources.rs": "6c754f0ce751401314cefea46fbc114ac6b240bf4cc5b34c693a512e7bb189fc",
+    "crates/zil-verify/src/semantic/flow/scalar_preparations.rs": "b42a7acaef0a352a0242cd76cf6ea2068e3d76dc4b24e50b5449925022405101",
+    "crates/zil-verify/src/semantic/original/cleanup.rs": "3abc85cbf3900524b265ff6cada15367d9120238dc00c4695494bc3d9e0054e5",
+    "crates/zil-verify/src/semantic/original/protocol.rs": "736a92d79373c298d662add7ba56d01d509824dfa05ece318c79cf0a59c21a76",
+    "crates/zil-verify/src/semantic/original/protocol/expressions.rs": "be257073363e960a592efb851808d676e76fdd5bfd6fd3dea84a824fe802be2b",
+    "crates/zil-verify/src/semantic/original/protocol/state.rs": "64ed37830323b22f03cf585d954501e9a004174050acdd42b82b372e0acee158",
+    "crates/zil-verify/src/semantic/original/protocol/tasks.rs": "36775f7d003f6312da952715d96b57c573cf12401928787dfb54d63b303c1b23",
+    "crates/zil-verify/src/semantic/original/protocol/walk.rs": "a50c82856f35a3e1c65c09a21265bcc8826bf7cbecb8dd7c4768a4088792f774",
+    "crates/zil-verify/src/tasks/owned.rs": "b053cbc63c3608cbe5f78942f31d70e94c37aa2f5b0b15515110737171bebf88",
+    "tests/language-readiness/task-owner-transport/invalid-source-contracts/explicit-direct-mutable-frame-cleanup.zil": "0c33800c6873b5cffa66220a5b3160eaac8fa8883b75a4ea6c55962914a8f496"
+  },
+  "untracked_files": [
+    "tests/language-readiness/task-owner-transport/invalid-source-contracts/explicit-direct-mutable-frame-cleanup.zil"
+  ],
+  "stable_double_read": true,
+  "restore": "Checkout source_base, apply source.patch, and copy untracked/ into that checkout. Evidence has its own candidate provenance; do not infer acceptance from archive."
+}
