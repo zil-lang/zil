@@ -369,7 +369,10 @@ fn bind_instance_at(
                 return Err(bad("actual closure creator changes its complete original lexical owner"));
             }
             if directory.function(creator).is_none() {
-                return Err(unknown("actual closure preparation awaits its real creator frame"));
+                // A nonneeded completed child may refer to a creator which
+                // is still being emitted. It stays cold until real finish;
+                // a needed child is independently required below.
+                return Ok(None);
             }
             // The creator is the exact emitted parent, not an equal input type or
             // a first helper sharing a template name. Bind it before the child.
@@ -499,6 +502,65 @@ fn install_callable_actuals(
     Ok(())
 }
 
+/// Scheduling uses real actual Types and the real helper's original mixed
+/// positions, never a failed materialization or an asserted self-formal as a
+/// substitute. A missing dependency grants no header or zero-domain fact.
+fn header_dependencies(
+    directory: &ActualDirectory<'_>, program: &SemanticModule, state: &closures::State,
+    instance: &SemanticInstance, closure: ClosureId, limits: &Limits, left: &mut usize,
+) -> R<BTreeSet<ClosureId>> {
+    fee(left, directory.closures.len())?;
+    let actual = directory.closures.iter().find(|row| row.id == closure)
+        .ok_or_else(|| bad("Task header dependency has no exact actual closure"))?;
+    let mut dependencies = BTreeSet::new();
+    let mut interfaces = BTreeSet::new();
+    let mut nominals = BTreeSet::new();
+    for ty in actual.captures.iter().chain(&actual.parameters).chain(std::iter::once(&actual.result)) {
+        needed_closure_type(ty, directory, &mut dependencies, &mut interfaces, &mut nominals,
+            limits, left, 0)?;
+    }
+    // Even a phantom callable actual in the creator's full mixed directory
+    // requires its actual class header before Formal can be interpreted.
+    let mut owner = Some(instance.id);
+    let mut visited = BTreeSet::new();
+    while let Some(scope) = owner {
+        fee(left, visited.len().saturating_add(1).ilog2() as usize + 2)?;
+        if visited.len() > limits.max_call_depth {
+            return Err(Diagnostic::limit(Phase::Types,
+                "Task header dependency lexical depth exceeded", None));
+        }
+        if !visited.insert(scope) {
+            return Err(bad("Task header dependency changes its finite lexical parent chain"));
+        }
+        fee(left, directory.instances.len().saturating_add(1).ilog2() as usize
+            + program.instances.len().saturating_add(2))?;
+        let row = directory.original_instance(program, scope)
+            .ok_or_else(|| bad("Task header dependency loses its original lexical scope"))?;
+        if let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) = row.target {
+            fee(left, state.prepared_helpers.len().saturating_add(1).ilog2() as usize + 1)?;
+            if let Some((_, bindings)) = state.prepared_helpers.get(&function) {
+                fee(left, program.definitions.len())?;
+                let definition = program.definitions.iter().find(|definition| definition.id == row.definition)
+                    .ok_or_else(|| bad("Task helper dependency loses its full original formal directory"))?;
+                let mut type_ordinal = 0u32;
+                fee(left, definition.parameters.len())?;
+                for formal in &definition.parameters {
+                    if !matches!(formal, SemanticFormal::Type { .. }) { continue; }
+                    let bound = bindings.optional(type_ordinal);
+                    type_ordinal = type_ordinal.checked_add(1)
+                        .ok_or_else(|| bad("Task helper dependency Type ordinal overflows"))?;
+                    if let Some(child) = bound {
+                        needed_closure_type(&Type::Closure(child), directory, &mut dependencies,
+                            &mut interfaces, &mut nominals, limits, left, 0)?;
+                    }
+                }
+            }
+        }
+        owner = row.parent;
+    }
+    Ok(dependencies)
+}
+
 #[allow(clippy::too_many_arguments)]
 type FormedHeaders = Vec<(
     ClosureId,
@@ -606,14 +668,32 @@ fn emitter_directory<'m>(
         left,
     )?
     .ok_or_else(|| bad("Task caller preparation lost its exact original world"))?;
-    let required = directory.closures.iter()
-        .filter(|row| needed.contains(&row.id))
-        .map(|row| row.function).collect::<Vec<_>>();
-    fee(left, directory.closures.len().saturating_add(required.len()))?;
-    for entry in required {
-        if bind_instance(&mut directory, program, ledger, entry, None, limits, left)?.is_none() {
-            return Err(unknown("needed Task closure lacks one exact original creator context"));
+    loop {
+        let before = needed.len();
+        fee(left, directory.closures.len().saturating_mul(
+            needed.len().saturating_add(1).ilog2() as usize + 1,
+        ).saturating_add(needed.len().saturating_mul(std::mem::size_of::<(ClosureId, FunctionId)>())))?;
+        let mut required = Vec::with_capacity(needed.len());
+        for row in directory.closures.iter() {
+            if needed.contains(&row.id) { required.push((row.id, row.function)); }
         }
+        for (closure, entry) in required {
+            let scope = bind_instance(&mut directory, program, ledger, entry, None, limits, left)?
+                .ok_or_else(|| unknown("needed Task closure lacks one exact original creator context"))?;
+            fee(left, directory.instances.len().saturating_add(1).ilog2() as usize + 1)?;
+            let instance = directory.instances.get(&scope)
+                .ok_or_else(|| bad("needed Task closure lost its actual preparation world"))?;
+            let dependencies = header_dependencies(&directory, program, state, instance, closure, limits, left)?;
+            for dependency in dependencies {
+                fee(left, (needed.len().saturating_add(1).ilog2() as usize + 1).saturating_mul(2))?;
+                if !needed.contains(&dependency) && needed.len() >= limits.max_functions {
+                    return Err(Diagnostic::limit(Phase::Types,
+                        "complete Task header dependency count exceeded", None));
+                }
+                needed.insert(dependency);
+            }
+        }
+        if needed.len() == before { break; }
     }
     for function in prior {
         bind_instance(
@@ -626,17 +706,16 @@ fn emitter_directory<'m>(
             left,
         )?;
     }
-    for definition in directory
-        .closures
-        .iter()
-        .map(|row| (row.id, row.function))
-        .collect::<Vec<_>>()
-    {
+    fee(left, directory.closures.len().saturating_mul(
+        std::mem::size_of::<FunctionId>().saturating_add(1),
+    ))?;
+    let entries = directory.closures.iter().map(|row| row.function).collect::<Vec<_>>();
+    for entry in entries {
         bind_instance(
             &mut directory,
             program,
             ledger,
-            definition.1,
+            entry,
             None,
             limits,
             left,
@@ -711,18 +790,37 @@ fn emitter_directory<'m>(
                 .len()
                 .saturating_mul(needed.len().saturating_add(1).ilog2() as usize + 1),
         )?;
-        let candidates = directory
-            .closures
-            .iter()
-            .filter(|row| needed.contains(&row.id) && row.storage_life.is_none())
-            .map(|row| (row.id, row.function))
-            .collect::<Vec<_>>();
+        fee(left, needed.len().saturating_mul(
+            std::mem::size_of::<(ClosureId, FunctionId)>(),
+        ))?;
+        let mut candidates = Vec::with_capacity(needed.len());
+        for row in directory.closures.iter() {
+            if needed.contains(&row.id) && row.storage_life.is_none() {
+                candidates.push((row.id, row.function));
+            }
+        }
         fee(left, candidates.len())?;
         for (closure, entry) in candidates {
-            let instance = directory.instances.values().find(|row| matches!(row.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id == entry));
-            let Some(instance) = instance else {
-                continue;
-            };
+            fee(left, directory.instances.len())?;
+            let mut worlds = directory.instances.values().filter(|row| matches!(row.target,
+                SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id == entry));
+            let Some(instance) = worlds.next() else { continue; };
+            if worlds.next().is_some() {
+                return Err(bad("Task closure header has multiple exact original preparation worlds"));
+            }
+            let dependencies = header_dependencies(&directory, program, state, instance, closure, limits, left)?;
+            fee(left, dependencies.len().saturating_mul(
+                directory.closures.len().saturating_add(needed.len().saturating_add(1).ilog2() as usize + 2),
+            ))?;
+            let mut ready = true;
+            for dependency in dependencies {
+                if !needed.contains(&dependency) {
+                    return Err(bad("Task header source changes its complete prepared dependency closure"));
+                }
+                ready &= directory.closures.iter()
+                    .any(|row| row.id == dependency && row.storage_life.is_some());
+            }
+            if !ready { continue; }
             let Some(function) = directory.function(entry) else {
                 continue;
             };
@@ -751,6 +849,10 @@ fn emitter_directory<'m>(
                 .header_embedding = embedding.clone();
             headers.push((closure, header, embedding, values));
             progress = true;
+            // A later candidate in this same round may capture this exact
+            // helper actual. Publish the complete actual vector immediately,
+            // not after a consumer has re-entered its unresolved self-formal.
+            install_callable_actuals(&mut directory, program, state, limits, left)?;
         }
         install_callable_actuals(&mut directory, program, state, limits, left)?;
         if !progress {
