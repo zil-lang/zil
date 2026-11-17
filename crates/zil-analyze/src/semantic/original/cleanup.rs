@@ -169,15 +169,17 @@ impl Solver<'_, '_> {
 }
 
 pub(super) fn finish(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
-    finish_consuming_operations(module, b)?;
-    if b.semantic_cleanup_sites.is_empty() && b.semantic_capture_cleanups.is_empty() {
-        b.semantic_consuming_cleanups.clear();
-        return if b.semantic_cleanup_proofs.is_empty() { Ok(()) }
-            else { Err(fail("actual Task cleanup proof has no original pending occurrence")) };
+    // Operation, remaining-capture and local cleanup obligations can occur
+    // independently in one module. Keep all evidence until every family has
+    // passed; a capture-free module must still consume its operation proofs.
+    if b.semantic_cleanup_sites.is_empty() && !b.semantic_cleanup_proofs.is_empty() {
+        return Err(fail("actual Task cleanup proof has no original pending occurrence"));
     }
-    if b.task_input_scopes.is_none() {
+    if (!b.semantic_cleanup_sites.is_empty() || !b.semantic_capture_cleanups.is_empty())
+        && b.task_input_scopes.is_none() {
         return Err(fail("original concrete cleanup has no complete actual Task input scopes"));
     }
+    finish_consuming_operations(module, b)?;
     finish_capture_cleanups(module, b)?;
     b.spend(b.semantic_cleanup_sites.len().saturating_mul(5), WORK)?;
     let sites: Vec<_> = b.semantic_cleanup_sites.iter().copied().collect();
@@ -232,8 +234,14 @@ pub(super) fn finish(module: &TypedModule, b: &mut Budget) -> CompileResult<()> 
     }
     // Called only after tasks::check and resources::check_module succeeded.
     // A failure above leaves every pending site intact in this request.
+    // All exact original sites and their converged resource/frame proofs
+    // succeeded. Drain once, together: neither a skipped family nor a failed
+    // later obligation can silently discard another family's pending proof.
     b.semantic_cleanup_sites.clear();
     b.semantic_cleanup_proofs.clear();
+    b.semantic_capture_cleanups.clear();
+    b.semantic_consuming_operations.clear();
+    b.semantic_consuming_cleanups.clear();
     Ok(())
 }
 
@@ -260,8 +268,19 @@ fn finish_consuming_operations(module: &TypedModule, b: &mut Budget) -> CompileR
             return Err(fail("Direct consuming operation cannot use a resumable cleanup theorem"));
         }
     }
-    // Called only after the complete actual resource fixed point succeeded.
-    b.semantic_consuming_operations.clear();
+    // No orphan completion may be discarded by the terminal drain. Resource
+    // checks produce a completion only for an exact operation obligation or a
+    // remaining-capture occurrence; preserve that invariant at consumption.
+    b.spend(b.semantic_consuming_cleanups.len().saturating_mul(4), WORK)?;
+    let completed: Vec<_> = b.semantic_consuming_cleanups.keys().copied().collect();
+    for point in completed {
+        b.lookup(b.semantic_consuming_operations.len(), WORK)?;
+        if b.semantic_consuming_operations.contains_key(&point) { continue; }
+        b.spend(b.semantic_capture_cleanups.len(), WORK)?;
+        if !b.semantic_capture_cleanups.iter().any(|(closure, _, _, _)| *closure == point.3) {
+            return Err(fail("actual consuming cleanup proof has no original operation or capture obligation"));
+        }
+    }
     Ok(())
 }
 
@@ -335,7 +354,5 @@ fn finish_capture_cleanups(module: &TypedModule, b: &mut Budget) -> CompileResul
             return Err(fail("remaining capture cleanup has no complete actual constructor sources"));
         }
     }
-    b.semantic_capture_cleanups.clear();
-    b.semantic_consuming_cleanups.clear();
     Ok(())
 }
