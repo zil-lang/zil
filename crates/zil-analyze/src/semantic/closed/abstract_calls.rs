@@ -422,7 +422,7 @@ impl Check<'_, '_> {
         operations::initialized_local_before(function, at, local, b)?;
         let actual = function.locals.get(local.0 as usize).filter(|row| row.id == local)
             .ok_or_else(|| fail("Receiver place has no actual local declaration"))?;
-        if actual.ty != source.root.ty || !source.path.is_empty() || source.indirect
+        if !geometry::same_type(&actual.ty, &source.root.ty, b)? || !source.path.is_empty() || source.indirect
             || source.index.is_some() {
             return Err(fail("Receiver place changes its complete original owning subject"));
         }

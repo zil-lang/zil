@@ -836,6 +836,10 @@ impl Check<'_, '_> {
             .storage_life
             .as_ref()
             .ok_or_else(|| unknown("ghost capture domain has no complete class contract"))?;
+        b.spend(contract.classes.len(), WORK)?;
+        if contract.classes.iter().any(|row| row.position.base == StorageBase::Receiver) {
+            return Err(fail("Receiver cannot contain captured or intrinsic semantic classes"));
+        }
         if function.storage_life.as_ref() != Some(contract)
             || contract.bindings.iter().any(|row| {
                 !matches!(
@@ -938,6 +942,7 @@ impl Check<'_, '_> {
         let receiver_result = crate::stored_callables::result_is_receiver(closure);
         if receiver_result {
             if !matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
+                || function.call_kind != CallKind::Direct
                 || !matches!(&closure.result, Type::Address { mutable: false, .. })
                 || !closure.lending_captures.windows(2).all(|pair| pair[0] < pair[1]) {
                 return Err(fail("Receiver result changes its actual reusable shared return mode"));
@@ -949,6 +954,7 @@ impl Check<'_, '_> {
                 b.lookup(creator_bindings.len(), WORK)?;
                 let binding = creator_bindings.get(&ordinal)
                     .ok_or_else(|| fail("Receiver source has no exact creator-to-capture binding"))?;
+                b.lookup(physical.len(), WORK)?;
                 physical.insert(binding.capture);
             }
             b.spend(physical.len().saturating_add(closure.lending_captures.len()), WORK)?;
@@ -1357,7 +1363,8 @@ impl Check<'_, '_> {
             let StorageBinder::Invocation(index) = binder else {
                 return Err(fail("Receiver class cannot replace a captured Fixed identity"));
             };
-            if !crate::stored_callables::result_is_receiver(closure)
+            if function.call_kind != CallKind::Direct
+                || !crate::stored_callables::result_is_receiver(closure)
                 || crate::signature_life::outer(header, StorageBase::Receiver) != Some(binder)
                 || index >= header.invocation_binder_count {
                 return Err(fail("Receiver class changes its explicit actual head/result relation"));
@@ -3128,7 +3135,7 @@ impl Check<'_, '_> {
                 checked = true;
             }
             if !checked { return Err(fail("Receiver result lacks its original actual subject binding")); }
-            if !geometry::same_type(&output.ty, ty, b)? || closure.result != *ty
+            if !geometry::same_type(&output.ty, ty, b)? || !geometry::same_type(&closure.result, ty, b)?
                 || !matches!(ty, Type::Address { mutable: false, .. }) {
                 return Err(fail("Receiver call result changes its complete shared type"));
             }
@@ -3736,16 +3743,9 @@ impl Check<'_, '_> {
                 used_bindings += 1;
             }
         }
-        let mut receiver_classes = BTreeSet::new();
         for row in &contract.classes {
             if row.position.base == StorageBase::Receiver {
-                if !captures || row.position.path.as_slice() != [LifeTypeProjection::Pointee]
-                    || row.position.class >= contract.fixed_binder_count
-                    || row.binder != StorageBinder::Fixed(row.position.class)
-                    || !receiver_classes.insert(row.position.class) {
-                    return Err(fail("Receiver header changes a complete retained environment class"));
-                }
-                used_classes += 1;
+                return Err(fail("Receiver is an invocation access head, not a semantic class directory"));
             }
             if matches!(row.position.base, StorageBase::Capture(_)) {
                 if !captures {
@@ -3753,10 +3753,6 @@ impl Check<'_, '_> {
                 }
                 used_classes += 1;
             }
-        }
-        if crate::signature_life::outer(contract, StorageBase::Receiver).is_some()
-            && receiver_classes.len() != contract.fixed_binder_count as usize {
-            return Err(fail("Receiver header omits its full retained environment domain"));
         }
         if used_bindings != contract.bindings.len() || used_classes != contract.classes.len() {
             return Err(fail(

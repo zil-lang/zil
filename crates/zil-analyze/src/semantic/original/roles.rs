@@ -13,6 +13,7 @@ pub(super) struct RoleFrame {
 /// Parameter elision, Fixed captures and Static results keep their own roles.
 pub(in crate::semantic) fn receiver_result(signature: &SemanticSignatureRecipe, kind: CallableKind) -> bool {
     matches!(kind, CallableKind::Fn | CallableKind::FnMut)
+        && signature.call_kind == CallKind::Direct
         && matches!(&signature.result, SemanticTypeRecipe::Address {
             mutable: false,
             lifetime: SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::OuterOccurrence {
@@ -678,6 +679,7 @@ impl Solver<'_, '_> {
                 let Kind::Life(life) = self.state.arena[self.root(receiver, b)?] else {
                     return Err(fail("callable Receiver premise loses its scoped life"));
                 };
+                b.lookup(input_lives.len(), WORK)?;
                 input_lives.insert(life);
             } else if need.receiver.is_some() {
                 return Err(fail("callable premise supplies no signature-local Receiver window"));
@@ -724,56 +726,39 @@ impl Checked {
         let declaration = inventory.definition(owner, b)?;
         if declaration.kind != SemanticDefinitionKind::Closure { return Ok(None); }
         let SemanticDefinitionBody::FunctionWithBody {
-            body: SemanticOriginalFunctionBody::Defined(body), ..
+            body: SemanticOriginalFunctionBody::Defined(body), signature, ..
         } = &declaration.body else { return Ok(None); };
+        if signature.call_kind != CallKind::Direct { return Ok(None); }
+        b.lookup(self.frames.len(), WORK)?;
         let frame = self.frames.get(&owner)
             .ok_or_else(|| fail("Receiver source has no independently completed original body"))?;
         if !matches!(self.arena[self.root(frame.result, b)?], Kind::Address { mutable: false, .. }) {
             return Ok(None);
         }
+        let directory = inventory.original_index(owner, b)?;
+        let returns = directory.active_returns(b)?;
         let mut sources = BTreeSet::new();
-        let mut returns = 0usize;
-        if !self.receiver_block_sources(owner, body, &mut sources, &mut returns, b, 0)?
-            || returns == 0 || sources.is_empty() { return Ok(None); }
-        Ok(Some(sources))
-    }
-
-    fn receiver_block_sources(
-        &self, owner: SemanticDefinitionId, block: &SemanticOriginalBlock,
-        sources: &mut BTreeSet<u32>, returns: &mut usize, b: &mut Budget, depth: usize,
-    ) -> CompileResult<bool> {
-        if depth > b.partial_depth { return Err(resource("Receiver original exit depth exceeded")); }
-        for statement in &block.statements {
-            b.spend(1, WORK)?;
-            match &statement.kind {
-                CoreStatementKind::Return(Some(value)) => {
-                    *returns = (*returns).saturating_add(1);
-                    if !self.receiver_expression_source(owner, value, sources, b, depth + 1)? { return Ok(false); }
-                }
-                CoreStatementKind::Return(None) => return Ok(false),
-                CoreStatementKind::If { then_body, else_body, .. }
-                | CoreStatementKind::IfLet { then_body, else_body, .. } => {
-                    if !self.receiver_block_sources(owner, then_body, sources, returns, b, depth + 1)? { return Ok(false); }
-                    if let Some(body) = else_body
-                        && !self.receiver_block_sources(owner, body, sources, returns, b, depth + 1)? { return Ok(false); }
-                }
-                CoreStatementKind::Match { arms, .. } => {
-                    for arm in arms {
-                        if !self.receiver_block_sources(owner, &arm.body, sources, returns, b, depth + 1)? { return Ok(false); }
-                    }
-                }
-                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body)
-                | CoreStatementKind::Loop(body) | CoreStatementKind::While { body, .. }
-                | CoreStatementKind::WhileLet { body, .. } | CoreStatementKind::ForRange { body, .. }
-                | CoreStatementKind::ForEach { body, .. } | CoreStatementKind::With { body, .. } => {
-                    if !self.receiver_block_sources(owner, body, sources, returns, b, depth + 1)? { return Ok(false); }
-                }
-                // A closure expression has its own body/return inventory.
-                // Unsupported syntax has already failed the original checker.
-                _ => {}
+        if returns.is_empty() {
+            // A genuine expression body must already have produced this exact
+            // checked result term. A discarded final expression/fallthrough
+            // cannot acquire a return by being scanned as syntax here.
+            let Some(last) = body.statements.last() else { return Ok(None); };
+            let CoreStatementKind::Expression(value) = &last.kind else { return Ok(None); };
+            if directory.erased(last.id, b)? || directory.erased(value.id, b)? { return Ok(None); }
+            b.lookup(frame.expressions.len(), WORK)?;
+            let Some(term) = frame.expressions.get(&value.id) else { return Ok(None); };
+            if self.root(*term, b)? != self.root(frame.result, b)?
+                || !self.receiver_expression_source(owner, value, &mut sources, b, 0)? {
+                return Ok(None);
+            }
+        } else {
+            for value in returns {
+                b.spend(1, WORK)?;
+                let Some(value) = value else { return Ok(None); };
+                if !self.receiver_expression_source(owner, value, &mut sources, b, 0)? { return Ok(None); }
             }
         }
-        Ok(true)
+        Ok((!sources.is_empty()).then_some(sources))
     }
 
     fn receiver_expression_source(
@@ -783,7 +768,8 @@ impl Checked {
         b.spend(1, WORK)?;
         if depth > b.partial_depth { return Err(resource("Receiver original source depth exceeded")); }
         match &value.kind {
-            CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } =>
+            CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. }
+            | CoreExprKind::Sequence { value: inner, .. } =>
                 self.receiver_expression_source(owner, inner, sources, b, depth + 1),
             CoreExprKind::If { then_value, else_value, .. } => Ok(
                 self.receiver_expression_source(owner, then_value, sources, b, depth + 1)?
@@ -800,6 +786,7 @@ impl Checked {
             CoreExprKind::Name(_) => {
                 b.lookup(self.environment_reads.len(), WORK)?;
                 let Some(ordinal) = self.environment_reads.get(&(owner, value.id)) else { return Ok(false); };
+                b.lookup(self.frames.len(), WORK)?;
                 let frame = self.frames.get(&owner).ok_or_else(|| fail("Receiver return frame absent"))?;
                 b.lookup(frame.expressions.len(), WORK)?;
                 let Some(term) = frame.expressions.get(&value.id) else { return Ok(false); };
@@ -824,6 +811,7 @@ impl Solver<'_, '_> {
         let mut source = self.root(subject, b)?;
         let mut required = false;
         for _ in 0..=b.partial_depth {
+            b.spend(1, WORK)?;
             let Kind::CallResult { caller, node, hidden } = self.state.arena[source] else { break; };
             b.lookup(self.state.calls.len(), WORK)?;
             let call = self.state.calls.get(&(caller, node))
@@ -831,10 +819,14 @@ impl Solver<'_, '_> {
             let factory = self.inventory.definition(call.target, b)?;
             let mut roles = Vec::new();
             declared_roles(&factory.requirements, &mut Vec::new(), &mut roles, b, 0)?;
+            b.spend(roles.len(), WORK)?;
             required |= roles.iter().any(|role| receiver_result(role.signature, role.kind)
                 && matches!(role.ty, SemanticTypeRecipe::OriginalType {
                     scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result }));
             source = self.root(hidden, b)?;
+        }
+        if matches!(self.state.arena[source], Kind::CallResult { .. }) {
+            return Err(resource("Receiver callable provenance exceeds its finite depth"));
         }
         let local_view = matches!(self.state.arena[self.root(life, b)?],
             Kind::Life(Life::Implicit(actual, _)) if actual == definition);

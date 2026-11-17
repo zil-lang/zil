@@ -176,6 +176,10 @@ impl Check<'_, '_> {
             unknown("callable role has no complete actual invocation and persistent inventory")
         })?;
         crate::signature_life::charge(actual, b)?;
+        b.spend(actual.classes.len(), WORK)?;
+        if actual.classes.iter().any(|row| row.position.base == StorageBase::Receiver) {
+            return Err(fail("callable Receiver is not a persistent semantic class directory"));
+        }
         if actual.fixed_binder_count as usize != subject.classes.len()
             || signature.parameters.len() != definition.parameters.len()
         {

@@ -19,6 +19,27 @@ pub(super) struct Index<'a> {
     recipes: BTreeMap<u32, &'a SemanticSiteRecipe>,
 }
 impl<'a> Index<'a> {
+    /// All runtime returns of this exact definition, including returns reached
+    /// through expression operands. The exhaustive walk owns the boundary:
+    /// nested closure bodies have their own directories, and erased CT bodies
+    /// cannot exit this activation. An absent value remains an exit obligation.
+    pub(super) fn active_returns(
+        &self, b: &mut Budget,
+    ) -> CompileResult<Vec<Option<&'a SemanticOriginalExpr>>> {
+        let mut returns = Vec::new();
+        for (id, node) in &self.nodes {
+            b.spend(1, WORK)?;
+            let Node::Statement(statement) = *node else { continue; };
+            let CoreStatementKind::Return(value) = &statement.kind else { continue; };
+            if self.erased(*id, b)? { continue; }
+            b.spend(1, WORK)?;
+            returns.try_reserve(1)
+                .map_err(|_| bad("original return directory allocation failed"))?;
+            returns.push(value.as_ref());
+        }
+        Ok(returns)
+    }
+
     pub(super) fn recipe(&self, id: SemanticSiteId, b: &mut Budget) -> CompileResult<&'a SemanticSiteRecipe> {
         b.lookup(self.recipes.len(), WORK)?;
         self.recipes.get(&id.0).copied()

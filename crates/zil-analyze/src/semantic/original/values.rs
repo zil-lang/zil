@@ -1031,7 +1031,11 @@ impl Checked {
                 };
                 let closure = inventory.module.closures.get(id.0 as usize).filter(|row| row.id == id)
                     .ok_or_else(|| fail("callable Receiver has no exact actual closure"))?;
-                if !crate::stored_callables::result_is_receiver(closure) || operation.result.is_none()
+                let entry = inventory.module.functions.get(closure.function.0 as usize)
+                    .filter(|row| row.id == closure.function)
+                    .ok_or_else(|| fail("callable Receiver has no exact actual entry"))?;
+                if entry.call_kind != CallKind::Direct
+                    || !crate::stored_callables::result_is_receiver(closure) || operation.result.is_none()
                     || !matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut) {
                     return Err(fail("callable Receiver lacks its explicit actual head/result relation"));
                 }
