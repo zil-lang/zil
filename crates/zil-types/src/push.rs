@@ -1013,8 +1013,9 @@ impl PostObservations {
         if self.scopes.len() != functions.len()
             || !self.scopes.iter().zip(functions).all(|(scope, function)| {
                 scope.as_ref().is_some_and(|scope| {
-                    scope.values.ptr_eq(&function.values)
-                        && scope.locals.ptr_eq(&function.locals)
+                    (scope.values.ptr_eq(&function.values) || scope.values == function.values)
+                        && (scope.locals.ptr_eq(&function.locals)
+                            || scope.locals == function.locals)
                         && scope.result == function.return_type
                 })
             })

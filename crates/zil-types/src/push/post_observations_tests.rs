@@ -6,7 +6,7 @@ fn program() -> TypedProgram {
     let text = (0..64)
         .map(|i| {
             format!(
-                "fn f{i}(x:i32)->i32 {{let y=x+1; if y<10 {{return y*2;}}else{{return y+3;}}}} "
+                "fn post_fixture_{i}(x:i32)->i32 {{let y=x+1; if y<10 {{return y*2;}}else{{return y+3;}}}} "
             )
         })
         .collect::<String>();
@@ -35,7 +35,7 @@ fn program() -> TypedProgram {
 
 #[test]
 fn original_post_consumers_record_the_same_per_function_and_independent_ledger_fees() {
-    let program = program();
+    let mut program = program();
     let functions = program.module.functions.iter().cloned().collect::<Vec<_>>();
     let limits = Limits::default();
     let mut remaining = limits.max_analysis_steps;
@@ -75,6 +75,22 @@ fn original_post_consumers_record_the_same_per_function_and_independent_ledger_f
     .unwrap();
     assert!(resources.is_empty());
     assert_eq!(observations.observed_functions(), 64);
+    // Complete-equal output adoption may supply new immutable array owners.
+    // Retained scopes must compare their actual contents in that case.
+    for function in program.module.functions.iter_mut() {
+        function.values = function.values.iter().cloned().collect::<Vec<_>>().into();
+        function.locals = function.locals.iter().cloned().collect::<Vec<_>>().into();
+    }
+    assert!(
+        !functions[0]
+            .values
+            .ptr_eq(&program.module.functions[0].values)
+    );
+    assert!(
+        !functions[0]
+            .locals
+            .ptr_eq(&program.module.functions[0].locals)
+    );
     let receipts = observations
         .receipts(program.module.functions.iter())
         .unwrap();

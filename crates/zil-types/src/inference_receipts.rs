@@ -58,7 +58,11 @@ impl RawInferenceSession {
     }
     pub(super) fn inputs_for(&self, program: &Arc<CoreProgram>) -> Option<CurrentInputs> {
         let current = self.current.as_ref()?;
-        Arc::ptr_eq(&current.program, program).then(|| CurrentInputs(current.clone()))
+        Arc::ptr_eq(&current.program, program).then(|| CurrentInputs {
+            program: current.program.clone(),
+            limits: current.limits.clone(),
+            rows: current.rows.clone(),
+        })
     }
     pub(super) fn infer<'a>(
         &mut self,
@@ -135,22 +139,26 @@ struct Context {
 /// Successful observations of the exact current immutable Core. The persistent
 /// function cache contains only raw outputs, never this owner or its read set.
 #[derive(Clone, Debug)]
-pub(super) struct CurrentInputs(Arc<Context>);
+pub(super) struct CurrentInputs {
+    program: Arc<CoreProgram>,
+    limits: Limits,
+    rows: PersistentVec<Row>,
+}
 impl CurrentInputs {
     pub fn matches(&self, program: &CoreProgram, limits: &Limits) -> bool {
-        std::ptr::eq(self.0.program.as_ref(), program) && &self.0.limits == limits
+        std::ptr::eq(self.program.as_ref(), program) && &self.limits == limits
     }
     pub fn body(&self, index: usize) -> Option<&inference::BodyInput> {
-        self.0.rows.get(index)?.input.as_deref()
+        self.rows.get(index)?.input.as_deref()
     }
     pub fn names(&self, limits: &Limits) -> Option<Vec<usize>> {
-        if limits != &self.0.limits {
+        if limits != &self.limits {
             return None;
         }
         let mut total = 0usize;
-        let mut costs = Vec::with_capacity(self.0.rows.len());
-        for index in 0..self.0.rows.len() {
-            let cost = self.0.rows.get(index)?.names;
+        let mut costs = Vec::with_capacity(self.rows.len());
+        for index in 0..self.rows.len() {
+            let cost = self.rows.get(index)?.names;
             total = total.checked_add(cost)?;
             if total > limits.max_nodes {
                 return None;
