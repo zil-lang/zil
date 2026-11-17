@@ -964,6 +964,8 @@ impl Engine<'_>{
                             if let Some(actual)=inputs.get(*ordinal as usize).and_then(|input|input.get(path)){b.spend(source_width(actual))?;sources.extend(actual.iter().cloned());}else{sources.insert(TaskSource::Unknown);}
                         },
                         TaskSource::Capture{definition,source,path}if *definition==target=>{
+                            source.charge_clone(b)?;
+                            if let Some(rows)=original.free_values.get(&target){b.spend(rows.len())?;for(name,binding)in rows{b.spend(name.len())?;binding.identity.charge_clone(b)?;}}
                             let mut names=original.free_values.get(&target).into_iter().flat_map(|rows|rows.iter()).filter(|(_,binding)|binding.identity==**source);
                             let Some((name,_))=names.next()else{sources.insert(TaskSource::Unknown);continue;};
                             if names.next().is_some(){return Err(bad("closure result source has ambiguous original captured binders"));}

@@ -149,6 +149,7 @@ impl CheckedOriginal {
         let goals=std::mem::take(&mut self.direct_consuming_goals);
         let snapshots=std::mem::take(&mut self.direct_cleanup_snapshots);
         for(definition,receiver,creator)in goals{
+            b.spend(snapshots.len())?;
             if !matches!(receiver,Ty::Closure(id,..)if id==definition)||!self.checked.contains(&definition)||creator.lexical.first().is_none_or(|frame|frame.definition!=definition){return Err(bad("original Direct consuming provider loses its exact checked creator/receiver"));}
             if !self.creator_moves.get(&definition).copied().ok_or_else(||bad("original consuming provider has no original capture mode"))?{continue;}
             for cleanup in snapshots.iter().filter(|cleanup|cleanup.definition==definition){

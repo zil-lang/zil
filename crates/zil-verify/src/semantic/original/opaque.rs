@@ -3,6 +3,20 @@
 //! same-numbered Result, Implicit or local namespace.
 use super::*;
 
+/// Select a complete advertised result contract without flattening its
+/// quantifier tree. The entire original row is proved once by obligation.
+fn result_callable_contract(row:&SemanticRequirementRecipe,b:&mut Budget)->Check<bool>{
+    let mut pending=vec![(row,0usize)];
+    while let Some((row,depth))=pending.pop(){
+        b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("opaque result requirement depth exceeded"));}
+        match row{
+            SemanticRequirementRecipe::Callable{ty:SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Result},..}=>return Ok(true),
+            SemanticRequirementRecipe::ForAll{requirements,..}=>{b.spend(requirements.len())?;pending.extend(requirements.iter().map(|row|(row,depth+1)));},
+            _=>{},
+        }
+    }Ok(false)
+}
+
 impl CheckedOriginal {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn opaque_type(&mut self, module: &TypedModule, context: &CheckedContext, owner: SemanticDefinitionId, arguments: &[SemanticActualRecipe], hidden: &SemanticTypeRecipe, caller: &Env, active: &mut ActiveQueries, b: &mut Budget) -> Check<Ty> {
@@ -74,7 +88,7 @@ impl CheckedOriginal {
         let hidden = self.results.get(&owner).ok_or_else(|| bad("opaque result has no original role"))?;
         if usage::has_inference(hidden, &self.substitutions, b)? { return Err(bad("opaque result is not determined by every original return")); }
         for row in &original.requirements {
-            if matches!(row, SemanticRequirementRecipe::Callable { ty: SemanticTypeRecipe::OriginalType { scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result }, .. }) {
+            if result_callable_contract(row,b)?{
                 self.obligation(module, context, row, env, env, active, b)?;
             }
         }
@@ -85,6 +99,33 @@ impl CheckedOriginal {
 #[cfg(test)]
 mod structural_tests{
     use super::*;
+    #[test]
+    fn unused_opaque_provider_checks_zero_and_nonzero_quantified_result_contracts_raw_wire(){
+        let limits=Limits::default();
+        let(template,plan)=zil_ir::wire::decode_module_candidate(include_bytes!("../fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+        for wrapper in [None,Some(0),Some(1)]{for hostile in 0..3{
+            if hostile==2&&wrapper!=Some(1){continue;}
+            let mut module=template.clone();let program=module.semantic.as_mut().unwrap();
+            let mut owner=program.definitions.iter().find(|row|row.kind==SemanticDefinitionKind::Function&&matches!(row.parameters.as_slice(),[SemanticFormal::Type{..}])).unwrap().clone();
+            owner.id.index=program.definitions.iter().map(|row|row.id.index).max().unwrap()+1;owner.identity.declaration_path.push("quantified_opaque_code".into());let id=owner.id;
+            let mut code=SemanticSignatureRecipe{bound_lifetimes:0,invocation_lifetimes:0,parameters:vec![SemanticParameterRecipe{ty:SemanticTypeRecipe::Atom(Type::I32),mode:PassingMode::Move}],result:SemanticTypeRecipe::Atom(Type::I32),result_mode:PassingMode::Move,call_kind:CallKind::Direct};
+            if hostile==2{code.parameters[0].ty=SemanticTypeRecipe::Address{mutable:false,lifetime:SemanticOuterLifeRecipe::Static,inner:Box::new(SemanticTypeRecipe::Atom(Type::I32))};}
+            let mut wanted=code.clone();if hostile==1{wanted.parameters.clear();}
+            if hostile==2{wanted.parameters[0].ty=SemanticTypeRecipe::Address{mutable:false,lifetime:SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Bound{depth:0,index:0}),inner:Box::new(SemanticTypeRecipe::Atom(Type::I32))};}
+            let row=SemanticRequirementRecipe::Callable{ty:SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Result},kind:CallableKind::FnOnce,signature:Box::new(wanted)};
+            owner.requirements=vec![if let Some(lifetimes)=wrapper{SemanticRequirementRecipe::ForAll{lifetimes,requirements:vec![row]}}else{row}];
+            let SemanticDefinitionBody::FunctionWithBody{signature,parameters,..}=&mut owner.body else{unreachable!()};
+            let pointer=SemanticTypeRecipe::Code{kind:SemanticCodeKind::FunctionPointer,signature:Box::new(code)};
+            signature.parameters[0].ty=pointer.clone();parameters[0].ty=Some(pointer);
+            signature.result=SemanticTypeRecipe::Opaque{definition:id,arguments:vec![SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(SemanticFormalRef{scope:SemanticScopeRef::Ancestor(0),ordinal:0}))],hidden:Box::new(SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Result})};
+            program.definitions.push(owner);assert!(!program.instances.iter().any(|row|row.definition==id));
+            for wire in [false,true]{
+                let decoded;let module=if wire{let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();decoded=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0;&decoded}else{&module};
+                let mut b=Budget::new(&limits);let context=CheckedContext::catalogue(module,&mut b).unwrap();let result=CheckedOriginal::check(module,&context,&mut ActiveQueries::new(),&mut b);
+                assert_eq!(result.is_ok(),hostile==0,"uninstantiated result contract wrapper {wrapper:?}, wrong signature/rigid-frame attack {hostile}, wire {wire}");
+            }
+        }}
+    }
     #[test]
     fn opaque_structural_obligations_use_exact_original_hidden_role_and_all_actuals_raw_wire(){
         let limits=Limits::default();
