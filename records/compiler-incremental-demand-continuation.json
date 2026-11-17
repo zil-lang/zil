@@ -1,15 +1,16 @@
 {
-  "schema": "zil.compiler-current-native-continuation.v6",
+  "schema": "zil.compiler-current-native-continuation.v7",
   "branch": "research/full-push-native",
-  "source": "3c418570aa6e0582bd2be63c2f9d50fb15baa58f",
-  "production_source": "3c418570aa6e0582bd2be63c2f9d50fb15baa58f",
-  "result_commit": "cb4636536e1faf38d4c0874b563178a8e317fd0d",
-  "binary_sha256": "dfecb4bf95f5a0a863d7d6c5be3f1c7bc055735efa531e9631e29a01903b8bd8",
+  "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
+  "production_source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
+  "reporting_source": "adc3d54baa592aa534f401e2fee5eede0d2db9e5",
+  "result_commit": "909e11f20b84aed2ab413cd43d090c7bcc88121b",
+  "binary_sha256": "8f5a44be3f4a6ab879366ac8a787ab5f63c25f3377d1ff6d1e9afb3800f3acc2",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "goal_read_sha": "625b48322fe4d27848e291632d372bfb1a112177",
-  "status": "window27 directfirstedit 1.551812/Rust1.042106s, candidate/Rust=1.489112; NoGo, firstedit still slower; comprehensive goal remains open",
+  "goal_read_sha": "2545cc9335254c183c3bc72676d6bc33b5c8535d",
+  "status": "window28 firstedit 1.710628/Rust1.304979s; NoGo: firstedit still slower; comprehensive target remains open",
   "latest_native": {
-    "scope": "Original5105functions/102files/843875bytes, original257input domain; actualmain/currentcandidate/Rust only. Native O2/CGU16/compilerjobs1; explicit default-off bounded-class-imports128-v4. Closeprocess, edit, then newprocess first resident request. Startup separate; not full ordinaryCLI or OS-cold.",
+    "scope": "Original5105 functions/102 sourcefiles, actualmain/current/Rust, O2/CGU16/compilerjobs1. Explicit default-off bounded-classes-128-v4 and host-jemalloc; SDK18 reused. Original direct first resident request excludes startup/drop; ordinaryCLI companion includes complete process.",
     "counts": {
       "formal_workflow_requests": 30,
       "runtime_profile_build_requests": 12,
@@ -18,137 +19,199 @@
     },
     "compile_median_ms": {
       "cold": {
-        "candidate": 3443.1033415,
-        "rust": 6142.8002345
+        "candidate": 3683.178373,
+        "rust": 6731.854413
       },
       "unchanged": {
-        "candidate": 50.014480000000006,
-        "rust": 20.4051895
+        "candidate": 61.2595855,
+        "rust": 20.822907
       },
       "private-001": {
-        "candidate": 1551.8115205,
-        "rust": 1042.1056505
+        "candidate": 1710.6276305000001,
+        "rust": 1304.97887
       },
       "recovery": {
-        "candidate": 1879.88479,
-        "rust": 5853.999502
+        "candidate": 1628.708768,
+        "rust": 5889.599071500001
       },
       "error": {
-        "candidate": 1140.1114915,
-        "rust": 1908.7065765
+        "candidate": 1386.779284,
+        "rust": 1799.1446975
       }
     },
     "runtime_ms": {
       "5105/cold": {
-        "candidate": 34.041492500000004,
-        "rust": 200.2450465
+        "candidate": 32.04415,
+        "rust": 190.3089625
       },
       "5105/unchanged": {
-        "candidate": 33.047135,
-        "rust": 238.09920699999998
+        "candidate": 32.438483,
+        "rust": 197.209876
       },
       "5105/private-001": {
-        "candidate": 32.849005000000005,
-        "rust": 194.650518
+        "candidate": 31.983014999999998,
+        "rust": 184.15299800000003
       },
       "5105/recovery": {
-        "candidate": 32.75108,
-        "rust": 187.583669
+        "candidate": 33.106415999999996,
+        "rust": 189.8437145
       }
     },
     "user_disk_boundary_peak_physical_bytes": [
       {
         "block": 0,
-        "candidate": 43032576,
+        "candidate": 50003968,
         "rust": 76734464
       },
       {
         "block": 1,
-        "candidate": 43069440,
+        "candidate": 50036736,
         "rust": 61546496
       }
     ],
-    "raw": "out/runs/direct-firstedit-performance-direct-27"
+    "raw": "out/runs/direct-firstedit-performance-direct-28"
+  },
+  "ordinary_cli": {
+    "execution_complete": true,
+    "rows": 12,
+    "tool_source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
+    "candidate_source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
+    "candidate_binary_sha256": "8f5a44be3f4a6ab879366ac8a787ab5f63c25f3377d1ff6d1e9afb3800f3acc2",
+    "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+    "parent": "/workspace/zil-push-main/out/runs/direct-firstedit-performance-direct-28",
+    "median_ms": {
+      "cold": {
+        "baseline": 737.3988925,
+        "candidate": 3161.099756,
+        "rust": 6830.975657999999
+      },
+      "private-001": {
+        "baseline": 493.50435949999996,
+        "candidate": 2171.3766244999997,
+        "rust": 1241.3314125
+      }
+    },
+    "clock": "ordinary CLI launch through process exit; default session capacity; no diagnostic flags",
+    "profile": "O2/CGU16/compiler jobs1; original budgets; explicit research options from parent",
+    "history": "empty per-block user caches -> cold -> process exit -> edit -> fresh process first build",
+    "full_runtime_gate": "parent matrix; three output controls per successful CLI build only"
   },
   "gates": {
-    "source": "3c418570aa6e0582bd2be63c2f9d50fb15baa58f",
-    "checks": {
-      "strict": {
-        "source": "3c418570aa6e0582bd2be63c2f9d50fb15baa58f",
-        "valid": true,
-        "test_results": [],
-        "path": "out/runs/direct-firstedit-native-gates-62-3c418570aa6e/strict.json"
-      },
-      "backend": {
-        "source": "3c418570aa6e0582bd2be63c2f9d50fb15baa58f",
-        "valid": true,
-        "test_results": [
-          [
-            "ok",
-            "388",
-            "0",
-            "0"
-          ]
-        ],
-        "path": "out/runs/direct-firstedit-native-gates-62-3c418570aa6e/backend.json"
-      },
-      "driver": {
-        "source": "3c418570aa6e0582bd2be63c2f9d50fb15baa58f",
-        "valid": true,
-        "test_results": [
-          [
-            "ok",
-            "254",
-            "0",
-            "0"
-          ]
-        ],
-        "path": "out/runs/direct-firstedit-native-gates-62-3c418570aa6e/driver.json"
-      },
-      "publication": {
-        "source": "3c418570aa6e0582bd2be63c2f9d50fb15baa58f",
-        "valid": true,
-        "test_results": [
-          [
-            "ok",
-            "3",
-            "0",
-            "0"
-          ]
-        ],
-        "path": "out/runs/direct-firstedit-native-gates-62-3c418570aa6e/publication.json"
-      },
-      "fmt": {
-        "source": "3c418570aa6e0582bd2be63c2f9d50fb15baa58f",
-        "valid": true,
-        "test_results": [],
-        "path": "out/runs/direct-firstedit-native-gates-62-3c418570aa6e/fmt.json"
-      },
-      "release": {
-        "source": "3c418570aa6e0582bd2be63c2f9d50fb15baa58f",
-        "valid": true,
-        "test_results": [],
-        "path": "out/runs/direct-firstedit-native-gates-62-3c418570aa6e/release.json"
-      }
+    "strict": {
+      "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
+      "valid": true,
+      "test_results": []
+    },
+    "types": {
+      "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
+      "valid": true,
+      "test_results": [
+        [
+          "ok",
+          "127",
+          "0",
+          "0"
+        ]
+      ]
+    },
+    "backend": {
+      "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
+      "valid": true,
+      "test_results": [
+        [
+          "ok",
+          "394",
+          "0",
+          "0"
+        ]
+      ]
+    },
+    "driver": {
+      "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
+      "valid": true,
+      "test_results": [
+        [
+          "ok",
+          "255",
+          "0",
+          "0"
+        ]
+      ]
+    },
+    "publication": {
+      "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
+      "valid": true,
+      "test_results": [
+        [
+          "ok",
+          "4",
+          "0",
+          "0"
+        ]
+      ]
+    },
+    "fmt": {
+      "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
+      "valid": true,
+      "test_results": []
+    },
+    "release": {
+      "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
+      "valid": true,
+      "test_results": []
     }
   },
-  "unchanged_checks_reused": "API111 gate60 unchanged; qualifier31/recording2 gate61 unchanged; Analyze316 gate59 and prior IR94/CT78/Expand148/Types121/Verify657 unchanged. All affected backend/driver/nativepublication rerun; strict/fmt/release and original30+12/10+4 performance complete.",
-  "review": "Root nonauthor reviewed Astra Inputs exactowner/header/fuel/wrapper bridge and scoped-runtime values dependency. Astra nonauthor exact3c418570aa6e0582bd2be63c2f9d50fb15baa58f reviewed root raw ABI+Inputs integration and complete raw cold/restart/directedit wrapper test: PASS. No persisted Source/Types/Verify/WorldBound receipt.",
-  "measured_consumer_correction": {
-    "formal_scoped_thread_scans_per_firstedit": 5105,
-    "formal_scoped_thread_reuses_per_firstedit": 0,
-    "normal_lowering": "zil_lower::current_view borrows verified.module().functions; distinct LIR wrappers are an interface case, not demonstrated in formal27.",
-    "conclusion": "No end-to-end speed improvement established. Formal26 firstedit1548.763ms, formal27 1551.812ms are separate windows, not paired A/B. Current owner-scoped optimization missed the formal first-edit body population. Do not interpret successful tests or the wrapper regression fix as removal of the observed gap."
+  "reporting_followup": {
+    "source": "adc3d54baa592aa534f401e2fee5eede0d2db9e5",
+    "scope": "Only missing aggregate counters and existing regression assertions",
+    "release_regression": {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 254,
+      "command": "cargo test --locked --offline --release -p zil-driver --features native-products --lib attempt_totals_add_execution_costs_and_keep_only_final_retained_gauges"
+    },
+    "performance_measured": false,
+    "strict": {
+      "valid": true,
+      "command": "cargo clippy --locked --offline --release -p zil-driver --features native-products --lib -- -D warnings",
+      "log_sha256": "ef415ebff64e3a971e2ed07eeaaec22f8a7dd041ff69e4b1c97c1e196a328826"
+    }
   },
-  "phase_conclusion": "Current paired diagnostic: Types context/projection/query/CFG recovery dominate frontend; semantic publication160ms/function read63ms; machine361ms (emit192,class/prune150), object114ms. Rust codegen_crate102ms is only start_codegen; finish_ongoing_codegen369ms and link38ms occur later, while LLVM_thinlto481ms overlaps. Never compare whole ZILbackend571ms only toRust102ms or assign the whole formal gap to machine.",
-  "unresolved": [
-    "Actual main originaldefaultResourceLimit, accepted=false; no merge.",
-    "Directfirstedit goal remains open unless the formal candidate/Rust row leads; current machine class/reachability/partition still reconstructed before object hits, not rustc greenCGU reuse before LLVM IR.",
-    "Industrial multi-crate/proc-macro/build.rs, minute-scale builds and GB-scale cache coverage remain unverified. No comprehensive Rust claim.",
-    "Formal residentrequest timing excludes startup/drop. OrdinaryCLI full-process and OScold are not established by this window.",
-    "No sustained benefit from the current owner-based scoped-body path: actual firstedit checked5105/reused0. Further small pointer caches are not justified by this measurement; need eliminate actual restored data/context/graph work or overlap metadata preparation with LLVM as rustc does, preserving success-only publication. Neither new persistent classgraph nor asynchronous metadata preparation is implemented here."
+  "review": {
+    "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
+    "model": "gpt-6-astra",
+    "verdict": "PASS, no blocking source findings; all33files match commit; source review, not measured speedup"
+  },
+  "changes": [
+    "Current exact Core/Limits raw inference observations reach actual Types key and name consumers, including a fresh process first edit. Current signature reads reconstruct dependencies. Original ledgers and error precedence remain.",
+    "Original ordered task/registration/byte-buffer/dynamic-store consumers record actual scoped charges. Context construction consumes complete reconciled observations instead of rerunning these passes. Equal output anchors still require complete input equality.",
+    "Raw class and partition work products are bounded, produced by cold builds, success-only published, loaded after restart, checked against full current inputs/ABI/callee classes/graph/roles/copy allowance, and consumed before CGU materialization. Decoded dependency and rendering relations are independently rederived; selector is rehashed; no checker authority persisted.",
+    "Semantic encoding preparation starts after current Verify, overlaps backend work, and always joins before return. Successful guarded publication alone advances cache epochs. Failure/cancellation and bounded raw OnceLock associations retain original semantics.",
+    "Fresh closure inference, current header context construction and absolute CFG span rebinding remain. This is not serialized Context authority or zero-copy span rebasing."
   ],
-  "results_url": "https://github.com/zil-lang/zil/blob/cb4636536e1faf38d4c0874b563178a8e317fd0d/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
-  "negative_window26": "https://github.com/zil-lang/zil/blob/2c6ee02df6a15c90723b666a379884fd96b37fd9/tools/research/incremental-demand/native-direct-edit-chain-20261116/window26.json",
-  "next_work_not_implemented": "Eliminate actual Source/Types restoration and classgraph/partition reconstruction before object hits; inspect rustc async LLVM plus metadata preparation with unchanged success-onlypublication. No mainmerge/fullpack/LLVM rebuild."
+  "counter_reporting_limitation": "The new FunctionStats body_key_current_projections/names_current_replays fields were omitted by CompileReport add_function_work aggregation. Formal zeros for those two fields are not cache misses. Body_key_executions2 and existing backend/TypesPush counters remain actual. A report-only fix and targeted aggregation regression follow; no timings are attributed to that later source.",
+  "retained_disk_tradeoff": "Current candidate boundary peaks50.0MB versus prior source3c43.0MB; new auxiliary class/partition payloads add about6.9MB. Both source-bound results retained; no host cleanup counted.",
+  "phase_conclusion": "Logical class/key/unit work shrank, but raw restore/validation/reencoding and absolute CFG binding remain. Same-source paired diagnostics and147CPU samples retained locally, not treated as formal timing ratios.",
+  "unresolved": [
+    "Actualmain originaldefaultResourceLimit: no main-regression acceptance or merge.",
+    "Industrial multi-crate/proc-macro/build.rs, minute-scale/GB-scale workloads not established.",
+    "Two balanced blocks do not establish stable performance tails; profile stage times are not summed across asynchronous work.",
+    "Raw work product recovery still decodes, rederives dependencies/normalization, binds current inputs and serializes auxiliary class/partition products; logical hits alone did not remove enough CPU.",
+    "Current canonical CFGs still rebind5100 absolute span-bearing bodies; fresh closure inference and current header context remain.",
+    "OrdinaryCLI includes large compiler session destruction after compile_path, unlike the separate resident request clock; compilerjobs1/CGU16/O2 remain equal."
+  ],
+  "next_work_not_implemented": {
+    "function_payload_representation": {
+      "complete_fragments": 5101,
+      "complete_fragment_bytes": 7236617,
+      "distinct_scalar_header_bodies": 374,
+      "distinct_body_bytes": 1565629,
+      "own_id_and_name_descriptor_bytes_approx": 55000,
+      "status": "Read-only analysis of current cache, not implemented or a measured speedup"
+    },
+    "backend_bound_recovery": "Avoid separate old input-machine materialization, bind to actual current machine while retaining current read/normalized/callee checks; retain accepted raw bytes across delta publication. Not implemented."
+  },
+  "results_url": "https://github.com/zil-lang/zil/blob/909e11f20b84aed2ab413cd43d090c7bcc88121b/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
+  "negative_window27": "https://github.com/zil-lang/zil/blob/909e11f20b84aed2ab413cd43d090c7bcc88121b/tools/research/incremental-demand/native-direct-edit-chain-20261116/window27.json"
 }

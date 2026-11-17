@@ -552,7 +552,7 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G10.5.1 | 编译效率复核、加权性能与真实覆盖扩展 | 进行中·首改仍输Rust | P1 | Chat编译专项 | full-push-native正式3c418570a/结果cb4636536，实际main9170未合。window27原30工作流/10功能格+12运行构建/4运行格完整过；冷3.443/R6.143s、重启直接首改1.552/R1.042s仍慢约49%，本轮未证明端到端改善。用户盘量43.0–43.1MB/R61.5–76.7MB。独立Verify/原预算/O2/默认关保持；普通CLI/工业/全面门开放。[精简记录](records/compiler-incremental-demand-continuation.json)。 |
+| G10.5.1 | 编译效率复核、加权性能与真实覆盖扩展 | 进行中·首改仍输Rust | P1 | Chat编译专项 | A/B/Driver同批实现正式7623ad13c、报告修复adc3d54ba、结果909e11f20。strict/Types127/后端394/Driver255/原生发布4/release与Astra独审过；原30+12请求/10+4格过。驻留首改1.711/R1.305s仍慢31%；普通CLI首改2.171/R1.241s仍慢75%，冷3.161/R6.831s。盘50.0MB/R61.5–76.7MB，较前候选增加约7MB。类键243→2、分区16→2，但恢复/重编码仍有成本。Verify/原预算/O2/默认关保留，main/工业/全面门开放。[精简记录](records/compiler-incremental-demand-continuation.json)。 |
 | G10.5.1.1 | 可选完整导入超预算时保持普通分区及生效决策 | 已合入 | — | Chat直接复核 | PR65@906940ea已合maine69091059；三生产文件与main2293逐blob相同，build.md长期规则及必要回归已保留。后来数组预算旧pin已由PR69修正，main2293三CI成功。旧实验tipda1e9412完整归档3ad41515后清理，历史失败不改写。 |
 | G10.5.1.2 | 单次构图回退索引复用与复杂调用图/trait/资源覆盖 | 实验完成·未采用 | P1 | 编译专项·20261109 | 候选49889241、交付929417b0，1764完整编译/1470正式、3780输出、504原生代码段一致、252运行通过。四加权净变化-0.09%/+0.57%/+0.06%/+0.37%，绝对不足1.3ms/请求，Hold不合入。首轮测量器失败与修正保留；原版bitmaps/syn/regex-automata仅Rust参考，大型等价应用仍缺。 |
 | G10.5.1.3 | 标量Types签名依赖分面及主线Rust对照 | 已合入 | — | Chat直接复核 · PR70 | PR70/cadc656c已合main21b1feef；两个原受测blob及incremental-types机制说明已核。官方/研究LLVM同树workspace5864/0、reference5750/0、text70/0、严格检查与原生分配失败控制通过；主线仅多出PR71测试恢复，完整保留。历史加权0.18%–0.37%不夸大，见[合入收据](records/compiler-signature-merge.json)。 |
