@@ -88,19 +88,32 @@ fn actual_close_exits_allow_only_the_current_callable_task_occupants() {
         ),
     ] {
         let report = compile_source(&source(&text), &options);
-        assert_ne!(
+        // These original programs may infer Suspend at the cleanup endpoint.
+        // Cancellation, a fabricated Ready and an ignored Pending still do
+        // not establish Closed: a Direct endpoint must reject each one.
+        assert_eq!(
             report.status,
             ResultCategory::Success,
             "{name}: {}",
             report.to_json()
         );
+        assert_eq!(report.verification_runs, 1, "{name}");
+        let header = "fn main()->TaskCreateError!i32 {";
+        assert_eq!(text.matches(header).count(), 1, "{name}");
+        let direct = text.replacen(header,
+            "fn main()->TaskCreateError!i32 contract{effects(io);}{", 1);
+        let rejected = compile_source(&source(&direct), &options);
+        assert_eq!(rejected.status, ResultCategory::SafeReject, "{name}: {}", rejected.to_json());
         assert!(
-            report
+            rejected
                 .diagnostics
                 .iter()
-                .any(|d| d.code == "E-TASK-ABI" || d.code == "E-VERIFY-TASK"),
+                .any(|d| d.phase == zil_base::Phase::Analyze
+                    && d.category == ResultCategory::SafeReject
+                    && d.code == "E-TASK-ABI"
+                    && d.message == "pollable Task automatic Drop requires asynchronous continuation"),
             "{name}: {}",
-            report.to_json()
+            rejected.to_json()
         );
     }
 }
@@ -462,10 +475,19 @@ fn asynchronous_child_input_does_not_acquire_synchronous_parent_cleanup() {
         "{}",
         drained.to_json()
     );
-    let rejected = compile_source(&source(&asynchronous), &options);
-    assert_ne!(
+    // An omitted upper can infer Suspend for the real asynchronous debt.
+    // Keep the original bytes as a positive and constrain only its owner.
+    let inferred = compile_source(&source(&asynchronous), &options);
+    assert_eq!(inferred.status, ResultCategory::Success, "{}", inferred.to_json());
+    assert_eq!(inferred.verification_runs, 1);
+    let header = "fn main()->TaskCreateError!i32 {";
+    assert_eq!(asynchronous.matches(header).count(), 1);
+    let direct = asynchronous.replacen(header,
+        "fn main()->TaskCreateError!i32 contract{effects(io);}{", 1);
+    let rejected = compile_source(&source(&direct), &options);
+    assert_eq!(
         rejected.status,
-        ResultCategory::Success,
+        ResultCategory::SafeReject,
         "{}",
         rejected.to_json()
     );
@@ -473,7 +495,11 @@ fn asynchronous_child_input_does_not_acquire_synchronous_parent_cleanup() {
         rejected
             .diagnostics
             .iter()
-            .any(|d| d.message.contains("Task") && d.message.contains("Drop")),
+            .any(|d| d.phase == zil_base::Phase::Types
+                && d.category == ResultCategory::SafeReject
+                && d.code == "E-ORIGINAL-CLEANUP"
+                && d.message == "live original Task default Drop cleanup may suspend and lacks a Closed fact or a Suspend execution root"
+                && d.notes.iter().any(|note| note == "original scope cleanup binding \"original\", retained lexical depth 0")),
         "{}",
         rejected.to_json()
     );
