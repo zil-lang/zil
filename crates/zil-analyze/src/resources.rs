@@ -4169,16 +4169,25 @@ impl Flow<'_> {
                         }
                     }
                     if let InstructionKind::CallClosureOnce { callee, .. } = i.kind {
-                        if check && !tasks::once_cleanup_resumable(self.module, f, callee, budget)?
-                            && !tasks::once_cleanup_has_no_task(self.module,definition.id,budget)?
-                            && !tasks::once_cleanup_closed(self.module,definition.id,budget)? {
-                            tasks::require_synchronous_value(
-                                self.module,
-                                f,
-                                callee,
-                                budget,
-                                Some(i.span),
-                            )?;
+                        if check {
+                            budget.spend(budget.semantic_capture_cleanups.len(), "original consuming cleanup occurrence")?;
+                            let original = budget.semantic_capture_cleanups.iter()
+                                .any(|(closure, _, _)| *closure == definition.id);
+                            if !tasks::once_cleanup_resumable(self.module, f, callee, budget)?
+                                && !tasks::once_cleanup_has_no_task(self.module, definition.id, budget)?
+                                && !tasks::once_cleanup_closed(self.module, definition.id, budget)? {
+                                if original {
+                                    tasks::require_original_synchronous_value(
+                                        self.module, f, callee, budget, Some(i.span))?;
+                                } else {
+                                    tasks::require_synchronous_value(
+                                        self.module, f, callee, budget, Some(i.span))?;
+                                }
+                            }
+                            if original {
+                                budget.lookup(budget.semantic_consuming_cleanups.len(), "complete actual consuming cleanup proof")?;
+                                budget.semantic_consuming_cleanups.insert((f.id, f.blocks[b].id, position, definition.id));
+                            }
                         }
                         self.consume(state, callee, check, budget)?;
                     }

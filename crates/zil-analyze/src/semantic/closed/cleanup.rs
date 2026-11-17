@@ -21,7 +21,7 @@ impl Check<'_, '_> {
                     let capture = self.environment_capture(instance, function, ordinal, b)?;
                     let id = function.environment.ok_or_else(|| fail("original capture cleanup loses its actual entry"))?;
                     let closure = self.module.closures.get(id.0 as usize).filter(|definition| definition.id == id
-                        && definition.function == function.id && definition.kind == CallableKind::FnOnce)
+                        && definition.function == function.id && matches!(definition.kind, CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce))
                         .ok_or_else(|| fail("original capture cleanup changes its consuming entry identity"))?;
                     let mut ty = closure.captures.get(capture as usize)
                         .ok_or_else(|| fail("original capture cleanup selects no actual captured field"))?;

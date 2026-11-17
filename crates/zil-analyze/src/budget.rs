@@ -122,6 +122,10 @@ pub(super) struct Budget {
     // resource fixed point. This is never a structural SyncDrop theorem.
     pub(super) semantic_cleanup_proofs: BTreeSet<(FunctionId, zil_ir::BlockId, usize, LocalId)>,
     pub(super) semantic_capture_cleanups: BTreeSet<(zil_ir::ClosureId, u32, Vec<u32>)>,
+    // Exact consuming calls whose actual remaining-environment cleanup passed
+    // the resource/frame or unconditional post-body proof in this request.
+    pub(super) semantic_consuming_cleanups:
+        BTreeSet<(FunctionId, zil_ir::BlockId, usize, zil_ir::ClosureId)>,
     // Exact constructor occurrences whose complete original class value and
     // actual header embedding have both been proved. No target/loan facts.
     pub(super) semantic_aggregate_classes:
@@ -320,6 +324,7 @@ impl Budget {
             semantic_cleanup_sites: BTreeSet::new(),
             semantic_cleanup_proofs: BTreeSet::new(),
             semantic_capture_cleanups: BTreeSet::new(),
+            semantic_consuming_cleanups: BTreeSet::new(),
             semantic_aggregate_classes: BTreeMap::new(),
             stored_synchronous_abis: BTreeSet::new(),
             stored_task_frame_functions: BTreeSet::new(),

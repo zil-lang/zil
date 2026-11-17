@@ -890,7 +890,9 @@ pub(crate) fn once_cleanup_has_no_task(
     let Some(d) = module.closures.get(id.0 as usize) else {
         return Ok(false);
     };
-    if d.kind != zil_ir::CallableKind::FnOnce {
+    // This theorem is consumed only after an actual CallClosureOnce.
+    // Reusable entries can be consumed without changing their stored mode.
+    if !matches!(d.kind, CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce) {
         return Ok(false);
     }
     let Some(f) = module.functions.get(d.function.0 as usize) else {

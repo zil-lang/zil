@@ -167,7 +167,7 @@ impl Solver<'_, '_> {
 
 pub(super) fn finish(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
     if b.semantic_cleanup_sites.is_empty() && b.semantic_capture_cleanups.is_empty() {
-        return if b.semantic_cleanup_proofs.is_empty() { Ok(()) }
+        return if b.semantic_cleanup_proofs.is_empty() && b.semantic_consuming_cleanups.is_empty() { Ok(()) }
             else { Err(fail("actual Task cleanup proof has no original pending occurrence")) };
     }
     if b.task_input_scopes.is_none() {
@@ -243,12 +243,31 @@ fn finish_capture_cleanups(module: &TypedModule, b: &mut Budget) -> CompileResul
     let pending: Vec<_> = b.semantic_capture_cleanups.iter().cloned().collect();
     for (id, capture, path) in pending {
         let closure = module.closures.get(id.0 as usize).filter(|closure| closure.id == id
-            && closure.kind == CallableKind::FnOnce)
+            && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce))
             .ok_or_else(|| fail("original remaining capture cleanup changes its actual entry"))?;
         // These are unconditional actual entry theorems over every return,
         // independent of one caller's concrete input or a Static/header claim.
         if crate::tasks::once_cleanup_has_no_task(module, id, b)?
             || crate::tasks::once_cleanup_closed(module, id, b)? { continue; }
+        // Fn/FnMut entries may implement a requested FnOnce invocation. Its
+        // post-return destruction belongs to the actual consuming operation,
+        // never to every ordinary reusable call or to a global SyncDrop bound.
+        let mut calls = 0usize;
+        for function in &module.functions {
+            for block in &function.blocks {
+                for (position, instruction) in block.instructions.iter().enumerate() {
+                    b.spend(1, WORK)?;
+                    let InstructionKind::CallClosureOnce { callee, .. } = instruction.kind else { continue; };
+                    if function.values.get(callee.0 as usize) != Some(&Type::Closure(id)) { continue; }
+                    b.lookup(b.semantic_consuming_cleanups.len(), WORK)?;
+                    if !b.semantic_consuming_cleanups.contains(&(function.id, block.id, position, id)) {
+                        return Err(fail("original remaining capture cleanup lacks its complete actual consuming-call proof"));
+                    }
+                    calls += 1;
+                }
+            }
+        }
+        if calls != 0 { continue; }
         if !path.is_empty() {
             return Err(unknown("remaining capture cleanup needs its complete synchronous selected child source"));
         }
@@ -283,5 +302,6 @@ fn finish_capture_cleanups(module: &TypedModule, b: &mut Budget) -> CompileResul
         }
     }
     b.semantic_capture_cleanups.clear();
+    b.semantic_consuming_cleanups.clear();
     Ok(())
 }
