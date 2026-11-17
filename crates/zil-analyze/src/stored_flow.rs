@@ -1668,6 +1668,7 @@ pub(super) fn shared_compound(
                 }
                 Ok(true)
             }
+            Type::Address { mutable: false, inner } => Ok(inner.is_address_pointee()),
             Type::BorrowedStorage { storage, life } => {
                 if !matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. }) {
                     return Ok(false);
@@ -1835,6 +1836,42 @@ fn compound_extract(
     }
     Ok(true)
 }
+fn compound_update(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::UpdateField {
+        aggregate,
+        index,
+        value,
+    } = i.kind
+    else {
+        return Ok(false);
+    };
+    let parent = value_type(f, aggregate)?;
+    if !shared_compound(module, parent, b)? {
+        return Ok(false);
+    }
+    let physical = carrier(parent).map_or(parent, |(storage, _)| storage);
+    let Type::Tuple(fields) = physical else {
+        unreachable!();
+    };
+    let expected = fields
+        .get(index as usize)
+        .ok_or_else(|| failure("shared compound update field absent"))?;
+    b.type_work(expected, false, "shared compound update complete child")?;
+    let result = i
+        .result
+        .ok_or_else(|| failure("shared compound update result absent"))?;
+    if value_type(f, result)? != parent || value_type(f, value)? != expected {
+        return Err(failure(
+            "shared compound update changes its complete parent or field type",
+        ));
+    }
+    Ok(true)
+}
 fn compound_unpack(
     module: &TypedModule,
     f: &TypedFunction,
@@ -1929,11 +1966,22 @@ fn compound_constructor(
 fn compound_slot_rows(
     ty: &Type,
     prefix: &mut Path,
-    out: &mut Vec<StorageLifeSlot>,
+    out: &mut Vec<(Path, StoredBorrowMode)>,
     b: &mut Budget,
 ) -> CompileResult<()> {
     fee(b, 1)?;
     match ty {
+        Type::Address { mutable, .. } => {
+            fee(b, prefix.len().saturating_add(1))?;
+            out.push((
+                prefix.clone(),
+                if *mutable {
+                    StoredBorrowMode::ExclusiveAddress
+                } else {
+                    StoredBorrowMode::SharedAddress
+                },
+            ));
+        }
         Type::Tuple(fields) => {
             for (i, field) in fields.iter().enumerate() {
                 prefix.push(PlaceProjection::Field(
@@ -1954,11 +2002,7 @@ fn compound_slot_rows(
                 )?;
                 let mut path = prefix.clone();
                 path.extend_from_slice(&slot.path);
-                out.push(StorageLifeSlot {
-                    path,
-                    binder: slot.binder,
-                    mode: slot.mode,
-                });
+                out.push((path, slot.mode));
             }
         }
         _ => {}
@@ -3251,10 +3295,54 @@ fn environment_value(module: &TypedModule, ty: &Type, b: &mut Budget) -> Compile
     Ok(b.returned_borrowed_environments.contains(id))
 }
 
+fn capture_static_leaf(
+    context: Option<(&ClosureDefinition, u32)>,
+    path: &[PlaceProjection],
+    mode: StoredBorrowMode,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let Some((definition, index)) = context else {
+        return Ok(false);
+    };
+    let Some(life) = &definition.storage_life else {
+        return Ok(false);
+    };
+    fee(
+        b,
+        life.static_bindings
+            .len()
+            .saturating_mul(path.len().saturating_add(1)),
+    )?;
+    let declared = life
+        .static_bindings
+        .iter()
+        .any(|position| position.base == StorageBase::Capture(index) && position.path == path);
+    if declared && mode != StoredBorrowMode::SharedAddress {
+        return Err(failure(
+            "Static capture occurrence cannot seed an exclusive or description permission",
+        ));
+    }
+    // The retained all-constructor/all-write literal-source proof precedes
+    // these seeds. An absent occurrence, including a zero logical domain,
+    // supplies no Static permission for any physical address leaf.
+    Ok(declared)
+}
+fn seed_target(base: HoldRoot, path: &[PlaceProjection], is_static: bool) -> Target {
+    Target {
+        retained_port: None,
+        base: if is_static { HoldRoot::Static } else { base },
+        stored: if is_static { Vec::new() } else { path.to_vec() },
+        place: Vec::new(),
+        heap_parents: Vec::new(),
+        heap_element: None,
+    }
+}
+
 fn seed_environment(
     module: &TypedModule,
     ty: &Type,
     base: HoldRoot,
+    static_context: Option<(&ClosureDefinition, u32)>,
     value: &mut Value,
     loans: &mut Vec<Loan>,
     b: &mut Budget,
@@ -3276,31 +3364,28 @@ fn seed_environment(
         return Ok(());
     }
     fee(b, d.captures.len())?;
-    let mut add =
-        |path: Path, mutable: bool, value: &mut Value, b: &mut Budget| -> CompileResult<()> {
-            fee(b, path.len().saturating_mul(2).saturating_add(3))?;
-            let target = Target {
-                retained_port: None,
-                base,
-                stored: path.clone(),
-                place: Vec::new(),
-                heap_parents: Vec::new(),
-                heap_element: None,
-            };
-            let id = loans.len();
-            loans.push(Loan {
-                targets: BTreeSet::from([target.clone()]),
-                parents: Loans::new(),
-                mutable,
-                receiver_head: false,
-            });
-            b.stored_exclusive_loans |= mutable;
-            let permission = Permission {
-                targets: BTreeSet::from([target]),
-                loans: Loans::from([id]),
-            };
-            environment_leaf(value, path, &permission, b)
+    let mut add = |path: Path,
+                   mutable: bool,
+                   is_static: bool,
+                   value: &mut Value,
+                   b: &mut Budget|
+     -> CompileResult<()> {
+        fee(b, path.len().saturating_mul(2).saturating_add(3))?;
+        let target = seed_target(base, &path, is_static);
+        let id = loans.len();
+        loans.push(Loan {
+            targets: BTreeSet::from([target.clone()]),
+            parents: Loans::new(),
+            mutable,
+            receiver_head: false,
+        });
+        b.stored_exclusive_loans |= mutable;
+        let permission = Permission {
+            targets: BTreeSet::from([target]),
+            loans: Loans::from([id]),
         };
+        environment_leaf(value, path, &permission, b)
+    };
     let mut pending = vec![(d, Vec::new(), 0usize)];
     while let Some((definition, prefix, depth)) = pending.pop() {
         fee(b, definition.captures.len().saturating_add(prefix.len()))?;
@@ -3311,39 +3396,58 @@ fn seed_environment(
             let mut path = prefix.clone();
             fee(b, path.len().saturating_add(1))?;
             path.push(PlaceProjection::Field(index as u32));
-            if let Type::Address { mutable, .. } = capture {
-                add(path.clone(), *mutable, value, b)?;
-                if let Some((_, shape)) = pointed_carrier(capture) {
-                    for leaf in &shape.slots {
-                        let mut nested = path.clone();
-                        fee(b, nested.len().saturating_add(leaf.path.len()))?;
-                        nested.extend_from_slice(&leaf.path);
-                        add(
-                            nested,
-                            leaf.mode == StoredBorrowMode::ExclusiveAddress,
-                            value,
-                            b,
-                        )?;
-                    }
-                }
-            } else if let Type::BorrowedStorage { life, .. } = capture {
-                for slot in &life.slots {
-                    let mut nested = path.clone();
-                    fee(b, nested.len().saturating_add(slot.path.len()))?;
-                    nested.extend_from_slice(&slot.path);
-                    add(
-                        nested,
-                        slot.mode == StoredBorrowMode::ExclusiveAddress,
-                        value,
-                        b,
-                    )?;
-                }
-            } else if let Type::Closure(child) = capture {
+            if let Type::Closure(child) = capture {
                 let definition = module
                     .closures
                     .get(child.0 as usize)
                     .ok_or_else(|| failure("nested environment seed definition absent"))?;
                 pending.push((definition, path, depth + 1));
+                continue;
+            }
+            let mut rows = Vec::new();
+            if let Type::Address { mutable, .. } = capture {
+                fee(b, 1)?;
+                rows.push((
+                    Vec::new(),
+                    if *mutable {
+                        StoredBorrowMode::ExclusiveAddress
+                    } else {
+                        StoredBorrowMode::SharedAddress
+                    },
+                ));
+                if let Some((_, shape)) = pointed_carrier(capture) {
+                    for leaf in &shape.slots {
+                        fee(b, leaf.path.len().saturating_add(1))?;
+                        rows.push((leaf.path.clone(), leaf.mode));
+                    }
+                }
+            } else if matches!(capture, Type::BorrowedStorage { .. } | Type::Tuple(_)) {
+                compound_slot_rows(capture, &mut Vec::new(), &mut rows, b)?;
+            }
+            for (leaf, mode) in rows {
+                fee(b, path.len().saturating_add(leaf.len()))?;
+                let mut nested = path.clone();
+                nested.extend_from_slice(&leaf);
+                let local_static =
+                    capture_static_leaf(Some((definition, index as u32)), &leaf, mode, b)?;
+                let root_static = if definition.id != d.id {
+                    match nested.split_first() {
+                        Some((PlaceProjection::Field(capture), tail)) => {
+                            capture_static_leaf(Some((d, *capture)), tail, mode, b)?
+                        }
+                        _ => false,
+                    }
+                } else {
+                    false
+                };
+                let outer_static = capture_static_leaf(static_context, &nested, mode, b)?;
+                add(
+                    nested,
+                    mode == StoredBorrowMode::ExclusiveAddress,
+                    local_static || root_static || outer_static,
+                    value,
+                    b,
+                )?;
             }
         }
     }
@@ -3353,6 +3457,7 @@ fn seed_value(
     module: &TypedModule,
     ty: &Type,
     base: HoldRoot,
+    static_context: Option<(&ClosureDefinition, u32)>,
     state: &mut State,
     loans: &mut Vec<Loan>,
     b: &mut Budget,
@@ -3371,14 +3476,17 @@ fn seed_value(
         });
     }
     if let Type::Address { mutable, .. } = ty {
-        let target = Target {
-            retained_port: None,
-            base,
-            stored: Vec::new(),
-            place: Vec::new(),
-            heap_parents: Vec::new(),
-            heap_element: None,
-        };
+        let is_static = capture_static_leaf(
+            static_context,
+            &[],
+            if *mutable {
+                StoredBorrowMode::ExclusiveAddress
+            } else {
+                StoredBorrowMode::SharedAddress
+            },
+            b,
+        )?;
+        let target = seed_target(base, &[], is_static);
         let id = loans.len();
         fee(b, 2)?;
         loans.push(Loan {
@@ -3472,35 +3580,32 @@ fn seed_value(
         }
     }
     let qualified = carrier(ty).or_else(|| pointed_carrier(ty));
-    let mut compound_slots = Vec::new();
-    if matches!(ty, Type::Tuple(_)) {
-        compound_slot_rows(ty, &mut Vec::new(), &mut compound_slots, b)?;
+    let mut declarations = Vec::new();
+    if let Some((_, life)) = qualified {
+        for slot in &life.slots {
+            fee(b, slot.path.len().saturating_add(1))?;
+            declarations.push((slot.path.clone(), slot.mode));
+        }
+    } else if matches!(ty, Type::Tuple(_)) {
+        compound_slot_rows(ty, &mut Vec::new(), &mut declarations, b)?;
     }
-    if qualified.is_some() || !compound_slots.is_empty() {
-        let declarations =
-            qualified.map_or(compound_slots.as_slice(), |(_, life)| life.slots.as_slice());
+    if qualified.is_some() || !declarations.is_empty() {
         let mut slots = BTreeMap::new();
-        for decl in declarations {
-            fee(b, decl.path.len().saturating_mul(3).saturating_add(3))?;
-            let target = Target {
-                retained_port: None,
-                base,
-                stored: decl.path.clone(),
-                place: Vec::new(),
-                heap_parents: Vec::new(),
-                heap_element: None,
-            };
+        for (path, mode) in &declarations {
+            fee(b, path.len().saturating_mul(3).saturating_add(3))?;
+            let is_static = capture_static_leaf(static_context, path, *mode, b)?;
+            let target = seed_target(base, path, is_static);
             let id = loans.len();
             loans.push(Loan {
                 targets: BTreeSet::from([target.clone()]),
                 parents: Loans::new(),
-                mutable: decl.mode == StoredBorrowMode::ExclusiveAddress,
+                mutable: *mode == StoredBorrowMode::ExclusiveAddress,
                 receiver_head: false,
             });
-            b.stored_exclusive_loans |= decl.mode == StoredBorrowMode::ExclusiveAddress;
-            ordered(b, slots.len(), decl.path.len())?;
+            b.stored_exclusive_loans |= *mode == StoredBorrowMode::ExclusiveAddress;
+            ordered(b, slots.len(), path.len())?;
             slots.insert(
-                decl.path.clone(),
+                path.clone(),
                 Permission {
                     targets: BTreeSet::from([target]),
                     loans: Loans::from([id]),
@@ -3538,6 +3643,7 @@ fn seed(
             module,
             &f.locals[local.0 as usize].ty,
             HoldRoot::Parameter(index as u32),
+            None,
             &mut state,
             loans,
             b,
@@ -3555,6 +3661,7 @@ fn seed(
             module,
             &f.locals[local.0 as usize].ty,
             HoldRoot::Parameter(index as u32),
+            None,
             &mut value,
             loans,
             b,
@@ -3615,18 +3722,8 @@ fn seed(
             let mut value = seed_value(
                 module,
                 ty,
-                if d.storage_life.as_ref().is_some_and(|life| {
-                    life.static_bindings.iter().any(|position| {
-                        position.base == StorageBase::Capture(index as u32)
-                            && position.path.is_empty()
-                    })
-                }) {
-                    // The all-constructor/write proof ran before any CFG is
-                    // admitted; this is its constant input, not a fresh root.
-                    HoldRoot::Static
-                } else {
-                    HoldRoot::Capture(index as u32)
-                },
+                HoldRoot::Capture(index as u32),
+                Some((d, index as u32)),
                 &mut state,
                 loans,
                 b,
@@ -3638,6 +3735,7 @@ fn seed(
                     module,
                     ty,
                     HoldRoot::Capture(index as u32),
+                    Some((d, index as u32)),
                     &mut value,
                     loans,
                     b,
@@ -4636,6 +4734,12 @@ fn transfer(
                 for (index,field) in fields.iter().enumerate(){
                     let source=get(*field)?;
                     union(&mut out.held,&source.held,b)?;
+                    if matches!(value_type(f, *field)?, Type::Address { .. }) {
+                        let path = vec![PlaceProjection::Field(u32::try_from(index)
+                            .map_err(|_|failure("compound field overflow"))?)];
+                        ordered(b, out.slots.len(), path.len())?;
+                        union(out.slots.entry(path).or_default(), &source.pointer, b)?;
+                    }
                     for (tail,permission) in &source.slots{
                         fee(b,tail.len().saturating_add(1))?;
                         let mut path=vec![PlaceProjection::Field(u32::try_from(index).map_err(|_|failure("compound field overflow"))?)];path.extend_from_slice(tail);
@@ -5026,6 +5130,15 @@ fn transfer(
             let mut complete = true;
             for (index, capture) in captures.iter().enumerate() {
                 let actual = get(*capture)?;
+                if matches!(value_type(f, *capture)?, Type::Tuple(_)) {
+                    let mut rows = Vec::new();
+                    compound_slot_rows(value_type(f, *capture)?, &mut Vec::new(), &mut rows, b)?;
+                    for (path, _) in rows {
+                        ordered(b, actual.slots.len(), path.len())?;
+                        complete &= actual.slots.get(&path)
+                            .is_some_and(|permission| !permission.targets.is_empty());
+                    }
+                }
                 if matches!(value_type(f, *capture)?, Type::Address { .. }) {
                     complete &= !actual.pointer.targets.is_empty();
                     let path = environment_path(index, &[], b)?;
@@ -5194,6 +5307,14 @@ fn transfer(
             }
         }
         InstructionKind::WriteCapture { index, value } if !state.captures.is_empty() => {
+            let definition = f.environment.and_then(|id| module.closures.get(id.0 as usize))
+                .ok_or_else(|| failure("capture write has no actual environment"))?;
+            let expected = definition.captures.get(*index as usize)
+                .ok_or_else(|| failure("capture write has no actual field"))?;
+            b.type_work(expected, false, "capture write complete actual field")?;
+            if definition.kind == CallableKind::Fn || value_type(f, *value)? != expected {
+                return Err(failure("capture write changes its actual mode or complete field type"));
+            }
             let actual=snapshot(get(*value)?,b)?;
             ordered(b,state.captures.len(),0)?;
             if !state.captures.contains_key(index) {return Err(failure("written actual capture absent"));}
@@ -5464,6 +5585,24 @@ fn transfer(
                 }
                 union(&mut out.held,&source.held,b)?;
             }
+        }
+        InstructionKind::UpdateField { aggregate, index, value } if compound_update(module, f, i, b)? => {
+            out = snapshot(get(*aggregate)?, b)?;
+            let prefix = [PlaceProjection::Field(*index)];
+            for path in out.slots.keys() { fee(b, path.len().saturating_add(1))?; }
+            out.slots.retain(|path, _| !path.starts_with(&prefix));
+            let replacement = get(*value)?;
+            if matches!(value_type(f, *value)?, Type::Address { .. }) {
+                ordered(b, out.slots.len(), 1)?;
+                union(out.slots.entry(prefix.to_vec()).or_default(), &replacement.pointer, b)?;
+            }
+            for (tail, permission) in &replacement.slots {
+                fee(b, tail.len().saturating_add(1))?;
+                let mut path = prefix.to_vec(); path.extend_from_slice(tail);
+                ordered(b, out.slots.len(), path.len())?;
+                union(out.slots.entry(path).or_default(), permission, b)?;
+            }
+            union(&mut out.held, &replacement.held, b)?;
         }
         _ if pure_copy::operation(&i.kind) => {
             if !pure_copy::ordinary_owned_union(f, i, b)? {
@@ -6866,7 +7005,7 @@ fn windows(
                         if f.environment
                             .and_then(|id| module.closures.get(id.0 as usize))
                             .and_then(|definition| definition.captures.get(*index as usize))
-                            .is_some_and(|ty| matches!(ty, Type::Closure(_))) =>
+                            .is_some_and(|ty| matches!(ty, Type::Closure(_) | Type::Tuple(_))) =>
                     {
                         // Moving or replacing a child changes this physical
                         // capture slot. A previously borrowed child frame may
@@ -8021,11 +8160,11 @@ fn derive_cfg(
                 if b.stored_compound_values && matches!(ty, Type::Tuple(_)) && !ty.is_copy_value() {
                     let mut rows = Vec::new();
                     compound_slot_rows(ty, &mut Vec::new(), &mut rows, b)?;
-                    for row in rows {
-                        ordered(b, value.slots.len(), row.path.len())?;
+                    for (path, _) in rows {
+                        ordered(b, value.slots.len(), path.len())?;
                         if value
                             .slots
-                            .get(&row.path)
+                            .get(&path)
                             .is_none_or(|permission| permission.targets.is_empty())
                         {
                             grounded = false;
@@ -8849,6 +8988,7 @@ fn actual_instructions(
             let compound_take = compound_move(module, f, i, b)?
                 || compound_unpack(module, f, i, b)?
                 || compound_constructor(module, f, i, b)?
+                || compound_update(module, f, i, b)?
                 || compound_drop(module, f, i, b)?;
             ordinary_observations |=
                 package_read || package_description || error_borrow || byte_view;
@@ -9550,6 +9690,315 @@ mod tests {
             "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
         ));
     }
+    fn raw_static_tuple_module(kind: CallableKind) -> TypedModule {
+        let mut module = fixture::module();
+        module.functions.truncate(1);
+        let address = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::Slice {
+                element: Box::new(Type::U8),
+            }),
+        };
+        let tuple = Type::Tuple(vec![address.clone(), Type::I32]);
+        let life = StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 0,
+            bindings: vec![],
+            classes: vec![],
+            static_bindings: vec![StoragePosition {
+                base: StorageBase::Capture(0),
+                path: vec![PlaceProjection::Field(0)],
+            }],
+        };
+        module.closures = vec![ClosureDefinition {
+            id: ClosureId(0),
+            function: FunctionId(0),
+            captures: vec![tuple.clone()],
+            parameters: vec![],
+            result: address.clone(),
+            kind,
+            lending_captures: vec![],
+            storage_life: Some(life.clone()),
+        }];
+        let f = &mut module.functions[0];
+        f.environment = Some(ClosureId(0));
+        f.storage_life = Some(life);
+        f.parameters.clear();
+        f.locals.clear();
+        f.return_type = address.clone();
+        f.values = vec![address.clone(), Type::I32, tuple, address];
+        module
+    }
+
+    #[test]
+    fn raw_tuple_construction_extraction_and_write_keep_actual_permissions() {
+        // Physical flow oracle. Header/source authentication runs before this
+        // pass; a replacement is never relabelled Static by its destination.
+        let mut module = raw_static_tuple_module(CallableKind::FnMut);
+        let mut b = Budget::new(&Limits::default());
+        let mut state = State::default();
+        let mut loans = Vec::new();
+        let mut values = vec![Value::default(); 4];
+        values[0] = seed_value(
+            &module,
+            &module.functions[0].values[0],
+            HoldRoot::Parameter(0),
+            None,
+            &mut state,
+            &mut loans,
+            &mut b,
+        )
+        .unwrap();
+        let original = values[0].pointer.clone();
+        let construct = fixture::instruction(
+            Some(2),
+            InstructionKind::MakeAggregate {
+                fields: vec![ValueId(0), ValueId(1)],
+            },
+        );
+        values[2] = transfer(
+            &module,
+            &module.functions[0],
+            &construct,
+            &mut state,
+            &values,
+            &[],
+            &SlotLoanIds::new(),
+            &mut loans,
+            &mut b,
+        )
+        .unwrap();
+        let path = vec![PlaceProjection::Field(0)];
+        assert_eq!(values[2].slots[&path], original);
+        let extract = fixture::instruction(
+            Some(3),
+            InstructionKind::ExtractField {
+                aggregate: ValueId(2),
+                index: 0,
+            },
+        );
+        let selected = transfer(
+            &module,
+            &module.functions[0],
+            &extract,
+            &mut state,
+            &values,
+            &[],
+            &SlotLoanIds::new(),
+            &mut loans,
+            &mut b,
+        )
+        .unwrap();
+        assert_eq!(selected.pointer, original);
+        assert!(selected.slots.is_empty());
+        let literal = fixture::instruction(
+            Some(0),
+            InstructionKind::StaticUtf8 {
+                bytes: b"A".to_vec(),
+            },
+        );
+        values[0] = transfer(
+            &module,
+            &module.functions[0],
+            &literal,
+            &mut state,
+            &values,
+            &[],
+            &SlotLoanIds::new(),
+            &mut loans,
+            &mut b,
+        )
+        .unwrap();
+        let static_tuple = transfer(
+            &module,
+            &module.functions[0],
+            &construct,
+            &mut state,
+            &values,
+            &[],
+            &SlotLoanIds::new(),
+            &mut loans,
+            &mut b,
+        )
+        .unwrap();
+        let mut joined = snapshot(&values[2], &mut b).unwrap();
+        merge(&mut joined, &static_tuple, &mut b).unwrap();
+        assert!(
+            joined.slots[&path]
+                .targets
+                .iter()
+                .any(|target| target.base == HoldRoot::Static)
+        );
+        assert!(
+            joined.slots[&path]
+                .targets
+                .iter()
+                .any(|target| target.base == HoldRoot::Parameter(0))
+        );
+        let tuple = module.functions[0].values[2].clone();
+        module.functions[0].values.push(tuple);
+        let update = fixture::instruction(
+            Some(4),
+            InstructionKind::UpdateField {
+                aggregate: ValueId(2),
+                index: 1,
+                value: ValueId(1),
+            },
+        );
+        let updated = transfer(
+            &module,
+            &module.functions[0],
+            &update,
+            &mut state,
+            &values,
+            &[],
+            &SlotLoanIds::new(),
+            &mut loans,
+            &mut b,
+        )
+        .unwrap();
+        assert_eq!(updated.slots[&path], original);
+        state.captures.insert(0, Value::default());
+        let write = fixture::instruction(
+            None,
+            InstructionKind::WriteCapture {
+                index: 0,
+                value: ValueId(2),
+            },
+        );
+        transfer(
+            &module,
+            &module.functions[0],
+            &write,
+            &mut state,
+            &values,
+            &[],
+            &SlotLoanIds::new(),
+            &mut loans,
+            &mut b,
+        )
+        .unwrap();
+        assert_eq!(state.captures[&0].slots[&path], original);
+        assert!(
+            state.captures[&0].slots[&path]
+                .targets
+                .iter()
+                .all(|target| target.base != HoldRoot::Static)
+        );
+        module.closures[0].kind = CallableKind::Fn;
+        assert!(
+            transfer(
+                &module,
+                &module.functions[0],
+                &write,
+                &mut state,
+                &values,
+                &[],
+                &SlotLoanIds::new(),
+                &mut loans,
+                &mut b
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn static_tuple_capture_seed_uses_exact_leaf_and_keeps_nested_prefix() {
+        // A zero logical domain does not imply an empty physical tuple. Each
+        // nonempty permission here requires its exact authenticated occurrence.
+        let mut module = raw_static_tuple_module(CallableKind::Fn);
+        let mut b = Budget::new(&Limits::default());
+        let mut loans = Vec::new();
+        let state = seed(&module, &module.functions[0], &mut loans, &mut b).unwrap();
+        let path = vec![PlaceProjection::Field(0)];
+        assert!(
+            capture_static_leaf(
+                Some((&module.closures[0], 0)),
+                &path,
+                StoredBorrowMode::ExclusiveAddress,
+                &mut b
+            )
+            .is_err()
+        );
+        let permission = &state.captures[&0].slots[&path];
+        assert_eq!(permission.targets.len(), 1);
+        assert!(
+            permission
+                .targets
+                .iter()
+                .all(|target| target.base == HoldRoot::Static && target.stored.is_empty())
+        );
+        assert!(
+            permission
+                .loans
+                .iter()
+                .all(|id| loans[*id].targets == permission.targets)
+        );
+        module.closures[0]
+            .storage_life
+            .as_mut()
+            .unwrap()
+            .static_bindings
+            .clear();
+        let ordinary = seed(&module, &module.functions[0], &mut Vec::new(), &mut b).unwrap();
+        assert!(
+            ordinary.captures[&0].slots[&path]
+                .targets
+                .iter()
+                .all(|target| target.base == HoldRoot::Capture(0) && target.stored == path)
+        );
+        let mut outer = module.closures[0].clone();
+        outer.id = ClosureId(1);
+        outer.captures = vec![Type::Closure(ClosureId(0))];
+        outer.storage_life.as_mut().unwrap().static_bindings = vec![StoragePosition {
+            base: StorageBase::Capture(0),
+            path: vec![PlaceProjection::Field(0), PlaceProjection::Field(0)],
+        }];
+        module.closures.push(outer);
+        let mut nested = Value::default();
+        seed_environment(
+            &module,
+            &Type::Closure(ClosureId(1)),
+            HoldRoot::Parameter(0),
+            None,
+            &mut nested,
+            &mut loans,
+            &mut b,
+        )
+        .unwrap();
+        let full = vec![PlaceProjection::Field(0); 3];
+        assert!(
+            nested.environment[&full]
+                .targets
+                .iter()
+                .all(|target| target.base == HoldRoot::Static && target.stored.is_empty())
+        );
+        module.closures[1]
+            .storage_life
+            .as_mut()
+            .unwrap()
+            .static_bindings[0]
+            .path
+            .pop();
+        let mut unproven = Value::default();
+        seed_environment(
+            &module,
+            &Type::Closure(ClosureId(1)),
+            HoldRoot::Parameter(0),
+            None,
+            &mut unproven,
+            &mut loans,
+            &mut b,
+        )
+        .unwrap();
+        assert!(
+            unproven.environment[&full]
+                .targets
+                .iter()
+                .all(|target| target.base == HoldRoot::Parameter(0) && target.stored == full)
+        );
+    }
+
     #[test]
     fn addressed_capture_selects_current_memory_without_unioning_an_old_ssa_slot() {
         let module = fixture::captured_fixed(CallableKind::Fn, false);
@@ -9562,6 +10011,7 @@ mod tests {
             &module,
             &f.values[0],
             HoldRoot::Parameter(0),
+            None,
             &mut state,
             &mut loans,
             &mut b,
@@ -9571,6 +10021,7 @@ mod tests {
             &module,
             &f.values[1],
             HoldRoot::Parameter(1),
+            None,
             &mut state,
             &mut loans,
             &mut b,
