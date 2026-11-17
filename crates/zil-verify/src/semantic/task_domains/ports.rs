@@ -17,7 +17,7 @@ pub(super) fn expand(
         ports: Vec::new(),
         active: Vec::new(),
     };
-    walker.node(ty, life, &map, &[], &[], &[], 0, b)?;
+    walker.node(ty, life, &map, &[], &[], &[], 0, b).map_err(|error|error.with_note(format!("complete Task port root type {ty:?}; original local domain {life:?}")))?;
     Ok(walker.ports)
 }
 struct Walker<'a> {
@@ -670,7 +670,7 @@ fn boundary(
             .filter(|row| row.path == path && row.class == class);
         let row = rows
             .next()
-            .ok_or_else(|| bad("Task port child lacks a complete intrinsic occurrence map"))?;
+            .ok_or_else(|| bad("Task port child lacks a complete intrinsic occurrence map").with_note(format!("child path {path:?}, intrinsic class {class}/{count}, local-to-parent map {map:?}; complete local domain {life:?}")))?;
         if rows.next().is_some() || !seen.insert(row.binder) {
             return Err(bad(
                 "Task port child map duplicates or coalesces intrinsic classes",
