@@ -65,6 +65,7 @@ pub(super) fn operation(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> C
 }
 
 pub(super) fn unpack(
+    f:&TypedFunction,
     local: LocalId,
     fields: &[LocalId],
     state: &mut Frame,
@@ -72,15 +73,8 @@ pub(super) fn unpack(
 ) -> Check<()> {
     let payload = copy_payload(&state.locals[local.0 as usize], b)?;
     for (index, target) in fields.iter().enumerate() {
-        let mut child = Payload::default();
-        for (path, permission) in &payload.leaves {
-            b.spend(path.len().saturating_add(1))?;
-            if let Some((PlaceProjection::Field(field), tail)) = path.split_first()
-                && *field as usize == index
-            {
-                add_leaf(&mut child, tail, permission, b)?;
-            }
-        }
+        let ty=&f.locals.get(target.0 as usize).ok_or_else(||err("compound unpack target is absent"))?.ty;
+        let child=field_payload(&payload,index as u32,ty,b)?;
         clear_local_holes(state, *target, b)?;
         state.locals[target.0 as usize] = child;
     }
@@ -173,6 +167,11 @@ pub(super) fn slots(ty: &Type, b: &mut Budget) -> Check<Option<Vec<(Path, Stored
                     out.push((path, slot.mode));
                 }
             }
+            Type::Address{mutable, ..}=>{
+                // A physical pointer field keeps its actual permission. This
+                // enumerates no variable class and proves no Static source.
+                out.push((prefix,if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress}));
+            },
             Type::Managed(payload) if payload.is_copy_value() => {}
             other if other.is_copy_value() => {}
             _ => return Ok(None),
@@ -239,6 +238,10 @@ pub(super) fn construct(
         if vt(f, *value)? != child {
             return Err(err("compound construction changes actual child type"));
         }
+        if matches!(child,Type::Address{..}){
+            let actual=&values.get(value.0 as usize).ok_or_else(||err("compound pointer field SSA is absent"))?.address;
+            add_leaf(out,&[PlaceProjection::Field(index as u32)],actual,b)?;
+        }
         for (tail, permission) in &values[value.0 as usize].leaves {
             b.spend(tail.len().saturating_add(1))?;
             let mut path = vec![PlaceProjection::Field(index as u32)];
@@ -247,6 +250,22 @@ pub(super) fn construct(
         }
     }
     Ok(())
+}
+
+/// Project the actual physical field once for both SSA extraction and owned
+/// unpacking. Only a real Address child receives an outer pointer permission;
+/// a qualified/opaque child retains its complete field directory instead.
+pub(super) fn field_payload(source:&Payload,index:u32,ty:&Type,b:&mut Budget)->Check<Payload>{
+    let mut child=Payload::default();
+    for(path,permission)in &source.leaves{
+        b.spend(path.len().saturating_add(1))?;
+        if let Some((PlaceProjection::Field(field),tail))=path.split_first(){
+            if *field!=index{continue;}
+            if tail.is_empty()&&matches!(ty,Type::Address{..}){join_permission(&mut child.address,permission,b)?;}
+            else{add_leaf(&mut child,tail,permission,b)?;}
+        }
+    }
+    Ok(child)
 }
 
 pub(super) fn seed(
@@ -295,4 +314,31 @@ pub(super) fn seed(
         )?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod physical_tests{
+    use super::*;
+    #[test]
+    fn raw_tuple_pointer_fields_preserve_actual_source_and_loan_parents_through_construct_project_and_unpack_raw_wire(){
+        let limits=Limits::default();let(mut module,_)=crate::tests::baseline();let template=module.functions[0].clone();
+        let address=Type::Address{mutable:false,inner:Box::new(Type::I32)};let tuple=Type::Tuple(vec![address.clone(),Type::I32]);
+        let f=&mut module.functions[0];f.parameters.clear();f.values=vec![address.clone(),Type::I32,tuple.clone(),address.clone()];f.locals=(0..3).map(|index|LocalDecl{id:LocalId(index),name:format!("p{index}"),ty:if index==0{tuple.clone()}else if index==1{address.clone()}else{Type::I32},mutable:true,span:template.span}).collect();
+        let plan=CandidatePlan::empty_for(&module);
+        for wire in [false,true]{
+            let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();let decoded=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0;
+            let f=if wire{&decoded.functions[0]}else{&module.functions[0]};let mut b=Budget::new(&limits);
+            assert_eq!(slots(&tuple,&mut b).unwrap(),Some(vec![(vec![PlaceProjection::Field(0)],StoredBorrowMode::SharedAddress)]));
+            let permission=Permission{sources:vec![Source{base:HoldRoot::Parameter(0),static_dependency:StaticProvenance::NotStatic,leaf:vec![],inline:vec![],retained_port:None,heap_element:None,heap_parents:vec![]}],loans:vec![0,2]};
+            let mut values=vec![Payload::default();4];values[0].address=permission.clone();
+            let i=Instruction{result:Some(ValueId(2)),kind:InstructionKind::MakeAggregate{fields:vec![ValueId(0),ValueId(1)]},span:f.span};let mut made=Payload::default();construct(f,&i,&[ValueId(0),ValueId(1)],&values,&mut made,&mut b).unwrap();
+            let selected=field_payload(&made,0,&address,&mut b).unwrap();assert_eq!(selected.address,permission);assert!(selected.leaves.is_empty());
+            assert!(field_payload(&made,1,&Type::I32,&mut b).unwrap().address.sources.is_empty());
+            let mut state=Frame{locals:vec![made,Payload::default(),Payload::default()],..Frame::default()};unpack(f,LocalId(0),&[LocalId(1),LocalId(2)],&mut state,&mut b).unwrap();assert_eq!(state.locals[1].address,permission);assert!(state.locals[0].leaves.is_empty());
+            assert!(construct(f,&i,&[ValueId(1),ValueId(0)],&values,&mut Payload::default(),&mut b).is_err(),"constructor cannot swap differently typed fields");
+            let retagged=Instruction{result:Some(ValueId(1)),kind:InstructionKind::ExtractField{aggregate:ValueId(2),index:0},span:f.span};
+            assert!(projection(f,&retagged,&mut b).is_err(),"pointer child cannot be retagged as a scalar projection");
+            assert!(state.locals[1].address.sources.iter().all(|source|source.base==HoldRoot::Parameter(0)&&source.static_dependency==StaticProvenance::NotStatic),"a physical leaf never invents a Static literal from its shape");
+        }
+    }
 }

@@ -30,25 +30,52 @@ pub(super) fn scalar(t: &Type) -> bool {
             | Type::F64
     )
 }
-// Only structural admission. Actual incoming contents remain conditional
-// until every constructor and write has discharged the module invariant.
-pub(super) fn constant_capture_slot(
-    definition: &ClosureDefinition,
-    index: u32,
-    b: &mut Budget,
-) -> Check<bool> {
-    let Some(life) = &definition.storage_life else {
-        return Ok(false);
-    };
-    b.spend(life.static_bindings.len())?;
-    Ok(b.static_borrow_occurrences
-        && matches!(
-            definition.captures.get(index as usize),
-            Some(Type::Address { mutable: false, .. })
-        )
-        && life.static_bindings.iter().any(|position| {
-            position.base == StorageBase::Capture(index) && position.path.is_empty()
-        }))
+/// A complete finite physical tree whose every borrow leaf has an exact
+/// readonly Static declaration. This is eligibility/occurrence metadata only:
+/// it creates no source, loan, class or proof of the all-constructor invariant.
+/// The same query is used by signature, capture, scope and frame consumers.
+pub(super) fn constant_value_positions(module:&TypedModule,ty:&Type,base:StorageBase,header:&StorageLifeContract,b:&mut Budget)->Check<Option<Vec<StoragePosition>>>{
+    fn pointee(module:&TypedModule,ty:&Type,depth:usize,b:&mut Budget)->Check<bool>{
+        b.spend(1)?;if depth>=b.limits.max_call_depth.min(128){return Err(limit("Static pointee eligibility depth exceeded"));}
+        Ok(match ty{
+            Type::Slice{element}|Type::Array{element,..}=>pointee(module,element,depth+1,b)?,
+            Type::Tuple(fields)=>{for field in fields{if !pointee(module,field,depth+1,b)?{return Ok(false);}}true},
+            Type::Record{fields,..}|Type::Package{fields,..}=>{
+                for(_,field)in fields{if !pointee(module,field,depth+1,b)?{return Ok(false);}}
+                // Scalar physical fields do not erase a nominal phantom κ.
+                crate::dynamic_witness::intrinsic_domain(module,ty,b)?.0==0
+            },
+            _=>scalar(ty),
+        })
+    }
+    let mut pending=vec![(ty,vec![],0usize)];let mut rows=Vec::new();
+    while let Some((ty,path,depth))=pending.pop(){
+        b.spend(path.len().saturating_add(1))?;if depth>=b.limits.max_call_depth.min(128){return Err(limit("Static capture eligibility depth exceeded"));}
+        match ty{
+            Type::Address{mutable:false,inner}=>{
+                if !pointee(module,inner,depth+1,b)?{return Ok(None);}
+                let position=StoragePosition{base,path};
+                b.spend(header.static_bindings.len().saturating_add(header.bindings.len()))?;
+                if header.static_bindings.iter().filter(|row|**row==position).count()!=1||header.bindings.iter().any(|row|row.position==position){return Ok(None);}
+                rows.push(position);
+            },
+            Type::Tuple(fields)=>{b.spend(fields.len().saturating_mul(path.len().saturating_add(2)))?;for(index,field)in fields.iter().enumerate().rev(){let mut child=path.clone();child.push(ContractProjection::Place(PlaceProjection::Field(index as u32)));pending.push((field,child,depth+1));}},
+            Type::Array{element,length}=>{if *length as usize>b.limits.max_nodes{return Err(limit("Static capture array occurrence inventory exceeded"));}b.spend((*length as usize).saturating_mul(path.len().saturating_add(2)))?;for index in (0..*length).rev(){let mut child=path.clone();child.push(ContractProjection::Place(PlaceProjection::Field(index as u32)));pending.push((element,child,depth+1));}},
+            other if scalar(other)=>{},
+            // An opaque or qualified boundary owns a separate full domain.
+            // Neither a layout match nor N0 supplies its child occurrences.
+            _=>return Ok(None),
+        }
+    }
+    b.spend(header.static_bindings.len().saturating_mul(rows.len().saturating_add(1)))?;
+    if rows.is_empty()||header.static_bindings.iter().any(|row|row.base==base&&!rows.contains(row)){return Ok(None);}
+    Ok(Some(rows))
+}
+
+pub(super) fn constant_capture_slot(module:&TypedModule,definition:&ClosureDefinition,index:u32,b:&mut Budget)->Check<bool>{
+    let Some(header)=&definition.storage_life else{return Ok(false);};
+    let Some(ty)=definition.captures.get(index as usize)else{return Err(bad("Static capture qualification selects an absent actual field"));};
+    Ok(b.static_borrow_occurrences&&constant_value_positions(module,ty,StorageBase::Capture(index),header,b)?.is_some())
 }
 
 pub(super) fn scalar_foreign(f: &TypedFunction, b: &mut Budget) -> Check<bool> {
@@ -442,7 +469,7 @@ pub(super) fn captured_profile(
             ));
         }
     }
-    for ty in &d.captures {
+    for(index,ty)in d.captures.iter().enumerate(){
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
         let closed_owner = if let Type::OwnedDyn { interface } = ty {
             if super::dynamic_ports::interface(module, *interface, b)?
@@ -473,7 +500,8 @@ pub(super) fn captured_profile(
             || super::stored_flow::context_capture_type(module, ty, b)?
             || matches!(ty, Type::BorrowedStorage { .. }) && packages::capture_owner(ty)
             || matches!(ty, Type::Closure(child) if finite(module, *child))
-            || inline_qualified_capture(module, ty, b)?)
+            || inline_qualified_capture(module, ty, b)?
+            || constant_capture_slot(module,d,index as u32,b)?)
         {
             // Prove the real Fresh empty-source obligation before returning
             // a profile limitation. This includes borrowed leaves hidden in
@@ -752,7 +780,7 @@ pub(super) fn types(
                 .get(*index as usize)
                 .ok_or_else(|| bad("qualified capture access lacks actual field"))?;
             if let InstructionKind::WriteCapture { value, .. } = &i.kind {
-                let constant_slot = constant_capture_slot(d, *index, b)?;
+                let constant_slot = constant_capture_slot(module,d, *index, b)?;
                 // Shape admission does not establish the incoming source.
                 // The whole-module invariant checks every actual write,
                 // including writes in entries which are never called.

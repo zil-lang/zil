@@ -688,18 +688,23 @@ mod static_capture_tests{
         let limits=Limits::default();
         let(mut module,_)=crate::tests::baseline();let span=module.functions[0].span;
         let leaf=Type::Address{mutable:false,inner:Box::new(Type::Slice{element:Box::new(Type::U8)})};
+        let capture=Type::Tuple(vec![leaf.clone(),Type::I32]);
         let position=StoragePosition{base:StorageBase::Capture(0),path:vec![ContractProjection::Place(PlaceProjection::Field(0))]};
-        let header=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],static_bindings:vec![position.clone()],classes:vec![]};
-        let entry=&mut module.functions[0];entry.environment=Some(ClosureId(0));entry.storage_life=Some(header.clone());entry.parameters.clear();entry.locals.clear();entry.values=vec![Type::I32];entry.return_type=Type::I32;
-        entry.blocks[0].instructions=vec![Instruction{result:Some(ValueId(0)),kind:InstructionKind::Constant(Constant::I32(0)),span}];entry.blocks[0].terminator=Terminator::Return(Some(ValueId(0)));
-        module.closures.push(ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![Type::Tuple(vec![leaf,Type::I32])],parameters:vec![],result:Type::I32,kind:CallableKind::Fn,storage_life:Some(header),lending_captures:vec![]});
-        for mutation in 0..5{
+        let result=StoragePosition{base:StorageBase::Result,path:vec![]};
+        let header=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],static_bindings:vec![position.clone(),result],classes:vec![]};
+        let entry=&mut module.functions[0];entry.environment=Some(ClosureId(0));entry.storage_life=Some(header.clone());entry.parameters.clear();entry.locals.clear();entry.values=vec![capture.clone(),leaf.clone()];entry.return_type=leaf.clone();
+        entry.blocks[0].instructions=vec![Instruction{result:Some(ValueId(0)),kind:InstructionKind::ReadCapture{index:0},span},Instruction{result:Some(ValueId(1)),kind:InstructionKind::ExtractField{aggregate:ValueId(0),index:0},span}];entry.blocks[0].terminator=Terminator::Return(Some(ValueId(1)));
+        module.closures.push(ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![capture],parameters:vec![],result:leaf,kind:CallableKind::FnOnce,storage_life:Some(header),lending_captures:vec![]});
+        for mutation in 0..8{
             let mut proposed=module.clone();
             match mutation{
                 1=>proposed.closures[0].storage_life.as_mut().unwrap().static_bindings[0].path[0]=ContractProjection::Place(PlaceProjection::Field(1)),
                 2=>{let Type::Tuple(fields)=&mut proposed.closures[0].captures[0]else{unreachable!()};let Type::Address{mutable,..}=&mut fields[0]else{unreachable!()};*mutable=true;},
                 3=>proposed.functions[0].call_kind=CallKind::Suspend,
                 4=>proposed.closures[0].storage_life=None,
+                5=>{proposed.closures[0].storage_life.as_mut().unwrap().static_bindings.remove(0);},
+                6=>proposed.closures[0].storage_life.as_mut().unwrap().fixed_binder_count=1,
+                7=>proposed.closures[0].storage_life.as_mut().unwrap().static_bindings.insert(0,position.clone()),
                 _=>{},
             }
             proposed.functions[0].storage_life=proposed.closures[0].storage_life.clone();
@@ -709,8 +714,8 @@ mod static_capture_tests{
                 let mut b=Budget::new(&limits);let result=semantic_closed_environment(current,ClosureId(0),&mut b);
                 if mutation==0{
                     result.unwrap();assert!(b.proven_static_occurrences.is_empty());assert!(b.static_borrow_occurrences);assert!(b.semantic_static_occurrences.contains(&(ClosureId(0),position.clone())));
-                    assert!(crate::semantic::callable_obligations::drain(current,&mut b).is_err(),"a structural Static row is no actual source proof, wire {wire}");
-                }else{assert!(result.is_err(),"closed Static capture attack {mutation}, wire {wire}");}
+                    assert!(crate::semantic::callable_obligations::drain(current,&mut b).is_err(),"a complete nested Static declaration is no actual constructor/Return root proof, wire {wire}");
+                }else{assert!(result.is_err(),"closed nested Static capture attack {mutation}, wire {wire}");}
             }
         }
     }

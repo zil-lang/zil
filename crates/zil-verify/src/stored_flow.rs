@@ -3494,7 +3494,7 @@ fn step(
             }
         }
         InstructionKind::UnpackTuple { local, fields } if compound::operation(f, i, b)? => {
-            compound::unpack(*local, fields, state, b)?;
+            compound::unpack(f,*local, fields, state, b)?;
         }
         InstructionKind::DropTuple { local } if compound::operation(f, i, b)? => {
             state.locals[local.0 as usize] = Payload::default();
@@ -3537,14 +3537,8 @@ fn step(
             replacements::step(f, i, state, values, sites, loans, b)?;
         }
         InstructionKind::ExtractField { aggregate, index } if compound::projection(f, i, b)? => {
-            let input = val(*aggregate)?;
-            for (path, permission) in &input.leaves {
-                b.spend(path.len().saturating_add(1))?;
-                if let Some((PlaceProjection::Field(field), tail)) = path.split_first()
-                    && field == index {
-                    add_leaf(&mut out, tail, permission, b)?;
-                }
-            }
+            let ty=vt(f,i.result.ok_or_else(||err("compound field projection lacks its actual result"))?)?;
+            out=compound::field_payload(val(*aggregate)?,*index,ty,b)?;
         }
         InstructionKind::StaticUtf8 { .. } => {
             b.spend(1)?;
@@ -3997,6 +3991,14 @@ static_dependency: StaticProvenance::NotStatic,
                 let prefix = vec![PlaceProjection::Field(index as u32)];
                 if matches!(ty, Type::Address { .. }) {
                     add_leaf(&mut out, &prefix, &actual.address, b)?;
+                }
+                if let Some(slots)=compound::slots(ty,b)?{
+                    for(path,_)in slots{
+                        let row=actual.leaves.position(&path,b)?.ok_or_else(||err("actual inline capture omits its complete physical pointer field"))?;
+                        b.spend(prefix.len().saturating_add(path.len()))?;
+                        let mut destination=prefix.clone();destination.extend(path);
+                        add_leaf(&mut out,&destination,&actual.leaves[row].1,b)?;
+                    }
                 }
                 if let Some((_, shape)) = addressed(ty) {
                     for slot in &shape.slots {

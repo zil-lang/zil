@@ -4004,7 +4004,7 @@ fn check_instruction(
                 && dynamic_store::inline_sum_capture(field, budget)?;
             if !matches!(definition.kind, CallableKind::FnMut | CallableKind::FnOnce)
                 || !(field.is_copy_value()
-                    || stored_callables::constant_capture_slot(definition, *index, budget)?
+                    || stored_callables::constant_capture_slot(module,definition, *index, budget)?
                     || (definition.kind == CallableKind::FnMut && owned_sum))
                 || value_type(function, *value, span)? != field
             {

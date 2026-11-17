@@ -283,9 +283,10 @@ trait InputType{fn ty(&self)->&Type;}
 impl InputType for Type{fn ty(&self)->&Type{self}}
 impl InputType for &Type{fn ty(&self)->&Type{self}}
 
-struct ZeroResourceRoot<'a> {
+struct KnownZeroRoot<'a> {
     base: StorageBase,
     whole_type: &'a Type,
+    statics: Vec<StoragePosition>,
 }
 
 /// Scheduling of an exact zero free-domain resource occurrence uses Verify's
@@ -319,9 +320,10 @@ fn function_resource_inputs<P:InputType>(module:&TypedModule,parameters:&[P],res
         };
         if !zero_resource_occurrence(module,ty,span,b)?{continue;}
         crate::stored_flow::type_bounds(ty, &b.limits.clone(), b)?;
-        roots.push(ZeroResourceRoot {
+        roots.push(KnownZeroRoot {
             base,
             whole_type: ty,
+            statics: Vec::new(),
         });
     }
     if !roots.is_empty() && !c.static_bindings.is_empty() {
@@ -376,7 +378,13 @@ fn closure_resource_inputs<P:InputType>(module:&TypedModule,parameters:&[P],capt
     let mut roots=Vec::new();
     for(ordinal,ty)in parameters.iter().map(InputType::ty).chain(captures).chain(std::iter::once(result)).enumerate(){
         let base=if ordinal<parameters.len(){StorageBase::Parameter(ordinal as u32)}else if ordinal<parameters.len()+captures.len(){StorageBase::Capture((ordinal-parameters.len())as u32)}else{StorageBase::Result};
-        if zero_resource_occurrence(module,ty,span,b)?{crate::stored_flow::type_bounds(ty,&b.limits.clone(),b)?;roots.push(ZeroResourceRoot{base,whole_type:ty});}
+        if matches!(base,StorageBase::Capture(_))&&matches!(ty,Type::Tuple(_)|Type::Record{..}|Type::Package{..}|Type::Array{..}){
+            if let Some(statics)=crate::stored_callables::constant_value_positions(module,ty,base,c,b)?{
+                crate::stored_flow::type_bounds(ty,&b.limits.clone(),b)?;
+                roots.push(KnownZeroRoot{base,whole_type:ty,statics});continue;
+            }
+        }
+        if zero_resource_occurrence(module,ty,span,b)?{crate::stored_flow::type_bounds(ty,&b.limits.clone(),b)?;roots.push(KnownZeroRoot{base,whole_type:ty,statics:vec![]});}
     }
     relation_inputs(parameters,result,c,span,true,Some(captures),Some(module),false,Some(kind),&[],&roots)
 }
@@ -388,7 +396,7 @@ fn function_relation_inner<P:InputType>(
     span: Option<Span>,
     allow_callback: bool,
     allow_byte_input: bool,
-    zero_resources: &[ZeroResourceRoot<'_>],
+    zero_resources: &[KnownZeroRoot<'_>],
 ) -> Check<()> {
     pending_static(c, span)?;
     if let Type::ErrorUnion {
@@ -480,29 +488,6 @@ fn function_relation_inner<P:InputType>(
         None,
         &[],
         zero_resources,
-    )
-}
-pub(super) fn closure_relation(
-    module: &TypedModule,
-    parameters: &[Type],
-    captures: &[Type],
-    kind: CallableKind,
-    result: &Type,
-    c: &StorageLifeContract,
-    span: Option<Span>,
-) -> Check<()> {
-    relation_inner(
-        parameters,
-        result,
-        c,
-        span,
-        true,
-        Some(captures),
-        Some(module),
-        false,
-        Some(kind),
-        &[],
-        &[],
     )
 }
 pub(super) fn role_relation(
@@ -631,7 +616,7 @@ fn relation_inner(
     allow_byte_input: bool,
     closure_kind: Option<CallableKind>,
     pending: &[SignatureLifeClass],
-    zero_resources: &[ZeroResourceRoot<'_>],
+    zero_resources: &[KnownZeroRoot<'_>],
 ) -> Check<()> {
     relation_inputs(parameters,result,c,span,allow_callback,captures,module,allow_byte_input,closure_kind,pending,zero_resources)
 }
@@ -672,7 +657,7 @@ fn relation_inputs<P:InputType>(
     allow_byte_input: bool,
     closure_kind: Option<CallableKind>,
     pending: &[SignatureLifeClass],
-    zero_resources: &[ZeroResourceRoot<'_>],
+    zero_resources: &[KnownZeroRoot<'_>],
 ) -> Check<()> {
     let invalid = || {
         reject(
@@ -807,7 +792,11 @@ fn relation_inputs<P:InputType>(
             }
             _ => (ty, false),
         };
-        if zero_resources.iter().any(|root| root.base == base && root.whole_type == ty) {
+        if let Some(root)=zero_resources.iter().find(|root|root.base==base&&root.whole_type==ty){
+            for position in &root.statics{
+                if c.static_bindings.get(constant)!=Some(position){return Err(invalid());}
+                constant+=1;
+            }
             continue;
         }
         if super::stored_flow::shared_array_value(actual) {

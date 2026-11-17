@@ -581,12 +581,12 @@ impl CheckedContext {
             }
         }
         for position in &relation.static_bindings {
-            if !position.path.is_empty(){return Err(unsupported("opaque static occurrence needs its complete nested logical leaf inventory",None));}
             let leaf=match position.base {
                 StorageBase::Capture(index)=>actual_definition.captures.get(index as usize),
                 StorageBase::Parameter(index)=>actual_definition.parameters.get(index as usize),
                 StorageBase::Result=>Some(&actual_definition.result),StorageBase::Receiver=>None,
             }.ok_or_else(||bad("opaque Static occurrence selects an absent actual leaf"))?;
+            let leaf=super::closures::static_leaf(module,leaf,&position.path,b)?;
             let mode=match leaf {Type::Address{mutable:false,..}=>StoredBorrowMode::SharedAddress,Type::Desc(_)=>StoredBorrowMode::ReadOnlyDescription,_=>return Err(bad("opaque Static occurrence is not a complete shared borrow leaf"))};
             dynamic_metadata::ty(leaf,b)?;b.spend(position.path.len().saturating_add(1))?;
             statics.push(StaticOccurrence::Logical{closure,position:position.clone(),leaf:leaf.clone(),mode});

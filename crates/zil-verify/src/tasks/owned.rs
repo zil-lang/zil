@@ -338,6 +338,9 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
                 return Ok(false);
             }
             for (index, capture) in c.captures.iter().enumerate() {
+                if let Some(header)=&c.storage_life{
+                    if crate::stored_callables::constant_value_positions(module,capture,StorageBase::Capture(index as u32),header,budget)?.is_some(){continue;}
+                }
                 if let Type::Managed(payload) = capture {
                     match payload.as_ref() {
                         Type::Task { .. } => {

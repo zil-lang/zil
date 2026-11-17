@@ -269,20 +269,14 @@ pub(crate) fn build(module: &TypedModule, limits: &Limits, b: &mut Budget) -> Ch
             let mut outcome = PendingScope::Known(0);
             let mut scopes = Vec::new();
             for (ordinal, ty) in d.captures.iter().enumerate() {
-                let constant = if let Some(contract) = &d.storage_life {
-                    b.spend(contract.static_bindings.len())?;
-                    matches!(ty, Type::Address { mutable: false, .. })
-                        && contract.static_bindings.iter().any(|position| {
-                            position.base == StorageBase::Capture(ordinal as u32)
-                                && position.path.is_empty()
-                        })
-                } else {
-                    false
-                };
-                // Exclude the exact outer occurrence, retaining every inner
-                // class check. Source/ancestor Static proof remains a global
-                // all-constructor and all-write obligation, never this bit.
-                scopes.push((ty, constant));
+                if let Some(contract)=&d.storage_life{
+                    if crate::stored_callables::constant_value_positions(module,ty,StorageBase::Capture(ordinal as u32),contract,b)?.is_some(){
+                        // Complete variable N0 is structural only. Every Static
+                        // occurrence remains a separate final source obligation.
+                        continue;
+                    }
+                }
+                scopes.push((ty,false));
             }
             if d.storage_life.is_none() {
                 scopes.extend(
