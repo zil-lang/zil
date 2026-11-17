@@ -713,15 +713,10 @@ fn check_resolved_program_in_context(
         .map_err(|e| vec![e])?;
     retained::populate_local_static_results(&mut module, &mut remaining, limits)
         .map_err(|e| vec![e])?;
-    lending::populate(&mut module, &mut remaining).map_err(|e| vec![e])?;
     retained::populate_sources(&mut module, &mut remaining, limits).map_err(|e| vec![e])?;
     retained::populate_return_lives(&mut module, &returned_life_bounds, &mut remaining, limits)
         .map_err(|e| vec![e])?;
-    retained::check_deferred_closed(&module, &deferred_closed, &mut remaining, limits)
-        .map_err(|e| vec![e])?;
     mark_cost("program: local origins and protocol metadata", remaining);
-    registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
-        .map_err(|e| vec![e])?;
     if program
         .modules
         .iter()
@@ -751,6 +746,15 @@ fn check_resolved_program_in_context(
         // discharge when no original semantic program was supplied.
         stored::ordinary_inventory(&module, limits, &mut remaining).map_err(|e| vec![e])?;
     }
+    // Actual headers and materialized CFGs are now complete. No class-free
+    // candidate or least-fixed-point bottom may decide Static/lending/CE.
+    let static_origins = retained::prove_static_origins(&module, &mut remaining, limits)
+        .map_err(|e| vec![e])?;
+    lending::populate(&mut module, &static_origins, &mut remaining).map_err(|e| vec![e])?;
+    retained::check_deferred_closed(&module, &deferred_closed, &static_origins, &mut remaining, limits)
+        .map_err(|e| vec![e])?;
+    registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
+        .map_err(|e| vec![e])?;
     // Materialization and origin discovery finalize complete callable headers.
     // Publish the same headers the executable carries before computing any
     // interface identity; early emission snapshots are not final contracts.

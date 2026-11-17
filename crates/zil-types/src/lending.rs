@@ -313,13 +313,13 @@ fn sources(
 
 /// Complete-module placement permits ordinary parameter-origin forwarding
 /// without treating source names or source annotations as provenance shortcuts.
-pub(super) fn populate(module: &mut TypedModule, remaining: &mut usize) -> R<()> {
+pub(super) fn populate(module: &mut TypedModule, static_origins: &retained::StaticOrigins, remaining: &mut usize) -> R<()> {
     let mut work = Work(*remaining);
-    let result = populate_inner(module, &mut work);
+    let result = populate_inner(module, static_origins, &mut work);
     *remaining = work.0;
     result
 }
-fn populate_inner(module: &mut TypedModule, work: &mut Work) -> R<()> {
+fn populate_inner(module: &mut TypedModule, static_origins: &retained::StaticOrigins, work: &mut Work) -> R<()> {
     work.spend(module.closures.len(), Span::default())?;
     if !module
         .closures
@@ -347,6 +347,29 @@ fn populate_inner(module: &mut TypedModule, work: &mut Work) -> R<()> {
         let f = &module.functions[closure.function.0 as usize];
         work.spend(closure.captures.len().saturating_add(1), f.span)?;
         if !matches!(closure.result, Type::Address { .. }) {
+            continue;
+        }
+        if static_origins.result(closure.id, &mut work.0, f.span)? {
+            // Every actual return and constructor/write dependency has been
+            // discharged. Static bytes borrow neither activation nor env.
+            let span = f.span;
+            // Only the literal public Static result contract may publish a
+            // Static guarantee. A readonly Fixed/Invocation upper bound uses
+            // the proof solely for internal lending classification.
+            work.spend(closure.storage_life.as_ref().map_or(0, |life| life.static_bindings.len()).saturating_add(1), span)?;
+            let publish = closure.storage_life.as_ref().is_some_and(|life| life.static_bindings.contains(&StoragePosition { base: StorageBase::Result, path: Vec::new() }));
+            if !publish { continue; }
+            work.spend(6, span)?;
+            let sources = vec![StorageSourceBinding {
+                position: StoragePosition { base: StorageBase::Result, path: Vec::new() },
+                sources: vec![StorageSource::Static { leaf: closure.result.clone(), mode: StoredBorrowMode::SharedAddress }],
+            }];
+            let actual = &mut module.functions[closure.function.0 as usize].retained_return_sources;
+            if actual.as_ref().is_some_and(|old| old != &sources) {
+                return Err(error("E-LENDING-ORIGIN", span,
+                    "Static actual return disagrees with its complete existing source relation"));
+            }
+            *actual = Some(sources);
             continue;
         }
         // A complete explicit constant result is an untrusted obligation for

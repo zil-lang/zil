@@ -842,16 +842,10 @@ pub fn check(
         .map_err(|e| vec![e])?;
     retained::populate_local_static_results(&mut module, &mut remaining, limits)
         .map_err(|e| vec![e])?;
-    lending::populate(&mut module, &mut remaining).map_err(|e| vec![e])?;
     retained::populate_sources(&mut module, &mut remaining, limits).map_err(|e| vec![e])?;
     retained::populate_return_lives(&mut module, &returned_life_bounds, &mut remaining, limits)
         .map_err(|e| vec![e])?;
-    retained::check_contexts(&module, &mut remaining).map_err(|e| vec![e])?;
-    retained::check_deferred_closed(&module, &deferred_closed, &mut remaining, limits)
-        .map_err(|e| vec![e])?;
     mark_cost("single: local origins and protocol metadata", remaining);
-    registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
-        .map_err(|e| vec![e])?;
     module.semantic = semantics::finish::program(
         &[core],
         &mut module,
@@ -861,6 +855,14 @@ pub fn check(
         &mut remaining,
     )
     .map_err(|e| vec![e])?;
+    retained::check_contexts(&module, &mut remaining).map_err(|e| vec![e])?;
+    let static_origins = retained::prove_static_origins(&module, &mut remaining, limits)
+        .map_err(|e| vec![e])?;
+    lending::populate(&mut module, &static_origins, &mut remaining).map_err(|e| vec![e])?;
+    retained::check_deferred_closed(&module, &deferred_closed, &static_origins, &mut remaining, limits)
+        .map_err(|e| vec![e])?;
+    registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
+        .map_err(|e| vec![e])?;
     Ok(module)
 }
 struct Builder<'a, 'c> {
