@@ -18,6 +18,7 @@ enum Target {
     Alternatives(usize),
     Elements { index: usize, tuple: bool },
     StoreBorrow,
+    ByteView,
     OwnedDynFactory,
     StoreReceiver(usize),
     TraitReceiver(LifeDeclarationId),
@@ -393,7 +394,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
         let known = self.independently_suspend(target, span)?;
         self.vertex.known_suspend |= known;
         match target {
-            Target::Kind(CallKind::Direct) | Target::Prototype(_, CallKind::Direct) | Target::StoreBorrow | Target::OwnedDynFactory => {}
+            Target::Kind(CallKind::Direct) | Target::Prototype(_, CallKind::Direct) | Target::StoreBorrow | Target::ByteView | Target::OwnedDynFactory => {}
             Target::Kind(CallKind::Suspend)
             | Target::Prototype(_, CallKind::Suspend)
             | Target::Unknown
@@ -1115,6 +1116,9 @@ impl<'a> Scan<'a, '_, '_, '_> {
                         _ => Target::Unknown,
                     });
                 }
+                if called == Target::ByteView && arguments.len() == 1 {
+                    return Ok(Target::LengthReceiver);
+                }
                 if called == Target::OwnedDynFactory {
                     return self.owned_factory_result(callee, depth + 1);
                 }
@@ -1253,6 +1257,8 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 if crate::primitive_name(name) {
                     if binding.is_none() && matches!(*name, "store_at" | "store_at_mut") {
                         Target::StoreBorrow
+                    } else if binding.is_none() && matches!(*name, "bytes_view" | "bytes_view_mut") {
+                        Target::ByteView
                     } else if binding.is_none() && *name == "owned_dyn" {
                         Target::OwnedDynFactory
                     } else {
@@ -2814,6 +2820,21 @@ fn main(){}
         assert_eq!(signature(function(&module, "unknown")).unwrap().call_kind, CallKind::Suspend);
         assert_eq!(signature(function(&module, "unused")).unwrap().call_kind, CallKind::Suspend);
         assert_eq!(signature(function(&module, "direct")).unwrap().call_kind, CallKind::Direct);
+    }
+
+    #[test]
+    fn byte_windows_keep_length_queries_in_direct_bodies() {
+        let module = original_module(
+            "fn shared(b:ByteBuffer)->i64{let view=bytes_view(b);return view.len();}\n\
+             fn exclusive(b:ByteBuffer)->i64{return bytes_view_mut(b).len();}\n\
+             fn helper(b:ByteBuffer)->i64{return shared(b)+exclusive(b);}",
+        );
+        for name in ["shared", "exclusive", "helper"] {
+            assert_eq!(
+                signature(function(&module, name)).unwrap().call_kind,
+                CallKind::Direct
+            );
+        }
     }
 
     #[test]
