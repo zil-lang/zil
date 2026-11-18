@@ -134,7 +134,7 @@ impl CheckedOriginal {
                     active,
                     b,
                 )?;
-                if kind != Intrinsic::TaskCreateOwned
+                if kind == Intrinsic::TaskCreate
                     && !self
                         .task_shape(module, context, &actual, false, active, b, 0)?
                         .has_task()
