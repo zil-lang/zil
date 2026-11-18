@@ -85,10 +85,11 @@ impl CheckedOriginal {
             Some(Place{binder:Binder::Parameter{definition,ordinal},fields}) if fields.is_empty()=>BufferSource::Parameter{definition:*definition,ordinal:*ordinal},
             Some(_)=>BufferSource::Place{definition:env.current()?,node:arguments[0].id},
             None=>{
-                self.temporary_byte_owner(&arguments[0],&buffer,env,b)?.ok_or_else(||unsupported(
-                    "byte intrinsic needs its complete original projected/captured buffer identity",
-                    Some(arguments[0].span),
-                ))?
+                if let Some(owner)=self.temporary_byte_owner(&arguments[0],&buffer,env,b)? {
+                    owner
+                } else {
+                    self.operation_source(module,&arguments[0],env,bindings,b)?
+                }
             },
         };
         if let Some(place)=place{self.read_original(module,context,&place,&buffer,env,false,active,b)?;}

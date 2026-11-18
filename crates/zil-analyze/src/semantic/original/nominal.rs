@@ -761,6 +761,11 @@ impl Solver<'_, '_> {
     ) -> CompileResult<Term> {
         self.step(depth, b)?;
         let root = self.type_root(term, b)?;
+        if matches!(self.state.arena[root], Kind::Address { .. }) {
+            let (_, selected) = self.field(term, name, b, depth + 1)?;
+            Self::push(&mut self.needs, Need { term: selected, predicate: Predicate::Copy }, b)?;
+            return Ok(selected);
+        }
         if let Kind::Tuple(fields) = &self.state.arena[root] {
             b.spend(name.len().saturating_add(fields.len() + 1), WORK)?;
             if name.is_empty() || !name.bytes().all(|byte| byte.is_ascii_digit()) {

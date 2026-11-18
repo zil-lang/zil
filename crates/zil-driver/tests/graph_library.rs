@@ -5,10 +5,94 @@ use std::{
     process::{Command, Stdio},
     sync::atomic::{AtomicU64, Ordering},
 };
-use zil_base::ResultCategory;
+use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit, TargetProfile};
 use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_path};
+use zil_ir::InstructionKind;
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
+
+#[test]
+fn byte_length_through_a_store_window_keeps_its_original_field() {
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "store-byte-field.zil",
+        r#"
+package Row { manages left:ByteBuffer; manages right:ByteBuffer }
+fn main()->i32 {
+    let rows:Store<Row>=store_new()
+    if !store_reserve(rows,1) {return 1}
+    let left=bytes_new()
+    let right=bytes_new()
+    if !bytes_reserve(left,1) || !bytes_push(left,7u8) {return 2}
+    if !bytes_reserve(right,2) || !bytes_push(right,8u8) || !bytes_push(right,9u8) {return 3}
+    match store_push(rows,Row{left:give left,right:give right}) {.err(_)=>{return 4},.ok(_)=>{}}
+    let row=store_at(rows,0)
+    return i32(bytes_len(row.left)-1)
+}
+"#,
+    );
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let syntax = zil_syntax::parse(&source).into_result().unwrap();
+    let expanded = zil_expand::expand_with_map_semantics(
+        &source,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap();
+    let mut typed = zil_types::check(&expanded.core, &target, &limits).unwrap();
+    let mut plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let pristine = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&pristine, &target, &limits).unwrap();
+
+    let entry = typed
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let mut fields = entry
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .filter_map(|row| match &mut row.kind {
+            InstructionKind::AddressField { index, .. } if *index == 0 => Some(index),
+            _ => None,
+        });
+    *fields.next().expect("original left field") = 1;
+    assert!(fields.next().is_none());
+    let analysis = zil_analyze::analyze(&typed, &limits)
+        .err()
+        .expect("Analyze rejects the sibling");
+    assert!(
+        analysis[0]
+            .message
+            .contains("changes its original field path"),
+        "{analysis:?}"
+    );
+    plan.module_fingerprint = typed.fingerprint();
+    let changed = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    let raw = zil_verify::verify_module(typed, plan, &target, &limits)
+        .err()
+        .expect("Raw rejects the sibling");
+    let wire = zil_verify::verify_module_bytes(&changed, &target, &limits)
+        .err()
+        .expect("Wire rejects the sibling");
+    assert_eq!(raw[0].category, ResultCategory::SafeReject);
+    assert!(
+        raw[0].message.contains("actual field index differs"),
+        "{raw:?}"
+    );
+    assert_eq!(raw, wire);
+}
+
 const GRAPH_HELPER: &str = r#"import std.graph
 pub struct Saved { pub from:graph.NodeKey; pub to:graph.NodeKey }
 pub fn save(from:graph.NodeKey,to:graph.NodeKey)->Saved {return Saved{from:from,to:to}}

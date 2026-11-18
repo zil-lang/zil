@@ -3529,12 +3529,16 @@ fn clear_local_holes(state: &mut Frame, local: LocalId, b: &mut Budget) -> Check
     Ok(())
 }
 
-/// Only exact SSA loads whose *every* use observes a projection's address
-/// head can defer the whole-pointee reborrow. The projection itself creates
-/// and checks its real narrower loan. A stored, passed, returned or otherwise
-/// consumed head retains the ordinary whole reborrow, even if it also has a
-/// projection use. Unreachable uses participate in this classification too.
+/// Defer a whole-pointee reborrow when all uses project that address head.
+/// A mutable Store field used only to form its exact weak description also
+/// retains its parent permission without minting an exclusive field loan.
+/// Each actual Store operation still checks its access and any returned loan.
+/// Stored, passed, returned and unreachable uses participate in the check.
 fn projection_head_loads(f: &TypedFunction, b: &mut Budget) -> Check<Vec<bool>> {
+    const LOAD: u8 = 1;
+    const PROJECTED_USE: u8 = 2;
+    const OTHER_USE: u8 = 4;
+    const STORE_FIELD: u8 = 8;
     b.spend(
         f.values
             .len()
@@ -3558,7 +3562,13 @@ fn projection_head_loads(f: &TypedFunction, b: &mut Budget) -> Check<Vec<bool>> 
                 if actual.ty != *vt(f, result)? {
                     return Err(err("projected head load changes its complete local type"));
                 }
-                marks[result.0 as usize] = 1;
+                marks[result.0 as usize] = LOAD;
+            } else if matches!(i.kind, InstructionKind::AddressField { .. })
+                && let Some(result) = i.result
+                && matches!(vt(f, result)?, Type::Address { mutable: true, inner }
+                    if matches!(inner.as_ref(), Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. })))
+            {
+                marks[result.0 as usize] = STORE_FIELD;
             }
         }
     }
@@ -3571,13 +3581,31 @@ fn projection_head_loads(f: &TypedFunction, b: &mut Budget) -> Check<Vec<bool>> 
                 | InstructionKind::AddressSlice { address, .. } => Some(address),
                 _ => None,
             };
+            let description_head = match i.kind {
+                InstructionKind::DescribeAddress { address }
+                    if marks.get(address.0 as usize).is_some_and(|mark| mark & STORE_FIELD != 0) => {
+                    let Type::Address { inner, .. } = vt(f, address)? else { unreachable!() };
+                    let Type::Managed(payload) = inner.as_ref() else { unreachable!() };
+                    let result = i.result.ok_or_else(|| err("Store field description has no actual result"))?;
+                    if let Type::Desc(actual) = vt(f, result)? {
+                        type_work(payload, &b.limits.clone(), b)?;
+                        type_work(actual, &b.limits.clone(), b)?;
+                        (actual == payload).then_some(address)
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            };
             for operand in instruction_operands(&i.kind) {
                 b.spend(1)?;
                 let mark = marks
                     .get_mut(operand.0 as usize)
                     .ok_or_else(|| err("projected head use has no actual SSA value"))?;
-                if *mark & 1 != 0 {
-                    *mark |= if head == Some(operand) { 2 } else { 4 };
+                if *mark & (LOAD | STORE_FIELD) != 0 {
+                    let projection_use = *mark & LOAD != 0 && head == Some(operand);
+                    let description_use = *mark & STORE_FIELD != 0 && description_head == Some(operand);
+                    *mark |= if projection_use || description_use { PROJECTED_USE } else { OTHER_USE };
                 }
             }
         }
@@ -3591,12 +3619,12 @@ fn projection_head_loads(f: &TypedFunction, b: &mut Budget) -> Check<Vec<bool>> 
             let mark = marks
                 .get_mut(value.0 as usize)
                 .ok_or_else(|| err("projected head escapes through an absent actual value"))?;
-            if *mark & 1 != 0 {
-                *mark |= 4;
+            if *mark & (LOAD | STORE_FIELD) != 0 {
+                *mark |= OTHER_USE;
             }
         }
     }
-    Ok(marks.into_iter().map(|mark| mark == 3).collect())
+    Ok(marks.into_iter().map(|mark| mark & (PROJECTED_USE | OTHER_USE) == PROJECTED_USE).collect())
 }
 
 fn is_deferred_address(i: &Instruction, heads: &[bool]) -> bool {
