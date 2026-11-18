@@ -343,25 +343,90 @@ impl Check<'_, '_> {
         for block in &function.blocks {
             for instruction in &block.instructions {
                 b.spend(1, WORK)?;
-                if matches!(instruction.kind,
-                    InstructionKind::BorrowLocalMut { local: target }
-                    | InstructionKind::BorrowPlaceLocal { local: target, mutable: true, .. }
-                    | InstructionKind::ReservePlaceLocal { local: target, .. }
-                    if target == local)
-                {
-                    return Err(unknown(
-                        "moved reference capture requires the complete writable source-cell effect",
-                    ));
-                }
+                Self::check_reference_cell_effect(&instruction.kind, local)?;
             }
         }
         self.reference_role_stores(instance, function, local, &role, b, 0)?;
         Ok(true)
     }
 
+    fn check_reference_cell_effect(instruction: &InstructionKind, local: LocalId) -> CompileResult<()> {
+        if matches!(instruction,
+            InstructionKind::BorrowLocalMut { local: target }
+            | InstructionKind::BorrowPlaceLocal { local: target, mutable: true, .. }
+            | InstructionKind::ReservePlaceLocal { local: target, .. }
+            if *target == local)
+        {
+            return Err(unknown("reference source needs the complete writable source-cell effect"));
+        }
+        Ok(())
+    }
+
+    fn reference_result_anchor(
+        &self,
+        world: &SemanticInstance,
+        function: &TypedFunction,
+        write: &ActualWrite,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Option<original::LocalAnchor>> {
+        let mut anchor = write.anchor;
+        let mut seen = BTreeSet::new();
+        while let Some(original::LocalAnchor::Binding(binding)) = anchor {
+            b.lookup(seen.len(), WORK)?;
+            if depth.saturating_add(seen.len()) > b.partial_depth || !seen.insert(binding) {
+                return Err(fail("immutable reference source chain is cyclic or exceeds its depth"));
+            }
+            let Some((initializer, source)) = self.original.immutable_reference_alias(
+                world.definition, binding, self.inventory, b,
+            )? else { break; };
+            let local = self.anchored_local(world, function, original::LocalAnchor::Binding(binding), b)?;
+            if function.locals.get(local.0 as usize).is_none_or(|row| row.mutable) {
+                return Err(fail("immutable reference alias changes its actual binding mode"));
+            }
+            let emitted = self.original_subject_value(world, function, initializer, b)?
+                .ok_or_else(|| unknown("immutable reference alias has no exact initializer SSA"))?;
+            let original_write = ActualWrite {
+                statement: binding,
+                expression: initializer,
+                anchor: Some(source),
+                static_literal: false,
+                value: write.value.copy(b)?,
+            };
+            let mut stores = 0usize;
+            for block in &function.blocks {
+                for (index, instruction) in block.instructions.iter().enumerate() {
+                    b.spend(1, WORK)?;
+                    Self::check_reference_cell_effect(&instruction.kind, local)?;
+                    let InstructionKind::Store { local: target, value } = instruction.kind else { continue; };
+                    if target != local {
+                        continue;
+                    }
+                    stores += 1;
+                    operations::available_before(function, (block.id, index, SemanticSiteEdge::Before), value, b)?;
+                    if !self.operation_operand_matches(function, value, emitted, b)? {
+                        return Err(fail("immutable reference alias changes its original initializer occurrence"));
+                    }
+                    let actual = self.reference_write_source(
+                        world, function, value, &original_write, b, depth + 1,
+                    )?.ok_or_else(|| fail("immutable reference alias changes its actual source binding"))?;
+                    if !actual.equal_paid(&original_write.value, b)? {
+                        return Err(fail("immutable reference alias changes its complete original initializer"));
+                    }
+                }
+            }
+            if stores == 0 {
+                return Err(fail("immutable reference alias has no actual initializer Store"));
+            }
+            anchor = Some(source);
+        }
+        Ok(anchor)
+    }
+
     fn reference_role_input_sources(
         &self,
         world: &SemanticInstance,
+        function: &TypedFunction,
         role: &ActualRole,
         active: &mut BTreeSet<zil_base::NodeId>,
         sources: &mut Vec<StorageSource>,
@@ -380,7 +445,7 @@ impl Check<'_, '_> {
         }
         for write in &role.writes {
             b.spend(1, WORK)?;
-            let source = match write.anchor {
+            let source = match self.reference_result_anchor(world, function, write, b, depth + 1)? {
                 Some(original::LocalAnchor::Parameter(index)) => {
                     Some(StorageSource::Exact(StoragePosition {
                         base: StorageBase::Parameter(index),
@@ -399,6 +464,7 @@ impl Check<'_, '_> {
                         })?;
                     self.reference_role_input_sources(
                         world,
+                        function,
                         &nested,
                         active,
                         sources,
@@ -558,6 +624,7 @@ impl Check<'_, '_> {
             let mut sources = Vec::new();
             self.reference_role_input_sources(
                 world,
+                callee,
                 &role,
                 &mut BTreeSet::new(),
                 &mut sources,

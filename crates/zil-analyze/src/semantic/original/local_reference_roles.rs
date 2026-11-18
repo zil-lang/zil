@@ -681,6 +681,19 @@ impl Checked {
             _ => Ok(None),
         }
     }
+    pub(in crate::semantic) fn immutable_reference_alias(
+        &self,
+        owner: SemanticDefinitionId,
+        binding: NodeId,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<Option<(NodeId, LocalAnchor)>> {
+        let index = inventory.original_index(owner, b)?;
+        let CoreStatementKind::Binding { mutable: false, initializer: Some(initializer), .. } =
+            &index.get_stmt(binding, b)?.kind else { return Ok(None); };
+        let anchor = self.reference_source_anchor(owner, initializer.id, inventory, b, 0)?;
+        Ok(anchor.map(|anchor| (initializer.id, anchor)))
+    }
     fn reference_static_literal(
         &self,
         owner: SemanticDefinitionId,
