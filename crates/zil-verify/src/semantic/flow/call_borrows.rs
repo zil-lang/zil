@@ -78,8 +78,8 @@ impl CheckedContext {
             let exported=returned_input_head(signature,key,index,b)?;
             let local_window=self.original_local_call_window(caller,&signature.parameters[index].0,environment,b)?;
             let shared=matches!(actual.ty,Type::Address{mutable:false,..})&&matches!(signature.parameters[index].0.ty,Type::Address{mutable:false,..});
-            if !retains_task_inputs&&!exported&&!local_window&&!(shared&&shared_reborrow_adapter(module,f,*argument,b)?){continue;}
-            let producer=call_borrow_producer(f,*argument,b)?;
+            if !retains_task_inputs&&!exported&&!local_window&&!(shared&&shared_reborrow_adapter(&self.site_index.producers,module,f,*argument,b)?){continue;}
+            let (_, _, producer) = self.site_index.producers.get(f, *argument, b)?;
             crate::check_instruction(module,f,producer,b)?;
             if matches!(producer.kind,InstructionKind::ReborrowAddress{..}){b.spend(1)?;adapted.push(index);}
         }
@@ -127,7 +127,7 @@ impl CheckedContext {
             let Some((node,recipe,origin))=&recipes[index]else{continue;};let argument=arguments[index];
             let source=self.evaluate_type(module,recipe,environment,external,active,b)?;
             let source=if matches!(source.ty,Type::Address{mutable:true,..})&&matches!(signature.parameters[index].0.ty,Type::Address{mutable:false,..}){
-                if !shared_reborrow_adapter(module,f,argument,b)?{return Err(bad("Call shared view lacks its exact exclusive-to-shared ReborrowAddress adapter"));}
+                if !shared_reborrow_adapter(&self.site_index.producers,module,f,argument,b)?{return Err(bad("Call shared view lacks its exact exclusive-to-shared ReborrowAddress adapter"));}
                 self.call_shared_view(&source,b)?
             }else{source};
             self.call_input_source(module,caller,f,argument,*node,*origin,b)?;
@@ -245,7 +245,7 @@ impl CheckedContext {
         let mut current=argument;let mut seen=std::collections::BTreeSet::new();let mut related=false;
         loop{
             b.spend(1)?;if !seen.insert(current){return Err(bad("Call argument reborrow has an SSA producer cycle"));}
-            let producer=call_borrow_producer(f,current,b)?;crate::check_instruction(module,f,producer,b)?;
+            let (_, _, producer) = self.site_index.producers.get(f, current, b)?;crate::check_instruction(module,f,producer,b)?;
             let InstructionKind::ReborrowAddress{address,mutable}=&producer.kind else{break;};
             current=*address;
             let parent=value_at(values,current)?;
@@ -383,14 +383,11 @@ mod input_image_tests{
     }
 }
 
-pub(super) fn call_borrow_producer<'a>(f:&'a TypedFunction,value:ValueId,b:&mut Budget)->Check<&'a Instruction>{
-    let mut producer=None;for block in &f.blocks{b.spend(block.instructions.len())?;for operation in &block.instructions{if operation.result==Some(value)&&producer.replace(operation).is_some(){return Err(bad("Call argument adapter has several actual SSA definitions"));}}}producer.ok_or_else(||bad("Call argument adapter has no actual SSA definition"))
-}
-fn shared_reborrow_adapter(module:&TypedModule,f:&TypedFunction,argument:ValueId,b:&mut Budget)->Check<bool>{
+fn shared_reborrow_adapter(producers:&sites::Producers,module:&TypedModule,f:&TypedFunction,argument:ValueId,b:&mut Budget)->Check<bool>{
     let mut current=argument;let mut seen=std::collections::BTreeSet::new();
     loop{
         b.spend(1)?;if !seen.insert(current){return Err(bad("Call shared reborrow adapter has a producer cycle"));}
-        let producer=call_borrow_producer(f,current,b)?;crate::check_instruction(module,f,producer,b)?;
+        let (_, _, producer) = producers.get(f, current, b)?;crate::check_instruction(module,f,producer,b)?;
         let InstructionKind::ReborrowAddress{address,mutable:false}=producer.kind else{return Ok(false);};
         match f.values.get(address.0 as usize){Some(Type::Address{mutable:true,..})=>return Ok(true),Some(Type::Address{mutable:false,..})=>current=address,_=>return Ok(false)}
     }

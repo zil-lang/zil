@@ -8,9 +8,8 @@ impl CheckedContext {
         let mut seen=BTreeSet::new();loop{
             b.spend(1)?;if !seen.insert(value){return Err(bad("capture creator has a cyclic actual producer chain"));}
             if let Some(source)=self.prepared_closure_source(module,creator,f,value,b)?{value=source;continue;}
-            let mut producer=None;
-            for block in &f.blocks{b.spend(block.instructions.len())?;for instruction in &block.instructions{if instruction.result==Some(value)&&producer.replace(instruction).is_some(){return Err(bad("capture creator operand has several actual SSA definitions"));}}}
-            match &producer.ok_or_else(||bad("capture creator actual operand is undefined"))?.kind{
+            let (_, _, producer) = self.site_index.producers.get(f, value, b)?;
+            match &producer.kind {
                 InstructionKind::Load(actual)|InstructionKind::TakeLocal{local:actual}|InstructionKind::DescribeLocal{local:actual}|InstructionKind::BorrowLocal{local:actual}|InstructionKind::BorrowLocalMut{local:actual}=>return Ok(*actual==local),
                 InstructionKind::TakeOwnedArrayElement{local:actual,index:0}|InstructionKind::BorrowOwnedArrayElement{local:actual,index:0,..}=>{
                     self.persistent_initialization(module,creator,f,*actual,b)?;

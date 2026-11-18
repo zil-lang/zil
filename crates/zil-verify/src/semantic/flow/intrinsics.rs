@@ -258,19 +258,8 @@ impl CheckedContext {
                 return Err(bad("operational owner reborrow has a producer cycle"));
             }
             if let Some(source)=self.prepared_closure_source(module,caller,f,value,b)?{value=source;continue;}
-            let mut producer = None;
-            for block in &f.blocks {
-                b.spend(block.instructions.len())?;
-                for row in &block.instructions {
-                    if row.result == Some(value) && producer.replace(row).is_some() {
-                        return Err(bad("intrinsic buffer has several actual SSA definitions"));
-                    }
-                }
-            }
-            match &producer
-                .ok_or_else(|| bad("intrinsic buffer has no defining instruction"))?
-                .kind
-            {
+            let (_, _, producer) = self.site_index.producers.get(f, value, b)?;
+            match &producer.kind {
                 InstructionKind::DescribeLocal { local: actual }
                 | InstructionKind::Load(actual)
                 | InstructionKind::TakeLocal { local: actual }

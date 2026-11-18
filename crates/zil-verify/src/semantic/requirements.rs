@@ -19,12 +19,16 @@ impl CheckedContext {
         // requirement does not depend on arbitrary source ordering. Roll back
         // this scope on any failure; no half-checked Γ escapes the operation.
         let key=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?.key;
-        let previous=if mode==RequirementMode::DeclarationPremise {
-            let graph=self.premises.borrow();
-            let old=graph.get(&key).cloned();
-            if let Some(row)=&old { b.spend(row.relations.equalities.len().saturating_add(row.relations.outlives.len()).saturating_add(row.external.len()))?; }
-            old
-        }else{None};
+        if recipes.is_empty() { return Ok(()); }
+        // Declaration checks only append facts. A failing nested check rolls
+        // back to its own three lengths before returning to the enclosing one.
+        let previous = if mode == RequirementMode::DeclarationPremise {
+            let graph = self.premises.borrow();
+            b.spend(graph.len().checked_ilog2().map_or(1, |depth| depth as usize + 2))?;
+            graph.get(&key).map(|rows| (
+                rows.relations.equalities.len(), rows.relations.outlives.len(), rows.external.len(),
+            ))
+        } else { None };
         let result=(|| {
             if mode==RequirementMode::DeclarationPremise {
                 for recipe in recipes {
@@ -51,7 +55,15 @@ impl CheckedContext {
         if result.is_err()&&mode==RequirementMode::DeclarationPremise {
             self.invalidate_closed_frames();
             let mut graph=self.premises.borrow_mut();
-            if let Some(previous)=previous {graph.insert(key,previous);}else{graph.remove(&key);}
+            if let Some((equalities, outlives, external)) = previous {
+                if let Some(rows) = graph.get_mut(&key) {
+                    rows.relations.equalities.truncate(equalities);
+                    rows.relations.outlives.truncate(outlives);
+                    rows.external.truncate(external);
+                }
+            } else {
+                graph.remove(&key);
+            }
         }
         result
     }
@@ -172,5 +184,55 @@ mod quantified_callable_tests{
         assert!(actual.bound.contains(&actual.parameters[0].0.classes[0]));assert!(actual.bound.contains(&actual.parameters[1].0.classes[0]));assert!(actual.bound.contains(&actual.parameters[2].0.classes[0]));assert_eq!(actual.parameters[3].0.classes[0],caller.classes[0]);assert!(!actual.bound.contains(&actual.parameters[3].0.classes[0]));assert_eq!(actual.parameters[4].0.classes[0],actual.invocation[0]);
         let mut frames=std::collections::BTreeMap::<FrameToken,Vec<u32>>::new();for key in &actual.bound{let ClassKey::Bound{frame,index}=key else{panic!()};frames.entry(*frame).or_default().push(*index);}let mut sizes=frames.values().map(Vec::len).collect::<Vec<_>>();sizes.sort();assert_eq!(sizes,vec![1,1,2]);assert!(frames.values().any(|indices|indices==&vec![0,1]));
         for key in &actual.bound{assert!(!context.same(&env,key,&caller.classes[0],&mut b).unwrap());}
+    }
+}
+
+#[cfg(test)]
+mod premise_rollback_tests {
+    use super::*;
+
+    #[test]
+    fn failed_nested_obligation_restores_each_original_premise_list() {
+        let limits = Limits::default();
+        let (mut module, _) = zil_ir::wire::decode_module_candidate(
+            include_bytes!("fixtures/ordinary-identity-complete-call-sites.wire"), &limits,
+        ).unwrap();
+        let program = module.semantic.as_mut().unwrap();
+        let instance = program.instances[0].clone();
+        let definition = program.definitions.iter_mut().find(|d| d.id == instance.definition).unwrap();
+        let life = SemanticLifeRecipe::Invocation;
+        let atom = SemanticTypeRecipe::Atom;
+        let keep = SemanticRequirementRecipe::LifeEqual { left: life(0), right: life(0) };
+        let rows = vec![
+            SemanticRequirementRecipe::LifeEqual { left: life(0), right: life(1) },
+            SemanticRequirementRecipe::Outlives { longer: life(1), shorter: life(0) },
+            SemanticRequirementRecipe::ForAll { lifetimes: 1, requirements: vec![
+                SemanticRequirementRecipe::Builtin { ty: atom(Type::Bool), trait_kind: SemanticBuiltinTrait::Copy },
+                SemanticRequirementRecipe::TypeEqual { left: atom(Type::Bool), right: atom(Type::I64) },
+            ] },
+        ];
+        definition.requirements = vec![keep.clone()];
+        definition.requirements.extend(rows.clone());
+        let mut b = Budget::new(&limits);
+        let context = CheckedContext::definition_catalogue(&module, None, &mut b).unwrap();
+        let scope = ScopeKey::Instance(instance.id);
+        let env = EvalEnv {
+            lexical: vec![LexicalFrame { definition: instance.definition, key: scope, actuals: vec![], environment: vec![], self_type: None }],
+            assumptions: vec![scope], images: vec![], bounds: vec![],
+            invocations: (0..2).map(|index| ClassKey::Invocation { frame: FrameToken(123), index }).collect(), at: None,
+        };
+        let mut active = ActiveQueries::new();
+        let mut proofs = dynamic_witness::semantic_external::Proofs::default();
+        let mut apply = |rows: &[SemanticRequirementRecipe]| {
+            context.evaluate_requirements(&module, rows, &env, RequirementMode::DeclarationPremise, &mut proofs, &mut active, &mut b)
+        };
+        assert!(apply(&rows).unwrap_err().message.contains("TypeEqual"));
+        assert!(!context.premises.borrow().contains_key(&scope));
+        apply(&[keep]).unwrap();
+        let before = context.premises.borrow()[&scope].clone();
+        assert!(apply(&rows).unwrap_err().message.contains("TypeEqual"));
+        let graph = context.premises.borrow();
+        assert_eq!(graph[&scope].relations, before.relations);
+        assert_eq!(graph[&scope].external, before.external);
     }
 }

@@ -244,12 +244,15 @@ impl CheckedContext {
         let mut values=vec![None;f.values.len()];
         let mut constraints=vec![None;f.locals.len()];
         let reified_data=self.reified_data(module,instance,original_definition,f,environment,external,active,b)?;
+        // Only the operation and its observation edge vary during this body.
+        // Retained obligations take their own environment when they are formed.
+        let mut point_environment = environment.clone();
         while let Some(block_id)=queue.pop_front() {
             b.spend(1)?;
             let mut state=states[block_id].clone().ok_or_else(||bad("reachable semantic block has no incoming state"))?;
             let block=&f.blocks[block_id];
             for (ordinal,instruction) in block.instructions.iter().enumerate() {
-                let mut environment=environment.clone();
+                let environment = &mut point_environment;
                 environment.at=Some(SitePoint{function,block:block.id,instruction:ordinal as u32,after:false});
                 let sites=self.actual_sites(module,instance.id,block.id,ordinal as u32,b)?;
                 for site in &sites {
@@ -473,9 +476,8 @@ impl CheckedContext {
                 }
                 for site in &sites {
                     if matches!(site.action,SemanticSiteAction::TypeUse{..})&&!input_uses.contains(&site.recipe) {
-                        let mut site_environment=environment.clone();
-                        if let Some(at)=&mut site_environment.at{at.after=matches!(instruction.kind,InstructionKind::MakeClosure{..})&&matches!(site.at,SemanticSiteAddress::Typed{edge:SemanticSiteEdge::After,..});}
-                        self.check_type_use(module,instance,f,site,&state,&values,signature,&site_environment,external,active,b)?;
+                        if let Some(at)=&mut environment.at{at.after=matches!(instruction.kind,InstructionKind::MakeClosure{..})&&matches!(site.at,SemanticSiteAddress::Typed{edge:SemanticSiteEdge::After,..});}
+                        self.check_type_use(module,instance,f,site,&state,&values,signature,environment,external,active,b)?;
                     }
                 }
             }
@@ -1045,9 +1047,7 @@ impl CheckedContext {
         let mut seen=std::collections::BTreeSet::new();
         loop {
             b.spend(1)?;if !seen.insert(value){return Err(bad("implicit address producer cycle"));}
-            let mut producer=None;
-            for block in &f.blocks {b.spend(block.instructions.len())?;for instruction in &block.instructions {if instruction.result==Some(value) {if producer.is_some(){return Err(bad("implicit address has several actual SSA definitions"));}producer=Some(instruction);}}}
-            let instruction=producer.ok_or_else(||bad("implicit address actual SSA definition is absent"))?;
+            let (_, _, instruction) = self.site_index.producers.get(f, value, b)?;
             match &instruction.kind {
                 InstructionKind::ReborrowAddress{..}|InstructionKind::AddressSlice{..}if source.is_some()=>break,
                 InstructionKind::ReborrowAddress{address,..}|InstructionKind::AddressSlice{address,..}=>value=*address,

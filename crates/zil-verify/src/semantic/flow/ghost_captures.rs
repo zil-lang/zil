@@ -31,7 +31,7 @@ impl CheckedContext {
                 let mut captured=actual;
                 let mut proved=false;
                 for _ in 0..b.limits.max_call_depth.min(128) {
-                    let instruction=super::call_borrows::call_borrow_producer(f,head,b)?;
+                    let (_, _, instruction) = self.site_index.producers.get(f, head, b)?;
                     let InstructionKind::ReborrowAddress{address,mutable} = instruction.kind else{break;};
                     let parent=value_at(values,address)?;
                     if parent.ty!=expected.ty {break;}
