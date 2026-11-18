@@ -14,6 +14,12 @@ pub(super) fn aggregate(ty: &Type) -> bool {
             | Type::ErrorUnion { .. }
     )
 }
+/// A reference to owner-only data still needs its actual root and parent loan.
+/// Only shapes that carry stored permissions or tracked sum state need a
+/// second lookup of the referent's dynamic permission tree.
+pub(super) fn stored_aggregate(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    Ok(aggregate(ty) && needs_state(ty, b, 0)?)
+}
 pub(super) fn context(ty: &Type) -> bool {
     crate::stored_callables::mutable_context_pointee(ty)
 }

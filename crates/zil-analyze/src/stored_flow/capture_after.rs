@@ -627,7 +627,7 @@ pub(super) fn check_value(
 ) -> CompileResult<()> {
     let mut seen = CheckedCells::new();
     if let Type::Address { inner, .. } = ty {
-        if pointee_memory::aggregate(inner) || !environment_roots(inner, b)?.is_empty() {
+        if pointee_memory::stored_aggregate(inner, b)? || !environment_roots(inner, b)?.is_empty() {
             check_address(module, inner, &value.pointer, state, &mut seen, b)?;
         }
     } else {
@@ -701,7 +701,7 @@ fn check_frame(
         fee(b, 1)?;
         let head = [PlaceProjection::Field(index as u32)];
         if let Type::Address { inner, .. } = ty {
-            if pointee_memory::aggregate(inner) || !environment_roots(inner, b)?.is_empty() {
+            if pointee_memory::stored_aggregate(inner, b)? || !environment_roots(inner, b)?.is_empty() {
                 let pointer = current
                     .get(head.as_slice())
                     .ok_or_else(|| failure("captured aggregate omits its actual saved head"))?;

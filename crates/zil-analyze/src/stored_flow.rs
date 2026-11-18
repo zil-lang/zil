@@ -7911,7 +7911,7 @@ fn windows(
                             let ty = &callee.locals[parameter.0 as usize].ty;
                             if let Type::Address { mutable, inner } = ty {
                                 access.check(&actual.pointer, *mutable, apart, b)?;
-                                if pointee_memory::aggregate(inner) {
+                                if pointee_memory::stored_aggregate(inner, b)? {
                                     let current = pointee_memory::read(
                                         &state,
                                         &actual.pointer,
