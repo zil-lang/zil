@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Measure original-body visits and Linux peak RSS on a frozen callable campaign."""
+"""Measure original-body visits and Linux peak RSS on a frozen callable or Task campaign."""
 
 import argparse
 import hashlib
@@ -36,7 +36,8 @@ def run(cli, source, directory, profile):
         if process.returncode or result['status'] != 'Success' or result['verification_runs'] != 1:
             raise ValueError(f'{source.name}: {result.get("diagnostics")}\n{logs}')
     if not profile:
-        return {'peak_rss_kib': usage.ru_maxrss, 'elapsed_ns': elapsed_ns}
+        return {'peak_rss_kib': usage.ru_maxrss, 'elapsed_ns': elapsed_ns,
+                'cpu_ns': round((usage.ru_utime + usage.ru_stime) * 1_000_000_000)}
     pattern = (r'^verify-original-body completed=true walks=(\d+) revisits=(\d+) '
                r'statement_and_expression_visits=(\d+) cfg_block_visits=(\d+)$')
     rows = [dict(zip(('walks', 'revisits', 'statement_and_expression_visits', 'cfg_block_visits'),
@@ -64,10 +65,18 @@ def main():
     if (receipt['exit_code'] or receipt['source_commit'] != matrix['candidate'] or
             compiler_digest != receipt['cli_sha256']):
         parser.error('The CLI, build receipt and campaign must identify the same candidate')
+    contract = matrix['contract']
+    if contract not in ('zil-callable-composition-native/1', 'zil-task-result-native/1'):
+        parser.error('The campaign must declare a supported combination space')
+    task = contract == 'zil-task-result-native/1'
+    # Allocation failure uses the same Task source as Ready. Only the
+    # independent C observer changes which runtime exit is taken.
+    control_exit = 'allocation-error' if task else 'early'
     samples = []
     with tempfile.TemporaryDirectory() as directory:
         for shape in matrix['bound']['shapes']:
-            case = (shape or 'direct') + '-early'
+            case = (shape or 'direct') + '-' + control_exit
+            depth = int(shape.endswith('-relay')) if task else len(shape)
             record = read(args.campaign / case / 'rule-result.json')
             if record['result']['status'] != 'pass':
                 raise ValueError(f'{case} has no passing native control')
@@ -76,13 +85,15 @@ def main():
             source.write_bytes(data)
             scans = run(cli, source, directory, True)
             runs = [run(cli, source, directory, False) for _ in range(3)]
-            samples.append({'shape': shape, 'depth': len(shape), 'source_sha256': hashlib.sha256(data).hexdigest(),
+            samples.append({'shape': shape, 'depth': depth, 'source_sha256': hashlib.sha256(data).hexdigest(),
                             'verify_invocations': scans,
                             'peak_compiler_rss_kib': [r['peak_rss_kib'] for r in runs],
-                            'compiler_elapsed_ns': [r['elapsed_ns'] for r in runs]})
+                            'compiler_elapsed_ns': [r['elapsed_ns'] for r in runs],
+                            'compiler_cpu_ns': [r['cpu_ns'] for r in runs]})
     with args.out.open('x', encoding='utf-8') as output:
         json.dump({'candidate': matrix['candidate'], 'cli_sha256': receipt['cli_sha256'],
-                   'work_profile': 'standard', 'cases': samples}, output, indent=2)
+                   'work_profile': 'standard', 'contract': contract,
+                   'control_exit': control_exit, 'cases': samples}, output, indent=2)
         output.write('\n')
 
 
