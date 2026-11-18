@@ -60,7 +60,7 @@ fn called(
     caller: FunctionId,
     site: &SemanticSite,
     origin: Origin,
-) -> R<FunctionId> {
+) -> R<Option<FunctionId>> {
     let SemanticSiteAddress::Core {
         expression,
         occurrence: 0,
@@ -89,7 +89,49 @@ fn called(
             ));
         }
     }
-    found.ok_or_else(|| bad("original request does not call its exact actual specialization"))
+    Ok(found)
+}
+
+fn inherit_impl_calls(
+    program: &SemanticModule,
+    lower: &mut Lower<'_, '_>,
+    input: &BTreeMap<SemanticInstanceId, usize>,
+    targets: &BTreeMap<SemanticInstanceId, FunctionId>,
+) -> R<()> {
+    pay(lower.left, targets.len())?;
+    for (id, actual) in targets {
+        let instance = &program.instances[input[id]];
+        let Some(parent) = instance.parent else { continue; };
+        if instance.environment.is_some() || request(instance, lower.left)?.is_some() {
+            continue;
+        }
+        pay(lower.left, search(input.len()))?;
+        let Some(parent) = input.get(&parent).map(|index| &program.instances[*index]) else {
+            continue;
+        };
+        if !matches!(parent.target, SemanticInstanceTarget::Scope) {
+            continue;
+        }
+        let Some((caller, call)) = request(parent, lower.left)? else { continue; };
+        pay(lower.left, search(targets.len()))?;
+        let caller_function = targets.get(&caller).copied()
+            .ok_or_else(|| bad("original implementation call has no actual caller"))?;
+        let site = source_call(program, caller, call, lower.left)?;
+        let origin = lower.frame(*actual)?.origin;
+        if let Some(called) = called(lower, caller_function, site, origin)? {
+            // A generic implementation may have several methods. Only its
+            // exact emitted call can also select this method's lexical world.
+            if called != *actual {
+                return Err(bad("original implementation calls another emitted specialization"));
+            }
+            let mut receipts = lower.ledger.instance_requests.borrow_mut();
+            pay(lower.left, search(receipts.len()).saturating_add(1))?;
+            if receipts.insert(*id, (caller, call, *actual)).is_some() {
+                return Err(bad("implementation method repeats its exact original call request"));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn created(
@@ -324,6 +366,7 @@ pub(super) fn publish(
                     unreachable!()
                 };
                 called(lower, parent, site, Lower::origin(target)?)?
+                    .ok_or_else(|| bad("original request does not call its exact actual specialization"))?
             } else {
                 created(lower, program, instance, parent)?
             };
@@ -351,6 +394,7 @@ pub(super) fn publish(
             ));
         }
     }
+    inherit_impl_calls(program, lower, &input, &targets)?;
     // The retained-helper activation may have appended exact child mints.
     sites.clear();
     for (ordinal, site) in program.sites.iter().enumerate() {

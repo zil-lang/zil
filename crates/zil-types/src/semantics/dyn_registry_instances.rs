@@ -507,12 +507,15 @@ pub(super) fn complete(
             }
         }
     }
-    let mut seen = BTreeSet::new();
+    let mut seen = BTreeMap::new();
     for (di, mi, fi, actual, specialization, origin) in proposals {
         let function = &mut module.functions[fi];
         provider_fee(left, seen.len().saturating_add(1).ilog2() as usize + 1)?;
-        if !seen.insert(function.id) {
-            return Err(bad("Dyn method has multiple original emitted instances"));
+        // Several original callers can select one emitted method. Rebuild
+        // each complete instantiation above and compare it below even when
+        // the callable already has its one physical registry entry.
+        if seen.insert(function.id, (di, mi)).is_some_and(|entry| entry != (di, mi)) {
+            return Err(bad("Dyn emitted method selects distinct original registry entries"));
         }
         if let Some(old) = &function.dyn_instance {
             crate::dyn_metadata::semantic_operand_snapshot(old, limits, left, 1)?;

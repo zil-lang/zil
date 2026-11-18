@@ -292,6 +292,32 @@ fn physical_paths(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<Vec<
 fn transport_type(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
     Ok(auxiliary_type(module, ty, b)? || !physical_paths(module, ty, b)?.is_empty())
 }
+
+// A complete Store-only product has inline scalars and separately managed
+// Store heads. The actual prefix, mutation, owner and loans of those heads
+// are checked by the Store kernels. It has no inline auxiliary channel.
+fn store_product_without_auxiliary(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    let mut pending = vec![ty];
+    let mut owns_store = false;
+    while let Some(field) = pending.pop() {
+        b.spend(1)?;
+        match field {
+            Type::Package { fields, .. } => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, child)| child));
+            }
+            Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }) => {
+                owns_store = true;
+            }
+            field if field.is_b0_scalar() => {}
+            _ => return Ok(false),
+        }
+    }
+    if owns_store {
+        dynamic_store::check_store_element(module, ty, None, b)?;
+    }
+    Ok(owns_store)
+}
 fn physical_at<'a>(
     module: &TypedModule,
     ty: &Type,
@@ -831,6 +857,23 @@ pub(in crate::stored_flow) fn prepare_after(
             .map(|(path, _)| path)
             .collect::<Vec<_>>();
         for target in &targets.sources {
+            if target.heap_element.is_some()
+                && target.retained_port.is_none()
+                && target.inline.is_empty()
+                && target.leaf.is_empty()
+                && target.base != HoldRoot::Static
+                && unique && row.through
+                && row.facts.is_empty()
+                && row.physical.is_empty()
+                && row.tags == enum_address::Variants::default()
+                && matches!(row.ty, Type::Package { .. })
+                && store_product_without_auxiliary(before.module(), &row.ty, b)?
+            {
+                // The whole, uniquely selected heap element has no inline
+                // auxiliary memory to publish. Its actual Store updates and
+                // access proofs still execute in their independent kernels.
+                continue;
+            }
             if target.retained_port.is_some()
                 || target.heap_element.is_some()
                 || !target.heap_parents.is_empty()
