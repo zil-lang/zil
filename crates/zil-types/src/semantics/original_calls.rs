@@ -2464,6 +2464,9 @@ impl Check<'_, '_> {
                     && crate::dynamic_store::supported_element(&exact.ty))
             }
             SemanticTypeRecipe::Managed(payload) => {
+                if let SemanticTypeRecipe::OwnedStore(element) = payload.as_ref() {
+                    return self.store_element(owner, element, depth + 1);
+                }
                 if let Some(accepted) = self.resource_store_element(owner, payload, depth + 1)? {
                     return Ok(accepted);
                 }
