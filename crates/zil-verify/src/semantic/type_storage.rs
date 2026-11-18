@@ -67,6 +67,30 @@ impl CheckedContext{
     }
 }
 
+/// A positive receipt covers only the empty lifetime and intrinsic-origin
+/// inventory of this immutable checked type. A different module verification,
+/// physical cell, or limit profile must establish the inventory again.
+#[derive(Default)]
+pub(super) struct EmptyDomains {
+    by_type: BTreeMap<usize, (Rc<()>, Rc<CheckedTypeData>, Limits)>,
+}
+
+impl EmptyDomains {
+    pub(super) fn checked(&self, scope: &Rc<()>, cell: &Rc<CheckedTypeData>, b: &mut Budget) -> Check<bool> {
+        let key = Rc::as_ptr(cell) as usize;
+        b.spend(self.by_type.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
+        let Some((module, owner, limits)) = self.by_type.get(&key) else { return Ok(false) };
+        b.spend(13)?;
+        Ok(Rc::ptr_eq(module, scope) && Rc::ptr_eq(owner, cell) && *limits == b.limits)
+    }
+    pub(super) fn record(&mut self, scope: Rc<()>, cell: &Rc<CheckedTypeData>, b: &mut Budget) -> Check<()> {
+        if !closed_storage(&cell.ty, b)? { return Ok(()); }
+        b.spend(self.by_type.len().checked_ilog2().map_or(1, |n| n as usize + 2).saturating_add(14))?;
+        self.by_type.insert(Rc::as_ptr(cell) as usize, (scope, cell.clone(), b.limits.clone()));
+        Ok(())
+    }
+}
+
 /// These physical carriers have no runtime receiver, external signature, or
 /// embedded borrow domain. Callers separately check the accompanying life
 /// shape and every actual origin before reusing an immutable result.
@@ -109,6 +133,30 @@ mod tests{
     use super::*;
     fn empty()->StorageLifeShape{StorageLifeShape{binder_count:0,slots:vec![],retained:vec![],nominal_arguments:vec![]}}
     fn child()->CheckedType{CheckedType{type_cell:CheckedTypeData::new(Type::Record{name:"immutable_child_payload_".repeat(64),fields:vec![("field".repeat(16),Type::I32)]}),life:empty(),classes:vec![],origins:vec![],statics:vec![]}}
+    #[test]
+    fn empty_domain_receipts_bind_the_checked_module_cell_and_limits() {
+        let limits = Limits::default();
+        let (module, _) = zil_ir::wire::decode_module_candidate(
+            include_bytes!("fixtures/ordinary-identity-complete-head.wire"), &limits
+        ).unwrap();
+        let mut b = Budget::new(&limits);
+        b.structural = Some(dynamic_metadata::Structure::register(&module, &mut b).unwrap());
+        let context = CheckedContext::definition_catalogue(&module, None, &mut b).unwrap();
+        let ty = Type::Tuple(vec![Type::I32, Type::Bool]);
+        let value = context.checked_value(&module, &ty, &empty(), vec![], &mut b).unwrap();
+        let scope = b.structural.as_ref().unwrap().identity_for(&module).unwrap();
+        assert!(context.empty_domains.borrow().checked(&scope, &value.type_cell, &mut b).unwrap());
+        let mut other = Budget::new(&limits);
+        let other_scope = dynamic_metadata::Structure::register(&module, &mut other).unwrap().identity_for(&module).unwrap();
+        assert!(!context.empty_domains.borrow().checked(&other_scope, &value.type_cell, &mut b).unwrap());
+        assert!(!context.empty_domains.borrow().checked(&scope, &CheckedTypeData::new(ty), &mut b).unwrap());
+        let mut impossible = empty();
+        impossible.binder_count = 1;
+        assert!(context.checked_value(&module, &value.ty, &impossible, vec![], &mut b).is_err());
+        b.limits.max_nodes = 1;
+        assert!(context.checked_value(&module, &value.ty, &empty(), vec![], &mut b).is_err());
+        assert!(context.checked_value(&module, &Type::I32, &empty(), vec![], &mut b).is_err());
+    }
     #[test]
     fn physical_constructors_reuse_exact_live_children_without_merging_domain_shapes(){
         let limits=Limits::default();

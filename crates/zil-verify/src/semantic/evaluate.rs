@@ -477,7 +477,23 @@ impl CheckedContext {
         classes: Vec<ClassKey>,
         b: &mut Budget,
     ) -> Check<CheckedType> {
+        let empty = classes.is_empty() && *life == empty_life();
+        if empty && ty.is_b0_scalar() {
+            // Scalars have no nested declaration or lifetime occurrence.
+            // Still apply the complete external envelope's node/depth bounds.
+            dynamic_metadata::bounds_type_parts(ty, life, &[], b)?;
+            return Ok(CheckedType { type_cell: CheckedTypeData::new(ty.clone()),
+                life: empty_life(), classes, origins: vec![], statics: vec![] });
+        }
         let type_cell=self.shared_type_cell(ty,b)?;
+        let scope_identity = if empty {
+            b.structural.as_ref().and_then(|state| state.identity_for(module))
+        } else { None };
+        if let Some(scope) = &scope_identity
+            && self.empty_domains.borrow().checked(scope, &type_cell, b)?
+        {
+            return Ok(CheckedType { type_cell, life: empty_life(), classes, origins: vec![], statics: vec![] });
+        }
         let count =
             u32::try_from(classes.len()).map_err(|_| limit("semantic class domain exceeds u32"))?;
         let scope = DynInstantiationScope {
@@ -502,6 +518,9 @@ impl CheckedContext {
                 origins = domain.origins;
                 statics = domain.statics;
             }
+        }
+        if let Some(scope) = scope_identity && origins.is_empty() && statics.is_empty() {
+            self.empty_domains.borrow_mut().record(scope, &type_cell, b)?;
         }
         Ok(CheckedType {type_cell,
             life: life.clone(),

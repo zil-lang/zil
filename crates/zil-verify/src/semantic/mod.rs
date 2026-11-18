@@ -68,6 +68,7 @@ pub(crate) struct CheckedContext {
     local_role_writes: RefCell<BTreeMap<(SemanticInstanceId, LocalId), local_roles::Writes>>,
     local_role_transfers: RefCell<BTreeMap<FunctionId, Vec<local_roles::Transfer>>>,
     closed_nominals: RefCell<nominal::closed::ClosedNominals>,
+    empty_domains: RefCell<type_storage::EmptyDomains>,
     closed_frames:
         RefCell<BTreeMap<(usize, SemanticInstanceId, bool, bool), instances::ClosedFrames>>,
     occurrences: RefCell<BTreeMap<(ScopeKey, OperandKey), CheckedType>>,

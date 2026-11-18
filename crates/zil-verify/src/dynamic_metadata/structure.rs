@@ -47,6 +47,7 @@ impl TypeFacts{
 }
 
 pub(crate) struct Structure{
+    scope_identity: std::rc::Rc<()>,
     module:usize,
     program:Option<usize>,
     declarations:(usize,usize),
@@ -77,6 +78,9 @@ pub(crate) struct Structure{
     type_owners:BTreeMap<usize,std::rc::Rc<crate::semantic::CheckedTypeData>>,
 }
 impl Structure{
+    pub(crate) fn identity_for(&self, module: &TypedModule) -> Option<std::rc::Rc<()>> {
+        (self.module == module as *const TypedModule as usize).then(|| self.scope_identity.clone())
+    }
     pub(crate) fn borrowed_callback_domain(&self,id:ClosureId)->Option<u32>{
         self.borrowed_callback_domains.get(&id).copied()
     }
@@ -87,6 +91,7 @@ impl Structure{
         b.spend(12)?;
         let mut result=Self{
             module:module as *const TypedModule as usize,
+            scope_identity: std::rc::Rc::new(()),
             program:module.semantic.as_ref().map(|program|program as *const SemanticModule as usize),
             declarations:(module.dyn_declarations.as_ptr() as usize,module.dyn_declarations.len()),
             types:BTreeSet::new(),recipes:BTreeSet::new(),program_bounds:BTreeSet::new(),declaration_nodes:BTreeSet::new(),

@@ -28,6 +28,9 @@ impl CheckedContext {
         if &value.ty!=ty{return Err(bad("closed code metadata changes its complete encoded ABI"));}Ok(value)
     }
     pub(super) fn closed_value(&self,module:&TypedModule,ty:&Type,b:&mut Budget)->Check<CheckedType>{
+        if ty.is_b0_scalar() {
+            return self.checked_value(module, ty, &empty_life(), vec![], b);
+        }
         let mut pending=vec![ty];let mut closures=std::collections::BTreeSet::new();
         while let Some(ty)=pending.pop(){b.spend(1)?;match ty{
             Type::Address{..}|Type::Desc(_)=>return Err(unsupported("closed value contains a real outer borrow occurrence",None)),
