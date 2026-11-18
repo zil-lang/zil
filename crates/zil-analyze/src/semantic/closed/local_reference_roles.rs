@@ -340,6 +340,21 @@ impl Check<'_, '_> {
             }
         }
         operations::initialized_local_before(function, (block, index), local, b)?;
+        for block in &function.blocks {
+            for instruction in &block.instructions {
+                b.spend(1, WORK)?;
+                if matches!(instruction.kind,
+                    InstructionKind::BorrowLocalMut { local: target }
+                    | InstructionKind::BorrowPlaceLocal { local: target, mutable: true, .. }
+                    | InstructionKind::ReservePlaceLocal { local: target, .. }
+                    if target == local)
+                {
+                    return Err(unknown(
+                        "moved reference capture requires the complete writable source-cell effect",
+                    ));
+                }
+            }
+        }
         self.reference_role_stores(instance, function, local, &role, b, 0)?;
         Ok(true)
     }
