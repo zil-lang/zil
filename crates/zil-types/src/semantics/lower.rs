@@ -170,6 +170,27 @@ impl<'a> Lower<'a, '_> {
             ))
         })
     }
+    // A captureless source closure can emit a real FunctionRef. Its lexical
+    // parent and expression still identify the child, even without a runtime
+    // environment. A pointer of the same signature cannot stand in for it.
+    fn thin_entry(&mut self, parent: FunctionId, expression: NodeId) -> R<Option<FunctionId>> {
+        let receipt = self.expression(parent, expression)?;
+        pay(self.left, receipt.instructions.len())?;
+        let mut child = None;
+        for point in &receipt.instructions {
+            let op = self.instruction(parent, *point)?;
+            let InstructionKind::FunctionRef { function } = op.kind else { continue; };
+            if op.result.is_none() || op.result != receipt.value { continue; }
+            let frame = self.frame(function)?;
+            if !frame.parent.is_some_and(|(owner, _)| owner == parent)
+                || frame.origin.closure != Some(expression) || self.actual(function)?.environment.is_some()
+                || child.replace(function).is_some()
+            {
+                return Err(bad("thin function reference changes its original creator, expression or entry"));
+            }
+        }
+        Ok(child)
+    }
     fn operand(&mut self, function: FunctionId, operand: &mut SemanticOperand) -> R<()> {
         pay(self.left, 1)?;
         match operand {
@@ -680,6 +701,40 @@ pub(super) fn program(
                 pay(lower.left, 1)?;
                 owner_observations.push(observation);
             }
+        }
+        if let (
+            SemanticSiteRecipeKind::Closure { definition: expected, environment: declared, .. },
+            SemanticSiteAction::Closure { result, environment, .. },
+            SemanticSiteAddress::Core { expression, occurrence: 0, role: SemanticEmissionRole::Closure },
+        ) = (&original.kind, &site.action, &site.at)
+            && let Some(entry) = lower.thin_entry(function, *expression)?
+        {
+            let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
+                return Err(bad("thin function reference lost its original expression"));
+            };
+            pay(lower.left, site_nodes.len().saturating_add(program.instances.len()))?;
+            let mut nodes = site_nodes.iter().filter(|row| row.site == site.recipe);
+            let Some(SemanticOriginalNode::Expression(node)) = nodes.next().map(|row| &row.node) else {
+                return Err(bad("thin function reference has no original expression"));
+            };
+            let proof = proof.as_ref().ok_or_else(|| bad("thin function reference lacks its checked source body"))?;
+            pay(lower.left, search(proof.function_values.len()))?;
+            if nodes.next().is_some() || !declared.is_empty() || !environment.is_empty()
+                || *result != (SemanticOperand::CoreExpression { expression: *expression, occurrence: 0 })
+                || !proof.function_values.get(&(definition.id, *node)).is_some_and(|value| value.target == *expected)
+                || !program.instances.iter().any(|child| child.definition == *expected && child.parent == Some(site.instance)
+                    && child.environment.is_none() && child.target == SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(entry)))
+            {
+                return Err(bad("thin function reference changes its checked zero-capture child or creator"));
+            }
+            let expression = *expression;
+            site.at = SemanticSiteAddress::Core { expression, occurrence: 0, role: SemanticEmissionRole::Ascription };
+            site.action = SemanticSiteAction::TypeUse {
+                subject: SemanticOperand::CoreExpression { expression, occurrence: 0 },
+                expected: SemanticTypeValue::Core { scope: site.instance, source: SemanticCoreTypeSource::OriginalRecipe(
+                    Box::new(SemanticTypeRecipe::OriginalType { scope: SemanticScopeRef::Ancestor(0),
+                        source: SemanticOriginalTypeSource::Expression(*node) })) },
+            };
         }
         lower.site(function, site, intrinsic)?;
         match (&original.kind, &site.action) {

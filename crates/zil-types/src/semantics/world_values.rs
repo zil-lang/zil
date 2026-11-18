@@ -25,22 +25,30 @@ pub(super) fn reference(
             continue;
         }
         let recipe = world.original_recipe(original, site.recipe)?;
-        let SemanticSiteRecipeKind::TypeUse {
-            expected:
-                SemanticTypeRecipe::OriginalType {
-                    scope: SemanticScopeRef::Ancestor(0),
-                    source: SemanticOriginalTypeSource::Expression(node),
-                },
-        } = &recipe.kind
-        else {
-            continue;
+        let node = match &recipe.kind {
+            SemanticSiteRecipeKind::TypeUse { expected: SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Expression(node),
+            } } => *node,
+            SemanticSiteRecipeKind::Closure { environment, .. } if environment.is_empty() => {
+                let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
+                    return Err(bad("thin function value has no original body"));
+                };
+                world.pay(site_nodes.len())?;
+                let mut at = site_nodes.iter().filter(|row| row.site == site.recipe);
+                let Some(SemanticOriginalNode::Expression(node)) = at.next().map(|row| &row.node) else {
+                    return Err(bad("thin function value omits its creation expression"));
+                };
+                if at.next().is_some() { return Err(bad("thin function value repeats its creation expression")); }
+                *node
+            }
+            _ => continue,
         };
         let ledger = world.ledger;
         let proof = ledger.original.borrow();
         let proof = proof
             .as_ref()
             .ok_or_else(|| bad("function address has no checked original Gamma"))?;
-        let Some(value) = proof.function_values.get(&(original.id, *node)) else {
+        let Some(value) = proof.function_values.get(&(original.id, node)) else {
             continue;
         };
         if !matches!(site.at,SemanticSiteAddress::Typed{block:actual,instruction,edge:SemanticSiteEdge::Before} if actual==block && instruction as usize==index.saturating_add(1))

@@ -108,20 +108,6 @@ fn created(
         .environment
         .as_ref()
         .ok_or_else(|| bad("closure instance lost its actual environment request"))?;
-    let closure = lower.closure(&environment.closure, parent)?;
-    pay(lower.left, lower.closures.len())?;
-    let actual = lower
-        .closures
-        .iter()
-        .find(|row| row.id == closure)
-        .ok_or_else(|| bad("actual closure request has no definition"))?;
-    let entry = actual.function;
-    if lower.frame(entry)?.origin != origin || lower.frame(entry)?.parent != Some((parent, closure))
-    {
-        return Err(bad(
-            "closure request changes its actual creator or Core occurrence",
-        ));
-    }
     let source_parent = instance
         .parent
         .ok_or_else(|| bad("closure request has no lexical parent"))?;
@@ -157,6 +143,32 @@ fn created(
             "child creation does not select a real Core closure mint",
         ));
     };
+    if let Some(entry) = lower.thin_entry(parent, expression)? {
+        let SemanticClosureTarget::Core { module, creator, expression: selected, occurrence: 0 } = environment.closure else {
+            return Err(bad("thin child has no original closure selector"));
+        };
+        if !environment.actuals.is_empty()
+            || origin != (Origin { module, creator, closure: Some(selected) })
+            || lower.frame(entry)?.origin != origin
+        {
+            return Err(bad("thin child changes the requested original closure or carries an environment"));
+        }
+        return Ok(entry);
+    }
+    let closure = lower.closure(&environment.closure, parent)?;
+    pay(lower.left, lower.closures.len())?;
+    let actual = lower
+        .closures
+        .iter()
+        .find(|row| row.id == closure)
+        .ok_or_else(|| bad("actual closure request has no definition"))?;
+    let entry = actual.function;
+    if lower.frame(entry)?.origin != origin || lower.frame(entry)?.parent != Some((parent, closure))
+    {
+        return Err(bad(
+            "closure request changes its actual creator or Core occurrence",
+        ));
+    }
     let receipt = lower.expression(parent, expression)?;
     pay(lower.left, receipt.instructions.len())?;
     let mut count = 0;
@@ -449,9 +461,11 @@ pub(super) fn publish(
         if let Some(function) = targets.get(&instance.id).copied() {
             instance.target =
                 SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function));
-            if let Some(environment) = &mut instance.environment {
-                environment.closure =
-                    SemanticClosureTarget::Typed(lower.closure_for_entry(function)?);
+            if instance.environment.is_some() && lower.actual(function)?.environment.is_none() {
+                // created() already matched the unique FunctionRef to the original child.
+                instance.environment = None;
+            } else if let Some(environment) = &mut instance.environment {
+                environment.closure = SemanticClosureTarget::Typed(lower.closure_for_entry(function)?);
             }
         }
     }
