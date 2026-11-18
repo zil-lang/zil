@@ -4652,15 +4652,17 @@ fn main()->i32{let v=Counter{};return v.enter(6)}
 
     let acyclic = methods.replace("return self.outer(false,n)", "return n");
     let pure = fixed.replace("=plus", "=id");
-    let backedge = items.replace("return n+1", "if false{return leaf(n,false)}return n+1");
+    let backedge = "fn plus(n:i32,again:bool)->i32{if again{return leaf(n,false)}return n+1}";
+    let recursive_leaf = "fn leaf(n:i32,again:bool)->i32{let f:fn(i32,bool)->i32=plus;return f(n,again)}";
+    let enter_cycle = methods.replace("return leaf(n,again)", "return leaf(n,true)");
     for (label, items, leaf, methods, complete, panic) in [
         ("acyclic", items, fixed, acyclic.as_str(), true, true),
         ("method cycle", items, fixed, methods, true, true),
         (
             "indirect cycle edge",
-            backedge.as_str(),
-            fixed,
-            methods,
+            backedge,
+            recursive_leaf,
+            enter_cycle.as_str(),
             true,
             true,
         ),
