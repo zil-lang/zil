@@ -246,10 +246,17 @@ struct Call {
     parameters: Vec<Term>,
     receiver: Option<Borrow>,
 }
-#[derive(Clone, Copy)]
+pub(super) enum CodeProjection {
+    Field(u32),
+    Index(NodeId),
+}
 pub(super) enum CodeCallAnchor {
     Local(LocalAnchor),
     CallResult(NodeId),
+    Projected {
+        local: LocalAnchor,
+        projections: Vec<CodeProjection>,
+    },
 }
 struct CodeCall {
     code: Term,
@@ -1823,9 +1830,23 @@ impl Solver<'_, '_> {
                     local.ty
                 }
                 CoreExprKind::Array(values) => {
-                    let element = self.var(b)?;
+                    let expected = match self.receiving_for(frame, value.id, b)? {
+                        Some(expected) => match self.state.arena[self.type_root(expected, b)?] {
+                            Kind::Array { element, .. } => Some(element),
+                            _ => None,
+                        },
+                        None => None,
+                    };
+                    let element = match expected {
+                        Some(element) => element,
+                        None => self.var(b)?,
+                    };
                     for value in values {
-                        let actual = self.expression(frame, value, b, depth + 1)?;
+                        let actual = if expected.is_some() {
+                            self.expression_expected(frame, value, element, b, depth + 1)?
+                        } else {
+                            self.expression(frame, value, b, depth + 1)?
+                        };
                         self.unify(actual, element, depth + 1, b)?;
                         self.prepare_call_value(frame.definition, value.id, actual, b)?;
                     }
@@ -1841,9 +1862,23 @@ impl Solver<'_, '_> {
                     if fields.is_empty() {
                         self.atom(Type::Unit, b)?
                     } else {
+                        let expected = match self.receiving_for(frame, value.id, b)? {
+                            Some(expected) => match &self.state.arena[self.type_root(expected, b)?] {
+                                Kind::Tuple(expected) if expected.len() == fields.len() => {
+                                    b.spend(expected.len(), WORK)?;
+                                    Some(expected.clone())
+                                }
+                                _ => None,
+                            },
+                            None => None,
+                        };
                         let mut terms = Vec::new();
-                        for field in fields {
-                            let term = self.expression(frame, field, b, depth + 1)?;
+                        for (index, field) in fields.iter().enumerate() {
+                            let term = if let Some(expected) = &expected {
+                                self.expression_expected(frame, field, expected[index], b, depth + 1)?
+                            } else {
+                                self.expression(frame, field, b, depth + 1)?
+                            };
                             self.prepare_call_value(frame.definition, field.id, term, b)?;
                             Self::push(&mut terms, term, b)?;
                         }
@@ -2056,37 +2091,43 @@ impl Solver<'_, '_> {
                     } else {
                         false
                     };
-                    let value = if manager {
-                        let place = self.borrow_place(frame, operand, b, depth + 1)?;
-                        self.consume_place(frame, &place, b)?;
-                        place.inner
+                    if matches!(&inner.kind, CoreExprKind::Member { object, .. }
+                        if matches!(object.kind, CoreExprKind::Name(_)))
+                    {
+                        self.give_package_field(frame, operand, b, depth + 1)?
                     } else {
-                        self.expression(frame, operand, b, depth + 1)?
-                    };
-                    let transferable = match self.state.arena[self.type_root(value, b)?] {
-                        Kind::Wrapped(Wrapper::Managed, _) | Kind::Closure { .. } => true,
-                        Kind::Rigid(owner, ordinal) => {
-                            // A callable premise identifies this original F,
-                            // never one of its later concrete caller images.
-                            let (kind, _, _) = self.quantified_callable_premise(owner, ordinal, b)?;
-                            matches!(
-                                kind,
-                                CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-                            )
+                        let value = if manager {
+                            let place = self.borrow_place(frame, operand, b, depth + 1)?;
+                            self.consume_place(frame, &place, b)?;
+                            place.inner
+                        } else {
+                            self.expression(frame, operand, b, depth + 1)?
+                        };
+                        let transferable = match self.state.arena[self.type_root(value, b)?] {
+                            Kind::Wrapped(Wrapper::Managed, _) | Kind::Closure { .. } => true,
+                            Kind::Rigid(owner, ordinal) => {
+                                // A callable premise identifies this original F,
+                                // never one of its later concrete caller images.
+                                let (kind, _, _) = self.quantified_callable_premise(owner, ordinal, b)?;
+                                matches!(
+                                    kind,
+                                    CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
+                                )
+                            }
+                            _ => false,
+                        };
+                        if !transferable {
+                            return Err(unknown(
+                                "original give requires its complete owning manager or callable category",
+                            ));
                         }
-                        _ => false,
-                    };
-                    if !transferable {
-                        return Err(unknown(
-                            "original give requires its complete owning manager or callable category",
-                        ));
+                        // The operand has already moved its real source occurrence
+                        // through the ordinary availability/capture accounting.
+                        // Keep its complete environment term: the enclosing call
+                        // prepares it once and retains cleanup on every early exit.
+                        // No Copy, SyncDrop or invocation permission follows here.
+                        value
                     }
-                    // The operand has already moved its real source occurrence
-                    // through the ordinary availability/capture accounting.
-                    // Keep its complete environment term: the enclosing call
-                    // prepares it once and retains cleanup on every early exit.
-                    // No Copy, SyncDrop or invocation permission follows here.
-                    value
                 }
                 CoreExprKind::Unary {
                     op: UnaryOp::Dereference,
@@ -2218,7 +2259,8 @@ impl Solver<'_, '_> {
                     }
                     let evaluated_head = matches!(head.kind,
                         CoreExprKind::Call { .. } | CoreExprKind::Closure { .. }
-                        | CoreExprKind::If { .. } | CoreExprKind::Sequence { .. });
+                        | CoreExprKind::If { .. } | CoreExprKind::Sequence { .. }
+                        | CoreExprKind::Index { .. });
                     let local = if evaluated_head {
                         Some(self.expression(frame, head, b, depth + 1)?)
                     } else if let CoreExprKind::Name(name) = &head.kind {

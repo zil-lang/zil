@@ -160,6 +160,67 @@ impl Check<'_, '_> {
         Ok(())
     }
 
+    fn original_index_operand_matches(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        node: zil_base::NodeId,
+        actual: ValueId,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        if let Some(original) = self.original_subject_value(instance, function, node, b)? {
+            return self.operation_operand_matches(function, actual, original, b);
+        }
+        let original = self.inventory.original_index(instance.definition, b)?.get_expr(node, b)?;
+        let (_, _, operation) = self.defining(function, actual, b)?;
+        let (CoreExprKind::Integer(text), InstructionKind::Constant(value)) =
+            (&original.kind, &operation.kind)
+        else {
+            return Ok(false);
+        };
+        let expected = self.recipe_value(
+            instance,
+            &SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0),
+                source: SemanticOriginalTypeSource::Expression(node),
+            },
+            b,
+            0,
+        )?;
+        Ok(expected.ty.is_integer()
+            && expected.ty == value.ty()
+            && original::mixed::integer_constant(text, &expected.ty, b)? == *value)
+    }
+
+    fn projected_code_operand(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        local: original::LocalAnchor,
+        projections: &[original::CodeProjection],
+        mut value: ValueId,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        for projection in projections.iter().rev() {
+            b.spend(1, WORK)?;
+            let (_, _, actual) = self.defining(function, value, b)?;
+            match (projection, &actual.kind) {
+                (
+                    original::CodeProjection::Field(expected),
+                    InstructionKind::ExtractField { aggregate, index },
+                ) if expected == index => value = *aggregate,
+                (
+                    original::CodeProjection::Index(node),
+                    InstructionKind::ExtractIndex { aggregate, index },
+                ) if self.original_index_operand_matches(instance, function, *node, *index, b)? =>
+                    value = *aggregate,
+                _ => return Ok(false),
+            }
+        }
+        let local = self.anchored_local(instance, function, local, b)?;
+        Ok(self.receiver_local(function, value, b, 0)? == local)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn code_operation(
         &self,
@@ -207,11 +268,14 @@ impl Check<'_, '_> {
         )?;
         let anchored = match anchor {
             original::CodeCallAnchor::Local(anchor) => {
-                let local = self.anchored_local(instance, function, anchor, b)?;
+                let local = self.anchored_local(instance, function, *anchor, b)?;
                 self.receiver_local(function, *callee, b, 0)? == local
             }
+            original::CodeCallAnchor::Projected { local, projections } => {
+                self.projected_code_operand(instance, function, *local, projections, *callee, b)?
+            }
             original::CodeCallAnchor::CallResult(node) => {
-                let recipe = self.inventory.call_anchor(instance.definition, node, b)?;
+                let recipe = self.inventory.call_anchor(instance.definition, *node, b)?;
                 let source = self.inventory.emitted_site(self.program, instance.id, recipe, b)?;
                 let SemanticSiteAddress::Typed {
                     block: producer_block,

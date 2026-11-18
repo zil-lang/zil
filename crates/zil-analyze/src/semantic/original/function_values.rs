@@ -253,6 +253,22 @@ impl Solver<'_, '_> {
         )
     }
 
+    fn code_projection_anchor(
+        place: places::Place,
+        index: Option<NodeId>,
+        b: &mut Budget,
+    ) -> CompileResult<CodeCallAnchor> {
+        let local = place.anchor.ok_or_else(|| {
+            unknown("original projected code has no exact lexical value anchor")
+        })?;
+        b.spend(place.path.len().saturating_add(1), WORK)?;
+        let mut projections: Vec<_> = place.path.into_iter().map(CodeProjection::Field).collect();
+        if let Some(index) = index {
+            projections.push(CodeProjection::Index(index));
+        }
+        Ok(CodeCallAnchor::Projected { local, projections })
+    }
+
     pub(super) fn code_call(
         &mut self,
         frame: &mut Frame,
@@ -326,6 +342,17 @@ impl Solver<'_, '_> {
                 // Rechecking it would duplicate its original call identity.
                 CodeCallAnchor::CallResult(head.id)
             }
+            CoreExprKind::Member { .. } => {
+                let place = self.place(frame, head, true, b, depth + 1)?
+                    .ok_or_else(|| unknown("original code field has no exact projected place"))?;
+                self.unify(place.selected, root, depth + 1, b)?;
+                Self::code_projection_anchor(place, None, b)?
+            }
+            CoreExprKind::Index { object, index } => {
+                let place = self.place(frame, object, false, b, depth + 1)?
+                    .ok_or_else(|| unknown("original code index has no exact projected base"))?;
+                Self::code_projection_anchor(place, Some(index.id), b)?
+            }
             _ => return Err(unknown("original indirect code call needs its exact value anchor")),
         };
         b.lookup(self.state.code_calls.len(), WORK)?;
@@ -349,7 +376,7 @@ impl Checked {
         program: &SemanticModule,
         inventory: &Inventory<'_>,
         b: &mut Budget,
-    ) -> CompileResult<Option<(CodeCallAnchor, crate::semantic::value::Value)>> {
+    ) -> CompileResult<Option<(&CodeCallAnchor, crate::semantic::value::Value)>> {
         let definition = inventory.definition(context.definition, b)?;
         let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
             return Err(fail("original code operation has no body inventory"));
@@ -362,7 +389,7 @@ impl Checked {
                     b.lookup(self.code_calls.len(), WORK)?;
                     if let Some(call) = self.code_calls.get(&(context.definition, node)) {
                         let value = self.value(call.code, context, program, inventory, b, 0)?;
-                        if found.replace((call.anchor, value)).is_some() {
+                        if found.replace((&call.anchor, value)).is_some() {
                             return Err(fail("original code call has multiple node links"));
                         }
                     }
