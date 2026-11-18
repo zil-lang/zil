@@ -9,7 +9,7 @@ struct Packet {
 fn some<T>(value: T) -> LegacyOption<T> { return LegacyOption.Some(value) }
 fn empty<T>() -> LegacyOption<T> { return LegacyOption.None }
 fn success<E, T>(value: T) -> Result<E, T> { return Result.Ok(value) }
-fn select<T>(value: LegacyOption<Result<bool, T>>, fallback: T) -> T {
+fn select<T: SyncDrop>(value: LegacyOption<Result<bool, T>>, fallback: T) -> T {
     match value {
         LegacyOption.None() => { return fallback }
         LegacyOption.Some(Result.Err(_)) => { return fallback }
