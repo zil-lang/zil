@@ -65,6 +65,21 @@ impl CheckedContext{
                 let storage=match &value.ty{Type::BorrowedStorage{storage,..}=>storage.as_ref(),other=>other};let Type::Enum{variants,..}=storage else{return Err(bad("original enum constructor has another complete nominal result"));};
                 let(_,expected)=variants.get(*variant as usize).ok_or_else(||bad("original enum variant is outside its complete declaration"))?;
                 if fields.len()!=expected.len(){return Err(bad("actual enum constructor omits original fields"));}
+                if !fields.is_empty() && crate::stored_flow::inline_frame_cleanup(module, f, storage, b)? {
+                    let sources = original.variant_operand_nodes(module, instance.definition, site.recipe, b)?;
+                    if sources.len() != fields.len() { return Err(bad("resumable enum changes its complete original payload occurrences")); }
+                    for (&field, node) in fields.iter().zip(sources) {
+                        let mut operand = field;
+                        let mut seen = BTreeSet::new();
+                        while let Some(source) = self.prepared_managed_source(module, instance, f, operand, b)? {
+                            b.spend(seen.len().checked_ilog2().map_or(1, |depth| depth as usize + 2))?;
+                            if !seen.insert(operand) { return Err(bad("resumable enum operand has cyclic owning preparation")); }
+                            operand = source;
+                        }
+                        self.assignment_value_source(module, instance, f, operand, node, b)
+                            .map_err(|error| error.with_note("resumable enum field selects another original operand"))?;
+                    }
+                }
                 for(index,(field,expected))in fields.iter().zip(expected).enumerate(){
                     let actual=value_at(values,*field)?;if actual.ty!=*expected{return Err(bad("actual enum field differs from its original full nominal type"));}
                     let child=self.child_value(module,&value,&[LifeTypeProjection::Place(PlaceProjection::Variant(VariantProjection{variant:*variant,index:index as u32}))],b)?;

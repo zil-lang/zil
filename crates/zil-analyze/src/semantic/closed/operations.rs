@@ -2,6 +2,79 @@
 //! captured-head relations never erase intrinsic classes or grant memory access.
 use super::*;
 
+impl Check<'_, '_> {
+    fn resumable_enum_operands(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        node: zil_base::NodeId,
+        ty: &Type,
+        fields: &[ValueId],
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        if fields.is_empty() || function.call_kind != CallKind::Suspend
+            || !crate::tasks::contains_kind(self.module, ty, b, false)?
+        {
+            return Ok(());
+        }
+        let source = self.inventory.original_index(instance.definition, b)?.get_expr(node, b)?;
+        let CoreExprKind::Call { arguments, .. } = &source.kind else {
+            return Err(fail("resumable enum payload belongs to another original operation"));
+        };
+        b.spend(arguments.len(), WORK)?;
+        if arguments.len() != fields.len() {
+            return Err(fail("resumable enum changes its complete original payload occurrences"));
+        }
+        for (argument, &field) in arguments.iter().zip(fields) {
+            self.resumable_enum_operand(instance, function, argument, field, b)?;
+        }
+        Ok(())
+    }
+
+    fn resumable_enum_operand(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        mut expression: &SemanticOriginalExpr,
+        value: ValueId,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let written = expression.id;
+        loop {
+            b.spend(1, WORK)?;
+            expression = match &expression.kind {
+                CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. }
+                | CoreExprKind::Unary { op: UnaryOp::Give, operand: inner } => inner,
+                _ => break,
+            };
+        }
+        if let Some(anchor) = self.original.local_read_anchor(instance.definition, expression.id, b)? {
+            let expected = self.anchored_local(instance, function, anchor, b)?;
+            let (block, index, producer) = self.defining(function, value, b)?;
+            if let InstructionKind::TakeLocal { local } = producer.kind {
+                self.prepared_owner_source(function, expected, local, (block, index), b)
+                    .map_err(|mut errors| {
+                        errors[0].notes.push("resumable enum field selects another original owning binder".into());
+                        errors
+                    })?;
+                return Ok(());
+            }
+            if matches!(producer.kind, InstructionKind::Load(local) if local == expected) {
+                return Ok(());
+            }
+            return Err(fail("resumable enum field selects another original binder"));
+        }
+        for node in [written, expression.id] {
+            if let Some(source) = self.original_subject_value(instance, function, node, b)?
+                && self.operation_operand_matches(function, value, source, b)?
+            {
+                return Ok(());
+            }
+        }
+        Err(fail("resumable enum field lacks its exact original operand occurrence"))
+    }
+}
+
 struct Point<'a> {
     function: &'a TypedFunction,
     block: &'a BasicBlock,
@@ -534,6 +607,7 @@ impl Check<'_, '_> {
                         return Err(fail("actual enum formation changes its original variant or payload arity"));
                     }
                     self.inputs(fields, point, b)?;
+                    self.resumable_enum_operands(instance, point.function, constructor.node, &constructor.result.ty, fields, b)?;
                     for (actual, expected) in fields.iter().zip(&constructor.payload) {
                         b.spend(1, WORK)?;
                         if point.function.values.get(actual.0 as usize) != Some(&expected.ty) {
@@ -883,6 +957,7 @@ impl Check<'_, '_> {
                         ));
                     }
                     self.inputs(fields, point, b)?;
+                    self.resumable_enum_operands(instance, point.function, constructor.node, &constructor.result.ty, fields, b)?;
                     for (actual, expected) in fields.iter().zip(&constructor.payload) {
                         b.spend(1, WORK)?;
                         if point.function.values.get(actual.0 as usize) != Some(&expected.ty) {

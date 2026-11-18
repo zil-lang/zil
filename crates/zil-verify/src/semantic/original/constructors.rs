@@ -61,6 +61,18 @@ impl CheckedOriginal{
         b.spend(1)?;let value=self.constructors.get(&(definition,site)).ok_or_else(||bad("actual enum construction has no independently checked original constructor"))?;
         let _=value.definition;let mut actuals=Vec::new();for value in &value.actuals{actuals.push(self.reify_argument(module,value,env,b)?);}Ok((value.variant,actuals))
     }
+    pub(in crate::semantic) fn variant_operand_nodes(&self, module: &TypedModule, definition: SemanticDefinitionId, site: SemanticSiteId, b: &mut Budget) -> Check<Vec<NodeId>> {
+        let index = self.source_index(module, &[definition], b)?;
+        let function = index.definitions.get(&definition).ok_or_else(|| bad("owning enum constructor has no original function"))?;
+        let Some(index::Node::Expression(expression)) = function.nodes.get(&site) else {
+            return Err(bad("owning enum constructor has no exact original operand occurrence"));
+        };
+        let CoreExprKind::Call { arguments, .. } = &expression.kind else {
+            return Err(bad("owning enum payload belongs to another original operation"));
+        };
+        b.spend(arguments.len())?;
+        Ok(arguments.iter().map(|argument| argument.id).collect())
+    }
 }
 
 impl CheckedOriginal {

@@ -9,6 +9,10 @@ mod walk;
 use intrinsics::Intrinsic;
 use state::*;
 
+pub(super) fn owner_variant_field(tag: u32, index: usize) -> String {
+    format!("$variant:{tag}:{index}")
+}
+
 pub(super) struct CaptureExit{root:Place,generation:u64,phase:u8,sources:Sources,exit:ProtocolExit,unchanged:bool}
 struct Engine<'a> {
     original: &'a CheckedOriginal,

@@ -178,6 +178,34 @@ impl Solver<'_, '_> {
         }
     }
 
+    fn suspend_inline_cleanup(&self, term: Term, b: &mut Budget, depth: usize) -> CompileResult<bool> {
+        self.step(depth, b)?;
+        let term = self.root(term, b)?;
+        let fields = match &self.state.arena[term] {
+            Kind::Wrapped(Wrapper::Managed, payload) => return Ok(matches!(
+                self.state.arena[self.root(*payload, b)?],
+                Kind::Task(_) | Kind::Wrapped(Wrapper::AsyncRegistration, _)
+            )),
+            Kind::Tuple(fields) => fields,
+            Kind::Nominal { definition, fields, .. } if matches!(
+                self.inventory.definition(*definition, b)?.body,
+                SemanticDefinitionBody::Nominal { body: SemanticNominalBody::Enum { .. }, .. }
+            ) => fields,
+            _ => return Ok(false),
+        };
+        let mut resumable = false;
+        for field in fields {
+            if self.satisfies(*field, Predicate::SyncDrop, b, depth + 1)? {
+                continue;
+            }
+            if !self.suspend_inline_cleanup(*field, b, depth + 1)? {
+                return Ok(false);
+            }
+            resumable = true;
+        }
+        Ok(resumable)
+    }
+
     pub(super) fn check_cleanups(&mut self, _module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
         for ordinal in 0..self.cleanup_terms.len() {
             let occurrence = &self.cleanup_terms[ordinal];
@@ -197,15 +225,9 @@ impl Solver<'_, '_> {
                 Event::CaptureExit(operation) => operation == CallKind::Suspend,
                 _ => signature.call_kind == CallKind::Suspend,
             };
-            let registration = if suspend {
-                match self.state.arena[self.root(term, b)?] {
-                    Kind::Wrapped(Wrapper::Managed, payload) => matches!(self.state.arena[self.root(payload, b)?],
-                        Kind::Wrapped(Wrapper::AsyncRegistration, _)),
-                    _ => false,
-                }
-            } else { false };
             if !matches!(origin.source, Source::Unknown)
-                && (registration || self.task_cleanup_environment(term, b, 0)?
+                && (suspend && self.suspend_inline_cleanup(term, b, 0)?
+                    || self.task_cleanup_environment(term, b, 0)?
                     || suspend && self.satisfies(term,
                         Predicate::Capability(SemanticBuiltinTrait::ClosedEnvironment), b, 0)?)
             {
@@ -264,13 +286,18 @@ pub(super) fn finish(module: &TypedModule, b: &mut Budget) -> CompileResult<()> 
         };
         let registration = function.call_kind == CallKind::Suspend && matches!(&declaration.ty,
             Type::Managed(head) if matches!(head.as_ref(), Type::AsyncRegistration { .. }));
+        let inline = function.call_kind == CallKind::Suspend && match (&declaration.ty, &instruction.kind) {
+            (Type::Tuple(_), InstructionKind::DropTuple { local: actual })
+            | (Type::Enum { .. }, InstructionKind::DropEnum { local: actual }) => *actual == local,
+            _ => false,
+        };
         let exact = slot || match closure {
             Some(closure) => matches!(instruction.kind, InstructionKind::DropClosure { local: actual } if actual == local)
                 && declaration.ty == Type::Closure(closure),
-            None => matches!(instruction.kind, InstructionKind::DropManaged { local: actual } if actual == local)
+            None => inline || matches!(instruction.kind, InstructionKind::DropManaged { local: actual } if actual == local)
                 && (registration || matches!(&declaration.ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }))),
         };
-        if !exact || !(registration || crate::tasks::needs_synchronous_proof(module, &declaration.ty, b)?) {
+        if !exact || !(inline || registration || crate::tasks::needs_synchronous_proof(module, &declaration.ty, b)?) {
             return Err(fail("original concrete cleanup changes its exact actual Task-bearing site"));
         }
         b.spend(function.name.len().saturating_add(128), WORK)?;

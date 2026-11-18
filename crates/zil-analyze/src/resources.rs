@@ -3487,7 +3487,9 @@ impl Flow<'_> {
                     replace(state, Place::Local(*local), fact, budget)?;
                     forget_order(state, *local, budget)?;
                     if check && !budget.semantic_cleanup_sites.is_empty()
-                        && (matches!(i.kind, InstructionKind::DropManaged { .. }) || cleanup_closure.is_some())
+                        && (matches!(i.kind, InstructionKind::DropManaged { .. }) || cleanup_closure.is_some()
+                            || f.call_kind == CallKind::Suspend && matches!(i.kind,
+                                InstructionKind::DropTuple { .. } | InstructionKind::DropEnum { .. }))
                     {
                         let point = (f.id, f.blocks[b].id, position, *local);
                         budget.lookup(budget.semantic_cleanup_sites.len(), "original Task cleanup occurrence")?;

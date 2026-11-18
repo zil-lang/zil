@@ -174,7 +174,10 @@ impl Flow {
                 .any(|b| {
                     b.instructions
                         .iter()
-                        .any(|i| matches!(i.kind, InstructionKind::TaskCreateOwned { .. }))
+                        .any(|i| matches!(
+                            i.kind,
+                            InstructionKind::TaskCreateOwned { .. } | InstructionKind::MakeOwnedTuple { .. }
+                        ))
                 })
                 .then(fields::Fields::default),
             phases: vec![0; n],

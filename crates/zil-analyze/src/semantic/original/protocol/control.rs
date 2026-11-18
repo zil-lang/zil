@@ -189,6 +189,17 @@ impl Proof<'_, '_> {
             }
             CorePatternKind::Constructor { fields, .. }
             | CorePatternKind::Variant { fields, .. } => {
+                if let Some(tag) = self.selected_variant(pattern, data, b)? {
+                    let tag = tag.ok_or_else(|| fail("original protocol binds an inactive owning variant"))?;
+                    for (index, field) in fields.iter().enumerate() {
+                        let index = u32::try_from(index)
+                            .map_err(|_| resource("original owner variant pattern ordinal overflow"))?;
+                        let step = PlaceProjection::Variant(VariantProjection { variant: tag, index });
+                        let projected = data.project(step, b)?;
+                        self.bind_pattern(state, field, &projected, b, depth + 1)?;
+                    }
+                    return Ok(());
+                }
                 if data.sources.has_exact() {
                     return Err(unknown(
                         "original protocol sum/tuple pattern needs its complete nested owner-place mapping",
@@ -212,6 +223,28 @@ impl Proof<'_, '_> {
                 "original protocol pattern needs its exact projected owning-head identity",
             )),
         }
+    }
+    // Unknown subject, known inactive arm, or the exact active variant.
+    fn selected_variant(
+        &self,
+        pattern: &SemanticOriginalPattern,
+        data: &Data,
+        b: &mut Budget,
+    ) -> CompileResult<Option<Option<u32>>> {
+        if !data.sources.has_exact() {
+            return Ok(None);
+        }
+        let (definition, name) = match &pattern.kind {
+            CorePatternKind::Constructor { definition, variant, .. } => (*definition, variant),
+            CorePatternKind::Variant { ty: SemanticTypeRecipe::Nominal { definition, .. }, variant, .. } => (Some(*definition), variant),
+            _ => return Ok(None),
+        };
+        let Some(active) = data.sources.active_variant(b)? else { return Ok(None); };
+        b.spend(name.len().saturating_add(active.name.len()).saturating_add(1), WORK)?;
+        if definition.is_some_and(|id| id != active.definition) {
+            return Err(fail("original protocol pattern changes its owning enum declaration"));
+        }
+        Ok(Some((name == &active.name).then_some(active.tag)))
     }
     fn outcome_carrier(&self, node: NodeId, b: &mut Budget) -> CompileResult<Carrier> {
         let term = self.expression_term(node, b)?;
@@ -306,6 +339,9 @@ impl Proof<'_, '_> {
         joined.alive = false;
         let mut covered = BTreeSet::new();
         for arm in arms {
+            if self.selected_variant(&arm.pattern, &data, b)? == Some(None) {
+                continue;
+            }
             let selected = if let Some(carrier) = carrier {
                 self.arm_exit(carrier, &arm.pattern, b)?
             } else {
@@ -377,6 +413,10 @@ impl Proof<'_, '_> {
             pattern.kind,
             CorePatternKind::Wildcard | CorePatternKind::Name(_)
         );
+        if self.selected_variant(pattern, data, b)? == Some(None) {
+            Solver::push(&mut no, state.copy(b)?, b)?;
+            return Ok((yes, no));
+        }
         if !data.outcomes.is_empty() {
             let carrier = self.outcome_carrier(node, b)?;
             let selected = self.arm_exit(carrier, pattern, b)?;

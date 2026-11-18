@@ -409,6 +409,26 @@ impl Check<'_, '_> {
                 let result = self.nominal_field_value(owner, args, result, b, depth + 1)?;
                 value::error_union(error, result, b)
             }
+            SemanticTypeRecipe::Task { result, retained }
+                if retained.domain.parts.is_empty()
+                    && retained.ports.is_empty()
+                    && retained.retained.is_empty()
+                    && retained.nominal.is_empty() =>
+            {
+                let child = self.nominal_field_value(owner, args, result, b, depth + 1)?;
+                if !empty(&child.life) || !child.classes.is_empty() {
+                    return Err(unknown("nominal Task result needs its complete retained classes"));
+                }
+                Ok(value::scalar(Type::Task {
+                    result: Box::new(child.into_type(b)?),
+                    retained_life: RetainedLifeShape {
+                        binder_count: 0,
+                        ports: Vec::new(),
+                        retained: Vec::new(),
+                        nominal_arguments: Vec::new(),
+                    },
+                }))
+            }
             SemanticTypeRecipe::Code {
                 kind: SemanticCodeKind::FunctionPointer,
                 signature,

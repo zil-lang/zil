@@ -271,6 +271,16 @@ impl<'a> Engine<'a> {
                 }
                 Ok(Value::Product(result))
             }
+            Value::Variant { definition, tag, name, fields } => {
+                let mut result = Vec::with_capacity(fields.len());
+                for (field, value) in fields {
+                    b.spend(field.len().saturating_add(1))?;
+                    let mut child = destination.clone();
+                    child.fields.push(field.clone());
+                    result.push((field, self.task_bind_place(state, &child, value, b)?));
+                }
+                Ok(Value::Variant { definition, tag, name, fields: result })
+            }
             Value::FreshTask(task) => {
                 if task.states==0||task.states&!LIVE!=0||task.sources.is_empty(){return Err(bad("pending Task omits a live phase or complete universal source"));}
                 if state
@@ -296,18 +306,31 @@ impl<'a> Engine<'a> {
                     borrowed: false,
                 })
             }
+            Value::Fresh => {
+                if state.owners.get(destination).is_some_and(|owner| owner.states != DEAD) {
+                    return Err(bad("registration birth reuses a live original owning place"));
+                }
+                let generation = self.generation(b)?;
+                state.owners.insert(destination.clone(), Owner {
+                    states: LIVE,
+                    generation,
+                    task: false,
+                    owned: true,
+                    sources: unknown_sources(),
+                });
+                Ok(Value::Owner { root: destination.clone(), borrowed: false })
+            }
             Value::Owner {
                 root,
                 borrowed: false,
-            } if root != destination.clone()
-                && state.owners.get(&root).is_some_and(|owner| owner.task) =>
+            } if root != *destination =>
             {
                 let source_width_work = source_width(&state.owner(&root,b)?.sources);
                 b.spend(source_width_work)?;
                 let owner = state.owner(&root, b)?.clone();
                 if !owner.owned {
                     return Err(bad(
-                        "borrowed Task generation cannot become an owning transfer",
+                        "borrowed protocol generation cannot become an owning transfer",
                     ));
                 }
                 if state
@@ -315,7 +338,7 @@ impl<'a> Engine<'a> {
                     .get(&destination.clone())
                     .is_some_and(|owner| owner.states != DEAD)
                 {
-                    return Err(bad("Task transfer overwrites another live generation"));
+                    return Err(bad("protocol transfer overwrites another live generation"));
                 }
                 self.update(state, &root, DEAD, b)?;
                 let generation = self.generation(b)?;
@@ -324,7 +347,7 @@ impl<'a> Engine<'a> {
                     Owner {
                         states: owner.states,
                         generation,
-                        task: true,
+                        task: owner.task,
                         owned: true,
                         sources:owner.sources,
                     },
@@ -399,7 +422,7 @@ impl<'a> Engine<'a> {
                     self.task_cleanup_root(state, root, b)?;
                 }
             }
-            Value::Product(fields) => {
+            Value::Product(fields) | Value::Variant { fields, .. } => {
                 for (_, value) in fields {
                     self.task_cleanup_value(state, value, replacement, b)?;
                 }
@@ -430,7 +453,7 @@ impl<'a> Engine<'a> {
                     self.update(state, root, DEAD, b)?;
                 }
             }
-            Value::Product(fields) => {
+            Value::Product(fields) | Value::Variant { fields, .. } => {
                 for (_, value) in fields {
                     self.task_transfer_value(state, value, b)?;
                 }
@@ -683,7 +706,7 @@ impl<'a> Engine<'a> {
                     ));
                 }
             }
-            Value::Product(fields) => {
+            Value::Product(fields) | Value::Variant { fields, .. } => {
                 for (_, value) in fields {
                     self.task_constructor_cleanup(state, value, b)?;
                 }
@@ -862,7 +885,7 @@ pub(super) fn task_contains_root(value: &Value, root: &Place) -> bool {
             root: actual,
             borrowed: false,
         } => actual == root,
-        Value::Product(fields) => fields
+        Value::Product(fields) | Value::Variant { fields, .. } => fields
             .iter()
             .any(|(_, value)| task_contains_root(value, root)),
         Value::FallibleTaskOwned(inputs,_) => {
@@ -884,12 +907,18 @@ pub(super) fn task_borrow_value(value: Value) -> Value {
                 .map(|(name, value)| (name, task_borrow_value(value)))
                 .collect(),
         ),
+        Value::Variant { definition, tag, name, fields } => Value::Variant {
+            definition,
+            tag,
+            name,
+            fields: fields.into_iter().map(|(field, value)| (field, task_borrow_value(value))).collect(),
+        },
         value => value,
     }
 }
 
 pub(super) fn pending_value(value:&Value)->bool{
-    match value{Value::FreshTask(_)|Value::FallibleTask(_)|Value::FallibleTaskOwned(_,_)=>true,Value::Product(fields)=>fields.iter().any(|(_,value)|pending_value(value)),_=>false}
+    match value{Value::FreshTask(_)|Value::FallibleTask(_)|Value::FallibleTaskOwned(_,_)=>true,Value::Product(fields)|Value::Variant{fields,..}=>fields.iter().any(|(_,value)|pending_value(value)),_=>false}
 }
 pub(super) fn owner_value(value: &Value) -> bool {
     match value {
@@ -898,7 +927,7 @@ pub(super) fn owner_value(value: &Value) -> bool {
         | Value::FreshTask(_)
         | Value::FallibleTask(_)
         | Value::FallibleTaskOwned(_,_) => true,
-        Value::Product(fields) => fields.iter().any(|(_, value)| owner_value(value)),
+        Value::Product(fields) | Value::Variant { fields, .. } => fields.iter().any(|(_, value)| owner_value(value)),
         _ => false,
     }
 }
@@ -915,7 +944,7 @@ pub(super) fn task_roots(value: &Value, roots: &mut Vec<(Place,bool)>, b: &mut B
             )?;
             roots.push((root.clone(),*borrowed));
         }
-        Value::Product(fields) => {
+        Value::Product(fields) | Value::Variant { fields, .. } => {
             for (_, value) in fields {
                 task_roots(value, roots, b)?;
             }
@@ -937,7 +966,7 @@ impl Engine<'_>{
             match value{
                 Value::Owner{root,..}=>{let owner=state.owner(root,b)?;if owner.task{b.spend(source_width(&owner.sources))?;out.insert(path.clone(),owner.sources.clone());}},
                 Value::FreshTask(task)|Value::FallibleTask(task)=>{b.spend(task.width())?;out.insert(path.clone(),task.sources.clone());},
-                Value::Product(fields)=>for(name,value)in fields{path.push(name.clone());walk(state,value,path,out,b)?;path.pop();},
+                Value::Product(fields) | Value::Variant{fields,..} =>for(name,value)in fields{path.push(name.clone());walk(state,value,path,out,b)?;path.pop();},
                 _=>{},
             }
             Ok(())
@@ -967,7 +996,7 @@ impl Engine<'_>{
             b.spend(path.iter().fold(1usize,|n,name|n.saturating_add(name.len())))?;
             match value{
                 Value::Owner{root,..}=>{root.binder.charge_clone(b)?;b.spend(root.fields.iter().map(String::len).sum::<usize>())?;out.push((path.clone(),root.clone()));},
-                Value::Product(fields)=>for(name,value)in fields{path.push(name.clone());leaves(value,path,out,b)?;path.pop();},
+                Value::Product(fields) | Value::Variant{fields,..} =>for(name,value)in fields{path.push(name.clone());leaves(value,path,out,b)?;path.pop();},
                 _=>{},
             }Ok(())
         }
@@ -1051,7 +1080,7 @@ impl Engine<'_>{
                     if owner.task{owner.sources=sources;}
                 },
                 Value::FreshTask(task)|Value::FallibleTask(task)=>task.sources=sources(path,summary,inputs,target,receiver,original,b)?,
-                Value::Product(fields)=>for(name,value)in fields{path.push(name.clone());walk(state,value,path,summary,inputs,target,receiver,original,b)?;path.pop();},
+                Value::Product(fields) | Value::Variant{fields,..} =>for(name,value)in fields{path.push(name.clone());walk(state,value,path,summary,inputs,target,receiver,original,b)?;path.pop();},
                 _=>{},
             }
             Ok(())

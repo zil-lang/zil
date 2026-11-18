@@ -6,16 +6,26 @@ use super::*;
 pub(super) struct OwnerSources {
     whole: Option<u32>,
     projected: BTreeMap<Vec<PlaceProjection>, u32>,
+    variants: BTreeMap<Vec<PlaceProjection>, ActiveVariant>,
     opaque: bool,
 }
+
+#[derive(Clone, PartialEq, Eq)]
+pub(super) struct ActiveVariant {
+    pub(super) definition: SemanticDefinitionId,
+    pub(super) tag: u32,
+    pub(super) name: String,
+}
+
 impl OwnerSources {
     pub(super) fn exact(role: u32) -> Self {
-        Self { whole: Some(role), projected: BTreeMap::new(), opaque: false }
+        Self { whole: Some(role), ..Self::default() }
     }
     pub(super) fn has_any(&self) -> bool {
         self.opaque || self.has_exact()
     }
     pub(super) fn has_exact(&self) -> bool { self.whole.is_some() || !self.projected.is_empty() }
+    pub(super) fn has_projected(&self) -> bool { !self.projected.is_empty() }
     pub(super) fn opaque(exposed: bool) -> Self { Self { opaque: exposed, ..Self::default() } }
     pub(super) fn opaque_exposure(&self) -> bool { self.opaque }
     pub(super) fn expose(&self) -> Self { Self::opaque(self.has_any()) }
@@ -27,6 +37,11 @@ impl OwnerSources {
         if self.whole != other.whole || self.projected != other.projected {
             return Err(unknown("original protocol alias join needs its complete possible-head relation"));
         }
+        for path in self.variants.keys() {
+            b.spend(path.len().saturating_add(1), WORK)?;
+            b.lookup(other.variants.len(), WORK)?;
+        }
+        self.variants.retain(|path, tag| other.variants.get(path) == Some(tag));
         self.opaque |= other.opaque;
         Ok(())
     }
@@ -69,6 +84,9 @@ impl OwnerSources {
         for path in self.projected.keys() {
             b.spend(path.len().saturating_add(1), WORK)?;
         }
+        for (path, active) in &self.variants {
+            b.spend(path.len().saturating_add(active.name.len()).saturating_add(1), WORK)?;
+        }
         Ok(())
     }
     pub(super) fn contains(&self, role: u32, b: &mut Budget) -> CompileResult<bool> {
@@ -99,7 +117,28 @@ impl OwnerSources {
             full.extend_from_slice(path);
             self.insert(full, *role, b)?;
         }
+        for (path, active) in &input.variants {
+            b.spend(prefix.len().saturating_add(path.len()).saturating_add(active.name.len()), WORK)?;
+            let mut full = prefix.to_vec();
+            full.extend_from_slice(path);
+            self.insert_variant(full, active.clone(), b)?;
+        }
         Ok(())
+    }
+    pub(super) fn set_variant(&mut self, active: ActiveVariant, b: &mut Budget) -> CompileResult<()> {
+        self.insert_variant(Vec::new(), active, b)
+    }
+    fn insert_variant(&mut self, path: Vec<PlaceProjection>, active: ActiveVariant, b: &mut Budget) -> CompileResult<()> {
+        b.spend(path.len().saturating_add(active.name.len()).saturating_add(1), WORK)?;
+        b.lookup(self.variants.len(), WORK)?;
+        if self.variants.insert(path, active.clone()).is_some_and(|previous| previous != active) {
+            return Err(fail("original owning place has competing active variants"));
+        }
+        Ok(())
+    }
+    pub(super) fn active_variant(&self, b: &mut Budget) -> CompileResult<Option<&ActiveVariant>> {
+        b.lookup(self.variants.len(), WORK)?;
+        Ok(self.variants.get(&Vec::new()))
     }
     /// Only a stored subplace is projected. A whole owner cannot be guessed
     /// to contain another head, so its unmodelled exposure is returned too.
@@ -110,6 +149,12 @@ impl OwnerSources {
             b.spend(path.len().saturating_add(1), WORK)?;
             if path.first() == Some(&step) {
                 output.insert(path[1..].to_vec(), *role, b)?;
+            }
+        }
+        for (path, active) in &self.variants {
+            b.spend(path.len().saturating_add(active.name.len()).saturating_add(1), WORK)?;
+            if path.first() == Some(&step) {
+                output.insert_variant(path[1..].to_vec(), active.clone(), b)?;
             }
         }
         Ok(output)

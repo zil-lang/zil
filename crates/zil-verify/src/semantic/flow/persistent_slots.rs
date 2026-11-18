@@ -12,7 +12,15 @@ impl CheckedContext{
     /// no-alias/one-Store/one-Take epoch has been checked. A real original
     /// binder remains an independent source occurrence, even at the same type.
     pub(super) fn prepared_closure_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,b:&mut Budget)->Check<Option<ValueId>>{
-        if !matches!(f.values.get(value.0 as usize),Some(Type::Closure(_))){return Ok(None);}
+        self.prepared_owning_source(module, caller, f, value, false, b)
+    }
+
+    pub(super) fn prepared_managed_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,b:&mut Budget)->Check<Option<ValueId>>{
+        self.prepared_owning_source(module, caller, f, value, true, b)
+    }
+
+    fn prepared_owning_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,managed:bool,b:&mut Budget)->Check<Option<ValueId>>{
+        if !matches!((managed, f.values.get(value.0 as usize)), (false, Some(Type::Closure(_))) | (true, Some(Type::Managed(_)))) { return Ok(None); }
         let(block,at,instruction)=self.site_index.producers.get(f,value,b)?;
         let InstructionKind::TakeLocal{local}=instruction.kind else{return Ok(None);};
         if f.locals.get(local.0 as usize).is_none_or(|declaration|!declaration.mutable){return Ok(None);}
@@ -22,7 +30,11 @@ impl CheckedContext{
             ||matches!(site.action,SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(actual),..}if actual==value)
             ||matches!(site.action,SemanticSiteAction::TypeUse{subject:SemanticOperand::Local(actual),..}if actual==local)
         ){return Ok(None);}}
-        super::intrinsics::owner_sources::scalar_preparations::owning_source(module,f,block,at,local,b)
+        if managed {
+            super::intrinsics::owner_sources::scalar_preparations::managed_source(module,f,block,at,local,b)
+        } else {
+            super::intrinsics::owner_sources::scalar_preparations::owning_source(module,f,block,at,local,b)
+        }
     }
     /// A complete occurrence map for one real element, including phantom κ.
     fn persistent_array(&self,module:&TypedModule,child:&CheckedType,b:&mut Budget)->Check<CheckedType>{

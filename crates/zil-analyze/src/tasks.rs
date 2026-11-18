@@ -50,7 +50,7 @@ pub(crate) fn projected_creation_return(module: &TypedModule, f: &TypedFunction,
     return_coordinates::checked(module, f, block, value, b)
 }
 pub(super) use drop_sync::{
-    needs_proof as needs_synchronous_proof, once_cleanup_closed, once_cleanup_has_no_task,
+    contains_kind, needs_proof as needs_synchronous_proof, once_cleanup_closed, once_cleanup_has_no_task,
     require as require_synchronous_drop, require_value as require_synchronous_value,
     require_original as require_original_synchronous_drop,
     require_original_value as require_original_synchronous_value,

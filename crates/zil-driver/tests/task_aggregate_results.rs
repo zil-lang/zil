@@ -2,6 +2,7 @@
 use std::{
     fs,
     os::unix::fs::PermissionsExt,
+    os::unix::process::ExitStatusExt,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -9,6 +10,10 @@ use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_source};
 const SOURCE: &str =
     include_str!("../../../tests/language-readiness/task-aggregate-results/enum-result.zil");
+const INLINE_REGISTRATION: &str =
+    include_str!("../../../tests/language-readiness/task-aggregate-results/inline-registration-tuple.zil");
+const INLINE_CHILD: &str =
+    include_str!("../../../tests/language-readiness/task-aggregate-results/inline-task-enum.zil");
 fn source(text: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "task-aggregate.zil", text)
 }
@@ -448,6 +453,29 @@ fn aggregate_result_independent_raw_wire_resource_identity() {
     }
 }
 
+fn linked_observer(dir: &Path, name: &str) -> PathBuf {
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    let object = dir.join("observer.o");
+    let observer = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/language-readiness/task-aggregate-results")
+        .join(name);
+    let built = Command::new(&clang)
+        .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+        .arg(observer)
+        .arg("-o")
+        .arg(&object)
+        .output()
+        .unwrap();
+    assert!(built.status.success(), "{built:?}");
+    let quote = |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
+    let wrapper = dir.join("link.sh");
+    fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&object),quote(&clang))).unwrap();
+    fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+    wrapper
+}
+
 #[test]
 fn aggregate_result_queued_nested_capture_late_entry_and_cancel() {
     let normal = include_str!(
@@ -481,26 +509,7 @@ fn aggregate_result_queued_nested_capture_late_entry_and_cancel() {
                     std::process::id()
                 ));
                 fs::create_dir_all(&dir).unwrap();
-                let clang = std::env::var_os("ZIL_CLANG")
-                    .map(PathBuf::from)
-                    .unwrap_or_else(|| "clang".into());
-                let object = dir.join("observer.o");
-                let observer = Path::new(env!("CARGO_MANIFEST_DIR")).join(
-                    "../../tests/language-readiness/task-aggregate-results/queued-observer.c",
-                );
-                let built = Command::new(&clang)
-                    .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
-                    .arg(observer)
-                    .arg("-o")
-                    .arg(&object)
-                    .output()
-                    .unwrap();
-                assert!(built.status.success(), "{built:?}");
-                let quote =
-                    |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
-                let wrapper = dir.join("link.sh");
-                fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&object),quote(&clang))).unwrap();
-                fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+                let wrapper = linked_observer(&dir, "queued-observer.c");
                 let report = compile_source(
                     &source(text),
                     &CompileOptions {
@@ -726,5 +735,212 @@ fn retained_input_checks_real_owning_poll_arm_and_destinations() {
             zil_verify::verify_module_bytes(&wire, &target, &limits).is_ok(),
             change == 0
         );
+    }
+}
+
+#[test]
+fn inline_protocol_aggregates_follow_the_actual_continuation_and_cleanup_edge() {
+    let queued = include_str!(
+        "../../../tests/language-readiness/task-aggregate-results/queued-nested-result.zil"
+    );
+    let normal = format!(
+        "{}fn main({}",
+        INLINE_REGISTRATION.split_once("fn main(").unwrap().0,
+        queued.split_once("fn main(").unwrap().1,
+    );
+    let folded_tuple =
+        INLINE_REGISTRATION.replace("(give marker,give owner);", "((give marker,give owner),);");
+    let folded_enum = INLINE_CHILD.replace("manages Task<i32>", "manages (Task<i32>)");
+    let interrupted_tuple = INLINE_REGISTRATION
+        .replace("tuple_close_complete", "tuple_interrupted_complete")
+        .replace(
+            "    drive(&mut task);\n    task_request_cancel",
+            "    drive(&mut task);\n    drive(&mut task);\n    task_request_cancel",
+        )
+        .replace(
+            "    match task_poll_close(&mut task) {\n        std.task.Poll.Pending()=>{}\n        std.task.Poll.Ready(_)=>{task_finish_destroy(give task);return 6;}\n    }\n",
+            "",
+        );
+    let enum_return = INLINE_CHILD.replace(
+        "    match task_poll(&mut task) {\n        .err(_)=>{return 90;}\n        .ok(poll)=>{match poll {\n            Poll.Pending()=>{}\n            Poll.Ready(_)=>{}\n        }}\n    }",
+        "    loop {\n        match task_poll(&mut task) {\n            .err(_)=>{return 90;}\n            .ok(poll)=>{match poll {\n                Poll.Pending()=>{continue;}\n                Poll.Ready(_)=>{break;}\n            }}\n        }\n    }",
+    );
+    let cases = [
+        (
+            "tuple-cancel",
+            INLINE_REGISTRATION,
+            "inline-registration-tuple-observer.c",
+            "Anested tuple: no-future before release\n",
+        ),
+        (
+            "tuple-folded",
+            &folded_tuple,
+            "inline-registration-tuple-observer.c",
+            "Anested tuple: no-future before release\n",
+        ),
+        (
+            "tuple-return",
+            &normal,
+            "inline-registration-tuple-observer.c",
+            "Aqueued late entry rejected; no-future before two frees\n",
+        ),
+        (
+            "tuple-cancel-after-pending-drop",
+            &interrupted_tuple,
+            "inline-registration-tuple-observer.c",
+            "Anested tuple: cancelled after actual first drop Pending\n",
+        ),
+        (
+            "enum-cancel",
+            INLINE_CHILD,
+            "inline-task-enum-observer.c",
+            "AB selected child closed between its neighboring fields\n",
+        ),
+        (
+            "enum-folded",
+            &folded_enum,
+            "inline-task-enum-observer.c",
+            "AB selected child closed between its neighboring fields\n",
+        ),
+        (
+            "enum-return",
+            &enum_return,
+            "inline-task-enum-observer.c",
+            "AB selected child closed between its neighboring fields\n",
+        ),
+    ];
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            for (name, text, observer, stdout) in cases {
+                let dir = std::env::temp_dir().join(format!(
+                    "zil-inline-task-{}-{name}-{backend:?}-{optimization:?}",
+                    std::process::id()
+                ));
+                fs::create_dir_all(&dir).unwrap();
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        clang: Some(linked_observer(&dir, observer)),
+                        stop_after: Stage::Build,
+                        output: Some(dir.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{name}: {}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert_eq!(codegen.backend, backend);
+                assert!(codegen.fallback.is_none());
+                let executable = &report.artifacts["executable"];
+                let mut command = Command::new(executable);
+                if name == "tuple-return" {
+                    command
+                        .env("ZIL_ASYNC_NORMAL", "1")
+                        .env("ZIL_ASYNC_RESULT", "1");
+                }
+                let actual = command.output().unwrap();
+                assert_eq!(actual.status.code(), Some(0), "{name}: {actual:?}");
+                assert_eq!(actual.stdout, stdout.as_bytes(), "{name}: {actual:?}");
+                assert!(actual.stderr.is_empty(), "{name}: {actual:?}");
+                if name == "tuple-cancel" {
+                    let invalid = Command::new(executable)
+                        .env("ZIL_ASYNC_TRACE", "1")
+                        .env("ZIL_ASYNC_INVALID_DRAIN", "1")
+                        .output()
+                        .unwrap();
+                    assert_eq!(invalid.status.signal(), Some(4), "{invalid:?}");
+                    assert_eq!(
+                        invalid.stdout,
+                        b"installed live=2 drops=0\nAinvalid-provider live=2 drops=0\n"
+                    );
+                    assert!(invalid.stderr.is_empty(), "{invalid:?}");
+                }
+                fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+fn inline_protocol_aggregates_reject_moved_sources_and_forged_raw_cleanup() {
+    use zil_ir::InstructionKind;
+    let cases = [
+        INLINE_REGISTRATION.replace(
+            "let pair=(give marker,give owner);",
+            "let pair=(give marker,give owner);async_registration_valid(owner);",
+        ),
+        INLINE_CHILD.replace(
+            "let packet=Packet.Live(give before,give task,give after);",
+            "let packet=Packet.Live(give before,give task,give after);task_valid(task);",
+        ),
+        INLINE_CHILD.replace("manages Task<i32>", "manages Desc<Task<i32>>"),
+        INLINE_REGISTRATION.replace(
+            "    task_yield();",
+            "    task_yield();let (observed,registration)=pair;var active=give registration;async_registration_finish_destroy_checked(give active);",
+        ),
+    ];
+    for text in cases {
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+    }
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    for (text, swap_sources) in [
+        (INLINE_REGISTRATION, false),
+        (INLINE_CHILD, false),
+        (INLINE_CHILD, true),
+    ] {
+        let module = candidate(text, &limits, &target);
+        let plan = zil_analyze::analyze(&module, &limits).unwrap();
+        let clean_wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+        zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+        zil_verify::verify_module_bytes(&clean_wire, &target, &limits).unwrap();
+
+        let mut altered = module;
+        let worker = altered
+            .functions
+            .iter_mut()
+            .find(|row| row.name == "worker")
+            .unwrap();
+        let instruction = worker.blocks.iter_mut().flat_map(|block| &mut block.instructions)
+            .find(|instruction| if swap_sources {
+                matches!(&instruction.kind, InstructionKind::MakeVariant { fields, .. } if fields.len() == 3)
+            } else {
+                matches!(instruction.kind, InstructionKind::DropTuple { .. } | InstructionKind::DropEnum { .. })
+            }).unwrap();
+        match &mut instruction.kind {
+            InstructionKind::MakeVariant { fields, .. } => {
+                assert_eq!(
+                    worker.values[fields[0].0 as usize],
+                    worker.values[fields[2].0 as usize]
+                );
+                fields.swap(0, 2);
+            }
+            InstructionKind::DropTuple { local } | InstructionKind::DropEnum { local } => {
+                instruction.kind = InstructionKind::StorageDead(*local);
+            }
+            _ => unreachable!(),
+        }
+        assert!(zil_analyze::analyze(&altered, &limits).is_err());
+        let mut plan = plan;
+        plan.module_fingerprint = altered.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&altered, &plan, &limits).unwrap();
+        assert!(zil_verify::verify_module(altered, plan, &target, &limits).is_err());
+        assert!(zil_verify::verify_module_bytes(&wire, &target, &limits).is_err());
     }
 }

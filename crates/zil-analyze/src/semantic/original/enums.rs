@@ -797,6 +797,7 @@ impl Solver<'_, '_> {
 }
 
 pub(in crate::semantic) struct ActualConstructor {
+    pub(in crate::semantic) node: NodeId,
     pub(in crate::semantic) result: crate::semantic::value::Value,
     pub(in crate::semantic) value_member: bool,
     pub(in crate::semantic) variant: u32,
@@ -861,6 +862,7 @@ impl Checked {
             Solver::push(&mut payload, value, b)?;
         }
         Ok(Some(ActualConstructor {
+            node,
             result,
             value_member: constructor.value_member,
             variant: constructor.variant,

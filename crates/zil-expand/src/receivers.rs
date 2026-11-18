@@ -655,6 +655,16 @@ impl Expander<'_> {
     pub(super) fn type_ref(&self, ty: &s::TypeRef) -> Type {
         self.type_ref_in_host(ty, self.self_type.as_ref())
     }
+    pub(super) fn managed_field_type(&self, source: &s::TypeRef, ty: Type) -> Type {
+        let classify = |referent: &s::TypeRef| self.resource_kind_in_host(referent, self.self_type.as_ref());
+        match ty {
+            Type::Desc(payload) if bare_resource_syntax(source, &classify) => Type::Managed(payload),
+            Type::Managed(_) | Type::Desc(_) => Type::Unsupported(
+                "manages field requires an actual resource, not another carrier".into(),
+            ),
+            payload => Type::Managed(Box::new(payload)),
+        }
+    }
     pub(super) fn reference_type(&self, mutable: bool, inner: &s::TypeRef) -> Type {
         let classify =
             |referent: &s::TypeRef| self.resource_kind_in_host(referent, self.self_type.as_ref());

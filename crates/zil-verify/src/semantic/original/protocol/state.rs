@@ -70,6 +70,12 @@ pub(super) enum Value {
     FallibleTask(PendingTask),
     FallibleTaskOwned(Vec<Value>,PendingTask),
     Product(Vec<(String, Value)>),
+    Variant {
+        definition: SemanticDefinitionId,
+        tag: u32,
+        name: String,
+        fields: Vec<(String, Value)>,
+    },
     Poll {
         relations: Vec<Conditional>,
         tag: Option<ProtocolExit>,
@@ -81,7 +87,7 @@ impl Value {
     fn forget_observations(&mut self,root:Option<&Place>){
         match self{
             Self::Poll{relations,..}=>relations.retain(|row|root.is_some_and(|root|&row.root!=root)),
-            Self::Product(fields)=>for(_,value)in fields{value.forget_observations(root);},
+            Self::Product(fields) | Self::Variant {fields,..}=>for(_,value)in fields{value.forget_observations(root);},
             Self::FallibleTaskOwned(inputs,_)=>for value in inputs{value.forget_observations(root);},
             _=>{},
         }
@@ -91,6 +97,9 @@ impl Value {
             Self::Owner { root, .. } => place_width(root),
             Self::Product(fields) => fields.iter().fold(1usize, |n, (name, value)| {
                 n.saturating_add(name.len()).saturating_add(value.width())
+            }),
+            Self::Variant { name, fields, .. } => fields.iter().fold(name.len().saturating_add(3), |n, (field, value)| {
+                n.saturating_add(field.len()).saturating_add(value.width())
             }),
             Self::FallibleTaskOwned(fields,task) => fields
                 .iter()
@@ -143,7 +152,7 @@ impl State {
             match value{
                 Value::FreshTask(task)|Value::FallibleTask(task)=>{b.spend(task.width())?;task.sources=unknown_sources();task.states=LIVE;},
                 Value::FallibleTaskOwned(inputs,task)=>{b.spend(task.width())?;task.sources=unknown_sources();task.states=LIVE;for input in inputs{walk(input,b)?;}},
-                Value::Product(fields)=>for(_,value)in fields{walk(value,b)?;},
+                Value::Product(fields) | Value::Variant{fields,..} =>for(_,value)in fields{walk(value,b)?;},
                 _=>{},
             }Ok(())
         }
@@ -385,35 +394,6 @@ impl Engine<'_> {
     ) -> Check<()> {
         b.spend(state.width().saturating_add(binder_width(&binder)))?;
         let value = self.task_bind(state, &binder, value, b)?;
-        let value = if value == Value::Fresh {
-            if state
-                .owners
-                .get(&root_place(&binder))
-                .is_some_and(|owner| owner.states != DEAD)
-            {
-                return Err(unsupported(
-                    "original replacement reuses an owner birth while an earlier generation is live",
-                    None,
-                ));
-            }
-            let generation = self.generation(b)?;
-            state.owners.insert(
-                root_place(&binder),
-                Owner {
-                    states: LIVE,
-                    generation,
-                    task: false,
-                    owned: true,
-                    sources:unknown_sources(),
-                },
-            );
-            Value::Owner {
-                root: root_place(&binder),
-                borrowed: false,
-            }
-        } else {
-            value
-        };
         if let Some(Value::Owner {
             root,
             borrowed: false,

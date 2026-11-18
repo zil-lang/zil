@@ -160,6 +160,19 @@ fn read(v: &mut Vec<m::Inst>, prefix: &str, ptr: m::Val, index: u32) -> String {
 fn cursor(v: &mut Vec<m::Inst>, node: m::Val) -> String {
     field(v, "owner.cursor", node, 6)
 }
+pub(super) fn poll_inline(v: &mut Vec<m::Inst>, owners: Option<&OwnerFrame>, index: usize, prefix: &str, meter: &Meter) -> CompileResult<()> {
+    meter.spend(prefix.len().saturating_add(256))?;
+    let Some((poll, _, true)) = owners.and_then(|owners| owners.pollable.get(index)).and_then(Option::as_ref) else {
+        return invalid("E-CODEGEN-TASK", "inline drop selects no verified resumable frame owner", None);
+    };
+    let node = loc(format!("task.owner.{index}"));
+    let payload = read(v, &format!("{prefix}.payload"), node.clone(), 3);
+    let progress = field(v, &format!("{prefix}.cursor"), node, 6);
+    call(v, Some(&format!("{prefix}.ready")), m::Ty::Int(1), m::global(poll.clone()), vec![
+        m::Arg::new(m::Ty::Ptr, loc(payload)), m::Arg::new(m::Ty::Ptr, loc(progress)),
+    ]);
+    Ok(())
+}
 fn cursor_abi(v: &mut Vec<m::Inst>, node: m::Val) -> String {
     let flag = field(v, "owner.inline", node, 7);
     load(v, "inline", m::Ty::Int(1), loc(flag));

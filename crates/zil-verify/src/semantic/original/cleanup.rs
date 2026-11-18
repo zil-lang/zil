@@ -124,7 +124,45 @@ impl CheckedOriginal {
             let ty=self.resolved(ty,b)?;
             let fields=match &ty{
                 Ty::Tuple(fields)=>fields.iter().enumerate().map(|(index,field)|(index.to_string(),field.clone())).collect::<Vec<_>>(),
-                Ty::Nominal(id,arguments)=>{if self.custom_drop(module,*id,b)?{if !partial&&self.sync_drop(module,context,&ty,env,active,b)?{return Ok(());}return Err(bad("original field cleanup cannot replace a custom whole Drop"));}let definition=context.definition(module,*id,b)?;let SemanticDefinitionBody::Nominal{body:SemanticNominalBody::Product{fields},..}=&definition.body else{return Err(unsupported("original partial cleanup requires exact finite product fields",None));};let mut selected=self.environment(module,context,*id,active,b)?;selected.lexical[0].actuals=arguments.clone();let mut result=Vec::new();for field in fields{result.push((field.name.clone(),self.ty(module,context,&field.ty,&selected,active,b)?));}result},
+                Ty::Nominal(id, arguments) => {
+                    if self.custom_drop(module, *id, b)? {
+                        if !partial && self.sync_drop(module, context, &ty, env, active, b)? {
+                            return Ok(());
+                        }
+                        return Err(bad("original field cleanup cannot replace a custom whole Drop"));
+                    }
+                    let definition = context.definition(module, *id, b)?;
+                    let mut selected = self.environment(module, context, *id, active, b)?;
+                    selected.lexical[0].actuals = arguments.clone();
+                    let mut children = Vec::new();
+                    match &definition.body {
+                        SemanticDefinitionBody::Nominal { body: SemanticNominalBody::Product { fields }, .. } => {
+                            for field in fields {
+                                children.push((
+                                    field.name.clone(),
+                                    self.ty(module, context, &field.ty, &selected, active, b)?,
+                                ));
+                            }
+                        }
+                        SemanticDefinitionBody::Nominal { body: SemanticNominalBody::Enum { variants }, .. }
+                            if nested_task && !partial =>
+                        {
+                            for (tag, variant) in variants.iter().enumerate() {
+                                b.spend(variant.fields.len().saturating_add(1))?;
+                                let tag = u32::try_from(tag).map_err(|_| limit("original enum cleanup ordinal overflow"))?;
+                                for (index, field) in variant.fields.iter().enumerate() {
+                                    b.spend(32)?;
+                                    children.push((
+                                        super::protocol::owner_variant_field(tag, index),
+                                        self.ty(module, context, field, &selected, active, b)?,
+                                    ));
+                                }
+                            }
+                        }
+                        _ => return Err(unsupported("original partial cleanup requires exact finite owning fields", None)),
+                    }
+                    children
+                },
                 Ty::Closure(definition,arguments,sealed)=>{
                     self.capture_creator_moves(*definition)?;
                     let mut owned=Vec::new();

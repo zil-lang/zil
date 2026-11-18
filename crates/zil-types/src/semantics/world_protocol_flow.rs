@@ -763,9 +763,13 @@ fn instruction(
             let mut roots = BTreeSet::new();
             if let Some(value) = state.locals.get(local.0 as usize).and_then(Option::as_ref) {
                 let resumable = f.call_kind == CallKind::Suspend
-                    && matches!(instruction.kind, InstructionKind::DropManaged { .. })
-                    && f.locals.get(local.0 as usize).is_some_and(|slot| matches!(&slot.ty,
-                        Type::Managed(head) if matches!(head.as_ref(), Type::AsyncRegistration { .. })));
+                    && f.locals.get(local.0 as usize).is_some_and(|slot| match (&instruction.kind, &slot.ty) {
+                        (InstructionKind::DropManaged { .. }, Type::Managed(head)) => {
+                            matches!(head.as_ref(), Type::AsyncRegistration { .. })
+                        }
+                        (InstructionKind::DropTuple { .. }, Type::Tuple(_)) => true,
+                        _ => false,
+                    });
                 cleanup_roots(world, state, value, &mut roots, resumable)?;
             }
             for root in roots {

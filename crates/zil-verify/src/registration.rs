@@ -685,30 +685,31 @@ pub(super) fn storage(module: &TypedModule, budget: &mut Budget) -> Check<()> {
     let roots = module
         .resources
         .iter()
-        .map(|r| (&r.payload, false))
+        .map(|r| (&r.payload, false, false))
         .chain(
             module
                 .functions
                 .iter()
                 .flat_map(|f| {
+                    let frame_tuple = f.call_kind == CallKind::Suspend && f.foreign.is_none();
                     f.values
                         .iter()
                         .chain(f.locals.iter().map(|l| &l.ty))
-                        .chain(std::iter::once(&f.return_type))
-                })
-                .map(|t| (t, false)),
+                        .map(move |t| (t, false, frame_tuple))
+                        .chain(std::iter::once((&f.return_type, false, false)))
+                }),
         )
         .chain(module.closures.iter().flat_map(|c| {
-            c.captures.iter().map(|t| (t, true)).chain(
+            c.captures.iter().map(|t| (t, true, false)).chain(
                 c.parameters
                     .iter()
                     .chain(std::iter::once(&c.result))
-                    .map(|t| (t, false)),
+                    .map(|t| (t, false, false)),
             )
         }));
-    for (root, blocked) in roots {
-        let mut pending = vec![(root, blocked)];
-        while let Some((ty, blocked)) = pending.pop() {
+    for (root, blocked, frame_tuple) in roots {
+        let mut pending = vec![(root, blocked, frame_tuple)];
+        while let Some((ty, blocked, frame_tuple)) = pending.pop() {
             budget.spend(1)?;
             if blocked && matches!(ty, Type::AsyncRegistration { .. }) {
                 return Err(error(
@@ -755,6 +756,9 @@ pub(super) fn storage(module: &TypedModule, budget: &mut Budget) -> Check<()> {
                     children.push(element.as_ref());
                 }
                 Type::Record { fields, .. } => children.extend(fields.iter().map(|(_, t)| t)),
+                // These are actual positions in a verified continuation. The
+                // independent resource transfer still checks each live drop.
+                Type::Tuple(fields) if frame_tuple => children.extend(fields),
                 Type::Tuple(fields) => {
                     let mut present = false;
                     for (f, args) in &actual_creations {
@@ -810,7 +814,8 @@ pub(super) fn storage(module: &TypedModule, budget: &mut Budget) -> Check<()> {
                 }
                 _ => {}
             }
-            pending.extend(children.into_iter().map(|t| (t, blocked)));
+            let frame_tuple = frame_tuple && matches!(ty, Type::Tuple(_));
+            pending.extend(children.into_iter().map(|t| (t, blocked, frame_tuple)));
         }
     }
     Ok(())

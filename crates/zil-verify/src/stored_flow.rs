@@ -25,6 +25,12 @@ mod finite_fields;
 mod foreign_calls;
 mod value_transport;
 
+pub(super) fn inline_frame_cleanup(
+    module: &TypedModule, function: &TypedFunction, ty: &Type, b: &mut Budget,
+) -> Check<bool> {
+    pure_copy::frame_protocol_aggregate(module, function, ty, b)
+}
+
 pub(crate) fn finite_field_borrow(
     module: &TypedModule,
     f: &TypedFunction,
@@ -8086,6 +8092,8 @@ fn check_with_mask(
             let ordinary_value = super::stored_owned::ordinary_store_value(module, ty, b)?
                 || super::stored_owned::ordinary_byte_value(ty, b)?
                 || pure_copy::complete_owned_value(module, ty, b)?
+                || type_ordinal < f.locals.len().saturating_add(f.values.len())
+                    && pure_copy::frame_protocol_aggregate(module, f, ty, b)?
                 || shared_tuple_value(module, ty, Some(f.span), b)?
                 || matches!(ty,Type::Address{inner,..}if shared_tuple_value(module,inner,Some(f.span),b)?)
                 || pure_copy::callable_tuple(module, ty, b)?

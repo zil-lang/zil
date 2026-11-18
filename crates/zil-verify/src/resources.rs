@@ -1305,6 +1305,11 @@ impl Transfer<'_> {
                             if matches!(payload.as_ref(), Type::Task { .. } | Type::AsyncRegistration { .. })),
                     InstructionKind::DropClosure { local } => tasks::needs_synchronous_proof(
                         self.module, &f.locals[local.0 as usize].ty, budget)?,
+                    InstructionKind::DropTuple { local } | InstructionKind::DropEnum { local } => {
+                        crate::stored_flow::inline_frame_cleanup(
+                            self.module, f, &f.locals[local.0 as usize].ty, budget,
+                        )?
+                    }
                     _ => false,
                 }
             } else { false };

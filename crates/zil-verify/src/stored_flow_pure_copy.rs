@@ -709,6 +709,60 @@ pub(super) fn physical_tuple_payload(p:&Payload,b:&mut Budget)->Check<()>{
     payload_work(p,b)
 }
 
+pub(super) fn frame_protocol_aggregate(module: &TypedModule, f: &TypedFunction, ty: &Type, b: &mut Budget) -> Check<bool> {
+    if f.call_kind != CallKind::Suspend || f.foreign.is_some() || !matches!(ty, Type::Tuple(_) | Type::Enum { .. }) {
+        return Ok(false);
+    }
+    let mut pending = vec![(ty, 0usize)];
+    let mut protocol_leaf = false;
+    while let Some((ty, depth)) = pending.pop() {
+        b.spend(1)?;
+        if depth > b.limits.max_call_depth {
+            return Err(limit("continuation aggregate storage depth exceeded"));
+        }
+        match ty {
+            Type::Tuple(fields) => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|child| (child, depth + 1)));
+            }
+            Type::Enum { variants, .. } => {
+                b.spend(variants.len())?;
+                for (_, fields) in variants {
+                    b.spend(fields.len())?;
+                    pending.extend(fields.iter().map(|child| (child, depth + 1)));
+                }
+            }
+            Type::Managed(payload) => {
+                let admitted = match payload.as_ref() {
+                    Type::Task { result, retained_life } => {
+                        retained_life.binder_count == 0 && retained_life.ports.is_empty()
+                            && retained_life.retained.is_empty() && retained_life.nominal_arguments.is_empty()
+                            && crate::stored_owned::target_free_value(module, result, b)?
+                    }
+                    Type::AsyncRegistration { environment } if b.async_registrations => {
+                        if let Type::Closure(id) = environment.as_ref() {
+                            let (count, _) = crate::dynamic_witness::intrinsic_domain(module, environment, b)?;
+                            count == 0 && returned_environment::leaves(module, *id, b)?.is_empty()
+                        } else { false }
+                    }
+                    _ => false,
+                };
+                if admitted {
+                    // The independent registration/Task resource and frame
+                    // kernels still prove the actual root and every live drop.
+                    protocol_leaf = true;
+                } else if !crate::stored_owned::target_free_value(module, ty, b)? {
+                    return Ok(false);
+                }
+            }
+            _ => if !crate::stored_owned::target_free_value(module, ty, b)? {
+                return Ok(false);
+            },
+        }
+    }
+    Ok(protocol_leaf)
+}
+
 // Ordinary affine products may have no stored targets while still owning
 // resources. Complete actual type and Sum checks precede their transfers;
 // neither this lane nor a zero domain discharges tag/init/debt/cleanup facts.
@@ -718,7 +772,13 @@ pub(super) fn ordinary_owned_tuple(module:&TypedModule,f:&TypedFunction,i:&Instr
         InstructionKind::UnpackTuple{local,..}|InstructionKind::DropTuple{local}|InstructionKind::TakeTupleField{local,..}=>&f.locals.get(local.0 as usize).ok_or_else(||err("ordinary owning Tuple has no actual local"))?.ty,
         _=>return Ok(false),
     };
-    if !matches!(ty,Type::Tuple(_))||ty.is_copy_value()||!(complete_owned_value(module,ty,b)?||callable_tuple(module,ty,b)?){return Ok(false);}
+    if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() { return Ok(false); }
+    if !complete_owned_value(module, ty, b)? && !callable_tuple(module, ty, b)? {
+        if !frame_protocol_aggregate(module, f, ty, b)? { return Ok(false); }
+        if matches!(i.kind, InstructionKind::TakeTupleField { .. }) {
+            return Err(unsupported("a projected move in this resumable tuple requires an exact per-field frame drop flag", Some(i.span)));
+        }
+    }
     crate::sums::check_instruction(f,i,&b.limits.clone(),b)?;
     Ok(true)
 }
@@ -1180,7 +1240,13 @@ pub(super) fn ordinary_owned_enum(module:&TypedModule,f:&TypedFunction,i:&Instru
     };
     let Type::Enum{variants,..}=ty else{return Ok(false);};
     type_work(ty,&b.limits.clone(),b)?;
-    if ty.is_copy_value()||!complete_owned_fields(module,vec![(ty,0)],b)?{return Ok(false);}
+    if ty.is_copy_value() { return Ok(false); }
+    if !complete_owned_fields(module, vec![(ty, 0)], b)? {
+        if !frame_protocol_aggregate(module, f, ty, b)? { return Ok(false); }
+        if matches!(i.kind, InstructionKind::TakeVariantField { .. }) {
+            return Err(unsupported("a projected move in this resumable enum requires an exact per-field frame drop flag", Some(i.span)));
+        }
+    }
     if enum_local(&i.kind).is_some() {
         let expected = crate::sums::check_instruction(f, i, &b.limits.clone(), b)?;
         let actual = i.result.map(|value| vt(f, value)).transpose()?;

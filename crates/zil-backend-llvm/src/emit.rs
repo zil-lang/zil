@@ -1639,6 +1639,12 @@ impl FunctionEmitter<'_> {
                             .is_some()
                     } else {
                         false
+                    }
+                    || match instruction.kind {
+                        InstructionKind::DropTuple { local } | InstructionKind::DropEnum { local } => {
+                            self.inline_drop_owner_at(block.id, index, local)?.is_some()
+                        }
+                        _ => false,
                     };
                 // The paid whole-CFG may-owner proof must be vacant on every
                 // incoming path. A same-block scan misses moves before a branch.

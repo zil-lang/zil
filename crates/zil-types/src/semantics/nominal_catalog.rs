@@ -838,6 +838,24 @@ impl<'a> Check<'a, '_> {
                 p.push(LifeTypeProjection::Element);
                 self.types(owner, inner, actual, &p, depth + 1)
             }
+            (
+                SemanticTypeRecipe::Task { result, retained },
+                Type::Task { result: actual, retained_life },
+            ) if retained.domain.parts.is_empty()
+                && retained.ports.is_empty()
+                && retained.retained.is_empty()
+                && retained.nominal.is_empty()
+                && retained_life.binder_count == 0
+                && retained_life.ports.is_empty()
+                && retained_life.retained.is_empty()
+                && retained_life.nominal_arguments.is_empty()
+                && self.domain(actual, depth + 1)? == 0 =>
+            {
+                self.pay(path.len().saturating_add(1))?;
+                let mut result_path = path.to_vec();
+                result_path.push(LifeTypeProjection::Result);
+                self.types(owner, result, actual, &result_path, depth + 1)
+            }
             (SemanticTypeRecipe::Managed(inner), Type::Managed(actual))
             | (SemanticTypeRecipe::Mutex(inner), Type::Mutex { payload: actual })
             | (

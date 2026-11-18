@@ -184,7 +184,10 @@ impl Flow {
                     block
                         .instructions
                         .iter()
-                        .any(|i| matches!(i.kind, InstructionKind::TaskCreateOwned { .. }))
+                        .any(|i| matches!(
+                            i.kind,
+                            InstructionKind::TaskCreateOwned { .. } | InstructionKind::MakeOwnedTuple { .. }
+                        ))
                 })
                 .then(|| products::Products::new(f)),
             phases: vec![0; n],

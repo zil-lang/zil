@@ -2174,9 +2174,9 @@ enum Term {
         error: Rc<Term>,
         result: Rc<Term>,
     },
-    /// Inference-only original input products before concrete ClosureIds exist.
-    /// Ordinary Types and both kernels still prove their actual owned shape.
-    InputTuple(Rc<Vec<Term>>),
+    /// Inline products whose actual fields have not finished forming.
+    /// Keep each originating term until the normal Builder emits the value.
+    DeferredTuple(Rc<Vec<Term>>),
     CreateFailure(Rc<Vec<Term>>),
     PendingTask(Rc<PendingTask>, bool),
     Function(Rc<Signature>),
@@ -3351,7 +3351,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 self.insert(name, term.clone(), mutable, pattern.span)
             }
             (CorePatternKind::Wildcard, _) => Ok(()),
-            (CorePatternKind::Tuple(patterns), Term::InputTuple(fields))
+            (CorePatternKind::Tuple(patterns), Term::DeferredTuple(fields))
                 if patterns.len() == fields.len() =>
             {
                 self.budget.work(fields.len(), pattern.span)?;
@@ -3415,7 +3415,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
     }
     fn bind_term(&mut self, term: &Term, ty: &Type, span: Span) -> R<()> {
-        if let Term::InputTuple(fields) = term {
+        if let Term::DeferredTuple(fields) = term {
             let Type::Tuple(wanted) = ty else {
                 return Err(error(
                     "E-TYPE-MISMATCH",
@@ -3572,7 +3572,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             return self.graph.unify(a, b, span);
         }
         match (left, right) {
-            (Term::InputTuple(a), Term::InputTuple(b)) => {
+            (Term::DeferredTuple(a), Term::DeferredTuple(b)) => {
                 self.budget.work(a.len().saturating_add(b.len()), span)?;
                 if a.len() != b.len() {
                     return Err(error(
@@ -3586,7 +3586,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 }
                 Ok(())
             }
-            (Term::InputTuple(_), Term::Scalar(variable)) => {
+            (Term::DeferredTuple(_), Term::Scalar(variable)) => {
                 let ty = self.graph.ty(*variable)?.ok_or_else(|| {
                     unsupported(
                         span,
@@ -3595,7 +3595,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 })?;
                 self.bind_term(left, &ty, span)
             }
-            (Term::Scalar(_), Term::InputTuple(_)) => self.unify(right, left, span),
+            (Term::Scalar(_), Term::DeferredTuple(_)) => self.unify(right, left, span),
             (Term::PendingTask(a, am), Term::PendingTask(b, bm)) if am == bm => {
                 self.unify(&a.result, &b.result, span)?;
                 if !Rc::ptr_eq(a, b) {
@@ -3802,7 +3802,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 | Term::ValueStore(..)
                 | Term::ValueAddress(..)
                 | Term::ValueUnion { .. }
-                | Term::InputTuple(_)
+                | Term::DeferredTuple(_)
                 | Term::CreateFailure(_)
                 | Term::PendingTask(..)
                 | Term::ClosureAddress(..)
@@ -4055,7 +4055,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     if let Some(ty) = ty {
                         self.bind_term(&value, ty, statement.span)?;
                     }
-                    if matches!(value, Term::InputTuple(_)) {
+                    if matches!(value, Term::DeferredTuple(_)) {
                         self.input_pattern(pattern, &value, *mutable, depth + 1)?;
                         self.binding_types.insert(index, value);
                         continue;
@@ -6323,7 +6323,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         if let Term::CreateFailure(inputs) = &object_type {
             self.budget.work(inputs.len().saturating_add(1), span)?;
             return match member.as_str() {
-                "inputs" => Ok(Term::InputTuple(inputs.clone())),
+                "inputs" => Ok(Term::DeferredTuple(inputs.clone())),
                 "reason" => self.known_term(&tasks::create_error(), span),
                 _ => Err(error(
                     "E-UNKNOWN-FIELD",
@@ -6332,7 +6332,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 )),
             };
         }
-        if let Term::InputTuple(inputs) = &object_type {
+        if let Term::DeferredTuple(inputs) = &object_type {
             self.budget.work(inputs.len().saturating_add(1), span)?;
             let index = member.parse::<usize>().map_err(|_| {
                 error(
@@ -6601,12 +6601,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
         let mut deferred = false;
         for term in &terms {
-            deferred |= self.contains_pending_task(term, depth + 1, span)?;
+            deferred |= self.has_deferred_tuple_field(term, depth + 1, span)?;
         }
         if deferred {
-            // Carry the real component terms. Reconstructing a Type here would
-            // publish a Task context before its worker/capture domain exists.
-            return Ok(Term::InputTuple(Rc::new(terms)));
+            // A Task or registration field needs its actual worker or
+            // environment before the concrete aggregate Type can be formed.
+            return Ok(Term::DeferredTuple(Rc::new(terms)));
         }
         let mut fields = Vec::new();
         for (item, term) in items.iter().zip(terms) {
@@ -6653,21 +6653,21 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         Ok(Term::Scalar(result))
     }
 
-    fn contains_pending_task(&mut self, term: &Term, depth: usize, span: Span) -> R<bool> {
+    fn has_deferred_tuple_field(&mut self, term: &Term, depth: usize, span: Span) -> R<bool> {
         self.budget.node(depth, span)?;
         match term {
-            Term::PendingTask(..) => Ok(true),
+            Term::PendingTask(..) | Term::Registration(_, true, true) => Ok(true),
             Term::ValueAddress(inner, _)
             | Term::ValueStore(inner, _)
-            | Term::Registration(inner, ..) => self.contains_pending_task(inner, depth + 1, span),
+            | Term::Registration(inner, ..) => self.has_deferred_tuple_field(inner, depth + 1, span),
             Term::ValueUnion { error, result } => {
-                Ok(self.contains_pending_task(error, depth + 1, span)?
-                    | self.contains_pending_task(result, depth + 1, span)?)
+                Ok(self.has_deferred_tuple_field(error, depth + 1, span)?
+                    | self.has_deferred_tuple_field(result, depth + 1, span)?)
             }
-            Term::InputTuple(fields) | Term::CreateFailure(fields) => {
+            Term::DeferredTuple(fields) | Term::CreateFailure(fields) => {
                 let mut found = false;
                 for field in fields.iter() {
-                    found |= self.contains_pending_task(field, depth + 1, span)?;
+                    found |= self.has_deferred_tuple_field(field, depth + 1, span)?;
                 }
                 Ok(found)
             }

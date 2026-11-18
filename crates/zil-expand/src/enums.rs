@@ -10,7 +10,7 @@ impl Expander<'_> {
             if let s::VariantFields::Tuple(fields) = &variant.fields {
                 for field in fields {
                     if field.manages
-                        && !matches!(&field.ty.kind, s::TypeKind::Named { path, .. } if path.as_slice() != ["Ref"])
+                        && !matches!(&receivers::ungroup_resource(&field.ty).kind, s::TypeKind::Named { path, .. } if path.as_slice() != ["Ref"])
                     {
                         self.unsupported("manages enum field requires a resource nominal type, not a borrowed type", field.span);
                     }
@@ -27,7 +27,7 @@ impl Expander<'_> {
                     .map(|field| {
                         let ty = self.dyn_type_ref(&field.ty);
                         if field.manages {
-                            Type::Managed(Box::new(ty))
+                            self.managed_field_type(&field.ty, ty)
                         } else {
                             ty
                         }
@@ -47,7 +47,10 @@ impl Expander<'_> {
                     } else {
                         fields
                             .iter()
-                            .map(|field| self.dyn_type_ref(&field.ty))
+                            .map(|field| {
+                                let ty = self.dyn_type_ref(&field.ty);
+                                if field.manages { self.managed_field_type(&field.ty, ty) } else { ty }
+                            })
                             .collect()
                     }
                 }

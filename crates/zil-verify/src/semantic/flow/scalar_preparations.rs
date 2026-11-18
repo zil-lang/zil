@@ -27,7 +27,7 @@ pub(super) fn unpacked_slot(
     slot_kind(f, local, true, SlotKind::Scalar, Some(at), b)
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum SlotKind { Scalar, Owned, CopyValue }
+enum SlotKind { Scalar, Owned, Managed, CopyValue }
 fn slot_kind(
     f: &TypedFunction,
     local: LocalId,
@@ -45,9 +45,10 @@ fn slot_kind(
         return Ok(None);
     }
     let ty = &declaration.ty;
-    let owned=kind==SlotKind::Owned;
+    let owned=matches!(kind, SlotKind::Owned | SlotKind::Managed);
     let eligible=match kind {
         SlotKind::Owned=>matches!(ty, Type::Closure(_)),
+        SlotKind::Managed=>matches!(ty, Type::Managed(_)),
         SlotKind::Scalar=>ty.is_integer()||ty.is_float()||matches!(ty,Type::Unit|Type::Bool),
         SlotKind::CopyValue=>{
             crate::stored_flow::type_work(ty, &b.limits.clone(), b)?;
@@ -99,7 +100,6 @@ fn slot_kind(
                 | InstructionKind::BindPackageCapture { local: actual, .. }
                 | InstructionKind::EndPackageCapture { local: actual, .. }
                 | InstructionKind::DescribeLocal { local: actual }
-                | InstructionKind::DropManaged { local: actual }
                 | InstructionKind::BorrowLocal { local: actual }
                 | InstructionKind::BorrowLocalMut { local: actual }
                 | InstructionKind::DropMutexGuard { local: actual }
@@ -138,8 +138,13 @@ fn slot_kind(
                         return Ok(None);
                     }
                 }
-                InstructionKind::DropClosure { local: actual } if *actual == local => {
-                    if !owned {
+                InstructionKind::DropClosure { local: actual } | InstructionKind::DropManaged { local: actual }
+                    if *actual == local =>
+                {
+                    let expected = matches!((kind, &instruction.kind),
+                        (SlotKind::Owned, InstructionKind::DropClosure { .. })
+                        | (SlotKind::Managed, InstructionKind::DropManaged { .. }));
+                    if !expected {
                         return Ok(None);
                     }
                 }
@@ -193,7 +198,19 @@ pub(in crate::semantic::flow) fn owning_source(
     local: LocalId,
     b: &mut Budget,
 ) -> Check<Option<ValueId>> {
-    let Some(slot) = slot_kind(f, local, false, SlotKind::Owned, None, b)? else {
+    owning_source_kind(module, f, block, at, local, SlotKind::Owned, b)
+}
+
+pub(in crate::semantic::flow) fn managed_source(
+    module: &TypedModule, f: &TypedFunction, block: BlockId, at: u32, local: LocalId, b: &mut Budget,
+) -> Check<Option<ValueId>> {
+    owning_source_kind(module, f, block, at, local, SlotKind::Managed, b)
+}
+
+fn owning_source_kind(
+    module: &TypedModule, f: &TypedFunction, block: BlockId, at: u32, local: LocalId, kind: SlotKind, b: &mut Budget,
+) -> Check<Option<ValueId>> {
+    let Some(slot) = slot_kind(f, local, false, kind, None, b)? else {
         return Ok(None);
     };
     let [(store_block, store_at, value)] = slot.stores.as_slice() else {
@@ -241,7 +258,8 @@ pub(in crate::semantic::flow) fn owning_source(
     for body in &f.blocks {
         b.spend(body.instructions.len())?;
         for (index, instruction) in body.instructions.iter().enumerate() {
-            if matches!(instruction.kind,InstructionKind::DropClosure{local:actual}if actual==local)
+            if matches!(instruction.kind,
+                InstructionKind::DropClosure{local:actual} | InstructionKind::DropManaged{local:actual} if actual==local)
                 && !closure_boundaries::creation_dominates(
                     f,
                     take_point,

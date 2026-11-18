@@ -12,6 +12,17 @@ pub(super) fn cleanup_group(module: &zil_ir::TypedModule, ty: &Type, meter: &Met
 }
 pub(super) fn group_marker(id: ClosureId) -> String { owner_groups::symbol(id, "marker") }
 
+const INLINE_DROP_MARKER: &str = "zil.task.inline.retire.marker";
+pub(super) fn inline_drop_marker(owner: usize) -> m::Event {
+    m::Event::Instruction(inst(None, m::Op::Call {
+        result: m::Ty::Void,
+        result_attrs: vec![],
+        callee: m::global(INLINE_DROP_MARKER.into()),
+        args: vec![m::Arg::new(m::Ty::Int(32), owner)],
+        vararg: None,
+    }))
+}
+
 const STATE: u32 = 4;
 const PC: u32 = 5;
 const CANCEL: u32 = 6;
@@ -1003,7 +1014,7 @@ fn lower_worker(layouts: &LayoutContext<'_>,
                 );
                 pieces.push(current);
                 current = block(&next, vec![]);
-            } else if matches!(&i.op,m::Op::Call{callee:m::Val::Global(n),..} if n=="zil.async_registration.drop.marker" || n=="zil.task.drop.marker" || n.starts_with("zil.task.group.") && n.ends_with(".marker"))
+            } else if matches!(&i.op,m::Op::Call{callee:m::Val::Global(n),..} if n==INLINE_DROP_MARKER || n=="zil.async_registration.drop.marker" || n=="zil.task.drop.marker" || n.starts_with("zil.task.group.") && n.ends_with(".marker"))
             {
                 let m::Op::Call {
                     args,
@@ -1027,13 +1038,18 @@ fn lower_worker(layouts: &LayoutContext<'_>,
                 let pc = pieces.len();
                 resumes.insert(pc);
                 let mut drain = vec![];
-                call(
-                    &mut drain,
-                    Some(&format!("{prefix}.ready")),
-                    m::Ty::Int(1),
-                    m::global(poll_drop.into()),
-                    args.clone(),
-                );
+                if marker == INLINE_DROP_MARKER {
+                    let [m::Arg { value: m::Val::Int(raw_owner), .. }] = args.as_slice() else {
+                        return invalid("E-CODEGEN-TASK", "resumable inline drop has no exact frame owner", None);
+                    };
+                    let index = usize::try_from(*raw_owner).map_err(|_| vec![Diagnostic::error(
+                        Phase::Codegen, "E-CODEGEN-TASK", None, "resumable inline drop owner index is invalid",
+                    )])?;
+                    owners::poll_inline(&mut drain, owners.as_ref(), index, &prefix, meter)?;
+                } else {
+                    call(&mut drain, Some(&format!("{prefix}.ready")), m::Ty::Int(1),
+                        m::global(poll_drop.into()), args.clone());
+                }
                 cond(
                     &mut drain,
                     &format!("{prefix}.ready"),

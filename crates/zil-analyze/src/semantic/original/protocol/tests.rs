@@ -74,6 +74,12 @@ fn returned_input_owner_cannot_disappear_through_a_nested_aggregate_or_opaque_ca
     // then supplied a source-free argument to the unknown call.
     let hidden = expr(CoreExprKind::Tuple(vec![expr(CoreExprKind::Tuple(vec![
         expr(CoreExprKind::Name("inputs".into()))]))]));
+    let mut projected = proof.expression(&mut state, &hidden, &mut budget, 0).unwrap();
+    for index in [0, 0, 0] {
+        projected = projected.project(PlaceProjection::Field(index), &mut budget).unwrap();
+    }
+    assert!(projected.sources.contains(input_role, &mut budget).unwrap());
+    assert!(!projected.sources.contains(task_role, &mut budget).unwrap());
     let call = expr(CoreExprKind::Call { callee: Box::new(expr(CoreExprKind::Name("opaque".into()))),
         arguments: vec![hidden] });
     let errors = proof.expression(&mut state, &call, &mut budget, 0)

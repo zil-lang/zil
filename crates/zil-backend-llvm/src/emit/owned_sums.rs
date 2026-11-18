@@ -487,7 +487,13 @@ impl FunctionEmitter<'_> {
         instruction: &Instruction,
         local: LocalId,
     ) -> CompileResult<()> {
-        if self.drop_partial_place(local)? {
+        let owner = if let Some((block, index)) = self.current_instruction {
+            self.inline_drop_owner_at(block, index, local)?
+        } else { None };
+        if owner.is_some() && self.partial_sums.contains_key(&local) {
+            return invalid("E-CODEGEN-TASK", "resumable sum drop is missing its actual field flags", Some(instruction.span));
+        }
+        if owner.is_none() && self.drop_partial_place(local)? {
             return Ok(());
         }
         let ty = self.local_type(local)?.clone();
@@ -529,32 +535,52 @@ impl FunctionEmitter<'_> {
             },
         )));
         self.event(m::Event::Label(format!("sum.drop.{label}")));
-        self.event(m::Event::Instruction(m::Inst::new(
+        let clear = m::Event::Instruction(m::Inst::new(
             None,
             m::Op::Store {
                 arg: m::Arg::new(m::Ty::Int(1), false),
                 ptr: m::local(format!("resource.live.{}", local.0)),
                 align: 1,
             },
-        )));
-        self.event(m::Event::Instruction(m::Inst::new(
-            None,
-            m::Op::Call {
-                result: m::Ty::Void,
-                result_attrs: vec![],
-                callee: m::global(drop_plan::symbol(&ty)),
-                args: vec![m::Arg::new(
-                    m::Ty::Ptr,
-                    m::local(format!("local.{}", local.0)),
-                )],
-                vararg: None,
-            },
-        )));
+        ));
+        if let Some(owner) = owner {
+            self.event(tasks::inline_drop_marker(owner));
+            self.event(clear);
+        } else {
+            self.event(clear);
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Call {
+                    result: m::Ty::Void,
+                    result_attrs: vec![],
+                    callee: m::global(drop_plan::symbol(&ty)),
+                    args: vec![m::Arg::new(m::Ty::Ptr, m::local(format!("local.{}", local.0)))],
+                    vararg: None,
+                },
+            )));
+        }
         self.event(m::Event::Instruction(m::Inst::new(
             None,
             m::Op::Branch(format!("sum.done.{label}")),
         )));
         self.event(m::Event::Label(format!("sum.done.{label}")));
         Ok(())
+    }
+
+    pub(super) fn inline_drop_owner_at(&self, block: BlockId, index: usize, local: LocalId) -> CompileResult<Option<usize>> {
+        use zil_verify::{TaskOwnerAction, TaskOwnerSlot};
+        let Some(plan) = self.task_ownership else { return Ok(None); };
+        let Some(actions) = plan.actions_at(block, index) else { return Ok(None); };
+        self.machine_meter.spend(actions.before().len().saturating_add(plan.boundaries().len()).saturating_add(1))?;
+        let owner = actions.before().iter().find_map(|action| match action {
+            TaskOwnerAction::Unlink(owner) if plan.owners()[*owner].slot() == TaskOwnerSlot::Local(local) => Some(*owner),
+            _ => None,
+        });
+        let Some(owner) = owner else { return Ok(None); };
+        if let Some(boundary) = plan.boundaries().iter().find(|row| row.block() == block && row.instruction() == index) {
+            self.machine_meter.spend(boundary.may_live().len())?;
+            if boundary.may_live().contains(&owner) { return Ok(Some(owner)); }
+        }
+        Ok(None)
     }
 }

@@ -446,18 +446,18 @@ impl Proof<'_, '_> {
                     .enum_constructors
                     .get(&(self.definition.id, value.id))
                 {
-                    if actuals.iter().any(|data| data.sources.has_exact()) {
-                        return Err(unknown("original protocol constructor needs its complete owning payload source transport"));
-                    }
-                    let exposed = actuals.iter().any(Data::borrow_exposure);
-                    let Kind::Nominal { .. } =
+                    let Kind::Nominal { definition, .. } =
                         &self.checked.arena[self.checked.root(constructor.value, b)?]
                     else {
                         return Err(fail(
                             "original protocol tag loses its nominal member identity",
                         ));
                     };
+                    let exposed = actuals.iter().any(Data::borrow_exposure);
                     if self.term_poll(constructor.value, b)?.is_some() {
+                        if actuals.iter().any(|data| data.sources.has_exact()) {
+                            return Err(unknown("original protocol Poll construction requires its complete owning payload relation"));
+                        }
                         let exit = match constructor.variant {
                             0 => ProtocolExit::PollPending,
                             1 => ProtocolExit::PollReady,
@@ -472,6 +472,32 @@ impl Proof<'_, '_> {
                             sources: OwnerSources::opaque(exposed),
                             outcomes: vec![(exit, state.phases.clone())],
                         });
+                    }
+                    if actuals.iter().any(|data| data.sources.has_exact()) {
+                        let original = self.inventory.definition(*definition, b)?;
+                        let SemanticDefinitionBody::Nominal { body: SemanticNominalBody::Enum { variants }, .. } = &original.body else {
+                            return Err(fail("original owning variant has no exact enum declaration"));
+                        };
+                        b.lookup(variants.len(), WORK)?;
+                        let variant = variants.get(constructor.variant as usize)
+                            .ok_or_else(|| fail("original owning variant selects another declared arm"))?;
+                        if variant.fields.len() != actuals.len() {
+                            return Err(fail("original owning variant changes its declared field arity"));
+                        }
+                        b.spend(variant.name.len(), WORK)?;
+                        let mut aggregate = Data::default();
+                        aggregate.sources.set_variant(sources::ActiveVariant {
+                            definition: *definition,
+                            tag: constructor.variant,
+                            name: variant.name.clone(),
+                        }, b)?;
+                        for (index, data) in actuals.iter().enumerate() {
+                            let index = u32::try_from(index)
+                                .map_err(|_| resource("original owner variant ordinal overflow"))?;
+                            let field = PlaceProjection::Variant(VariantProjection { variant: constructor.variant, index });
+                            aggregate.sources.append_under(&[field], &data.sources, b)?;
+                        }
+                        return Ok(aggregate);
                     }
                     return Ok(Data {
                         sources: OwnerSources::opaque(exposed),
@@ -630,6 +656,9 @@ impl Proof<'_, '_> {
                         })
                     }
                     _ => {
+                        if receiver.sources.has_projected() || actuals.iter().any(|data| data.sources.has_projected()) {
+                            return Err(unknown("original opaque call requires the complete nested owner-place identity of its actual operands"));
+                        }
                         state.opaque(b)?;
                         if self.async_owner(self.expression_term(value.id, b)?, b)? {
                             self.fresh_owner(state, value.id,
@@ -729,7 +758,18 @@ impl Proof<'_, '_> {
                 }
                 Ok(data.expose())
             }
-            CoreExprKind::Tuple(fields) | CoreExprKind::Array(fields) => {
+            CoreExprKind::Tuple(fields) => {
+                let mut aggregate = Data::default();
+                for (index, field) in fields.iter().enumerate() {
+                    let data = self.expression(state, field, b, depth + 1)?;
+                    self.plain(&data)?;
+                    let ordinal = u32::try_from(index)
+                        .map_err(|_| resource("original owner tuple ordinal overflow"))?;
+                    aggregate.sources.append_under(&[PlaceProjection::Field(ordinal)], &data.sources, b)?;
+                }
+                Ok(aggregate)
+            }
+            CoreExprKind::Array(fields) => {
                 let mut exposed = false;
                 for field in fields {
                     let data = self.expression(state, field, b, depth + 1)?;

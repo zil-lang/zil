@@ -56,10 +56,10 @@ impl Engine<'_> {
             Unary { op, operand } => {
                 let value = self.expression(operand, state, depth + 1, b)?;
                 match (op, value) {
-                    (UnaryOp::Borrow | UnaryOp::BorrowMut, value @ Value::Product(_)) => {
+                    (UnaryOp::Borrow | UnaryOp::BorrowMut, value @ (Value::Product(_) | Value::Variant { .. })) => {
                         Ok(tasks::task_borrow_value(value))
                     }
-                    (UnaryOp::Give, value @ Value::Product(_)) => {
+                    (UnaryOp::Give, value @ (Value::Product(_) | Value::Variant { .. })) => {
                         if let Some(place) = self.task_place(operand, b)? {
                             self.task_take_place(state, &place, b)?;
                         }
@@ -415,6 +415,39 @@ impl Engine<'_> {
             // Forming an enum tag invokes no user code and changes no owner.
             // Ready is data, not a Closed witness for any captured Task.
             return Ok(Value::Poll{relations:vec![],tag:Some(tag)});
+        }
+        if let Some(construction) = site.and_then(|site| self.original.constructors.get(&(self.current, site)))
+            && values.iter().any(tasks::owner_value)
+        {
+            let ty = self.original.expressions.get(&(self.current, node.id))
+                .ok_or_else(|| bad("original owning variant has no source expression type"))?;
+            let Ty::Nominal(definition, arguments) = self.original.resolved(ty, b)? else {
+                return Err(bad("original owning variant has no nominal source type"));
+            };
+            if construction.definition != definition
+                || !self.original.same_arguments_readonly(&construction.actuals, &arguments, b)?
+            {
+                return Err(bad("original owning variant changes its exact declaration or mixed arguments"));
+            }
+            let definitions = &self.module.semantic.as_ref()
+                .ok_or_else(|| bad("original owning variant has no declaration inventory"))?.definitions;
+            b.spend(definitions.len())?;
+            let original = definitions.iter().find(|row| row.id == definition)
+                .ok_or_else(|| bad("original owning variant declaration is absent"))?;
+            let SemanticDefinitionBody::Nominal { body: SemanticNominalBody::Enum { variants }, .. } = &original.body else {
+                return Err(bad("original owning variant changes its declaration kind"));
+            };
+            b.spend(1)?;
+            let row = variants.get(construction.variant as usize)
+                .filter(|row| row.fields.len() == values.len())
+                .ok_or_else(|| bad("original owning variant changes its complete field arity"))?;
+            b.spend(row.name.len())?;
+            let mut fields = Vec::with_capacity(values.len());
+            for (index, value) in values.iter().enumerate() {
+                b.spend(value.width().saturating_add(32))?;
+                fields.push((owner_variant_field(construction.variant, index), value.clone()));
+            }
+            return Ok(Value::Variant { definition, tag: construction.variant, name: row.name.clone(), fields });
         }
         if let Some(use_) =
             site.and_then(|site| self.original.intrinsic_calls.get(&(self.current, site)))

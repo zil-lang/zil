@@ -248,7 +248,7 @@ impl<'a> Engine<'a> {
                             self.block(&arm.body, selected, deferred, loop_start, depth + 1, b)?;
                         self.collect(&mut result, next, b)?;
                     }
-                    covered |= pattern_mask(&arm.pattern, poll,b)?;
+                    covered |= value_pattern_mask(&observed, &arm.pattern, poll, b)?;
                 }
                 if covered != 3 {
                     for selected in self.unmatched(&state, &observed, poll, covered, b)? {
@@ -452,6 +452,16 @@ impl<'a> Engine<'a> {
     // conditional responsibility only from this actual matched source place.
     fn consume_fallible_task_arm(&self, source: &SemanticOriginalExpr, sum: Discriminant,
         pattern: &SemanticOriginalPattern, observed: &Value, state: &mut State, b: &mut Budget) -> Check<()> {
+        if matches!(observed, Value::Variant { .. }) {
+            let mut roots = Vec::new();
+            tasks::task_roots(observed, &mut roots, b)?;
+            if roots.iter().any(|(_, borrowed)| !borrowed)
+                && let Some(place) = self.task_place(source, b)?
+            {
+                self.task_take_place(state, &place, b)?;
+            }
+            return Ok(());
+        }
         if sum != Discriminant::ErrorUnion { return Ok(()); }
         let CorePatternKind::ErrorArm { is_error, pattern: payload } = &pattern.kind else { return Ok(()); };
         let bound = matches!(payload.kind, CorePatternKind::Name(_));
@@ -484,7 +494,10 @@ impl<'a> Engine<'a> {
         yes: bool,
         b: &mut Budget,
     ) -> Check<Vec<State>> {
-        let selected = pattern_mask(pattern, poll,b)?;
+        if selected_owner_variant(value, pattern, b)? == Some(false) {
+            return if yes { Ok(vec![]) } else { Ok(vec![state.copy(b)?]) };
+        }
+        let selected = value_pattern_mask(value, pattern, poll, b)?;
         if selected == 0 {
             return Ok(vec![state.copy(b)?]);
         }
@@ -505,7 +518,10 @@ impl<'a> Engine<'a> {
         covered: u8,
         b: &mut Budget,
     ) -> Check<Vec<State>> {
-        let selected = pattern_mask(pattern, poll,b)?;
+        if selected_owner_variant(value, pattern, b)? == Some(false) {
+            return Ok(vec![]);
+        }
+        let selected = value_pattern_mask(value, pattern, poll, b)?;
         if selected == 0 {
             return if covered == 3 {
                 Ok(vec![])
@@ -573,7 +589,7 @@ impl<'a> Engine<'a> {
                 self.bind(state, binder.clone(), value.clone(), b)
             }
             CorePatternKind::Wildcard => {
-                if matches!(value, Value::Product(_)) {
+                if matches!(value, Value::Product(_) | Value::Variant { .. }) {
                     return self.task_cleanup_value(state, value, None, b);
                 }
                 if matches!(
@@ -612,12 +628,17 @@ impl<'a> Engine<'a> {
                     b.spend(path.len().saturating_add(1))?;
                     let mut child = path.to_vec();
                     child.push(index as u32);
-                    let actual = if let Value::Product(values) = value {
-                        values.get(index).map(|(_, value)| value).ok_or_else(|| {
+                    let actual = match value {
+                        Value::Product(values) => values.get(index).map(|(_, value)| value).ok_or_else(|| {
                             bad("Task product pattern changes its complete original arity")
-                        })?
-                    } else {
-                        &Value::Plain
+                        })?,
+                        Value::Variant { fields: values, .. } => {
+                            if !selected_owner_variant(value, pattern, b)?.unwrap_or(false) || values.len() != fields.len() {
+                                return Err(bad("original owner pattern does not select its exact active variant and fields"));
+                            }
+                            &values[index].1
+                        }
+                        _ => &Value::Plain,
                     };
                     self.bind_pattern(statement, &child, field, actual, state, b)?;
                 }
@@ -686,6 +707,39 @@ fn irrefutable_payload(pattern:&SemanticOriginalPattern,b:&mut Budget)->Check<bo
         }
     }Ok(true)
 }
+fn selected_owner_variant(value: &Value, pattern: &SemanticOriginalPattern, b: &mut Budget) -> Check<Option<bool>> {
+    let Value::Variant { definition, name, .. } = value else { return Ok(None); };
+    let (declared, variant) = match &pattern.kind {
+        CorePatternKind::Constructor { definition, variant, .. } => (*definition, variant),
+        CorePatternKind::Variant { ty: SemanticTypeRecipe::Nominal { definition, .. }, variant, .. } => (Some(*definition), variant),
+        _ => return Ok(None),
+    };
+    b.spend(variant.len().saturating_add(name.len()).saturating_add(1))?;
+    if declared.is_some_and(|declared| declared != *definition) {
+        return Err(bad("original protocol pattern changes its owning enum declaration"));
+    }
+    Ok(Some(name == variant))
+}
+
+fn value_pattern_mask(value: &Value, pattern: &SemanticOriginalPattern, discriminant: Discriminant, b: &mut Budget) -> Check<u8> {
+    if let Some(active) = selected_owner_variant(value, pattern, b)? {
+        let fields = match &pattern.kind {
+            CorePatternKind::Variant { fields, .. } | CorePatternKind::Constructor { fields, .. } => fields,
+            _ => unreachable!("selected owner variant implies a variant pattern"),
+        };
+        if active {
+            for field in fields {
+                if !irrefutable_payload(field, b)? {
+                    return Ok(0);
+                }
+            }
+            return Ok(3);
+        }
+        return Ok(0);
+    }
+    pattern_mask(pattern, discriminant, b)
+}
+
 fn pattern_mask(pattern:&SemanticOriginalPattern,discriminant:Discriminant,b:&mut Budget)->Check<u8>{
     b.spend(1)?;
     Ok(match &pattern.kind{
