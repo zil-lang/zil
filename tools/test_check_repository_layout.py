@@ -130,7 +130,8 @@ class RepositoryLayoutTests(unittest.TestCase):
         source.write_text(
             "fn schema40_decode() {}\nfn u64_roundtrip() {}\n"
             "fn legal_240_level_value() {}\nfn all_65536_pairs() {}\n"
-            "fn buffered_sha256_blocks() {}\n",
+            "fn buffered_sha256_blocks() {}\n"
+            "fn write_u128() {}\nfn write_i128() {}\n",
             encoding="utf-8",
         )
         _, failures, _ = layout.check(full=True, root=self.root)

@@ -47,6 +47,7 @@ CONSTRUCTION_NAME = re.compile(
 )
 SEMANTIC_NUMBER = re.compile(
     r"^(?:schema|wire|llvm|utf|sha|u|i|f|m|r|island)[0-9]+(?:_|$)"
+    r"|^write_[iu](?:8|16|32|64|128|size)$"  # Rust Hasher integer methods
     r"|^(?:schema|wire)[_-]v?[0-9]+(?:_|$)"
     r"|^(?:case|fixture)[_-]?[0-9]+_[a-z]", re.I
 )
