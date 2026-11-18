@@ -454,6 +454,7 @@ struct Budget {
     proven_static_occurrences: BTreeSet<(ClosureId, StoragePosition)>,
     semantic_static_occurrences: BTreeSet<(ClosureId, StoragePosition)>,
     semantic_closed_task_captures: BTreeSet<registration::ClosedTaskOccurrence>,
+    semantic_capture_classes: BTreeMap<FunctionId, Vec<u32>>,
     semantic_constructor_classes:
         BTreeMap<semantic::constructor_classes::Key, semantic::constructor_classes::Source>,
     task_frames: BTreeMap<semantic::task_domains::FrameKey, semantic::task_domains::FrameState>,
@@ -589,6 +590,7 @@ impl Budget {
             proven_static_occurrences: BTreeSet::new(),
             semantic_static_occurrences: BTreeSet::new(),
             semantic_closed_task_captures: BTreeSet::new(),
+            semantic_capture_classes: BTreeMap::new(),
             semantic_constructor_classes: BTreeMap::new(),
             task_frames: BTreeMap::new(),
             task_constructors: BTreeMap::new(),
@@ -989,6 +991,7 @@ fn check_module_budget(
 
     budget.function_count = module.functions.len();
     let prior_structure = budget.structural.take();
+    let prior_capture_classes = std::mem::take(&mut budget.semantic_capture_classes);
     let prior_progress = budget.diagnostic_progress;
     let result = (|| {
         budget.diagnostic_stage("immutable registration");
@@ -1627,6 +1630,7 @@ fn check_module_budget(
         })
     })();
     budget.structural = prior_structure;
+    budget.semantic_capture_classes = prior_capture_classes;
     budget.diagnostic_progress = prior_progress;
     result
 }

@@ -19,6 +19,7 @@ impl CheckedContext {
     pub(super) fn publish_constructor_classes(&self,module:&TypedModule,worlds:&[(SemanticInstanceId,EvalEnv)],b:&mut Budget)->Check<()> {
         let programme=module.semantic.as_ref().ok_or_else(||bad("constructor class sources have no original programme"))?;
         let mut ready=BTreeMap::new();
+        let mut capture_classes=BTreeMap::new();
         for function in &module.functions {
             let Some(header)=&function.storage_life else{continue;};
             b.spend(worlds.len())?;
@@ -28,6 +29,37 @@ impl CheckedContext {
                 if instance.target==SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id)){selected.push((instance,environment));}
             }
             if selected.is_empty(){continue;}
+            // All checked creator worlds must agree before a closure-body
+            // write can use two distinct Fixed occurrences of the same Life.
+            // Partition by original term, never by capture type or slot index.
+            if function.environment.is_some() && header.fixed_binder_count > 1 {
+                let n=header.fixed_binder_count as usize;
+                b.spend(n)?;
+                let mut groups=vec![0u32;n];
+                for (instance,environment) in &selected {
+                    b.spend(n.saturating_add(instance.header_embedding.len()))?;
+                    let mut images=vec![None;n];
+                    for row in &instance.header_embedding {
+                        let StorageBinder::Fixed(index)=row.header else {continue;};
+                        if matches!(row.actual,SemanticClassExpr::Environment{..}|SemanticClassExpr::IntrinsicClass{operand:SemanticOperand::Environment(_),..}) {
+                            let slot=images.get_mut(index as usize).ok_or_else(||bad("capture image exceeds its fixed scope"))?;
+                            if slot.is_some(){return Err(bad("capture occurrence has multiple fixed images"));}
+                            *slot=Some(self.class(module,&row.actual,environment,b)?);
+                        }
+                    }
+                    let mut partitions=BTreeMap::new();
+                    for (index,(group,image)) in groups.iter_mut().zip(images).enumerate() {
+                        b.spend(partitions.len().checked_ilog2().unwrap_or(0) as usize+2)?;
+                        *group=if let Some(image)=image {
+                            *partitions.entry((*group,image)).or_insert(index as u32)
+                        } else {index as u32};
+                    }
+                }
+                if groups.iter().enumerate().any(|(i,g)|i!=*g as usize) {
+                    capture_classes.insert(function.id,groups);
+                }
+            }
+
             // Only actual input occurrences ground a constructor image. A
             // result-only binder or raw header count cannot ground itself.
             let input=|base:StorageBase|matches!(base,StorageBase::Parameter(_)|StorageBase::Capture(_)|StorageBase::Receiver);
@@ -82,6 +114,7 @@ impl CheckedContext {
         }
         // Publish atomically only after every original world, actual CFG,
         // creator seal and ordinary semantic obligation has succeeded.
+        b.semantic_capture_classes=capture_classes;
         b.semantic_constructor_classes=ready;
         Ok(())
     }

@@ -508,7 +508,7 @@ impl CheckedContext {
                 self.capture_local_source(module,creator,child,*ordinal,*capture,b)?;
                 if !matches!(&value.ty,Type::Address{..}){return Err(bad("implicit captured head has another complete borrow carrier"));}
                 let pointee=self.child_value(module,&value,&[LifeTypeProjection::Pointee],b)?;
-                let ordinal=self.environment_capture(module,creator,child,creation_node,*capture,&pointee,&sealed,environment,b)?;
+                let ordinal=self.environment_capture(module,creator,child,creation_node,*capture,&pointee,None,&sealed,environment,b)?;
                 borrowed_captures.insert(index as u32,ordinal);
                 let slot=value.life.slots.iter().find(|row|row.path.is_empty()).ok_or_else(||bad("actual implicit capture has no variable head occurrence"))?;
                 let binder=slot.binder as usize;
@@ -521,7 +521,7 @@ impl CheckedContext {
                 capture_images.push((head.clone(),value.classes[binder].clone()));
                 value.classes[binder]=head.clone();value.origins[binder]=IntrinsicOrigin::DerivedClass{source:head};
             }else{
-                let ordinal=self.environment_capture(module,creator,child,creation_node,*capture,&value,&sealed,environment,b)?;
+                let ordinal=self.environment_capture(module,creator,child,creation_node,*capture,&value,Some(values),&sealed,environment,b)?;
                 logical_captures.insert(index as u32,ordinal);
             }
             self.record(child_scope,OperandKey::Capture(index as u32),&value,b)?;

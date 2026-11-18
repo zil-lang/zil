@@ -4,7 +4,7 @@
 use super::*;
 impl CheckedContext {
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn environment_capture(&self,module:&TypedModule,creator:&SemanticInstance,child:&SemanticInstance,node:zil_base::NodeId,value:ValueId,actual:&CheckedType,sealed:&[CheckedActual],environment:&EvalEnv,b:&mut Budget)->Check<usize>{
+    pub(super) fn environment_capture(&self,module:&TypedModule,creator:&SemanticInstance,child:&SemanticInstance,node:zil_base::NodeId,value:ValueId,actual:&CheckedType,values:Option<&[Option<CheckedType>]>,sealed:&[CheckedActual],environment:&EvalEnv,b:&mut Budget)->Check<usize>{
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=creator.target else{return Err(bad("logical capture creator is not an actual function"));};
         let f=module.functions.get(function.0 as usize).ok_or_else(||bad("logical capture creator function is absent"))?;
         let mut selected=None;
@@ -16,7 +16,26 @@ impl CheckedContext {
             // Resolve every same-shaped original candidate by its real binder.
             // A different candidate cannot donate its class inventory.
             if !self.capture_creator_source(module,creator,f,value,source,b)?{continue;}
-            if !self.same_type(environment,actual,expected,b)?{return Err(bad("logical capture changes the complete original type/class/origin occurrence"));}
+            if !self.same_type(environment,actual,expected,b)? {
+                let Some(values)=values else{return Err(bad("logical capture changes the complete original type/class/origin occurrence"));};
+                // Reconstruct a compiler-created reborrow of this exact original
+                // binder. The stored-target and loan kernels still check its use.
+                let scope=ScopeKey::Instance(creator.id);
+                let mut head=value;
+                let mut captured=actual;
+                let mut proved=false;
+                for _ in 0..b.limits.max_call_depth.min(128) {
+                    let instruction=super::call_borrows::call_borrow_producer(f,head,b)?;
+                    let InstructionKind::ReborrowAddress{address,mutable} = instruction.kind else{break;};
+                    let parent=value_at(values,address)?;
+                    if parent.ty!=expected.ty {break;}
+                    let replay=self.reborrow_value(parent,scope,head,mutable,b)?;
+                    if !self.same_type(environment,&replay,captured,b)? {break;}
+                    if self.same_type(environment,parent,expected,b)? {proved=true;break;}
+                    head=address;captured=parent;
+                }
+                if !proved{return Err(bad("logical capture changes the complete original type/class/origin occurrence"));}
+            }
             if selected.replace(ordinal).is_some(){return Err(bad("logical capture has several original environment sources"));}
         }
         selected.ok_or_else(||bad("logical capture does not select its exact original free-value binding"))

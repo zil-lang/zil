@@ -10,6 +10,8 @@ use std::collections::VecDeque;
 mod capture_bounds;
 #[path = "helper_flow.rs"]
 mod flow;
+#[path = "helper_owning_product.rs"]
+mod owning_product;
 
 fn bad(f: &TypedFunction, message: impl Into<String>) -> Diagnostic {
     reject("E-VERIFY-CALLABLE-CONTRACT", Some(f.span), message)
@@ -910,9 +912,9 @@ pub(super) fn check_module(
             continue;
         }
         // Preserve the single self-contained owning State value boundary.
-        if let [(.., closure, false, _)] = parameters.as_slice()
+        if let [(position, closure, false, _)] = parameters.as_slice()
             && f.callable_contract.is_none()
-            && matches!(&f.return_type, Type::Package { fields, .. } if fields.iter().any(|(_, ty)| *ty == Type::Closure(*closure)))
+            && owning_product::transfers_parameter(module, f, f.parameters[*position as usize], budget)?
         {
             if owned_union_data || budget.sum_function(f.id) {
                 budget.spend(f.parameters.len())?;
@@ -936,7 +938,7 @@ pub(super) fn check_module(
                 }
             }
             closures::self_contained(module, *closure, budget)?;
-            packages::check_type_for(module, &f.return_type, Some(f.span), budget)?;
+            if matches!(f.return_type,Type::Package{..}) {packages::check_type_for(module, &f.return_type, Some(f.span), budget)?;}
             continue;
         }
         // A second owned input is a second value, even when both use the same

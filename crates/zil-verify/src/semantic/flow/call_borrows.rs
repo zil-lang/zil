@@ -302,7 +302,7 @@ mod input_image_tests{
     }
 }
 
-fn call_borrow_producer<'a>(f:&'a TypedFunction,value:ValueId,b:&mut Budget)->Check<&'a Instruction>{
+pub(super) fn call_borrow_producer<'a>(f:&'a TypedFunction,value:ValueId,b:&mut Budget)->Check<&'a Instruction>{
     let mut producer=None;for block in &f.blocks{b.spend(block.instructions.len())?;for operation in &block.instructions{if operation.result==Some(value)&&producer.replace(operation).is_some(){return Err(bad("Call argument adapter has several actual SSA definitions"));}}}producer.ok_or_else(||bad("Call argument adapter has no actual SSA definition"))
 }
 fn shared_reborrow_adapter(module:&TypedModule,f:&TypedFunction,argument:ValueId,b:&mut Budget)->Check<bool>{

@@ -1094,7 +1094,16 @@ pub(super) fn validate_after_rows(
                     } else {
                         source_bound(module, f, source, &mut relations, b)?
                     };
-                    if actual != bound {
+                    let shared_capture_life = match (base,source.base,actual,bound) {
+                        (HoldRoot::Capture(_),HoldRoot::Capture(_),StorageBinder::Fixed(a),StorageBinder::Fixed(z))
+                            if through && source.retained_port.is_none() && source.heap_element.is_none() && source.heap_parents.is_empty() => {
+                            b.spend(1)?;
+                            b.semantic_capture_classes.get(&f.id).is_some_and(|groups|
+                                groups.get(a as usize).zip(groups.get(z as usize)).is_some_and(|(left,right)|left==right))
+                        }
+                        _ => false,
+                    };
+                    if actual != bound && !shared_capture_life {
                         return Err(err(
                             "auxiliary after-state changes its complete declared lifetime relation",
                         ));
