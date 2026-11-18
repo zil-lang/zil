@@ -401,13 +401,35 @@ fn main() -> ExitCode {
             println!("{}", work_profile.report_json(&report, &options.limits));
         } else {
             for diagnostic in &report.diagnostics {
-                if let Some(path) = diagnostic
-                    .span
-                    .and_then(|span| report.source_files.get(&span.file))
-                {
-                    eprintln!("{path}: {diagnostic}");
+                if let Some(span) = diagnostic.span {
+                    eprintln!("{}: {diagnostic}", diagnostic_span(&report, span));
                 } else {
                     eprintln!("{diagnostic}");
+                }
+                for location in &diagnostic.related {
+                    let mut at = Vec::new();
+                    if let Some(span) = location.span {
+                        at.push(diagnostic_span(&report, span));
+                    }
+                    if let Some(ir) = location.ir {
+                        let mut point = format!("function {}", ir.function);
+                        if let Some(block) = ir.block {
+                            point.push_str(&format!(", block {block}"));
+                        }
+                        if let Some(op) = ir.instruction {
+                            point.push_str(&format!(", instruction {op}"));
+                        }
+                        at.push(point);
+                    }
+                    eprintln!(
+                        "  {} [{}]: {}",
+                        location.role.as_str(),
+                        at.join("; "),
+                        location.message
+                    );
+                }
+                for note in &diagnostic.notes {
+                    eprintln!("  note: {note}");
                 }
             }
         }
@@ -430,6 +452,14 @@ fn main() -> ExitCode {
         println!("{}: {}", input.display(), report.phase);
     }
     ExitCode::SUCCESS
+}
+fn diagnostic_span(report: &CompileReport, span: zil_base::Span) -> String {
+    let path = report
+        .source_files
+        .get(&span.file)
+        .cloned()
+        .unwrap_or_else(|| format!("file {}", span.file.0));
+    format!("{path}[{}..{}]", span.start, span.end)
 }
 fn run_native(
     report: &CompileReport,

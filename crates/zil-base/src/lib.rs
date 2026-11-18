@@ -159,6 +159,79 @@ impl fmt::Display for ResultCategory {
     }
 }
 
+/// A diagnostic can relate several operations to one rule violation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DiagnosticRole {
+    BorrowCreated,
+    ConflictingAccess,
+    LaterUse,
+    Input,
+    Result,
+}
+
+impl DiagnosticRole {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::BorrowCreated => "borrow_created",
+            Self::ConflictingAccess => "conflicting_access",
+            Self::LaterUse => "later_use",
+            Self::Input => "input",
+            Self::Result => "result",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DiagnosticIrLocation {
+    pub function: u32,
+    pub block: Option<u32>,
+    pub instruction: Option<u32>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DiagnosticRelatedLocation {
+    pub role: DiagnosticRole,
+    pub span: Option<Span>,
+    pub ir: Option<DiagnosticIrLocation>,
+    pub message: String,
+}
+
+fn span_json(span: Option<Span>) -> String {
+    span.map_or_else(
+        || "null".into(),
+        |s| {
+            format!(
+                "{{\"file\":{},\"start\":{},\"end\":{}}}",
+                s.file.0, s.start, s.end
+            )
+        },
+    )
+}
+
+impl DiagnosticRelatedLocation {
+    fn to_json(&self) -> String {
+        let ordinal = |value: Option<u32>| value.map_or_else(|| "null".into(), |n| n.to_string());
+        let ir = self.ir.map_or_else(
+            || "null".into(),
+            |at| {
+                format!(
+                    "{{\"function\":{},\"block\":{},\"instruction\":{}}}",
+                    at.function,
+                    ordinal(at.block),
+                    ordinal(at.instruction)
+                )
+            },
+        );
+        format!(
+            "{{\"role\":{},\"span\":{},\"ir\":{},\"message\":{}}}",
+            json_string(self.role.as_str()),
+            span_json(self.span),
+            ir,
+            json_string(&self.message)
+        )
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Diagnostic {
     pub phase: Phase,
@@ -167,6 +240,7 @@ pub struct Diagnostic {
     pub message: String,
     pub span: Option<Span>,
     pub notes: Vec<String>,
+    pub related: Vec<DiagnosticRelatedLocation>,
 }
 impl Diagnostic {
     pub fn new(
@@ -183,6 +257,7 @@ impl Diagnostic {
             message: message.into(),
             span,
             notes: Vec::new(),
+            related: Vec::new(),
         }
     }
     pub fn error(
@@ -215,26 +290,36 @@ impl Diagnostic {
         self.notes.push(note.into());
         self
     }
+    pub fn relate(
+        &mut self,
+        role: DiagnosticRole,
+        span: Option<Span>,
+        ir: Option<DiagnosticIrLocation>,
+        message: impl Into<String>,
+    ) {
+        self.related.push(DiagnosticRelatedLocation {
+            role,
+            span,
+            ir,
+            message: message.into(),
+        });
+    }
     pub fn to_json(&self) -> String {
-        let span = self.span.map_or_else(
-            || "null".into(),
-            |s| {
-                format!(
-                    "{{\"file\":{},\"start\":{},\"end\":{}}}",
-                    s.file.0, s.start, s.end
-                )
-            },
-        );
         format!(
-            "{{\"phase\":{},\"category\":{},\"code\":{},\"message\":{},\"span\":{},\"notes\":[{}]}}",
+            "{{\"phase\":{},\"category\":{},\"code\":{},\"message\":{},\"span\":{},\"notes\":[{}],\"related\":[{}]}}",
             json_string(self.phase.as_str()),
             json_string(self.category.as_str()),
             json_string(&self.code),
             json_string(&self.message),
-            span,
+            span_json(self.span),
             self.notes
                 .iter()
                 .map(|n| json_string(n))
+                .collect::<Vec<_>>()
+                .join(","),
+            self.related
+                .iter()
+                .map(DiagnosticRelatedLocation::to_json)
                 .collect::<Vec<_>>()
                 .join(",")
         )
