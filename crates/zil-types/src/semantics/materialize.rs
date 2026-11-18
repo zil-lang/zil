@@ -1441,22 +1441,49 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                 let owner = self.ancestor(scope, *selector, depth + 1)?;
                 let declaration = self.instance(owner)?.definition;
                 let definition = self.definition(declaration)?;
-                let recipe = match &definition.body {
+                // Interpret the original declaration in its own solved domain.
+                // An instance's claimed Self cannot participate in this derivation.
+                let mut value = match &definition.body {
                     SemanticDefinitionBody::Scope(
                         SemanticScopeRecipe::InherentImpl { self_type, .. }
                         | SemanticScopeRecipe::TraitImpl { self_type, .. }
                         | SemanticScopeRecipe::BuiltinImpl { self_type, .. },
-                    ) => self_type,
+                    ) => self.ty(owner, self_type, hint, depth + 1)?,
+                    SemanticDefinitionBody::Nominal { .. } => {
+                        self.rows(definition.parameters.len())?;
+                        let mut arguments = Vec::new();
+                        for (ordinal, formal) in definition.parameters.iter().enumerate() {
+                            let reference = SemanticFormalRef {
+                                scope: SemanticScopeRef::Ancestor(0),
+                                ordinal: u32::try_from(ordinal)
+                                    .map_err(|_| bad("nominal Self formal ordinal overflow"))?,
+                            };
+                            arguments.push(match formal {
+                                SemanticFormal::Lifetime => SemanticActualRecipe::Life(
+                                    SemanticLifeRecipe::Formal(reference),
+                                ),
+                                SemanticFormal::Type { .. } => SemanticActualRecipe::Type(
+                                    SemanticTypeRecipe::Formal(reference),
+                                ),
+                                SemanticFormal::Const { carrier } => {
+                                    crate::dyn_metadata::semantic_operand_snapshot(
+                                        carrier, self.limits, self.left, 1,
+                                    )?;
+                                    SemanticActualRecipe::Const {
+                                        carrier: carrier.clone(),
+                                        value: SemanticConstRecipe::Formal(reference),
+                                    }
+                                }
+                            });
+                        }
+                        self.nominal(owner, declaration, &arguments, hint, depth + 1)?
+                    }
                     _ => {
                         return Err(unknown(
-                            "Self requires its checked original implementation scope",
+                            "Self requires its checked original implementation or nominal scope",
                         ));
                     }
                 };
-                // Re-interpret the immutable original impl expression in its
-                // own solved formal domain. The instance.self_type claim is
-                // never used as its own type derivation.
-                let mut value = self.ty(owner, recipe, hint, depth + 1)?;
                 let SemanticScopeRef::Ancestor(hops) = selector;
                 self.rehome_classes(&mut value, *hops)?;
                 value

@@ -10,6 +10,7 @@ impl Eval<'_, '_, '_> {
         let instance = self.instance(scope)?;
         let original = self.definition(instance.definition)?;
         let (selector, parent) = match &original.body {
+            SemanticDefinitionBody::Nominal { .. } => (SemanticScopeRef::Ancestor(0), None),
             SemanticDefinitionBody::Scope(
                 SemanticScopeRecipe::InherentImpl { .. }
                 | SemanticScopeRecipe::TraitImpl { .. }
@@ -27,7 +28,7 @@ impl Eval<'_, '_, '_> {
                 if original.parent != Some(parent_instance.definition)
                     || !matches!(
                         parent_definition.body,
-                        SemanticDefinitionBody::Scope(
+                        SemanticDefinitionBody::Nominal { .. } | SemanticDefinitionBody::Scope(
                             SemanticScopeRecipe::InherentImpl { .. }
                                 | SemanticScopeRecipe::TraitImpl { .. }
                                 | SemanticScopeRecipe::BuiltinImpl { .. }

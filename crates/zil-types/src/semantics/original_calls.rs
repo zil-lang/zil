@@ -774,6 +774,20 @@ impl Check<'_, '_> {
         self_type: &SemanticTypeRecipe,
         depth: usize,
     ) -> R<Vec<SemanticActualRecipe>> {
+        if matches!(&parent.body, SemanticDefinitionBody::Nominal { .. }) {
+            let SemanticTypeRecipe::Nominal { definition, arguments } = self_type else {
+                return Err(bad("original member receiver has no nominal declaration"));
+            };
+            if *definition != parent.id {
+                return Err(bad("original member receiver selects another nominal declaration"));
+            }
+            self.call_requirements(owner, parent, arguments, depth + 1)?;
+            self.pay(arguments.len(), depth)?;
+            for argument in arguments {
+                crate::dyn_metadata::semantic_operand_snapshot(argument, self.limits, self.left, 1)?;
+            }
+            return Ok(arguments.clone());
+        }
         let SemanticDefinitionBody::Scope(
             SemanticScopeRecipe::InherentImpl {
                 self_type: template,
@@ -939,7 +953,7 @@ impl Check<'_, '_> {
                 self.call_requirements(owner, parent, &application.arguments, depth + 1)?;
                 (application.arguments.clone(), Some(application))
             }
-            SemanticDefinitionBody::Scope(
+            SemanticDefinitionBody::Nominal { .. } | SemanticDefinitionBody::Scope(
                 SemanticScopeRecipe::InherentImpl { .. }
                 | SemanticScopeRecipe::TraitImpl { .. }
                 | SemanticScopeRecipe::BuiltinImpl { .. },
