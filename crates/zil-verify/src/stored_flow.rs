@@ -5349,6 +5349,11 @@ static_dependency: StaticProvenance::NotStatic,
 /// predecessor frames and SSA sources reach a fixed point.
 fn execution_order(g: &FunctionGraph, entry: usize, b: &mut Budget) -> Check<(Vec<usize>, bool)> {
     let n = g.reachable.len();
+    // Independent function checks represent a canonical foreign declaration
+    // with an empty graph. It has no executable entry to schedule.
+    if n == 0 {
+        return Ok((Vec::new(), false));
+    }
     b.spend(amount(n, 4)?)?;
     let mut color = vec![0u8; n];
     let mut pending = Vec::with_capacity(n);
@@ -9060,6 +9065,74 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
         ));
+    }
+
+    #[test]
+    fn foreign_declaration_in_stored_module_has_no_cfg_and_requires_exact_c_abi_raw_wire() {
+        let limits = Limits::default();
+        let mut module = fixture::module();
+        let mut stored = module.functions.pop().unwrap();
+        stored.id = FunctionId(0);
+        stored.storage_life = Some(StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 1,
+            bindings: [StorageBase::Parameter(0), StorageBase::Result]
+                .into_iter()
+                .map(|base| StorageLifeBinding {
+                    position: StoragePosition { base, path: vec![] },
+                    binder: StorageBinder::Invocation(0),
+                })
+                .collect(),
+            static_bindings: vec![],
+            classes: vec![],
+        });
+        let mut external = stored.clone();
+        external.id = FunctionId(1);
+        external.name = "ordinary_handle_provider".into();
+        external.parameters = vec![LocalId(0)];
+        external.locals.truncate(1);
+        external.locals[0].ty = fixture::address(Type::U8, false);
+        external.return_type = Type::ForeignHandle;
+        external.storage_life = None;
+        external.values.clear();
+        external.blocks.clear();
+        external.foreign = Some(zil_ir::ForeignDeclaration {
+            abi: "C".into(),
+            symbol: external.name.clone(),
+            noescape_parameters: vec![0],
+            static_callbacks: false,
+            thread_driver_transfer: false,
+            scoped_callback: None,
+        });
+        module.life_declarations.clear();
+        module.life_instances.clear();
+        module.functions = vec![stored];
+        let mut plan = fixture::class_candidate(&module);
+        plan.functions.push(FunctionPlan {
+            function: external.id,
+            holds: vec![],
+            blocks: vec![],
+        });
+        module.functions.push(external);
+        let target = module.target.clone();
+        for wrong_abi in [false, true] {
+            if wrong_abi {
+                let declaration = module.functions.last_mut().unwrap().foreign.as_mut().unwrap();
+                declaration.noescape_parameters.clear();
+            }
+            plan.module_fingerprint = module.fingerprint();
+            let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+            let raw = verify_module(module.clone(), plan.clone(), &target, &limits);
+            let wire = verify_module_bytes(&bytes, &target, &limits);
+            if wrong_abi {
+                let raw = raw.unwrap_err();
+                assert_eq!(raw, wire.unwrap_err());
+                assert_eq!(raw[0].category, zil_base::ResultCategory::SafeReject);
+                assert_eq!(raw[0].code, "E-VERIFY-FOREIGN");
+            } else {
+                assert_eq!(raw.unwrap().fingerprint(), wire.unwrap().fingerprint());
+            }
+        }
     }
 
     #[test]
