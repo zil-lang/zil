@@ -831,13 +831,15 @@ impl Check<'_, '_> {
             if selected.is_some() {
                 return Err(bad("original enum constructor type binding is ambiguous"));
             }
-            if let SemanticOriginalNameValue::Definition(id) = name.value {
-                selected = Some(id);
-            } else {
-                return Ok(None);
-            }
+            selected = match &name.value {
+                SemanticOriginalNameValue::Definition(id) => Some((*id, None)),
+                SemanticOriginalNameValue::Recipe(SemanticActualRecipe::Type(
+                    SemanticTypeRecipe::Nominal { definition, arguments },
+                )) => Some((*definition, Some(arguments))),
+                _ => return Ok(None),
+            };
         }
-        let Some(id) = selected else {
+        let Some((id, alias)) = selected else {
             return Ok(None);
         };
         let definition = self.definition(id)?;
@@ -907,11 +909,23 @@ impl Check<'_, '_> {
             result_mode: PassingMode::Infer,
             call_kind: CallKind::Direct,
         };
-        let written = self
-            .written(owner, object, &definition.parameters, variables, depth + 1)?
-            .into_iter()
-            .map(|value| value.unwrap_or(SemanticActualRecipe::Infer))
-            .collect::<Vec<_>>();
+        let written = if let Some(arguments) = alias {
+            if arguments.len() != definition.parameters.len()
+                || matches!(object.kind, CoreExprKind::GenericApply { .. })
+            {
+                return Err(bad("original enum alias changes its declared argument domain"));
+            }
+            self.pay(arguments.len(), depth)?;
+            for argument in arguments {
+                crate::dyn_metadata::semantic_operand_snapshot(argument, self.limits, self.left, 1)?;
+            }
+            arguments.clone()
+        } else {
+            self.written(owner, object, &definition.parameters, variables, depth + 1)?
+                .into_iter()
+                .map(|value| value.unwrap_or(SemanticActualRecipe::Infer))
+                .collect()
+        };
         let operands = values.iter().collect::<Vec<_>>();
         let (actuals, solved) = self.solve_signature(
             owner,
