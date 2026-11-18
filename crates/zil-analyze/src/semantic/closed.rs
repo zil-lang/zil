@@ -80,6 +80,33 @@ struct Check<'a, 'i> {
     trait_queries: std::cell::RefCell<Vec<traits::ActiveQuery>>,
     nominal_definitions: std::cell::RefCell<BTreeMap<LifeDeclarationId, SemanticDefinitionId>>,
 }
+/// Replay a nominal field with declaration-local coordinates. The caller
+/// checks this substitution against the independently obtained field value.
+pub(super) fn coordinate_field(
+    definition: SemanticDefinitionId,
+    arguments: &[value::Argument],
+    recipe: &SemanticTypeRecipe,
+    program: &SemanticModule,
+    inventory: &Inventory<'_>,
+    original: &original::Checked,
+    b: &mut Budget,
+    depth: usize,
+) -> CompileResult<value::Value> {
+    let check = Check {
+        module: inventory.module,
+        program,
+        inventory,
+        original,
+        scope_queries: Default::default(),
+        capture_directories: Default::default(),
+        value_queries: Default::default(),
+        slot_queries: Default::default(),
+        trait_queries: Default::default(),
+        nominal_definitions: Default::default(),
+    };
+    check.nominal_field_value(definition, arguments, recipe, b, depth)
+}
+
 impl Check<'_, '_> {
     fn sealed_byte_buffer(&self, b: &mut Budget) -> CompileResult<()> {
         let key = (

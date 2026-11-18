@@ -701,7 +701,7 @@ impl Checked {
                     let field = self.value(*term, context, program, inventory, b, depth + 1)?;
                     Solver::push(&mut physical, field, b)?;
                 }
-                value::nominal(*definition, &actuals, &physical, inventory, b, depth + 1)
+                value::nominal(*definition, &actuals, &physical, program, self, inventory, b, depth + 1)
             }
             Kind::Wrapped(wrapper, inner) => {
                 let inner = self.value(*inner, context, program, inventory, b, depth + 1)?;

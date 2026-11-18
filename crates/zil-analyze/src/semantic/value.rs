@@ -765,49 +765,15 @@ fn actual_equal_paid(
     geometry::same_geometry(&geometry, &expected, b)
 }
 
-/// Reconstruct a nominal from the original whole argument vector. A local
-/// binder is selected by its actual occurrence, never a caller's numeric ID.
-pub(super) fn nominal(
-    definition: SemanticDefinitionId,
-    args: &[Argument],
+fn physical_nominal_domain<'a>(
+    source: &SemanticDefinition,
+    declared: &LifeNominalDeclaration,
+    declaration: &LifeDeclarationId,
+    body: &SemanticNominalBody,
+    args: &'a [Argument],
     fields: &[Value],
-    inventory: &Inventory<'_>,
     b: &mut Budget,
-    depth: usize,
-) -> CompileResult<Value> {
-    b.spend(1, WORK)?;
-    if depth > b.partial_depth {
-        return Err(unknown("semantic nominal value exceeds its complete depth"));
-    }
-    let source = inventory.definition(definition, b)?;
-    let SemanticDefinitionBody::Nominal {
-        declaration,
-        kind,
-        body,
-    } = &source.body
-    else {
-        return Err(fail("semantic nominal value selects a nonnominal original"));
-    };
-    if source.parameters.len() != args.len() {
-        return Err(fail("semantic nominal value omits mixed arguments"));
-    }
-    let mut declared = None;
-    for item in inventory.nominal_declarations(*declaration, b)? {
-        b.spend(1, WORK)?;
-        if item.id == *declaration && declared.replace(item).is_some() {
-            return Err(fail("nominal declaration identity is duplicated"));
-        }
-    }
-    let declared =
-        declared.ok_or_else(|| fail("semantic nominal value has no real declaration inventory"))?;
-    if declared.identity != source.identity
-        || declared.kind != *kind
-        || declared.parameters.len() != args.len()
-    {
-        return Err(fail(
-            "nominal value changes original identity, kind or arity",
-        ));
-    }
+) -> CompileResult<(Vec<Class>, Vec<ExpectedActual<'a>>, StorageLifeShape)> {
     let mut classes = Vec::new();
     let mut nominal_rows = Vec::new();
     let mut retained = Vec::new();
@@ -1039,6 +1005,239 @@ pub(super) fn nominal(
         slots,
         retained,
         nominal_arguments: nominal_rows,
+    };
+    Ok((classes, expected, shape))
+}
+
+/// A Type argument owns its intrinsic directory even when another argument
+/// maps to the same outer lifetime. Build in local coordinates first. Only the
+/// final permutation applies these coordinates to the actual class images.
+fn qualified_nominal_domain<'a>(
+    source: &SemanticDefinition,
+    declared: &LifeNominalDeclaration,
+    declaration: LifeDeclarationId,
+    body: &SemanticNominalBody,
+    args: &'a [Argument],
+    fields: &[Value],
+    program: &SemanticModule,
+    original: &original::Checked,
+    inventory: &Inventory<'_>,
+    b: &mut Budget,
+    depth: usize,
+) -> CompileResult<(Vec<Class>, Vec<ExpectedActual<'a>>, StorageLifeShape)> {
+    let mut classes = Vec::new();
+    let mut coordinates = Vec::new();
+    let mut expected = Vec::new();
+    let mut named = Vec::new();
+    let mut shape = empty();
+    for (index, ((formal, kind), arg)) in source.parameters.iter().zip(&declared.parameters).zip(args).enumerate() {
+        let index = u32::try_from(index).map_err(|_| fail("nominal argument ordinal overflow"))?;
+        let (coordinate, actual) = match (formal, kind, arg) {
+            (SemanticFormal::Type { .. }, LifeParameterKind::Type, Argument::Type(value)) => {
+                let mut local = Vec::new();
+                for class in &value.classes {
+                    let index = u32::try_from(classes.len()).map_err(|_| fail("nominal class domain overflow"))?;
+                    put(&mut classes, class.clone(), b)?;
+                    put(&mut local, Class::Local(index), b)?;
+                }
+                inherit_qualified_rows(&mut shape, &value.life, &local, LifeTypeProjection::TypeArgument(index), b)?;
+                (Argument::Type(value.with_classes(local, b)?), ExpectedActual::Value(value))
+            }
+            (SemanticFormal::Lifetime, LifeParameterKind::Lifetime, Argument::Life(image)) => {
+                b.spend(named.len() + 1, WORK)?;
+                let binder = match named.iter().find(|(prev, _)| *prev == image) {
+                    Some((_, binder)) => *binder,
+                    None => {
+                        let binder = u32::try_from(classes.len()).map_err(|_| fail("nominal lifetime ordinal overflow"))?;
+                        put(&mut named, (image, binder), b)?;
+                        put(&mut classes, image.clone(), b)?;
+                        binder
+                    }
+                };
+                put(&mut shape.nominal_arguments, NominalLifeArgument {
+                    path: Vec::new(), declaration, argument: index, binder,
+                }, b)?;
+                (Argument::Life(Class::Local(binder)), ExpectedActual::Lifetime(binder))
+            }
+            (SemanticFormal::Const { .. }, LifeParameterKind::Const(ty), Argument::Const { carrier, value })
+                if ty == carrier && value.ty() == *carrier => {
+                crate::dyn_metadata::ty(carrier, b)?;
+                if let Constant::WideString(units) = value { b.spend(units.len(), WORK)?; }
+                (arg.clone(), ExpectedActual::Const(value))
+            }
+            _ => return Err(fail("qualified nominal changes an original mixed argument")),
+        };
+        put(&mut coordinates, coordinate, b)?;
+        put(&mut expected, actual, b)?;
+    }
+    let mut inputs = fields.iter();
+    let mut field = |recipe: &SemanticTypeRecipe, path: PlaceProjection, b: &mut Budget| -> CompileResult<()> {
+        let input = inputs.next().ok_or_else(|| fail("qualified nominal omits an original field"))?;
+        if empty_shape(&input.life) && input.classes.is_empty() {
+            return Ok(());
+        }
+        let located = closed::coordinate_field(source.id, &coordinates, recipe, program, inventory, original, b, depth + 1)?;
+        if !geometry::same_geometry(&input.geometry, &located.geometry, b)? || located.classes.len() != input.classes.len() {
+            return Err(fail("qualified field changes its declared intrinsic geometry"));
+        }
+        b.spend(input.classes.len(), WORK)?;
+        for (coordinate, image) in located.classes.iter().zip(&input.classes) {
+            let Class::Local(index) = coordinate else {
+                return Err(fail("qualified field class has no original argument coordinate"));
+            };
+            if classes.get(*index as usize) != Some(image) {
+                return Err(fail("qualified field changes the image of its original coordinate"));
+            }
+        }
+        inherit_qualified_rows(&mut shape, &located.life, &located.classes, LifeTypeProjection::Place(path), b)
+    };
+    match body {
+        SemanticNominalBody::Product { fields } => {
+            for (index, orig) in fields.iter().enumerate() {
+                let index = u32::try_from(index).map_err(|_| fail("nominal field ordinal overflow"))?;
+                field(&orig.ty, PlaceProjection::Field(index), b)?;
+            }
+        }
+        SemanticNominalBody::Enum { variants } => {
+            for (variant, orig) in variants.iter().enumerate() {
+                let variant = u32::try_from(variant).map_err(|_| fail("nominal variant ordinal overflow"))?;
+                for (index, recipe) in orig.fields.iter().enumerate() {
+                    let index = u32::try_from(index).map_err(|_| fail("nominal payload ordinal overflow"))?;
+                    field(recipe, PlaceProjection::Variant(VariantProjection { variant, index }), b)?;
+                }
+            }
+        }
+    }
+    if inputs.next().is_some() { return Err(fail("qualified nominal adds a field")); }
+    shape.binder_count = u32::try_from(classes.len()).map_err(|_| fail("nominal class domain overflow"))?;
+    let count = shape.slots.len().saturating_add(shape.retained.len()).saturating_add(shape.nominal_arguments.len());
+    b.spend(count, WORK)?;
+    let width = shape.slots.iter().map(|r| r.path.len()).chain(shape.retained.iter().map(|r| r.path.len()))
+        .chain(shape.nominal_arguments.iter().map(|r| r.path.len())).max().unwrap_or(0).saturating_add(1);
+    b.spend(count.saturating_mul(width).saturating_mul(count.saturating_add(1).ilog2() as usize + 1), WORK)?;
+    shape.slots.sort_unstable();
+    shape.retained.sort_unstable();
+    shape.nominal_arguments.sort_unstable();
+    b.spend(classes.len().saturating_add(count).saturating_add(expected.len()), WORK)?;
+    let mut reordered = Vec::new();
+    let mut permutation = vec![None; classes.len()];
+    for binder in shape.nominal_arguments.iter_mut().map(|r| &mut r.binder)
+        .chain(shape.slots.iter_mut().map(|r| &mut r.binder))
+        .chain(shape.retained.iter_mut().map(|r| &mut r.binder)) {
+        let pos = *binder as usize;
+        let mapped = permutation.get_mut(pos).ok_or_else(|| fail("qualified row leaves its original domain"))?;
+        *binder = match *mapped {
+            Some(index) => index,
+            None => {
+                let index = reordered.len() as u32;
+                put(&mut reordered, classes[pos].clone(), b)?;
+                *mapped = Some(index);
+                index
+            }
+        };
+    }
+    if reordered.len() != classes.len() { return Err(fail("qualified nominal omits an original coordinate")); }
+    for actual in &mut expected {
+        if let ExpectedActual::Lifetime(binder) = actual {
+            *binder = permutation[*binder as usize].ok_or_else(|| fail("named nominal lifetime is unrepresented"))?;
+        }
+    }
+    Ok((reordered, expected, shape))
+}
+
+fn inherit_qualified_rows(parent: &mut StorageLifeShape, child: &StorageLifeShape,
+    coordinates: &[Class], prefix: LifeTypeProjection, b: &mut Budget) -> CompileResult<()> {
+    if child.binder_count as usize != coordinates.len() {
+        return Err(fail("qualified child omits its intrinsic class domain"));
+    }
+    let mapped = |index: u32| match coordinates.get(index as usize) {
+        Some(Class::Local(binder)) => Ok(*binder),
+        _ => Err(fail("qualified child row lacks a declaration-local coordinate")),
+    };
+    for class in 0..child.binder_count {
+        put(&mut parent.retained, StorageRetainedBinding { path: vec![prefix], class, binder: mapped(class)? }, b)?;
+    }
+    let prefixed = |tail: &[LifeTypeProjection], b: &mut Budget| -> CompileResult<Vec<LifeTypeProjection>> {
+        b.spend(tail.len().saturating_add(1), WORK)?;
+        let mut path = Vec::with_capacity(tail.len().saturating_add(1));
+        path.push(prefix);
+        path.extend_from_slice(tail);
+        Ok(path)
+    };
+    for row in &child.retained {
+        put(&mut parent.retained, StorageRetainedBinding {
+            path: prefixed(&row.path, b)?, class: row.class, binder: mapped(row.binder)?,
+        }, b)?;
+    }
+    for row in &child.nominal_arguments {
+        put(&mut parent.nominal_arguments, NominalLifeArgument {
+            path: prefixed(&row.path, b)?, declaration: row.declaration, argument: row.argument, binder: mapped(row.binder)?,
+        }, b)?;
+    }
+    if let LifeTypeProjection::Place(field) = prefix {
+        for row in &child.slots {
+            b.spend(row.path.len().saturating_add(1), WORK)?;
+            let mut path = Vec::with_capacity(row.path.len().saturating_add(1));
+            path.push(field);
+            path.extend_from_slice(&row.path);
+            put(&mut parent.slots, StorageLifeSlot { path, mode: row.mode, binder: mapped(row.binder)? }, b)?;
+        }
+    }
+    Ok(())
+}
+
+/// Reconstruct a nominal from the original whole argument vector. A local
+/// binder is selected by its actual occurrence, never a caller's numeric ID.
+pub(super) fn nominal(
+    definition: SemanticDefinitionId,
+    args: &[Argument],
+    fields: &[Value],
+    program: &SemanticModule,
+    original: &original::Checked,
+    inventory: &Inventory<'_>,
+    b: &mut Budget,
+    depth: usize,
+) -> CompileResult<Value> {
+    b.spend(1, WORK)?;
+    if depth > b.partial_depth {
+        return Err(unknown("semantic nominal value exceeds its complete depth"));
+    }
+    let source = inventory.definition(definition, b)?;
+    let SemanticDefinitionBody::Nominal {
+        declaration,
+        kind,
+        body,
+    } = &source.body
+    else {
+        return Err(fail("semantic nominal value selects a nonnominal original"));
+    };
+    if source.parameters.len() != args.len() {
+        return Err(fail("semantic nominal value omits mixed arguments"));
+    }
+    let mut declared = None;
+    for item in inventory.nominal_declarations(*declaration, b)? {
+        b.spend(1, WORK)?;
+        if item.id == *declaration && declared.replace(item).is_some() {
+            return Err(fail("nominal declaration identity is duplicated"));
+        }
+    }
+    let declared =
+        declared.ok_or_else(|| fail("semantic nominal value has no real declaration inventory"))?;
+    if declared.identity != source.identity
+        || declared.kind != *kind
+        || declared.parameters.len() != args.len()
+    {
+        return Err(fail(
+            "nominal value changes original identity, kind or arity",
+        ));
+    }
+    let (classes, expected, shape) = if args.iter().any(|arg| {
+        matches!(arg, Argument::Type(value) if !value.classes.is_empty())
+    }) {
+        qualified_nominal_domain(source, declared, *declaration, body, args, fields,
+            program, original, inventory, b, depth + 1)?
+    } else {
+        physical_nominal_domain(source, declared, declaration, body, args, fields, b)?
     };
     let mut selected = None;
     for (position, instance) in inventory.nominal_instances(*declaration, b)? {

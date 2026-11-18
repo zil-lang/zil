@@ -597,7 +597,7 @@ impl Check<'_, '_> {
                 }
             }
         }
-        value::nominal(definition, arguments, &fields, self.inventory, b, depth + 1)
+        value::nominal(definition, arguments, &fields, self.program, self.original, self.inventory, b, depth + 1)
     }
     fn nominal_field(
         &self,
