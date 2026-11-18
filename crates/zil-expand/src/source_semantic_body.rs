@@ -20,6 +20,10 @@ pub(super) struct OriginalBodyOutput {
     pub body: SemanticOriginalFunctionBody,
     pub nodes: Vec<OriginalBodyNode>,
 }
+enum PatternOwner {
+    Declaration(Option<SemanticDefinitionId>),
+    Alias(SemanticTypeRecipe),
+}
 struct Mint {
     next: u32,
     nodes: Vec<OriginalBodyNode>,
@@ -520,17 +524,14 @@ impl Builder<'_, '_, '_, '_> {
         }
         Ok(result)
     }
-    fn body_definition(&mut self, names: &[String], span: Span) -> R<SemanticDefinitionId> {
+    fn pattern_owner(&mut self, names: &[String], path: &[u32], span: Span, depth: usize) -> R<PatternOwner> {
         if names.is_empty() {
-            return Err(error(
-                span,
-                "explicit original constructor has an empty owner path",
-            ));
+            return Ok(PatternOwner::Declaration(None));
         }
         if !self.builtin_shadow(names, span)?
             && let Some(definition) = self.compiler_nominal(names, span)?
         {
-            return Ok(definition);
+            return Ok(PatternOwner::Declaration(Some(definition)));
         }
         // Self in a member is the real lexical impl target, never the method
         // formal zero or the first same-shaped nominal in the current module.
@@ -560,14 +561,26 @@ impl Builder<'_, '_, '_, '_> {
                     self.owner = index;
                     let selected = self.named(path, span);
                     self.owner = saved;
-                    return selected.map(|index| self.id(index));
+                    return selected.map(|index| PatternOwner::Declaration(Some(self.id(index))));
                 }
                 owner = row.parent;
             }
             return Err(error(span, "original Self constructor has no lexical impl"));
         }
         let index = self.named(names, span)?;
-        Ok(self.id(index))
+        if let s::ItemKind::TypeAlias(alias) = &self.inventory.declarations[index].item.kind {
+            if !alias.generics.is_empty() {
+                return Err(unsupported(span, "constructor pattern requires the full generic alias application"));
+            }
+            let mut occurrence = Vec::new();
+            self.push(&mut occurrence, 40, span)?;
+            for &step in path {
+                self.push(&mut occurrence, step, span)?;
+            }
+            let ty = self.alias_type(index, Vec::new(), &mut occurrence, depth + 1, false)?;
+            return Ok(PatternOwner::Alias(ty));
+        }
+        Ok(PatternOwner::Declaration(Some(self.id(index))))
     }
     fn body_tree(&mut self, tree: &s::TokenTree, depth: usize) -> R<CoreSyntaxTree> {
         self.budget.node(tree.span, depth)?;
@@ -736,38 +749,34 @@ impl Builder<'_, '_, '_, '_> {
                 let (variant, owner) = names.split_last().ok_or_else(|| {
                     error(pattern.span, "original constructor pattern has no variant")
                 })?;
-                let definition = if owner.is_empty() {
-                    None
-                } else {
-                    Some(self.body_definition(owner, pattern.span)?)
-                };
+                let owner = self.pattern_owner(owner, path, pattern.span, depth)?;
                 let mut fields = Vec::new();
                 for field in arguments {
                     let field = self.body_pattern(field, path, depth + 1)?;
                     self.push(&mut fields, field, pattern.span)?;
                 }
-                CorePatternKind::Constructor {
-                    definition,
-                    variant: self.text(variant, pattern.span)?,
-                    fields,
+                let variant = self.text(variant, pattern.span)?;
+                match owner {
+                    PatternOwner::Alias(ty) => CorePatternKind::Variant { ty, variant, fields },
+                    PatternOwner::Declaration(definition) =>
+                        CorePatternKind::Constructor { definition, variant, fields },
                 }
             }
             s::PatternKind::RecordConstructor {
                 path: names,
                 fields: original,
             } => {
-                let definition = if names.is_empty() {
-                    None
-                } else {
-                    Some(self.body_definition(names, pattern.span)?)
-                };
+                let owner = self.pattern_owner(names, path, pattern.span, depth)?;
                 let mut fields = Vec::new();
                 for field in original {
                     let name = self.text(&field.name, field.span)?;
                     let field = self.body_pattern(&field.pattern, path, depth + 1)?;
                     self.push(&mut fields, (name, field), pattern.span)?;
                 }
-                CorePatternKind::RecordConstructor { definition, fields }
+                match owner {
+                    PatternOwner::Alias(ty) => CorePatternKind::Record { ty, fields },
+                    PatternOwner::Declaration(definition) => CorePatternKind::RecordConstructor { definition, fields },
+                }
             }
         };
         Ok(CorePattern {
