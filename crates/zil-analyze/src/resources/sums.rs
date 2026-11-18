@@ -17,13 +17,49 @@ mod tag_forgetting_tests;
 pub(crate) fn owned(ty: &Type) -> bool {
     match ty {
         Type::BorrowedStorage { storage, .. } => owned(storage),
-        Type::Managed(_) | Type::Closure(_) => true,
+        Type::Managed(_) | Type::Closure(_) | Type::OwnedDyn { .. } => true,
         Type::Tuple(fields) => fields.iter().any(owned),
         Type::Package { fields, .. } => fields.iter().any(|(_, t)| owned(t)),
         Type::Enum { variants, .. } => variants.iter().any(|(_, fs)| fs.iter().any(owned)),
         Type::ErrorUnion { error, result } => owned(error) || owned(result),
         _ => false,
     }
+}
+
+fn callable_leaf(
+    module: &TypedModule,
+    id: ClosureId,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    budget.spend(2, "ordinary Sum actual callable entry")?;
+    let definition = module.closures.get(id.0 as usize)
+        .filter(|definition| definition.id == id)
+        .ok_or_else(|| error("ordinary Sum callable identity is absent"))?;
+    let entry = module.functions.get(definition.function.0 as usize)
+        .filter(|entry| entry.id == definition.function)
+        .ok_or_else(|| error("ordinary Sum callable entry is absent"))?;
+    if entry.environment != Some(id) || entry.foreign.is_some()
+        || entry.parameters.len() != definition.parameters.len()
+    {
+        return Err(error("ordinary Sum callable entry differs from its environment"));
+    }
+    budget.type_work(&definition.result, false, "ordinary Sum callable declared result")?;
+    budget.type_work(&entry.return_type, false, "ordinary Sum callable actual result")?;
+    if entry.return_type != definition.result {
+        return Err(error("ordinary Sum callable changes its complete result"));
+    }
+    budget.spend(entry.parameters.len(), "ordinary Sum callable complete inputs")?;
+    for (local, expected) in entry.parameters.iter().zip(&definition.parameters) {
+        let actual = &entry.locals.get(local.0 as usize)
+            .filter(|declaration| declaration.id == *local)
+            .ok_or_else(|| error("ordinary Sum callable input is absent"))?.ty;
+        budget.type_work(actual, false, "ordinary Sum callable actual input")?;
+        budget.type_work(expected, false, "ordinary Sum callable declared input")?;
+        if actual != expected {
+            return Err(error("ordinary Sum callable changes a complete input"));
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
@@ -87,12 +123,22 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                     Ok((false, true))
                 }
             }
-            Type::Closure(_) if closure_inputs => {
-                // The complete compiler instance authenticates this input
-                // position. All actual Closure definitions/constructors and
-                // their remaining-environment teardown are still checked by
-                // preflight and the independent executable resource kernel.
-                crate::budget::legacy_value(ty, zil_base::Span::default(), module)?;
+            Type::Closure(id) => {
+                // The complete ordinary environment qualification is shared
+                // with actual callback fields. Task failure inputs retain
+                // their separately authenticated position; an arbitrary sum
+                // does not inherit that exception.
+                callable_leaf(module, *id, budget)?;
+                if !closure_inputs {
+                    crate::callable_fields::inline(module, *id, budget)?;
+                }
+                Ok((false, true))
+            }
+            Type::OwnedDyn { interface } => {
+                // Check the actual interface and cleanup contract; retained
+                // Context permissions still belong to stored-flow, not to
+                // this affine skeleton.
+                crate::dyn_cleanup::capture_interface(module, *interface, budget)?;
                 Ok((false, true))
             }
             Type::Tuple(fields) => {
@@ -107,12 +153,9 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                 Ok((store, owner))
             }
             Type::Package { name, fields } => {
-                // The complete State profile independently checks every
-                // concrete callback/environment and ordinary field. Its
-                // closures remain affine leaves in the actual origin tree.
-                if crate::resources::product::admit_callback_head(module, ty, budget)? {
-                    return Ok((false, true));
-                }
+                // Check every field here, including a Sum sibling of a direct
+                // callback. A callback-only Product profile cannot stand in
+                // for this complete mixed product tree.
                 if name.is_empty() {
                     return Err(error("ordinary Product identity or owner is absent"));
                 }
@@ -136,7 +179,7 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                     owner |= has_owner;
                 }
                 if !owner {
-                    return Err(error("ordinary Product has no transitive Managed leaf"));
+                    return Err(error("ordinary Product has no transitive owning leaf"));
                 }
                 Ok((store, owner))
             }
@@ -195,7 +238,8 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                     }
                 } else {
                     for slot in [e.as_ref(), result.as_ref()] {
-                        if !matches!(slot, Type::Package { .. } | Type::Enum { .. })
+                        if !matches!(slot, Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. }
+                            | Type::Closure(_) | Type::OwnedDyn { .. })
                             && !crate::ownership_store::pod_owned(slot)
                         {
                             budget.type_work(
@@ -205,7 +249,7 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                             )?;
                             if !slot.is_copy_value() {
                                 return Err(error(
-                                    "ordinary ErrorUnion slots require Copy, Product or Enum",
+                                    "ordinary ErrorUnion slots require Copy or a complete ordinary owner",
                                 ));
                             }
                         }
@@ -296,7 +340,16 @@ fn has_copy_tag_layout(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
     Ok(found)
 }
 impl Tree {
-    fn live_async(&self, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    fn live_async(&self, module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+        self.live_async_under(module, ty, &mut BTreeSet::new(), b)
+    }
+    fn live_async_under(
+        &self,
+        module: &TypedModule,
+        ty: &Type,
+        active: &mut BTreeSet<ClosureId>,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
         b.spend(1, "actual asynchronous aggregate cleanup leaf")?;
         if self.missing {
             return Ok(false);
@@ -305,9 +358,36 @@ impl Tree {
             (Node::Leaf(_), Type::Managed(t)) => {
                 Ok(matches!(t.as_ref(), Type::AsyncRegistration { .. }))
             }
+            (Node::Leaf(_), Type::Closure(id)) => {
+                b.lookup(active.len(), "aggregate cleanup active environment")?;
+                b.spend(1, "aggregate cleanup environment identity")?;
+                if active.len() >= b.partial_depth {
+                    return Err(vec![Diagnostic::limit(
+                        Phase::Analyze, "aggregate cleanup environment depth", None,
+                    )]);
+                }
+                if !active.insert(*id) {
+                    return Err(error("aggregate cleanup has a cyclic inline environment"));
+                }
+                let definition = module.closures.get(id.0 as usize)
+                    .filter(|definition| definition.id == *id)
+                    .ok_or_else(|| error("aggregate cleanup environment is absent"))?;
+                b.spend(definition.captures.len(), "aggregate cleanup actual captures")?;
+                let mut asynchronous = false;
+                for capture in &definition.captures {
+                    // This is owning inline storage, not the graph reached by
+                    // an Address/Desc. Such borrowed leaves are Copy nodes in
+                    // the resource tree and cannot create destructor debt.
+                    let tree = Tree::unknown(capture, b)?;
+                    asynchronous |= tree.live_async_under(module, capture, active, b)?;
+                }
+                b.lookup(active.len(), "aggregate cleanup environment exit")?;
+                active.remove(id);
+                Ok(asynchronous)
+            }
             (Node::Product(children), Type::Tuple(fields)) => {
                 for (child, ty) in children.iter().zip(fields) {
-                    if child.live_async(ty, b)? {
+                    if child.live_async_under(module, ty, active, b)? {
                         return Ok(true);
                     }
                 }
@@ -315,7 +395,7 @@ impl Tree {
             }
             (Node::Product(children), Type::Package { fields, .. }) => {
                 for (child, (_, ty)) in children.iter().zip(fields) {
-                    if child.live_async(ty, b)? {
+                    if child.live_async_under(module, ty, active, b)? {
                         return Ok(true);
                     }
                 }
@@ -329,7 +409,7 @@ impl Tree {
             ) => {
                 for (index, children) in variants {
                     for (child, ty) in children.iter().zip(&types[*index as usize].1) {
-                        if child.live_async(ty, b)? {
+                        if child.live_async_under(module, ty, active, b)? {
                             return Ok(true);
                         }
                     }
@@ -339,7 +419,7 @@ impl Tree {
             (Node::Sum(variants), Type::ErrorUnion { error, result }) => {
                 for (index, children) in variants {
                     if let Some(child) = children.first()
-                        && child.live_async(if *index == 0 { result } else { error }, b)?
+                        && child.live_async_under(module, if *index == 0 { result } else { error }, active, b)?
                     {
                         return Ok(true);
                     }
@@ -405,7 +485,9 @@ impl Tree {
     fn unknown(ty: &Type, budget: &mut Budget) -> CompileResult<Arc<Self>> {
         budget.spend(2, "Sum tree allocation")?;
         let node = match package_storage(ty) {
-            Type::Managed(_) | Type::Closure(_) => Node::Leaf(BTreeSet::from([Birth::Incoming])),
+            Type::Managed(_) | Type::Closure(_) | Type::OwnedDyn { .. } => {
+                Node::Leaf(BTreeSet::from([Birth::Incoming]))
+            }
             Type::Tuple(fields) => {
                 budget.spend(fields.len(), "Tuple tree children")?;
                 Node::Product(
@@ -690,6 +772,7 @@ impl Tree {
                 ty,
                 Type::Managed(_)
                     | Type::Closure(_)
+                    | Type::OwnedDyn { .. }
                     | Type::Tuple(_)
                     | Type::Package { .. }
                     | Type::Enum { .. }
@@ -1757,6 +1840,7 @@ impl Plan {
                     | InstructionKind::DropPackage { .. }
                     | InstructionKind::DropErrorUnion { .. }
                     | InstructionKind::DropClosure { .. }
+                    | InstructionKind::DropDynOwned { .. }
                     | InstructionKind::DropOwnedArray { .. }
                     | InstructionKind::DropEnum { .. }
                     | InstructionKind::DropTuple { .. }
@@ -1781,7 +1865,7 @@ impl Plan {
             };
             if let Some(local) = dropped
                 && let Some(tree) = facts.locals.get(&local)
-                && tree.live_async(&f.locals[local.0 as usize].ty, budget)?
+                && tree.live_async(module, &f.locals[local.0 as usize].ty, budget)?
             {
                 return Err(error(
                     "Direct aggregate cleanup retains a live asynchronous owner; unpack and explicitly close it",
@@ -1975,6 +2059,25 @@ impl Plan {
                     missing: false,
                     node: Node::Leaf(BTreeSet::from([Birth::Created])),
                 }));
+            }
+            InstructionKind::MakeDynOwned { .. } => {
+                let ty = i.result.and_then(|v| f.values.get(v.0 as usize))
+                    .ok_or_else(|| error("owned dyn constructor has no result"))?;
+                let Type::ErrorUnion { result, .. } = ty else {
+                    return Err(error("owned dyn constructor omits its failure/success alternatives"));
+                };
+                if !matches!(result.as_ref(), Type::OwnedDyn { .. }) {
+                    return Err(error("owned dyn constructor success is not an actual owner"));
+                }
+                let mut tree = Tree::unknown(ty, budget)?;
+                let Node::Sum(arms) = &mut edit(&mut tree, budget)?.node else { unreachable!(); };
+                let success = &mut arms.get_mut(&0)
+                    .ok_or_else(|| error("owned dyn success alternative absent"))?[0];
+                let Node::Leaf(birth) = &mut edit(success, budget)?.node else {
+                    return Err(error("owned dyn success loses its owner responsibility"));
+                };
+                *birth = BTreeSet::from([Birth::Created]);
+                output = Some(tree);
             }
             InstructionKind::TaskCreateOwned { arguments, .. } => {
                 let ty = i.result.and_then(|v| f.values.get(v.0 as usize))
@@ -2462,6 +2565,7 @@ impl Plan {
             | InstructionKind::DropPackage { local }
             | InstructionKind::DropErrorUnion { local }
             | InstructionKind::DropClosure { local }
+            | InstructionKind::DropDynOwned { local }
             | InstructionKind::DropOwnedArray { local } => {
                 edit(facts.locals.get_mut(local, budget)?.unwrap(), budget)?.missing = true;
                 facts.invalidate(*local, self, budget)?;
@@ -2810,4 +2914,106 @@ fn edit<'a>(tree: &'a mut Arc<Tree>, budget: &mut Budget) -> CompileResult<&'a m
         tree.cost(budget)?;
     }
     Ok(Arc::make_mut(tree))
+}
+
+#[cfg(test)]
+mod owning_leaf_tests {
+    use super::*;
+    use zil_base::{Fingerprint, ModuleId, SCHEMA_VERSION, Span, TargetProfile};
+
+    fn module(captures: Vec<Type>) -> TypedModule {
+        TypedModule {
+            semantic: None,
+            dyn_declarations: vec![], dyn_interfaces: vec![], dyn_vtables: vec![],
+            life_declarations: vec![], life_instances: vec![],
+            schema_version: SCHEMA_VERSION, module_id: ModuleId(0),
+            source_fingerprint: Fingerprint::ZERO, target: TargetProfile::host_llvm(),
+            functions: vec![TypedFunction {
+                dyn_instance: None, retained_return_sources: None, storage_life: None,
+                call_kind: CallKind::Direct, resume_bound: zil_ir::TaskResumeBound::Local,
+                reference_return_bound: None, callable_return_contract: None,
+                callable_contract: None, protocol_contracts: vec![],
+                id: FunctionId(0), name: "entry".into(), foreign: None,
+                environment: Some(ClosureId(0)), parameters: vec![],
+                return_type: Type::Unit, result_mode: PassingMode::Infer,
+                locals: vec![], values: vec![], blocks: vec![BasicBlock {
+                    id: BlockId(0), instructions: vec![], terminator: Terminator::Return(None),
+                }], entry: BlockId(0), span: Span::default(),
+            }],
+            closures: vec![ClosureDefinition {
+                storage_life: None, id: ClosureId(0), function: FunctionId(0),
+                captures, parameters: vec![], result: Type::Unit,
+                kind: CallableKind::FnOnce, lending_captures: vec![],
+            }],
+            resources: vec![], unsupported: vec![],
+        }
+    }
+    fn budget() -> Budget {
+        let mut budget = Budget::new(&Limits::default());
+        // Only the paid Type walker inventory. Admission still needs the
+        // actual interface table and independently checked cleanup bound.
+        budget.dyn_interfaces.insert(zil_ir::DynInterfaceId { module: ModuleId(0), index: 0 });
+        budget
+    }
+    fn owner() -> Type {
+        Type::OwnedDyn { interface: zil_ir::DynInterfaceId { module: ModuleId(0), index: 0 } }
+    }
+    fn choice() -> Type {
+        Type::Enum { name: "Route".into(), variants: vec![
+            ("Object".into(), vec![owner()]),
+            ("Callback".into(), vec![Type::Closure(ClosureId(0))]),
+        ] }
+    }
+    #[test]
+    fn active_sum_keeps_dyn_and_callable_responsibilities_and_missing_children() {
+        // Tree tests do not authenticate a dyn interface or grant its cleanup
+        // contract. They test liveness of both independently admitted leaves.
+        let ty = choice();
+        assert!(owned(&ty));
+        let full = Tree::unknown(&ty, &mut budget()).unwrap();
+        assert!(!full.no_live_owner(&mut budget()).unwrap());
+        for tag in [0, 1] {
+            let mut selected = full.copied(&mut budget()).unwrap();
+            assert!(selected.narrow(&[], tag, true, &mut budget()).unwrap());
+            let path = [VariantProjection { variant: tag, index: 0 }];
+            assert!(selected.projected(&path, true, &mut budget()).unwrap().birth().is_some());
+            assert!(selected.projected(&[VariantProjection { variant: 1-tag, index: 0 }], true, &mut budget()).is_err());
+            let Node::Sum(arms) = &mut edit(&mut selected, &mut budget()).unwrap().node else { unreachable!() };
+            edit(&mut arms.get_mut(&tag).unwrap()[0], &mut budget()).unwrap().missing = true;
+            assert!(!selected.complete(&mut budget()).unwrap());
+            assert!(selected.no_live_owner(&mut budget()).unwrap());
+            selected.forget_addressed_copy_tags(&ty, &mut budget()).unwrap();
+            assert!(!selected.complete(&mut budget()).unwrap());
+            selected.merge(&full, &mut budget()).unwrap();
+            assert!(!selected.no_live_owner(&mut budget()).unwrap());
+        }
+    }
+    #[test]
+    fn callable_sum_admission_checks_actual_entry_and_missing_dyn_interface() {
+        let mut m = module(vec![]);
+        let ty = Type::Tuple(vec![Type::U16, Type::Closure(ClosureId(0)), Type::Bool]);
+        admit(&m, &ty, &mut budget()).unwrap();
+        m.functions[0].environment = None;
+        assert!(admit(&m, &ty, &mut budget()).is_err());
+        m.functions[0].environment = Some(ClosureId(0));
+        m.functions[0].return_type = Type::I32;
+        assert!(admit(&m, &ty, &mut budget()).is_err());
+        assert!(admit(&module(vec![]), &choice(), &mut budget()).is_err());
+    }
+    #[test]
+    fn aggregate_cleanup_distinguishes_owned_async_capture_from_borrowed_pointee() {
+        let registration = Type::Managed(Box::new(Type::AsyncRegistration {
+            environment: Box::new(Type::I32),
+        }));
+        let ty = Type::Tuple(vec![Type::Closure(ClosureId(0)), Type::Bool]);
+        let tree = Tree::unknown(&ty, &mut budget()).unwrap();
+        assert!(tree.live_async(&module(vec![registration.clone()]), &ty, &mut budget()).unwrap());
+        assert!(!tree.live_async(&module(vec![Type::Address {
+            mutable: true, inner: Box::new(registration),
+        }]), &ty, &mut budget()).unwrap());
+        assert!(tree.live_async(&module(vec![Type::Closure(ClosureId(0))]), &ty, &mut budget()).is_err());
+        let mut retired = tree.copied(&mut budget()).unwrap();
+        edit(&mut retired, &mut budget()).unwrap().missing = true;
+        assert!(!retired.live_async(&module(vec![Type::Closure(ClosureId(0))]), &ty, &mut budget()).unwrap());
+    }
 }

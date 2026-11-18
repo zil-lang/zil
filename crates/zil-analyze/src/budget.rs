@@ -1486,6 +1486,29 @@ pub(super) fn preflight(
                         ..SumContext::default()
                     };
                 }
+                Type::Closure(_) | Type::OwnedDyn { .. } => {
+                    // A callable environment and an erased owner are real
+                    // responsibility leaves too. Select the same complete
+                    // product/sum tree as a Managed leaf; this inventory is
+                    // not their entry, cleanup or source qualification.
+                    let extension = context.in_enum
+                        || context.in_tuple
+                        || context.product_sum
+                        || context.in_error;
+                    if extension
+                        && (context.blocked
+                            || store_element.is_some()
+                            || capture_owner.is_some()
+                            || resource_head)
+                    {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "ordinary owned Sum does not grant array, StoreElement, capture, borrowed or resource-head qualification",
+                            None,
+                        )]);
+                    }
+                    new_sum |= extension;
+                }
                 Type::Address { .. } if depth == 0 && sum_address_root => {
                     child = SumContext {
                         pod_aggregate: context.pod_aggregate,
