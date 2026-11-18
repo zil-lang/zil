@@ -113,16 +113,17 @@ def check_source(args, directory, source, expected=None, stem='check'):
             'diagnostics': diagnostics}
 
 
-def run_native(args, directory, source, reference, entry, cases, source_passed):
+def run_native(args, directory, source, reference, entry, cases, source_passed, *,
+               rust_args=(), require_empty_stderr=False):
     builds = []
     for backend, opt in args.manifest['configurations']:
-        build = {'backend': backend, 'opt': opt, 'status': 'source-did-not-verify', 'runs': []}
+        build = {'entry': entry, 'backend': backend, 'opt': opt, 'status': 'source-did-not-verify', 'runs': []}
         builds.append(build)
         build_dir = directory / f'{backend}-{opt}'
         zil, rust = build_dir / 'zil-program', build_dir / 'rust-program'
         can_run = False
         if source_passed:
-            build_dir.mkdir()
+            build_dir.mkdir(parents=True)
             build_args = ['build', source, '--backend', backend, '--opt', opt, '-o', zil]
             if entry != 'main':
                 build_args.extend(['--entry', entry])
@@ -147,7 +148,7 @@ def run_native(args, directory, source, reference, entry, cases, source_passed):
                 continue
             row['zil'] = execute([zil], build_dir, f'{index}-zil', data)
             if reference is not None:
-                row['rust'] = execute([rust], build_dir, f'{index}-rust', data)
+                row['rust'] = execute([rust, *rust_args], build_dir, f'{index}-rust', data)
                 oracle = row['rust']
                 same = row['zil']['exit_code'] == oracle['exit_code'] and all(
                     (build_dir / f'{index}-zil.{stream}').read_bytes() ==
@@ -157,9 +158,17 @@ def run_native(args, directory, source, reference, entry, cases, source_passed):
                 oracle = row['zil']
                 same = oracle['stderr_sha256'] == digest(b'')
             expected = (oracle['exit_code'], oracle['stdout_sha256']) == (expected_exit, expected_stdout)
+            if require_empty_stderr:
+                expected = expected and oracle['stderr_sha256'] == digest(b'')
             row['status'] = ('pass' if same and expected and row['zil']['error'] is None
                              and oracle['error'] is None else 'mismatch')
     return builds
+
+
+def inline_cases(plan):
+    for case in plan['cases']:
+        data = bytes.fromhex(case['stdin_hex'])
+        yield digest(data), data, case['expected_exit'], case['expected_stdout']
 
 
 def check_control(args, project, directory):
@@ -179,11 +188,8 @@ def check_control(args, project, directory):
     reference = source_dir / project['reference']['path']
     require_digest(reference, project['reference']['sha256'])
     report = check_source(args, directory, source)
-    cases = []
-    for case in control['cases']:
-        data = bytes.fromhex(case['stdin_hex'])
-        cases.append((digest(data), data, case['expected_exit'], case['expected_stdout']))
-    native = run_native(args, directory, source, reference, control['entry'], cases, report['passed'])
+    native = run_native(args, directory, source, reference, control['entry'], list(inline_cases(control)),
+                        report['passed'], require_empty_stderr=True)
     result = {'obligation': control['obligation'], 'source_sha256': digest(source.read_bytes()),
               'check': report, 'native': native}
     if control.get('cleanup_control'):
@@ -208,15 +214,31 @@ def check_project(args, project, inputs):
     require_digest(source, project['source_sha256'])
     reference = source_dir / project['reference']['path']
     require_digest(reference, project['reference']['sha256'])
+    candidate_path = f"{args.candidate}:examples/{project['label']}"
+    try:
+        candidate_tree = git(args.repo, 'rev-parse', '--verify', '--quiet', candidate_path).decode().strip()
+    except subprocess.CalledProcessError:
+        candidate_tree = None
+    matches_original = candidate_tree == project['tree']
+    matches_normalized = candidate_tree is not None and candidate_tree == project.get('normalized_example_tree')
     expected = project.get('expected_rejection')
     checked = check_source(args, directory, source, expected)
     row = {'label': project['label'], 'tree': project['tree'], 'source_sha256': project['source_sha256'],
-           'reference': project['reference'], 'expected_rejection': expected, 'check': checked, 'native': []}
+           'candidate_tree': candidate_tree, 'candidate_matches_original_tree': matches_original,
+           'candidate_matches_normalized_example_tree': matches_normalized,
+           'reference': project['reference'], 'expected_rejection': expected, 'check': checked,
+           'native': [], 'additional_native': []}
     if 'native' in project:
         plan = project['native']
         cases = [(r['stdin_sha256'], inputs.get(r['stdin_sha256']), r['expected_exit'], r['expected_stdout'])
                  for r in plan['runs']]
         row['native'] = run_native(args, directory, source, reference, plan['entry'], cases, checked['passed'])
+    for plan in project.get('additional_native', []):
+        entry = plan['entry']
+        builds = run_native(args, directory / 'additional-native' / entry, source, reference, entry,
+                            list(inline_cases(plan)), checked['passed'], rust_args=plan.get('rust_args', ()),
+                            require_empty_stderr=True)
+        row['additional_native'].extend(builds)
     if 'control' in project:
         row['control'] = check_control(args, project, directory / 'control')
     return row
@@ -250,6 +272,7 @@ def main():
         parser.error('The build receipt must identify a successful build and a full source commit')
     manifest_bytes = (INPUTS / 'manifest.json').read_bytes()
     args.manifest = json.loads(manifest_bytes)
+    args.candidate = receipt['source_commit']
     try:
         inputs = fixtures(args.manifest, args.stdin_directory)
     except ValueError as error:
@@ -262,6 +285,7 @@ def main():
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
         rows = list(pool.map(lambda project: check_project(args, project, inputs), args.manifest['projects']))
     native = native_totals([build for row in rows for build in row['native']])
+    additional_native = native_totals([build for row in rows for build in row['additional_native']])
     controls = [row['control'] for row in rows if 'control' in row]
     witnesses = [control['cleanup'] for control in controls if 'cleanup' in control]
     control_native = native_totals([build for control in controls for build in control['native']])
@@ -270,18 +294,31 @@ def main():
     if (len(rows), native['builds_selected'], native['comparisons_selected']) != (
             totals['projects'], totals['native_builds'], totals['native_comparisons']):
         raise ValueError('The replay does not cover the frozen project and native denominators')
+    additional_totals = args.manifest['additional_native_totals']
+    if (additional_native['builds_selected'], additional_native['comparisons_selected']) != (
+            additional_totals['native_builds'], additional_totals['native_comparisons']):
+        raise ValueError('The replay does not cover the additional native denominators')
+    candidate_trees_matched = sum(row['candidate_matches_original_tree'] or
+                                  row['candidate_matches_normalized_example_tree'] for row in rows)
     summary = {'original_projects': len(rows),
+               'candidate_project_trees_matched': candidate_trees_matched,
+               'candidate_original_trees_matched': sum(row['candidate_matches_original_tree'] for row in rows),
                'originals_verified': sum(row['check']['passed'] for row in rows if row['expected_rejection'] is None),
                'expected_rejections_selected': sum(row['expected_rejection'] is not None for row in rows),
                'expected_rejections': sum(row['check']['passed'] for row in rows if row['expected_rejection'] is not None),
                'original_native': native,
+               'additional_native': additional_native,
+               'additional_native_by_project': {
+                   row['label']: native_totals(row['additional_native']) for row in rows if row['additional_native']
+               },
                'controls_selected': len(controls), 'controls_verified': sum(c['check']['passed'] for c in controls),
                'control_native': control_native, 'cleanup_control_native': cleanup_native}
-    passed = (all(row['check']['passed'] for row in rows)
+    passed = (candidate_trees_matched == len(rows)
+              and all(row['check']['passed'] for row in rows)
               and all(c['check']['passed'] for c in controls + witnesses)
               and all(t['builds_passed'] == t['builds_selected'] and
                       t['comparisons_passed'] == t['comparisons_selected']
-                      for t in (native, control_native, cleanup_native)))
+                      for t in (native, additional_native, control_native, cleanup_native)))
     write_json(args.out / 'report.json', {'candidate': receipt['source_commit'], 'cli_sha256': receipt['cli_sha256'],
                                         'manifest_sha256': digest(manifest_bytes), 'work_profile': args.work_profile,
                                         'passed': passed, 'summary': summary, 'projects': rows})

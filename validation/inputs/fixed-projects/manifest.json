@@ -30,6 +30,10 @@
     "native_builds": 60,
     "native_comparisons": 196
   },
+  "additional_native_totals": {
+    "native_builds": 12,
+    "native_comparisons": 56
+  },
   "inputs": {
     "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855": {
       "hex": ""
@@ -143,7 +147,8 @@
             "expected_stdout": "283da6ff5665b3257ce055bc2c22d756be5341588d736c1205d5ed31eaf05f3d"
           }
         ]
-      }
+      },
+      "normalized_example_tree": "b6f040e0685640ead1e159f307a74874db7b279d"
     },
     {
       "label": "generic-option-result",
@@ -171,7 +176,8 @@
             "expected_stdout": "283da6ff5665b3257ce055bc2c22d756be5341588d736c1205d5ed31eaf05f3d"
           }
         ]
-      }
+      },
+      "normalized_example_tree": "ab54f5d03083f7a716641d13bd9227771dcbb9f0"
     },
     {
       "label": "mainline/app",
@@ -180,7 +186,33 @@
       "reference": {
         "path": "main.rs",
         "sha256": "bb592f1996ab773892b02c3d63429977e317c1432fb32f51302cd8231d7c2e90"
-      }
+      },
+      "additional_native": [
+        {
+          "entry": "main",
+          "rust_args": [
+            "--check"
+          ],
+          "cases": [
+            {
+              "stdin_hex": "",
+              "expected_exit": 0,
+              "expected_stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          ]
+        },
+        {
+          "entry": "result",
+          "rust_args": [],
+          "cases": [
+            {
+              "stdin_hex": "",
+              "expected_exit": 0,
+              "expected_stdout": "d8596566dec0edc8cc941ccaf8e55955b5b7498fae6cfbddbd6e2a07ec23557a"
+            }
+          ]
+        }
+      ]
     },
     {
       "label": "mainline/byte_buffer",
@@ -448,7 +480,75 @@
       "reference": {
         "path": "main.rs",
         "sha256": "baf0c3cb98fb3c4cce8f58a081f8f890b126e66abc40116b361b1d581175dc00"
-      }
+      },
+      "additional_native": [
+        {
+          "entry": "main",
+          "rust_args": [],
+          "cases": [
+            {
+              "stdin_hex": "44",
+              "expected_exit": 0,
+              "expected_stdout": "6b23c0d5f35d1b11f9b683f0b0a617355deb11277d91ae091d399c655b87940d"
+            },
+            {
+              "stdin_hex": "53",
+              "expected_exit": 0,
+              "expected_stdout": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+            },
+            {
+              "stdin_hex": "55",
+              "expected_exit": 0,
+              "expected_stdout": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153"
+            },
+            {
+              "stdin_hex": "4f",
+              "expected_exit": 0,
+              "expected_stdout": "bf7b0ead279760f89777a5c87858171765a95d66f0265006b9e992a2154401e9"
+            },
+            {
+              "stdin_hex": "4d",
+              "expected_exit": 0,
+              "expected_stdout": "6b23c0d5f35d1b11f9b683f0b0a617355deb11277d91ae091d399c655b87940d"
+            },
+            {
+              "stdin_hex": "45",
+              "expected_exit": 7,
+              "expected_stdout": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+            },
+            {
+              "stdin_hex": "54",
+              "expected_exit": 0,
+              "expected_stdout": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+            },
+            {
+              "stdin_hex": "4c",
+              "expected_exit": 0,
+              "expected_stdout": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153"
+            },
+            {
+              "stdin_hex": "30",
+              "expected_exit": 1,
+              "expected_stdout": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+            },
+            {
+              "stdin_hex": "31",
+              "expected_exit": 2,
+              "expected_stdout": "296d71a7f66e75b751c597094536329dcf2cf484f83e475d91f7aea1ff4c9738"
+            },
+            {
+              "stdin_hex": "32",
+              "expected_exit": 3,
+              "expected_stdout": "322f7db21cbf1b6f634dc9aaa6a16ceb38ff220e2d9ae9986f45446f1ca936ab"
+            },
+            {
+              "stdin_hex": "33",
+              "expected_exit": 0,
+              "expected_stdout": "322f7db21cbf1b6f634dc9aaa6a16ceb38ff220e2d9ae9986f45446f1ca936ab"
+            }
+          ]
+        }
+      ]
     },
     {
       "label": "mainline/resources",
