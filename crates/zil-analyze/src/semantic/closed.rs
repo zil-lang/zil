@@ -325,6 +325,12 @@ impl Check<'_, '_> {
         if classes.len() != life.binder_count as usize {
             return Err(fail("semantic value omits a complete class occurrence"));
         }
+        if let Some(domain) = value::qualified_sum_domain(ty, self.inventory, b)? {
+            if domain != *life { return Err(fail("tagged sum view changes its complete success domain")); }
+            self.actual_type(ty, b)?;
+            crate::dyn_metadata::ty(ty, b)?;
+            return Ok(ty.clone());
+        }
         if let Some(domain) = self.task_domain(ty, b)? {
             if domain != *life {
                 return Err(fail(

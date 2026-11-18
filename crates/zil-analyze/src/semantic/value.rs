@@ -271,6 +271,17 @@ fn inherited_domain(child: &StorageLifeShape, prefix: LifeTypeProjection, b: &mu
     }
     Ok(StorageLifeShape { binder_count: child.binder_count, slots, retained, nominal_arguments })
 }
+/// An inline sum carries the complete checked domain of its qualified success
+/// child across either tag. The declaration's zero-domain error is independent.
+pub(super) fn qualified_sum_domain(
+    ty: &Type, inventory: &Inventory<'_>, b: &mut Budget,
+) -> CompileResult<Option<StorageLifeShape>> {
+    let Type::ErrorUnion { error, result } = ty else { return Ok(None) };
+    let Type::BorrowedStorage { life, .. } = result.as_ref() else { return Ok(None) };
+    if !crate::stored_flow::enum_address::signature(result) { return Ok(None); }
+    crate::stored_flow::validate_plain_nominal_zero(inventory.module, error, inventory.limits, b)?;
+    inherited_domain(life, LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)), b).map(Some)
+}
 /// Reconstruct the whole opaque Task domain from its complete type inventory,
 /// retaining phantom classes even when no physical port names them.
 pub(super) fn task_domain(ty: &Type, b: &mut Budget) -> CompileResult<Option<StorageLifeShape>> {
@@ -1914,6 +1925,9 @@ fn resolved_parts(
         _ => {}
     }
     match ty {
+        Type::ErrorUnion { .. } if let Some(expected) = qualified_sum_domain(ty, inventory, b)? => {
+            if expected != *life { return Err(fail("semantic tagged sum changes its complete success domain")); }
+        }
         Type::Task { .. } | Type::Managed(_) | Type::ErrorUnion { .. }
             if task_domain(ty, b)?.is_some() => {
                 let expected = task_domain(ty, b)?.ok_or_else(|| fail("Task domain vanished"))?;

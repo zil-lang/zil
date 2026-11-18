@@ -2263,6 +2263,15 @@ impl Check<'_, '_> {
                             "error carrier needs its complete nonzero error-payload embedding",
                         ));
                     }
+                } else if matches!(selected, Type::BorrowedStorage { .. })
+                    && crate::stored_flow::enum_address::signature(selected)
+                {
+                    self.zero_data(error, b, depth + 1)?;
+                    let empty_error = value::borrowed_scalar(error, self.inventory, b)?;
+                    let complete = value::error_union(empty_error, actual, b)?;
+                    if !expected.equal_paid(&complete, b)? {
+                        return Err(fail("success payload changes its complete tagged sum class embedding"));
+                    }
                 } else if let Some(life) = self.task_domain(selected, b)? {
                     let child = self.task_projection(
                         &expected,
@@ -3289,7 +3298,7 @@ impl Check<'_, '_> {
                 && self
                     .task_domain(ty, b)?
                     .is_none_or(|life| life.binder_count == 0)
-                && !self.contains_nonzero_closure(ty, b, 0)?
+                && !self.contains_nonzero_child(ty, true, b, 0)?
                 && self.physical_byte_paths(ty, b)?.is_empty()
         {
             // A zero-class fact does not depend on which loop iteration last
