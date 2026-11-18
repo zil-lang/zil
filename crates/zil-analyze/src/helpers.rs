@@ -726,7 +726,7 @@ fn two_input_state_constructor(
     if first != second {
         return two_type_state_constructor(module, function, candidates, *first, *second, budget);
     }
-    let Type::Package { fields, .. } = &function.return_type else {
+    let Type::Package { fields, .. } = super::resources::package_storage(&function.return_type) else {
         return Ok(false);
     };
     budget.spend(
@@ -778,7 +778,7 @@ fn two_type_state_constructor(
     second: ClosureId,
     budget: &mut Budget,
 ) -> CompileResult<bool> {
-    let Type::Package { fields, .. } = &function.return_type else {
+    let Type::Package { fields, .. } = super::resources::package_storage(&function.return_type) else {
         return Ok(false);
     };
     budget.type_work(
@@ -944,7 +944,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             && function.environment.is_none()
             && function.foreign.is_none()
             && let Type::Closure(id) = function.locals[candidates[0].1.0 as usize].ty
-            && matches!(&function.return_type,Type::Package{fields,..}
+            && matches!(super::resources::package_storage(&function.return_type),Type::Package{fields,..}
                 if fields.iter().any(|(_,ty)| *ty==Type::Closure(id)))
         {
             if sum_state_companion {
