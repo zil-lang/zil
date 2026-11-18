@@ -642,7 +642,12 @@ fn solve(
                             }
                             r
                         }
-                        InstructionKind::DescribePackageField { local, index } => {
+                        // Keep the address of the actual owning field separate
+                        // from the sources stored inside its callable value.
+                        InstructionKind::DescribePackageField { local, index }
+                        | InstructionKind::BorrowPackageField { local, index, .. }
+                        | InstructionKind::BorrowOwnedArrayElement { local, index, .. } => {
+                            spend(left, 2, at)?;
                             let mut row = seed(module, &f.values[result.0 as usize], None, left, at, limit)?;
                             if let Some(head) = row.get_mut(&Vec::new()) {
                                 head.unknown = false;
