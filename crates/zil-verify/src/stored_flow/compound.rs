@@ -388,14 +388,25 @@ mod shared_boundary_tests {
     fn permission(source:Source,id:usize)->Permission{Permission{sources:vec![source],loans:vec![id]}}
     fn inst(f:&TypedFunction,result:Option<u32>,kind:InstructionKind)->Instruction{Instruction{result:result.map(ValueId),kind,span:f.span}}
     fn roundtrip(module:&TypedModule)->TypedModule{let limits=Limits::default();let bytes=zil_ir::wire::encode_module_candidate(module,&CandidatePlan::empty_for(module),&limits).unwrap();zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0}
+    fn helper_result()->Type{
+        let pointer=Type::Address{mutable:false,inner:Box::new(Type::I32)};
+        Type::BorrowedStorage{storage:Box::new(Type::Tuple(vec![pointer.clone(),pointer])),life:StorageLifeShape{binder_count:2,slots:vec![
+            StorageLifeSlot{path:vec![PlaceProjection::Field(0)],mode:StoredBorrowMode::SharedAddress,binder:0},
+            StorageLifeSlot{path:vec![PlaceProjection::Field(1)],mode:StoredBorrowMode::SharedAddress,binder:1}],retained:vec![],nominal_arguments:vec![]}}
+    }
     fn helper_header()->StorageLifeContract{
+        // First occurrence: P0 outer window, P0 opaque capture class,
+        // P1 outer window, P1 opaque capture class. The result keeps two
+        // complete local classes and maps each to its own input window.
         StorageLifeContract{fixed_binder_count:0,invocation_binder_count:4,bindings:vec![
             StorageLifeBinding{position:StoragePosition{base:StorageBase::Parameter(0),path:vec![]},binder:StorageBinder::Invocation(0)},
-            StorageLifeBinding{position:StoragePosition{base:StorageBase::Parameter(1),path:vec![]},binder:StorageBinder::Invocation(1)},
+            StorageLifeBinding{position:StoragePosition{base:StorageBase::Parameter(1),path:vec![]},binder:StorageBinder::Invocation(2)},
             StorageLifeBinding{position:StoragePosition{base:StorageBase::Result,path:vec![ContractProjection::Place(PlaceProjection::Field(0))]},binder:StorageBinder::Invocation(0)},
-            StorageLifeBinding{position:StoragePosition{base:StorageBase::Result,path:vec![ContractProjection::Place(PlaceProjection::Field(1))]},binder:StorageBinder::Invocation(1)}],static_bindings:vec![],classes:vec![
-            SignatureLifeClassBinding{position:SignatureLifeClass{base:StorageBase::Parameter(0),path:vec![LifeTypeProjection::Pointee],class:0},binder:StorageBinder::Invocation(2)},
-            SignatureLifeClassBinding{position:SignatureLifeClass{base:StorageBase::Parameter(1),path:vec![LifeTypeProjection::Pointee],class:0},binder:StorageBinder::Invocation(3)}]}
+            StorageLifeBinding{position:StoragePosition{base:StorageBase::Result,path:vec![ContractProjection::Place(PlaceProjection::Field(1))]},binder:StorageBinder::Invocation(2)}],static_bindings:vec![],classes:vec![
+            SignatureLifeClassBinding{position:SignatureLifeClass{base:StorageBase::Parameter(0),path:vec![LifeTypeProjection::Pointee],class:0},binder:StorageBinder::Invocation(1)},
+            SignatureLifeClassBinding{position:SignatureLifeClass{base:StorageBase::Parameter(1),path:vec![LifeTypeProjection::Pointee],class:0},binder:StorageBinder::Invocation(3)},
+            SignatureLifeClassBinding{position:SignatureLifeClass{base:StorageBase::Result,path:vec![],class:0},binder:StorageBinder::Invocation(0)},
+            SignatureLifeClassBinding{position:SignatureLifeClass{base:StorageBase::Result,path:vec![],class:1},binder:StorageBinder::Invocation(2)}]}
     }
     fn module()->TypedModule{
         let(mut module,_)=crate::tests::baseline();let template=module.functions[0].clone();module.functions.clear();module.closures.clear();
@@ -405,7 +416,7 @@ mod shared_boundary_tests {
             let mut entry=template.clone();entry.id=FunctionId(id);entry.name=format!("get{id}");entry.environment=Some(ClosureId(id));entry.parameters.clear();entry.locals.clear();entry.return_type=pointer.clone();entry.values=vec![pointer.clone()];entry.storage_life=Some(header.clone());entry.blocks.truncate(1);entry.blocks[0].instructions=vec![inst(&entry,Some(0),InstructionKind::ReadCapture{index:0})];entry.blocks[0].terminator=Terminator::Return(Some(ValueId(0)));
             module.closures.push(ClosureDefinition{id:ClosureId(id),function:entry.id,captures:vec![pointer.clone()],parameters:vec![],result:pointer.clone(),kind:CallableKind::Fn,storage_life:Some(header),lending_captures:vec![]});module.functions.push(entry);
         }
-        let mut helper=template.clone();helper.id=FunctionId(2);helper.name="tuple_helper".into();helper.environment=None;helper.storage_life=Some(helper_header());helper.parameters=vec![LocalId(0),LocalId(1)];helper.return_type=Type::Tuple(vec![pointer.clone(),pointer.clone()]);helper.locals=(0..2).map(|id|LocalDecl{id:LocalId(id),name:format!("code{id}"),ty:Type::Address{mutable:false,inner:Box::new(Type::Closure(ClosureId(id)))},mutable:false,span:template.span}).collect();helper.values=vec![helper.locals[0].ty.clone(),helper.locals[1].ty.clone(),pointer.clone(),pointer.clone(),helper.return_type.clone()];helper.blocks.truncate(1);helper.blocks[0].instructions=vec![inst(&helper,Some(2),InstructionKind::CallClosureBorrowed{callee:ValueId(0),kind:CallableKind::Fn,arguments:vec![]}),inst(&helper,Some(3),InstructionKind::CallClosureBorrowed{callee:ValueId(1),kind:CallableKind::Fn,arguments:vec![]}),inst(&helper,Some(4),InstructionKind::MakeAggregate{fields:vec![ValueId(2),ValueId(3)]})];helper.blocks[0].terminator=Terminator::Return(Some(ValueId(4)));module.functions.push(helper);
+        let mut helper=template.clone();helper.id=FunctionId(2);helper.name="tuple_helper".into();helper.environment=None;helper.storage_life=Some(helper_header());helper.parameters=vec![LocalId(0),LocalId(1)];helper.return_type=helper_result();helper.locals=(0..2).map(|id|LocalDecl{id:LocalId(id),name:format!("code{id}"),ty:Type::Address{mutable:false,inner:Box::new(Type::Closure(ClosureId(id)))},mutable:false,span:template.span}).collect();helper.values=vec![helper.locals[0].ty.clone(),helper.locals[1].ty.clone(),pointer.clone(),pointer.clone(),helper.return_type.clone()];helper.blocks.truncate(1);helper.blocks[0].instructions=vec![inst(&helper,Some(2),InstructionKind::CallClosureBorrowed{callee:ValueId(0),kind:CallableKind::Fn,arguments:vec![]}),inst(&helper,Some(3),InstructionKind::CallClosureBorrowed{callee:ValueId(1),kind:CallableKind::Fn,arguments:vec![]}),inst(&helper,Some(4),InstructionKind::MakeAggregate{fields:vec![ValueId(2),ValueId(3)]})];helper.blocks[0].terminator=Terminator::Return(Some(ValueId(4)));module.functions.push(helper);
         module
     }
     // Runtime-component control: entry permissions and the two leaf getter

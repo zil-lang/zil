@@ -510,6 +510,10 @@ mod tests {
             let mut module = original.clone();
             if nested {
                 let mut child = module.closures[0].clone();
+                // Keep the real nested owner, without importing the model's
+                // unrelated borrowed tag capture into this identity control.
+                assert!(matches!(child.captures.first(), Some(Type::Managed(_))));
+                child.captures.truncate(1);
                 child.id = ClosureId(1);
                 child.function = FunctionId(module.functions.len() as u32);
                 let mut entry = module.functions[1].clone();

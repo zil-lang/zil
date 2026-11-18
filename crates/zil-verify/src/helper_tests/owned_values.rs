@@ -227,24 +227,53 @@ fn unused_owned_signature_cannot_hide_callback_in_store_element_raw_and_wire() {
         static_bindings: vec![],
         classes: vec![],
     };
-    // Keep the original recursively hidden callback as an exact recursive
-    // domain attack, with its entry identity/header made complete first.
+    // The recursively hidden callback remains an exact signature-domain
+    // attack. Put the complete owned shape in a genuinely unused input so an
+    // unrelated result-profile restriction cannot mask the recursion proof.
     let mut recursive = dispatch();
-    recursive.module.closures[0].result = Type::Package {
+    let input = Type::Package {
         name: "BadReply".into(),
         fields: vec![(
             "callbacks".into(),
             Type::Managed(Box::new(Type::OwnedStore {
                 element: Box::new(Type::Package {
                     name: "CallbackItem".into(),
-                    fields: vec![("callback".into(), env())],
+                    fields: vec![("callback".into(), Type::Closure(ClosureId(1)))],
                 }),
             })),
         )],
     };
-    recursive.module.functions[1].return_type = recursive.module.closures[0].result.clone();
-    recursive.module.closures[0].storage_life = Some(closed.clone());
-    recursive.module.functions[1].storage_life = Some(closed.clone());
+    let mut unused = recursive.module.functions[1].clone();
+    unused.id = FunctionId(3);
+    unused.environment = Some(ClosureId(1));
+    unused.return_type = Type::I32;
+    unused.parameters = vec![LocalId(0)];
+    unused.locals = vec![LocalDecl {
+        id: LocalId(0),
+        name: "owned_input".into(),
+        ty: input.clone(),
+        mutable: false,
+        span: unused.span,
+    }];
+    unused.values.clear();
+    unused.storage_life = Some(closed.clone());
+    unused.blocks = vec![BasicBlock {
+        id: BlockId(0),
+        instructions: vec![],
+        terminator: Terminator::Trap,
+    }];
+    unused.entry = BlockId(0);
+    recursive.module.functions.push(unused);
+    recursive.module.closures.push(ClosureDefinition {
+        id: ClosureId(1),
+        function: FunctionId(3),
+        captures: vec![],
+        parameters: vec![input],
+        result: Type::I32,
+        kind: CallableKind::FnOnce,
+        storage_life: Some(closed.clone()),
+        lending_captures: vec![],
+    });
     for result in recursive.both() {
         let errors = result.unwrap_err();
         assert!(
@@ -279,9 +308,15 @@ fn unused_owned_signature_cannot_hide_callback_in_store_element_raw_and_wire() {
     let mut unused = raw.module.functions[1].clone();
     unused.id = FunctionId(3);
     unused.environment = Some(ClosureId(1));
-    unused.return_type = result.clone();
-    unused.parameters.clear();
-    unused.locals.clear();
+    unused.return_type = Type::I32;
+    unused.parameters = vec![LocalId(0)];
+    unused.locals = vec![LocalDecl {
+        id: LocalId(0),
+        name: "owned_input".into(),
+        ty: result.clone(),
+        mutable: false,
+        span: unused.span,
+    }];
     unused.values.clear();
     unused.storage_life = Some(closed.clone());
     unused.blocks = vec![BasicBlock {
@@ -295,8 +330,8 @@ fn unused_owned_signature_cannot_hide_callback_in_store_element_raw_and_wire() {
         id: ClosureId(1),
         function: FunctionId(3),
         captures: vec![],
-        parameters: vec![],
-        result,
+        parameters: vec![result],
+        result: Type::I32,
         kind: CallableKind::FnOnce,
         storage_life: Some(closed),
         lending_captures: vec![],
@@ -315,6 +350,8 @@ fn unused_owned_signature_cannot_hide_callback_in_store_element_raw_and_wire() {
     child.id = FunctionId(4);
     child.environment = Some(ClosureId(2));
     child.return_type = Type::I32;
+    child.parameters.clear();
+    child.locals.clear();
     child.storage_life = Some(borrowed_header.clone());
     raw.module.functions.push(child);
     raw.module.closures.push(ClosureDefinition {

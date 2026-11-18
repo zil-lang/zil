@@ -4844,6 +4844,11 @@ static_dependency: StaticProvenance::NotStatic,
                     add_loans(&mut out.address.loans, &actual.loans, b)?;
                 }
             }
+            // A complete address result needs actual data, even when the
+            // callee summary omits the root row altogether. An empty root
+            // is unproved, not a known empty pointer or a parent-only value.
+            result_pending |= matches!(callee.return_type, Type::Address { .. })
+                && out.address.sources.is_empty();
             drop(before);
             state.pending_external_update|=result_pending;
             let dyn_updates = dyn_ports::prepare_after(
@@ -9028,8 +9033,7 @@ mod tests {
             let limits = Limits::default();
             let mut fast_budget = Budget::new(&limits);
             let mut reverse_budget = Budget::new(&limits);
-            let mut fast =
-                solve_mode(&module, &f, &graph, &summaries, &mut fast_budget, true).unwrap();
+            let fast = solve_mode(&module, &f, &graph, &summaries, &mut fast_budget, true).unwrap();
             let reverse =
                 solve_mode(&module, &f, &graph, &summaries, &mut reverse_budget, false).unwrap();
             assert_eq!(fast.entry, reverse.entry);
@@ -9058,14 +9062,32 @@ mod tests {
                     fast_budget.remaining > reverse_budget.remaining,
                     "a true multi-block DAG executes fewer real transfers and frame copies"
                 );
-                // The actual Call is in a nonterminal reachable block. A
-                // real residual operation debt there remains a failure even
-                // though no successor inherits this local diagnostic bit.
-                fast.outputs[1].pending_external_update = true;
+                // A real unresolved address-result producer in the
+                // nonterminal Call block must still prevent completion.
+                // Do not manufacture an empty pointer from a missing row.
+                let mut unresolved = summaries.clone();
+                unresolved[4].result.clear();
+                let incomplete = solve_mode(
+                    &module,
+                    &f,
+                    &graph,
+                    &unresolved,
+                    &mut Budget::new(&limits),
+                    true,
+                )
+                .unwrap();
+                assert!(incomplete.outputs[1].pending_external_update);
                 assert!(
-                    !summarize(&module, &f, &graph, &fast, None, &mut Budget::new(&limits))
-                        .unwrap()
-                        .complete
+                    !summarize(
+                        &module,
+                        &f,
+                        &graph,
+                        &incomplete,
+                        None,
+                        &mut Budget::new(&limits)
+                    )
+                    .unwrap()
+                    .complete
                 );
             }
         }
