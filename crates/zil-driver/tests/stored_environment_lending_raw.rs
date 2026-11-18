@@ -141,6 +141,59 @@ fn main()->i32{return 0}";
 }
 
 #[test]
+fn task_factory_public_context_is_proved_at_each_creation_return() {
+    let source = "fn worker<life a>(tag:i32,left:&'a i32,right:&'a i32)->&'a i32{
+ task_yield()
+ return right
+}
+fn start<life a>(left:&'a i32,right:&'a i32)->TaskCreateError!Task<&'a i32,(&'a i32,&'a i32)> contract{result(give)}{
+ return task_create(worker,17,left,right)
+}
+fn main()->i32{return 0}";
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    for invalid in [
+        source.replace("worker,17,left,right", "worker,17,right,left"),
+        source.replace("worker,17,left,right", "worker,17,left,left"),
+    ] {
+        let errors = zil_types::check(&stored_core(&invalid), &target, &limits).unwrap_err();
+        assert!(errors.iter().any(|d| d.phase == Phase::Types), "{errors:?}");
+    }
+    let missing = source.replace("(&'a i32,&'a i32)>", "&'a i32>");
+    let report = zil_driver::compile_source(
+        &SourceUnit::new(FileId(0), ModuleId(0), "missing-task-input.zil", missing),
+        &zil_driver::CompileOptions { stop_after: zil_driver::Stage::Types, ..Default::default() },
+    );
+    assert!(report.diagnostics.iter().any(|d| matches!(d.phase, Phase::Expand | Phase::Types)
+        && matches!(d.category, ResultCategory::SafeReject | ResultCategory::Unsupported)), "{}", report.to_json());
+    let module = typed_stored(source);
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    for mutation in 0..3 {
+        let mut changed = module.clone();
+        let factory = changed.functions.iter_mut().find(|f| f.name == "start").unwrap();
+        let create = factory.blocks.iter_mut().flat_map(|block| &mut block.instructions)
+            .find(|op| matches!(op.kind, InstructionKind::TaskCreate {..})).unwrap();
+        let InstructionKind::TaskCreate { arguments, .. } = &mut create.kind else { unreachable!() };
+        match mutation {
+            0 => arguments.swap(1, 2),
+            1 => arguments[2] = arguments[1],
+            _ => {
+                let Type::ErrorUnion { result, .. } = &mut factory.return_type else { unreachable!() };
+                let Type::Managed(task) = result.as_mut() else { unreachable!() };
+                let Type::Task { retained_life, .. } = task.as_mut() else { unreachable!() };
+                retained_life.retained.remove(0);
+                retained_life.ports.remove(0);
+            }
+        }
+        assert!(zil_analyze::analyze(&changed, &limits).is_err(), "accepted {mutation}");
+        rejected_channels("task-factory-public-context", &changed, plan.clone());
+    }
+}
+
+#[test]
 fn task_multiport_result_three_shared_inputs_keep_the_middle_class() {
     let source =
         include_str!("../../../tests/fixtures/task-borrow-results/multiport-shared-result.zil")

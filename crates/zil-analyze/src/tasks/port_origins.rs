@@ -645,6 +645,11 @@ fn summarize(
         let Terminator::Return(Some(value)) = block.terminator else {
             continue;
         };
+        let actual = f.values.get(value.0 as usize).ok_or_else(|| bad("Task return SSA is absent"))?;
+        if actual != &f.return_type && (shape(actual).is_some() || shape(&f.return_type).is_some())
+            && !super::projected_creation_return(module, f, block, value, b)? {
+            return Err(bad("Task return does not preserve its actual worker-to-factory sources"));
+        }
         if count == 0 {
             continue;
         }

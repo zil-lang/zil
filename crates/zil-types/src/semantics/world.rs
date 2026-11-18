@@ -4846,7 +4846,21 @@ impl World<'_, '_> {
                         &locals,
                         &implicit,
                     )? {
-                        self.same(instance.id, &value, &expected_result, &implicit)?;
+                        if Self::type_of(&value)? != &f.return_type
+                            && task_factories::result_task(&f.return_type).is_some() {
+                            crate::dyn_metadata::semantic_operand_snapshot(value.as_ref(), self.limits, self.left, 1)?;
+                            let mut projected = value.as_ref().clone();
+                            let SemanticTypeValue::Resolved {ty, ..} = &mut projected else {
+                                return Err(bad("Task return lost its resolved constructor value"));
+                            };
+                            if !task_factories::emitted_projection(block, &f.parameters, &f.locals,
+                                result, ty, |n| self.pay(n))? {
+                                return Err(bad("Task return lacks its actual worker-to-factory mapping"));
+                            }
+                            self.same(instance.id, &projected, &expected_result, &implicit)?;
+                        } else {
+                            self.same(instance.id, &value, &expected_result, &implicit)?;
+                        }
                     }
                     Vec::new()
                 }

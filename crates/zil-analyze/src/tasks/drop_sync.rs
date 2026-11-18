@@ -457,7 +457,9 @@ fn returned_origin(
                     .get(value.0 as usize)
                     .ok_or_else(|| fail(target.span, "Task factory return value absent"))?;
                 budget.type_work(actual, false, "Task factory actual returned value")?;
-                if actual != &target.return_type {
+                if actual != &target.return_type
+                    && !super::projected_creation_return(module, target, block, value, budget)?
+                {
                     result.unknown = true;
                 }
                 let origin = &values[value.0 as usize];

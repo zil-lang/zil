@@ -213,6 +213,7 @@ impl Solver<'_, '_> {
             };
             Self::push(&mut retained.nominal, part, b)?;
         }
+        self.record_address_heads(&leaves, b, depth + 1)?;
         let term = self.term(
             Kind::Task(TaskType {
                 result,
@@ -289,6 +290,66 @@ impl Solver<'_, '_> {
             )?;
         }
         Ok(term)
+    }
+    /// Check the source return boundary from its actual sealed creation.
+    /// Keep the worker term in the expression directory for opcode replay.
+    pub(super) fn constructor_return(
+        &mut self, frame: &Frame, expression: &SemanticOriginalExpr, actual: Term,
+        b: &mut Budget, depth: usize,
+    ) -> CompileResult<bool> {
+        let CoreExprKind::Call {arguments, ..} = &expression.kind else { return Ok(false); };
+        b.lookup(self.state.intrinsics.len(), WORK)?;
+        if self.state.intrinsics.get(&(frame.definition, expression.id)) != Some(&sealed::Intrinsic::TaskCreate) {
+            return Ok(false);
+        }
+        let Kind::ErrorUnion {error, result} = self.state.arena[self.type_root(actual,b)?] else { return Ok(false) };
+        let Kind::ErrorUnion {error: expected_error, result: expected} = self.state.arena[self.type_root(frame.result,b)?] else { return Ok(false) };
+        let Kind::Wrapped(Wrapper::Managed,task) = self.state.arena[self.type_root(result,b)?] else { return Ok(false) };
+        let Kind::Wrapped(Wrapper::Managed,expected_task) = self.state.arena[self.type_root(expected,b)?] else { return Ok(false) };
+        let Kind::Task(a) = &self.state.arena[self.type_root(task,b)?] else { return Ok(false) };
+        b.spend(a.work(), WORK)?;
+        let a = a.clone();
+        let Kind::Task(z) = &self.state.arena[self.type_root(expected_task,b)?] else { return Ok(false) };
+        b.spend(z.work(), WORK)?;
+        let z = z.clone();
+        let mut a = self.task_canonical(&a, b, depth+1)?;
+        let z = self.task_canonical(&z, b, depth+1)?;
+        fn path(r: &Retain) -> &[LifeTypeProjection] {
+            match r { Retain::One(p, ..) | Retain::All(p, ..) => p }
+        }
+        b.spend(a.work().saturating_add(z.work()), WORK)?;
+        if a.retained.retained.iter().map(path).eq(z.retained.retained.iter().map(path)) {
+            return Ok(false);
+        }
+        let mut origins = BTreeMap::new();
+        let mut used = BTreeSet::new();
+        for path in a.retained.retained.iter_mut().map(|r| match r {
+            Retain::One(p,..) | Retain::All(p,..) => p,
+        }).chain(a.retained.nominal.iter_mut().map(|r| match r {
+            Nominal::One(p,..) | Nominal::From(p,..) => p,
+        })) {
+            let Some(LifeTypeProjection::Parameter(index)) = path.first_mut() else { continue };
+            b.lookup(origins.len(), WORK)?;
+            if let Some(source) = origins.get(index) { *index = *source; continue; }
+            let Some(argument) = arguments.get(*index as usize + 1) else { return Ok(false) };
+            let CoreExprKind::Name(name) = &argument.kind else { return Ok(false) };
+            let mut source = None;
+            for local in frame.locals.iter().rev() {
+                b.spend(name.len().saturating_add(local.name.len()).saturating_add(1), WORK)?;
+                if &local.name == name {
+                    if !local.mutable { source = local.anchor; }
+                    break;
+                }
+            }
+            let Some(LocalAnchor::Parameter(source)) = source else { return Ok(false) };
+            b.lookup(used.len(), WORK)?;
+            if !used.insert(source) { return Err(fail("Task return merges two distinct worker input positions")); }
+            origins.insert(*index, source);
+            *index = source;
+        }
+        self.unify(error, expected_error, depth + 1, b)?;
+        self.task_unify(&a, &z, b, depth + 1)?;
+        Ok(true)
     }
     pub(super) fn task_unify(
         &mut self,
@@ -824,8 +885,24 @@ impl Solver<'_, '_> {
         }
     }
 
+    // Only an original proof of the empty pointee domain makes a whole
+    // Address class sequence the singleton declared outer lifetime. A
+    // particular specialization's one current image cannot establish this.
+    fn record_address_heads(&mut self, leaves: &[Term], b: &mut Budget, depth: usize) -> CompileResult<()> {
+        for &term in leaves {
+            let term = self.type_root(term, b)?;
+            let Kind::Address {life, inner, ..} = self.state.arena[term] else { continue };
+            b.lookup(self.state.task_address_heads.len(), WORK)?;
+            if !self.state.task_address_heads.contains_key(&term)
+                && self.capability(inner, SemanticBuiltinTrait::ClosedEnvironment, b, depth + 1)? {
+                self.state.task_address_heads.insert(term, life);
+            }
+        }
+        Ok(())
+    }
+
     fn task_input_domain(
-        &self,
+        &mut self,
         task: &mut TaskType,
         inputs: &[Term],
         b: &mut Budget,
@@ -844,6 +921,7 @@ impl Solver<'_, '_> {
             Self::push(&mut task.retained.nominal, Nominal::From(vec![LifeTypeProjection::Parameter(ordinal)], leaf, vec![Sequence::All(leaf, Vec::new())]), b)?;
         }
         let result_leaf = self.task_leaf(&mut task.leaves, task.result, b)?;
+        self.record_address_heads(&task.leaves, b, 0)?;
         b.spend(2, WORK)?;
         Self::push(&mut task.retained.retained, Retain::All(vec![LifeTypeProjection::Result], vec![Sequence::All(result_leaf, Vec::new())]), b)
     }
@@ -1083,6 +1161,13 @@ impl Solver<'_, '_> {
     }
 }
 
+struct InputClass {
+    // The source declaration/occurrence is independent of the current
+    // instantiation's class image. Unknown whole-domain leaves stay separate.
+    selector: Option<Life>,
+    image: Class,
+}
+
 struct Materialize<'a, 'i> {
     checked: &'a Checked,
     task: &'a TaskType,
@@ -1166,23 +1251,70 @@ impl Materialize<'_, '_> {
         }
         Ok(classes)
     }
-    fn binder(&self, classes: &[Class], class: &Class, b: &mut Budget) -> CompileResult<u32> {
-        b.spend(classes.len(), WORK)?;
-        let mut selected = None;
-        for (ordinal, candidate) in classes.iter().enumerate() {
-            if candidate == class && selected.replace(ordinal).is_some() {
-                return Err(unknown(
-                    "Task repeated actual lifetime images need their distinct original domain selectors",
-                ));
+    fn selector(&self, term: Term, b: &mut Budget) -> CompileResult<Option<Life>> {
+        Ok(match self.checked.arena[self.checked.root(term, b)?] {
+            Kind::Life(life) => Some(life),
+            _ => None,
+        })
+    }
+    fn life_class(&self, slot: usize, b: &mut Budget) -> CompileResult<InputClass> {
+        Ok(InputClass {selector: self.selector(self.leaf(slot)?, b)?, image: self.life(slot, b)?})
+    }
+    fn input_classes(&self, source: &[Sequence], b: &mut Budget, depth: usize) -> CompileResult<Vec<InputClass>> {
+        let mut output = Vec::new();
+        for part in source {
+            match part {
+                Sequence::One(slot) => Solver::push(&mut output, self.life_class(*slot, b)?, b)?,
+                Sequence::All(slot, path) => {
+                    let images = self.sequence(std::slice::from_ref(part), b, depth + 1)?;
+                    let selector = if path.is_empty() && images.len() == 1 {
+                        let term = self.checked.root(self.leaf(*slot)?, b)?;
+                        b.lookup(self.checked.task_address_heads.len(), WORK)?;
+                        match self.checked.task_address_heads.get(&term) {
+                            Some(&life) => self.selector(life, b)?,
+                            None => None,
+                        }
+                    } else { None };
+                    for image in images {
+                        Solver::push(&mut output, InputClass {selector, image}, b)?;
+                    }
+                }
             }
         }
-        u32::try_from(
-            selected.ok_or_else(|| {
-                fail("Task occurrence is absent from its declared retained domain")
-            })?,
-        )
-        .map_err(|_| fail("Task retained domain ordinal overflow"))
+        Ok(output)
     }
+    fn joint_domain(&self, b: &mut Budget, depth: usize) -> CompileResult<Vec<InputClass>> {
+        let mut domain: Vec<InputClass> = Vec::new();
+        let mut positions = BTreeMap::new();
+        for class in self.input_classes(&self.task.retained.domain, b, depth + 1)? {
+            if let Some(selector) = class.selector {
+                b.lookup(positions.len(), WORK)?;
+                if let Some(&prior) = positions.get(&selector) {
+                    let prior: &InputClass = &domain[prior];
+                    if prior.image != class.image { return Err(fail("Task original class has two current images")); }
+                    continue;
+                }
+                positions.insert(selector, domain.len());
+            }
+            Solver::push(&mut domain, class, b)?;
+        }
+        Ok(domain)
+    }
+    fn binder(&self, domain: &[InputClass], class: &InputClass, b: &mut Budget) -> CompileResult<u32> {
+        b.spend(domain.len(), WORK)?;
+        let mut selected = None;
+        for (ordinal, candidate) in domain.iter().enumerate() {
+            if candidate.image != class.image
+                || matches!((candidate.selector, class.selector), (Some(a), Some(z)) if a != z)
+            { continue; }
+            if selected.replace(ordinal).is_some() {
+                return Err(unknown("Task repeated images require their complete original child selectors"));
+            }
+        }
+        u32::try_from(selected.ok_or_else(|| fail("Task occurrence is absent from its original joint input domain"))?)
+            .map_err(|_| fail("Task retained domain ordinal overflow"))
+    }
+
 }
 
 fn physical_leaf<'a>(
@@ -1280,7 +1412,9 @@ impl Checked {
             program,
             inventory,
         };
-        let classes = materialize.sequence(&task.retained.domain, b, depth + 1)?;
+        let domain = materialize.joint_domain(b, depth + 1)?;
+        b.spend(domain.len(), WORK)?;
+        let classes = domain.iter().map(|entry| entry.image.clone()).collect::<Vec<_>>();
         let binder_count =
             u32::try_from(classes.len()).map_err(|_| fail("Task retained domain overflow"))?;
         let result = self.value(task.result, context, program, inventory, b, depth + 1)?;
@@ -1294,8 +1428,8 @@ impl Checked {
             match port {
                 Port::One(leaf, mode, class) => {
                     let leaf = materialize.value(*leaf, b, depth + 1)?;
-                    let class = materialize.life(*class, b)?;
-                    let binder = materialize.binder(&classes, &class, b)?;
+                    let class = materialize.life_class(*class, b)?;
+                    let binder = materialize.binder(&domain, &class, b)?;
                     Solver::push(
                         &mut shape.ports,
                         RetainedBorrowPort {
@@ -1308,7 +1442,7 @@ impl Checked {
                 }
                 Port::From(ty, sequence) => {
                     let value = materialize.value(*ty, b, depth + 1)?;
-                    let images = materialize.sequence(sequence, b, depth + 1)?;
+                    let images = materialize.input_classes(sequence, b, depth + 1)?;
                     if images.len() != value.classes.len() {
                         return Err(fail(
                             "Task port expansion changes its complete child domain",
@@ -1320,7 +1454,7 @@ impl Checked {
                         let class = images
                             .get(slot.binder as usize)
                             .ok_or_else(|| fail("Task port's child class is absent"))?;
-                        let binder = materialize.binder(&classes, class, b)?;
+                        let binder = materialize.binder(&domain, class, b)?;
                         Solver::push(
                             &mut shape.ports,
                             RetainedBorrowPort {
@@ -1337,8 +1471,8 @@ impl Checked {
         for part in &task.retained.retained {
             let (path, images) = match part {
                 Retain::One(path, child, parent) => {
-                    let image = materialize.life(*parent, b)?;
-                    let binder = materialize.binder(&classes, &image, b)?;
+                    let image = materialize.life_class(*parent, b)?;
+                    let binder = materialize.binder(&domain, &image, b)?;
                     b.spend(path.len(), WORK)?;
                     Solver::push(
                         &mut shape.retained,
@@ -1351,10 +1485,10 @@ impl Checked {
                     )?;
                     continue;
                 }
-                Retain::All(path, parents) => (path, materialize.sequence(parents, b, depth + 1)?),
+                Retain::All(path, parents) => (path, materialize.input_classes(parents, b, depth + 1)?),
             };
             for (child, image) in images.iter().enumerate() {
-                let binder = materialize.binder(&classes, image, b)?;
+                let binder = materialize.binder(&domain, image, b)?;
                 let class = u32::try_from(child)
                     .map_err(|_| fail("Task retained child ordinal overflow"))?;
                 b.spend(path.len(), WORK)?;
@@ -1372,8 +1506,8 @@ impl Checked {
         for part in &task.retained.nominal {
             match part {
                 Nominal::One(path, declaration, argument, slot) => {
-                    let image = materialize.life(*slot, b)?;
-                    let binder = materialize.binder(&classes, &image, b)?;
+                    let image = materialize.life_class(*slot, b)?;
+                    let binder = materialize.binder(&domain, &image, b)?;
                     b.spend(path.len(), WORK)?;
                     Solver::push(
                         &mut shape.nominal_arguments,
@@ -1388,7 +1522,7 @@ impl Checked {
                 }
                 Nominal::From(path, ty, sequence) => {
                     let value = materialize.value(*ty, b, depth + 1)?;
-                    let images = materialize.sequence(sequence, b, depth + 1)?;
+                    let images = materialize.input_classes(sequence, b, depth + 1)?;
                     if images.len() != value.classes.len() {
                         return Err(fail("Task nominal expansion changes the full child domain"));
                     }
@@ -1396,7 +1530,7 @@ impl Checked {
                         let image = images
                             .get(row.binder as usize)
                             .ok_or_else(|| fail("Task nominal child class is absent"))?;
-                        let binder = materialize.binder(&classes, image, b)?;
+                        let binder = materialize.binder(&domain, image, b)?;
                         b.spend(path.len().saturating_add(row.path.len()), WORK)?;
                         let mut full_path = path.clone();
                         full_path.extend(row.path.iter().cloned());

@@ -290,6 +290,7 @@ pub(super) struct Checked {
     abstract_calls: BTreeMap<(SemanticDefinitionId, NodeId), abstract_calls::AbstractCall>,
     trait_calls: BTreeMap<(SemanticDefinitionId, NodeId), traits::TraitCall>,
     task_templates: Vec<tasks::Template>,
+    task_address_heads: BTreeMap<Term, Term>,
     dyn_templates: Vec<dyn_types::Template>,
     borrows: BTreeMap<(SemanticDefinitionId, NodeId), Borrow>,
     descriptions: BTreeMap<(SemanticDefinitionId, NodeId), descriptions::Description>,
@@ -3407,7 +3408,12 @@ impl Solver<'_, '_> {
                             }
                         }
                     } else if !receiver_return {
-                        self.unify(value, frame.result, depth + 1, b)?;
+                        let projected = match &statement.kind {
+                            CoreStatementKind::Return(Some(expression)) =>
+                                self.constructor_return(frame, expression, value, b, depth + 1)?,
+                            _ => false,
+                        };
+                        if !projected { self.unify(value, frame.result, depth + 1, b)?; }
                     }
                     if frame.alive {
                         self.capture_exit(frame, b)?;
@@ -4423,6 +4429,7 @@ pub(super) fn check(
             abstract_calls: BTreeMap::new(),
             trait_calls: BTreeMap::new(),
             task_templates: Vec::new(),
+            task_address_heads: BTreeMap::new(),
             dyn_templates: Vec::new(),
             borrows: BTreeMap::new(),
             descriptions: BTreeMap::new(),

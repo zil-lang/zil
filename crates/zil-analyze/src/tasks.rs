@@ -44,6 +44,11 @@ pub(super) fn cleanup_frame_profile(
     Ok(())
 }
 mod port_origins;
+mod return_coordinates;
+pub(crate) fn projected_creation_return(module: &TypedModule, f: &TypedFunction,
+    block: &BasicBlock, value: ValueId, b: &mut Budget) -> CompileResult<bool> {
+    return_coordinates::checked(module, f, block, value, b)
+}
 pub(super) use drop_sync::{
     needs_proof as needs_synchronous_proof, once_cleanup_closed, once_cleanup_has_no_task,
     require as require_synchronous_drop, require_value as require_synchronous_value,

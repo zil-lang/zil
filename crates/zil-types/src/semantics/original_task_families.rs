@@ -272,6 +272,48 @@ impl Check<'_, '_> {
         }
         Ok(())
     }
+    /// The source theorem and the executable TaskCreate keep the worker's
+    /// true input indices. A direct return may advertise factory indices only
+    /// when the original call's retained operands are those stable parameters.
+    fn projected_constructor_result(
+        &mut self, owner: SemanticDefinitionId, expression: &SemanticOriginalExpr,
+        variables: &BTreeMap<String, Binding>, actual: &SemanticTypeRecipe, depth: usize,
+    ) -> R<Option<SemanticTypeRecipe>> {
+        let CoreExprKind::Call { arguments, .. } = &expression.kind else { return Ok(None) };
+        let Some(site) = self.site(owner, SemanticOriginalNode::Expression(expression.id))?
+            else { return Ok(None) };
+        if !matches!(self.proof.intrinsics.get(&(owner, site.id)).map(|i| &i.kind),
+            Some(IntrinsicKind::TaskCreate { owned: false, await_result: false, .. })) {
+            return Ok(None);
+        }
+        let mut projected = copy_recipe(actual, self.limits, self.left)?;
+        let SemanticTypeRecipe::ErrorUnion { result, .. } = &mut projected else { return Ok(None) };
+        let SemanticTypeRecipe::Managed(task) = result.as_mut() else { return Ok(None) };
+        let SemanticTypeRecipe::Task { retained, .. } = task.as_mut() else { return Ok(None) };
+        **retained = self.normalized_task_shape(owner, retained, depth + 1)?;
+        let mut origins = BTreeMap::new();
+        let mut used = BTreeSet::new();
+        let paths = retained.retained.iter_mut().map(|r| match r {
+            SemanticRetainedPart::All {path, ..} | SemanticRetainedPart::One {path, ..} => path,
+        }).chain(retained.nominal.iter_mut().map(|r| match r {
+            SemanticNominalPart::FromType {path, ..} | SemanticNominalPart::One {path, ..} => path,
+        }));
+        for path in paths {
+            self.pay(path.len().saturating_add(variables.len()).saturating_add(origins.len()).saturating_add(1), depth)?;
+            let Some(LifeTypeProjection::Parameter(index)) = path.first_mut() else { continue };
+            if let Some(p) = origins.get(index) { *index = *p; continue; }
+            let Some(argument) = arguments.get(*index as usize + 1) else { return Ok(None) };
+            let CoreExprKind::Name(name) = &argument.kind else { return Ok(None) };
+            let Some(binding) = variables.get(name) else { return Ok(None) };
+            let Query::Parameter(parameter) = binding.origin else { return Ok(None) };
+            if binding.origin_owner != owner || binding.mutable || binding.written || !used.insert(parameter) {
+                return Ok(None);
+            }
+            origins.insert(*index, parameter);
+            *index = parameter;
+        }
+        Ok(Some(projected))
+    }
     pub(super) fn task_return_value(
         &mut self,
         owner: SemanticDefinitionId,
@@ -281,6 +323,7 @@ impl Check<'_, '_> {
         depth: usize,
     ) -> R<SemanticTypeRecipe> {
         let actual = self.expr(owner, expression, variables, None, depth + 1)?;
+        let mut projected = false;
         let value = if let SemanticTypeRecipe::ErrorUnion { error, result } = declared {
             if let SemanticTypeRecipe::ErrorUnion {
                 error: actual_error,
@@ -288,8 +331,18 @@ impl Check<'_, '_> {
             } = &actual
             {
                 self.same(actual_error, error)?;
-                self.task_payload_return(owner, result, actual_result, depth + 1)?;
-                actual
+                match self.task_payload_return(owner, result, actual_result, depth + 1) {
+                    Ok(()) => actual,
+                    Err(e) if e.category == zil_base::ResultCategory::ResourceLimit => return Err(e),
+                    Err(e) => {
+                        let Some(SemanticTypeRecipe::ErrorUnion { result: projected_result, .. }) =
+                            self.projected_constructor_result(owner, expression, variables, &actual, depth + 1)?
+                        else { return Err(e); };
+                        self.task_payload_return(owner, result, &projected_result, depth + 1)?;
+                        projected = true;
+                        copy_recipe(declared, self.limits, self.left)?
+                    }
+                }
             } else {
                 let is_error = match self.same(&actual, error) {
                     Ok(()) => true,
@@ -349,11 +402,10 @@ impl Check<'_, '_> {
                     .insert(owner, copy);
             }
         }
-        let copy = copy_recipe(&value, self.limits, self.left)?;
-        self.proof
-            .proof_mut()?
-            .types
-            .insert((owner, Query::Expression(expression.id)), copy);
+        if !projected {
+            let copy = copy_recipe(&value, self.limits, self.left)?;
+            self.proof.proof_mut()?.types.insert((owner, Query::Expression(expression.id)), copy);
+        }
         Ok(value)
     }
     pub(super) fn finish_task_result(
@@ -384,11 +436,16 @@ impl Check<'_, '_> {
                 .get_mut(&key)
                 .ok_or_else(|| bad("Task return context lost its exact original exit"))?
                 .ty = copy;
-            let copy = copy_recipe(&result, self.limits, self.left)?;
-            self.proof
-                .proof_mut()?
-                .types
-                .insert((owner, Query::Expression(expression)), copy);
+            let direct_creation = self.site(owner, SemanticOriginalNode::Expression(expression))?
+                .and_then(|site| self.proof.intrinsics.get(&(owner, site.id)))
+                .is_some_and(|call| matches!(call.kind,
+                    IntrinsicKind::TaskCreate { owned: false, await_result: false, .. }));
+            // Keep the physical constructor expression in the worker's
+            // coordinates; the Return and Result entries carry the public Type.
+            if !direct_creation {
+                let copy = copy_recipe(&result, self.limits, self.left)?;
+                self.proof.proof_mut()?.types.insert((owner, Query::Expression(expression)), copy);
+            }
         }
         self.proof
             .proof_mut()?

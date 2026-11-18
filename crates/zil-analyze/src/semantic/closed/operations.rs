@@ -2096,6 +2096,11 @@ impl Check<'_, '_> {
                 if let Terminator::Return(value) = block.terminator {
                     self.inventory.profile_operation(block.id, block.instructions.len(), b);
                     b.spend(1, WORK)?;
+                    let projected = match value {
+                        Some(v) if function.values.get(v.0 as usize) != Some(&function.return_type) =>
+                            crate::tasks::projected_creation_return(self.module, function, block, v, b)?,
+                        _ => false,
+                    };
                     if self.uses_full_value(&function.return_type, b)? {
                         let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
                             &definition.body
@@ -2108,7 +2113,14 @@ impl Check<'_, '_> {
                         let Some(value) = value else {
                             return Err(fail("class-bearing actual Return omits its result SSA"));
                         };
-                        let actual = self.ssa_value(instance, function, value, b, 0)?;
+                        let mut actual = self.ssa_value(instance, function, value, b, 0)?;
+                        if projected {
+                            if Some(&actual.ty) != function.values.get(value.0 as usize) {
+                                return Err(fail("Task creation differs from the original expression"));
+                            }
+                            crate::dyn_metadata::ty(&function.return_type, b)?;
+                            actual.geometry_mut(b)?.ty = function.return_type.clone();
+                        }
                         if !self.capture_values_equal(&actual, &expected, b)?
                             && !self.outer_role(instance, function, &actual, &expected, b, 0)?
                             && !self.receiver_return_role(instance, function, block.id, value, &actual, &expected, b)?
@@ -2122,7 +2134,7 @@ impl Check<'_, '_> {
                     match value {
                         Some(value)
                             if function.values.get(value.0 as usize)
-                                == Some(&function.return_type) =>
+                                == Some(&function.return_type) || projected =>
                         {
                             Point {
                                 function,

@@ -2132,12 +2132,20 @@ impl<'a, 'c> Builder<'a, 'c> {
                 let wanted = self.function.result()?.clone();
                 let value = if let Some(e) = e {
                     let infer_task = !self.task_return_inferred && task_factories::result_task(&wanted).is_some_and(|task| matches!(task, Type::Task { retained_life, .. } if *retained_life == tasks::empty_context()));
+                    let constructor = !infer_task && task_factories::result_task(&wanted).is_some()
+                        && self.task_constructor_return(e);
                     let (v, t) = if infer_task {
                         self.inferred_task_return_expr(e)?
+                    } else if constructor {
+                        self.transfer_expr(e, None)?
                     } else {
                         self.transfer_expr(e, Some(&wanted))?
                     };
-                    self.same(&t, self.function.result()?, e.span)?;
+                    if constructor {
+                        self.check_constructor_return(e, v, &t, &wanted)?;
+                    } else {
+                        self.same(&t, self.function.result()?, e.span)?;
+                    }
                     if t == Type::Unit { None } else { Some(v) }
                 } else if matches!(&wanted, Type::ErrorUnion { .. }) {
                     let (v, ty) = self.constant(Constant::Unit, s.span)?;

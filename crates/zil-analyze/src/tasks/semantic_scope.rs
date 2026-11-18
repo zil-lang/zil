@@ -220,8 +220,18 @@ pub(super) fn complete(module: &TypedModule, payload: &Type, limits: &Limits, b:
                     | InstructionKind::TaskCreateOwned { worker, arguments, port_bindings } => (*worker, arguments, port_bindings),
                     _ => continue,
                 };
-                let output = instruction.result.and_then(|id| function.values.get(id.0 as usize));
-                if !matches!(output, Some(Type::ErrorUnion { result, .. }) if matches!(result.as_ref(), Type::Managed(inner) if inner.as_ref() == payload)) { continue; }
+                let Some(value) = instruction.result else { continue };
+                let Some(Type::ErrorUnion { result: outcome, .. }) = function.values.get(value.0 as usize) else { continue };
+                let Type::Managed(physical) = outcome.as_ref() else { continue };
+                let Type::Task { retained_life: frame_context, .. } = physical.as_ref() else { continue };
+                if physical.as_ref() != payload {
+                    let advertises = matches!(&function.return_type, Type::ErrorUnion { result, .. }
+                        if matches!(result.as_ref(), Type::Managed(task) if task.as_ref() == payload));
+                    if !advertises || block.terminator != Terminator::Return(Some(value))
+                        || !super::projected_creation_return(module, function, block, value, b)? {
+                        continue;
+                    }
+                }
                 let target = module.functions.get(id.0 as usize).filter(|f| f.id == id)
                     .ok_or_else(|| bad("complete Task creator has no actual worker"))?;
                 if target.return_type != **result || target.parameters.len() != arguments.len() {
@@ -229,7 +239,7 @@ pub(super) fn complete(module: &TypedModule, payload: &Type, limits: &Limits, b:
                 }
                 // This whole expected shape is reconstructed from the worker,
                 // including P_i/Result rows. Ports alone are never the domain.
-                if owned::borrowed_shape(target, b)? != *retained_life {
+                if owned::borrowed_shape(target, b)? != *frame_context {
                     return Err(bad("Task retained domain changes its actual complete worker input/result directory"));
                 }
                 let mut expected_bindings = Vec::new();

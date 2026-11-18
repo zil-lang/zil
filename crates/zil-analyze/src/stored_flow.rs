@@ -10419,7 +10419,9 @@ fn actual_instructions(
         match block.terminator {
             Terminator::Return(Some(v)) => {
                 b.type_work(&f.return_type, false, "stored actual return signature")?;
-                if value_type(f, v)? != &f.return_type {
+                if value_type(f, v)? != &f.return_type
+                    && !crate::tasks::projected_creation_return(module, f, block, v, b)?
+                {
                     return Err(failure(
                         "actual returned value differs from complete return signature",
                     ));

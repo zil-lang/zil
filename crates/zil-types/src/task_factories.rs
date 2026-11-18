@@ -64,6 +64,88 @@ pub(super) fn replace_task(ty: &mut Type, actual: &Type, span: Span) -> R<()> {
     Ok(())
 }
 
+/// Change only the input coordinates of a complete physical Task result at a
+/// constructor-to-return boundary. All other directories keep their identity.
+fn return_context(
+    ty: &mut Type,
+    mut source: impl FnMut(u32) -> Option<u32>,
+) -> bool {
+    let mut task = ty;
+    while let Type::Managed(inner) | Type::ErrorUnion { result: inner, .. } = task {
+        task = inner;
+    }
+    let Type::Task { retained_life, .. } = task else { return false };
+    for path in retained_life.retained.iter_mut().map(|r| &mut r.path)
+        .chain(retained_life.nominal_arguments.iter_mut().map(|r| &mut r.path))
+    {
+        if let Some(zil_ir::LifeTypeProjection::Parameter(index)) = path.first_mut() {
+            let Some(parameter) = source(*index) else { return false };
+            *index = parameter;
+        }
+    }
+    true
+}
+
+/// Recover the parameter origins from the ordered emitted operands, walking
+/// backwards through reborrows to their actual entry loads.
+pub(super) fn emitted_projection(
+    block: &BasicBlock, parameters: &[LocalId], locals: &[LocalDecl], result: ValueId,
+    ty: &mut Type, mut pay: impl FnMut(usize) -> R<()>,
+) -> R<bool> {
+    pay(block.instructions.len().saturating_add(1))?;
+    let Some((at, Instruction {kind: InstructionKind::TaskCreate {port_bindings, arguments, ..}, ..})) =
+        block.instructions.iter().enumerate().find(|(_, op)| op.result == Some(result))
+        else { return Ok(false); };
+    let mut origins = BTreeMap::new();
+    let mut unique = std::collections::BTreeSet::new();
+    for (port, binding) in port_bindings.iter().enumerate() {
+        let StorageBase::Parameter(index) = binding.source.base else { return Ok(false) };
+        let Some(mut input) = arguments.get(index as usize).copied() else { return Ok(false) };
+        if !binding.source.path.is_empty() || binding.port as usize != port { return Ok(false) }
+        let mut before = at;
+        let local = loop {
+            pay(before.saturating_add(1))?;
+            let Some((position, op)) = block.instructions[..before].iter().enumerate()
+                .rev().find(|(_, op)| op.result == Some(input)) else { return Ok(false); };
+            match op.kind {
+                InstructionKind::Load(local) => break local,
+                InstructionKind::ReborrowAddress { address, .. } => { input = address; before = position; }
+                _ => return Ok(false),
+            }
+        };
+        pay(parameters.len().saturating_add(origins.len()).saturating_add(1))?;
+        let Some(parameter) = parameters.iter().position(|p| *p == local)
+            .and_then(|p| u32::try_from(p).ok()) else { return Ok(false) };
+        if locals.get(local.0 as usize).is_none_or(|decl| decl.mutable)
+            || !unique.insert(parameter) || origins.insert(index, parameter).is_some() { return Ok(false); }
+    }
+    Ok(return_context(ty, |p| origins.get(&p).copied()))
+}
+
+impl Builder<'_, '_> {
+    pub(super) fn task_constructor_return(&self, e: &CoreExpr) -> bool {
+        matches!(&e.kind, CoreExprKind::Call { callee, .. }
+            if matches!(&callee.kind, CoreExprKind::Name(name)
+                if name == "task_create" && self.lookup(name).is_none() && !self.signatures.contains_key(name)))
+    }
+
+    pub(super) fn check_constructor_return(
+        &mut self, expression: &CoreExpr, result: ValueId, ty: &Type, wanted: &Type,
+    ) -> R<()> {
+        if ty == wanted { return Ok(()); }
+        self.closures.snapshot_type(ty, 2, 0, expression.span)?;
+        let mut projected = ty.clone();
+        let Some(block) = self.current.and_then(|id| self.function.blocks.get(id.0 as usize)) else {
+            return Err(unsupported(expression.span, "Task factory Return has no actual block"));
+        };
+        if !emitted_projection(block, &self.function.parameters, &self.function.locals, result, &mut projected,
+            |n| self.closures.snapshot(n, expression.span))? {
+            return Err(unsupported(expression.span, "Task return needs an unchanged factory parameter for each worker port"));
+        }
+        self.same(&projected, wanted, expression.span)
+    }
+}
+
 #[derive(Clone, PartialEq, Eq)]
 enum Source {
     Unknown,
@@ -558,7 +640,16 @@ pub(super) fn prepare(
         let Some(Observed { ty: task, source }) = scan.returned.take() else {
             return Ok(());
         };
-        replace_task(&mut resolved.return_type, &task, function.span)?;
+        let mut advertised = scan.snapshot(&task, function.span)?;
+        if let Source::Creation(origins) = &source
+            && result_task(&resolved.return_type) != Some(&task)
+            && return_context(&mut advertised, |p| origins.get(&p).copied())
+            && result_task(&resolved.return_type) == Some(&advertised)
+        {
+            replace_task(&mut resolved.return_type, &advertised, function.span)?;
+        } else {
+            replace_task(&mut resolved.return_type, &task, function.span)?;
+        }
         let Type::Task { retained_life, .. } = task else {
             unreachable!()
         };
