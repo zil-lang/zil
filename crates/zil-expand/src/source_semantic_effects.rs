@@ -1047,10 +1047,20 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 continue;
             }
             let actual = self.target(argument, depth + 1)?;
-            if actual == Target::Unknown || inferred.is_some_and(|old| old != actual) {
+            if actual == Target::Unknown {
                 return Ok(target);
             }
-            inferred = Some(actual);
+            inferred = Some(match inferred {
+                Some(previous) if previous != actual => {
+                    // These are effect candidates from distinct input
+                    // occurrences. Keep both until invocation instead of
+                    // using a shared ABI as evidence of Type equality.
+                    let index = self.alternatives.len();
+                    self.budget.lineage_push(self.alternatives, (previous, actual), span)?;
+                    Target::Alternatives(index)
+                }
+                _ => actual,
+            });
         }
         let Some(actual) = inferred else { return Ok(target); };
         let mut targets = Vec::new();

@@ -117,6 +117,72 @@ fn main_function(module: &mut TypedModule) -> &mut TypedFunction {
         .find(|f| f.name == "main")
         .unwrap()
 }
+
+#[test]
+fn explicit_callable_borrow_cannot_change_to_a_same_typed_sibling() {
+    let source = r#"
+resource Token { marker: i32 }
+impl Drop for Token { fn drop(self: Self) {} }
+package Pair<F: Value> { manages token: Token; left: F; right: F }
+fn hold<F: Value>(left: F, right: F) -> Pair<F> {
+    return Pair::<F> { token: Token { marker: 0 }, left: left, right: right }
+}
+fn make() -> impl FnMut(i32) -> i32 {
+    var n = 0
+    return move(delta: i32) => { n += delta; return n }
+}
+fn main() -> i32 {
+    var pair = hold(make(), make())
+    return (&mut pair.left)(1)
+}
+"#;
+    let input = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "explicit-callable-borrow.zil",
+        source,
+    );
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let core = zil_expand::expand_with_map_semantics(
+        &input,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: input.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let mut module = zil_types::check(&core, &target, &limits).unwrap();
+    assert!(module.semantic.is_some());
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    pair(
+        "explicit-sibling-positive",
+        source,
+        module.clone(),
+        plan.clone(),
+        None,
+    );
+    let borrow = first_borrow(main_function(&mut module));
+    let I::BorrowPackageField { index, .. } = &mut borrow.kind else {
+        unreachable!("source borrows the left callback field");
+    };
+    assert_eq!(*index, 1);
+    *index = 2;
+    pair(
+        "explicit-sibling-retarget",
+        source,
+        module,
+        plan,
+        Some("E-VERIFY-SEMANTIC"),
+    );
+}
+
 fn first_borrow(function: &mut TypedFunction) -> &mut Instruction {
     function
         .blocks
