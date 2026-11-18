@@ -661,6 +661,23 @@ impl CheckedContext {
         if !valid{return Err(bad("actual sealed environment differs from the independently interpreted creator source"));}Ok(())
     }
     fn header(&self,module:&TypedModule,instance:&SemanticInstance,f:&TypedFunction,signature:&CheckedSignature,environment:&EvalEnv,b:&mut Budget)->Check<()> {
+        let located = |base: StorageBase, mut error: zil_base::Diagnostic| {
+            let span = match base {
+                StorageBase::Parameter(index) => f.parameters.get(index as usize)
+                    .and_then(|local| f.locals.get(local.0 as usize)).map(|local| local.span),
+                _ => Some(f.span),
+            }.filter(|span| span.start < span.end);
+            let role = if base == StorageBase::Result {
+                zil_base::DiagnosticRole::Result
+            } else {
+                zil_base::DiagnosticRole::Input
+            };
+            error.span = span;
+            error.relate(role, span, Some(zil_base::DiagnosticIrLocation {
+                function: f.id.0, block: None, instruction: None,
+            }), format!("{base:?} in the actual header of {}", f.name));
+            error
+        };
         let Some(header)=f.storage_life.as_ref() else {
             if instance.header_embedding.is_empty()&&self.zero_header_function(module,f,b)?&&signature.result.classes.is_empty()&&self.zero_header_type(module,&signature.result.ty,b)?{
                 let mut zero=true;for(value,_)in &signature.parameters{if !value.classes.is_empty()||!self.zero_header_type(module,&value.ty,b)?{zero=false;break;}}
@@ -671,7 +688,7 @@ impl CheckedContext {
                     return Ok(());
                 }
             }
-            return Err(bad("actual semantic header is Unknown"));
+            return Err(located(StorageBase::Result, bad("actual semantic header omits the original signature borrow/class directory")));
         };
         signature_life::charge(header,b)?;
         let mut images=Vec::new();
@@ -692,7 +709,8 @@ impl CheckedContext {
                 if !row.position.path.is_empty()||!self.same(environment,actual,&expected,b)?{return Err(bad("Receiver header changes its exact invocation access window"));}
                 continue;
             }
-            let value=base(row.position.base)?;
+            let failed = |message: String| located(row.position.base, bad(&message));
+            let value=base(row.position.base).map_err(|error|located(row.position.base,error))?;
             let binder=if row.position.path.iter().any(|part|!matches!(part,ContractProjection::Place(_))){
                 // Opaque Task/closure/Context ports are logical selectors, not
                 // physical Place paths. The existing complete declaration
@@ -701,12 +719,24 @@ impl CheckedContext {
             }else{
                 let path=row.position.path.iter().map(|part|match part{ContractProjection::Place(step)=>Ok(*step),_=>unreachable!()}).collect::<Check<Vec<_>>>()?;
                 let mut slots=value.life.slots.iter().filter(|slot|slot.path==path);
-                let slot=slots.next().ok_or_else(||bad("actual header invents a variable borrow occurrence absent from its original signature"))?;
-                if slots.next().is_some(){return Err(bad("original borrow occurrence is ambiguously mapped"));}slot.binder
+                let slot=slots.next().ok_or_else(||failed(format!(
+                    "actual header borrow {:?} binds {:?}; original signature has no variable at that projection",
+                    row.position, row.binder,
+                )))?;
+                if slots.next().is_some(){return Err(failed(format!("original signature repeats borrow projection {:?}", row.position)));}slot.binder
             };
-            let expected=value.classes.get(binder as usize).ok_or_else(||bad("original borrow occurrence has no semantic class"))?;
-            let actual=&images.iter().find(|(binder,_)|*binder==row.binder).ok_or_else(||bad("actual header variable has no complete lexical embedding"))?.1;
-            if !self.same(environment,actual,expected,b)? {return Err(unsupported("actual header borrow role requires a proved original per-occurrence lifetime adaptation",None));}
+            let expected=value.classes.get(binder as usize).ok_or_else(||failed(format!(
+                "original borrow {:?} has no semantic class at ordinal {binder}", row.position,
+            )))?;
+            let actual=&images.iter().find(|(binder,_)|*binder==row.binder).ok_or_else(||failed(format!(
+                "actual header borrow {:?} binds {:?} without a lexical embedding", row.position, row.binder,
+            )))?.1;
+            if !self.same(environment,actual,expected,b)? {
+                return Err(located(row.position.base, unsupported(format!(
+                    "actual header borrow {:?} binds {:?} to {actual:?}; original class ordinal {binder} requires {expected:?}",
+                    row.position, row.binder,
+                ), None)));
+            }
         }
         for row in &header.classes {
             let value=base(row.position.base)?;
@@ -717,7 +747,12 @@ impl CheckedContext {
             };
             let expected=value.classes.get(class as usize).ok_or_else(||bad("actual header class escapes the complete original domain"))?;
             let actual=&images.iter().find(|(binder,_)|*binder==row.binder).ok_or_else(||bad("header class has no exact lexical embedding"))?.1;
-            if !self.same(environment,actual,expected,b)? {return Err(unsupported("actual header class needs its original occurrence-preserving rigid/partition map",None));}
+            if !self.same(environment,actual,expected,b)? {
+                return Err(located(row.position.base, unsupported(format!(
+                    "actual header class {:?} binds {:?} to {actual:?}; original class ordinal {class} requires {expected:?}",
+                    row.position, row.binder,
+                ), None)));
+            }
         }
         for row in &header.static_bindings {
             let value=base(row.base)?;
