@@ -31,6 +31,13 @@ pub(crate) fn frame(
     if **result != f.return_type {
         return Err(bad("raw Task frame changes its complete worker result"));
     }
+    let borrowed_result = matches!(result.as_ref(), Type::Address { mutable: false, .. });
+    if borrowed_result && !retained_life.ports.is_empty() && retained_life.retained.is_empty() {
+        return Err(unsupported("borrowed Task retained classes require actual frame port mappings", None));
+    }
+    let result_error = |message: &str| {
+        if borrowed_result { reject("E-VERIFY-TASK-RESULT", None, message) } else { bad(message) }
+    };
     if retained_life.binder_count as usize > b.limits.max_nodes {
         return Err(limit("raw Task joint frame domain exceeded"));
     }
@@ -120,15 +127,15 @@ pub(crate) fn frame(
             .filter(|row| row.path == [LifeTypeProjection::Result] && row.class == class);
         let row = rows
             .next()
-            .ok_or_else(|| bad("raw Task joint declaration omits a complete result class"))?;
+            .ok_or_else(|| result_error("raw Task joint declaration omits a complete result class"))?;
         if rows.next().is_some() || !injective.insert(row.binder) {
-            return Err(bad(
+            return Err(result_error(
                 "raw Task result map coalesces independent intrinsic classes",
             ));
         }
         let image = image(f, StorageBase::Result, &result, class, b)?;
         if parent.get(row.binder as usize) != Some(&Some(image)) {
-            return Err(bad(
+            return Err(result_error(
                 "raw Task result embedding disagrees with its full worker header",
             ));
         }
@@ -139,7 +146,7 @@ pub(crate) fn frame(
     rebuilt.nominal_arguments.sort();
     dynamic_metadata::retained_shape(&rebuilt, b)?;
     if rebuilt != *retained_life {
-        return Err(bad(
+        return Err(result_error(
             "raw Task declaration changes its full input/result/port/phantom occurrence directory",
         ));
     }

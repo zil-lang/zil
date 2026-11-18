@@ -440,15 +440,21 @@ impl Engine<'_> {
                         grouped(&result).kind,
                         TypeKind::Reference { mutable: false, .. }
                     )
-                    && let Some(layout) = self.task_create_poll_instance(
-                        &signature,
-                        &context_ports,
-                        &result,
-                        e.span,
-                        depth + 1,
-                    )?
                 {
-                    result = layout;
+                    if let Some(layout) = self.task_create_poll_instance(
+                        &signature, &context_ports, &result, e.span, depth + 1,
+                    )? {
+                        result = layout;
+                    } else {
+                        // The worker's outer lifetime belongs to its declaration.
+                        // Only its payload layout travels into this caller hint.
+                        self.budget.ty(&result)?;
+                        let mut layout = grouped(&result).clone();
+                        if let TypeKind::Reference { lifetime, .. } = &mut layout.kind {
+                            *lifetime = None;
+                        }
+                        result = layout;
+                    }
                 }
                 let owning_result = signature.contract.iter().any(|clause| clause.name == "result"
                     && matches!(clause.terms.as_slice(), [term] if term.type_args.is_empty() && term.arguments.is_empty() && term.index.is_none() && matches!(term.path.as_slice(), [mode] if mode == "give" || mode == "create")));

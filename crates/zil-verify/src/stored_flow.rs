@@ -4922,7 +4922,7 @@ static_dependency: StaticProvenance::NotStatic,
                 let mut p = Permission::default();
                 for source in sources {
                     let actual=if descriptor{before.descriptor_source(source,b)?}else{before.source(source,b)?};
-                    result_pending|=actual.sources.is_empty();
+                    result_pending |= actual.sources.is_empty() && !before.inactive_result_source(source, b)?;
                     join_permission(&mut p,&actual,b)?;
                     if path.is_empty()
                         && matches!(callee.return_type, Type::Address { mutable: true, .. })

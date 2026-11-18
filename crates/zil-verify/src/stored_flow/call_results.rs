@@ -340,6 +340,16 @@ impl<'a> Before<'a> {
             EntrySource::Inactive
         })
     }
+    /// Returning a different, live root remains possible when this exact
+    /// by-value parameter slot belongs to a provably inactive variant.
+    pub(super) fn inactive_result_source(&self, source: &Source, b: &mut Budget) -> Check<bool> {
+        let HoldRoot::Parameter(index) = source.base else { return Ok(false) };
+        if source.leaf.is_empty() || source.retained_port.is_some() { return Ok(false); }
+        let actual = self.arguments.get(index as usize).ok_or_else(|| err("result source parameter is absent"))?;
+        let ty = vt(self.caller, *actual)?;
+        if !enum_address::signature(ty) { return Ok(false); }
+        Ok(matches!(self.entry_source(source, b)?, EntrySource::Inactive))
+    }
     pub(super) fn separation(
         &self,
         left: &Source,
@@ -1129,7 +1139,7 @@ fn prepare_result(
             } else {
                 before.source(source, b)?
             };
-            if actual.sources.is_empty() {
+            if actual.sources.is_empty() && !before.inactive_result_source(source, b)? {
                 complete = false;
             }
             join_permission(&mut permission, &actual, b)?;
