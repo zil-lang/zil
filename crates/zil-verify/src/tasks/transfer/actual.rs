@@ -98,6 +98,8 @@ impl Proof<'_> {
                 t = inner;
             }
             t = match (projection, t) {
+                (zil_ir::PlaceProjection::Field(index), Type::Array { element, length })
+                    if index < length => Some(element.as_ref()),
                 (zil_ir::PlaceProjection::Field(index), Type::Tuple(fields)) => {
                     fields.get(*index as usize)
                 }

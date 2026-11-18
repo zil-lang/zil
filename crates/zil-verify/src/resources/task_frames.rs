@@ -118,6 +118,45 @@ impl TaskOwnership {
     }
 }
 
+fn add_local_fields<'a>(
+    owners: &mut Vec<TaskOwner>,
+    local: LocalId,
+    debt: usize,
+    fields: impl ExactSizeIterator<Item = &'a Type>,
+    debts: &[Option<usize>],
+    budget: &mut Budget,
+) -> Check<()> {
+    if fields.len() != debts.len() {
+        return Err(reject(
+            "E-VERIFY-TASK",
+            None,
+            "continuation fields differ from the resource debt directory",
+        ));
+    }
+    let shell = owners.len();
+    owners.push(TaskOwner {
+        slot: TaskOwnerSlot::LocalShell(local),
+        ty: Type::Unit,
+        debt,
+        cleanup_anchor: None,
+    });
+    for (index, (ty, field)) in fields.zip(debts).enumerate() {
+        if let Some(debt) = field {
+            charge_payload(ty, budget)?;
+            owners.push(TaskOwner {
+                slot: TaskOwnerSlot::LocalField {
+                    local,
+                    index: index as u32,
+                },
+                ty: ty.clone(),
+                debt: *debt,
+                cleanup_anchor: Some(shell),
+            });
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn start(
     f: &TypedFunction,
     slots: &Slots,
@@ -145,29 +184,25 @@ pub(super) fn start(
         if let Some(debt) = slots.managed_local[index] {
             charge_payload(&local.ty, budget)?;
             if let Type::Package { fields, .. } = &local.ty {
-                let shell = owners.len();
-                owners.push(TaskOwner {
-                    slot: TaskOwnerSlot::LocalShell(local.id),
-                    ty: Type::Unit,
+                add_local_fields(
+                    &mut owners,
+                    local.id,
                     debt,
-                    cleanup_anchor: None,
-                });
-                for (index, ((_, ty), field)) in
-                    fields.iter().zip(slots.fields(local.id)).enumerate()
-                {
-                    if let Some(debt) = field {
-                        charge_payload(ty, budget)?;
-                        owners.push(TaskOwner {
-                            slot: TaskOwnerSlot::LocalField {
-                                local: local.id,
-                                index: index as u32,
-                            },
-                            ty: ty.clone(),
-                            debt: *debt,
-                            cleanup_anchor: Some(shell),
-                        });
-                    }
-                }
+                    fields.iter().map(|(_, ty)| ty),
+                    slots.fields(local.id),
+                    budget,
+                )?;
+            } else if let Type::Array { element, length } = &local.ty
+                && arrays::is_owned_type(&local.ty)
+            {
+                add_local_fields(
+                    &mut owners,
+                    local.id,
+                    debt,
+                    std::iter::repeat_n(element.as_ref(), *length as usize),
+                    slots.fields(local.id),
+                    budget,
+                )?;
             } else if matches!(
                 local.ty,
                 Type::Managed(_)
@@ -193,15 +228,17 @@ pub(super) fn start(
     for (index, ty) in f.values.iter().enumerate() {
         if let Some(debt) = slots.managed_value[index] {
             charge_payload(ty, budget)?;
-            if !matches!(
-                ty,
-                Type::Managed(_)
-                    | Type::Package { .. }
-                    | Type::Tuple(_)
-                    | Type::Enum { .. }
-                    | Type::ErrorUnion { .. }
-                    | Type::Closure(_)
-            ) {
+            if !arrays::is_owned_type(ty)
+                && !matches!(
+                    ty,
+                    Type::Managed(_)
+                        | Type::Package { .. }
+                        | Type::Tuple(_)
+                        | Type::Enum { .. }
+                        | Type::ErrorUnion { .. }
+                        | Type::Closure(_)
+                )
+            {
                 return Err(unsupported(
                     "continuation aggregate SSA debt requires canonical partial-owner frame mapping",
                     Some(f.span),

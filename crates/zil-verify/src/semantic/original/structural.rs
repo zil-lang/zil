@@ -105,6 +105,9 @@ impl CheckedOriginal {
                         };
                         (ty, established)
                     }
+                    // Every admitted callable receiver can occupy an ordinary Value
+                    // position. Copy and cleanup require their own premises.
+                    SemanticRequirementRecipe::Callable { ty, .. } => (ty, DynStructuralBound::Value),
                     SemanticRequirementRecipe::ForAll { lifetimes: 0, requirements: rows } => {
                         b.spend(rows.len())?;
                         requirements.extend(rows.iter().rev());
@@ -114,7 +117,6 @@ impl CheckedOriginal {
                     // Do not erase their frame to discover a convenient bound.
                     SemanticRequirementRecipe::ForAll { .. }
                     | SemanticRequirementRecipe::Trait { .. }
-                    | SemanticRequirementRecipe::Callable { .. }
                     | SemanticRequirementRecipe::TypeEqual { .. }
                     | SemanticRequirementRecipe::ConstEqual { .. }
                     | SemanticRequirementRecipe::LifeEqual { .. }
