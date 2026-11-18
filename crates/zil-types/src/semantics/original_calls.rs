@@ -1878,7 +1878,13 @@ impl Check<'_, '_> {
                         }
                         if matches!(child_signature.result, SemanticTypeRecipe::OriginalType {
                             scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result,
-                        }) {
+                        }) && !matches!(&signature.result, SemanticTypeRecipe::Address { lifetime, .. }
+                            if views::is_receiver_upper(lifetime))
+                        {
+                            // A Receiver promise is an upper bound on the
+                            // original return, not the child's inferred type.
+                            // Keep a captured Fixed source until the return
+                            // and escaping-environment checks have seen it.
                             let goal = self.rehome(owner, child, &signature.result, depth + 1)?;
                             if let Some(previous) = &result_goal {
                                 self.contexts.push(child.id);
