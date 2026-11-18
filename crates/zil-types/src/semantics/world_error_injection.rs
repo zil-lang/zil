@@ -24,7 +24,7 @@ pub(super) fn call_operand(
         return Ok(None);
     };
 
-    let mut selected = None;
+    let mut selected: Option<SharedType> = None;
     world.pay(sites.len())?;
     for site in sites {
         if site.instance != instance.id
