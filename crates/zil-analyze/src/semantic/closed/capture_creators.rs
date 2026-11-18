@@ -333,15 +333,27 @@ impl Check<'_, '_> {
                         // physical leaf. Every actual constructor still proves
                         // that leaf back to a literal, including nested fields.
                         self.check_static_value_sources(&value, function, *operand, b)?;
-                        let same_lexical = value == expected
+                        if closure.captures.get(capture) != Some(&value.ty) {
+                            return Err(fail("actual creator changes its physical capture type"));
+                        }
+                        let value = if value.equal_paid(&expected, b)?
                             || !moved
                                 && matches!(&value.ty, Type::Address { inner, .. } if inner.as_ref() == &expected.ty)
-                                && self.pointee(&value, b)? == expected;
-                        if !same_lexical || closure.captures.get(capture) != Some(&value.ty) {
+                                && self.pointee(&value, b)?.equal_paid(&expected, b)?
+                        {
+                            value
+                        } else if !moved
+                            && self
+                                .capture_reborrow(parent, function, *operand, value, &expected, b)?
+                        {
+                            // The header stores the lexical upper. The actual
+                            // reborrow still has its own loan in the CFG.
+                            expected.copy(b)?
+                        } else {
                             return Err(fail(
                                 "actual creator changes its captured lexical value or intrinsic class image",
                             ));
-                        }
+                        };
                         if stored.as_ref().is_some_and(|old| old != &value) {
                             return Err(fail(
                                 "actual creators disagree on the complete stored capture head or child domain",
@@ -385,6 +397,62 @@ impl Check<'_, '_> {
             );
         }
         Ok(result)
+    }
+
+    fn capture_reborrow(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        mut operand: ValueId,
+        mut actual: Value,
+        expected: &Value,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        let Type::Address { mutable, .. } = &expected.ty else {
+            return Ok(false);
+        };
+        let pointee = self.pointee(expected, b)?;
+        for depth in 0..=b.partial_depth {
+            b.spend(1, WORK)?;
+            if !geometry::same_type(&actual.ty, &expected.ty, b)?
+                || !self.pointee(&actual, b)?.equal_paid(&pointee, b)?
+            {
+                return Ok(false);
+            }
+            if actual.equal_paid(expected, b)? {
+                return Ok(true);
+            }
+            let (block, index, instruction) = self.defining(function, operand, b)?;
+            let InstructionKind::ReborrowAddress {
+                address,
+                mutable: child_mutable,
+            } = instruction.kind
+            else {
+                return Ok(false);
+            };
+            let mode = if *mutable {
+                StoredBorrowMode::ExclusiveAddress
+            } else {
+                StoredBorrowMode::SharedAddress
+            };
+            if child_mutable != *mutable
+                || !matches!(actual.life.slots.as_slice(), [slot] if slot.path.is_empty()
+                    && slot.mode == mode
+                    && actual.classes.get(slot.binder as usize)
+                        == Some(&Class::Reborrow(function.id, operand)))
+            {
+                return Ok(false);
+            }
+            operations::available_before(
+                function,
+                (block, index, SemanticSiteEdge::Before),
+                address,
+                b,
+            )?;
+            operand = address;
+            actual = self.ssa_value(instance, function, operand, b, depth + 1)?;
+        }
+        Err(unknown("captured reborrow exceeds its finite actual chain"))
     }
 
     fn capture_matches(
