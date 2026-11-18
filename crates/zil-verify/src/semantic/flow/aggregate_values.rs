@@ -9,7 +9,12 @@ impl CheckedContext {
         instruction: &Instruction, fields: &[ValueId], state: &State, b: &mut Budget,
     ) -> Check<CheckedType> {
         let result = instruction.result.ok_or_else(|| bad("package repack has no actual result"))?;
-        let (block, ordinal, _) = super::intrinsics::owner_sources::producer(f, result, b)?;
+        let (block, ordinal, actual) = super::intrinsics::owner_sources::producer(f, result, b)?;
+        let body = f.blocks.get(block.0 as usize).filter(|body| body.id == block)
+            .ok_or_else(|| bad("package repack selects an absent actual block"))?;
+        if body.instructions.get(ordinal as usize).is_none_or(|row| !std::ptr::eq(row, actual)) {
+            return Err(bad("package repack has no canonical actual instruction coordinate"));
+        }
         let program = module.semantic.as_ref().ok_or_else(|| bad("package repack has no original operation ledger"))?;
         let definition = self.definition(module, instance.definition, b)?;
         let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
@@ -49,7 +54,7 @@ impl CheckedContext {
         let mut source = None;
         for (index, (value, (_, ty))) in fields.iter().zip(layout).enumerate() {
             b.spend(1)?;
-            let prepared = &f.blocks[block.0 as usize].instructions[first + index];
+            let prepared = &body.instructions[first + index];
             let local = match prepared.kind {
                 InstructionKind::TakePackageField { local, index: actual }
                     if actual as usize == index && !ty.is_copy_value() => local,
