@@ -80,8 +80,18 @@ impl CheckedOriginal {
                 // Filter here, after every original branch has been checked;
                 // filtering an early Return while discovering uses would erase
                 // a real capture that is used on a later branch.
-                if !self.used.get(definition).is_some_and(|used|used.contains(&cleanup.binding.identity))
-                    || !self.capture_owns(&cleanup.binding.identity,b)? { continue; }
+                if !self.used.get(definition).is_some_and(|used|used.contains(&cleanup.binding.identity)) {
+                    continue;
+                }
+                // Only a proved borrowed capture lacks an activation-exit
+                // debt. An unknown mode keeps its original cleanup obligation;
+                // a projected overwrite must still settle the actual occupant.
+                if cleanup.capture_exit
+                    && self.creator_moves.get(definition) == Some(&false)
+                    && !self.capture_owns(&cleanup.binding.identity, b)?
+                {
+                    continue;
+                }
             }
             if cleanup.capture_exit&&matches!(cleanup.binding.identity,Binder::Capture{..}){
                 cleanup.binding.identity.charge_clone(b)?;
@@ -116,6 +126,7 @@ impl CheckedOriginal {
                 Ty::Tuple(fields)=>fields.iter().enumerate().map(|(index,field)|(index.to_string(),field.clone())).collect::<Vec<_>>(),
                 Ty::Nominal(id,arguments)=>{if self.custom_drop(module,*id,b)?{if !partial&&self.sync_drop(module,context,&ty,env,active,b)?{return Ok(());}return Err(bad("original field cleanup cannot replace a custom whole Drop"));}let definition=context.definition(module,*id,b)?;let SemanticDefinitionBody::Nominal{body:SemanticNominalBody::Product{fields},..}=&definition.body else{return Err(unsupported("original partial cleanup requires exact finite product fields",None));};let mut selected=self.environment(module,context,*id,active,b)?;selected.lexical[0].actuals=arguments.clone();let mut result=Vec::new();for field in fields{result.push((field.name.clone(),self.ty(module,context,&field.ty,&selected,active,b)?));}result},
                 Ty::Closure(definition,arguments,sealed)=>{
+                    self.capture_creator_moves(*definition)?;
                     let mut owned=Vec::new();
                     for (name,ty) in self.closure_capture_fields(module,context,*definition,arguments,sealed,b)? {
                         if self.capture_field_owns(*definition,&name,b)? { owned.push((name,ty)); }
@@ -167,6 +178,7 @@ impl CheckedOriginal {
         for(definition,receiver,creator)in goals{
             b.spend(snapshots.len())?;
             if !matches!(receiver,Ty::Closure(id,..)if id==definition)||!self.checked.contains(&definition)||creator.lexical.first().is_none_or(|frame|frame.definition!=definition){return Err(bad("original Direct consuming provider loses its exact checked creator/receiver"));}
+            self.capture_creator_moves(definition)?;
             for cleanup in snapshots.iter().filter(|cleanup|cleanup.definition==definition){
                 self.current=Some(definition);
                 let place=Place{binder:cleanup.binding.identity.clone(),fields:cleanup.path.clone()};
@@ -238,6 +250,7 @@ impl CheckedOriginal {
                 Ty::Opaque(owner,arguments)=>{let hidden=self.opaque_hidden(module,context,owner,&arguments,active,b)?;self.sync_drop(module,context,&hidden,env,active,b)?},
                 Ty::Closure(definition,arguments,sealed)=>{
                     let captures=self.closure_capture_fields(module,context,definition,&arguments,&sealed,b)?;
+                    self.capture_creator_moves(definition)?;
                     for (name,capture) in captures {
                         if self.capture_field_owns(definition,&name,b)? && !self.sync_drop(module,context,&capture,env,active,b)? { return Ok(false); }
                     }
@@ -302,15 +315,36 @@ mod materialized_capture_cleanup_tests{
         let limits=Limits::default();let mut b=Budget::new(&limits);let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
         let context=CheckedContext::catalogue(&module,&mut b).unwrap();let definition=module.semantic.as_ref().unwrap().definitions.iter().find(|row|matches!(row.kind,SemanticDefinitionKind::Function)).unwrap().id;
         let source=Binder::Parameter{definition,ordinal:0};let capture=Binder::Capture{definition,source:Box::new(source)};
-        let env=Env{lexical:vec![Frame{definition,actuals:vec![],environment:vec![]}],bounds:vec![],invocation:vec![],self_type:None};
+        let mut active = ActiveQueries::new();
+        let env = CheckedOriginal::default().environment(&module, &context, definition, &mut active, &mut b).unwrap();
         let ty=Ty::Managed(Box::new(Ty::Carrier{kind:CarrierKind::Task,child:Box::new(Ty::Atom(Type::I32)),retained:Box::default()}));
-        for materialized in [false,true]{
-            let mut checked=CheckedOriginal::default();if materialized{checked.used.insert(definition,BTreeSet::from([capture.clone()]));}
+        let sibling=Binder::Capture{definition,source:Box::new(Binder::Parameter{definition,ordinal:1})};
+        for (used, creator_moves, inferred, capture_exit, owes_cleanup) in [
+            (false, None, None, true, false),
+            (true, None, None, true, true),
+            (true, Some(true), None, true, true),
+            (true, Some(false), None, true, false),
+            (true, Some(false), Some(&capture), true, true),
+            (true, Some(false), Some(&sibling), true, false),
+            (true, Some(false), None, false, true),
+        ] {
+            let mut checked=CheckedOriginal::default();
+            if used { checked.used.insert(definition,BTreeSet::from([capture.clone()])); }
+            if let Some(moves) = creator_moves { checked.creator_moves.insert(definition, moves); }
+            if let Some(binder) = inferred {
+                checked.inferred_owner_captures.insert(definition, BTreeSet::from([binder.clone()]));
+            }
             checked.prototypes.insert(definition,Prototype{parameters:vec![],result:Ty::Atom(Type::Unit),environment:env.clone(),modes:vec![],result_mode:PassingMode::Infer,call_kind:CallKind::Direct,bound_lifetimes:0,invocation_lifetimes:0,premise_bounds:vec![],callable_kind:Some(CallableKind::FnOnce)});
-            checked.cleanups.push(Cleanup{definition,binding:Binding{ty:ty.clone(),mutable:true,identity:capture.clone()},path:vec![],capture_exit:true,uses:Uses::default(),environment:env.clone()});
+            checked.cleanups.push(Cleanup{definition,binding:Binding{ty:ty.clone(),mutable:true,identity:capture.clone()},path:vec![],capture_exit,uses:Uses::default(),environment:env.clone()});
             let mut active=ActiveQueries::new();let result=checked.check_cleanups(&module,&context,&mut active,&mut b);
-            if materialized{assert!(result.is_err(),"a genuinely captured unknown Task still needs an original retirement proof");assert_eq!(checked.direct_cleanup_snapshots.len(),1);}
-            else{result.unwrap();assert!(checked.direct_cleanup_snapshots.is_empty());assert!(checked.callable_retirements.is_empty(),"unused creator lookup names produce neither an owner nor a cleanup capability");}
+            if owes_cleanup {
+                let error = result.expect_err("a genuinely captured unknown Task still needs an original retirement proof");
+                assert_eq!(error.message, "original cleanup edge has no original SyncDrop proof");
+            } else {
+                result.unwrap();
+                assert!(checked.callable_retirements.is_empty());
+            }
+            assert_eq!(checked.direct_cleanup_snapshots.len(), usize::from(owes_cleanup && capture_exit));
         }
     }
     #[test]
