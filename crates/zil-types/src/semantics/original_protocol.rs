@@ -51,6 +51,12 @@ fn failure(message: &str) -> Diagnostic {
     Diagnostic::error(Phase::Types, "E-SEMANTIC-PROTOCOL", None, message)
 }
 
+#[derive(Clone, Copy)]
+enum CallSite {
+    Unique(SemanticSiteId),
+    Repeated,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Root {
     Parameter(SemanticDefinitionId, u32),
@@ -390,6 +396,8 @@ struct Engine<'a, 'b> {
     graph_calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), Vec<tasks::GraphCall>>,
     graph_call_count: usize,
     local_complete: BTreeSet<SemanticDefinitionId>,
+    call_sites: BTreeMap<SemanticDefinitionId, BTreeMap<NodeId, CallSite>>,
+    call_site_count: usize,
     graph_requested: BTreeSet<SemanticDefinitionId>,
     graph_complete: BTreeSet<SemanticDefinitionId>,
     projected_sources: Vec<sources::Projection>,
@@ -1732,22 +1740,58 @@ impl<'a> Engine<'a, '_> {
         let cost_before = *self.left;
         let cost_children = self.method_cost_total;
         let result: R<Option<SemanticSiteId>> = (|| {
-            let original = self.definition(owner)?;
-            let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
-                return Ok(None);
-            };
-            self.pay(site_nodes.len(), depth)?;
-            let mut matches = site_nodes
-                .iter()
-                .filter(|r| r.node == SemanticOriginalNode::Expression(node))
-                .filter(|r| self.proof.calls.contains_key(&(owner, r.site)));
-            let first = matches.next().map(|r| r.site);
-            if matches.next().is_some() {
-                return Err(failure(
-                    "original protocol call occurrence has multiple call sites",
-                ));
+            self.pay(lookup_work(self.call_sites.len()), depth)?;
+            if !self.call_sites.contains_key(&owner) {
+                let original = self.definition(owner)?;
+                let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
+                    return Ok(None);
+                };
+                self.pay(site_nodes.len(), depth)?;
+                let mut sites = BTreeMap::new();
+                let call_lookup = lookup_work(self.proof.calls.len());
+                for row in site_nodes {
+                    let SemanticOriginalNode::Expression(node) = row.node else {
+                        continue;
+                    };
+                    self.pay(call_lookup, depth)?;
+                    if !self.proof.calls.contains_key(&(owner, row.site)) {
+                        continue;
+                    }
+                    self.pay(lookup_work(sites.len()), depth)?;
+                    match sites.entry(node) {
+                        std::collections::btree_map::Entry::Occupied(mut entry) => {
+                            entry.insert(CallSite::Repeated);
+                        }
+                        std::collections::btree_map::Entry::Vacant(entry) => {
+                            if self.call_site_count >= self.limits.max_nodes {
+                                return Err(Diagnostic::limit(Phase::Types, "original protocol call site index node limit exceeded", None));
+                            }
+                            self.pay(std::mem::size_of::<(NodeId, CallSite)>(), depth)?;
+                            entry.insert(CallSite::Unique(row.site));
+                            self.call_site_count += 1;
+                        }
+                    }
+                }
+                self.pay(lookup_work(self.call_sites.len()).saturating_add(
+                    std::mem::size_of::<(SemanticDefinitionId, BTreeMap<NodeId, CallSite>)>(),
+                ), depth)?;
+                self.call_sites.insert(owner, sites);
             }
-            Ok(first)
+            self.pay(lookup_work(self.call_sites.len()), depth)?;
+            let directory = self.call_sites.get(&owner)
+                .ok_or_else(|| failure("original protocol call occurrence index disappeared"))?;
+            let work = lookup_work(directory.len());
+            *self.left = self.left.checked_sub(work).ok_or_else(|| {
+                Diagnostic::limit(Phase::Types, "original protocol work exceeded", None)
+            })?;
+            let selected = directory.get(&node).copied();
+            match selected {
+                Some(CallSite::Repeated) => Err(failure(
+                    "original protocol call occurrence has multiple call sites",
+                )),
+                Some(CallSite::Unique(site)) => Ok(Some(site)),
+                None => Ok(None),
+            }
         })();
         self.record_cost("site", cost_before, cost_children);
         result
@@ -3735,48 +3779,50 @@ impl<'a> Engine<'a, '_> {
         let cost_before = *self.left;
         let cost_children = self.method_cost_total;
         let result: R<()> = (|| {
-            let mut keep_by_name = BTreeMap::new();
-            for (name, lexical_depth) in scope {
-                self.pay(
-                    name.len()
-                        .saturating_add(keep_by_name.len().saturating_add(1).ilog2() as usize + 2),
-                    depth,
-                )?;
-                if keep_by_name.insert(name.as_str(), *lexical_depth).is_some() {
-                    return Err(failure(
-                        "original scope inventory has duplicate lexical names",
-                    ));
-                }
-            }
-            let lookup = keep_by_name.len().saturating_add(1).ilog2() as usize + 1;
-            self.pay(
-                state
-                    .names
-                    .len()
-                    .saturating_mul(lookup.saturating_mul(2).saturating_add(1)),
-                depth,
-            )?;
-            for (name, values) in &state.names {
-                let keep = keep_by_name.get(name.as_str()).copied().unwrap_or(0);
-                for value in values.iter().skip(keep) {
+            let mut scope = scope.iter().peekable();
+            let mut changes = Vec::new();
+            self.pay(state.names.len(), depth)?;
+            // Both inventories have the exact BTree ordering from State::names.
+            // Check every exiting value against the original, unmodified state.
+            for (index, (name, values)) in state.names.iter().enumerate() {
+                let keep = loop {
+                    let Some((original, keep)) = scope.peek() else { break None; };
+                    self.pay(name.len().min(original.len()).saturating_add(1), depth)?;
+                    match original.cmp(name) {
+                        std::cmp::Ordering::Less => { scope.next(); }
+                        std::cmp::Ordering::Equal => { let keep = *keep; scope.next(); break Some(keep); }
+                        std::cmp::Ordering::Greater => break None,
+                    }
+                };
+                for value in values.iter().skip(keep.unwrap_or(0)) {
                     self.drop_value(value, state, depth + 1)
                         .map_err(|mut diagnostic| {
                             diagnostic.notes.push(format!(
                                 "original scope cleanup binding {:?}, retained lexical depth {}",
-                                name, keep
+                                name, keep.unwrap_or(0)
                             ));
                             diagnostic
                         })?;
                 }
-            }
-            state.names.retain(|name, values| {
-                if let Some(len) = keep_by_name.get(name.as_str()) {
-                    values.truncate(*len);
-                    true
-                } else {
-                    false
+                if keep.is_none_or(|keep| keep < values.len()) {
+                    self.pay(1, depth)?;
+                    changes.push((index, keep));
                 }
-            });
+            }
+            if !changes.is_empty() {
+                self.pay(state.names.len(), depth)?;
+                let mut changes = changes.into_iter().peekable();
+                let mut index = 0;
+                state.names.retain(|_, values| {
+                    let previous = index;
+                    index += 1;
+                    match changes.next_if(|(ordinal, _)| *ordinal == previous) {
+                        Some((_, Some(keep))) => { values.truncate(keep); true }
+                        Some((_, None)) => false,
+                        None => true,
+                    }
+                });
+            }
             Ok(())
         })();
         self.record_cost("leave", cost_before, cost_children);
@@ -4783,6 +4829,8 @@ pub(super) fn check(
         graph_calls: BTreeMap::new(),
         graph_call_count: 0,
         local_complete: BTreeSet::new(),
+        call_sites: BTreeMap::new(),
+        call_site_count: 0,
         graph_requested: BTreeSet::new(),
         graph_complete: BTreeSet::new(),
         projected_sources: Vec::new(),
@@ -5114,6 +5162,8 @@ mod plain_layout_tests {
         graph_calls: BTreeMap::new(),
         graph_call_count: 0,
         local_complete: BTreeSet::new(),
+        call_sites: BTreeMap::new(),
+        call_site_count: 0,
         graph_requested: BTreeSet::new(),
         graph_complete: BTreeSet::new(),
         projected_sources: Vec::new(),
