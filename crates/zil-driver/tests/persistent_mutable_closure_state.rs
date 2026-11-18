@@ -337,3 +337,117 @@ fn raw_capture_address_cannot_be_overwritten() {
         zil_verify::verify_module(m, p, &TargetProfile::default(), &Limits::default()).unwrap_err();
     assert_eq!(error[0].code, "E-VERIFY-CAPTURE");
 }
+
+#[test]
+fn projected_capture_updates_keep_their_original_state_and_destination() {
+    use zil_ir::{Constant, Type};
+    let target = TargetProfile::host_llvm();
+    let limits = Limits::default();
+    let unit = source(include_str!(
+        "../../../examples/owned-state-closure/main.zil"
+    ));
+    let ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let aliases = Default::default();
+    let context = zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+        root: unit.module_id,
+        aliases: &aliases,
+        declarations: zil_expand::source_context::DeclarationPlacement::Original,
+    };
+    let expanded = zil_expand::expand_program_with_semantics(
+        &[unit],
+        &[&ast],
+        &[Vec::new()],
+        &limits,
+        &target,
+        context,
+    )
+    .unwrap()
+    .remove(0)
+    .0;
+    let raw = zil_types::check(&expanded.core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+
+    for change in ["stale capture", "array element", "tuple field"] {
+        let mut changed = raw.clone();
+        let entry = changed
+            .functions
+            .iter_mut()
+            .find(|f| f.environment.is_some())
+            .unwrap();
+        let ops = &mut entry
+            .blocks
+            .iter_mut()
+            .find(|block| {
+                block
+                    .instructions
+                    .iter()
+                    .any(|op| matches!(op.kind, InstructionKind::WriteCapture { .. }))
+            })
+            .unwrap()
+            .instructions;
+        match change {
+            "stale capture" => {
+                let first = ops
+                    .iter()
+                    .find(|op| matches!(op.kind, InstructionKind::ReadCapture { .. }))
+                    .unwrap()
+                    .result
+                    .unwrap();
+                let write = ops
+                    .iter_mut()
+                    .find(|op| matches!(op.kind, InstructionKind::WriteCapture { .. }))
+                    .unwrap();
+                let InstructionKind::WriteCapture { value, .. } = &mut write.kind else {
+                    unreachable!()
+                };
+                *value = first;
+            }
+            "array element" => {
+                let index = ops
+                    .iter()
+                    .find_map(|op| match op.kind {
+                        InstructionKind::UpdateIndex { index, .. } => Some(index),
+                        _ => None,
+                    })
+                    .unwrap();
+                let constant = ops.iter_mut().find(|op| op.result == Some(index)).unwrap();
+                assert_eq!(constant.kind, InstructionKind::Constant(Constant::I32(0)));
+                constant.kind = InstructionKind::Constant(Constant::I32(1));
+            }
+            "tuple field" => {
+                let field = ops
+                    .iter_mut()
+                    .find_map(|op| match &mut op.kind {
+                        InstructionKind::UpdateField {
+                            aggregate, index, ..
+                        } if matches!(entry.values[aggregate.0 as usize], Type::Tuple(_)) => {
+                            Some(index)
+                        }
+                        _ => None,
+                    })
+                    .unwrap();
+                assert_eq!(*field, 1);
+                *field = 0;
+            }
+            _ => unreachable!(),
+        }
+        let mut stale = plan.clone();
+        stale.module_fingerprint = changed.fingerprint();
+        let bytes = zil_ir::wire::encode_module_candidate(&changed, &stale, &limits).unwrap();
+        for diagnostics in [
+            zil_verify::verify_module(changed, stale, &target, &limits).unwrap_err(),
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err(),
+        ] {
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|error| error.code == "E-VERIFY-SEMANTIC"
+                        && error.category == ResultCategory::SafeReject),
+                "{change}: {diagnostics:?}"
+            );
+        }
+    }
+}
