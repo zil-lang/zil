@@ -402,9 +402,21 @@ fn static_worker_selector(
         }
     }
     parts.reverse();
+    static_code_binding(program, names, &parts, budget, call.span)
+}
+
+// A function used as a value emits FunctionRef and needs its own original
+// TypeUse. Resolve the same declaration that a static worker would select.
+fn static_code_binding(
+    program: &program::Program,
+    names: &[SemanticOriginalNameBinding],
+    parts: &[&str],
+    budget: &mut Budget<'_>,
+    span: Span,
+) -> R<bool> {
     let mut selected = None;
     for binding in names {
-        budget.identity_work(binding.path.len().saturating_add(parts.len()), call.span)?;
+        budget.identity_work(binding.path.len().saturating_add(parts.len()), span)?;
         if binding.namespace == SemanticOriginalNamespace::Value
             && binding
                 .path
@@ -429,7 +441,7 @@ fn static_worker_selector(
             .iter()
             .map(|(_, module)| module.definitions.len())
             .sum(),
-        call.span,
+        span,
     )?;
     Ok(program
         .modules
@@ -449,6 +461,34 @@ fn static_worker_selector(
                     }
                 )
         }))
+}
+fn named_code_value(
+    program: &program::Program,
+    definition: SemanticDefinitionId,
+    expression: &s::Expr,
+    budget: &mut Budget<'_>,
+) -> R<bool> {
+    let s::ExprKind::Name(name) = &expression.kind else {
+        return Ok(false);
+    };
+    budget.identity_work(
+        program
+            .modules
+            .iter()
+            .map(|(_, module)| module.definitions.len())
+            .sum(),
+        expression.span,
+    )?;
+    let original = program
+        .modules
+        .iter()
+        .flat_map(|(_, module)| &module.definitions)
+        .find(|row| row.id == definition)
+        .ok_or_else(|| error(expression.span, "function value has no original scope"))?;
+    let SemanticDefinitionBody::FunctionWithBody { names, .. } = &original.body else {
+        return Ok(false);
+    };
+    static_code_binding(program, names, &[name.as_str()], budget, expression.span)
 }
 // Assignment navigation selects a place; it does not evaluate a whole
 // aggregate value at each Name/Member prefix. Index operands and explicit
@@ -805,12 +845,16 @@ fn operations(
                     value_names.len().checked_ilog2().unwrap_or(0) as usize + 1,
                     expression.span,
                 )?;
-                let observed_name = observation
-                    && value_names.binary_search(&original.id).is_ok()
+                let local_name = value_names.binary_search(&original.id).is_ok()
                     && matches!(
                         expression.kind,
                         s::ExprKind::Name(_) | s::ExprKind::ReceiverMember(_)
                     );
+                let observed_name = observation
+                    && (local_name
+                        || (runtime
+                            && projection_value
+                            && named_code_value(program, definition, expression, budget)?));
                 let observed_projection = observation
                     && projection_value
                     && matches!(
