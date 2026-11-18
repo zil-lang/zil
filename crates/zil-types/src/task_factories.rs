@@ -64,12 +64,25 @@ pub(super) fn replace_task(ty: &mut Type, actual: &Type, span: Span) -> R<()> {
     Ok(())
 }
 
+#[derive(Clone, PartialEq, Eq)]
+enum Source {
+    Unknown,
+    Parameter(u32),
+    Creation(std::sync::Arc<BTreeMap<u32, u32>>),
+}
+
+#[derive(Clone)]
+struct Observed {
+    ty: Type,
+    source: Source,
+}
+
 struct Scan<'a, 'b> {
     signatures: &'a BTreeMap<String, Signature>,
     imports: Option<&'a program::Imports<'a>>,
     work: &'b mut usize,
     limits: &'a Limits,
-    returned: Option<Type>,
+    returned: Option<Observed>,
 }
 
 impl<'a> Scan<'a, '_> {
@@ -90,7 +103,7 @@ impl<'a> Scan<'a, '_> {
     fn callee(
         &self,
         e: &CoreExpr,
-        locals: &BTreeMap<String, Option<Type>>,
+        locals: &BTreeMap<String, Option<Observed>>,
     ) -> Option<&'a Signature> {
         match &e.kind {
             CoreExprKind::Name(name) if !locals.contains_key(name) => self.signatures.get(name),
@@ -113,9 +126,9 @@ impl<'a> Scan<'a, '_> {
     fn expr(
         &mut self,
         e: &mut CoreExpr,
-        locals: &mut BTreeMap<String, Option<Type>>,
+        locals: &mut BTreeMap<String, Option<Observed>>,
         depth: usize,
-    ) -> R<Option<Type>> {
+    ) -> R<Option<Observed>> {
         self.pay(1, e.span)?;
         if depth > self.limits.max_call_depth {
             return Err(unsupported(e.span, "Task factory context depth exceeded"));
@@ -123,7 +136,13 @@ impl<'a> Scan<'a, '_> {
         match &mut e.kind {
             CoreExprKind::Name(name) => {
                 let ty = locals.get(name).and_then(Option::as_ref);
-                ty.map(|ty| self.snapshot(ty, e.span)).transpose()
+                ty.map(|v| {
+                    Ok(Observed {
+                        ty: self.snapshot(&v.ty, e.span)?,
+                        source: v.source.clone(),
+                    })
+                })
+                .transpose()
             }
             CoreExprKind::Call { callee, arguments } => {
                 if let CoreExprKind::Name(name) = &callee.kind
@@ -158,7 +177,7 @@ impl<'a> Scan<'a, '_> {
                             "nested Task factory results require their complete dependency profile",
                         ));
                     }
-                    return Ok(Some(tasks::call_create_type(
+                    let ty = tasks::call_create_type(
                         name,
                         &result,
                         tasks::borrowed_context_with_life(
@@ -180,7 +199,41 @@ impl<'a> Scan<'a, '_> {
                             &result,
                         ),
                         &parameters,
-                    )));
+                    );
+                    let mut origins = BTreeMap::new();
+                    let mut complete = parameters.len().checked_add(1) == Some(arguments.len());
+                    for (index, parameter) in parameters.iter().enumerate() {
+                        if !retained_input(parameter) {
+                            continue;
+                        }
+                        let input = match arguments.get_mut(index + 1) {
+                            Some(argument) => self.expr(argument, locals, depth + 1)?,
+                            None => None,
+                        };
+                        let Some(Observed {
+                            source: Source::Parameter(source),
+                            ..
+                        }) = input
+                        else {
+                            complete = false;
+                            break;
+                        };
+                        self.pay(origins.len().saturating_add(1).ilog2() as usize + 2, e.span)?;
+                        origins.insert(
+                            u32::try_from(index).map_err(|_| {
+                                unsupported(e.span, "Task worker ordinal overflows")
+                            })?,
+                            source,
+                        );
+                    }
+                    return Ok(Some(Observed {
+                        ty,
+                        source: if complete {
+                            Source::Creation(origins.into())
+                        } else {
+                            Source::Unknown
+                        },
+                    }));
                 }
                 let Some(signature) = self.callee(callee, locals) else {
                     return Ok(None);
@@ -188,19 +241,29 @@ impl<'a> Scan<'a, '_> {
                 let cost = inference::type_snapshot_work(&signature.result, e.span, self.limits)?;
                 self.pay(cost, e.span)?;
                 let result = signature.result.clone();
-                Ok(Some(result))
+                Ok(Some(Observed {
+                    ty: result,
+                    source: Source::Unknown,
+                }))
             }
             CoreExprKind::Try(value) => Ok(match self.expr(value, locals, depth + 1)? {
-                Some(Type::ErrorUnion { result, .. }) => Some(*result),
+                Some(Observed {
+                    ty: Type::ErrorUnion { result, .. },
+                    source,
+                }) => Some(Observed {
+                    ty: *result,
+                    source,
+                }),
                 _ => None,
             }),
-            CoreExprKind::Unary {
+            CoreExprKind::Group(operand)
+            | CoreExprKind::Unary {
                 op: UnaryOp::Give,
                 operand,
             } => self.expr(operand, locals, depth + 1),
             CoreExprKind::Ascribed { ty, value } => {
                 let actual = self.expr(value, locals, depth + 1)?;
-                if let Some(task) = actual.as_ref().and_then(result_task)
+                if let Some(task) = actual.as_ref().and_then(|value| result_task(&value.ty))
                     && result_task(ty).is_some()
                 {
                     replace_task(ty, task, e.span)?;
@@ -224,7 +287,10 @@ impl<'a> Scan<'a, '_> {
                 let left = self.expr(then_value, locals, depth + 1)?;
                 let right = self.expr(else_value, locals, depth + 1)?;
                 match (left, right) {
-                    (Some(a), Some(b)) if a == b => Ok(Some(a)),
+                    (Some(mut a), Some(b)) if a.ty == b.ty => {
+                        self.merge_source(&mut a.source, &b.source, e.span)?;
+                        Ok(Some(a))
+                    }
                     _ => Err(unsupported(
                         e.span,
                         "conditional Task factory values need one complete result context",
@@ -234,15 +300,28 @@ impl<'a> Scan<'a, '_> {
             _ => Ok(None),
         }
     }
+    fn merge_source(&mut self, a: &mut Source, b: &Source, span: Span) -> R<()> {
+        if let Source::Creation(entries) = &*a {
+            self.pay(entries.len(), span)?;
+        }
+        if a != b {
+            *a = Source::Unknown;
+        }
+        Ok(())
+    }
+
     fn copy_locals(
         &mut self,
-        locals: &BTreeMap<String, Option<Type>>,
+        locals: &BTreeMap<String, Option<Observed>>,
         span: Span,
-    ) -> R<BTreeMap<String, Option<Type>>> {
+    ) -> R<BTreeMap<String, Option<Observed>>> {
         for (name, ty) in locals {
             self.pay(name.len() + 1, span)?;
             if let Some(ty) = ty {
-                self.pay(inference::type_snapshot_work(ty, span, self.limits)?, span)?;
+                self.pay(
+                    inference::type_snapshot_work(&ty.ty, span, self.limits)?,
+                    span,
+                )?;
             }
         }
         Ok(locals.clone())
@@ -250,7 +329,7 @@ impl<'a> Scan<'a, '_> {
     fn block(
         &mut self,
         block: &mut CoreBlock,
-        locals: &mut BTreeMap<String, Option<Type>>,
+        locals: &mut BTreeMap<String, Option<Observed>>,
         depth: usize,
     ) -> R<()> {
         self.pay(1, block.span)?;
@@ -271,9 +350,10 @@ impl<'a> Scan<'a, '_> {
                         .map(|e| self.expr(e, locals, depth + 1))
                         .transpose()?
                         .flatten();
-                    if let (Some(annotation), Some(task)) =
-                        (ty.as_mut(), actual.as_ref().and_then(result_task))
-                        && result_task(annotation).is_some()
+                    if let (Some(annotation), Some(task)) = (
+                        ty.as_mut(),
+                        actual.as_ref().and_then(|value| result_task(&value.ty)),
+                    ) && result_task(annotation).is_some()
                     {
                         replace_task(annotation, task, statement.span)?;
                     }
@@ -282,15 +362,22 @@ impl<'a> Scan<'a, '_> {
                 }
                 CoreStatementKind::Return(Some(e)) => {
                     if let Some(actual) = self.expr(e, locals, depth + 1)?
-                        && let Some(task) = result_task(&actual)
+                        && let Some(task) = result_task(&actual.ty)
                     {
-                        if self.returned.as_ref().is_some_and(|old| old != task) {
+                        if self.returned.as_ref().is_some_and(|old| &old.ty != task) {
                             return Err(unsupported(
                                 statement.span,
                                 "all Task factory returns require one complete retained context",
                             ));
                         }
-                        self.returned = Some(self.snapshot(task, statement.span)?);
+                        let mut source = actual.source;
+                        if let Some(prior) = self.returned.take() {
+                            self.merge_source(&mut source, &prior.source, statement.span)?;
+                        }
+                        self.returned = Some(Observed {
+                            ty: self.snapshot(task, statement.span)?,
+                            source,
+                        });
                     }
                 }
                 CoreStatementKind::If {
@@ -455,15 +542,20 @@ pub(super) fn prepare(
             context.binder_count = classes.len() as u32;
         }
         let mut locals = BTreeMap::new();
-        for parameter in &function.parameters {
+        for (index, parameter) in function.parameters.iter().enumerate() {
             scan.pay(parameter.name.len() + 1, parameter.span)?;
             locals.insert(
                 parameter.name.clone(),
-                Some(scan.snapshot(&parameter.ty, parameter.span)?),
+                Some(Observed {
+                    ty: scan.snapshot(&parameter.ty, parameter.span)?,
+                    source: Source::Parameter(u32::try_from(index).map_err(|_| {
+                        unsupported(parameter.span, "Task factory ordinal overflows")
+                    })?),
+                }),
             );
         }
         scan.block(&mut resolved.body, &mut locals, 0)?;
-        let Some(task) = scan.returned else {
+        let Some(Observed { ty: task, source }) = scan.returned.take() else {
             return Ok(());
         };
         replace_task(&mut resolved.return_type, &task, function.span)?;
@@ -479,7 +571,32 @@ pub(super) fn prepare(
             .enumerate()
             .filter_map(|(index, parameter)| retained_input(&parameter.ty).then_some(index))
             .collect::<Vec<_>>();
-        if retained_life != context || inputs.len() != retained_life.ports.len() {
+        // Compare the factory's input positions with the actual constructor
+        // operands. Keep the original worker coordinates in the returned Type.
+        scan.pay(
+            inference::type_snapshot_work(&resolved.return_type, function.span, limits)?,
+            function.span,
+        )?;
+        let mut input_context = retained_life.clone();
+        if let Source::Creation(origins) = &source {
+            for row in &mut input_context.retained {
+                scan.pay(
+                    row.path
+                        .len()
+                        .saturating_add(origins.len().saturating_add(1).ilog2() as usize + 1),
+                    function.span,
+                )?;
+                if let [zil_ir::LifeTypeProjection::Parameter(worker)] = row.path.as_mut_slice() {
+                    *worker = *origins.get(worker).ok_or_else(|| {
+                        unsupported(
+                            function.span,
+                            "Task worker projection has no actual factory input source",
+                        )
+                    })?;
+                }
+            }
+        }
+        if input_context != context || inputs.len() != retained_life.ports.len() {
             return Err(unsupported(
                 function.span,
                 "borrowed Task factory result differs from its actual input ports",

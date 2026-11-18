@@ -103,6 +103,44 @@ fn task_multiport_result_tracks_the_nonfirst_input() {
 }
 
 #[test]
+fn task_factory_preserves_worker_parameter_paths_across_a_scalar_prefix() {
+    let source = "fn worker<life a,life b>(prefix:i32,scratch:&'a i32,pointer:&'b i32)->&'b i32{
+ task_yield()
+ return pointer
+}
+fn start<life a,life b>(scratch:&'a i32,pointer:&'b i32)->TaskCreateError!Task<&'b i32,(i32,&'a i32,&'b i32)> contract{result(give)}{
+ return task_create(worker,7,scratch,pointer)
+}
+fn main()->i32{return 0}";
+    let module = typed_stored(source);
+    let limits = Limits::default();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &module.target, &limits).unwrap();
+
+    let mut forged = module.clone();
+    let create = forged.functions.iter_mut().flat_map(|f| &mut f.blocks)
+        .flat_map(|b| &mut b.instructions).find_map(|i| match &mut i.kind {
+            InstructionKind::TaskCreate { port_bindings, .. } => Some(port_bindings),
+            _ => None,
+        }).unwrap();
+    assert_eq!(create[0].source.base, zil_ir::StorageBase::Parameter(1));
+    assert_eq!(create[1].source.base, zil_ir::StorageBase::Parameter(2));
+    create[1].source.base = create[0].source.base;
+    assert!(zil_analyze::analyze(&forged, &limits).is_err());
+    let mut candidate = plan;
+    candidate.module_fingerprint = forged.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&forged, &candidate, &limits).unwrap();
+    let raw = zil_verify::verify_module(forged.clone(), candidate, &forged.target, &limits).unwrap_err();
+    let wire = zil_verify::verify_module_bytes(&bytes, &forged.target, &limits).unwrap_err();
+    for errors in [raw, wire] {
+        assert!(errors.iter().any(|d| d.phase == Phase::Verify
+            && d.category == ResultCategory::SafeReject), "{errors:?}");
+    }
+}
+
+#[test]
 fn task_multiport_result_three_shared_inputs_keep_the_middle_class() {
     let source =
         include_str!("../../../tests/fixtures/task-borrow-results/multiport-shared-result.zil")

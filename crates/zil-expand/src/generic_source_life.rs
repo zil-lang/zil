@@ -715,6 +715,33 @@ impl Check<'_, '_, '_> {
                 };
                 self.ty(payload, scope, depth + 1)?
             }
+            // This private source pass compares lexical class constraints.
+            // Zero-domain scalar inputs contribute no such constraint. The
+            // original recipe, Typed Task and both kernels preserve every
+            // worker parameter ordinal and the constructor's actual operands.
+            TypeKind::Named { path, args }
+                if path.as_slice() == ["Task"]
+                    && let [GenericArg::Type(result), GenericArg::Type(context)] = args.as_slice()
+                    && let TypeKind::Tuple(fields) = &grouped(context).kind =>
+            {
+                let result = self.ty(result, scope, depth + 1)?;
+                let mut parts = Vec::new();
+                for field in fields {
+                    self.budget.ty(field)?;
+                    if !crate::type_ref(field).is_b0_scalar() {
+                        self.budget.lineage_bytes(std::mem::size_of::<Fact>(), field.span)?;
+                        parts.push(self.ty(field, scope, depth + 1)?);
+                    }
+                }
+                let mut actuals = vec![result];
+                match parts.len() {
+                    0 => {}
+                    1 => actuals.push(parts.pop().unwrap()),
+                    _ => actuals.push(Fact::Tuple(parts)),
+                }
+                let qualified = actuals.iter().any(Fact::has_retained_class);
+                Fact::Named(self.head(path, ty.span, qualified)?, actuals)
+            }
             TypeKind::Named { path, args } => {
                 if path.as_slice() == ["Self"]
                     && args.is_empty()
