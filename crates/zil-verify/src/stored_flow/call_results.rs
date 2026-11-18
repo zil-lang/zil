@@ -4,6 +4,14 @@
 //! no updated occupant can be reread while resolving this call's result.
 use super::*;
 
+/// Entry obligations distinguish a proven inactive physical arm from an
+/// unresolved target. Neither case is a data permission or a new source.
+pub(super) enum EntrySource {
+    Active(Permission),
+    Inactive,
+    Unknown,
+}
+
 enum Environment<'a> {
     Function,
     Borrowed {
@@ -269,6 +277,84 @@ impl<'a> Before<'a> {
             }
         }
         Ok(result)
+    }
+    /// Instantiate an entry separation source against every current actual
+    /// pointee. A known inactive arm imposes no separation debt; a missing
+    /// active target or unknown tag cannot borrow a sibling's permission.
+    pub(super) fn entry_source(&self, source: &Source, b: &mut Budget) -> Check<EntrySource> {
+        let input = match source.base {
+            HoldRoot::Parameter(index) => Some(option_address::Input::Parameter(index)),
+            HoldRoot::Capture(index) => Some(option_address::Input::Capture(index)),
+            _ => None,
+        };
+        if source.leaf.is_empty()
+            || source.retained_port.is_some()
+            || source.heap_element.is_some()
+            || !source.heap_parents.is_empty()
+            || input.is_none()
+        {
+            let permission = self.source(source, b)?;
+            return Ok(if permission.sources.is_empty() {
+                EntrySource::Unknown
+            } else {
+                EntrySource::Active(permission)
+            });
+        }
+        let (locations, known) = self.input_locations(input.unwrap(), &[], false, b)?;
+        if !known || locations.is_empty() {
+            return Ok(EntrySource::Unknown);
+        }
+        let mut out = Permission::default();
+        let mut active = false;
+        for (holder, prefix, ty) in locations {
+            // The typed input walker follows real Address heads to beta;
+            // projecting its exact prefix transports existing facts only.
+            let selected = value_transport::project(holder, &prefix, ty, b)?;
+            match entry_path_active(self.module, ty, &selected, &source.leaf, b)? {
+                Some(false) => continue,
+                None => return Ok(EntrySource::Unknown),
+                Some(true) => {}
+            }
+            let permission = if let Some(permission) = leaf(&selected, &source.leaf, b)? {
+                Some(permission)
+            } else {
+                value_transport::facts(&selected, &source.leaf, b)?.map(|facts| &facts.address)
+            };
+            let Some(permission) = permission else {
+                return Ok(EntrySource::Unknown);
+            };
+            if permission.sources.is_empty() {
+                return Ok(EntrySource::Unknown);
+            }
+            permission_work(permission, b)?;
+            let mut permission = permission.clone();
+            for actual in &mut permission.sources {
+                store_paths::compose(actual, source, b)?;
+            }
+            join_permission(&mut out, &permission, b)?;
+            active = true;
+        }
+        Ok(if active {
+            EntrySource::Active(out)
+        } else {
+            EntrySource::Inactive
+        })
+    }
+    pub(super) fn separation(
+        &self,
+        left: &Source,
+        right: &Source,
+        b: &mut Budget,
+    ) -> Check<Option<(Permission, Permission)>> {
+        let left = self.entry_source(left, b)?;
+        let right = self.entry_source(right, b)?;
+        match (left, right) {
+            (EntrySource::Unknown, _) | (_, EntrySource::Unknown) => {
+                Err(err("call separation has incomplete actual target facts"))
+            }
+            (EntrySource::Inactive, _) | (_, EntrySource::Inactive) => Ok(None),
+            (EntrySource::Active(left), EntrySource::Active(right)) => Ok(Some((left, right))),
+        }
     }
     /// Missing one actual target is unknown, even when a sibling supplies
     /// the same-typed slot. This binds current memory, not a cached SSA row.
@@ -675,6 +761,47 @@ pub(super) fn parents_at(
     }
     Ok(known)
 }
+fn entry_path_active(
+    module: &TypedModule,
+    ty: &Type,
+    payload: &Payload,
+    path: &[PlaceProjection],
+    b: &mut Budget,
+) -> Check<Option<bool>> {
+    // Inactivity never authenticates a malformed or sibling selector.
+    destination(module, ty, path, b)?;
+    for (index, step) in path.iter().enumerate() {
+        let prefix = &path[..index];
+        let current = destination(module, ty, prefix, b)?;
+        let mut storage = current;
+        while let Type::BorrowedStorage { storage: inner, .. } = storage {
+            storage = inner;
+        }
+        if matches!(
+            (storage, step),
+            (Type::Enum { .. }, PlaceProjection::Variant(_))
+                | (Type::ErrorUnion { .. }, PlaceProjection::ErrorArm(_))
+        ) {
+            if option_address::signature(current) {
+                match value_transport::option_at(payload, prefix, b)?.mask() {
+                    0 => return Ok(None),
+                    1 => return Ok(Some(false)),
+                    _ => {}
+                }
+            } else {
+                let tags = payload.enum_variants.project(prefix, b)?;
+                if !tags.grounded(current, b)? {
+                    return Ok(None);
+                }
+                if !tags.slot_active(&path[index..]) {
+                    return Ok(Some(false));
+                }
+            }
+        }
+    }
+    Ok(Some(true))
+}
+
 pub(super) fn path_active(
     module: &TypedModule,
     ty: &Type,
@@ -1753,8 +1880,8 @@ mod field_result_tests {
             description: permission(HoldRoot::Parameter(0)),
             ..Default::default()
         };
-        let view_target=vec![PlaceProjection::Field(1)];
-        let view_facts=value_transport::FieldFacts{
+        let view_target = vec![PlaceProjection::Field(1)];
+        let view_facts = value_transport::FieldFacts {
             views: vec![dyn_ports::View {
                 table: Some(DynVtableId {
                     module: zil_base::ModuleId(0),
@@ -1775,7 +1902,18 @@ mod field_result_tests {
         };
         let inputs = [];
         let args = [];
-        let captures = [Type::Desc(Box::new(Type::I32)),Type::Address{mutable:false,inner:Box::new(Type::Dyn{interface:DynInterfaceId{module:zil_base::ModuleId(0),index:0}})}];
+        let captures = [
+            Type::Desc(Box::new(Type::I32)),
+            Type::Address {
+                mutable: false,
+                inner: Box::new(Type::Dyn {
+                    interface: DynInterfaceId {
+                        module: zil_base::ModuleId(0),
+                        index: 0,
+                    },
+                }),
+            },
+        ];
         let before = Before {
             module: &module,
             caller,
@@ -1921,7 +2059,7 @@ mod field_result_tests {
         let mut b = Budget::new(&limits);
         // This control invokes the complete Task/error tag producer, rather
         // than the narrower ordinary-sum producer selected by other profiles.
-        b.task_failure_carriers=true;
+        b.task_failure_carriers = true;
         let frame = Frame::default();
         let values = vec![Payload::default(); 2];
         let make = Instruction {
@@ -2044,5 +2182,199 @@ mod field_result_tests {
             !actual.sources.contains(&source(HoldRoot::Parameter(99))),
             "pointer-value auxiliary facts cannot prove the pointee capability"
         );
+    }
+}
+
+#[cfg(test)]
+mod entry_separation_tests {
+    use super::*;
+    fn source(base: HoldRoot) -> Source {
+        Source {
+            base,
+            leaf: vec![],
+            inline: vec![],
+            retained_port: None,
+            heap_parents: vec![],
+            heap_element: None,
+            static_dependency: StaticProvenance::NotStatic,
+        }
+    }
+    fn option() -> Type {
+        Type::BorrowedStorage {
+            storage: Box::new(Type::Enum {
+                name: "OptionEntryComponent".into(),
+                variants: vec![
+                    ("None".into(), vec![]),
+                    (
+                        "Some".into(),
+                        vec![Type::Address {
+                            mutable: false,
+                            inner: Box::new(Type::I32),
+                        }],
+                    ),
+                ],
+            }),
+            life: StorageLifeShape {
+                binder_count: 1,
+                slots: vec![StorageLifeSlot {
+                    path: vec![PlaceProjection::Variant(VariantProjection {
+                        variant: 1,
+                        index: 0,
+                    })],
+                    binder: 0,
+                    mode: StoredBorrowMode::SharedAddress,
+                }],
+                retained: vec![StorageRetainedBinding {
+                    path: vec![LifeTypeProjection::TypeArgument(0)],
+                    class: 0,
+                    binder: 0,
+                }],
+                nominal_arguments: vec![],
+            },
+        }
+    }
+    #[test]
+    fn entry_separation_distinguishes_inactive_unknown_and_each_current_pointee_raw_wire() {
+        let (mut module, _) = crate::tests::baseline();
+        let ty = option();
+        let pointer = Type::Address {
+            mutable: true,
+            inner: Box::new(ty.clone()),
+        };
+        let shared = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        };
+        let mut local = module.functions[0].locals[0].clone();
+        local.ty = ty.clone();
+        local.mutable = true;
+        module.functions[0].parameters.clear();
+        module.functions[0].locals = (0..4)
+            .map(|index| {
+                let mut value = local.clone();
+                value.id = LocalId(index);
+                if index >= 2 {
+                    value.ty = Type::I32;
+                }
+                value
+            })
+            .collect();
+        module.functions[0].values = vec![pointer.clone(), shared.clone()];
+        let mut callee = module.functions[0].clone();
+        callee.id = FunctionId(1);
+        callee.locals.truncate(2);
+        callee.locals[0].ty = pointer;
+        callee.locals[1].ty = shared;
+        callee.parameters = vec![LocalId(0), LocalId(1)];
+        module.functions.push(callee);
+        let limits = Limits::default();
+        let bytes = zil_ir::wire::encode_module_candidate(
+            &module,
+            &CandidatePlan::empty_for(&module),
+            &limits,
+        )
+        .unwrap();
+        let decoded = zil_ir::wire::decode_module_candidate(&bytes, &limits)
+            .unwrap()
+            .0;
+        // Entry-selection components after full actual type/source checking;
+        // this hand-built nominal is not admitted as a whole program here.
+        for module in [&module, &decoded] {
+            let mut b = Budget::new(&limits);
+            let mut state = Frame {
+                locals: vec![Payload::default(); 4],
+                ..Default::default()
+            };
+            let mut values = vec![Payload::default(); 2];
+            values[0].address.sources = vec![source(HoldRoot::Local(LocalId(0)))];
+            values[1].address.sources = vec![source(HoldRoot::Local(LocalId(3)))];
+            let mut old = source(HoldRoot::Parameter(0));
+            old.leaf = vec![PlaceProjection::Variant(VariantProjection {
+                variant: 1,
+                index: 0,
+            })];
+            let other = source(HoldRoot::Parameter(1));
+            let arguments = [ValueId(0), ValueId(1)];
+            state.locals[0].option_variants =
+                option_address::Variants::construction(0, &mut b).unwrap();
+            macro_rules! bind {
+                () => {
+                    Before::direct(
+                        module,
+                        &module.functions[0],
+                        &module.functions[1],
+                        &arguments,
+                        &values,
+                        &state,
+                        &mut b,
+                    )
+                };
+            }
+            assert!(matches!(
+                bind!().unwrap().entry_source(&old, &mut b).unwrap(),
+                EntrySource::Inactive
+            ));
+            assert!(
+                bind!()
+                    .unwrap()
+                    .separation(&old, &other, &mut b)
+                    .unwrap()
+                    .is_none()
+            );
+            state.locals[0].option_variants = option_address::Variants::default();
+            assert!(matches!(
+                bind!().unwrap().entry_source(&old, &mut b).unwrap(),
+                EntrySource::Unknown
+            ));
+            assert!(bind!().unwrap().separation(&old, &other, &mut b).is_err());
+            state.locals[0].option_variants =
+                option_address::Variants::construction(1, &mut b).unwrap();
+            assert!(
+                matches!(
+                    bind!().unwrap().entry_source(&old, &mut b).unwrap(),
+                    EntrySource::Unknown
+                ),
+                "known Some still needs its actual physical target"
+            );
+            add_leaf(
+                &mut state.locals[0],
+                &old.leaf,
+                &Permission {
+                    sources: vec![source(HoldRoot::Local(LocalId(2)))],
+                    loans: vec![7],
+                },
+                &mut b,
+            )
+            .unwrap();
+            let EntrySource::Active(actual) = bind!().unwrap().entry_source(&old, &mut b).unwrap()
+            else {
+                panic!("actual Some target absent");
+            };
+            assert_eq!(actual.sources, vec![source(HoldRoot::Local(LocalId(2)))]);
+            assert_eq!(actual.loans, vec![7]);
+            state.locals[1] = copy_payload(&state.locals[0], &mut b).unwrap();
+            state.locals[0].leaves = leaf_rows::Rows::default();
+            state.locals[0].option_variants =
+                option_address::Variants::construction(0, &mut b).unwrap();
+            values[0]
+                .address
+                .sources
+                .push(source(HoldRoot::Local(LocalId(1))));
+            assert!(
+                matches!(
+                    bind!().unwrap().entry_source(&old, &mut b).unwrap(),
+                    EntrySource::Active(_)
+                ),
+                "each live candidate survives a distinct inactive sibling"
+            );
+            state.locals[0].option_variants = option_address::Variants::default();
+            assert!(
+                matches!(
+                    bind!().unwrap().entry_source(&old, &mut b).unwrap(),
+                    EntrySource::Unknown
+                ),
+                "a known sibling cannot hide a missing candidate tag"
+            );
+        }
     }
 }

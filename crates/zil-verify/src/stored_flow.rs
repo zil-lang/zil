@@ -6079,11 +6079,11 @@ fn check_call(
             }
             continue;
         }
-        let a = instantiate(module, f, a, arguments, &solution.values, state, b)?;
-        let z = instantiate(module, f, z, arguments, &solution.values, state, b)?;
-        if a.sources.is_empty() || z.sources.is_empty() {
-            return Err(err("call separation has incomplete actual target facts"));
-        }
+        let before =
+            call_results::Before::direct(module, f, callee, arguments, &solution.values, state, b)?;
+        let Some((a, z)) = before.separation(a, z, b)? else {
+            continue;
+        };
         for a in &a.sources {
             for z in &z.sources {
                 apart(a, z, requirements, b)?;
@@ -6903,71 +6903,18 @@ fn windows(
                             InstructionKind::CallClosureShared { .. }
                                 | InstructionKind::CallClosureMut { .. }
                                 | InstructionKind::CallClosureBorrowed { .. }
-                        ) && let Some((definition, actuals)) =
+                                | InstructionKind::CallClosure { .. }
+                                | InstructionKind::CallClosureOnce { .. }
+                        ) && let Some((definition, _actuals)) =
                             stored_callables::called(module, f, &i.kind)
                         {
                             let obligations = &summaries[definition.function.0 as usize].apart;
                             if !obligations.is_empty() {
-                                let receiver = captured_owner::receiver(f, i, &solution.values, b)?;
+                                let before = call_results::Before::closure(module, f, i, &solution.values, &state, b)?;
                                 for (left, right) in obligations {
-                                    let left = if summaries[definition.function.0 as usize]
-                                        .dyn_operations
-                                    {
-                                        dyn_captures::substitute(
-                                            module,
-                                            f,
-                                            i,
-                                            left,
-                                            definition,
-                                            actuals,
-                                            &solution.values,
-                                            &state,
-                                            b,
-                                        )?
-                                    } else {
-                                        captured_owner::substitute(
-                                            module,
-                                            f,
-                                            left,
-                                            &definition.captures,
-                                            &receiver,
-                                            actuals,
-                                            &solution.values,
-                                            &state,
-                                            b,
-                                        )?
-                                    };
-                                    let right = if summaries[definition.function.0 as usize]
-                                        .dyn_operations
-                                    {
-                                        dyn_captures::substitute(
-                                            module,
-                                            f,
-                                            i,
-                                            right,
-                                            definition,
-                                            actuals,
-                                            &solution.values,
-                                            &state,
-                                            b,
-                                        )?
-                                    } else {
-                                        captured_owner::substitute(
-                                            module,
-                                            f,
-                                            right,
-                                            &definition.captures,
-                                            &receiver,
-                                            actuals,
-                                            &solution.values,
-                                            &state,
-                                            b,
-                                        )?
-                                    };
+                                    let Some((left, right)) = before.separation(left, right, b)? else { continue; };
                                     for a in &left.sources {
-                                        for z in &right.sources {
-                                            apart(a, z, requirements, b)?;
-                                        }
+                                        for z in &right.sources { apart(a, z, requirements, b)?; }
                                     }
                                 }
                             }

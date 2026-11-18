@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 pub(super) struct Writes {
     ordinal: u32,
     sites: BTreeSet<(BlockId, u32, ValueId)>,
-    calls: BTreeSet<(BlockId,u32,u32)>,
+    calls: BTreeSet<(BlockId, u32, u32)>,
 }
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct Transfer {
@@ -14,7 +14,7 @@ pub(crate) struct Transfer {
     pub(crate) creator: LocalId,
     pub(crate) outputs: Vec<SignatureLifeClassBinding>,
     pub(crate) stores: Vec<(BlockId, u32, ValueId)>,
-    pub(crate) calls: Vec<(BlockId,u32,u32)>,
+    pub(crate) calls: Vec<(BlockId, u32, u32)>,
 }
 
 // Every dependency must have an original input/static/role identity. A
@@ -140,41 +140,124 @@ impl CheckedContext {
         Ok(())
     }
 
-    fn local_role_creator(&self,module:&TypedModule,instance:&SemanticInstance,ordinal:u32,b:&mut Budget)->Check<LocalId>{
-        let recipes=self.original.borrow().as_ref().ok_or_else(||bad("shared local role lacks its original body"))?.local_role_declaration_sites(instance.definition,ordinal,b)?;
-        let mut creator=None;
+    fn local_role_creator(
+        &self,
+        module: &TypedModule,
+        instance: &SemanticInstance,
+        ordinal: u32,
+        b: &mut Budget,
+    ) -> Check<LocalId> {
+        let recipes = self
+            .original
+            .borrow()
+            .as_ref()
+            .ok_or_else(|| bad("shared local role lacks its original body"))?
+            .local_role_declaration_sites(instance.definition, ordinal, b)?;
+        let mut creator = None;
         for recipe in recipes {
-            for site in self.site_index.recipe(module,instance.id,recipe,sites::Action::DeclareLocal,b)? {
+            for site in self.site_index.recipe(
+                module,
+                instance.id,
+                recipe,
+                sites::Action::DeclareLocal,
+                b,
+            )? {
                 b.spend(1)?;
-                let SemanticSiteAction::DeclareLocal{local:SemanticLocalTarget::Typed(local),..}=&site.action else{return Err(bad("shared local role declaration is not an actual local"));};
-                if creator.is_some_and(|previous|previous!=*local){return Err(bad("shared local role has different actual creating declarations"));}
-                creator=Some(*local);
+                let SemanticSiteAction::DeclareLocal {
+                    local: SemanticLocalTarget::Typed(local),
+                    ..
+                } = &site.action
+                else {
+                    return Err(bad("shared local role declaration is not an actual local"));
+                };
+                if creator.is_some_and(|previous| previous != *local) {
+                    return Err(bad(
+                        "shared local role has different actual creating declarations",
+                    ));
+                }
+                creator = Some(*local);
             }
         }
-        creator.ok_or_else(||bad("shared local role has no actual creating declaration"))
+        creator.ok_or_else(|| bad("shared local role has no actual creating declaration"))
     }
 
     /// The whole original/actual call has proved this root view. Keep the
     /// exact opcode and parameter with the already checked Store transition;
     /// neither row is an equality of the local window and its source.
-    pub(super) fn record_local_role_call(&self,module:&TypedModule,instance:&SemanticInstance,parameter:u32,argument:ValueId,expected:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<()>{
-        let frame=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?;
-        let at=environment.at.ok_or_else(||bad("shared local call view has no actual operation"))?;
-        if !matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))if function==at.function)||frame.definition!=instance.definition{return Err(bad("shared local call view selects another actual/original owner"));}
-        let operation=module.functions.get(at.function.0 as usize).and_then(|f|f.blocks.get(at.block.0 as usize)).and_then(|block|block.instructions.get(at.instruction as usize)).ok_or_else(||bad("shared local call operation is absent"))?;
-        if !matches!(&operation.kind,InstructionKind::Call{arguments,..}if arguments.get(parameter as usize)==Some(&argument)){return Err(bad("shared local call view changes its exact opcode or argument"));}
-        b.spend(expected.life.slots.len())?;let mut slots=expected.life.slots.iter().filter(|row|row.path.is_empty());
-        let slot=slots.next().ok_or_else(||bad("shared local call view has no root occurrence"))?;
-        if slots.next().is_some(){return Err(bad("shared local call view repeats its root"));}
-        let Some(ClassKey::Implicit{scope,ordinal})=expected.classes.get(slot.binder as usize)else{return Err(bad("shared local call view has no original local role"));};
-        if *scope!=frame.key{return Err(bad("shared local call view belongs to another frame"));}
-        let creator=self.local_role_creator(module,instance,*ordinal,b)?;
-        let mut writes=self.local_role_writes.borrow_mut();b.spend(writes.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
-        let write=writes.get_mut(&(instance.id,creator)).ok_or_else(||bad("shared local call view lacks its creating Store transition"))?;
-        if write.ordinal!=*ordinal||write.sites.is_empty(){return Err(bad("shared local call view changes its exact declaration role"));}
-        b.spend(write.calls.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
-        if write.calls.len()>=b.limits.max_nodes&&!write.calls.contains(&(at.block,at.instruction,parameter)){return Err(limit("shared local call view directory exceeded"));}
-        write.calls.insert((at.block,at.instruction,parameter));Ok(())
+    pub(super) fn record_local_role_call(
+        &self,
+        module: &TypedModule,
+        instance: &SemanticInstance,
+        parameter: u32,
+        argument: ValueId,
+        expected: &CheckedType,
+        environment: &EvalEnv,
+        b: &mut Budget,
+    ) -> Check<()> {
+        let frame = self.frame(environment, SemanticScopeRef::Ancestor(0), b)?;
+        let at = environment
+            .at
+            .ok_or_else(|| bad("shared local call view has no actual operation"))?;
+        if !matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))if function==at.function)
+            || frame.definition != instance.definition
+        {
+            return Err(bad(
+                "shared local call view selects another actual/original owner",
+            ));
+        }
+        let operation = module
+            .functions
+            .get(at.function.0 as usize)
+            .and_then(|f| f.blocks.get(at.block.0 as usize))
+            .and_then(|block| block.instructions.get(at.instruction as usize))
+            .ok_or_else(|| bad("shared local call operation is absent"))?;
+        if !matches!(&operation.kind,InstructionKind::Call{arguments,..}if arguments.get(parameter as usize)==Some(&argument))
+        {
+            return Err(bad(
+                "shared local call view changes its exact opcode or argument",
+            ));
+        }
+        b.spend(expected.life.slots.len())?;
+        let mut slots = expected.life.slots.iter().filter(|row| row.path.is_empty());
+        let slot = slots
+            .next()
+            .ok_or_else(|| bad("shared local call view has no root occurrence"))?;
+        if slots.next().is_some() {
+            return Err(bad("shared local call view repeats its root"));
+        }
+        let Some(ClassKey::Implicit { scope, ordinal }) =
+            expected.classes.get(slot.binder as usize)
+        else {
+            return Err(bad("shared local call view has no original local role"));
+        };
+        if *scope != frame.key {
+            return Err(bad("shared local call view belongs to another frame"));
+        }
+        let creator = self.local_role_creator(module, instance, *ordinal, b)?;
+        let mut writes = self.local_role_writes.borrow_mut();
+        b.spend(writes.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
+        let write = writes
+            .get_mut(&(instance.id, creator))
+            .ok_or_else(|| bad("shared local call view lacks its creating Store transition"))?;
+        if write.ordinal != *ordinal || write.sites.is_empty() {
+            return Err(bad(
+                "shared local call view changes its exact declaration role",
+            ));
+        }
+        b.spend(
+            write
+                .calls
+                .len()
+                .checked_ilog2()
+                .map_or(1, |n| n as usize + 2),
+        )?;
+        if write.calls.len() >= b.limits.max_nodes
+            && !write.calls.contains(&(at.block, at.instruction, parameter))
+        {
+            return Err(limit("shared local call view directory exceeded"));
+        }
+        write.calls.insert((at.block, at.instruction, parameter));
+        Ok(())
     }
 
     pub(super) fn publish_local_role_transfers(
@@ -209,10 +292,43 @@ impl CheckedContext {
                 .get(function.0 as usize)
                 .ok_or_else(|| bad("shared local export actual function is absent"))?;
             let frame = self.frame(environment, SemanticScopeRef::Ancestor(0), b)?;
-            let header = f
-                .storage_life
-                .as_ref()
-                .ok_or_else(|| bad("shared local export requires its complete actual header"))?;
+            // A checked ordinary zero-domain ABI has no input/output class
+            // rows to export. Its internal shared locals still need exact
+            // creator/Store transport, which is not a signature domain.
+            let zero_header;
+            let header = if let Some(header) = &f.storage_life {
+                header
+            } else {
+                if f.environment.is_some()
+                    || !instance.header_embedding.is_empty()
+                    || !self.zero_header_type(module, &f.return_type, b)?
+                {
+                    return Err(bad(
+                        "shared local export requires its complete actual header",
+                    ));
+                }
+                b.spend(f.parameters.len())?;
+                for parameter in &f.parameters {
+                    let ty = &f
+                        .locals
+                        .get(parameter.0 as usize)
+                        .ok_or_else(|| bad("shared local actual parameter is absent"))?
+                        .ty;
+                    if !self.zero_header_type(module, ty, b)? {
+                        return Err(bad(
+                            "shared local export requires its complete actual header",
+                        ));
+                    }
+                }
+                zero_header = StorageLifeContract {
+                    fixed_binder_count: 0,
+                    invocation_binder_count: 0,
+                    bindings: vec![],
+                    classes: vec![],
+                    static_bindings: vec![],
+                };
+                &zero_header
+            };
             let mut input_binders = BTreeSet::new();
             let input = |base: StorageBase| {
                 matches!(
@@ -365,9 +481,17 @@ impl CheckedContext {
                         }
                     }
                 }
-                b.spend(actual_stores.len().saturating_add(write.calls.len()).saturating_add(1))?;
-                let creator=self.local_role_creator(module,instance,write.ordinal,b)?;
-                if !writes.get(&(instance.id,creator)).is_some_and(|row|row.ordinal==write.ordinal&&!row.sites.is_empty()) {
+                b.spend(
+                    actual_stores
+                        .len()
+                        .saturating_add(write.calls.len())
+                        .saturating_add(1),
+                )?;
+                let creator = self.local_role_creator(module, instance, write.ordinal, b)?;
+                if !writes
+                    .get(&(instance.id, creator))
+                    .is_some_and(|row| row.ordinal == write.ordinal && !row.sites.is_empty())
+                {
                     return Err(bad("shared local transport lacks its exact creating Store"));
                 }
                 transfers.push(Transfer {
@@ -426,7 +550,12 @@ impl CheckedContext {
 fn charge_transfers(rows: &[Transfer], b: &mut Budget) -> Check<()> {
     b.spend(rows.len())?;
     for row in rows {
-        b.spend(row.stores.len().saturating_add(row.outputs.len()).saturating_add(row.calls.len()))?;
+        b.spend(
+            row.stores
+                .len()
+                .saturating_add(row.outputs.len())
+                .saturating_add(row.calls.len()),
+        )?;
         for output in &row.outputs {
             b.spend(output.position.path.len())?;
         }
