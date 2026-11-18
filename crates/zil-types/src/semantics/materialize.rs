@@ -877,7 +877,12 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                 self.limits,
                 self.left,
             )?;
-            crate::dyn_metadata::semantic_operand_snapshot(&capture_life, self.limits, self.left, 1)?;
+            for row in &capture_life.retained {
+                self.fee(row.path.len().saturating_add(1))?;
+            }
+            for row in &capture_life.nominal_arguments {
+                self.fee(row.path.len().saturating_add(1))?;
+            }
             if recomposed.retained != capture_life.retained
                 || recomposed.nominal_arguments != capture_life.nominal_arguments
             {
