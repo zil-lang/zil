@@ -4830,6 +4830,8 @@ fn main()->i32{
         errors[0].message,
         "field observation selects another original local"
     );
+    let roots = format!("requires local {}, actual projection is rooted at local {}", left.0, right.0);
+    assert!(errors[0].notes.iter().any(|note| note.contains(&roots)));
     assert!(
         errors[0]
             .related
@@ -4839,5 +4841,3 @@ fn main()->i32{
                 && p.ir == Some(location))
     );
 }
-    let roots = format!("requires local {}, actual projection is rooted at local {}", left.0, right.0);
-    assert!(errors[0].notes.iter().any(|note| note.contains(&roots)));
