@@ -248,7 +248,7 @@ pub(super) fn validate_template(
                 && !borrowed_environment
                 && !matches!(
                     function.parameters[bounds[0].index as usize].mode,
-                    PassingMode::Infer | PassingMode::Move
+                    PassingMode::Infer | PassingMode::Move | PassingMode::Give
                 ))
             || function.result_mode != PassingMode::Infer
         {
@@ -372,6 +372,11 @@ pub(super) fn validate_template(
             .get(bound.index as usize)
             .ok_or_else(reject)?;
         let mode = parameter_mode(&parameter.ty, &bound.generic_name);
+        if parameter.mode == PassingMode::Give
+            && !(bound.kind == CallableKind::FnOnce && mode == Some(None))
+        {
+            return Err(reject());
+        }
         if mode.is_none()
             && !(owned_state
                 && callable_fields::placeholder_package(&parameter.ty, &bound.generic_name))

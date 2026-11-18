@@ -121,6 +121,9 @@ impl Builder<'_, '_> {
         result
     }
     fn resource_give_inner(&mut self, operand: &CoreExpr, span: Span) -> R<(ValueId, Type)> {
+        if let CoreExprKind::Group(inner) = &operand.kind {
+            return self.resource_give(inner, span);
+        }
         if let Some((local, index, ty)) = self.package_place(operand)? {
             if let CoreExprKind::Member { object, .. } = &operand.kind {
                 self.semantic_local_place(object, local)?;
@@ -150,6 +153,26 @@ impl Builder<'_, '_> {
         let local = self
             .lookup(name)
             .ok_or_else(|| error("E-UNKNOWN-NAME", span, format!("unknown variable {name}")))?;
+        if !self.closure_slots.is_empty() || !self.closure_captures.is_empty() {
+            self.closures.snapshot(
+                self.closure_slots.len().saturating_add(1).ilog2() as usize
+                    + self.closure_captures.len().saturating_add(1).ilog2() as usize
+                    + 2,
+                span,
+            )?;
+            if self.closure_slots.contains_key(&local) {
+                self.semantic_local_place(operand, local)?;
+                return self.take_closure_slot(local, span);
+            }
+            if let Some((index, ty @ Type::Closure(_))) = self.closure_captures.get(&local).cloned()
+            {
+                self.semantic_local_place(operand, local)?;
+                return Ok((
+                    self.value(InstructionKind::TakeCapture { index }, ty.clone(), span)?,
+                    ty,
+                ));
+            }
+        }
         if let Some((index, ty)) = self.managed_captures.get(&local).cloned() {
             return Ok((
                 self.value(InstructionKind::TakeCapture { index }, ty.clone(), span)?,
@@ -158,6 +181,13 @@ impl Builder<'_, '_> {
         }
         let ty = self.function.locals[local.0 as usize].ty.clone();
         match ty {
+            Type::Closure(_) => {
+                self.semantic_local_place(operand, local)?;
+                Ok((
+                    self.value(InstructionKind::TakeLocal { local }, ty.clone(), span)?,
+                    ty,
+                ))
+            }
             Type::Managed(_) | Type::Address { mutable: true, .. } => Ok((
                 self.value(InstructionKind::TakeLocal { local }, ty.clone(), span)?,
                 ty,

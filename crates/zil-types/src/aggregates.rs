@@ -893,8 +893,26 @@ fn resolve_indexed(
             f.return_type.clone()
         };
         f.return_type = resolver.ty(&raw_result, 0, f.span).map_err(|e| vec![e])?;
-        for p in &mut f.parameters {
-            let raw = if p.mode == PassingMode::Give {
+        for (index, p) in f.parameters.iter_mut().enumerate() {
+            let mut callable_give = false;
+            if p.mode == PassingMode::Give && !callable_parameters.is_empty() {
+                resolver.remaining = resolver
+                    .remaining
+                    .checked_sub(callable_parameters.len())
+                    .ok_or_else(|| {
+                        vec![Diagnostic::limit(
+                            Phase::Types,
+                            "callable give header exceeded budget",
+                            Some(p.span),
+                        )]
+                    })?;
+                callable_give = callable_parameters.iter().any(|bound| {
+                    bound.index as usize == index
+                        && bound.kind == CallableKind::FnOnce
+                        && helpers::parameter_mode(&p.ty, &bound.generic_name) == Some(None)
+                });
+            }
+            let raw = if p.mode == PassingMode::Give && !callable_give {
                 owned_mode_type(&p.ty)
             } else {
                 p.ty.clone()

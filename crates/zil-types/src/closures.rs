@@ -4223,6 +4223,13 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         self.qualify_projected(projected, permission, span)
     }
     fn give(&mut self, operand: &CoreExpr, value: LocalType, span: Span) -> R<LocalType> {
+        let mut operand = operand;
+        let mut depth = 0;
+        while let CoreExprKind::Group(inner) = &operand.kind {
+            self.visit(depth, operand.span)?;
+            depth += 1;
+            operand = inner;
+        }
         if let CoreExprKind::Member { object, member, .. } = &operand.kind
             && let CoreExprKind::Name(name) = &object.kind
             && let Some(LocalType::Scalar(variable)) = self.lookup(name).or_else(|| {

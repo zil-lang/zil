@@ -321,6 +321,55 @@ impl Check<'_, '_> {
         }
     }
 
+    pub(super) fn check_callable_give_argument(
+        &mut self,
+        owner: SemanticDefinitionId,
+        mut argument: &SemanticOriginalExpr,
+        actual: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<()> {
+        while let CoreExprKind::Group(inner) = &argument.kind {
+            self.pay(1, depth)?;
+            argument = inner;
+        }
+        if !matches!(
+            argument.kind,
+            CoreExprKind::Unary {
+                op: UnaryOp::Give,
+                ..
+            }
+        ) && self.owned_callable_for_give(owner, actual, depth + 1)?
+        {
+            return Err(bad(
+                "original callable Give argument requires the explicit transfer expression",
+            ));
+        }
+        Ok(())
+    }
+
+    fn owned_callable_for_give(
+        &mut self,
+        owner: SemanticDefinitionId,
+        value: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<bool> {
+        if let Some((kind, _)) = self.concrete_callable(value, depth + 1)? {
+            return Ok(kind != CallableKind::FunctionPointer);
+        }
+        let premises = self.original_requirements(owner, depth + 1)?;
+        for requirement in premises.iter() {
+            let candidates =
+                self.callable_premises(requirement, value, &mut Vec::new(), depth + 1)?;
+            if candidates
+                .iter()
+                .any(|(_, kind, _, _)| *kind != CallableKind::FunctionPointer)
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     pub(super) fn give_place(
         &mut self,
         owner: SemanticDefinitionId,
@@ -334,6 +383,15 @@ impl Check<'_, '_> {
             SemanticOriginalNode::Expression(operand.id),
             variables,
         )?;
+        if let CoreExprKind::Group(inner) = &operand.kind {
+            let actual = self.give_place(owner, inner, variables, depth + 1)?;
+            let copy = copy_recipe(&actual, self.limits, self.left)?;
+            self.proof
+                .proof_mut()?
+                .types
+                .insert((owner, Query::Expression(operand.id)), copy);
+            return Ok(actual);
+        }
         if let CoreExprKind::Member { object, member, .. } = &operand.kind {
             if let CoreExprKind::Name(name) = &object.kind {
                 if let Some(field) =
@@ -369,7 +427,7 @@ impl Check<'_, '_> {
         }
         let CoreExprKind::Name(name) = &operand.kind else {
             return Err(pending(
-                "original give requires a managed lexical place or a direct owning Package field",
+                "original give requires an owning lexical place or a direct owning Package field",
             ));
         };
         let value = variables
@@ -382,11 +440,14 @@ impl Check<'_, '_> {
         }
         let source = copy_recipe(&value.ty, self.limits, self.left)?;
         let head = self.observation_type(owner, &source, depth + 1)?;
-        let SemanticTypeRecipe::Managed(resource) = &head else {
-            return Err(bad("original give requires an owning resource head"));
-        };
-        if !self.resource_head(owner, resource, depth + 1)? {
-            return Err(bad("original give payload is not a declared resource head"));
+        if let SemanticTypeRecipe::Managed(resource) = &head {
+            if !self.resource_head(owner, resource, depth + 1)? {
+                return Err(bad("original give payload is not a declared resource head"));
+            }
+        } else if !self.owned_callable_for_give(owner, &head, depth + 1)? {
+            return Err(bad(
+                "original give requires a managed resource or actual by-value callable",
+            ));
         }
         value.used = true;
         value.observed = true;
