@@ -7926,27 +7926,17 @@ fn windows(
                                 }
                                 continue;
                             }
-                            let left = substitute_call_source(
-                                left,
-                                arguments,
-                                values,
-                                &state,
-                                Some(callee),
-                                b,
-                            )?;
-                            let right = substitute_call_source(
-                                right,
-                                arguments,
-                                values,
-                                &state,
-                                Some(callee),
-                                b,
-                            )?;
-                            if left.targets.is_empty() || right.targets.is_empty() {
-                                return Err(failure(
-                                    "callee separation lacks complete actual slot facts",
-                                ));
-                            }
+                            let subst = |source: &Target, b: &mut Budget| -> CompileResult<Permission> {
+                                let current = substitute_call_source(source, arguments, values, &state, Some(callee), b)?;
+                                if current.targets.is_empty()
+                                    && !pointee_memory::inactive_input_slot(callee, source, arguments, values, &state, b)?
+                                {
+                                    return Err(failure("callee separation lacks complete actual slot facts"));
+                                }
+                                Ok(current)
+                            };
+                            let left = subst(left, b)?;
+                            let right = subst(right, b)?;
                             for x in &left.targets {
                                 for y in &right.targets {
                                     separate(x, y, apart, b)?;

@@ -253,6 +253,54 @@ pub(super) fn read(
     }
     Ok(out)
 }
+/// A stored input target is the occupant at call entry. A missing target
+/// discharges a separation pair only if its exact physical slot cannot be
+/// active in any complete incoming value.
+pub(super) fn inactive_input_slot(
+    callee: &TypedFunction,
+    source: &Target,
+    arguments: &[ValueId],
+    values: &[Value],
+    state: &State,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let HoldRoot::Parameter(index) = source.base else { return Ok(false) };
+    if source.retained_port.is_some() || source.stored.is_empty()
+        || source.heap_element.is_some() || !source.heap_parents.is_empty()
+    {
+        return Ok(false);
+    }
+    let index = index as usize;
+    let (Some(local), Some(actual)) = (callee.parameters.get(index), arguments.get(index)) else {
+        return Err(failure("separation selects an absent input"));
+    };
+    let ty = &callee.locals[local.0 as usize].ty;
+    let value = &values[actual.0 as usize];
+    let (inner, from_memory) = match ty {
+        Type::Address { inner, .. } => (inner.as_ref(), true),
+        other => (other, false),
+    };
+    if !aggregate(inner) { return Ok(false); }
+    let mut declared = false;
+    for (path, _) in rows(inner, b)? {
+        fee(b, path.len().saturating_add(source.stored.len()).saturating_add(1))?;
+        if path == source.stored {
+            declared = true;
+            break;
+        }
+    }
+    if !declared { return Ok(false); }
+    let memory;
+    let current = if from_memory {
+        memory = read(state, &value.pointer, Some(inner), true, b)?;
+        &memory
+    } else {
+        value
+    };
+    Ok(current.enum_variants.present() && complete(current, inner, b)?
+        && !current.enum_variants.slot_active(&source.stored))
+}
+
 fn replace(
     value: &mut Value,
     path: &[PlaceProjection],
