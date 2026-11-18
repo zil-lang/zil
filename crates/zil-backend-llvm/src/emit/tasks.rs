@@ -794,7 +794,7 @@ fn plan_frame(
     plans: &mut BTreeMap<FunctionId, FramePlan>,
     path: &mut BTreeSet<FunctionId>,
     meter: &Meter,
-    verified: Option<&VerifiedModule>,
+    verified: Option<(&VerifiedModule, &LayoutContext<'_>)>,
 ) -> CompileResult<()> {
     meter.spend(plans.len().saturating_add(path.len()).saturating_add(1))?;
     if plans.contains_key(&id) {
@@ -828,12 +828,13 @@ fn plan_frame(
         reservation?;
     }
     let mut plan = own_frame(machine, meter)?;
-    if let Some(verified) = verified {
+    if let Some((verified, layouts)) = verified {
         owners::plan(
             id,
             &mut plan,
             verified.task_ownership(id),
             verified.module(),
+            layouts,
             verified.limits(),
             meter,
         )?;
@@ -897,7 +898,7 @@ pub(super) fn lower_workers(layouts: &LayoutContext<'_>,
     let mut plans = BTreeMap::new();
     let mut path = BTreeSet::new();
     for &id in machines.keys() {
-        plan_frame(id, &machines, &mut plans, &mut path, meter, Some(verified))?;
+        plan_frame(id, &machines, &mut plans, &mut path, meter, Some((verified, layouts)))?;
     }
     let mut items = vec![];
     if machines

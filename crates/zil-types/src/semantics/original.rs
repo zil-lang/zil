@@ -1187,8 +1187,8 @@ impl<'a> Check<'a, '_> {
             }
             CoreExprKind::Group(inner) => self.place(owner, inner, variables, depth + 1),
             CoreExprKind::Member { object, member, .. } => {
-                if let Some(field) =
-                    self.package_field(owner, object, member, variables, true, depth + 1)?
+                if let Some((field, _)) =
+                    self.local_inline_field(owner, object, member, variables, true, true, depth + 1)?
                 {
                     Ok(field)
                 } else {

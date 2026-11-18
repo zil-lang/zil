@@ -2198,7 +2198,7 @@ impl Solver<'_, '_> {
                     if matches!(&inner.kind, CoreExprKind::Member { object, .. }
                         if matches!(object.kind, CoreExprKind::Name(_)))
                     {
-                        let place = self.give_package_field(frame, operand, b, depth + 1)?;
+                        let place = self.give_inline_field(frame, operand, b, depth + 1)?;
                         let selected = place.selected;
                         b.lookup(self.state.owner_transfers.len(), WORK)?;
                         self.state.owner_transfers.insert((frame.definition, value.id), place);

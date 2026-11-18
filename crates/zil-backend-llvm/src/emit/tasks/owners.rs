@@ -12,12 +12,21 @@ fn node_ty() -> m::Ty {
 fn helper(op: &str) -> String {
     format!("zil.task.owner.{op}")
 }
+struct PartialFlags {
+    descriptor: u32,
+    table: u32,
+    leaves: Vec<u32>,
+}
+
 pub(super) struct OwnerFrame {
     anchor: u32,
     nodes: Vec<u32>,
     drops: Vec<Option<String>>,
     pollable: Vec<Option<(String, String, bool)>>,
     groups: Vec<bool>,
+    // The table stores pointers to the ordinary partial-place flags already
+    // spilled in this same frame, ordered by the inline cleanup steps.
+    partial_flags: BTreeMap<usize, PartialFlags>,
     // Only consuming invocations can temporarily redirect a canonical SSA
     // owner to its actual mutable environment spill. A later Link resets it.
     canonical: BTreeMap<usize, u32>,
@@ -28,6 +37,7 @@ pub(super) fn plan(
     frame: &mut FramePlan,
     ownership: Option<&TaskOwnership>,
     module: &TypedModule,
+    layouts: &LayoutContext<'_>,
     limits: &zil_base::Limits,
     meter: &Meter,
 ) -> CompileResult<()> {
@@ -41,15 +51,37 @@ pub(super) fn plan(
     let mut drops = vec![];
     let mut pollable = vec![];
     let mut groups = vec![];
+    let mut partial_flags = BTreeMap::new();
     let retirement_roles=owner_groups::RetirementRoles::of(ownership,meter)?;
     for (owner_index,owner) in ownership.owners().iter().enumerate() {
         nodes.push(frame.fields.len() as u32);
         frame.fields.push(node_ty());
         let registration = matches!(enums::storage_shape(owner.ty()),Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}));
         let child = matches!(enums::storage_shape(owner.ty()),Type::Managed(p) if matches!(p.as_ref(),Type::Task{..}|Type::TaskI32));
-        let group=match retirement_roles.group(owner_index,module,owner.ty(),meter) {
+        let mut group=match retirement_roles.group(owner_index,module,owner.ty(),meter) {
             Ok(group)=>group,Err(diagnostics)=>return describe_failure(diagnostics,worker,Some(owner_index),owner.ty(),ownership,meter)
         };
+        if let Some(group @ owner_groups::Group::Inline { .. }) = &mut group
+            && let TaskOwnerSlot::Local(local) = owner.slot()
+            && frame.slots.contains_key(&super::super::partial_places::flag_name(local, 0))
+        {
+            let steps = super::inline_drop::partial_flags(layouts, module, owner.ty(), meter)?;
+            meter.spend(steps.len().saturating_mul(256).saturating_add(128))?;
+            let mut flags = Vec::with_capacity(steps.len());
+            for step in steps {
+                let key = super::super::partial_places::flag_name(local, step);
+                let flag = frame.slots.get(&key).filter(|slot| slot.ty == m::Ty::Int(1))
+                    .ok_or_else(|| vec![Diagnostic::error(Phase::Codegen, "E-CODEGEN-TASK", None,
+                        "partial inline cleanup has no stable frame flag for its actual leaf")])?;
+                flags.push(flag.index);
+            }
+            let table = frame.fields.len() as u32;
+            frame.fields.push(m::Ty::Array(flags.len() as u64, Box::new(m::Ty::Ptr)));
+            let descriptor = frame.fields.len() as u32;
+            frame.fields.push(super::inline_drop::descriptor_type());
+            partial_flags.insert(owner_index, PartialFlags { descriptor, table, leaves: flags });
+            group.mark_partial();
+        }
         groups.push(group.is_some());
         pollable.push(if let Some(group) = group {
             Some(group.helpers())
@@ -117,6 +149,7 @@ pub(super) fn plan(
         drops,
         pollable,
         groups,
+        partial_flags,
         canonical,
         result,
     });
@@ -276,6 +309,29 @@ pub(super) fn initialize(
             );
         }
         setup_cursor_abi(v, &format!("owner.inline.{index}"), loc(format!("task.owner.{index}")), owners.pollable[index].as_ref().is_some_and(|route| route.2));
+        let payload = if let Some(flags) = owners.partial_flags.get(&index) {
+            let directory = format!("owner.flag.table.{index}");
+            gep(v, &directory, frame, loc("frame"), flags.table);
+            let table_type = m::Ty::Array(flags.leaves.len() as u64, Box::new(m::Ty::Ptr));
+            for (ordinal, field) in flags.leaves.iter().enumerate() {
+                let flag = format!("owner.flag.{index}.{ordinal}");
+                let slot = format!("owner.flag.slot.{index}.{ordinal}");
+                gep(v, &flag, frame, loc("frame"), *field);
+                gep(v, &slot, &table_type, loc(&directory), ordinal as u32);
+                store(v, m::Ty::Ptr, loc(flag), loc(slot));
+            }
+            let descriptor = format!("owner.partial.{index}");
+            gep(v, &descriptor, frame, loc("frame"), flags.descriptor);
+            let descriptor_type = super::inline_drop::descriptor_type();
+            for (field, pointer) in [(0, payload), (1, directory)] {
+                let slot = format!("owner.partial.{index}.{field}");
+                gep(v, &slot, &descriptor_type, loc(&descriptor), field);
+                store(v, m::Ty::Ptr, loc(pointer), loc(slot));
+            }
+            descriptor
+        } else {
+            payload
+        };
         write(
             v,
             &format!("owner.storage.{index}"),
@@ -345,6 +401,13 @@ pub(super) fn initialize(
             let pointer = format!("input.live.{index}");
             gep(v, &pointer, frame, loc("frame"), flag.index);
             store(v, m::Ty::Int(1), m::val(true), loc(pointer));
+        }
+        if let Some(flags) = owners.partial_flags.get(&index) {
+            for (ordinal, field) in flags.leaves.iter().enumerate() {
+                let flag = format!("input.partial.live.{index}.{ordinal}");
+                gep(v, &flag, frame, loc("frame"), *field);
+                store(v, m::Ty::Int(1), m::val(true), loc(flag));
+            }
         }
         let anchor = ownership.owners()[index].cleanup_anchor();
         call(

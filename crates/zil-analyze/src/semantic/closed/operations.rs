@@ -628,6 +628,20 @@ impl Check<'_, '_> {
             ) => {
                 let original_value = self.recipe_value(instance, recipe, b, 0)?;
                 let expected_type = &original_value.ty;
+                if let SemanticTypeRecipe::OriginalType {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    source: SemanticOriginalTypeSource::Expression(node),
+                } = recipe
+                    && let Some(transfer) = self.original.prepared_owner_transfer(
+                        instance, *node, self.program, self.inventory, b, 0,
+                    )?
+                    && matches!(transfer.root.ty, Type::Tuple(_))
+                {
+                    let SemanticOperand::Value(value) = subject else {
+                        return Err(fail("original tuple move has no actual consuming SSA result"));
+                    };
+                    self.checked_owned_place(instance, point.function, *value, &transfer, b)?;
+                }
                 if super::ct_data::product(expected_type) && self.ct_data_recipe(instance, recipe, b)? {
                     let SemanticOperand::Value(value) = subject else {
                         return Err(fail("reified compile-time data has no actual result value"));

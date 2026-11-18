@@ -41,10 +41,10 @@ impl Check<'_, '_> {
                     instances += 1;
                     continue;
                 }
-                let local = match pending.source {
+                let (local, path) = match pending.source {
                     original::CleanupSource::Local(anchor) => {
                         let root = self.anchored_local_at(instance, function, anchor, b, 0)?;
-                        self.cleanup_child_local(function, root, &pending.path, b)?
+                        self.cleanup_place(function, root, &pending.path, b)?
                     }
                     original::CleanupSource::Expression(node) => {
                         let value = self.original_subject_value(instance, function, node, b)?
@@ -52,8 +52,9 @@ impl Check<'_, '_> {
                         if !pending.path.is_empty() {
                             return Err(unknown("original indirect cleanup needs its complete selected actual source"));
                         }
-                        self.stored_pattern_value(function, value, b)?
-                            .ok_or_else(|| fail("original discarded cleanup has no actual owning temporary"))?
+                        let local = self.stored_pattern_value(function, value, b)?
+                            .ok_or_else(|| fail("original discarded cleanup has no actual owning temporary"))?;
+                        (local, &[][..])
                     }
                     original::CleanupSource::Unknown => return Err(fail("original cleanup has no source occurrence")),
                 };
@@ -67,7 +68,7 @@ impl Check<'_, '_> {
                     if !slot.logical().equal_paid(&expected, b)? {
                         return Err(fail("original slot cleanup changes its complete logical subject"));
                     }
-                } else if !geometry::same_type(&expected.ty, &declaration.ty, b)? {
+                } else if !geometry::same_type(&expected.ty, self.cleanup_path_type(&declaration.ty, path, b)?, b)? {
                     return Err(fail("original cleanup occurrence changes its complete instantiated subject type"));
                 }
                 // A Suspend declaration may dispose of its actual closed
@@ -77,7 +78,7 @@ impl Check<'_, '_> {
                     && self.structural_actual(&expected.ty, original::Predicate::SyncDrop, b, 0)?;
                 let replacements = self.cleanup_replacement_values(instance, function,
                     pending.source, &pending.path, pending.event, b)?;
-                let closure = match &expected.ty {
+                let closure = match &declaration.ty {
                     Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. })
                         || function.call_kind == CallKind::Suspend
                             && matches!(payload.as_ref(), Type::AsyncRegistration { .. }) => None,
@@ -93,7 +94,7 @@ impl Check<'_, '_> {
                             matches!(instruction.kind,
                                 InstructionKind::DropOwnedArrayElement { local: selected, index: 0 }
                                 | InstructionKind::DropOwnedArray { local: selected } if selected == local)
-                        } else { match &expected.ty {
+                        } else { match &declaration.ty {
                             Type::Tuple(_) => matches!(instruction.kind, InstructionKind::DropTuple { local: selected } if selected == local),
                             Type::Enum { .. } => matches!(instruction.kind, InstructionKind::DropEnum { local: selected } if selected == local),
                             Type::Closure(_) => matches!(instruction.kind, InstructionKind::DropClosure { local: selected } if selected == local),
@@ -110,7 +111,7 @@ impl Check<'_, '_> {
                                     (block.id, position), &expected, b)?;
                             } else {
                                 self.cleanup_local_subject(instance, function, local,
-                                    (block.id, position), &expected, producer, b)?;
+                                    (block.id, position), path, &expected, producer, b)?;
                             }
                             if !synchronous {
                                 b.lookup(b.semantic_cleanup_sites.len(), WORK)?;
@@ -213,7 +214,7 @@ impl Check<'_, '_> {
     // A conditional owning drop is not a read. Validate every live reaching
     // source independently; an actual removal supplies only a vacant debt.
     fn cleanup_local_subject(&self, instance: &SemanticInstance, function: &TypedFunction,
-        local: LocalId, at: (BlockId, usize), expected: &value::Value,
+        local: LocalId, at: (BlockId, usize), path: &[u32], expected: &value::Value,
         producer: Option<ValueId>, b: &mut Budget) -> CompileResult<()> {
         let initialization = crate::shared_initialization(function, b)?;
         let mut pending = Vec::new();
@@ -236,6 +237,7 @@ impl Check<'_, '_> {
                             self.original_producer_value(function, value, producer, b)?;
                         }
                         let actual = self.ssa_value(instance, function, value, b, 0)?;
+                        let actual = self.cleanup_path_value(actual, path, b)?;
                         if !actual.equal_paid(expected, b)? {
                             return Err(fail("conditional cleanup changes a complete live original subject"));
                         }
@@ -258,6 +260,21 @@ impl Check<'_, '_> {
                     }
                     InstructionKind::WriteAddress { address, .. }
                         if self.cleanup_write_disjoint(function, local, (block, index), address, b)? => {}
+                    InstructionKind::TakeTupleField { local: target, path: ref taken }
+                    | InstructionKind::TakeVariantField { local: target, path: ref taken }
+                        if target == local && !path.is_empty() => {
+                            b.spend(taken.len().saturating_add(path.len()), WORK)?;
+                            let overlap = taken.iter().copied().zip(path.iter().copied())
+                                .all(|(actual, expected)| actual == PlaceProjection::Field(expected));
+                            if overlap && taken.len() > path.len() {
+                                return Err(unknown("original residual cleanup crosses a nested actual take"));
+                            }
+                            if overlap {
+                                grounded = true;
+                                stopped = true;
+                                break;
+                            }
+                        }
                     InstructionKind::CommitPlaceReplace { .. } | InstructionKind::WriteAddress { .. }
                     | InstructionKind::StoreStoredBorrow { .. } => {
                         return Err(unknown("conditional cleanup needs its complete indirect replacement source"));
@@ -272,6 +289,7 @@ impl Check<'_, '_> {
                     return Err(fail("conditional cleanup has no initialized source or actual vacancy"));
                 }
                 let actual = self.local_value(instance, function, local, (function.entry, 0), b, 0)?;
+                let actual = self.cleanup_path_value(actual, path, b)?;
                 if !actual.equal_paid(expected, b)? {
                     return Err(fail("conditional cleanup changes its complete original input subject"));
                 }
@@ -366,9 +384,31 @@ impl Check<'_, '_> {
         Ok(())
     }
 
-    fn cleanup_child_local(&self, function: &TypedFunction, root: LocalId,
-        path: &[u32], b: &mut Budget) -> CompileResult<LocalId> {
-        if path.is_empty() { return Ok(root); }
+    fn cleanup_path_type<'a>(&self, mut ty: &'a Type, path: &[u32], b: &mut Budget) -> CompileResult<&'a Type> {
+        for &field in path {
+            b.spend(1, WORK)?;
+            ty = Self::pattern_child_type(ty, PlaceProjection::Field(field))
+                .ok_or_else(|| fail("original residual cleanup selects an absent actual child"))?;
+        }
+        Ok(ty)
+    }
+
+    fn cleanup_path_value(&self, mut value: value::Value, path: &[u32], b: &mut Budget) -> CompileResult<value::Value> {
+        for &field in path {
+            b.spend(1, WORK)?;
+            value = self.closure_child_value(&value, PlaceProjection::Field(field), b)?;
+        }
+        Ok(value)
+    }
+
+    fn cleanup_place<'a>(&self, function: &TypedFunction, root: LocalId,
+        path: &'a [u32], b: &mut Budget) -> CompileResult<(LocalId, &'a [u32])> {
+        if path.is_empty() { return Ok((root, path)); }
+        if function.call_kind == CallKind::Suspend
+            && function.locals.get(root.0 as usize).is_some_and(|local| local.id == root && matches!(local.ty, Type::Tuple(_)))
+        {
+            return Ok((root, path));
+        }
         let mut selected = None;
         for block in &function.blocks {
             for instruction in &block.instructions {
@@ -390,7 +430,8 @@ impl Check<'_, '_> {
                 selected = Some(local);
             }
         }
-        selected.ok_or_else(|| unknown("original cleanup child needs its complete actual selected drop operation"))
+        selected.map(|local| (local, &[][..]))
+            .ok_or_else(|| unknown("original cleanup child needs its complete actual selected drop operation"))
     }
 
     fn cleanup_replacement_values(&self, instance: &SemanticInstance, function: &TypedFunction,

@@ -2,7 +2,7 @@
 //! The frame node supplies the next step; the value supplies its own tags.
 use super::*;
 use drop_plan::DropPlan;
-use zil_ir::TypedModule;
+use zil_ir::{PlaceProjection, TypedModule, VariantProjection};
 
 #[cfg(all(test, target_os = "linux", target_arch = "x86_64"))]
 mod tests;
@@ -140,11 +140,66 @@ fn dispatcher(blocks: &mut Vec<m::Block>, start: usize, end: usize) -> String {
     name
 }
 
-pub(super) fn functions(layouts: &LayoutContext<'_>, module: &TypedModule, ty: &Type, name: &str, closure_helpers: &mut Vec<ClosureId>, meter: &Meter) -> CompileResult<Vec<m::Item>> {
+pub(super) fn functions(layouts: &LayoutContext<'_>, module: &TypedModule, ty: &Type, name: &str, partial: bool, closure_helpers: &mut Vec<ClosureId>, meter: &Meter) -> CompileResult<Vec<m::Item>> {
     let plan = drop_plan::inline_plan(layouts, ty, &module.resources, meter)?;
     let mut entries = vec![];
     steps(&plan, module, &mut vec![], &mut entries, meter)?;
-    emit(layouts, name, &entries, closure_helpers)
+    emit(layouts, name, &entries, partial, closure_helpers)
+}
+
+// Use the ordinary local's existing leaf flags in exact drop-step order.
+// An inactive variant still needs its own path: a different variant may
+// reuse the same physical payload address and field ordinal.
+pub(super) fn partial_flags(
+    layouts: &LayoutContext<'_>,
+    module: &TypedModule,
+    ty: &Type,
+    meter: &Meter,
+) -> CompileResult<Vec<usize>> {
+    let limits = meter.limits()?;
+    let mut budget = drop_plan::Budget::new(limits);
+    budget.tree(ty, 0)?;
+    for resource in &module.resources {
+        budget.tree(&resource.payload, 0)?;
+    }
+    meter.spend(budget.spent())?;
+    let leaves = super::super::partial_places::leaves(ty, &module.resources)?;
+    let plan = drop_plan::inline_plan(layouts, ty, &module.resources, meter)?;
+    let mut entries = Vec::new();
+    steps(&plan, module, &mut Vec::new(), &mut entries, meter)?;
+    let mut flags = Vec::with_capacity(entries.len());
+    for step in entries {
+        meter.spend(step.path.len().saturating_add(1))?;
+        let mut path = Vec::new();
+        let mut variant = None;
+        for edge in step.path {
+            match edge {
+                Edge::Field(_, index) => path.push(match variant.take() {
+                    Some(variant) => PlaceProjection::Variant(VariantProjection { variant, index }),
+                    None => PlaceProjection::Field(index),
+                }),
+                Edge::Alternative { width: 32, tag, .. } if variant.is_none() => variant = Some(tag),
+                Edge::Alternative { width: 1, tag, .. } if variant.is_none() => path.push(PlaceProjection::ErrorArm(tag == 1)),
+                _ => return invalid("E-CODEGEN-TASK", "inline cleanup step has no canonical partial local field path", None),
+            }
+        }
+        if variant.is_some() {
+            return invalid("E-CODEGEN-TASK", "inline cleanup step ends at an alternative without its field", None);
+        }
+        let mut matched = None;
+        for (index, leaf) in leaves.iter().enumerate() {
+            meter.spend(leaf.path.len().saturating_add(path.len()).saturating_add(1))?;
+            if leaf.path == path {
+                matched = Some(index);
+                break;
+            }
+        }
+        flags.push(matched.ok_or_else(|| vec![Diagnostic::error(
+            Phase::Codegen, "E-CODEGEN-TASK", None,
+            "inline cleanup step has no corresponding live leaf flag",
+        )])?);
+    }
+    Ok(flags)
 }
 
 pub(super) fn capture_functions(
@@ -169,26 +224,64 @@ pub(super) fn capture_functions(
     } else {
         steps(&plan, module, &mut vec![Edge::Field(&environment, capture)], &mut entries, meter)?;
     }
-    emit(layouts, name, &entries, closure_helpers)
+    emit(layouts, name, &entries, false, closure_helpers)
 }
 
-fn emit(layouts: &LayoutContext<'_>, name: &str, entries: &[Step<'_>], closure_helpers: &mut Vec<ClosureId>) -> CompileResult<Vec<m::Item>> {
+pub(super) fn descriptor_type() -> m::Ty {
+    m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Ptr])
+}
+
+fn load_descriptor(body: &mut Vec<m::Inst>) {
+    for (field, name) in [(0, "value"), (1, "flags")] {
+        let pointer = format!("descriptor.{name}");
+        gep(body, &pointer, &descriptor_type(), loc("descriptor"), field);
+        load(body, name, m::Ty::Ptr, loc(pointer));
+    }
+}
+
+fn checked_flag(
+    blocks: &mut Vec<m::Block>,
+    prefix: &str,
+    index: usize,
+    skip: &str,
+) -> String {
+    let ready = format!("{prefix}.flags.ready");
+    let pointer = format!("{prefix}.flag.pointer");
+    let flag = format!("{prefix}.flag");
+    let live = format!("{prefix}.flag.live");
+    let mut instructions = Vec::new();
+    push(&mut instructions, Some(&pointer), m::Op::Gep {
+        ty: m::Ty::Ptr,
+        ptr: loc("flags"),
+        indices: vec![m::Arg::new(m::Ty::Int(64), index as u64)],
+    });
+    load(&mut instructions, &flag, m::Ty::Ptr, loc(pointer));
+    load(&mut instructions, &live, m::Ty::Int(1), loc(flag));
+    cond(&mut instructions, &live, &ready, skip);
+    blocks.push(block(prefix, instructions));
+    ready
+}
+
+fn emit(layouts: &LayoutContext<'_>, name: &str, entries: &[Step<'_>], partial: bool, closure_helpers: &mut Vec<ClosureId>) -> CompileResult<Vec<m::Item>> {
     let mut poll = vec![];
     let route = dispatcher(&mut poll, 0, entries.len());
     let mut entry = vec![];
+    if partial { load_descriptor(&mut entry); }
     load(&mut entry, "resume", m::Ty::Int(32), loc("cursor"));
     branch(&mut entry, &route);
     poll.insert(0, block("entry", entry));
 
     let mut request = vec![];
     let mut previous = vec![];
+    if partial { load_descriptor(&mut previous); }
     load(&mut previous, "resume", m::Ty::Int(32), loc("cursor"));
     let mut previous_name = "entry".to_owned();
 
     for (index, step) in entries.iter().enumerate() {
         let step_name = format!("step.{index}");
         let advance = format!("advance.{index}");
-        let (mut label, mut body, payload) = project(layouts, &mut poll, &step_name, &step.path, &advance, vec![])?;
+        let ready = if partial { checked_flag(&mut poll, &step_name, index, &advance) } else { step_name };
+        let (mut label, mut body, payload) = project(layouts, &mut poll, &ready, &step.path, &advance, vec![])?;
         let (request_call, poll_call) = match step.action {
             Action::ClearFlag => {
                 store(&mut body, m::Ty::Int(1), m::Val::Bool(false), loc(&payload));
@@ -252,7 +345,8 @@ fn emit(layouts: &LayoutContext<'_>, name: &str, entries: &[Step<'_>], closure_h
             compare(&mut previous, &live, m::Ty::Int(32), loc("resume"), m::val(index), "ule");
             cond(&mut previous, &live, &check, &next);
             request.push(block(&previous_name, previous));
-            let (name, mut visit, payload) = project(layouts, &mut request, &check, &step.path, &next, vec![])?;
+            let ready = if partial { checked_flag(&mut request, &check, index, &next) } else { check };
+            let (name, mut visit, payload) = project(layouts, &mut request, &ready, &step.path, &next, vec![])?;
             invoke(&mut visit, None, m::Ty::Void, &request_call, &payload);
             branch(&mut visit, &next);
             request.push(block(&name, visit));
@@ -264,7 +358,7 @@ fn emit(layouts: &LayoutContext<'_>, name: &str, entries: &[Step<'_>], closure_h
     poll.push(block("pending", vec![inst(None, m::Op::Return(Some(m::Arg::new(m::Ty::Int(1), false))))]));
     push(&mut previous, None, m::Op::Return(None));
     request.push(block(&previous_name, previous));
-    let params = || vec![m::Param::new(m::Ty::Ptr, "value"), m::Param::new(m::Ty::Ptr, "cursor")];
+    let params = || vec![m::Param::new(m::Ty::Ptr, if partial { "descriptor" } else { "value" }), m::Param::new(m::Ty::Ptr, "cursor")];
     Ok(vec![
         function(format!("{name}.poll"), m::Ty::Int(1), params(), poll),
         function(format!("{name}.request"), m::Ty::Void, params(), request),

@@ -11,14 +11,21 @@ pub(super) fn symbol(id: ClosureId, operation: &str) -> String {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum Group {
     Closure(ClosureId),
-    Inline(String),
+    Inline { name: String, partial: bool },
 }
 
 impl Group {
     pub(super) fn helpers(&self) -> (String, String, bool) {
         match self {
             Self::Closure(id) => (symbol(*id, "poll"), symbol(*id, "request"), false),
-            Self::Inline(name) => (format!("{name}.poll"), format!("{name}.request"), true),
+            Self::Inline { name, .. } => (format!("{name}.poll"), format!("{name}.request"), true),
+        }
+    }
+
+    pub(super) fn mark_partial(&mut self) {
+        if let Self::Inline { name, partial } = self {
+            name.push_str(".partial");
+            *partial = true;
         }
     }
 }
@@ -140,7 +147,7 @@ pub(super) fn route(module: &TypedModule, ty: &Type, meter: &Meter) -> CompileRe
         // The complete actual Type is checked again before this symbol can
         // share an emitted helper; its fingerprint is an addressing key.
         type_work(ty, meter)?;
-        return Ok(Some(Group::Inline(format!("zil.task.inline.drop.{}", ty.fingerprint()))));
+        return Ok(Some(Group::Inline { name: format!("zil.task.inline.drop.{}", ty.fingerprint()), partial: false }));
     }
     closure(module, ty, meter).map(|id| id.map(Group::Closure))
 }
@@ -273,20 +280,20 @@ pub(super) fn helpers(layouts: &LayoutContext<'_>, verified: &VerifiedModule, me
     let module=verified.module();
     let mut needed=BTreeSet::new();
     let mut pending=Vec::new();
-    let mut inline: BTreeMap<String, &Type> = BTreeMap::new();
+    let mut inline: BTreeMap<String, (&Type, bool)> = BTreeMap::new();
     let mut add = |route, ty| -> CompileResult<()> {
         match route {
             Some(Group::Closure(id)) => pending.push(id),
-            Some(Group::Inline(name)) => {
+            Some(Group::Inline { name, partial }) => {
                 meter.spend(inline.len().checked_ilog2().map_or(1, |depth| depth as usize + 2))?;
-                if let Some(previous) = inline.get(&name) {
+                if let Some((previous, previous_partial)) = inline.get(&name) {
                     type_work(previous, meter)?;
                     type_work(ty, meter)?;
-                    if *previous != ty {
+                    if *previous != ty || *previous_partial != partial {
                         return invalid("E-CODEGEN-TASK", "resumable inline helper changes its complete actual Type", None);
                     }
                 } else {
-                    inline.insert(name, ty);
+                    inline.insert(name, (ty, partial));
                 }
             }
             None => {}
@@ -296,8 +303,25 @@ pub(super) fn helpers(layouts: &LayoutContext<'_>, verified: &VerifiedModule, me
     for f in &module.functions {
         if let Some(ownership)=verified.task_ownership(f.id) {
             let roles=RetirementRoles::of(ownership,meter)?;
+            let mut partial_locals = BTreeSet::new();
+            for item in f.blocks.iter().flat_map(|block| &block.instructions) {
+                meter.spend(1)?;
+                if let InstructionKind::TakeTupleField { local, .. }
+                    | InstructionKind::TakeVariantField { local, .. } = item.kind
+                {
+                    meter.spend(partial_locals.len().saturating_add(1).ilog2() as usize + 2)?;
+                    partial_locals.insert(local);
+                }
+            }
             for (index,owner) in ownership.owners().iter().enumerate() {
-                add(roles.group(index,module,owner.ty(),meter)?, owner.ty())?;
+                let mut group = roles.group(index,module,owner.ty(),meter)?;
+                if let Some(group) = &mut group
+                    && let zil_verify::TaskOwnerSlot::Local(local) = owner.slot()
+                    && partial_locals.contains(&local)
+                {
+                    group.mark_partial();
+                }
+                add(group, owner.ty())?;
             }
             if let Some(ty)=ownership.result_type() {
                 add(route(module,ty,meter)?, ty)?;
@@ -305,8 +329,8 @@ pub(super) fn helpers(layouts: &LayoutContext<'_>, verified: &VerifiedModule, me
         }
     }
     let mut result=vec![];
-    for (name, ty) in inline {
-        result.extend(super::inline_drop::functions(layouts, module, ty, &name, &mut pending, meter)?);
+    for (name, (ty, partial)) in inline {
+        result.extend(super::inline_drop::functions(layouts, module, ty, &name, partial, &mut pending, meter)?);
     }
     while let Some(id)=pending.pop() {
         meter.spend(needed.len().saturating_add(1))?;
@@ -361,11 +385,11 @@ mod tests {
         assert_eq!(roles.group(1,&module,&ty,&meter).unwrap(),None);
         assert_eq!(drop_plan::task_leaf(&ty,&module.resources,&limits,&meter).unwrap(),Some(drop_plan::symbol(&ty)));
         for index in [0,2,4] {
-            assert!(matches!(roles.group(index,&module,&ty,&meter).unwrap(),Some(Group::Inline(_))),"entry and every possible retirement boundary still require a real asynchronous field recipe");
+            assert!(matches!(roles.group(index,&module,&ty,&meter).unwrap(),Some(Group::Inline { .. })),"entry and every possible retirement boundary still require a real asynchronous field recipe");
         }
         // Saved results are independently reachable even if no boundary row
         // names a local/SSA owner; they never pass through the intermediate lane.
-        assert!(matches!(route(&module,&ty,&meter).unwrap(), Some(Group::Inline(_))));
+        assert!(matches!(route(&module,&ty,&meter).unwrap(), Some(Group::Inline { .. })));
         // Concrete environment helpers remain needed by actual closure-drop
         // and consuming-call markers, independently of aggregate intermediates.
         assert_eq!(roles.group(1,&module,&Type::Closure(ClosureId(0)),&meter).unwrap(),Some(Group::Closure(ClosureId(0))));
@@ -389,7 +413,7 @@ mod tests {
         let mut module=module();let limits=zil_base::Limits::default();let meter=Meter::with_limits(limits.max_analysis_steps,&limits);
         let task=Type::Managed(Box::new(Type::TaskI32));
         for ty in [Type::Tuple(vec![task.clone()]),Type::Array{element:Box::new(task.clone()),length:1},Type::Enum{name:"UnknownActive".into(),variants:vec![("Empty".into(),vec![]),("Live".into(),vec![task.clone()])]},Type::ErrorUnion{error:Box::new(Type::Unit),result:Box::new(task.clone())}] {
-            assert!(matches!(route(&module,&ty,&meter).unwrap(), Some(Group::Inline(_))));
+            assert!(matches!(route(&module,&ty,&meter).unwrap(), Some(Group::Inline { .. })));
             module.closures[0].captures[1]=ty;
             assert_eq!(closure(&module,&Type::Closure(ClosureId(0)),&meter).unwrap(), Some(ClosureId(0)));
         }

@@ -144,6 +144,28 @@ impl Builder<'_, '_> {
                 ty,
             ));
         }
+        if let CoreExprKind::Member { object, member, owner } = &operand.kind
+            && let CoreExprKind::Name(name) = &object.kind
+            && let Some(local) = self.lookup(name)
+            && !self.borrowed_captures.contains_key(&local)
+            && matches!(stored::physical(&self.function.locals[local.0 as usize].ty), Type::Tuple(_))
+        {
+            self.member_owner_work(owner.as_ref(), operand.span)?;
+            let root = &self.function.locals[local.0 as usize].ty;
+            crate::member_owner::check_member_owner(root, owner.as_ref(), operand.span)?;
+            let (field, ty) = aggregates::field(root, member, operand.span)?;
+            if !matches!(ty, Type::Managed(_)) {
+                return Err(error("E-GIVE-TYPE", span, "give requires a Managed Tuple field"));
+            }
+            self.closures.snapshot(1, span)?;
+            self.semantic_local_place(object, local)?;
+            let value = self.value(
+                InstructionKind::TakeTupleField { local, path: vec![zil_ir::PlaceProjection::Field(field)] },
+                ty.clone(),
+                span,
+            )?;
+            return Ok((value, ty));
+        }
         let CoreExprKind::Name(name) = &operand.kind else {
             return Err(unsupported(
                 span,

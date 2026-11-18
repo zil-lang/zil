@@ -182,7 +182,7 @@ impl Solver<'_, '_> {
         }
         Ok(!place.path.is_empty() && current == selected)
     }
-    pub(super) fn give_package_field(
+    pub(super) fn give_inline_field(
         &mut self,
         frame: &mut Frame,
         operand: &SemanticOriginalExpr,
@@ -190,11 +190,13 @@ impl Solver<'_, '_> {
         depth: usize,
     ) -> CompileResult<Place> {
         let place = self.place(frame, operand, true, b, depth + 1)?
-            .ok_or_else(|| fail("original give has no exact owning Package place"))?;
+            .ok_or_else(|| fail("original give has no exact owning inline place"))?;
         let selected = self.type_root(place.selected, b)?;
+        let tuple = place.path.len() == 1
+            && matches!(self.state.arena[self.type_root(place.root, b)?], Kind::Tuple(_));
         let owns = match self.state.arena[selected] {
             Kind::Wrapped(Wrapper::Managed, _) => true,
-            Kind::Nominal { definition, .. } => matches!(
+            Kind::Nominal { definition, .. } if !tuple => matches!(
                 self.inventory.definition(definition, b)?.body,
                 SemanticDefinitionBody::Nominal {
                     kind: LifeNominalKind::Package,
@@ -204,8 +206,8 @@ impl Solver<'_, '_> {
             ),
             _ => false,
         };
-        if !owns || !self.inline_package_field(&place, selected, b)? {
-            return Err(fail("original give requires a direct owning Package field"));
+        if !owns || (!tuple && !self.inline_package_field(&place, selected, b)?) {
+            return Err(fail("original give requires a direct owning inline field"));
         }
         if frame.alive {
             self.retire_lexical_place(frame, place.anchor, &place.path, b)?;

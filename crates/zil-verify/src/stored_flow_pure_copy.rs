@@ -773,11 +773,10 @@ pub(super) fn ordinary_owned_tuple(module:&TypedModule,f:&TypedFunction,i:&Instr
         _=>return Ok(false),
     };
     if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() { return Ok(false); }
-    if !complete_owned_value(module, ty, b)? && !callable_tuple(module, ty, b)? {
-        if !frame_protocol_aggregate(module, f, ty, b)? { return Ok(false); }
-        if matches!(i.kind, InstructionKind::TakeTupleField { .. }) {
-            return Err(unsupported("a projected move in this resumable tuple requires an exact per-field frame drop flag", Some(i.span)));
-        }
+    if !complete_owned_value(module, ty, b)? && !callable_tuple(module, ty, b)?
+        && !frame_protocol_aggregate(module, f, ty, b)?
+    {
+        return Ok(false);
     }
     crate::sums::check_instruction(f,i,&b.limits.clone(),b)?;
     Ok(true)
@@ -1241,11 +1240,10 @@ pub(super) fn ordinary_owned_enum(module:&TypedModule,f:&TypedFunction,i:&Instru
     let Type::Enum{variants,..}=ty else{return Ok(false);};
     type_work(ty,&b.limits.clone(),b)?;
     if ty.is_copy_value() { return Ok(false); }
-    if !complete_owned_fields(module, vec![(ty, 0)], b)? {
-        if !frame_protocol_aggregate(module, f, ty, b)? { return Ok(false); }
-        if matches!(i.kind, InstructionKind::TakeVariantField { .. }) {
-            return Err(unsupported("a projected move in this resumable enum requires an exact per-field frame drop flag", Some(i.span)));
-        }
+    if !complete_owned_fields(module, vec![(ty, 0)], b)?
+        && !frame_protocol_aggregate(module, f, ty, b)?
+    {
+        return Ok(false);
     }
     if enum_local(&i.kind).is_some() {
         let expected = crate::sums::check_instruction(f, i, &b.limits.clone(), b)?;

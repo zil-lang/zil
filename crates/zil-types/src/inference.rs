@@ -4758,6 +4758,21 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     return Ok(value);
                 }
             }
+            if let CoreExprKind::Member { object, .. } = &operand.kind
+                && let CoreExprKind::Name(name) = &object.kind
+                && let Some(Binding {
+                    term: Term::DeferredTuple(_),
+                    ..
+                }) = self.scopes.iter().rev().find_map(|scope| scope.get(name))
+            {
+                return match value {
+                    Term::Resource(_, true)
+                    | Term::ValueStore(_, true)
+                    | Term::Registration(_, true, _)
+                    | Term::PendingTask(_, true) => Ok(value),
+                    _ => Err(error("E-GIVE-TYPE", span, "give requires a Managed Tuple field")),
+                };
+            }
             if let CoreExprKind::Member { object, member, .. } = &operand.kind
                 && let CoreExprKind::Name(name) = &object.kind
                 && let Some(Binding {
@@ -4765,15 +4780,17 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     ..
                 }) = self.scopes.iter().rev().find_map(|scope| scope.get(name))
                 && let Some(ty) = self.graph.ty(*variable)?
-                && matches!(stored::physical(&ty), Type::Package { .. })
+                && matches!(stored::physical(&ty), Type::Package { .. } | Type::Tuple(_))
             {
+                let tuple = matches!(stored::physical(&ty), Type::Tuple(_));
                 let field = aggregates::field(&ty, member, span)?.1;
-                if !matches!(field, Type::Managed(_)) && !packages::product::owned_supported(&field)
+                if !matches!(field, Type::Managed(_))
+                    && (tuple || !packages::product::owned_supported(&field))
                 {
                     return Err(error(
                         "E-GIVE-TYPE",
                         span,
-                        "give requires a Managed package field",
+                        if tuple { "give requires a Managed Tuple field" } else { "give requires a Managed package field" },
                     ));
                 }
                 return self.known_term(&field, span);

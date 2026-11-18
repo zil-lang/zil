@@ -989,7 +989,7 @@ impl CheckedContext {
         let SemanticSiteAction::TypeUse{subject,expected}=&site.action else{return Err(bad("TypeUse consumer selects another semantic action"));};
         let required=self.site_expected(module,instance,site,environment,external,active,b)?;
         let value=self.type_use_operand(module,instance,f,subject,&required,state,values,signature,environment,b)?;
-        self.bind_implicit_use(module,instance,site,subject,&value,&required,environment,b)?;
+        self.bind_implicit_use(module,instance,f,site,subject,&value,&required,environment,b)?;
         self.claim_type_use(module,expected,&required,environment,b)?;
         if !self.compatible(environment,&value,&required,b)?{
             b.spend(value.classes.len().saturating_add(required.classes.len()).saturating_add(value.life.retained.len()).saturating_add(required.life.retained.len()))?;
@@ -998,13 +998,18 @@ impl CheckedContext {
                 .with_note(format!("actual classes {:?}, origins {:?}; required classes {:?}, origins {:?}",value.classes,value.origins,required.classes,required.origins)));
         }Ok(())
     }
-    fn bind_implicit_use(&self,module:&TypedModule,instance:&SemanticInstance,site:&SemanticSite,subject:&SemanticOperand,actual:&CheckedType,expected:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<()> {
+    fn bind_implicit_use(&self,module:&TypedModule,instance:&SemanticInstance,f:&TypedFunction,site:&SemanticSite,subject:&SemanticOperand,actual:&CheckedType,expected:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<()> {
         let definition=self.definition(module,instance.definition,b)?;
         let SemanticDefinitionBody::FunctionWithBody{sites,..}=&definition.body else{return Err(bad("implicit occurrence has no original function body"));};
         let recipe=sites.iter().find(|recipe|recipe.id==site.recipe).ok_or_else(||bad("implicit occurrence has no original site"))?;
         let SemanticSiteRecipeKind::TypeUse{expected:source_recipe}=&recipe.kind else{return Ok(());};
         let expanded;let mut source=None;
         let source_recipe=if let SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:original_source}=source_recipe{
+            if matches!(expected.ty, Type::Managed(_))
+                && let SemanticOriginalTypeSource::Expression(node) = original_source
+            {
+                self.original_tuple_give_source(module,instance,f,subject,*node,b)?;
+            }
             let original=self.original.borrow();let original=original.as_ref().ok_or_else(||bad("original implicit address lacks its complete body proof"))?;
             source=original.original_address_source(module,instance.definition,original_source,b)?;
             if source.is_none(){source=original.original_description_source(module,instance.definition,original_source,b)?;}
@@ -1019,8 +1024,9 @@ impl CheckedContext {
         b.spend(definition.implicit_lifetimes.len())?;
         if !definition.implicit_lifetimes.iter().any(|row|row.ordinal==ordinal&&row.occurrence_path==recipe.occurrence_path){return Ok(());}
         let SemanticOperand::Value(mut value)=*subject else{return Ok(());};
-        let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=instance.target else{return Err(bad("implicit occurrence belongs to a nonexecutable scope"));};
-        let f=module.functions.get(function.0 as usize).ok_or_else(||bad("implicit occurrence actual function is absent"))?;
+        if instance.target != SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(f.id)) {
+            return Err(bad("implicit occurrence belongs to a nonexecutable scope"));
+        }
         if let Some(source)=source{self.intrinsic_buffer_source(module,instance,f,value,source,b)?;}
         // A view can be stored in a real local environment and loaded before
         // its exact expression borrow. The complete original Place/source

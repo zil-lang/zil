@@ -136,6 +136,21 @@ impl Check<'_, '_> {
         read: bool,
         depth: usize,
     ) -> R<Option<SemanticTypeRecipe>> {
+        Ok(self
+            .local_inline_field(owner, object, member, variables, read, false, depth)?
+            .map(|(field, _)| field))
+    }
+
+    pub(super) fn local_inline_field(
+        &mut self,
+        owner: SemanticDefinitionId,
+        object: &SemanticOriginalExpr,
+        member: &str,
+        variables: &mut BTreeMap<String, Binding>,
+        read: bool,
+        allow_tuple: bool,
+        depth: usize,
+    ) -> R<Option<(SemanticTypeRecipe, bool)>> {
         self.pay(member.len(), depth)?;
         let CoreExprKind::Name(name) = &object.kind else {
             return Ok(None);
@@ -145,21 +160,17 @@ impl Check<'_, '_> {
             return Ok(None);
         };
         let ty = self.observation_type(owner, &binding.ty, depth + 1)?;
-        let SemanticTypeRecipe::Nominal { definition, .. } = &ty else {
-            return Ok(None);
+        let tuple = match &ty {
+            SemanticTypeRecipe::Nominal { definition, .. } if matches!(
+                self.definition(*definition)?.body,
+                SemanticDefinitionBody::Nominal { kind: LifeNominalKind::Package, .. },
+            ) => false,
+            SemanticTypeRecipe::Tuple(_) if allow_tuple => true,
+            _ => return Ok(None),
         };
-        if !matches!(
-            self.definition(*definition)?.body,
-            SemanticDefinitionBody::Nominal {
-                kind: LifeNominalKind::Package,
-                ..
-            }
-        ) {
-            return Ok(None);
-        }
         if binding.used || !binding.initialized || read && binding.taken_fields.contains(member) {
             return Err(bad(
-                "original package field is not available at this source point",
+                "original inline field is not available at this source point",
             ));
         }
         self.snapshot(
@@ -180,7 +191,8 @@ impl Check<'_, '_> {
             .ok_or_else(|| bad("original package place loses its binder"))?;
         binding.observed = true;
         self.observe_capture(owner, name, binding, depth + 1)?;
-        self.field(owner, &ty, member, depth + 1).map(Some)
+        self.field(owner, &ty, member, depth + 1)
+            .map(|field| Some((field, tuple)))
     }
 
     fn owned_package(
@@ -394,16 +406,16 @@ impl Check<'_, '_> {
         }
         if let CoreExprKind::Member { object, member, .. } = &operand.kind {
             if let CoreExprKind::Name(name) = &object.kind {
-                if let Some(field) =
-                    self.package_field(owner, object, member, variables, true, depth + 1)?
+                if let Some((field, tuple)) =
+                    self.local_inline_field(owner, object, member, variables, true, true, depth + 1)?
                 {
                     let owns = if let SemanticTypeRecipe::Managed(resource) = &field {
                         self.resource_head(owner, resource, depth + 1)?
                     } else {
-                        self.owned_package(owner, &field, depth + 1)?
+                        !tuple && self.owned_package(owner, &field, depth + 1)?
                     };
                     if !owns {
-                        return Err(bad("original give requires an owning Package field"));
+                        return Err(bad("original give requires an owning inline field"));
                     }
                     let binding = variables
                         .get_mut(name)
@@ -427,7 +439,7 @@ impl Check<'_, '_> {
         }
         let CoreExprKind::Name(name) = &operand.kind else {
             return Err(pending(
-                "original give requires an owning lexical place or a direct owning Package field",
+                "original give requires an owning lexical place or a direct owning inline field",
             ));
         };
         let value = variables

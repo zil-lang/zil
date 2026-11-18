@@ -4,8 +4,11 @@ use super::*;
 use zil_ir::PlaceProjection;
 #[derive(Clone)]
 pub(super) struct Leaf {
-    path: Vec<PlaceProjection>,
+    pub(super) path: Vec<PlaceProjection>,
     symbol: Option<String>,
+}
+pub(super) fn flag_name(local: LocalId, index: usize) -> String {
+    format!("partial.live.{}.{}", local.0, index)
 }
 pub(super) fn leaves(ty: &Type, resources: &[ResourceDefinition]) -> CompileResult<Vec<Leaf>> {
     fn visit(
@@ -446,9 +449,6 @@ impl FunctionEmitter<'_> {
             ),
         }
     }
-    fn leaf_flag(local: LocalId, index: usize) -> String {
-        format!("partial.live.{}.{}", local.0, index)
-    }
     pub(super) fn partial_flags(
         &mut self,
         local: LocalId,
@@ -457,7 +457,7 @@ impl FunctionEmitter<'_> {
     ) -> CompileResult<()> {
         let count = self.partial_sums.get(&local).map_or(0, Vec::len);
         for index in 0..count {
-            let flag = Self::leaf_flag(local, index);
+            let flag = flag_name(local, index);
             if allocate {
                 self.place_inst(
                     Some(flag.clone()),
@@ -514,7 +514,7 @@ impl FunctionEmitter<'_> {
                     None,
                     m::Op::Store {
                         arg: m::Arg::new(m::Ty::Int(1), live),
-                        ptr: m::local(Self::leaf_flag(local, index)),
+                        ptr: m::local(flag_name(local, index)),
                         align: 1,
                     },
                 );
@@ -635,7 +635,7 @@ impl FunctionEmitter<'_> {
                 Some(flag.clone()),
                 m::Op::Load {
                     ty: m::Ty::Int(1),
-                    ptr: m::local(Self::leaf_flag(local, index)),
+                    ptr: m::local(flag_name(local, index)),
                     align: 1,
                 },
             );
@@ -653,7 +653,7 @@ impl FunctionEmitter<'_> {
                 None,
                 m::Op::Store {
                     arg: m::Arg::new(m::Ty::Int(1), false),
-                    ptr: m::local(Self::leaf_flag(local, index)),
+                    ptr: m::local(flag_name(local, index)),
                     align: 1,
                 },
             );

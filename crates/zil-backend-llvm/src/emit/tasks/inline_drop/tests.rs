@@ -26,7 +26,7 @@ fn inline_result_retains_pending_progress_and_selects_the_actual_arm() {
     let layouts = LayoutContext::for_test_module(&actual, &limits).unwrap();
     let mut items = owners::helpers(layouts.meter(), false).unwrap();
     let mut closures = vec![];
-    items.extend(functions(&layouts, &actual, &result, "test.inline", &mut closures, layouts.meter()).unwrap());
+    items.extend(functions(&layouts, &actual, &result, "test.inline", false, &mut closures, layouts.meter()).unwrap());
     let id = ClosureId(0);
     let m::Ty::Named(name) = environment_type(id) else { unreachable!() };
     items.push(m::Item::NamedType(name, layouts.environment_fields(id).unwrap()));

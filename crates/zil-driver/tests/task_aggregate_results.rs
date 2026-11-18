@@ -12,6 +12,8 @@ const SOURCE: &str =
     include_str!("../../../tests/language-readiness/task-aggregate-results/enum-result.zil");
 const INLINE_REGISTRATION: &str =
     include_str!("../../../tests/language-readiness/task-aggregate-results/inline-registration-tuple.zil");
+const PARTIAL_REGISTRATION: &str =
+    include_str!("../../../tests/language-readiness/task-aggregate-results/inline-registration-tuple-selective.zil");
 const INLINE_CHILD: &str =
     include_str!("../../../tests/language-readiness/task-aggregate-results/inline-task-enum.zil");
 fn source(text: &str) -> SourceUnit {
@@ -761,6 +763,15 @@ fn inline_protocol_aggregates_follow_the_actual_continuation_and_cleanup_edge() 
             "    match task_poll_close(&mut task) {\n        std.task.Poll.Pending()=>{}\n        std.task.Poll.Ready(_)=>{task_finish_destroy(give task);return 6;}\n    }\n",
             "",
         );
+    let selective = |text: &str| {
+        text.replace(
+            "    let pair=(give marker,give owner);",
+            "    let pair=(give marker,give owner);\n    let extracted=give pair.0;",
+        )
+    };
+    let partial_normal = selective(&normal);
+    let partial_interrupted = selective(&interrupted_tuple);
+    let partial_moved_registration = PARTIAL_REGISTRATION.replace("give pair.0", "give pair.1");
     let enum_return = INLINE_CHILD.replace(
         "    match task_poll(&mut task) {\n        .err(_)=>{return 90;}\n        .ok(poll)=>{match poll {\n            Poll.Pending()=>{}\n            Poll.Ready(_)=>{}\n        }}\n    }",
         "    loop {\n        match task_poll(&mut task) {\n            .err(_)=>{return 90;}\n            .ok(poll)=>{match poll {\n                Poll.Pending()=>{continue;}\n                Poll.Ready(_)=>{break;}\n            }}\n        }\n    }",
@@ -789,6 +800,36 @@ fn inline_protocol_aggregates_follow_the_actual_continuation_and_cleanup_edge() 
             &interrupted_tuple,
             "inline-registration-tuple-observer.c",
             "Anested tuple: cancelled after actual first drop Pending\n",
+        ),
+        (
+            "tuple-partial-cancel",
+            PARTIAL_REGISTRATION,
+            "inline-registration-tuple-observer.c",
+            "Anested tuple: no-future before release\n",
+        ),
+        (
+            "tuple-partial-return",
+            &partial_normal,
+            "inline-registration-tuple-observer.c",
+            "Aqueued late entry rejected; no-future before two frees\n",
+        ),
+        (
+            "tuple-partial-failure",
+            include_str!("../../../tests/language-readiness/task-aggregate-results/inline-registration-tuple-failure.zil"),
+            "inline-registration-tuple-observer.c",
+            "Apartial tuple: failure observed after no-future and both frees\n",
+        ),
+        (
+            "tuple-partial-cancel-after-pending-drop",
+            &partial_interrupted,
+            "inline-registration-tuple-observer.c",
+            "Anested tuple: cancelled after actual first drop Pending\n",
+        ),
+        (
+            "tuple-partial-moved-registration",
+            &partial_moved_registration,
+            "inline-registration-tuple-observer.c",
+            "Anested tuple: no-future before release\n",
         ),
         (
             "enum-cancel",
@@ -843,16 +884,18 @@ fn inline_protocol_aggregates_follow_the_actual_continuation_and_cleanup_edge() 
                 assert!(codegen.fallback.is_none());
                 let executable = &report.artifacts["executable"];
                 let mut command = Command::new(executable);
-                if name == "tuple-return" {
+                if matches!(name, "tuple-return" | "tuple-partial-return" | "tuple-partial-failure") {
+                    command.env("ZIL_ASYNC_NORMAL", "1");
+                }
+                if matches!(name, "tuple-return" | "tuple-partial-return") {
                     command
-                        .env("ZIL_ASYNC_NORMAL", "1")
                         .env("ZIL_ASYNC_RESULT", "1");
                 }
                 let actual = command.output().unwrap();
                 assert_eq!(actual.status.code(), Some(0), "{name}: {actual:?}");
                 assert_eq!(actual.stdout, stdout.as_bytes(), "{name}: {actual:?}");
                 assert!(actual.stderr.is_empty(), "{name}: {actual:?}");
-                if name == "tuple-cancel" {
+                if matches!(name, "tuple-cancel" | "tuple-partial-cancel") {
                     let invalid = Command::new(executable)
                         .env("ZIL_ASYNC_TRACE", "1")
                         .env("ZIL_ASYNC_INVALID_DRAIN", "1")
@@ -868,6 +911,46 @@ fn inline_protocol_aggregates_follow_the_actual_continuation_and_cleanup_edge() 
                 fs::remove_dir_all(dir).unwrap();
             }
         }
+    }
+}
+
+#[test]
+fn inline_tuple_move_requires_the_exact_original_field() {
+    use zil_ir::{InstructionKind, PlaceProjection};
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let text = PARTIAL_REGISTRATION.replace(
+        "    let pair=(give marker,give owner);",
+        "    let neighbor=Marker{code:66};\n    let pair=(give marker,give neighbor,give owner);",
+    );
+    let mut module = candidate(&text, &limits, &target);
+    let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+
+    let worker = module.functions.iter_mut().find(|f| f.name == "worker").unwrap();
+    let take = worker.blocks.iter_mut().flat_map(|block| &mut block.instructions)
+        .find_map(|instruction| match &mut instruction.kind {
+            InstructionKind::TakeTupleField { path, .. } => Some(path),
+            _ => None,
+        }).unwrap();
+    assert_eq!(take, &[PlaceProjection::Field(0)]);
+    take[0] = PlaceProjection::Field(1);
+    let errors = zil_analyze::analyze(&module, &limits).unwrap_err();
+    assert!(errors.iter().any(|d| d.code == "E-ANALYZE-IR"
+        && d.message.contains("takes another original place, field or full type")), "{errors:?}");
+
+    plan.module_fingerprint = module.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    for checked in [
+        zil_verify::verify_module(module, plan, &target, &limits),
+        zil_verify::verify_module_bytes(&bytes, &target, &limits),
+    ] {
+        let errors = checked.err().expect("same-type sibling cannot replace the selected owner");
+        assert!(errors.iter().any(|d| d.code == "E-VERIFY-SEMANTIC"
+            && d.message.contains("actual field index differs from the original ordered nominal/tuple field")
+            && d.notes.iter().any(|note| note.contains("original field \"0\"") && note.contains("ordinal 1"))), "{errors:?}");
     }
 }
 

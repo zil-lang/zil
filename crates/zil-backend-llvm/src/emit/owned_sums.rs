@@ -490,9 +490,6 @@ impl FunctionEmitter<'_> {
         let owner = if let Some((block, index)) = self.current_instruction {
             self.inline_drop_owner_at(block, index, local)?
         } else { None };
-        if owner.is_some() && self.partial_sums.contains_key(&local) {
-            return invalid("E-CODEGEN-TASK", "resumable sum drop is missing its actual field flags", Some(instruction.span));
-        }
         if owner.is_none() && self.drop_partial_place(local)? {
             return Ok(());
         }
@@ -546,6 +543,7 @@ impl FunctionEmitter<'_> {
         if let Some(owner) = owner {
             self.event(tasks::inline_drop_marker(owner));
             self.event(clear);
+            self.partial_flags(local, false, false)?;
         } else {
             self.event(clear);
             self.event(m::Event::Instruction(m::Inst::new(

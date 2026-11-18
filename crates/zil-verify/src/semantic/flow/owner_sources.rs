@@ -62,6 +62,38 @@ fn pattern_initial_transfer(module: &TypedModule, f: &TypedFunction, local: Loca
 }
 
 impl CheckedContext{
+    pub(in crate::semantic::flow) fn original_tuple_give_source(
+        &self, module: &TypedModule, caller: &SemanticInstance, f: &TypedFunction,
+        subject: &SemanticOperand, node: NodeId, b: &mut Budget,
+    ) -> Check<()> {
+        let (local, root, root_node) = {
+            let original = self.original.borrow();
+            let original = original.as_ref().ok_or_else(|| bad("tuple move lacks its original body proof"))?;
+            let Some(operand) = original.tuple_give_operand(caller.definition, node, b)? else {
+                return Ok(());
+            };
+            let SemanticOperand::Value(value) = subject else {
+                return Err(bad("original tuple move has no actual consuming SSA result"));
+            };
+            let (_, _, instruction) = self.site_index.producers.get(f, *value, b)?;
+            let InstructionKind::TakeTupleField { local, path } = &instruction.kind else {
+                return Err(bad("original tuple move selects another actual opcode"));
+            };
+            let ty = local_type(f, *local, Some(instruction.span))?;
+            let (root, projections) = original.address_place(module, caller.definition, operand, b)?;
+            let AddressRoot::Place(root_node) = root else {
+                return Err(bad("original tuple move selects another lexical root"));
+            };
+            if !matches!(ty, Type::Tuple(_)) || consume_reserved_fields(ty, path, &projections, b)? != projections.len() {
+                return Err(bad("actual tuple move changes its exact original field path"));
+            }
+            let (root, ancestors) = original.buffer_place(caller.definition, root_node, b)?;
+            if !ancestors.is_empty() { return Err(bad("actual tuple move omits an original parent projection")); }
+            (*local, root, root_node)
+        };
+        self.projected_local_root(module, caller, f, local, root, root_node, b)
+    }
+
     pub(super) fn address_place_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<()>{
         // A borrowed product field may be observed as a descriptor either by
         // DescribeAddress of its Managed head, or by reading a stored Desc.

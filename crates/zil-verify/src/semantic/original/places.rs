@@ -113,6 +113,22 @@ impl CheckedOriginal {
         let expression=*function.expressions.get(&node).ok_or_else(||bad("scalar source input original expression is absent"))?;
         Ok((expression,carrier))
     }
+    pub(in crate::semantic) fn tuple_give_operand(
+        &self, definition: SemanticDefinitionId, node: NodeId, b: &mut Budget,
+    ) -> Check<Option<NodeId>> {
+        use index::PlaceOperation as Operation;
+        let syntax = self.source_grammar.as_ref()
+            .ok_or_else(|| bad("tuple move lacks its independently checked original body"))?
+            .place_syntax(definition, b)?;
+        let Operation::Give(operand) = syntax.expression(node, b)?.operation else {
+            return Ok(None);
+        };
+        match &syntax.expression(operand, b)?.operation {
+            Operation::Member { name, .. } if name.parse::<u32>().is_ok() => Ok(Some(operand)),
+            _ => Ok(None),
+        }
+    }
+
     pub(in crate::semantic) fn address_place(
         &self,
         _module: &TypedModule,

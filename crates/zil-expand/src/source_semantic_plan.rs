@@ -1027,8 +1027,9 @@ fn operations(
                                 SemanticEmissionRole::Ascription,
                             ))
                         }
-                        s::ExprKind::Unary { op: s::UnaryOp::Give, .. }
-                            if matches!(observation, OperandObservation::PipelineInput) =>
+                        s::ExprKind::Unary { op: s::UnaryOp::Give, operand }
+                            if matches!(observation, OperandObservation::PipelineInput)
+                                || matches!(operand.kind, s::ExprKind::Member { member: s::MemberName::TupleIndex(_), .. }) =>
                         {
                             let expected = SemanticTypeRecipe::OriginalType {
                                 scope: SemanticScopeRef::Ancestor(0),
