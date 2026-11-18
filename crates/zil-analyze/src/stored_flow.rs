@@ -232,7 +232,10 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> CompileRe
         if shared_array_value(ty) {
             return Ok(true);
         }
-        if matches!(ty,Type::Address {inner,..} if pointee_memory::aggregate(inner)) {
+        // Select the same pointee obligations that preflight and the current
+        // memory transfer track. Plain aggregate addresses stay with the
+        // ordinary owner and reservation checks.
+        if current_pointee_type(ty, b)? {
             return Ok(true);
         }
         match ty {
