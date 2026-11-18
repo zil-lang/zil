@@ -1770,6 +1770,63 @@ fn terminal_native_profiles(text: &str, entry: &str, expected: i64) {
 }
 
 #[test]
+fn returned_generic_closure_keeps_its_original_creator_instance() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_ir::{SemanticClosureTarget, Type};
+
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let different_widths = "fn factory<T:Copy>(value:T)->impl Fn()->T {return move()=>value}
+fn main()->i32 {
+    let first=factory(i32(1))
+    let second=factory(i64(2))
+    return first()+i32(second())-3
+}
+";
+    let phantom = "fn factory<T:Copy>(value:i32)->impl Fn()->i32{return move()=>value}
+fn main()->i32{let a=factory::<i32>(1);let b=factory::<i64>(2);return a()+b()-3}
+";
+    for (text, capture_types) in [(different_widths, [Type::I32, Type::I64]), (phantom, [Type::I32, Type::I32])] {
+        let core = capture_context_relations_source_core(text);
+        let typed = zil_types::check(&core, &target, &limits).unwrap();
+        let semantic = typed.semantic.as_ref().unwrap();
+        let children: Vec<_> = semantic.instances.iter().enumerate().filter_map(|(index, child)| {
+            let SemanticClosureTarget::Typed(closure) = child.environment.as_ref()?.closure else { return None; };
+            Some((index, child.definition, child.parent.unwrap(), closure))
+        }).collect();
+        let [(first, original, left, first_entry), (second, same_original, right, second_entry)] = children[..] else {
+            panic!("expected the two actual specializations of the original closure: {children:?}");
+        };
+        assert_eq!(original, same_original);
+        assert_ne!(left, right);
+        assert_ne!(first_entry, second_entry);
+        assert_eq!(typed.closures[first_entry.0 as usize].captures, [capture_types[0].clone()]);
+        assert_eq!(typed.closures[second_entry.0 as usize].captures, [capture_types[1].clone()]);
+        let left_frame = semantic.instances.iter().find(|world| world.id == left).unwrap();
+        let right_frame = semantic.instances.iter().find(|world| world.id == right).unwrap();
+        assert_eq!(left_frame.definition, right_frame.definition);
+        assert_ne!(left_frame.actuals, right_frame.actuals);
+
+        let mut plan = zil_analyze::analyze(&typed, &limits).unwrap();
+        let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+        zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+        zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+
+        if capture_types[0] == capture_types[1] {
+            let mut wrong = typed;
+            let worlds = &mut wrong.semantic.as_mut().unwrap().instances;
+            worlds[first].parent = Some(right);
+            worlds[second].parent = Some(left);
+            plan.module_fingerprint = wrong.fingerprint();
+            let bytes = zil_ir::wire::encode_module_candidate(&wrong, &plan, &limits).unwrap();
+            assert!(zil_analyze::analyze(&wrong, &limits).is_err());
+            assert!(zil_verify::verify_module(wrong, plan, &target, &limits).is_err());
+            assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err());
+        }
+    }
+}
+
+#[test]
 fn closure_environment_qualified_inline_environment_modes() {
     for (kind, passing, argument, closure, body) in [
         (

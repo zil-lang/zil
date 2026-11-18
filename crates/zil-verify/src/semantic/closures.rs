@@ -30,6 +30,45 @@ pub(in crate::semantic) fn intrinsic_scope(
         .ok_or_else(|| bad("Closure intrinsic scope has no exact actual entry world"))
 }
 impl CheckedContext {
+    /// A witness cursor may mention an opaque result before the actual body
+    /// is reached. Select its lexical specialization by the whole mixed
+    /// frame. The final cursor proof still checks all class images and the
+    /// actual constructor seal in the selected world.
+    fn closure_witness_creator(
+        &self,
+        module: &TypedModule,
+        parent: SemanticInstanceId,
+        expected: &[LexicalFrame],
+        b: &mut Budget,
+    ) -> Check<bool> {
+        let mut parent = Some(parent);
+        for frame in expected {
+            b.spend(1)?;
+            let id = parent.ok_or_else(|| bad("Closure instance omits its complete creator ancestry"))?;
+            let actual = self.instance(module, id, b)?;
+            if actual.definition != frame.definition {
+                return Err(bad("Closure instance changes its original creator ancestry"));
+            }
+            match frame.key {
+                ScopeKey::Instance(exact) if exact != id => return Ok(false),
+                ScopeKey::Instance(_) => {},
+                ScopeKey::Witness { .. } => {
+                    let sealed = actual.environment.as_ref().map_or(&[][..], |environment| environment.actuals.as_slice());
+                    if !actual_shapes(&actual.actuals, &frame.actuals, b)?
+                        || !actual_shapes(sealed, &frame.environment, b)?
+                    {
+                        return Ok(false);
+                    }
+                }
+            }
+            parent = actual.parent;
+        }
+        if parent.is_some() {
+            return Err(bad("Closure instance invents an original creator ancestor"));
+        }
+        Ok(true)
+    }
+
     pub(super) fn closure_type(
         &self,
         module: &TypedModule,
@@ -71,6 +110,15 @@ impl CheckedContext {
             .semantic
             .as_ref()
             .ok_or_else(|| bad("Closure type has no original semantic program"))?;
+        b.spend(caller.lexical.len())?;
+        let creator = if let Some(parent) = original.parent {
+            let Some(index) = caller.lexical.iter().position(|frame| frame.definition == parent) else {
+                return Err(bad("Closure type cursor omits its real parent"));
+            };
+            &caller.lexical[index..]
+        } else {
+            &[][..]
+        };
         b.spend(program.instances.len())?;
         let mut selected = None;
         for instance in &program.instances {
@@ -93,38 +141,25 @@ impl CheckedContext {
             // A signature may mention this child before its MakeClosure.
             // Build a pending type cursor from the original recipe; the
             // actual creator/site seal remains a mandatory final obligation.
-            if let Some(parent) = original.parent {
-                let Some(caller_parent) = caller
-                    .lexical
-                    .iter()
-                    .find(|frame| frame.definition == parent)
-                else {
-                    continue;
-                };
+            if let Some(caller_parent) = creator.first() {
                 let Some(parent_instance) = instance.parent else {
                     return Err(bad("Closure instance omits its actual original parent"));
                 };
-                if self.instance(module, parent_instance, b)?.definition != parent {
+                if self.instance(module, parent_instance, b)?.definition != caller_parent.definition {
                     return Err(bad("Closure instance has another original lexical parent"));
                 }
-                if matches!(caller_parent.key, ScopeKey::Instance(actual) if actual != parent_instance)
-                {
+                let matches_parent = match caller_parent.key {
+                    ScopeKey::Instance(actual) => actual == parent_instance,
+                    ScopeKey::Witness { .. } => self.closure_witness_creator(module, parent_instance, creator, b)?,
+                };
+                if !matches_parent {
                     continue;
                 }
             } else if instance.parent.is_some() {
                 return Err(bad("root Closure instance invents a lexical parent"));
             }
             let mut environment = caller.clone();
-            environment.lexical = if let Some(parent) = original.parent {
-                let index = caller
-                    .lexical
-                    .iter()
-                    .position(|frame| frame.definition == parent)
-                    .ok_or_else(|| bad("Closure type cursor omits its real parent"))?;
-                caller.lexical[index..].to_vec()
-            } else {
-                vec![]
-            };
+            environment.lexical = creator.to_vec();
             environment.lexical.insert(
                 0,
                 LexicalFrame {
@@ -276,6 +311,31 @@ impl CheckedContext {
         }
         selected.ok_or_else(|| bad("Closure type has no exact actual specialization with its complete sealed environment"))
     }
+}
+
+fn actual_shapes(actual: &[SemanticActual], expected: &[CheckedActual], b: &mut Budget) -> Check<bool> {
+    if actual.len() != expected.len() { return Ok(false); }
+    for (actual, expected) in actual.iter().zip(expected) {
+        b.spend(1)?;
+        let matches = match (actual, expected) {
+            (SemanticActual::Type(actual), CheckedActual::Type(expected)) => type_shape(actual, expected, b)?,
+            (SemanticActual::Life(_), CheckedActual::Life(_)) => true,
+            (SemanticActual::Const { ty, value }, CheckedActual::Const { carrier, value: expected }) => {
+                dynamic_metadata::constant(value, b)?;
+                value == expected && type_shape(ty, carrier, b)?
+            }
+            _ => false,
+        };
+        if !matches { return Ok(false); }
+    }
+    Ok(true)
+}
+
+fn type_shape(actual: &SemanticTypeValue, expected: &CheckedType, b: &mut Budget) -> Check<bool> {
+    let (ty, life, classes) = resolved(actual)?;
+    dynamic_metadata::ty(ty, b)?;
+    dynamic_metadata::life_shape(life, b)?;
+    Ok(*ty == expected.ty && *life == expected.life && classes.len() == expected.classes.len())
 }
 
 pub(super) fn static_leaf<'a>(
