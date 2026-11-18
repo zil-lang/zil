@@ -1769,10 +1769,30 @@ fn terminal_native_profiles(text: &str, entry: &str, expected: i64) {
     }
 }
 
+fn original_callable_core(
+    text: &str,
+    limits: &zil_base::Limits,
+    target: &zil_base::TargetProfile,
+) -> zil_base::CompileResult<zil_ir::CoreModule> {
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+    let unit = source(text);
+    let syntax = zil_syntax::parse(&unit).into_result()?;
+    Ok(zil_expand::expand_with_map_semantics(
+        &unit,
+        &syntax,
+        limits,
+        target,
+        SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &Default::default(),
+            declarations: DeclarationPlacement::Original,
+        },
+    )?.core)
+}
+
 #[test]
 fn returned_generic_closure_keeps_its_original_creator_instance() {
     use zil_base::{Limits, TargetProfile};
-    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
     use zil_ir::{SemanticClosureTarget, Type};
 
     let limits = Limits::default();
@@ -1784,23 +1804,19 @@ fn main()->i32 {
     return first()+i32(second())-3
 }
 ";
+    let forwarded = different_widths
+        .replace("fn main()", "fn relay<T:Copy>(value:T)->impl Fn()->T {return factory(value)}\nfn main()")
+        .replace("first=factory", "first=relay")
+        .replace("second=factory", "second=relay");
     let phantom = "fn factory<T:Copy>(value:i32)->impl Fn()->i32{return move()=>value}
 fn main()->i32{let a=factory::<i32>(1);let b=factory::<i64>(2);return a()+b()-3}
 ";
-    for (text, capture_types) in [(different_widths, [Type::I32, Type::I64]), (phantom, [Type::I32, Type::I32])] {
-        let unit = source(text);
-        let syntax = zil_syntax::parse(&unit).into_result().unwrap();
-        let core = zil_expand::expand_with_map_semantics(
-            &unit,
-            &syntax,
-            &limits,
-            &target,
-            SourceIdentityContext::ClosedSnapshot {
-                root: unit.module_id,
-                aliases: &Default::default(),
-                declarations: DeclarationPlacement::Original,
-            },
-        ).unwrap().core;
+    for (text, capture_types) in [
+        (different_widths, [Type::I32, Type::I64]),
+        (forwarded.as_str(), [Type::I32, Type::I64]),
+        (phantom, [Type::I32, Type::I32]),
+    ] {
+        let core = original_callable_core(text, &limits, &target).unwrap();
         let typed = zil_types::check(&core, &target, &limits).unwrap();
         let semantic = typed.semantic.as_ref().unwrap();
         let children: Vec<_> = semantic.instances.iter().enumerate().filter_map(|(index, child)| {
@@ -1845,6 +1861,28 @@ fn main()->i32{let a=factory::<i32>(1);let b=factory::<i64>(2);return a()+b()-3}
             }
         }
     }
+}
+
+#[test]
+fn forward_opaque_callable_preserves_the_declared_mode_and_hidden_identity() {
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let wrong_mode = "fn factory<T:Copy>(value:T)->impl Fn()->T{return move()=>value}
+fn relay<T:Copy>(value:T)->impl FnMut()->T{return factory(value)}
+fn main()->i32{var f=relay(1);return f()-1}
+";
+    let errors = original_callable_core(wrong_mode, &limits, &target).unwrap_err();
+    assert!(errors.iter().any(|error| error.code == "E-GENERIC-ARGUMENT"
+        && error.message.contains("factory closure kind and signature must exactly match its opaque declaration")), "{errors:?}");
+
+    let different_opaque = "fn factory<T:Copy>(value:i32)->impl Fn()->i32 {return move()=>value}
+fn relay<T:Copy>(value:T, choose:bool)->impl Fn()->i32 {if choose {return factory::<i32>(1)} return factory::<i64>(2)}
+fn main()->i32{let f=relay(i32(1),true);return f()-1}
+";
+    let core = original_callable_core(different_opaque, &limits, &target).unwrap();
+    let errors = zil_types::check(&core, &target, &limits).unwrap_err();
+    assert!(errors.iter().any(|error| error.code == "E-TYPE-MISMATCH"
+        && error.message.contains("all opaque callable returns require the same source-visible concrete identity")), "{errors:?}");
 }
 
 #[test]
