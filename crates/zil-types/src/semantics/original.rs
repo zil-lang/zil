@@ -4577,7 +4577,8 @@ impl<'a> Check<'a, '_> {
         depth: usize,
     ) -> R<SemanticTypeRecipe> {
         let mut description = false;
-        let ty = self.writable_place(owner, expression, variables, &mut description, depth)?;
+        let ty = self.writable_place(owner, expression, variables, &mut description, depth)
+            .map_err(|diagnostic| super::locate_original(diagnostic, expression.span))?;
         if description && !self.copy_type(owner, &ty, depth + 1)? {
             return Err(bad("original descriptor write requires a Copy field"));
         }
@@ -4640,53 +4641,15 @@ impl<'a> Check<'a, '_> {
                         .insert((owner, Query::Expression(expression.id)), copy);
                     return Ok(field);
                 }
-                let object_ty = self.place(owner, object, variables, depth + 1)?;
-                let observed = self.observation_type(owner, &object_ty, depth + 1)?;
-                match &observed {
-                    // Writing the payload of a live descriptor does not assign
-                    // to its binder. The selected leaf must be Copy; loan and
-                    // owner liveness are checked at the real field access.
-                    SemanticTypeRecipe::Desc { .. } => *description = true,
-                    SemanticTypeRecipe::Address { mutable: true, .. } => {
-                        self.observe_exclusive_capture(owner, object, variables, depth + 1)?;
-                    }
-                    SemanticTypeRecipe::Address { mutable: false, .. } => {
-                        return Err(bad("original field write uses a shared address"));
-                    }
-                    _ => {
-                        self.writable_place(owner, object, variables, description, depth + 1)?;
-                    }
-                }
+                let object_ty = self.writable_projection_base(owner, object, variables, description, depth + 1)?;
                 self.field(owner, &object_ty, member, depth + 1)
             }
             CoreExprKind::Slice { object, .. } => {
-                let object_ty = self.place(owner, object, variables, depth + 1)?;
-                match &object_ty {
-                    SemanticTypeRecipe::Address { mutable: true, .. } => {
-                        self.observe_exclusive_capture(owner, object, variables, depth + 1)?;
-                    }
-                    SemanticTypeRecipe::Address { mutable: false, .. } => {
-                        return Err(bad("original slice write uses a shared address"));
-                    }
-                    _ => {
-                        self.writable_place(owner, object, variables, description, depth + 1)?;
-                    }
-                }
+                self.writable_projection_base(owner, object, variables, description, depth + 1)?;
                 self.expr(owner, expression, variables, None, depth + 1)
             }
             CoreExprKind::Index { object, index } => {
-                let object_ty = self.place(owner, object, variables, depth + 1)?;
-                match &object_ty {
-                    SemanticTypeRecipe::Address { mutable: true, .. } => {
-                        self.observe_exclusive_capture(owner, object, variables, depth + 1)?;
-                    }
-                    SemanticTypeRecipe::Address { mutable: false, .. } => {
-                        return Err(bad("original index write uses a shared address"));
-                    }
-                    _ => {
-                        self.writable_place(owner, object, variables, description, depth + 1)?;
-                    }
-                }
+                let object_ty = self.writable_projection_base(owner, object, variables, description, depth + 1)?;
                 self.index_type(owner, &object_ty, index, variables, depth + 1)
             }
             _ => Err(bad("original assignment does not select a writable place")),
@@ -4697,6 +4660,41 @@ impl<'a> Check<'a, '_> {
             .types
             .insert((owner, Query::Expression(expression.id)), copy);
         self.expression_result_origin(owner, expression, variables, &ty, depth + 1)?;
+        Ok(ty)
+    }
+    /// A field, index or slice inherits access from its actual place. A local
+    /// resource owner can describe its live payload without rebinding the
+    /// owner. An owner reached through another projection must still satisfy
+    /// the access obligation on that projection (including any shared base).
+    fn writable_projection_base(
+        &mut self, owner: SemanticDefinitionId, object: &SemanticOriginalExpr,
+        variables: &mut BTreeMap<String, Binding>, description: &mut bool, depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        let ty = self.place(owner, object, variables, depth + 1)?;
+        let observed = self.observation_type(owner, &ty, depth + 1)?;
+        match observed {
+            SemanticTypeRecipe::Desc { .. } => *description = true,
+            SemanticTypeRecipe::Address { mutable: true, .. } =>
+                self.observe_exclusive_capture(owner, object, variables, depth + 1)?,
+            SemanticTypeRecipe::Address { mutable: false, .. } =>
+                return Err(bad("original projection write uses a shared address")),
+            SemanticTypeRecipe::Managed(_) => {
+                let mut root = object;
+                while let CoreExprKind::Group(inner) = &root.kind {
+                    self.pay(1, depth)?;
+                    root = inner;
+                }
+                if matches!(root.kind, CoreExprKind::Name(_)) {
+                    self.observe_exclusive_capture(owner, root, variables, depth + 1)?;
+                } else {
+                    self.writable_place(owner, object, variables, description, depth + 1)?;
+                }
+                *description = true;
+            }
+            _ => {
+                self.writable_place(owner, object, variables, description, depth + 1)?;
+            }
+        }
         Ok(ty)
     }
     fn index_type(
