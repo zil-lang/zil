@@ -8,7 +8,8 @@ use std::{
 };
 use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
 use zil_driver::{
-    CompileOptions, CompileReport, NativeBackend, Optimization, ProjectSources, Stage, compile_project,
+    CompileOptions, CompileReport, NativeBackend, Optimization, ProjectSources, Stage,
+    compile_project,
 };
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 fn project(files: &[(&str, &str)]) -> ProjectSources {
@@ -64,6 +65,95 @@ fn check(source: &str) -> CompileReport {
     let dir = directory();
     compile(&[("main", source)], CompileOptions::default(), &dir)
 }
+// Use the same project entry point as the driver, keeping the source semantics
+// that the independent verifier must authenticate.
+fn lending_module(
+    source: &str,
+    target: &zil_base::TargetProfile,
+    limits: &zil_base::Limits,
+) -> zil_ir::TypedModule {
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "main.zil", source);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let modules = zil_expand::expand_program_with_semantics(
+        std::slice::from_ref(&unit),
+        &[&syntax],
+        &[Vec::new()],
+        limits,
+        target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &BTreeMap::new(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap();
+    let core = zil_ir::CoreProgram {
+        root: unit.module_id,
+        source_fingerprint: zil_base::Fingerprint::of(source.as_bytes()),
+        modules: modules.into_iter().map(|(module, _)| module).collect(),
+    };
+    zil_types::check_program(&core, target, limits)
+        .unwrap()
+        .module
+}
+
+fn assert_lending_conflict(bad: &str, good: &str) {
+    let report = check(bad);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.phase == zil_base::Phase::Analyze
+                && diagnostic.code == "E-BORROW-CONFLICT"
+                && diagnostic
+                    .message
+                    .contains("actual stored target/parent loan")),
+        "{}",
+        report.to_json()
+    );
+
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let legal = lending_module(good, &target, &limits);
+    let mut plan = zil_analyze::analyze(&legal, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&legal, &plan, &limits).unwrap();
+    zil_verify::verify_module(legal, plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+    // Present the legal neighbor's plan as an untrusted candidate for the
+    // original illegal source. A stale fingerprint must not mask the loan check.
+    let illegal = lending_module(bad, &target, &limits);
+    plan.module_fingerprint = illegal.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&illegal, &plan, &limits).unwrap();
+    let raw_errors = zil_verify::verify_module(illegal, plan, &target, &limits)
+        .err()
+        .expect("raw candidate accepted an incompatible live loan");
+    let wire_errors = zil_verify::verify_module_bytes(&wire, &target, &limits)
+        .err()
+        .expect("Wire candidate accepted an incompatible live loan");
+    assert_eq!(raw_errors, wire_errors);
+    assert!(
+        raw_errors
+            .iter()
+            .any(|diagnostic| diagnostic.phase == zil_base::Phase::Verify
+                && diagnostic.code == "E-VERIFY-STORED"
+                && diagnostic
+                    .message
+                    .contains("actual target intersects a live incompatible loan")
+                && diagnostic
+                    .notes
+                    .iter()
+                    .any(|note| note.starts_with("actual live loan "))),
+        "{raw_errors:?}"
+    );
+}
+
 fn native(files: &[(&str, &str)], exit: i32) {
     native_on(files, exit, CompileOptions::default().backend);
 }
@@ -147,30 +237,48 @@ fn borrowed_generic_helper_forwards_environment_lending_origin() {
         0,
     );
 }
-const CAPTURED_EXTERNAL_ORIGINAL: &str =
-    "fn main(){let n=3;let p=&n;let f=move()=>p;let v=f();}";
+const CAPTURED_EXTERNAL_ORIGINAL: &str = "fn main(){let n=3;let p=&n;let f=move()=>p;let v=f();}";
 
 #[test]
 fn shared_external_capture_preserves_its_actual_parent_lifetime() {
     // Retain the exact former negative: its referent outlives both calls and
     // results. A captured Fixed source is not a dangling activation local.
     let report = check(CAPTURED_EXTERNAL_ORIGINAL);
-    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
     assert_eq!(report.verification_runs, 1);
     let observed = "fn main()->i32{let n=3;let p=&n;let f=move()=>p;let v=f();return *v-3}";
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
-        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") { continue; }
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
         native_on(&[("main", observed)], 0, backend);
     }
     // Moving the closure cannot extend the actual captured referent's life.
     let escaping = "fn bad()->impl Fn()->&i32{let n=3;let p=&n;return move()=>p}fn main()->i32{let f=bad();return *f()}";
     let report = check(escaping);
-    assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
-    assert!(report.diagnostics.iter().any(|diagnostic|
-        diagnostic.phase == zil_base::Phase::Types
-            && diagnostic.category == ResultCategory::SafeReject
-            && diagnostic.code == "E-SEMANTIC-ORIGINAL"
-            && diagnostic.message == "original escaping value retains a borrow of local storage"), "{}", report.to_json());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.phase == zil_base::Phase::Types
+                && diagnostic.category == ResultCategory::SafeReject
+                && diagnostic.code == "E-SEMANTIC-ORIGINAL"
+                && diagnostic.message
+                    == "original escaping value retains a borrow of local storage"),
+        "{}",
+        report.to_json()
+    );
 }
 
 #[test]
@@ -205,24 +313,18 @@ fn temporary_environment_survives_its_complete_call_and_dereference() {
 }
 #[test]
 fn active_mutable_result_prevents_overlapping_call_or_replacement() {
-    for body in [
-        "var f=counter(4);let a=f();let b=f();return *a+*b",
-        "var f=counter(4);let a=f();f=counter(8);return *a",
+    for (body, legal) in [
+        (
+            "var f=counter(4);let a=f();let b=f();return *a+*b",
+            "var f=counter(4);let a=f();let b=f();return *b+*b",
+        ),
+        (
+            "var f=counter(4);let a=f();f=counter(8);return *a",
+            "var f=counter(4);let a=f();let old=*a;f=counter(8);return old",
+        ),
     ] {
-        let source = format!("{COUNTER}fn main()->i32{{{body}}}");
-        let report = check(&source);
-        assert_eq!(
-            report.status,
-            ResultCategory::SafeReject,
-            "{}",
-            report.to_json()
-        );
-        assert_eq!(
-            report.phase,
-            zil_base::Phase::Verify,
-            "{}",
-            report.to_json()
-        );
+        let main = |body: &str| format!("{COUNTER}fn main()->i32{{{body}}}");
+        assert_lending_conflict(&main(body), &main(legal));
     }
 }
 
@@ -296,45 +398,40 @@ fn owned_byte_environment_can_mutate_after_prior_result_last_use() {
 
 #[test]
 fn live_byte_environment_views_reject_mutation_move_and_drop() {
-    for body in [
-        "var f=grow();let a=f(5u8);let b=f(8u8);return i32(a.len()+b.len())",
-        "let f=bytes(7u8);let a=f();let g=f;return i32(a.len())",
-        "var f=bytes(7u8);let a=f();f=bytes(8u8);return i32(a.len())",
-        "let f=bytes(7u8);var a=f();if true{let g=bytes(8u8);a=g();}return i32(a.len())",
+    for (body, legal) in [
+        (
+            "var f=grow();let a=f(5u8);let b=f(8u8);return i32(a.len()+b.len())",
+            "var f=grow();let a=f(5u8);let b=f(8u8);return i32(b.len()+b.len())",
+        ),
+        (
+            "let f=bytes(7u8);let a=f();let g=f;return i32(a.len())",
+            "let f=bytes(7u8);let a=f();let n=i32(a.len());let g=f;return n",
+        ),
+        (
+            "var f=bytes(7u8);let a=f();f=bytes(8u8);return i32(a.len())",
+            "var f=bytes(7u8);let a=f();let n=i32(a.len());f=bytes(8u8);return n",
+        ),
+        (
+            "let f=bytes(7u8);var a=f();if true{let g=bytes(8u8);a=g();}return i32(a.len())",
+            "let f=bytes(7u8);var a=f();if true{let g=bytes(8u8);let second=g();}return i32(a.len())",
+        ),
     ] {
-        let report = check(&format!("{BYTES}fn main()->i32{{{body}}}"));
-        assert_eq!(
-            report.status,
-            ResultCategory::SafeReject,
-            "{body}: {}",
-            report.to_json()
-        );
-        assert_eq!(
-            report.phase,
-            zil_base::Phase::Verify,
-            "{body}: {}",
-            report.to_json()
-        );
+        let main = |body: &str| format!("{BYTES}fn main()->i32{{{body}}}");
+        assert_lending_conflict(&main(body), &main(legal));
     }
     for write in [
         "bytes_reserve(b,4)",
         "bytes_push(b,1u8)",
         "bytes_truncate(b,0)",
     ] {
-        let report = check(&format!(
-            "fn make()->impl FnMut()->&[u8]{{let b=bytes_new();return move()=>{{let s=bytes_view(b);{write};return s}}}}fn main(){{}}"
-        ));
-        assert_eq!(
-            report.status,
-            ResultCategory::SafeReject,
-            "{write}: {}",
-            report.to_json()
-        );
-        assert_eq!(
-            report.phase,
-            zil_base::Phase::Verify,
-            "{write}: {}",
-            report.to_json()
+        let get = |body: &str| {
+            format!(
+                "fn make()->impl FnMut()->&[u8]{{let b=bytes_new();return move()=>{{{body};return s}}}}fn main(){{}}"
+            )
+        };
+        assert_lending_conflict(
+            &get(&format!("let s=bytes_view(b);{write}")),
+            &get(&format!("{write};let s=bytes_view(b)")),
         );
     }
 }
@@ -359,26 +456,23 @@ fn callable_field_view_keeps_its_actual_field_without_blocking_copy_sibling() {
 
 #[test]
 fn borrowed_mutable_helper_and_whole_parent_transfer_preserve_result_loans() {
-    for source in [
-        format!(
-            "{COUNTER}fn peek<F:FnMut()->&i32>(f:&mut F)->&i32{{return f()}}fn main()->i32{{var f=counter(3);let a=peek(&mut f);let b=peek(&mut f);return *a+*b}}"
+    for (source, overlapping, legal) in [
+        (
+            format!(
+                "{COUNTER}fn peek<F:FnMut()->&i32>(f:&mut F)->&i32{{return f()}}fn main()->i32{{var f=counter(3);let a=peek(&mut f);let b=peek(&mut f);return *a+*b}}"
+            ),
+            "return *a+*b",
+            "return *b+*b",
         ),
-        format!(
-            "{BYTES}package State<F>{{manages storage:ByteBuffer;callback:F;count:i32}}fn make<F:Fn()->&[u8]>(callback:F)->State<F>{{return State::<F>{{storage:bytes_new(),callback:callback,count:0}}}}fn main()->i32{{let current=make(bytes(7u8));let callback=&current.callback;let view=callback();let moved=current;return i32(view.len())}}"
+        (
+            format!(
+                "{BYTES}package State<F>{{manages storage:ByteBuffer;callback:F;count:i32}}fn make<F:Fn()->&[u8]>(callback:F)->State<F>{{return State::<F>{{storage:bytes_new(),callback:callback,count:0}}}}fn main()->i32{{let current=make(bytes(7u8));let callback=&current.callback;let view=callback();let moved=current;return i32(view.len())}}"
+            ),
+            "let moved=current;return i32(view.len())",
+            "let n=i32(view.len());let moved=current;return n",
         ),
     ] {
-        let report = check(&source);
-        assert_eq!(
-            report.status,
-            ResultCategory::SafeReject,
-            "{}",
-            report.to_json()
-        );
-        assert_eq!(
-            report.phase,
-            zil_base::Phase::Verify,
-            "{}",
-            report.to_json()
-        );
+        assert_eq!(source.matches(overlapping).count(), 1);
+        assert_lending_conflict(&source, &source.replace(overlapping, legal));
     }
 }
