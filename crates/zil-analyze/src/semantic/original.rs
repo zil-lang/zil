@@ -1332,7 +1332,7 @@ impl Solver<'_, '_> {
         b: &mut Budget,
     ) -> CompileResult<&'a SemanticSiteRecipe> {
         b.lookup(self.indexes.len(), WORK)?;
-        self.indexes
+        let expression = self.indexes
             .get(&definition.id)
             .ok_or_else(|| fail("original operation definition has no complete node index"))?
             .get_expr(node, b)?;
@@ -1358,7 +1358,9 @@ impl Solver<'_, '_> {
                     | SemanticSiteRecipeKind::Call { .. }
                     | SemanticSiteRecipeKind::CallableCall { .. }
                     | SemanticSiteRecipeKind::Closure { .. }
-            ) {
+            ) || matches!(expression.kind, CoreExprKind::Call { .. })
+                && matches!(recipe.kind, SemanticSiteRecipeKind::Construct { .. })
+            {
                 if found.replace(recipe).is_some() {
                     return Err(fail("original operation has ambiguous resolution sites"));
                 }
@@ -1946,6 +1948,23 @@ impl Solver<'_, '_> {
                         None => self.expression(frame, inner, b, depth + 1)?,
                     }
                 }
+                CoreExprKind::Sequence { bindings, value: result } => {
+                    let scope = frame.locals.len();
+                    for (name, initializer) in bindings {
+                        if !name.starts_with('$') || self.local(frame, name, b)?.is_some() {
+                            return Err(fail("original sequence repeats or exposes a generated temporary"));
+                        }
+                        let ty = self.expression(frame, initializer, b, depth + 1)?;
+                        Self::push(&mut self.needs, Need { term: ty, predicate: Predicate::Copy }, b)?;
+                        self.bind(frame, name, ty, false, b)?;
+                    }
+                    let result = match self.receiving_for(frame, value.id, b)? {
+                        Some(expected) => self.expression_expected(frame, result, expected, b, depth + 1)?,
+                        None => self.expression(frame, result, b, depth + 1)?,
+                    };
+                    frame.locals.truncate(scope);
+                    result
+                }
                 CoreExprKind::Try(value) => {
                     let value = self.expression(frame, value, b, depth + 1)?;
                     let Kind::ErrorUnion { error, result } =
@@ -2243,6 +2262,15 @@ impl Solver<'_, '_> {
                 CoreExprKind::Call { callee, arguments } => {
                     let definition = self.inventory.definition(frame.definition, b)?;
                     let recipe = self.original_site(definition, value.id, b)?;
+                    if matches!(recipe.kind, SemanticSiteRecipeKind::Construct { .. }) {
+                        let term = self.enum_call(frame, value.id, callee, arguments, b, depth + 1)?
+                            .ok_or_else(|| fail("original formation lacks its exact enum constructor"))?;
+                        b.lookup(frame.expressions.len(), WORK)?;
+                        if frame.expressions.insert(value.id, term).is_some() {
+                            return Err(fail("original constructor node is reused"));
+                        }
+                        return Ok(term);
+                    }
                     if !matches!(
                         recipe.kind,
                         SemanticSiteRecipeKind::OriginalCall

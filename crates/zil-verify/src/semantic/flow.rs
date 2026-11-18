@@ -39,6 +39,9 @@ pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
 pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContext<'_>>,b:&mut Budget)->Check<()> {
     b.diagnostic_stage("semantic catalogue");
     let context=CheckedContext::catalogue_mode(module,frozen,b)?;
+    if let Some(frozen) = frozen {
+        frozen.install_empty_query_environments(&context, b)?;
+    }
     let program=module.semantic.as_ref().ok_or_else(||bad("semantic programme is absent"))?;
     crate::foreign::check_declarations(module,b)?;
     let mut active=ActiveQueries::new();

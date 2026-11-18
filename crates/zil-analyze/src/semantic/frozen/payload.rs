@@ -243,6 +243,9 @@ impl Compare<'_, '_> {
                 };
                 *value = *inner;
             }
+            if matches!(&value.kind, CoreExprKind::Tuple(fields) if fields.is_empty()) {
+                value.kind = CoreExprKind::Unit;
+            }
         }
         let original_node = a.id;
         match (&mut a.kind, &mut z.kind) {

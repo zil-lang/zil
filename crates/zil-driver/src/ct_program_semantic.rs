@@ -4554,6 +4554,7 @@ pub(super) fn wrapper(
             }
         }
     }
+    let mut enum_headers = BTreeMap::new();
     for source in &program.modules {
         for emitted in &source.core.enums {
             let Some(owner) = builder.enum_alias(&source.core, emitted, names)? else { continue; };
@@ -4564,6 +4565,8 @@ pub(super) fn wrapper(
                 owner,
                 emitted.span,
             )?;
+            builder.rows::<(&str, &CoreEnum)>(1)?;
+            enum_headers.insert(emitted.name.as_str(), emitted);
         }
     }
     Transport {
@@ -4577,6 +4580,14 @@ pub(super) fn wrapper(
     builder.push(&mut identity.generation_path, origin.wrapper.0)?;
     builder.push(&mut identity.generation_path, function.id.0)?;
     let nodes = builder.nodes(&function.body)?;
+    let mut callees = BTreeSet::new();
+    for expression in nodes.expressions.values() {
+        builder.node(0)?;
+        if let CoreExprKind::Call { callee, .. } = &expression.kind {
+            builder.rows::<NodeId>(1)?;
+            callees.insert(callee.id);
+        }
+    }
     builder.rows::<SemanticSiteRecipe>(nodes.expressions.len())?;
     builder.rows::<SemanticOriginalSiteNode>(nodes.expressions.len())?;
     builder.rows::<SemanticSite>(nodes.expressions.len())?;
@@ -4602,13 +4613,32 @@ pub(super) fn wrapper(
             expression: expression.id,
             occurrence: 0,
         };
+        let bare_variant = if let CoreExprKind::Member { object, member, owner: None } = &expression.kind
+            && let CoreExprKind::Name(name) = &object.kind
+            && !callees.contains(&expression.id)
+        {
+            builder.collector.text_len(name.len())?;
+            if let Some(header) = enum_headers.get(name.as_str()) {
+                let mut unit = false;
+                for (variant, fields) in &header.variants {
+                    builder.node(0)?;
+                    builder.collector.text_len(variant.len().saturating_add(member.len()))?;
+                    unit |= variant == member && fields.is_empty();
+                }
+                unit
+            } else {
+                false
+            }
+        } else {
+            false
+        };
         let proposal = match &expression.kind {
             CoreExprKind::Call { .. } => Some((
                 SemanticSiteRecipeKind::OriginalCall,
                 SemanticSiteAction::CoreBodyCall,
                 SemanticEmissionRole::Call,
             )),
-            CoreExprKind::Tuple(_) | CoreExprKind::Array(_) | CoreExprKind::Record { .. } => {
+            kind if bare_variant || matches!(kind, CoreExprKind::Tuple(_) | CoreExprKind::Array(_) | CoreExprKind::Record { .. }) => {
                 Some((
                     SemanticSiteRecipeKind::Construct { result: expected },
                     SemanticSiteAction::Construct {

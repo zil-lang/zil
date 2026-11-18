@@ -111,6 +111,93 @@ impl Builder<'_, '_, '_, '_> {
         }
         self.ty(ty, &mut occurrence, depth, true)
     }
+
+    fn enum_record_owner<'a>(&mut self, names: &'a [String], span: Span) -> R<Option<(usize, &'a str)>> {
+        let Some((variant, owner)) = names.split_last() else { return Ok(None); };
+        if !(1..=2).contains(&owner.len()) {
+            return Ok(None);
+        }
+        if names.len() == 2 && self.nominal_path(names, span, false)?.is_some() {
+            return Ok(None);
+        }
+        let Some(index) = self.nominal_path(owner, span, false)? else { return Ok(None); };
+        Ok(matches!(self.inventory.declarations[index].item.kind, s::ItemKind::Enum(_))
+            .then_some((index, variant)))
+    }
+
+    fn body_enum_record(
+        &mut self,
+        ty: &s::TypeRef,
+        fields: &[s::RecordField],
+        id: NodeId,
+        span: Span,
+        mint: &mut Mint,
+        path: &mut Vec<u32>,
+        depth: usize,
+    ) -> R<Option<SemanticOriginalExprKind>> {
+        use crate::generics::record_enums;
+        let s::TypeKind::Named { path: names, args } = &ty.kind else { return Ok(None); };
+        if !args.is_empty() {
+            return Ok(None);
+        }
+        let Some((index, variant)) = self.enum_record_owner(names, ty.span)? else { return Ok(None); };
+        let owner = &names[..names.len() - 1];
+        let inventory = self.inventory;
+        let s::ItemKind::Enum(declaration) = &inventory.declarations[index].item.kind else { return Ok(None); };
+        if !declaration.generics.is_empty() {
+            return Err(unsupported(span, "original named enum payload needs its complete mixed type application"));
+        }
+        let declared = record_enums::fields(declaration, variant, span, self.budget)?;
+        let order = record_enums::order(declared, fields.iter().map(|field| (field.name.as_str(), field.span)), span, self.budget)?;
+        self.budget.lineage_bytes(declared.len().saturating_mul(std::mem::size_of::<Option<SemanticOriginalExpr>>()), span)?;
+        let mut payload = vec![None; declared.len()];
+        let mut bindings = Vec::new();
+        for (written, (field, ordinal)) in fields.iter().zip(order).enumerate() {
+            let field_span = field.span;
+            let value = if let Some(value) = &field.value {
+                self.body_child_expr(value, written + 1, mint, path, depth + 1)?
+            } else {
+                self.body_path(path, written + 1, field_span)?;
+                let id = self.body_id(mint, path, OriginalBodyNodeKind::Expression, field_span, depth + 1)?;
+                path.pop();
+                CoreExpr { id, kind: CoreExprKind::Name(self.text(&field.name, field_span)?), span: field_span }
+            };
+            let saved = std::mem::replace(&mut self.owner, index);
+            let annotation = self.body_type(&declared[ordinal].ty, path, depth + 1);
+            self.owner = saved;
+            let value = CoreExpr {
+                id: self.body_generated_id(mint, field_span, depth + 1)?,
+                kind: CoreExprKind::Ascribed { ty: annotation?, value: self.body_box(value, field_span)? },
+                span: field_span,
+            };
+            self.budget.lineage_bytes(48, field_span)?;
+            let temporary = format!("$enum_field_{}_{ordinal}", id.0);
+            payload[ordinal] = Some(CoreExpr {
+                id: self.body_generated_id(mint, field_span, depth + 1)?,
+                kind: CoreExprKind::Name(self.text(&temporary, field_span)?),
+                span: field_span,
+            });
+            self.push(&mut bindings, (temporary, value), field_span)?;
+        }
+        let mut callee = CoreExpr {
+            id: self.body_generated_id(mint, span, depth + 1)?,
+            kind: CoreExprKind::Name(self.text(&owner[0], span)?),
+            span,
+        };
+        for member in owner[1..].iter().map(String::as_str).chain(std::iter::once(variant)) {
+            callee = CoreExpr {
+                id: self.body_generated_id(mint, span, depth + 1)?,
+                kind: CoreExprKind::Member { object: self.body_box(callee, span)?, member: self.text(member, span)?, owner: None },
+                span,
+            };
+        }
+        let mut arguments = Vec::new();
+        for value in payload {
+            self.push(&mut arguments, value.ok_or_else(|| error(span, "original named enum payload omits a field"))?, span)?;
+        }
+        let call = CoreExpr { id, kind: CoreExprKind::Call { callee: self.body_box(callee, span)?, arguments }, span };
+        Ok(Some(CoreExprKind::Sequence { bindings, value: self.body_box(call, span)? }))
+    }
     pub(super) fn original_body(&mut self, body: &s::FunctionBody) -> R<OriginalBodyOutput> {
         let mut mint = Mint {
             next: 0,
@@ -766,6 +853,30 @@ impl Builder<'_, '_, '_, '_> {
                 path: names,
                 fields: original,
             } => {
+                if let Some((index, variant)) = self.enum_record_owner(names, pattern.span)?
+                    && let s::ItemKind::Enum(declaration) = &self.inventory.declarations[index].item.kind
+                {
+                    use crate::generics::record_enums;
+                    let declared = record_enums::fields(declaration, variant, pattern.span, self.budget)?;
+                    let order = record_enums::order(declared, original.iter().map(|field| (field.name.as_str(), field.span)), pattern.span, self.budget)?;
+                    self.budget.lineage_bytes(declared.len().saturating_mul(std::mem::size_of::<Option<SemanticOriginalPattern>>()), pattern.span)?;
+                    let mut fields = vec![None; declared.len()];
+                    for (field, ordinal) in original.iter().zip(order) {
+                        fields[ordinal] = Some(self.body_pattern(&field.pattern, path, depth + 1)?);
+                    }
+                    let mut ordered = Vec::new();
+                    for field in fields {
+                        self.push(&mut ordered, field.ok_or_else(|| error(pattern.span, "original named enum pattern omits a field"))?, pattern.span)?;
+                    }
+                    return Ok(CorePattern {
+                        kind: CorePatternKind::Constructor {
+                            definition: Some(self.id(index)),
+                            variant: self.text(variant, pattern.span)?,
+                            fields: ordered,
+                        },
+                        span: pattern.span,
+                    });
+                }
                 let owner = self.pattern_owner(names, path, pattern.span, depth)?;
                 let mut fields = Vec::new();
                 for field in original {
@@ -1059,6 +1170,12 @@ impl Builder<'_, '_, '_, '_> {
                 let ty = if let Some(ty) = ty {
                     let written_application = matches!(ty.kind, s::ExprKind::TypeApply { .. });
                     let ty = super::plan::type_expression(ty, self.budget)?;
+                    if base.is_none()
+                        && let Some(kind) = self.body_enum_record(&ty, fields, id, span, mint, path, depth + 1)?
+                    {
+                        let id = self.body_generated_id(mint, span, depth + 1)?;
+                        return Ok(CoreExpr { id, kind, span });
+                    }
                     if base.is_none()
                         && !written_application
                         && let s::TypeKind::Named { path: names, args } = &ty.kind

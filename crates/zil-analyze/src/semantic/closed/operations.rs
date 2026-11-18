@@ -519,6 +519,34 @@ impl Check<'_, '_> {
                     point.function,
                     expected,
                 )?;
+                if let Some(constructor) = self.original.enum_constructor(
+                    instance, site.recipe, self.program, self.inventory, b,
+                )? {
+                    let Some(InstructionKind::MakeVariant { variant, fields }) =
+                        instruction.map(|instruction| &instruction.kind)
+                    else {
+                        return Err(fail("original enum construction changes its actual opcode"));
+                    };
+                    if constructor.result.ty != *expected {
+                        return Err(fail("actual enum formation changes its original declaration result"));
+                    }
+                    if *variant != constructor.variant || fields.len() != constructor.payload.len() {
+                        return Err(fail("actual enum formation changes its original variant or payload arity"));
+                    }
+                    self.inputs(fields, point, b)?;
+                    for (actual, expected) in fields.iter().zip(&constructor.payload) {
+                        b.spend(1, WORK)?;
+                        if point.function.values.get(actual.0 as usize) != Some(&expected.ty) {
+                            return Err(fail("actual enum formation changes its complete original payload type"));
+                        }
+                        if self.uses_full_value(&expected.ty, b)? {
+                            let value = self.ssa_value(instance, point.function, *actual, b, 0)?;
+                            if !self.capture_values_equal(&value, expected, b)? {
+                                return Err(fail("actual enum formation changes its original payload class occurrence"));
+                            }
+                        }
+                    }
+                }
             }
             (
                 SemanticSiteRecipeKind::TypeUse { expected: recipe },

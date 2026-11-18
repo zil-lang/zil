@@ -20,6 +20,10 @@ enum Work<'a> {
 
 impl<'a> CoreNodes<'a> {
     pub(super) fn walk(&mut self, body: &'a CoreBlock, b: &mut Budget) -> Check<()> {
+        self.walk_in(body, true, b)
+    }
+
+    pub(super) fn walk_in(&mut self, body: &'a CoreBlock, descend_closures: bool, b: &mut Budget) -> Check<()> {
         let mut pending = vec![Work::Block(body)];
         let mut ids = BTreeSet::new();
         while let Some(work) = pending.pop() {
@@ -127,7 +131,12 @@ impl<'a> CoreNodes<'a> {
                         // A separately indexed child definition owns its body,
                         // parameters and local bindings. The complete raw body
                         // was still traversed by the bounded metadata prepay.
-                        Closure { parameters,body,.. } => {for parameter in parameters {if let Some(ty)=&parameter.ty {dynamic_metadata::ty(ty,b)?;}}pending.push(Work::Block(body));}
+                        Closure { parameters,body,.. } => {
+                            for parameter in parameters {if let Some(ty)=&parameter.ty {dynamic_metadata::ty(ty,b)?;}}
+                            if descend_closures {
+                                pending.push(Work::Block(body));
+                            }
+                        }
                         If { condition, then_value, else_value } => {
                             pending.push(Work::Expression(else_value)); pending.push(Work::Expression(then_value)); pending.push(Work::Expression(condition));
                         }

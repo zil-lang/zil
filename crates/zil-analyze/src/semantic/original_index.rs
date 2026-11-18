@@ -6,13 +6,16 @@ use zil_base::{CompileResult, NodeId};
 use zil_ir::*;
 
 const WORK: &str = "original definition structural index";
-#[derive(Clone, Copy)]
-pub(super) enum Node<'a> {
-    Expression(&'a SemanticOriginalExpr),
-    Statement(&'a SemanticOriginalStatement),
+pub(super) enum Node<'a, T = SemanticTypeRecipe> {
+    Expression(&'a CoreExpr<T>),
+    Statement(&'a CoreStatement<T>),
 }
-pub(super) struct Index<'a> {
-    nodes: BTreeMap<NodeId, Node<'a>>,
+impl<T> Copy for Node<'_, T> {}
+impl<T> Clone for Node<'_, T> {
+    fn clone(&self) -> Self { *self }
+}
+pub(super) struct Index<'a, T = SemanticTypeRecipe> {
+    nodes: BTreeMap<NodeId, Node<'a, T>>,
     erased: BTreeSet<NodeId>,
     navigation: BTreeSet<NodeId>,
     declarations: BTreeMap<NodeId, SemanticSiteId>,
@@ -129,13 +132,13 @@ impl<'a> Index<'a> {
         }
     }
 }
-enum Work<'a> {
+enum Work<'a, T> {
     EndErase,
-    Block(&'a SemanticOriginalBlock),
-    Expr(&'a SemanticOriginalExpr),
-    Stmt(&'a SemanticOriginalStatement),
+    Block(&'a CoreBlock<T>),
+    Expr(&'a CoreExpr<T>),
+    Stmt(&'a CoreStatement<T>),
 }
-fn push<'a>(stack: &mut Vec<Work<'a>>, value: Work<'a>, b: &mut Budget) -> CompileResult<()> {
+fn push<'a, T>(stack: &mut Vec<Work<'a, T>>, value: Work<'a, T>, b: &mut Budget) -> CompileResult<()> {
     b.spend(1, WORK)?;
     stack
         .try_reserve(1)
@@ -143,10 +146,10 @@ fn push<'a>(stack: &mut Vec<Work<'a>>, value: Work<'a>, b: &mut Budget) -> Compi
     stack.push(value);
     Ok(())
 }
-fn insert<'a>(
-    nodes: &mut BTreeMap<NodeId, Node<'a>>,
+fn insert<'a, T>(
+    nodes: &mut BTreeMap<NodeId, Node<'a, T>>,
     id: NodeId,
-    node: Node<'a>,
+    node: Node<'a, T>,
     b: &mut Budget,
 ) -> CompileResult<()> {
     b.lookup(nodes.len(), WORK)?;
@@ -160,7 +163,16 @@ fn insert<'a>(
 fn walk<'a>(body: &'a SemanticOriginalBlock, b: &mut Budget) -> CompileResult<Index<'a>> {
     walk_from(Work::Block(body), b)
 }
-fn walk_from<'a>(root: Work<'a>, b: &mut Budget) -> CompileResult<Index<'a>> {
+pub(super) fn core_expression<'a>(body: &'a CoreBlock, node: NodeId, b: &mut Budget) -> CompileResult<&'a CoreExpr> {
+    let index = walk_from(Work::Block(body), b)?;
+    b.lookup(index.nodes.len(), WORK)?;
+    match index.nodes.get(&node) {
+        Some(Node::Expression(expression)) => Ok(expression),
+        _ => Err(bad("frozen Core expression is outside its actual lexical body")),
+    }
+}
+
+fn walk_from<'a, T>(root: Work<'a, T>, b: &mut Budget) -> CompileResult<Index<'a, T>> {
     let mut nodes = BTreeMap::new();
     let mut erased = BTreeSet::new();
     let mut navigation = BTreeSet::new();
@@ -448,8 +460,8 @@ fn walk_from<'a>(root: Work<'a>, b: &mut Budget) -> CompileResult<Index<'a>> {
     })
 }
 
-fn navigation_node(
-    mut expression: &SemanticOriginalExpr,
+fn navigation_node<T>(
+    mut expression: &CoreExpr<T>,
     rows: &mut BTreeSet<NodeId>,
     b: &mut Budget,
 ) -> CompileResult<()> {

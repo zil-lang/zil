@@ -125,6 +125,18 @@ impl CheckedContext {
                 let SemanticDefinitionBody::FunctionWithBody{signature,..}=&definition.body else{return Err(bad("frozen Core instance has no original signature"));};
                 signature.invocation_lifetimes
             },
+            SemanticInstanceTarget::Function(SemanticFunctionTarget::CoreClosure { .. })
+                if self.seals.borrow().get(&id).is_some_and(Vec::is_empty) =>
+            {
+                let definition = self.definition(module, current.definition, b)?;
+                let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body else {
+                    return Err(bad("frozen closure query has no actual original signature"));
+                };
+                if signature.invocation_lifetimes != 0 {
+                    return Err(unsupported("frozen closure query needs its complete original invocation domain", None));
+                }
+                0
+            }
             _=>return Err(bad("Typed instance retains a Core target")),
         };
         b.spend(invocation_count as usize)?;

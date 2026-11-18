@@ -55,6 +55,7 @@ impl<'a> Expander<'a> {
         written: Option<&s::Expr>,
         base: Option<&s::Expr>,
         fields: &[s::RecordField],
+        semantic: s::SemanticContextMarker,
     ) -> Option<CoreExpr> {
         let written = written?;
         let s::ExprKind::Member {
@@ -67,7 +68,7 @@ impl<'a> Expander<'a> {
         let s::ExprKind::Name(name) = &object.kind else {
             return None;
         };
-        let result = self.record_enum_inner(span, written, name, variant, base, fields);
+        let result = self.record_enum_inner(span, written, name, variant, base, fields, semantic);
         match result {
             Ok(value) => value,
             Err(error) => {
@@ -85,6 +86,7 @@ impl<'a> Expander<'a> {
         variant: &str,
         base: Option<&s::Expr>,
         fields: &[s::RecordField],
+        semantic: s::SemanticContextMarker,
     ) -> Result<Option<CoreExpr>, Diagnostic> {
         let Some(declaration) = self.source_enum(name, span)? else {
             return Ok(None);
@@ -173,6 +175,7 @@ impl<'a> Expander<'a> {
             },
             span,
         );
+        self.emit_semantic_node(semantic, value.id, false, span);
         self.role(value.id, ExpansionRole::RecordResult, Vec::new());
         Ok(Some(self.expr_node(
             CoreExprKind::Sequence {

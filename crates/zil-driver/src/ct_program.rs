@@ -1965,13 +1965,13 @@ mod tests {
                 root,
                 "main.zil",
                 "import left\nimport right\n\
-                fn value()->i64{let x=#(left.E.N(42));let y=#(right.E.N(7));\
-                match x{left.E.N(n)=>{match y{right.E.N(m)=>{return n+m}}}}}",
+                fn value()->i64{let x=#(left.E.N(42));let y=#(right.E.N(7));let empty=#(right.E.Empty);\
+                match x{left.E.N(n)=>{match y{right.E.N(m)=>{return n+m},_=>{return 1}}},_=>{return 2}}}",
             ),
-            SourceUnit::new(FileId(1), ModuleId(1), "left.zil", "pub enum E{N(i64)}"),
+            SourceUnit::new(FileId(1), ModuleId(1), "left.zil", "pub enum E{N(i64),Empty,Other}"),
             SourceUnit::new(
                 FileId(2), ModuleId(2), "right.zil",
-                "fn before()->i64{return 0}\npub enum E{N(i64)}",
+                "fn before()->i64{return 0}\npub enum E{N(i64),Empty,Other}",
             ),
         ];
         let aliases = BTreeMap::from([
@@ -2039,9 +2039,9 @@ mod tests {
         )
         .unwrap();
         let programs = capture.raw.into_inner();
-        assert_eq!(programs.len(), 2);
+        assert_eq!(programs.len(), 3);
 
-        for (owner, raw) in (1..=2).zip(programs) {
+        for ((owner, bare), raw) in [(1, false), (2, false), (2, true)].into_iter().zip(programs) {
             let binding = raw.frozen_context.clone().unwrap();
             for swap in [false, true] {
                 let mut candidate = raw.clone();
@@ -2136,6 +2136,28 @@ mod tests {
                     } else {
                         result.unwrap();
                     }
+                }
+            }
+            if bare {
+                let mut candidate = raw;
+                let body = &mut candidate.module.functions[candidate.entry.0 as usize];
+                let (variant, fields) = body.blocks.iter_mut()
+                    .flat_map(|block| &mut block.instructions)
+                    .find_map(|instruction| match &mut instruction.kind {
+                        InstructionKind::MakeVariant { variant, fields } => Some((variant, fields)),
+                        _ => None,
+                    }).unwrap();
+                assert_eq!(*variant, 1);
+                assert!(fields.is_empty());
+                *variant = 2;
+                let errors = zil_analyze::analyze_in_frozen_context(&candidate.module, &frozen, &binding, &limits).unwrap_err();
+                assert!(errors[0].message.contains("original variant or payload arity"), "{errors:?}");
+                candidate.plan.module_fingerprint = candidate.module.fingerprint();
+                let wire = zil_ir::wire::encode_ct_program(&candidate, &limits).unwrap();
+                let decoded = zil_ir::wire::decode_ct_program(&wire, &limits).unwrap();
+                for candidate in [candidate, decoded] {
+                    let errors = zil_verify::verify_ct_program_in_context(candidate, &frozen, &binding, &target, &limits).unwrap_err();
+                    assert!(errors[0].message.contains("original variant"), "{errors:?}");
                 }
             }
         }

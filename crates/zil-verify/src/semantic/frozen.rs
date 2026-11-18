@@ -24,6 +24,7 @@ pub(crate) struct FrozenContext<'s> {
     core:BTreeMap<(ModuleId,NodeId),&'s CoreFunction>,
     dyn_declarations:BTreeMap<LifeDeclarationId,&'s DynDeclaration>,
     dyn_scopes:Vec<&'s SemanticDynScopeBinding>,
+    empty_query_environments: Vec<SemanticInstanceId>,
     query:(&'s SemanticDefinition,&'s SemanticInstance,&'s CoreExpr),
 }
 impl<'s> FrozenContext<'s> {
@@ -68,9 +69,80 @@ impl<'s> FrozenContext<'s> {
         let CtQueryOwner::Instance(owner)=expected.query.owner else{return Err(unsupported("frozen CT query needs its independently selected exact caller instance occurrence",None));};
         let instance=*instances.get(&owner).ok_or_else(||bad("frozen CT query owner instance is absent"))?;
         let definition=*definitions.get(&instance.definition).ok_or_else(||bad("frozen CT query owner definition is absent"))?;
-        let SemanticInstanceTarget::Function(SemanticFunctionTarget::Core{module,function})=instance.target else{return Err(unsupported("frozen CT query owner needs its complete actual Core closure/instance scope",None));};
-        let function=*core.get(&(module,function)).ok_or_else(||bad("frozen CT query owner has no exact actual Core function"))?;
-        let mut nodes=core_nodes::CoreNodes::default();nodes.walk(&function.body,b)?;
+        let mut empty_query_environments = Vec::new();
+        let (module, body) = match instance.target {
+            SemanticInstanceTarget::Function(SemanticFunctionTarget::Core { module, function }) => {
+                let function = core.get(&(module, function)).ok_or_else(||bad("frozen CT query owner has no exact actual Core function"))?;
+                (module, &function.body)
+            }
+            SemanticInstanceTarget::Function(SemanticFunctionTarget::CoreClosure { module, creator, .. }) => {
+                let mut current = instance;
+                let mut path = Vec::new();
+                let semantic = source.modules.iter().find(|row| row.core.module_id == module)
+                    .and_then(|row| row.core.semantic.as_ref()).ok_or_else(||bad("frozen closure has no actual module"))?;
+                while let SemanticInstanceTarget::Function(SemanticFunctionTarget::CoreClosure {
+                    module: home, creator: root, expression, occurrence: 0,
+                }) = current.target {
+                    b.spend(semantic.sites.len().saturating_add(1))?;
+                    if path.len() >= b.limits.max_call_depth { return Err(limit("frozen closure query exceeds its lexical depth")); }
+                    let parent = current.parent.and_then(|id| instances.get(&id)).copied()
+                        .ok_or_else(||bad("frozen closure has no actual lexical parent"))?;
+                    let child = definitions.get(&current.definition).ok_or_else(||bad("frozen closure definition is absent"))?;
+                    let definition = definitions.get(&parent.definition).ok_or_else(||bad("frozen closure parent definition is absent"))?;
+                    if home != module || root != creator || child.kind != SemanticDefinitionKind::Closure || child.parent != Some(parent.definition) {
+                        return Err(bad("frozen closure changes its original or actual lexical parent"));
+                    }
+                    let SemanticDefinitionBody::FunctionWithBody { sites, site_nodes, .. } = &definition.body else {
+                        return Err(bad("frozen closure parent has no complete original body"));
+                    };
+                    b.spend(sites.len().saturating_add(site_nodes.len()))?;
+                    let mut actual = semantic.sites.iter().filter(|site| site.instance == parent.id
+                        && site.at == SemanticSiteAddress::Core { expression, occurrence: 0, role: SemanticEmissionRole::Closure });
+                    let site = actual.next().ok_or_else(||bad("frozen closure has no actual lexical creation site"))?;
+                    if actual.next().is_some() || !matches!(site.action, SemanticSiteAction::Closure {
+                        closure: SemanticClosureTarget::Core { module: home, creator: root, expression: at, occurrence: 0 }, ..
+                    } if home == module && root == creator && at == expression)
+                        || !sites.iter().any(|row| row.id == site.recipe && matches!(row.kind,
+                            SemanticSiteRecipeKind::Closure { definition, .. } if definition == current.definition))
+                        || !site_nodes.iter().any(|row| row.site == site.recipe && matches!(row.node, SemanticOriginalNode::Expression(_)))
+                    {
+                        return Err(bad("frozen closure changes its exact original creation receipt"));
+                    }
+                    if let Some(environment) = &current.environment {
+                        if !matches!(environment.closure, SemanticClosureTarget::Core {
+                            module: home, creator: root, expression: at, occurrence: 0,
+                        } if home == module && root == creator && at == expression) {
+                            return Err(bad("frozen closure query changes its actual environment identity"));
+                        }
+                        if child.environment.is_empty()
+                            && environment.actuals.is_empty()
+                            && matches!(&site.action, SemanticSiteAction::Closure { environment, .. } if environment.is_empty())
+                        {
+                            b.spend(1)?;
+                            empty_query_environments.push(current.id);
+                        }
+                    }
+                    path.push(expression);
+                    current = parent;
+                }
+                if !matches!(current.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Core {
+                    module: home, function,
+                }) if home == module && function == creator) {
+                    return Err(bad("frozen closure ancestry has another actual root function"));
+                }
+                let mut body = &core.get(&(module, creator)).ok_or_else(||bad("frozen closure creator is absent"))?.body;
+                for expression in path.into_iter().rev() {
+                    let mut owner = core_nodes::CoreNodes::default();
+                    owner.walk_in(body, false, b)?;
+                    let value = owner.expressions.get(&expression).ok_or_else(||bad("frozen closure is outside its actual parent body"))?;
+                    let CoreExprKind::Closure { body: nested, .. } = &value.kind else { return Err(bad("frozen closure creation has another actual Core form")); };
+                    body = nested;
+                }
+                (module, body)
+            }
+            _ => return Err(bad("frozen CT query owner has no actual Core body")),
+        };
+        let mut nodes=core_nodes::CoreNodes::default();nodes.walk_in(body,false,b)?;
         let outer=*nodes.expressions.get(&expected.query.expression).ok_or_else(||bad("frozen CT query expression is absent from its actual owner"))?;
         let CoreExprKind::CompileTime(payload)=&outer.kind else{return Err(bad("frozen CT query expression is not its actual CompileTime shell"));};
         let SemanticDefinitionBody::FunctionWithBody{sites,site_nodes,..}=&definition.body else{return Err(bad("frozen CT owner omits its complete original body"));};
@@ -88,7 +160,20 @@ impl<'s> FrozenContext<'s> {
             count+=1;
         }
         if count!=1{return Err(bad("frozen CT query occurrence is absent or ambiguous"));}
-        Ok(Self{source,expected,definitions,instances,core,dyn_declarations,dyn_scopes,query:(definition,instance,payload)})
+        Ok(Self{source,expected,definitions,instances,core,dyn_declarations,dyn_scopes,empty_query_environments,query:(definition,instance,payload)})
+    }
+
+    pub(super) fn install_empty_query_environments(&self, context: &CheckedContext, b: &mut Budget) -> Check<()> {
+        let mut seals = context.seals.borrow_mut();
+        for &id in &self.empty_query_environments {
+            b.spend(seals.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
+            // The verified frozen ancestry has no environment actuals at any
+            // of these occurrences. This adds no executable closure or value.
+            if seals.insert(id, Vec::new()).is_some() {
+                return Err(bad("frozen closure query repeats an empty source environment"));
+            }
+        }
+        Ok(())
     }
     pub(super) fn background(&self,instance:&SemanticInstance)->bool {
         !matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(_)))&&self.instances.contains_key(&instance.id)

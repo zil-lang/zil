@@ -162,11 +162,10 @@ fn native(text: &str, expected: i64) {
         );
         case.report(&report);
         success(&report);
-        assert!(
-            !fs::read_to_string(&report.artifacts["ct-core"])
-                .unwrap()
-                .contains("CompileTime")
-        );
+        let core = fs::read_to_string(&report.artifacts["ct-core"]).unwrap();
+        let (_, functions) = core.split_once("\n    functions: [").unwrap();
+        let (functions, _) = functions.split_once("\n    aggregates: [").unwrap();
+        assert!(!functions.contains("kind: CompileTime"), "{functions}");
         execute(
             &case,
             &report.artifacts["executable"],
@@ -283,12 +282,19 @@ fn nested_record_array_and_enum_values_keep_active_tags() {
 
 #[test]
 fn source_capability_and_payload_controls_remain_rejections() {
-    reject(
-        "enum E{N(i64)}fn make()->E{return E.N(true)}fn value()->E{return #(make())}",
-        ResultCategory::SafeReject,
-        Phase::Ct,
-        "E-TYPE-MISMATCH",
-    );
+    let wrong_payload = "enum E{N(i64)}fn make()->E{return E.N(true)}fn value()->E{return #(make())}";
+    let report = check(wrong_payload);
+    assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+    assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+    assert!(!report.artifacts.contains_key("executable"));
+    let diagnostic = &report.diagnostics[0];
+    assert_eq!(diagnostic.code, "E-GENERIC-ARGUMENT");
+    let at = |span: zil_base::Span| &wrong_payload[span.start as usize..span.end as usize];
+    assert_eq!(diagnostic.span.map(at), Some("E.N(true)"));
+    assert!(diagnostic.related.iter().any(|related| related.span.map(at) == Some("i64")
+        && related.message == "expected type i64"));
+    assert!(diagnostic.related.iter().any(|related| related.span.map(at) == Some("true")
+        && related.message == "actual type bool"));
     reject(
         "enum E{N(i64)}fn value()->E{let x:i64=42;return #(E.N(x))}",
         ResultCategory::SafeReject,

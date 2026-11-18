@@ -90,6 +90,9 @@ impl Context for Normalize<'_> {
             };
             *value = *inner;
         }
+        if matches!(&value.kind, CoreExprKind::Tuple(fields) if fields.is_empty()) {
+            value.kind = CoreExprKind::Unit;
+        }
         if matches!(value.kind, CoreExprKind::Call { .. } | CoreExprKind::Member { .. }) {
             let source = (self.definition.id, value.id);
             spend(self.left, self.proof.nominal_constructors.len().saturating_add(1).ilog2() as usize + 1,

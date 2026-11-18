@@ -64,13 +64,29 @@ impl CheckedOriginal {
         let SemanticDefinitionBody::FunctionWithBody { sites, .. } = &caller.body else {
             return Err(bad("original call has no complete creator body"));
         };
-        let (position, identity) = self.original_call_site(env.current()?, call.id, b)?;
+        let directory = self.source_grammar.as_ref()
+            .ok_or_else(|| bad("original call has no owned complete grammar"))?;
+        let rows = directory.recipes(
+            env.current()?,
+            SemanticOriginalNode::Expression(call.id),
+            &[index::Role::Call, index::Role::CallableCall, index::Role::OriginalCall, index::Role::Construct],
+            b,
+        )?;
+        let [(position, identity)] = rows.as_slice() else {
+            return Err(bad("original Call has no unique exact operation site"));
+        };
         let site = sites
-            .get(position)
-            .filter(|site| site.id == identity)
+            .get(*position)
+            .filter(|site| site.id == *identity)
             .ok_or_else(|| {
                 bad("original call reverse directory selects another immutable site identity")
             })?;
+        if matches!(site.kind, SemanticSiteRecipeKind::Construct { .. }) {
+            return self.variant_constructor(
+                module, context, call, base, written_types, written_mixed, arguments,
+                env, bindings, expected, active, b,
+            )?.ok_or_else(|| bad("original formation lacks its exact enum constructor"));
+        }
         if let Some(intrinsic) = self.intrinsic_name(module, context, base, env, bindings, b)? {
             let mut written = Vec::new();
             if let Some(types) = written_types {

@@ -3670,6 +3670,30 @@ impl<'a> Check<'a, '_> {
                 result
             }
             CoreExprKind::Group(value) => self.expr(owner, value, variables, wanted, depth + 1)?,
+            CoreExprKind::Sequence { bindings, value } => {
+                for (name, initializer) in bindings {
+                    if !name.starts_with('$') || variables.contains_key(name) {
+                        return Err(bad("original sequence repeats or exposes a generated temporary"));
+                    }
+                    let ty = self.expr(owner, initializer, variables, None, depth + 1)?;
+                    if !self.copy_type(owner, &ty, depth + 1)? {
+                        return Err(pending("original sequence temporary needs a complete Copy payload"));
+                    }
+                    self.pay(name.len().saturating_add(1), depth)?;
+                    self.insert_binding(variables, name.clone(), Binding {
+                        ty, mutable: false, used: false, observed: false, capture: false,
+                        borrowed: false, origin: Query::Expression(initializer.id), origin_owner: owner,
+                        initialized: true, written: false, resource_root: None,
+                        taken_fields: BTreeSet::new(), shadowed: None,
+                    }, depth)?;
+                }
+                let result = self.expr(owner, value, variables, wanted, depth + 1)?;
+                for (name, _) in bindings.iter().rev() {
+                    self.pay(name.len().saturating_add(1), depth)?;
+                    variables.remove(name);
+                }
+                result
+            }
             CoreExprKind::String(spelling) => {
                 // Decode validation and byte emission are independently performed
                 // by the real UTF8 instruction producer. The original type is

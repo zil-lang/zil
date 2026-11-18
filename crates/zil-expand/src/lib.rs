@@ -1911,7 +1911,7 @@ impl Expander<'_> {
             s::ExprKind::Pipeline { input, target } => self.pipeline(e.span, input, target),
             s::ExprKind::Record { ty, base, fields } => {
                 if let Some(value) =
-                    self.record_enum(e.span, ty.as_deref(), base.as_deref(), fields)
+                    self.record_enum(e.span, ty.as_deref(), base.as_deref(), fields, e.semantic)
                 {
                     return value;
                 }

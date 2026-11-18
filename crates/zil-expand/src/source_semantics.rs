@@ -305,6 +305,11 @@ impl Builder<'_, '_, '_, '_> {
         Ok(None)
     }
     fn named(&mut self, path: &[String], span: Span) -> R<usize> {
+        self.nominal_path(path, span, true)?
+            .ok_or_else(|| error(span, "semantic type has no original declaration"))
+    }
+
+    fn nominal_path(&mut self, path: &[String], span: Span, required: bool) -> R<Option<usize>> {
         let local = self.inventory.declarations[self.owner].module;
         let (module, name) = match path {
             [name] => (local, name),
@@ -325,12 +330,14 @@ impl Builder<'_, '_, '_, '_> {
                         }
                     }
                 }
-                (
-                    target.ok_or_else(|| {
-                        error(span, "semantic type has no actual imported module")
-                    })?,
-                    name,
-                )
+                let Some(target) = target else {
+                    return if required {
+                        Err(error(span, "semantic type has no actual imported module"))
+                    } else {
+                        Ok(None)
+                    };
+                };
+                (target, name)
             }
             _ => {
                 return Err(unsupported(
@@ -360,15 +367,14 @@ impl Builder<'_, '_, '_, '_> {
                 }
             }
         }
-        let index =
-            found.ok_or_else(|| error(span, "semantic type has no original declaration"))?;
+        let Some(index) = found else { return Ok(None); };
         if module != local && !self.inventory.declarations[index].public {
             return Err(error(
                 span,
                 "semantic declaration is private to another module",
             ));
         }
-        Ok(index)
+        Ok(Some(index))
     }
     fn implicit(&mut self, path: &[u32], span: Span) -> R<SemanticLifeRecipe> {
         self.budget

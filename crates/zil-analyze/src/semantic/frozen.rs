@@ -261,14 +261,19 @@ fn query_anchor<'a>(
     else {
         return Err(fail("frozen query owner omits its original body"));
     };
-    let SemanticInstanceTarget::Function(SemanticFunctionTarget::Core { module, function }) =
-        instance.target
-    else {
-        return Err(unsupported(
-            "frozen closure query needs its exact actual Core creator and nested body anchor",
-        ));
-    };
-    core_function(source, module, function, b)?;
+    match instance.target {
+        SemanticInstanceTarget::Function(SemanticFunctionTarget::Core { module, function }) => {
+            core_function(source, module, function, b)?;
+        }
+        SemanticInstanceTarget::Function(SemanticFunctionTarget::CoreClosure { module, creator, .. }) => {
+            let body = closure_query_body(source, program, inventory, instance, module, creator, b)?;
+            let actual = super::original_index::core_expression(body, binding.query.expression, b)?;
+            if !matches!(actual.kind, CoreExprKind::CompileTime(_)) {
+                return Err(fail("frozen closure query does not select its actual CompileTime shell"));
+            }
+        }
+        _ => return Err(fail("frozen query owner has no actual Core function body")),
+    }
     let index = inventory.original_index(definition.id, b)?;
     let SemanticOriginalNode::Expression(original) = binding.query.original else {
         return Err(fail("frozen query does not select an original expression"));
@@ -293,8 +298,15 @@ fn query_anchor<'a>(
             .iter()
             .find(|recipe| recipe.id == actual.recipe)
             .ok_or_else(|| fail("frozen query actual event has no original recipe"))?;
-        if !matches!(recipe.kind, SemanticSiteRecipeKind::TypeUse { .. })
-            || !matches!(actual.action, SemanticSiteAction::TypeUse { .. })
+        if !matches!(&recipe.kind, SemanticSiteRecipeKind::TypeUse {
+            expected: SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0),
+                source: SemanticOriginalTypeSource::Expression(node),
+            },
+        } if *node == original)
+            || !matches!(&actual.action, SemanticSiteAction::TypeUse {
+                subject: SemanticOperand::CoreExpression { expression, occurrence }, ..
+            } if *expression == binding.query.expression && *occurrence == binding.query.occurrence)
             || !site_nodes
                 .iter()
                 .any(|node| node.site == recipe.id && node.node == binding.query.original)
@@ -313,6 +325,69 @@ fn query_anchor<'a>(
         ));
     }
     Ok(instance)
+}
+
+fn closure_query_body<'a, 'i>(
+    source: &'a CoreProgram,
+    program: &SemanticModule,
+    inventory: &Inventory<'i>,
+    mut instance: &'i SemanticInstance,
+    module: zil_base::ModuleId,
+    creator: zil_base::NodeId,
+    b: &mut Budget,
+) -> CompileResult<&'a CoreBlock> {
+    let mut path = Vec::new();
+    while let SemanticInstanceTarget::Function(SemanticFunctionTarget::CoreClosure {
+        module: home, creator: root, expression, occurrence,
+    }) = instance.target
+    {
+        if path.len() >= b.partial_depth {
+            return Err(vec![zil_base::Diagnostic::limit(
+                zil_base::Phase::Analyze,
+                "frozen closure query exceeds its lexical depth",
+                None,
+            )]);
+        }
+        if home != module || root != creator || occurrence != 0 {
+            return Err(fail("frozen closure query changes its actual creator path"));
+        }
+        let parent = inventory.instance(instance.parent.ok_or_else(|| fail("frozen closure query lacks its lexical parent"))?, b)?;
+        let definition = inventory.definition(parent.definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { sites, .. } = &definition.body else {
+            return Err(fail("frozen closure parent has no original creation recipe"));
+        };
+        b.spend(program.sites.len().saturating_add(sites.len()), WORK)?;
+        let mut creation = program.sites.iter().filter(|site| site.instance == parent.id
+            && matches!(site.at, SemanticSiteAddress::Core {
+                expression: actual, occurrence: 0, role: SemanticEmissionRole::Closure,
+            } if actual == expression));
+        let site = creation.next().ok_or_else(|| fail("frozen closure has no actual creation occurrence"))?;
+        if creation.next().is_some()
+            || !matches!(site.action, SemanticSiteAction::Closure {
+                closure: SemanticClosureTarget::Core { module: home, creator: root, expression: actual, occurrence: 0 }, ..
+            } if home == module && root == creator && actual == expression)
+            || !sites.iter().any(|recipe| recipe.id == site.recipe && matches!(recipe.kind,
+                SemanticSiteRecipeKind::Closure { definition, .. } if definition == instance.definition))
+        {
+            return Err(fail("frozen closure changes its original creation occurrence"));
+        }
+        put(&mut path, expression, b)?;
+        instance = parent;
+    }
+    if !matches!(instance.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Core {
+        module: home, function,
+    }) if home == module && function == creator) {
+        return Err(fail("frozen closure ancestry names another actual root function"));
+    }
+    let mut body = &core_function(source, module, creator, b)?.body;
+    for expression in path.into_iter().rev() {
+        let value = super::original_index::core_expression(body, expression, b)?;
+        let CoreExprKind::Closure { body: nested, .. } = &value.kind else {
+            return Err(fail("frozen closure actual creation is not a Core closure"));
+        };
+        body = nested;
+    }
+    Ok(body)
 }
 
 #[allow(clippy::too_many_arguments)]
