@@ -22,3 +22,12 @@ pub(super) mod shared_body;
 mod source_probe;
 pub(super) mod well_formed;
 pub(super) mod world;
+
+/// Attribute a failure to the innermost available source operation. Raw IR and
+/// normalized original bodies can carry the default empty location.
+fn locate_original(mut diagnostic: zil_base::Diagnostic, span: zil_base::Span) -> zil_base::Diagnostic {
+    if diagnostic.span.is_none() || diagnostic.span == Some(zil_base::Span::default()) {
+        diagnostic.span = (span.start < span.end).then_some(span);
+    }
+    diagnostic
+}

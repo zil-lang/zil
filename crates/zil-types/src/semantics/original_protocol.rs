@@ -48,7 +48,7 @@ fn lookup_work(len: usize) -> usize {
     len.saturating_add(1).ilog2() as usize + 1
 }
 fn failure(message: &str) -> Diagnostic {
-    error("E-SEMANTIC-PROTOCOL", Span::default(), message)
+    Diagnostic::error(Phase::Types, "E-SEMANTIC-PROTOCOL", None, message)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -2300,7 +2300,7 @@ impl<'a> Engine<'a, '_> {
             Ok(value)
         })();
         self.record_cost("expr", cost_before, cost_children);
-        result
+        result.map_err(|diagnostic| crate::semantics::locate_original(diagnostic, expr.span))
     }
     fn expr_inner(
         &mut self,
@@ -3902,7 +3902,7 @@ impl<'a> Engine<'a, '_> {
                             statement.span,
                             std::mem::discriminant(&statement.kind)
                         ));
-                            diagnostic
+                            crate::semantics::locate_original(diagnostic, statement.span)
                         },
                     )? {
                         self.pay(1, depth)?;
@@ -4559,9 +4559,11 @@ impl<'a> Engine<'a, '_> {
                         for value in values {
                             self.pay(name.len().saturating_add(1), depth)?;
                             self.drop_value(value, &state, depth + 1).map_err(|mut diagnostic| {
-                            diagnostic.notes.push(format!("original function exit owner {:?}, binding {:?}, body span {:?}", owner, name, body.span));
-                            diagnostic
-                        })?;
+                                diagnostic.notes.push(format!(
+                                    "cleanup at function exit requires dropping binding {name:?} in {owner:?}"
+                                ));
+                                crate::semantics::locate_original(diagnostic, body.span)
+                            })?;
                         }
                     }
                     self.check_consuming_result(owner, &state, depth + 1)?;
