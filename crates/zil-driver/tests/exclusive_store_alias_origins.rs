@@ -310,6 +310,57 @@ fn raw_copy_projection_does_not_authorize_package_or_resource_access() {
 }
 
 #[test]
+fn helper_store_growth_preserves_only_disjoint_live_elements() {
+    let source = format!(
+        r#"{MODEL}{STATE}
+fn grow_after_read(a:Store<Entry>, b:Store<Entry>)->bool {{
+    let used=store_len(a)
+    return store_reserve(b,used+8)
+}}
+fn main()->i32 {{
+    let s=make()
+    let held=store_at(s.left,0)
+    grow_after_read(s.left,s.right)
+    return inspect(held)
+}}"#
+    );
+    let (mut module, plan) = candidate(&source);
+    let target = module
+        .functions
+        .iter()
+        .find(|f| f.name == "grow_after_read")
+        .unwrap()
+        .id;
+    let caller = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let mut calls = caller
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .filter_map(|i| match &mut i.kind {
+            I::Call {
+                function,
+                arguments,
+            } if *function == target => Some(arguments),
+            _ => None,
+        });
+    let arguments = calls.next().unwrap();
+    assert_eq!(arguments.len(), 2);
+    assert_ne!(arguments[0], arguments[1]);
+    arguments[1] = arguments[0];
+    assert!(calls.next().is_none());
+    reject_pair(
+        "grow-manager-of-live-element",
+        module,
+        plan,
+        "E-BORROW-CONFLICT",
+    );
+}
+
+#[test]
 fn raw_call_retargeting_cannot_claim_two_unique_actual_sources() {
     let source = format!(
         "{MODEL}{STATE}fn pair(a:&mut Entry,b:&mut Entry)->i32{{a.count+=1;b.count+=2;return a.count+b.count}}fn main()->i32{{let s=make();let a=store_at_mut(s.left,0);let b=store_at_mut(s.right,0);return pair(a,b)}}"

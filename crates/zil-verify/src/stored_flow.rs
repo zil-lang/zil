@@ -120,7 +120,8 @@ pub(super) fn ordinary_error_borrow(
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
-    pure_copy::ordinary_error_borrow(module, f, i, b)
+    Ok(pure_copy::ordinary_error_borrow(module, f, i, b)?
+        || pure_copy::frame_protocol_borrow(module, f, i, b)?)
 }
 
 pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> Check<bool> {
@@ -6480,9 +6481,12 @@ fn windows(
                     requirements,
                     b,
                 )?;
-                if replacements::heads(b) {
-                    let head = dynamic_store::access(&i.kind)
-                         .or_else(|| {
+                // A Store instruction accesses its actual manager in every
+                // stored profile. Its effect must reach wrapper call sites.
+                let store_access = dynamic_store::access(&i.kind);
+                if store_access.is_some() || replacements::heads(b) {
+                    let head = store_access
+                        .or_else(|| {
                             if byte_flow.is_some() && byte_queries::query(&i.kind).is_some() {
                                 None
                             } else {
@@ -6503,6 +6507,9 @@ fn windows(
                         } else {
                             &actual.store_description
                         };
+                        if store_access.is_some() && permission.sources.is_empty() {
+                            return Err(err("Store access has no actual manager source"));
+                        }
                         if write {
                             store_paths::writable(permission, &solution.loans, b)?;
                         }

@@ -3,6 +3,7 @@
 use super::head_access::{Requirement, Summary};
 use super::*;
 use std::collections::BTreeMap;
+use zil_base::Span;
 type Loans = BTreeSet<usize>;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum LoanRoot {
@@ -447,6 +448,7 @@ fn access(
     nodes: &[Node],
     apart: &mut Apart,
     context: (&TypedModule, &TypedFunction),
+    span: Span,
     b: &mut Budget,
 ) -> CompileResult<()> {
     for other in active {
@@ -473,9 +475,18 @@ fn access(
         if relevant && delegated {
             continue;
         }
-        return Err(bad(
+        let mut diagnostic = Diagnostic::error(
+            Phase::Analyze,
+            "E-ANALYZE-IR",
+            Some(span),
             "actual borrowed resource access conflicts with a live child or unrelated address window",
+        );
+        diagnostic.notes.push(format!(
+            "head access in {:?} expected disjoint storage or a delegated loan. Actual write={write}, \
+             access roots={roots:?}, live loan={other}, live roots={:?}",
+            context.1.id, nodes[*other].roots
         ));
+        return Err(vec![diagnostic]);
     }
     Ok(())
 }
@@ -517,10 +528,10 @@ fn shell(local: LocalId, bound: &BTreeMap<LocalId, u32>) -> LoanRoot {
         LoanRoot::Capture(*index, vec![])
     })
 }
-fn is_pod_store_field(f: &TypedFunction, local: LocalId, index: u32) -> bool {
-    matches!(&f.locals[local.0 as usize].ty,
-        Type::Package { fields, .. } if fields.get(index as usize)
-            .is_some_and(|(_, ty)| super::ownership_store::pod_owned(ty)))
+pub(super) fn is_owned_store_field(f: &TypedFunction, local: LocalId, index: u32) -> bool {
+    matches!(f.locals.get(local.0 as usize).map(|decl| &decl.ty),
+        Some(Type::Package { fields, .. }) if fields.get(index as usize)
+            .is_some_and(|(_, ty)| super::dynamic_store::is_owned_carrier(ty)))
 }
 fn store_field(
     f: &TypedFunction,
@@ -528,7 +539,7 @@ fn store_field(
     index: u32,
     bound: &BTreeMap<LocalId, u32>,
 ) -> LoanRoot {
-    if is_pod_store_field(f, local, index) {
+    if is_owned_store_field(f, local, index) {
         bound
             .get(&local)
             .map_or(LoanRoot::LocalStoreField(local, index), |capture| {
@@ -549,10 +560,12 @@ fn check_function(
     b: &mut Budget,
 ) -> CompileResult<Apart> {
     let mut apart = Apart::new();
-    // Only the new ordinary Store profile pays for an environment/local alias
-    // map. BindPackageCapture names the existing captured owner; it never
-    // creates an independent local allocation.
-    let store_fields = b
+    // BindPackageCapture aliases the original owner's field. Track its path
+    // for both POD and affine element stores.
+    if !b.store_field_functions.is_empty() {
+        b.lookup(b.store_field_functions.len(), "actual Store field function lookup")?;
+    }
+    let store_fields = b.store_field_functions.contains(&f.id) || b
         .ordinary_store_functions
         .get(f.id.0 as usize)
         .copied()
@@ -1157,6 +1170,7 @@ fn check_function(
                         &nodes,
                         &mut apart,
                         (module, f),
+                        i.span,
                         b,
                     )?;
                 }
@@ -1196,6 +1210,7 @@ fn check_function(
                     &nodes,
                     &mut apart,
                     (module, f),
+                    i.span,
                     b,
                 )?;
             }
@@ -1217,6 +1232,7 @@ fn check_function(
                         &nodes,
                         &mut apart,
                         (module, f),
+                        i.span,
                         b,
                     )?;
                 }
@@ -1245,6 +1261,7 @@ fn check_function(
                         &nodes,
                         &mut apart,
                         (module, f),
+                        i.span,
                         b,
                     )?;
                 }
@@ -1265,13 +1282,14 @@ fn check_function(
                         &nodes,
                         &mut apart,
                         (module, f),
+                        i.span,
                         b,
                     )?;
                 }
                 InstructionKind::TakePackageField { local, index }
                 | InstructionKind::DropPackageField { local, index }
                 | InstructionKind::StorePackageField { local, index, .. }
-                    if store_fields && is_pod_store_field(f, *local, *index) =>
+                    if store_fields && is_owned_store_field(f, *local, *index) =>
                 {
                     access(
                         &empty,
@@ -1282,6 +1300,7 @@ fn check_function(
                         &nodes,
                         &mut apart,
                         (module, f),
+                        i.span,
                         b,
                     )?;
                 }

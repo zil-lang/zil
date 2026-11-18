@@ -212,6 +212,8 @@ pub(super) struct Budget {
     pub(super) address_capture_closures: BTreeSet<zil_ir::ClosureId>,
     // Empty on legacy modules; populated only by the paid ordinary admission.
     pub(super) ordinary_store_functions: Vec<bool>,
+    /// Actual Package-field instructions selecting an owning Store manager.
+    pub(super) store_field_functions: BTreeSet<FunctionId>,
     pub(super) sum_functions: Vec<bool>,
     pub(super) error_takes: BTreeMap<FunctionId, Vec<(zil_ir::BlockId, usize, ValueId, bool)>>,
     pub(super) addressed_sums: bool,
@@ -406,6 +408,7 @@ impl Budget {
             replacement_error_sums: false,
             address_capture_closures: BTreeSet::new(),
             ordinary_store_functions: Vec::new(),
+            store_field_functions: BTreeSet::new(),
             sum_functions: Vec::new(),
             error_takes: BTreeMap::new(),
             addressed_sums: false,
@@ -3299,6 +3302,12 @@ pub(super) fn preflight(
                     | InstructionKind::OwnedStoreBorrow { .. }
                     | InstructionKind::OwnedStoreBorrowMut { .. } => {
                         super::pod_store::instruction(function, instruction, budget)?;
+                        // A borrowed element pins its actual manager across
+                        // ordinary calls even when no other head needs a loan.
+                        if matches!(instruction.kind, InstructionKind::OwnedStoreBorrow { .. }
+                            | InstructionKind::OwnedStoreBorrowMut { .. }) {
+                            budget.head_descriptions = true;
+                        }
                     }
                     InstructionKind::Constant(
                         constant @ (Constant::NullHandle
@@ -3372,6 +3381,15 @@ pub(super) fn preflight(
                         if local.0 as usize >= function.locals.len() =>
                     {
                         return Err(bad("local ID outside table"));
+                    }
+                    InstructionKind::DescribePackageField { local, index }
+                    | InstructionKind::TakePackageField { local, index }
+                    | InstructionKind::DropPackageField { local, index }
+                    | InstructionKind::StorePackageField { local, index, .. }
+                        if super::head_loans::is_owned_store_field(function, *local, *index) =>
+                    {
+                        budget.lookup(budget.store_field_functions.len(), "actual Store field function")?;
+                        budget.store_field_functions.insert(function.id);
                     }
                     InstructionKind::Call { arguments, .. }
                     | InstructionKind::ForeignCall { arguments, .. } => {
