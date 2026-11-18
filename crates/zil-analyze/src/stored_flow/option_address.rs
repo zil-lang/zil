@@ -436,7 +436,7 @@ impl Variants {
 // Signature class traversal is metadata-only dispatch. Full declaration,
 // pointee, slot and map authentication remains in this kernel's inventory.
 // Its bounded comparisons are prepaid by the stored signature caller.
-pub(super) fn candidate(ty: &Type) -> bool {
+pub(crate) fn candidate(ty: &Type) -> bool {
     matches!(ty, Type::BorrowedStorage { storage, life } if matches!(storage.as_ref(), Type::Enum { .. }) && !life.slots.is_empty())
 }
 

@@ -8786,12 +8786,16 @@ fn derive_cfg(
                         if !option_address::signature(ty) {
                             return Err(failure("Option activity has no exact shape"));
                         }
-                        let mask = value.option_variants.mask();
-                        if mask == 0 {
-                            grounded = false;
-                        }
-                        if mask == 1 {
-                            continue;
+                        if value.enum_variants.present() {
+                            grounded &= value.enum_variants.grounded(ty, b)?;
+                        } else {
+                            let mask = value.option_variants.mask();
+                            if mask == 0 {
+                                grounded = false;
+                            }
+                            if mask == 1 {
+                                continue;
+                            }
                         }
                     }
                     fee(b, life.slots.len())?;
