@@ -5,7 +5,7 @@ use zil_base::Span;
 
 fn unavailable(span: Span) -> Diagnostic {
     unsupported(
-        "stored byte view needs its actual local owning head and a synchronous read consumer",
+        "stored byte view needs its actual owning head and a synchronous payload consumer",
         Some(span),
     )
 }
@@ -196,29 +196,21 @@ pub(super) fn instruction(
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
-    if let InstructionKind::ByteBufferBorrow {
-        buffer,
-        mutable: false,
-    } = i.kind
-    {
-        b.spend(4)?;
-        let result = i
-            .result
-            .ok_or_else(|| err("byte payload view result is absent"))?;
-        let valid = matches!(vt(f, result)?, Type::Address { mutable: false, inner }
-            if matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8));
-        if !valid {
-            return Err(err(
-                "byte payload view must be a shared address of a byte slice",
-            ));
-        }
-        selection(module, f, buffer, i.span, b)?;
-        return Ok(true);
+    let InstructionKind::ByteBufferBorrow { buffer, mutable } = i.kind else {
+        return Ok(false);
+    };
+    b.spend(4)?;
+    let result = i.result.ok_or_else(|| err("byte payload view result is absent"))?;
+    let valid = matches!(vt(f, result)?, Type::Address { mutable: mode, inner }
+        if *mode == mutable && matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8));
+    if !valid {
+        return Err(err("byte payload view changes its actual access mode or byte slice type"));
     }
-    Ok(false)
+    selection(module, f, buffer, i.span, b)?;
+    Ok(true)
 }
 
-fn actual_permission(
+pub(super) fn actual_permission(
     module: &TypedModule,
     f: &TypedFunction,
     buffer: ValueId,
@@ -269,10 +261,7 @@ pub(super) fn transfer(
     values: &[Payload],
     b: &mut Budget,
 ) -> Check<Permission> {
-    let InstructionKind::ByteBufferBorrow {
-        buffer,
-        mutable: false,
-    } = i.kind
+    let InstructionKind::ByteBufferBorrow { buffer, .. } = i.kind
     else {
         return Err(unavailable(i.span));
     };
@@ -788,29 +777,6 @@ impl Sites {
                 return Err(unavailable(i.span));
             }
         }
-        let byte_access = match i.kind {
-            InstructionKind::ByteBufferBorrow {
-                buffer,
-                mutable: false,
-            } => Some((buffer, false)),
-            InstructionKind::ByteBufferReserve { buffer, .. }
-            | InstructionKind::ByteBufferPush { buffer, .. }
-            | InstructionKind::ByteBufferTruncate { buffer, .. }
-            | InstructionKind::ByteBufferBorrow {
-                buffer,
-                mutable: true,
-            } if self.active(live, b)? => Some((buffer, true)),
-            _ => None,
-        };
-        if let Some((buffer, write)) = byte_access {
-            let p = actual_permission(module, f, buffer, i.span, values, b)?;
-            if p.sources.is_empty() {
-                return Err(err(
-                    "byte operation has no independently grounded head source",
-                ));
-            }
-            access(&p, write, live, loans, requirements, b)?;
-        }
         if let InstructionKind::DropManaged { local } | InstructionKind::DropPackage { local } =
             i.kind
             && self.active(live, b)?
@@ -840,7 +806,7 @@ impl Sites {
                 continue;
             }
             let ordinary_local = if let InstructionKind::Store { local, .. } = i.kind {
-                matches!(&f.locals[local.0 as usize].ty, Type::Address { mutable: false, inner }
+                matches!(&f.locals[local.0 as usize].ty, Type::Address { inner, .. }
                     if inner.as_ref() == &Type::U8 || matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8))
             } else {
                 false
@@ -851,12 +817,15 @@ impl Sites {
                     i.kind,
                     InstructionKind::AddressIndex { .. }
                         | InstructionKind::AddressSlice { .. }
-                        | InstructionKind::ReborrowAddress { mutable: false, .. }
+                        | InstructionKind::ReborrowAddress { .. }
                         | InstructionKind::SliceLength { .. }
                 )
                 && !matches!(i.kind, InstructionKind::ReadAddress { address }
-                    if matches!(vt(f, address)?, Type::Address { mutable: false, inner } if inner.as_ref() == &Type::U8)
+                    if matches!(vt(f, address)?, Type::Address { inner, .. } if inner.as_ref() == &Type::U8)
                         && i.result.is_some_and(|id| f.values.get(id.0 as usize) == Some(&Type::U8)))
+                && !matches!(i.kind, InstructionKind::WriteAddress { address, value }
+                    if matches!(vt(f, address)?, Type::Address { mutable: true, inner } if inner.as_ref() == &Type::U8)
+                        && vt(f, value)? == &Type::U8)
             {
                 return Err(unavailable(i.span));
             }

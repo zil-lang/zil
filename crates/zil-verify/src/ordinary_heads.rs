@@ -247,17 +247,14 @@ pub(super) fn check(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> 
             return Ok(false);
         }
         if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
-            let Some(binding) = c.bindings.get(row) else {
+            let position = StoragePosition { base: StorageBase::Parameter(ordinal as u32), path: vec![] };
+            let Some(binding) = crate::signature_life::physical_binding(c, row, &position) else {
                 return Ok(false);
             };
             let StorageBinder::Invocation(id) = binding.binder else {
                 return Ok(false);
             };
-            if binding.position.base != StorageBase::Parameter(ordinal as u32)
-                || !binding.position.path.is_empty()
-                || id > next
-                || id >= c.invocation_binder_count
-            {
+            if id > next || id >= c.invocation_binder_count {
                 return Ok(false);
             }
             if id == next {

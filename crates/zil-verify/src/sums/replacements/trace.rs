@@ -69,7 +69,6 @@ pub(super) fn metadata(b: &Budget) -> Vec<String> {
                 b.byte_queries,
                 b.shared_byte_borrow,
                 b.ordinary_error_places,
-                b.byte_query_presence_checked,
                 b.stored_borrows,
                 b.stored_package_instance,
                 b.stored_slot_updates,

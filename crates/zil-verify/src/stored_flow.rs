@@ -2381,6 +2381,26 @@ fn relation(
 }
 
 pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<()> {
+    header_inner(module, f, b).map_err(|mut diagnostic| {
+        if diagnostic.code == "E-VERIFY-SIGNATURE-CLASS" {
+            let location = zil_base::DiagnosticIrLocation {
+                function: f.id.0,
+                block: None,
+                instruction: None,
+            };
+            for related in &mut diagnostic.related {
+                related.ir.get_or_insert(location.clone());
+            }
+            if diagnostic.related.is_empty() {
+                diagnostic.relate(zil_base::DiagnosticRole::Input, Some(f.span), Some(location),
+                    format!("actual signature of {}", f.name));
+            }
+        }
+        diagnostic
+    })
+}
+
+fn header_inner(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<()> {
     // Schedules extra current-memory work; the actual rows still come from
     // this kernel's checked types, instructions and frame at each use.
     b.qualified_head_returns |= qualified_heads::shape(&f.return_type).is_some();
@@ -2580,18 +2600,15 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             }
         }
     }
-    let byte_window = b.shared_byte_borrow && matches!(&f.return_type,Type::Address{inner,..}
-        if matches!(inner.as_ref(),Type::Slice{element} if element.as_ref()==&Type::U8));
+    // Authorize an actual direct description head from its sealed carrier.
+    // The later CFG scan independently schedules data-source and loan checks.
     let byte_signature = byte_companion
         && !byte_queries::legacy_task_signature(f)
         && f.call_kind == CallKind::Direct
         && f.foreign.is_none()
-        && f.environment.is_none()
-        && (byte_window || byte_queries::signature_presence(module, b)?);
-    if byte_signature && byte_window {
-        crate::byte_buffers::check_carrier(module,&Type::Desc(Box::new(Type::ByteBuffer)),Some(f.span),b)?;
-    }
+        && f.environment.is_none();
     if byte_signature {
+        crate::byte_buffers::check_carrier(module,&Type::Desc(Box::new(Type::ByteBuffer)),Some(f.span),b)?;
         b.spend(parameters.len())?;
     }
     // Actual Capture sources prove targets separately. If a factory publishes
@@ -4306,7 +4323,7 @@ static_dependency: StaticProvenance::NotStatic,
             }
             add_loans(&mut out.address.loans, &description.loans, b)?;
         }
-        InstructionKind::ByteBufferBorrow { mutable: false, .. } => {
+        InstructionKind::ByteBufferBorrow { .. } => {
             out.address = owned_byte_views::transfer(module, f, i, values, b)?;
         }
         InstructionKind::ByteBufferNew
@@ -6447,6 +6464,19 @@ fn windows(
                             loans: Vec::new(),
                         };
                         checks.check(&actual, true, requirements, b)?;
+                    }
+                    InstructionKind::ByteBufferBorrow { buffer, .. }
+                    | InstructionKind::ByteBufferReserve { buffer, .. }
+                    | InstructionKind::ByteBufferPush { buffer, .. }
+                    | InstructionKind::ByteBufferTruncate { buffer, .. }
+                        if b.shared_byte_borrow => {
+                        let write = !matches!(i.kind, InstructionKind::ByteBufferBorrow { mutable: false, .. });
+                        let permission = owned_byte_views::actual_permission(module, f, *buffer,
+                            i.span, &solution.values, b)?;
+                        if write { store_paths::writable(&permission, &solution.loans, b)?; }
+                        checks.check(&permission, write, requirements, b)?;
+                        descriptor_access::record(module, f, head_accesses, description_accesses,
+                            &permission, write, b)?;
                     }
                     InstructionKind::WriteDesc{..}=>{
                         let(permission,_)=description_access(f,i,&solution.values,b)?.ok_or_else(||err("description write lacks its exact finite scalar access"))?;

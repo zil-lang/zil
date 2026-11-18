@@ -1,5 +1,6 @@
 //! Independent canonical semantic-class checking. Rows do not supply roots.
 use super::*;
+mod occurrences;
 
 // Only the actual type graph can establish a value-only Array. Its nested
 // qualified instances are checked independently in module preflight.
@@ -227,6 +228,10 @@ pub(super) fn charge(c: &StorageLifeContract, b: &mut Budget) -> Check<()> {
         b.spend(r.position.path.len())?;
     }
     Ok(())
+}
+
+pub(super) fn physical_binding<'a>(c:&'a StorageLifeContract,row:usize,position:&StoragePosition)->Option<&'a StorageLifeBinding>{
+    c.bindings.get(row).filter(|row| row.position == *position)
 }
 
 pub(super) fn outer(c: &StorageLifeContract, base: StorageBase) -> Option<StorageBinder> {
@@ -593,42 +598,13 @@ fn relation_inputs<P:InputType>(
             "incomplete, noncanonical or ungrounded signature class relation",
         )
     };
-    let rows = c
-        .bindings
-        .len()
-        .checked_add(c.classes.len())
-        .ok_or_else(invalid)?;
-    let domains = (c.fixed_binder_count as usize)
-        .checked_add(c.invocation_binder_count as usize)
-        .ok_or_else(invalid)?;
-    if domains > rows || captures.is_none() && c.fixed_binder_count as usize > c.classes.len() {
-        return Err(invalid());
-    }
-    let input_classes = c
-        .classes
-        .iter()
-        .filter(|r| matches!(r.position.base, StorageBase::Parameter(_)))
-        .count();
-    if captures.is_none()
-        && c.fixed_binder_count as usize > input_classes.saturating_add(pending.len())
-    {
-        return Err(invalid());
-    }
-    let array_output_upper = match result {
-        Type::Address { mutable: false, .. } => c
-            .bindings
-            .last()
-            .filter(|row| row.position.base == StorageBase::Result && row.position.path.is_empty())
-            .map(|row| row.binder),
-        _ => None,
-    };
-    let mut array_result_input = false;
+    let rows = c.bindings.len().checked_add(c.classes.len()).ok_or_else(invalid)?;
     let mut borrow = 0usize;
     let mut constant = 0usize;
     let mut class = 0usize;
     let mut next = [0u32; 2];
     let mut inputs = [0u32; 2];
-    let mut grounded = vec![false; c.fixed_binder_count as usize];
+    let mut grounded = vec![false; (c.fixed_binder_count as usize).min(rows)];
     let capture_types = captures.unwrap_or(&[]);
     for (ordinal, ty) in parameters
         .iter().map(InputType::ty)
@@ -648,13 +624,21 @@ fn relation_inputs<P:InputType>(
                     || !matches!(closure_kind, Some(CallableKind::Fn | CallableKind::FnMut))
                     || !row.position.path.is_empty()
                 {
-                    return Err(invalid());
+                    return Err(occurrences::failure(span, StorageBase::Receiver, format!(
+                        "signature receiver row {:?} is not the root of an actual Fn or FnMut receiver",
+                        row.position,
+                    )));
                 }
                 let StorageBinder::Invocation(index) = row.binder else {
-                    return Err(invalid());
+                    return Err(occurrences::failure(span, StorageBase::Receiver, format!(
+                        "signature receiver needs an Invocation binder; found {:?}", row.binder,
+                    )));
                 };
                 if index >= c.invocation_binder_count || index > next[1] {
-                    return Err(invalid());
+                    return Err(occurrences::failure(span, StorageBase::Receiver, format!(
+                        "signature receiver binds Invocation({index}); domain has {} binders and next canonical introduction is {}",
+                        c.invocation_binder_count, next[1],
+                    )));
                 }
                 if index == next[1] {
                     next[1] += 1;
@@ -670,23 +654,31 @@ fn relation_inputs<P:InputType>(
         } else {
             StorageBase::Parameter(u32::try_from(ordinal).map_err(|_| invalid())?)
         };
-        let mut visit = |binder: StorageBinder, retained: bool, pending_here: bool| -> Check<()> {
+        let mut visit = |position: &dyn std::fmt::Debug, binder: StorageBinder, retained: bool, pending_here: bool| -> Check<()> {
+            let failure = |reason: &str| occurrences::failure(span, base, format!(
+                "signature occurrence {position:?} binds {binder:?}; {reason}",
+            ));
             if capture && matches!(binder, StorageBinder::Invocation(_)) {
-                return Err(invalid());
+                return Err(failure("a persistent capture needs a Fixed binder"));
             }
             let (domain, id, count) = match binder {
                 StorageBinder::Fixed(i) => (0, i, c.fixed_binder_count),
                 StorageBinder::Invocation(i) => (1, i, c.invocation_binder_count),
             };
-            if id >= count || id > next[domain] || (output && id >= inputs[domain] && !pending_here)
-            {
-                return Err(invalid());
+            if id >= count {
+                return Err(failure(&format!("binder ordinal {id} is outside the declared domain of {count}")));
+            }
+            if output && id >= inputs[domain] && !pending_here {
+                return Err(failure(&format!("result has no validated input for ordinal {id}; {} input binders were established in this domain", inputs[domain])));
+            }
+            if id > next[domain] {
+                return Err(failure(&format!("noncanonical binder ordinal {id}; next introduction is {}", next[domain])));
             }
             if id == next[domain] {
                 next[domain] += 1;
             }
             if retained && domain == 0 {
-                grounded[id as usize] = true;
+                if let Some(seen) = grounded.get_mut(id as usize) { *seen = true; }
             }
             Ok(())
         };
@@ -698,21 +690,21 @@ fn relation_inputs<P:InputType>(
                     // A constant occurrence has no class or invocation binder.
                     // This checks only its shape; actual Static provenance is
                     // discharged separately by the typed body/constructor proof.
-                    if writable
-                        || c.bindings
-                            .get(borrow)
-                            .is_some_and(|r| r.position == position)
-                    {
-                        return Err(invalid());
+                    if writable {
+                        return Err(occurrences::failure(span, base, format!(
+                            "signature marks writable occurrence {position:?} as constant",
+                        )));
+                    }
+                    if let Some(row) = physical_binding(c, borrow, &position) {
+                        return Err(occurrences::failure(span, base, format!(
+                            "signature declares occurrence {position:?} both constant and bound to {:?}", row.binder,
+                        )));
                     }
                     constant += 1;
                 } else {
-                    let row = c.bindings.get(borrow).ok_or_else(invalid)?;
-                    if row.position != position {
-                        return Err(invalid());
-                    }
+                    let row = occurrences::binding(c, borrow, &position, span)?;
                     borrow += 1;
-                    visit(row.binder, capture, false)?;
+                    visit(&row.position, row.binder, capture, false)?;
                 }
 
                 (inner.as_ref(), true)
@@ -747,15 +739,9 @@ fn relation_inputs<P:InputType>(
                     }
                     constant += 1;
                 } else {
-                    let row = c.bindings.get(borrow).ok_or_else(invalid)?;
-                    if row.position != position {
-                        return Err(invalid());
-                    }
-                    if !output && Some(row.binder) == array_output_upper {
-                        array_result_input = true;
-                    }
+                    let row = occurrences::binding(c, borrow, &position, span)?;
                     borrow += 1;
-                    visit(row.binder, false, false)?;
+                    visit(&row.position, row.binder, false, false)?;
                 }
             }
             continue;
@@ -800,36 +786,32 @@ fn relation_inputs<P:InputType>(
                 class_path.push(LifeTypeProjection::Pointee);
             }
             for (port, shape) in retained_life.ports.iter().enumerate() {
-                let row = c.bindings.get(borrow).ok_or_else(invalid)?;
                 let mut path = port_path.clone();
                 path.push(ContractProjection::RetainedPort(port as u32));
-                if row.position.base != base
-                    || row.position.path != path
-                    || c.classes
-                        .get(class + shape.binder as usize)
-                        .is_none_or(|class_row| class_row.binder != row.binder)
-                {
-                    return Err(invalid());
+                let position = StoragePosition { base, path };
+                let row = occurrences::binding(c, borrow, &position, span)?;
+                let expected = SignatureLifeClass {base, path: class_path.clone(), class: shape.binder};
+                let input_class = occurrences::class(c, class + shape.binder as usize, &expected, span)?;
+                if input_class.binder != row.binder {
+                    return Err(occurrences::failure(span, base, format!(
+                        "signature retained port {:?} binds {:?}; actual projected class {:?} binds {:?}",
+                        position, row.binder, expected, input_class.binder,
+                    )));
                 }
                 if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
                     return Err(invalid());
                 }
                 borrow += 1;
-                visit(row.binder, !output, false)?;
+                visit(&row.position, row.binder, !output, false)?;
             }
             for local in 0..retained_life.binder_count {
-                let row = c.classes.get(class).ok_or_else(invalid)?;
-                if row.position.base != base
-                    || row.position.path != class_path
-                    || row.position.class != local
-                {
-                    return Err(invalid());
-                }
+                let expected = SignatureLifeClass {base, path: class_path.clone(), class: local};
+                let row = occurrences::class(c, class, &expected, span)?;
                 if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
                     return Err(invalid());
                 }
                 class += 1;
-                visit(row.binder, !output, false)?;
+                visit(&row.position, row.binder, !output, false)?;
             }
             continue;
         }
@@ -849,22 +831,17 @@ fn relation_inputs<P:InputType>(
                 return Err(invalid());
             }
             for local in 0..owner.retained_life.binder_count {
-                let row = c.classes.get(class).ok_or_else(invalid)?;
                 let mut path = if pointee {
                     vec![LifeTypeProjection::Pointee]
                 } else {
                     vec![]
                 };
                 path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)));
-                if row.position.base != base
-                    || row.position.path != path
-                    || row.position.class != local
-                {
-                    return Err(invalid());
-                }
+                let expected = SignatureLifeClass { base, path, class: local };
+                let row = occurrences::class(c, class, &expected, span)?;
                 class += 1;
                 visit(
-                    row.binder,
+                    &row.position, row.binder,
                     if captures.is_some() { capture } else { !output },
                     output && pending.contains(&row.position),
                 )?;
@@ -879,7 +856,7 @@ fn relation_inputs<P:InputType>(
                     if row.position.base!=base||row.position.path.len()!=depth||!row.position.path.iter().all(|step|*step==LifeTypeProjection::Pointee)||row.position.class!=local{return Err(invalid());}
                     let parent=c.classes.get(first.checked_add(parent as usize).ok_or_else(invalid)?).ok_or_else(invalid)?;
                     if parent.position.path!=[LifeTypeProjection::Pointee]||parent.binder!=row.binder{return Err(invalid());}
-                    class+=1;visit(row.binder,if captures.is_some(){capture}else{!output},output&&pending.contains(&row.position))
+                    class+=1;visit(&row.position, row.binder,if captures.is_some(){capture}else{!output},output&&pending.contains(&row.position))
                 })?;
             },
             Type::Dyn { interface } | Type::OwnedDyn { interface } => {
@@ -887,23 +864,14 @@ fn relation_inputs<P:InputType>(
                     .and_then(|m| m.dyn_interfaces.iter().find(|d| d.id == *interface))
                     .ok_or_else(invalid)?;
                 for local in 0..owner.retained_life.binder_count {
-                    let row = c.classes.get(class).ok_or_else(invalid)?;
-                    if row.position.base != base
-                        || row.position.class != local
-                        || if pointee {
-                            row.position.path.as_slice() != [LifeTypeProjection::Pointee]
-                        } else {
-                            !row.position.path.is_empty()
-                        }
-                    {
-                        return Err(invalid());
-                    }
+                    let expected = SignatureLifeClass { base, path: if pointee { vec![LifeTypeProjection::Pointee] } else { vec![] }, class: local };
+                    let row = occurrences::class(c, class, &expected, span)?;
                     if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
                         return Err(invalid());
                     }
                     class += 1;
                     visit(
-                        row.binder,
+                        &row.position, row.binder,
                         if captures.is_some() { capture } else { !output },
                         output && pending.contains(&row.position),
                     )?;
@@ -924,25 +892,18 @@ fn relation_inputs<P:InputType>(
                         span,
                     ));
                 }
-                if life.binder_count == 0
-                    || life.binder_count as usize > c.classes.len().saturating_sub(class)
-                {
-                    return Err(invalid());
+                if life.binder_count == 0 {
+                    return Err(occurrences::failure(span, base, format!(
+                        "signature nominal occurrence {base:?} has an empty intrinsic class domain",
+                    )));
                 }
                 let first_class=class;
                 for local in 0..life.binder_count {
-                    let row = &c.classes[class];
-                    let path = if pointee {
-                        row.position.path.as_slice() == [LifeTypeProjection::Pointee]
-                    } else {
-                        row.position.path.is_empty()
-                    };
-                    if row.position.base != base || row.position.class != local || !path {
-                        return Err(invalid());
-                    }
+                    let expected = SignatureLifeClass { base, path: if pointee { vec![LifeTypeProjection::Pointee] } else { vec![] }, class: local };
+                    let row = occurrences::class(c, class, &expected, span)?;
                     class += 1;
                     visit(
-                        row.binder,
+                        &row.position, row.binder,
                         if captures.is_some() { capture } else { !output },
                         output && pending.contains(&row.position),
                     )?;
@@ -960,10 +921,15 @@ fn relation_inputs<P:InputType>(
                             if slot.mode!=StoredBorrowMode::SharedAddress||c.bindings.get(borrow).is_some_and(|row|row.position==position){return Err(invalid());}
                             constant+=1;continue;
                         }
-                        let row=c.bindings.get(borrow).ok_or_else(invalid)?;
-                        if row.position!=position||row.binder!=class_row.binder{return Err(invalid());}
+                        let row=occurrences::binding(c, borrow, &position, span)?;
+                        if row.binder != class_row.binder {
+                            return Err(occurrences::failure(span, base, format!(
+                                "signature physical port {:?} binds {:?}; actual projected class {:?} binds {:?}",
+                                position, row.binder, class_row.position, class_row.binder,
+                            )));
+                        }
                         borrow+=1;
-                        visit(row.binder,capture,output&&pending.contains(&class_row.position))?;
+                        visit(&row.position, row.binder,capture,output&&pending.contains(&class_row.position))?;
                     }
                 }
             }
@@ -980,16 +946,11 @@ fn relation_inputs<P:InputType>(
                 let mut classes = Vec::new();
                 array_classes(actual, &mut path, &mut classes);
                 for (path, local) in classes {
-                    let row = c.classes.get(class).ok_or_else(invalid)?;
-                    if row.position.base != base
-                        || row.position.path != path
-                        || row.position.class != local
-                    {
-                        return Err(invalid());
-                    }
+                    let expected = SignatureLifeClass { base, path, class: local };
+                    let row = occurrences::class(c, class, &expected, span)?;
                     class += 1;
                     visit(
-                        row.binder,
+                        &row.position, row.binder,
                         if captures.is_some() { capture } else { !output },
                         output && pending.contains(&row.position),
                     )?;
@@ -1008,22 +969,13 @@ fn relation_inputs<P:InputType>(
                     })?
                     .fixed_binder_count;
                 for local in 0..count {
-                    let row = c.classes.get(class).ok_or_else(invalid)?;
-                    if row.position.base != base
-                        || row.position.class != local
-                        || if pointee {
-                            row.position.path.as_slice() != [LifeTypeProjection::Pointee]
-                        } else {
-                            !row.position.path.is_empty()
-                        }
-                    {
-                        return Err(invalid());
-                    }
+                    let expected = SignatureLifeClass { base, path: if pointee { vec![LifeTypeProjection::Pointee] } else { vec![] }, class: local };
+                    let row = occurrences::class(c, class, &expected, span)?;
                     class += 1;
                     // An output row cannot ground itself. Only an exact
                     // independently proved export position may introduce a
                     // local result role with all source dependencies intact.
-                    visit(row.binder, !output, output && pending.contains(&row.position))?;
+                    visit(&row.position, row.binder, !output, output && pending.contains(&row.position))?;
                 }
             }
             t if pointee => {
@@ -1055,77 +1007,45 @@ fn relation_inputs<P:InputType>(
             }
         }
     }
-    if borrow != c.bindings.len()
-        || constant != c.static_bindings.len()
-        || class != c.classes.len()
-        || next != [c.fixed_binder_count, c.invocation_binder_count]
-        || grounded.iter().enumerate().any(|(index, value)| {
-            !value
-                && !c.classes.iter().any(|row| {
-                    row.binder == StorageBinder::Fixed(index as u32)
-                        && pending.contains(&row.position)
-                })
-        })
+    if let Some(extra) = c.bindings.get(borrow) {
+        return Err(occurrences::failure(span, extra.position.base, format!(
+            "signature has extra physical borrow row {borrow}: {extra:?}",
+        )));
+    }
+    if let Some(extra) = c.static_bindings.get(constant) {
+        return Err(occurrences::failure(span, extra.base, format!(
+            "signature has extra constant borrow row {constant}: {extra:?}",
+        )));
+    }
+    if let Some(extra) = c.classes.get(class) {
+        return Err(occurrences::failure(span, extra.position.base, format!(
+            "signature has extra intrinsic class row {class}: {extra:?}",
+        )));
+    }
+    if next != [c.fixed_binder_count, c.invocation_binder_count] {
+        return Err(occurrences::failure(span, StorageBase::Result, format!(
+            "signature declares {} Fixed and {} Invocation binders; validated positions introduce {} Fixed and {} Invocation binders",
+            c.fixed_binder_count, c.invocation_binder_count, next[0], next[1],
+        )));
+    }
+    let input_classes = c.classes.iter().filter(|r| matches!(r.position.base, StorageBase::Parameter(_))).count();
+    if captures.is_none() && (c.fixed_binder_count as usize > c.classes.len()
+        || c.fixed_binder_count as usize > input_classes.saturating_add(pending.len()))
     {
-        return Err(invalid());
+        return Err(occurrences::failure(span, StorageBase::Result, format!(
+            "signature declares {} Fixed binders but supplies {input_classes} input class rows and {} independently established result class positions",
+            c.fixed_binder_count, pending.len(),
+        )));
     }
-    if let Type::Address { mutable, .. } = result {
-        let upper = outer(c, StorageBase::Result);
-        let mut possible = !*mutable
-            && c.static_bindings
-                .iter()
-                .any(|position| position.base == StorageBase::Result && position.path.is_empty());
-        for (i, p) in parameters.iter().map(InputType::ty).enumerate() {
-            let byte_head=allow_byte_input
-                && matches!(p,Type::Desc(payload) if payload.as_ref()==&Type::ByteBuffer)
-                && matches!(result,Type::Address{inner,..}
-                    if matches!(inner.as_ref(),Type::Slice{element} if element.as_ref()==&Type::U8));
-            // A descriptor header contributes only its actual short-access
-            // head. The returned data provenance and loans remain independent.
-            possible |= (matches!(p,Type::Address{mutable:m,..}if !mutable||*m)
-                || byte_head && upper.is_some())
-                && outer(c, StorageBase::Parameter(i as u32)) == upper;
-        }
-        possible |= c.classes.iter().any(|r| {
-            let StorageBase::Parameter(i) = r.position.base else {
-                return false;
-            };
-            Some(r.binder) == upper
-                && (!mutable
-                    || matches!(
-                        parameters.get(i as usize).map(InputType::ty),
-                        Some(Type::Address { mutable: true, .. })
-                    ))
-                && (!mutable || r.position.path.contains(&LifeTypeProjection::Pointee))
-        });
-        possible |= captures.is_some()
-            && outer(c, StorageBase::Receiver).is_some_and(|head| Some(head) == upper)
-            && (!*mutable || closure_kind == Some(CallableKind::FnMut));
-        if let Some(captures) = captures {
-            for (index, ty) in captures.iter().enumerate() {
-                possible |= matches!(ty, Type::Address { mutable: available, .. }
-                    if (!mutable || *available)
-                        && outer(c, StorageBase::Capture(index as u32)) == upper);
-            }
-            possible |= c.classes.iter().any(|row| {
-                let StorageBase::Capture(index) = row.position.base else {
-                    return false;
-                };
-                Some(row.binder) == upper
-                    && captures.get(index as usize).is_some_and(|ty| {
-                        !mutable
-                            || matches!(
-                                ty,
-                                Type::Address { mutable: true, .. } | Type::BorrowedStorage { .. }
-                            )
-                    })
-            });
-        }
-        if !possible && !array_result_input {
-            return Err(invalid());
-        }
+    if let Some(index) = grounded.iter().enumerate().find_map(|(index, seen)| {
+        (!seen && !c.classes.iter().any(|row| row.binder == StorageBinder::Fixed(index as u32)
+            && pending.contains(&row.position))).then_some(index)
+    }) {
+        return Err(occurrences::failure(span, StorageBase::Result, format!(
+            "signature Fixed({index}) has no retained input occurrence or independently established result class",
+        )));
     }
-    Ok(())
+    occurrences::returned_root(c, parameters, captures, closure_kind, result, allow_byte_input, span)
 }
 
 pub(super) fn entails(required: &StorageLifeContract, supplied: &StorageLifeContract) -> bool {

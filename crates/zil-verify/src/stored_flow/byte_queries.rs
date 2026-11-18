@@ -942,29 +942,6 @@ pub(super) fn record(out: &mut Vec<Source>, permission: &Permission, b: &mut Bud
     Ok(())
 }
 
-/// The early rich-signature checker runs before instruction admission. Only an
-/// exact newly admitted companion pays this scan; later proofs grant authority.
-pub(super) fn signature_presence(module: &TypedModule, b: &mut Budget) -> Check<bool> {
-    b.spend(1)?;
-    if b.byte_queries || b.byte_query_presence_checked {
-        return Ok(b.byte_queries);
-    }
-    b.spend(module.functions.len())?;
-    for function in &module.functions {
-        b.spend(function.blocks.len())?;
-        for block in &function.blocks {
-            b.spend(block.instructions.len())?;
-            if block.instructions.iter().any(|i| query(&i.kind).is_some()) {
-                b.byte_queries = true;
-                b.byte_query_presence_checked = true;
-                return Ok(true);
-            }
-        }
-    }
-    b.byte_query_presence_checked = true;
-    Ok(false)
-}
-
 pub(super) fn certify_edges(
     module: &TypedModule,
     pending: &[PendingEdge],
