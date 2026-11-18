@@ -21,6 +21,13 @@ pub(crate) fn name(bound: &Bound) -> Option<&'static str> {
     }
 }
 
+#[derive(Clone, Copy)]
+struct ValueScope<'a> {
+    available: &'a Bounds,
+    variables: &'a BTreeSet<String>,
+    callables: callable::StoreCallbacks<'a>,
+}
+
 impl Index<'_> {
     pub(crate) fn value_bound(
         &self,
@@ -33,30 +40,53 @@ impl Index<'_> {
         self.value_shape(
             ty,
             capability,
-            available,
-            variables,
+            ValueScope {
+                available,
+                variables,
+                callables: callable::StoreCallbacks::None,
+            },
             budget,
             &mut BTreeSet::new(),
             0,
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
+    pub(in crate::generics) fn callable_value_layout(
+        &self,
+        ty: &TypeRef,
+        available: &Bounds,
+        variables: &BTreeSet<String>,
+        callables: callable::StoreCallbacks<'_>,
+        budget: &mut Budget<'_>,
+    ) -> R<()> {
+        self.value_shape(
+            ty,
+            &Bound::Value,
+            ValueScope {
+                available,
+                variables,
+                callables,
+            },
+            budget,
+            &mut BTreeSet::new(),
+            0,
+        )
+    }
+
     fn value_shape(
         &self,
         ty: &TypeRef,
         capability: &Bound,
-        available: &Bounds,
-        variables: &BTreeSet<String>,
+        scope: ValueScope<'_>,
         budget: &mut Budget<'_>,
         active: &mut BTreeSet<String>,
         depth: usize,
     ) -> R<()> {
         budget.node(ty.span, depth)?;
         budget.ty(ty)?;
-        if matches!(&grouped(ty).kind,TypeKind::Named{path,..} if path.len()==2 && variables.contains(&path[0]))
+        if matches!(&grouped(ty).kind,TypeKind::Named{path,..} if path.len()==2 && scope.variables.contains(&path[0]))
         {
-            let projections = self.projection_names(available, budget, ty.span)?;
+            let projections = self.projection_names(scope.available, budget, ty.span)?;
             budget.substituted_type(ty, &projections)?;
             let mut projected = ty.clone();
             Substitution {
@@ -69,23 +99,14 @@ impl Index<'_> {
                     "Value projection requires an explicit unambiguous trait premise",
                 ));
             }
-            return self.value_shape(
-                &projected,
-                capability,
-                available,
-                variables,
-                budget,
-                active,
-                depth + 1,
-            );
+            return self.value_shape(&projected, capability, scope, budget, active, depth + 1);
         }
         let sync = matches!(capability, Bound::SyncDrop);
-        let accepts = |b: &Bound| {
-            b == capability
-                || matches!(b, Bound::Copy | Bound::StoreElement)
-                || !sync && *b == Bound::SyncDrop
-        };
-        let symbolic = plain(ty).filter(|name| variables.contains(*name));
+        let accepts = |b: &Bound| b == capability || matches!(b, Bound::Copy | Bound::StoreElement);
+        let symbolic = plain(ty).filter(|name| scope.variables.contains(*name));
+        if !sync && symbolic.is_some_and(|name| scope.callables.contains(name)) {
+            return Ok(());
+        }
         let projected = associated::parts(ty).is_some();
         if symbolic.is_some() || projected {
             let key;
@@ -95,7 +116,8 @@ impl Index<'_> {
                 key = subject_key(ty, budget)?;
                 &key
             };
-            if available
+            if scope
+                .available
                 .get(subject)
                 .is_some_and(|bounds| bounds.iter().any(accepts))
             {
@@ -115,15 +137,7 @@ impl Index<'_> {
             // proof remain responsible for the actual dynamic owner.
             budget.ty(interface)?;
             if let Some(context) = context {
-                self.value_shape(
-                    context,
-                    &Bound::Value,
-                    available,
-                    variables,
-                    budget,
-                    active,
-                    depth + 1,
-                )?;
+                self.value_shape(context, &Bound::Value, scope, budget, active, depth + 1)?;
             }
             return Ok(());
         }
@@ -132,54 +146,22 @@ impl Index<'_> {
             // retained class remain in the original TypeRef and core contract.
             TypeKind::Reference { .. } => Ok(()),
             TypeKind::Function { .. } | TypeKind::ForeignFunction { .. } => {
-                trait_instances::known_type(ty, variables, &self.nominals, budget, depth + 1)
+                trait_instances::known_type(ty, scope.variables, &self.nominals, budget, depth + 1)
             }
             TypeKind::Tuple(fields) | TypeKind::Union(fields) => {
                 for field in fields {
-                    self.value_shape(
-                        field,
-                        capability,
-                        available,
-                        variables,
-                        budget,
-                        active,
-                        depth + 1,
-                    )?;
+                    self.value_shape(field, capability, scope, budget, active, depth + 1)?;
                 }
                 Ok(())
             }
             TypeKind::Error { error, result } => {
-                self.value_shape(
-                    error,
-                    capability,
-                    available,
-                    variables,
-                    budget,
-                    active,
-                    depth + 1,
-                )?;
-                self.value_shape(
-                    result,
-                    capability,
-                    available,
-                    variables,
-                    budget,
-                    active,
-                    depth + 1,
-                )
+                self.value_shape(error, capability, scope, budget, active, depth + 1)?;
+                self.value_shape(result, capability, scope, budget, active, depth + 1)
             }
             TypeKind::Array {
                 element,
                 length: Some(_),
-            } => self.value_shape(
-                element,
-                capability,
-                available,
-                variables,
-                budget,
-                active,
-                depth + 1,
-            ),
+            } => self.value_shape(element, capability, scope, budget, active, depth + 1),
             TypeKind::Named { path, args } => {
                 let name = path.join(".");
                 if args.is_empty()
@@ -232,28 +214,12 @@ impl Index<'_> {
                                 "Task Value needs actual type and context arguments",
                             ));
                         };
-                        self.value_shape(
-                            actual,
-                            &Bound::Value,
-                            available,
-                            variables,
-                            budget,
-                            active,
-                            depth + 1,
-                        )?;
+                        self.value_shape(actual, &Bound::Value, scope, budget, active, depth + 1)?;
                     }
                     return Ok(());
                 }
                 if name == "Store" && sync {
-                    return self.managed_value(
-                        ty,
-                        capability,
-                        available,
-                        variables,
-                        budget,
-                        active,
-                        depth + 1,
-                    );
+                    return self.managed_value(ty, capability, scope, budget, active, depth + 1);
                 }
                 if name == "Managed" {
                     let [GenericArg::Type(resource)] = args.as_slice() else {
@@ -262,8 +228,7 @@ impl Index<'_> {
                     return self.managed_value(
                         resource,
                         capability,
-                        available,
-                        variables,
+                        scope,
                         budget,
                         active,
                         depth + 1,
@@ -334,8 +299,7 @@ impl Index<'_> {
                                     self.managed_value(
                                         &actual,
                                         capability,
-                                        available,
-                                        variables,
+                                        scope,
                                         budget,
                                         active,
                                         depth + 1,
@@ -344,8 +308,7 @@ impl Index<'_> {
                                     self.value_shape(
                                         &actual,
                                         capability,
-                                        available,
-                                        variables,
+                                        scope,
                                         budget,
                                         active,
                                         depth + 1,
@@ -412,8 +375,7 @@ impl Index<'_> {
                                         self.managed_value(
                                             &actual,
                                             capability,
-                                            available,
-                                            variables,
+                                            scope,
                                             budget,
                                             active,
                                             depth + 1,
@@ -422,8 +384,7 @@ impl Index<'_> {
                                         self.value_shape(
                                             &actual,
                                             capability,
-                                            available,
-                                            variables,
+                                            scope,
                                             budget,
                                             active,
                                             depth + 1,
@@ -449,13 +410,11 @@ impl Index<'_> {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn managed_value(
         &self,
         ty: &TypeRef,
         capability: &Bound,
-        available: &Bounds,
-        variables: &BTreeSet<String>,
+        scope: ValueScope<'_>,
         budget: &mut Budget<'_>,
         active: &mut BTreeSet<String>,
         depth: usize,
@@ -463,34 +422,18 @@ impl Index<'_> {
         budget.node(ty.span, depth)?;
         if matches!(&grouped(ty).kind,TypeKind::Named{path,..} if path.len()==1 && matches!(path[0].as_str(),"Task"|"AsyncRegistration"))
         {
-            return self.value_shape(
-                ty,
-                capability,
-                available,
-                variables,
-                budget,
-                active,
-                depth + 1,
-            );
+            return self.value_shape(ty, capability, scope, budget, active, depth + 1);
         }
         if let Some(element) = stores::element(ty) {
             self.store_element(
                 element,
-                available,
-                variables,
+                scope.available,
+                scope.variables,
                 budget,
                 callable::StoreCallbacks::None,
             )?;
             if matches!(capability, Bound::SyncDrop) {
-                self.value_shape(
-                    element,
-                    capability,
-                    available,
-                    variables,
-                    budget,
-                    active,
-                    depth + 1,
-                )?;
+                self.value_shape(element, capability, scope, budget, active, depth + 1)?;
             }
             return Ok(());
         }

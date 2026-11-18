@@ -115,9 +115,15 @@ impl CallableTemplates {
         ])
     }
     pub(super) fn store_callbacks(&self) -> StoreCallbacks<'_> {
-        if !self.owned_state {
+        if self.owned_state {
+            self.value_callbacks()
+        } else {
             StoreCallbacks::None
-        } else if let Some(name) = self.single_generic() {
+        }
+    }
+
+    pub(super) fn value_callbacks(&self) -> StoreCallbacks<'_> {
+        if let Some(name) = self.single_generic() {
             StoreCallbacks::Single(name)
         } else if let Some(names) = self.dual_names() {
             StoreCallbacks::Pair(names)

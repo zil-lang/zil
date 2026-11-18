@@ -2097,13 +2097,19 @@ impl Check<'_, '_, '_> {
             Err(diagnostic) if diagnostic.category == zil_base::ResultCategory::ResourceLimit => {
                 Err(diagnostic)
             }
-            Err(_) => self.traits.value_bound(
-                ty,
-                &trait_bounds::Bound::Value,
-                &self.bounds,
-                &self.variables,
-                self.budget,
-            ),
+            Err(_) => {
+                let callables = self.callable.as_ref().map_or(
+                    callable::StoreCallbacks::None,
+                    callable::CallableTemplates::value_callbacks,
+                );
+                self.traits.callable_value_layout(
+                    ty,
+                    &self.bounds,
+                    &self.variables,
+                    callables,
+                    self.budget,
+                )
+            }
         }
     }
 
