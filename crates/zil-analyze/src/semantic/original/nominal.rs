@@ -699,6 +699,7 @@ impl Solver<'_, '_> {
         };
         let declaration = self.inventory.definition(*definition, b)?;
         let SemanticDefinitionBody::Nominal {
+            kind,
             body: SemanticNominalBody::Product { fields: recipes },
             ..
         } = &declaration.body
@@ -707,6 +708,9 @@ impl Solver<'_, '_> {
                 "original record construction selects a non-product declaration",
             ));
         };
+        if !complete && *kind != LifeNominalKind::Record {
+            return Err(fail("original record update selects a non-record declaration"));
+        }
         b.spend(fields.len().saturating_add(values.len()), WORK)?;
         let fields = fields.clone();
         if complete && values.len() != recipes.len() {

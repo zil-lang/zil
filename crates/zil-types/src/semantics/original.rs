@@ -3764,6 +3764,15 @@ impl<'a> Check<'a, '_> {
             CoreExprKind::Record { ty, fields } => {
                 self.record_constructor(owner, ty, fields, variables, wanted, depth + 1)?
             }
+            CoreExprKind::RecordUpdate { ty, base, fields } => self.record_update(
+                owner,
+                ty.as_ref(),
+                base,
+                fields,
+                variables,
+                wanted,
+                depth + 1,
+            )?,
             CoreExprKind::RecordConstructor { definition, fields } => self
                 .inferred_record_constructor(
                     owner,

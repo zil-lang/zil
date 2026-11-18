@@ -2563,6 +2563,30 @@ impl<'a> Engine<'a, '_> {
                     }
                     Ok(Value::Fields(out))
                 }
+                CoreExprKind::RecordUpdate { base, fields, .. } => {
+                    let base = self.expr(owner, base, state, depth + 1)?;
+                    if !matches!(base, Value::Fields(_)) {
+                        return Err(pending(
+                            "original record update requires the complete base field inventory",
+                        ));
+                    }
+                    self.pay(1, depth)?;
+                    let slot = state.temporaries.len();
+                    state.temporaries.push(base);
+                    for (name, expression) in fields {
+                        let value = self.expr(owner, expression, state, depth + 1)?;
+                        let Value::Fields(base) = &mut state.temporaries[slot] else {
+                            return Err(failure("original record update lost its in-flight base"));
+                        };
+                        self.pay(name.len().saturating_add(lookup_work(base.len())), depth)?;
+                        let field = base.get_mut(name).ok_or_else(|| {
+                            failure("original record update selects an absent base field")
+                        })?;
+                        let old = std::mem::replace(field, value);
+                        self.drop_value(&old, state, depth + 1)?;
+                    }
+                    Ok(state.temporaries.remove(slot))
+                }
                 CoreExprKind::Member { .. } => {
                     if let Some(value) =
                         self.nominal_value(owner, expr.id, &[], state, depth + 1)?

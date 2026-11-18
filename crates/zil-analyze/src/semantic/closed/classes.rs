@@ -2518,6 +2518,26 @@ impl Check<'_, '_> {
                     depth + 1,
                 )
             }
+            InstructionKind::UpdateField {
+                aggregate,
+                index: field,
+                value: replacement,
+            } if matches!(ty, Type::Record { .. }) => {
+                let boundary = (block, index, SemanticSiteEdge::Before);
+                operations::available_before(function, boundary, *aggregate, b)?;
+                operations::available_before(function, boundary, *replacement, b)?;
+                let parent = self.ssa_value(instance, function, *aggregate, b, depth + 1)?;
+                if !geometry::same_type(&parent.ty, ty, b)? {
+                    return Err(fail("actual record update changes its original product type"));
+                }
+                let field = self.actual_nominal_field(&parent, *field, b, depth + 1)?;
+                let actual = self.ssa_value(instance, function, *replacement, b, depth + 1)?;
+                self.check_static_value_sources(&field, function, *replacement, b)?;
+                if !actual.equal_paid(&field, b)? {
+                    return Err(fail("actual record update changes its complete field value"));
+                }
+                Ok(parent)
+            }
             InstructionKind::ExtractField {
                 aggregate,
                 index: field,

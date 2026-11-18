@@ -631,6 +631,54 @@ impl Check<'_, '_> {
         }
         Ok(result)
     }
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn record_update(
+        &mut self,
+        owner: SemanticDefinitionId,
+        annotation: Option<&SemanticTypeRecipe>,
+        base: &SemanticOriginalExpr,
+        fields: &[(String, SemanticOriginalExpr)],
+        variables: &mut BTreeMap<String, Binding>,
+        wanted: Option<&SemanticTypeRecipe>,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        let annotation = annotation
+            .map(|ty| self.resolve(owner, ty, depth + 1))
+            .transpose()?;
+        let base = self.expr(owner, base, variables, annotation.as_ref().or(wanted), depth + 1)?;
+        let base = self.resolve(owner, &base, depth + 1)?;
+        let SemanticTypeRecipe::Nominal { definition, .. } = &base else {
+            return Err(bad("original record update requires its nominal record base"));
+        };
+        if !matches!(self.definition(*definition)?.body, SemanticDefinitionBody::Nominal {
+            kind: LifeNominalKind::Record,
+            body: SemanticNominalBody::Product { .. },
+            ..
+        }) {
+            return Err(bad("original record update requires a record product declaration"));
+        }
+        if let Some(annotation) = &annotation {
+            self.same(&base, annotation)?;
+        }
+        if let Some(wanted) = wanted {
+            self.same(&base, wanted)?;
+        }
+        let mut seen = BTreeSet::new();
+        for (name, value) in fields {
+            self.pay(name.len().saturating_add(seen.len() + 1), depth)?;
+            if !seen.insert(name.as_str()) {
+                return Err(bad("original record update repeats a field"));
+            }
+            let expected = self.field(owner, &base, name, depth + 1)?;
+            let actual = self.expr(owner, value, variables, Some(&expected), depth + 1)?;
+            self.same(&actual, &expected)?;
+            if !self.cleanup_capability(owner, &expected, depth + 1)? {
+                return Err(bad("original record update replaces a field without SyncDrop"));
+            }
+        }
+        Ok(base)
+    }
+
     /// Constant shared storage may be shortened at this actual value
     /// placement. This is a source-bound theorem, never a LifeEqual premise;
     /// the complete referent and its intrinsic classes remain exact.

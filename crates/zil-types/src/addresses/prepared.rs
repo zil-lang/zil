@@ -200,6 +200,27 @@ impl Builder<'_, '_> {
             if let Some(expected) = expected {
                 self.same(&prepared.ty, expected, e.span)?;
             }
+            if let CoreExprKind::Unary {
+                op: UnaryOp::Dereference,
+                operand,
+            } = &e.kind
+            {
+                // An identical stable dereference reuses the very address
+                // consumed by ReadAddress. Keep the RHS operand's own Source
+                // occurrence even though it needs no second address load.
+                let entered = self.closures.semantic_begin(self.function.id, operand)?;
+                self.closures.semantic_end(
+                    self.function.id,
+                    operand.id,
+                    entered,
+                    Some(prepared.address),
+                    self.current.map(|block| crate::semantics::emission::Point {
+                        block,
+                        instruction: self.function.blocks[block.0 as usize].instructions.len(),
+                    }),
+                    operand.span,
+                )?;
+            }
             let value = self.value(
                 InstructionKind::ReadAddress {
                     address: prepared.address,
