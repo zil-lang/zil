@@ -78,6 +78,8 @@ pub(super) struct CheckedOriginal {
     // Structural cursors and original expressions borrow this exact owned,
     // immutable source snapshot. They cannot inherit a recycled view address.
     source_grammar: Option<index::SourceIndex>,
+    nominal_field_owner: Option<SemanticDefinitionId>,
+    nominal_value_formals: BTreeSet<(SemanticDefinitionId, u32)>,
     expressions: BTreeMap<(SemanticDefinitionId, NodeId), Ty>,
     receiver_borrows: BTreeSet<(SemanticDefinitionId, NodeId)>,
     receiver_results: BTreeSet<SemanticDefinitionId>,
@@ -246,6 +248,7 @@ impl CheckedOriginal {
             )?;
         }
         result.check_constructor_sites(&index, b)?;
+        result.collect_nominal_formation(module, context, active, b)?;
         result.check_original_applications(module, context, active, b)?;
         result.check_scoped_thread_workers(module, context, active, b)?;
         result.check_trait_witnesses(module, context, active, b)?;

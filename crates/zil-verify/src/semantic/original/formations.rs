@@ -2,6 +2,62 @@
 //! are not capabilities of an unconstrained formal or a concrete Typed image.
 use super::*;
 impl CheckedOriginal {
+    // A nested nominal field can forward a condition to its own Type formal.
+    // This directory only controls formation of complete applications. It is
+    // never consulted as a value, ownership, or cleanup premise in a body.
+    pub(super) fn formation_value(&mut self,module:&TypedModule,context:&CheckedContext,value:&Ty,caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+        if let Some(owner) = self.nominal_field_owner
+            && let Ty::Variable(definition, ordinal) = self.resolved(value,b)?
+            && owner == definition && caller.current()? == owner
+        {
+            b.spend(self.nominal_value_formals.len().saturating_add(1))?;
+            self.nominal_value_formals.insert((owner,ordinal));
+            return Ok(());
+        }
+        self.structural_obligation(module,context,value,DynStructuralBound::Value,caller,active,b)
+    }
+    pub(super) fn nominal_field_schemes(&mut self,module:&TypedModule,context:&CheckedContext,owner:SemanticDefinitionId,body:&SemanticNominalBody,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+        let previous = self.nominal_field_owner.replace(owner);
+        let mut check = |recipe: &SemanticTypeRecipe| {
+            let ty = self.ty(module,context,recipe,env,active,b)?;
+            self.scheme_term(module,context,&ty,env,active,b)
+        };
+        let result = match body {
+            SemanticNominalBody::Product { fields } => fields.iter().try_for_each(|field| check(&field.ty)),
+            SemanticNominalBody::Enum { variants } => variants.iter().flat_map(|variant| &variant.fields).try_for_each(check),
+        };
+        self.nominal_field_owner = previous;
+        result
+    }
+    pub(super) fn collect_nominal_formation(&mut self,module:&TypedModule,context:&CheckedContext,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+        let program = module.semantic.as_ref().ok_or_else(||bad("nominal formation lacks its original declarations"))?;
+        b.spend(program.definitions.len())?;
+        let mut generic = Vec::new();
+        let mut has_enum = false;
+        for definition in &program.definitions {
+            let SemanticDefinitionBody::Nominal { body, .. } = &definition.body else {continue;};
+            b.spend(definition.parameters.len())?;
+            if definition.parameters.iter().any(|p|matches!(p,SemanticFormal::Type { .. })) {
+                has_enum |= matches!(body,SemanticNominalBody::Enum { .. });
+                generic.push((definition,body));
+            }
+        }
+        if !has_enum {return Ok(());}
+        let previous = self.current;
+        let result = (|| loop {
+            let before = self.nominal_value_formals.len();
+            for &(definition,body) in &generic {
+                b.spend(1)?;
+                self.current = Some(definition.id);
+                let env = self.environment(module,context,definition.id,active,b)?;
+                self.nominal_field_schemes(module,context,definition.id,body,&env,active,b)?;
+            }
+            if self.nominal_value_formals.len()==before {break Ok(());}
+        })();
+        self.current = previous;
+        result
+    }
+
     pub(super) fn raw_binding_family(&self,module:&TypedModule,context:&CheckedContext,ty:&Ty,b:&mut Budget)->Check<bool>{
         Ok(match self.resolved(ty,b)? {
             Ty::Store(_)|Ty::Atom(Type::ByteBuffer)=>true,

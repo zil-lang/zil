@@ -41,10 +41,7 @@ impl CheckedOriginal {
                 }
                 for requirement in &definition.requirements{self.scheme_requirement(module,context,requirement,&env,active,b)?;}
                 match &definition.body {
-                    SemanticDefinitionBody::Nominal{body,..}=>match body {
-                        SemanticNominalBody::Product{fields}=>for field in fields{let ty=self.ty(module,context,&field.ty,&env,active,b)?;self.scheme_term(module,context,&ty,&env,active,b)?;},
-                        SemanticNominalBody::Enum{variants}=>for variant in variants{for field in &variant.fields{let ty=self.ty(module,context,field,&env,active,b)?;self.scheme_term(module,context,&ty,&env,active,b)?;}},
-                    },
+                    SemanticDefinitionBody::Nominal{body,..}=>self.nominal_field_schemes(module,context,definition.id,body,&env,active,b)?,
                     SemanticDefinitionBody::Scope(recipe)=>match recipe {
                         SemanticScopeRecipe::Trait{declaration}=>{if declaration.module!=definition.id.module{return Err(bad("original trait declaration belongs to another module"));}},
                         SemanticScopeRecipe::InherentImpl{declaration,self_type}=>{if declaration.module!=definition.id.module{return Err(bad("original impl declaration belongs to another module"));}if matches!(self_type,SemanticTypeRecipe::SelfType{scope:SemanticScopeRef::Ancestor(0)}){return Err(bad("original impl Self pattern recursively defines itself"));}let ty=self.ty(module,context,self_type,&env,active,b)?;self.scheme_term(module,context,&ty,&env,active,b)?;},
@@ -141,6 +138,18 @@ impl CheckedOriginal {
                         _=>return Err(bad("original nominal application changes a full formal kind")),
                     }}
                     for requirement in &declaration.requirements{self.obligation(module,context,requirement,&target,caller,active,b)?;}
+                    // Discharge nested declaration conditions in this actual caller.
+                    let mut required = Vec::new();
+                    for &(_, ordinal) in self.nominal_value_formals.range((*id, 0)..=(*id, u32::MAX)) {
+                        b.spend(1)?;
+                        required.push(ordinal);
+                    }
+                    for ordinal in required {
+                        let Some(Arg::Type(value)) = arguments.get(ordinal as usize) else {
+                            return Err(bad("conditional nominal formation selects a non-Type argument"));
+                        };
+                        self.formation_value(module,context,value,caller,active,b)?;
+                    }
                     if let SemanticDefinitionBody::Nominal{kind:LifeNominalKind::Enum,body:SemanticNominalBody::Enum{variants},..}=&declaration.body {
                         // A direct formal payload is a conditional declaration
                         // scheme. Each complete application, including an
@@ -149,7 +158,7 @@ impl CheckedOriginal {
                         // concrete specialization supplies that premise.
                         for variant in variants {for field in &variant.fields {
                             let value=self.ty(module,context,field,&target,active,b)?;
-                            self.structural_obligation(module,context,&value,DynStructuralBound::Value,caller,active,b)?;
+                            self.formation_value(module,context,&value,caller,active,b)?;
                         }}
                     }
                 }
