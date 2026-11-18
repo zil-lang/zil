@@ -16,6 +16,7 @@ mod capture_places;
 mod class_origins;
 mod classes;
 mod cleanup;
+mod copy_assignments;
 pub(super) mod ct_data;
 mod descriptions;
 mod dyn_owners;
@@ -1176,6 +1177,7 @@ pub(super) fn check(
     }
     inventory.profile_stage("sites", b);
     checker.sites(b)?;
+    checker.copy_assignment_sites(b)?;
     inventory.profile_stage("constructor class sources", b);
     checker.constructor_class_sources(b)?;
     checker.call_class_sources(b)?;

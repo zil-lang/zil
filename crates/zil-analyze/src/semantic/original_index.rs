@@ -83,12 +83,17 @@ impl<'a> Index<'a> {
             Node::Expression(expression) => Work::Expr(expression),
         };
         let subtree = walk_from(root, b)?;
+        subtree.active_writes(b)
+    }
+
+    pub(super) fn active_writes(&self, b: &mut Budget)
+        -> CompileResult<Vec<&'a SemanticOriginalStatement>> {
         let mut result = Vec::new();
-        for (id, node) in &subtree.nodes {
+        for (id, node) in &self.nodes {
             b.spend(1, WORK)?;
             let Node::Statement(statement) = *node else { continue; };
             if !matches!(statement.kind, CoreStatementKind::Assign { .. }
-                | CoreStatementKind::CompoundAssign { .. }) || subtree.erased(*id, b)? { continue; }
+                | CoreStatementKind::CompoundAssign { .. }) || self.erased(*id, b)? { continue; }
             b.spend(1, WORK)?;
             result.try_reserve(1).map_err(|_| bad("original event directory allocation failed"))?;
             result.push(statement);

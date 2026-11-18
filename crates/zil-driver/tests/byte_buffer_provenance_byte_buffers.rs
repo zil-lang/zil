@@ -350,6 +350,55 @@ fn main()->i32 {
 }
 
 #[test]
+fn indexed_copy_reads_before_writing_the_prepared_byte_destination() {
+    let source = r#"
+package Buffer { manages data:ByteBuffer }
+fn view(value:&Buffer)->&[u8] {return bytes_view(value.data)}
+fn copy_slice(data:&mut [u8],i:i64,j:i64) {
+    data[i]=data[j]
+}
+fn main()->i32 {
+    let owner=Buffer{data:bytes_new()}
+    if view(&owner).len()!=0 {return 76}
+    let b=bytes_new()
+    if !bytes_reserve(b,2) || !bytes_push(b,19u8) || !bytes_push(b,42u8) {return 73}
+    copy_slice(bytes_view_mut(b),0,1)
+    if bytes_view(b)[0]!=42u8 {return 74}
+    copy_slice(bytes_view_mut(b),1,1)
+    return i32(bytes_view(b)[1])-42
+}
+"#;
+    passes(source);
+    let arithmetic = source
+        .replace("data[i]=data[j]", "data[i]=data[j]+1u8")
+        .replace("!=42u8", "!=43u8")
+        .replace("[1])-42", "[1])-43");
+    passes(&arithmetic);
+    let other_slice = source
+        .replace("data:&mut [u8],i:", "data:&mut [u8],other:&[u8],i:")
+        .replace("data[i]=data[j]", "data[i]=other[j]")
+        .replace("    let b=bytes_new()", "    let input=[19u8,42u8]\n    let b=bytes_new()")
+        .replace("bytes_view_mut(b),", "bytes_view_mut(b),&input[..],");
+    passes(&other_slice);
+    let overlap = source.replace(
+        "    data[i]=data[j]",
+        "    let held=&mut data[0]\n    data[i]=data[j]\n    *held=80u8",
+    );
+    rejects(&overlap, Phase::Analyze, "E-BORROW-CONFLICT");
+    let invalidation = source
+        .replace(
+            "fn copy_slice(data:&mut [u8],i:i64,j:i64) {\n    data[i]=data[j]\n}",
+            "fn grow(b:ByteBuffer)->u8 {bytes_reserve(b,128);return 42u8}",
+        )
+        .replace(
+            "    copy_slice(bytes_view_mut(b),0,1)",
+            "    let pending=bytes_view_mut(b)\n    pending[0]=grow(b)",
+        )
+        .replace("    copy_slice(bytes_view_mut(b),1,1)\n", "");
+    rejects(&invalidation, Phase::Analyze, "E-BORROW-CONFLICT");
+}
+
+#[test]
 fn create_give_and_description_parameter_window_returns_compose() {
     passes(
         "fn fresh()->ByteBuffer contract{result(create);}{return bytes_new();}fn relay(give b:ByteBuffer)->ByteBuffer contract{result(give);}{return give b;}fn fill(b:ByteBuffer)->bool{return bytes_reserve(b,3)&&bytes_push(b,8u8);}fn view(b:ByteBuffer)->&[u8]{return bytes_view(b);}fn consume(give b:ByteBuffer)->i32{return i32(bytes_len(b));}fn main()->i32{let a=fresh();let b=relay(give a);if !fill(b){return 5;}let s=view(b);let value=i32(s[0]);return value+consume(give b);}",

@@ -32,6 +32,8 @@ pub(super) struct DynOutputClass {
 }
 pub(super) mod enum_address;
 mod mutex;
+mod copy_assignments;
+pub(crate) use copy_assignments::scalar_assignment_value;
 mod nominal;
 mod nominal_zero;
 pub(crate) mod synchronous_abi;
@@ -4860,6 +4862,7 @@ fn transfer(
     summaries: &[Facts],
     slot_ids: &SlotLoanIds,
     loans: &mut [Loan],
+    reservations: &[bool],
     b: &mut Budget,
 ) -> CompileResult<Value> {
     fee(b, 1)?;
@@ -6234,6 +6237,7 @@ fn transfer(
         }
     }
     if let Some(result) = i.result
+        && !copy_assignments::deferred(i, reservations)
         && (matches!(
             i.kind,
             InstructionKind::MutexValue { .. }
@@ -6291,6 +6295,7 @@ fn transfer(
     }
     if let Some(result) = i.result
         && matches!(i.kind, InstructionKind::Load(_))
+        && !copy_assignments::deferred(i, reservations)
         && matches!(value_type(f, result)?, Type::Address { mutable: true, .. })
     {
         let id = result.0 as usize;
@@ -7078,6 +7083,7 @@ fn windows(
     dyn_accesses: &mut BTreeMap<Target, bool>,
     hold_rows: &[Vec<Target>],
     byte_holds: &mut BTreeSet<ValueId>,
+    reservations: &[bool],
     b: &mut Budget,
 ) -> CompileResult<()> {
     // A module marker only schedules this actual per-function inventory.
@@ -7395,6 +7401,16 @@ fn windows(
                             f.locals[local.0 as usize].ty,
                             Type::Address { mutable: true, .. }
                         ) {
+                            if copy_assignments::deferred(i, reservations) {
+                                let cell = Permission {
+                                    targets: BTreeSet::from([seed_target(
+                                        local_capture_base(&state, *local, b)?, &[], false,
+                                    )]),
+                                    loans: Loans::new(),
+                                };
+                                access.check(&cell, false, apart, b)?;
+                                return Ok(());
+                            }
                             ordered(b, state.locals.len(), 0)?;
                             let source = state
                                 .locals
@@ -7580,14 +7596,15 @@ fn windows(
                             .result
                             .ok_or_else(|| failure("field projection lacks its actual result"))?;
                         let write =
-                            matches!(value_type(f, output)?, Type::Address { mutable: true, .. });
+                            matches!(value_type(f, output)?, Type::Address { mutable: true, .. })
+                            && !copy_assignments::deferred(i, reservations);
                         access.check(pointer(output)?, write, apart, b)?;
                     }
                     InstructionKind::AddressIndex { address, .. }
                     | InstructionKind::AddressSlice { address, .. } => {
                         let write = i.result.is_some_and(|v| {
                             matches!(f.values[v.0 as usize], Type::Address { mutable: true, .. })
-                        });
+                        }) && !copy_assignments::deferred(i, reservations);
                         access.check(pointer(*address)?, write, apart, b)?;
                     }
                     InstructionKind::LoadStoredBorrow { storage, .. }
@@ -8106,7 +8123,7 @@ fn windows(
                 errors
             })?;
             transfer(
-                module, f, i, &mut state, values, summaries, slot_ids, loans, b,
+                module, f, i, &mut state, values, summaries, slot_ids, loans, reservations, b,
             )?;
             if let Some(flow) = &byte_flow {
                 flow.advance(
@@ -8251,6 +8268,7 @@ fn derive_cfg(
             }
             let f = &module.functions[index];
             let (preds, reachable) = &graphs[index];
+            let reservations = copy_assignments::reservations(f, b)?;
             // This solve builds a new function-local arena. Record mutable
             // loans at its existing paid creation/binding sites, including
             // constructor sites whose loans are not currently live.
@@ -8319,6 +8337,7 @@ fn derive_cfg(
                             &summaries,
                             &slot_ids,
                             &mut loans,
+                            &reservations,
                             b,
                         )?;
                         if let Some(id) = instruction.result {
@@ -9151,6 +9170,7 @@ fn derive_cfg(
                     &mut actual.dyn_accesses,
                     &actual.values,
                     &mut actual.byte_view_values,
+                    &reservations,
                     b,
                 )?;
             }
@@ -10732,6 +10752,7 @@ mod tests {
             &[],
             &SlotLoanIds::new(),
             &mut loans,
+            &[],
             &mut b,
         )
         .unwrap();
@@ -10754,6 +10775,7 @@ mod tests {
             &[],
             &SlotLoanIds::new(),
             &mut loans,
+            &[],
             &mut b,
         )
         .unwrap();
@@ -10774,6 +10796,7 @@ mod tests {
             &[],
             &SlotLoanIds::new(),
             &mut loans,
+            &[],
             &mut b,
         )
         .unwrap();
@@ -10786,6 +10809,7 @@ mod tests {
             &[],
             &SlotLoanIds::new(),
             &mut loans,
+            &[],
             &mut b,
         )
         .unwrap();
@@ -10822,6 +10846,7 @@ mod tests {
             &[],
             &SlotLoanIds::new(),
             &mut loans,
+            &[],
             &mut b,
         )
         .unwrap();
@@ -10843,6 +10868,7 @@ mod tests {
             &[],
             &SlotLoanIds::new(),
             &mut loans,
+            &[],
             &mut b,
         )
         .unwrap();
@@ -10864,6 +10890,7 @@ mod tests {
                 &[],
                 &SlotLoanIds::new(),
                 &mut loans,
+                &[],
                 &mut b
             )
             .is_err()
@@ -11071,6 +11098,7 @@ mod tests {
             &[],
             &SlotLoanIds::new(),
             &mut loans,
+            &[],
             &mut b,
         )
         .unwrap();
