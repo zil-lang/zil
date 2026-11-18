@@ -5464,8 +5464,9 @@ fn transfer(
                 }
                 pointee_memory::graft_capture_aux(&mut out,index as u32,actual,true,b)?;
                 if let Type::Address {inner,..}=value_type(f,*capture)? && pointee_memory::aggregate(inner) {
-                    let current=pointee_memory::read(state,&actual.pointer,Some(inner),false,b)?;
-                    complete &= pointee_memory::complete(&current,inner,b)?;
+                    complete &= pointee_memory::all_candidates_complete(
+                        state, &actual.pointer, inner, b,
+                    )?;
                 } else {
                     out.enum_variants.replace(&[PlaceProjection::Field(index as u32)],&actual.enum_variants,true,b)?;
                     for (nested,permission) in &actual.slots {
@@ -8695,7 +8696,7 @@ fn derive_cfg(
                     && capture_after::has_context(module, &module.closures[id.0 as usize], b)?
                 {
                     for (path, _) in
-                        capture_after::leaves(module, &module.closures[id.0 as usize], b)?
+                        capture_after::frame_leaves(module, &module.closures[id.0 as usize], b)?
                     {
                         ordered(b, value.environment.len(), path.len())?;
                         grounded &= value

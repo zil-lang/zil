@@ -211,6 +211,28 @@ pub(super) fn complete(value: &Value, ty: &Type, b: &mut Budget) -> CompileResul
     }
     Ok(true)
 }
+/// During inference, retain an unresolved creator obligation until every
+/// actual pointer candidate has its complete current aggregate fact.
+pub(super) fn all_candidates_complete(
+    state: &State,
+    address: &Permission,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if address.targets.is_empty() {
+        return Ok(false);
+    }
+    for root in &address.targets {
+        fee(b, target_width(root).saturating_add(1))?;
+        let Some(value) = candidate(state, root, Some(ty), b)? else {
+            return Ok(false);
+        };
+        if !complete(&value, ty, b)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
 pub(super) fn read(
     state: &State,
     address: &Permission,

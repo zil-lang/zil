@@ -98,7 +98,16 @@ pub(super) fn leaves(
     d: &ClosureDefinition,
     b: &mut Budget,
 ) -> CompileResult<Vec<(Path, bool)>> {
-    effect_leaves(module, d, false, b)
+    effect_leaves(module, d, false, true, b)
+}
+/// Capture fields saved inline in the frame. Children beyond an actual
+/// address belong to the current target cell, not to this frame's SSA value.
+pub(super) fn frame_leaves(
+    module: &TypedModule,
+    d: &ClosureDefinition,
+    b: &mut Budget,
+) -> CompileResult<Vec<(Path, bool)>> {
+    effect_leaves(module, d, false, false, b)
 }
 /// A retired inline frame publishes external cells, while an F stored behind
 /// a captured address is a persistent external frame and publishes its heads.
@@ -107,12 +116,13 @@ pub(super) fn outputs(
     d: &ClosureDefinition,
     b: &mut Budget,
 ) -> CompileResult<Vec<(Path, bool)>> {
-    effect_leaves(module, d, d.kind == CallableKind::FnOnce, b)
+    effect_leaves(module, d, d.kind == CallableKind::FnOnce, true, b)
 }
 fn effect_leaves(
     module: &TypedModule,
     d: &ClosureDefinition,
     retired: bool,
+    referents: bool,
     b: &mut Budget,
 ) -> CompileResult<Vec<(Path, bool)>> {
     let mut out = Vec::new();
@@ -133,7 +143,7 @@ fn effect_leaves(
                 if !retired {
                     out.push((head.clone(), *mutable));
                 }
-                if pointee_memory::context(inner) && (!retired || *mutable) {
+                if referents && pointee_memory::context(inner) && (!retired || *mutable) {
                     for (tail, mode) in pointee_memory::rows(inner, b)? {
                         fee(b, head.len().saturating_add(tail.len()))?;
                         let mut path = head.clone();
@@ -574,19 +584,10 @@ pub(super) fn prepare_contexts<'a>(
             let Some(value) = after.pointees.get(&head) else {
                 continue;
             };
-            let value = snapshot(value, b)?;
-            let mut complete = true;
-            for (tail, _) in pointee_memory::rows(inner, b)? {
-                if !value.enum_variants.slot_active(&tail) {
-                    continue;
-                }
-                ordered(b, value.slots.len(), tail.len())?;
-                if value.slots.get(&tail).is_none_or(|p| p.targets.is_empty()) {
-                    complete = false;
-                }
-            }
-            if complete {
-                updates.push((address, value, inner.as_ref()));
+            // A missing tag tree is an unresolved effect, not proof
+            // that all of its payload rows are inactive.
+            if pointee_memory::complete(value, inner, b)? {
+                updates.push((address, snapshot(value, b)?, inner.as_ref()));
             }
         }
     }
