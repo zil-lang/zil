@@ -4425,6 +4425,21 @@ impl<'a> Check<'a, '_> {
         variables: &mut BTreeMap<String, Binding>,
         depth: usize,
     ) -> R<SemanticTypeRecipe> {
+        let mut description = false;
+        let ty = self.writable_place(owner, expression, variables, &mut description, depth)?;
+        if description && !self.copy_type(owner, &ty, depth + 1)? {
+            return Err(bad("original descriptor write requires a Copy field"));
+        }
+        Ok(ty)
+    }
+    fn writable_place(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        variables: &mut BTreeMap<String, Binding>,
+        description: &mut bool,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
         self.pay(1, depth)?;
         self.snapshot(
             owner,
@@ -4461,12 +4476,12 @@ impl<'a> Check<'a, '_> {
                 self.observe_exclusive_capture(owner, operand, variables, depth + 1)?;
                 Ok(*inner)
             }
-            CoreExprKind::Group(inner) => self.writable(owner, inner, variables, depth + 1),
+            CoreExprKind::Group(inner) => self.writable_place(owner, inner, variables, description, depth + 1),
             CoreExprKind::Member { object, member, .. } => {
                 if let Some(field) =
                     self.package_field(owner, object, member, variables, false, depth + 1)?
                 {
-                    self.writable(owner, object, variables, depth + 1)?;
+                    self.writable_place(owner, object, variables, description, depth + 1)?;
                     let copy = copy_recipe(&field, self.limits, self.left)?;
                     self.proof
                         .proof_mut()?
@@ -4475,7 +4490,12 @@ impl<'a> Check<'a, '_> {
                     return Ok(field);
                 }
                 let object_ty = self.place(owner, object, variables, depth + 1)?;
-                match &object_ty {
+                let observed = self.observation_type(owner, &object_ty, depth + 1)?;
+                match &observed {
+                    // Writing the payload of a live descriptor does not assign
+                    // to its binder. The selected leaf must be Copy; loan and
+                    // owner liveness are checked at the real field access.
+                    SemanticTypeRecipe::Desc { .. } => *description = true,
                     SemanticTypeRecipe::Address { mutable: true, .. } => {
                         self.observe_exclusive_capture(owner, object, variables, depth + 1)?;
                     }
@@ -4483,7 +4503,7 @@ impl<'a> Check<'a, '_> {
                         return Err(bad("original field write uses a shared address"));
                     }
                     _ => {
-                        self.writable(owner, object, variables, depth + 1)?;
+                        self.writable_place(owner, object, variables, description, depth + 1)?;
                     }
                 }
                 self.field(owner, &object_ty, member, depth + 1)
@@ -4498,7 +4518,7 @@ impl<'a> Check<'a, '_> {
                         return Err(bad("original slice write uses a shared address"));
                     }
                     _ => {
-                        self.writable(owner, object, variables, depth + 1)?;
+                        self.writable_place(owner, object, variables, description, depth + 1)?;
                     }
                 }
                 self.expr(owner, expression, variables, None, depth + 1)
@@ -4513,7 +4533,7 @@ impl<'a> Check<'a, '_> {
                         return Err(bad("original index write uses a shared address"));
                     }
                     _ => {
-                        self.writable(owner, object, variables, depth + 1)?;
+                        self.writable_place(owner, object, variables, description, depth + 1)?;
                     }
                 }
                 self.index_type(owner, &object_ty, index, variables, depth + 1)
