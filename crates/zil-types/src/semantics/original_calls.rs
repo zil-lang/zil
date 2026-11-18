@@ -1973,23 +1973,34 @@ impl Check<'_, '_> {
             }
             Err(_) => return Ok(None),
         };
-        let (receiver, value) = match &callee_type {
-            SemanticTypeRecipe::Address { mutable, inner, .. } => (Some(*mutable), inner.as_ref()),
-            _ => (None, &callee_type),
+        // A captured place can name an address through its creator. Determine
+        // receiver permissions from that sealed lexical type and preserve the
+        // original place recipe for emission and ownership transfer.
+        let receiver_type = self.observation_type(owner, &callee_type, depth + 1)?;
+        let (receiver, referent);
+        let value = match &receiver_type {
+            SemanticTypeRecipe::Address { mutable, inner, .. } => {
+                receiver = Some(*mutable);
+                referent = self.observation_type(owner, inner, depth + 1)?;
+                &referent
+            }
+            value => {
+                receiver = None;
+                value
+            }
         };
-        let value = self.observation_type(owner, value, depth + 1)?;
-        let operation = self.opaque_callable_operation(&value, depth + 1)?;
+        let operation = self.opaque_callable_operation(value, depth + 1)?;
         let (mut selected, mut invocation_origins) = if let Some((kind, signature, origins)) = operation {
             (Some((kind, signature)), origins)
         } else {
-            (self.concrete_callable(&value, depth + 1)?, BTreeMap::new())
+            (self.concrete_callable(value, depth + 1)?, BTreeMap::new())
         };
         if selected.is_none() {
             for requirement in self.original_requirements(owner, depth + 1)?.iter() {
                 let candidates =
-                    self.callable_premises(requirement, &value, &mut Vec::new(), depth + 1)?;
+                    self.callable_premises(requirement, value, &mut Vec::new(), depth + 1)?;
                 for (ty, kind, signature, origins) in candidates {
-                    if ty == &value {
+                    if ty == value {
                         if selected.is_some() {
                             return Err(pending(
                                 "original callable has several complete roles and needs an explicit selection",
@@ -2046,7 +2057,7 @@ impl Check<'_, '_> {
         };
         let mut signature = self.inference_template(&signature, &[], false, depth + 1)?;
         let receiver_result = self.bind_receiver_call_result(
-            owner, expression, base, &callee_type, &mut signature, variables, depth + 1,
+            owner, expression, base, &receiver_type, &mut signature, variables, depth + 1,
         )?;
         if receiver_result && (!matches!(kind, CallableKind::Fn | CallableKind::FnMut)
             || signature.call_kind != CallKind::Direct) {
