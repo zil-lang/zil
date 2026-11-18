@@ -851,11 +851,44 @@ impl CheckedContext {
         let token=active.fresh(b)?;
         let key=ScopeKey::Witness{definition:*target,frame:token};
         let mut lexical=Vec::new();
+        let mut target_self = None;
         if let Some(parent)=target_definition.parent {
-            let position=environment.lexical.iter().position(|frame|frame.definition==parent).ok_or_else(||unsupported("Call target lexical parent is not available in the actual caller context",None))?;
-            lexical.extend_from_slice(&environment.lexical[position..]);
+            if let Some(position)=environment.lexical.iter().position(|frame|frame.definition==parent) {
+                lexical.extend_from_slice(&environment.lexical[position..]);
+            } else {
+                // A receiver-free authored inherent call can name a closed
+                // original Self even when emitted in a separate default body.
+                // Rebuild that scope from its actual original recipe, never
+                // by choosing a physical entry with the same method ABI.
+                let parent_definition = self.definition(module,parent,b)?;
+                let SemanticDefinitionBody::Scope(SemanticScopeRecipe::InherentImpl{self_type:recipe,..})=&parent_definition.body else{
+                    return Err(unsupported("Call target lexical parent is not available in the actual caller context",None));
+                };
+                if !matches!(target_definition.body,SemanticDefinitionBody::FunctionWithBody{receiver_parameter:None,..})
+                    || target_definition.kind!=SemanticDefinitionKind::Method
+                    || parent_definition.parent.is_some()
+                    || !parent_definition.parameters.is_empty()
+                    || !parent_definition.environment.is_empty()
+                    || !parent_definition.requirements.is_empty()
+                {
+                    return Err(unsupported("static inherent call requires its complete closed original Self context",None));
+                }
+                let parent_key = ScopeKey::Witness{definition:parent,frame:active.fresh(b)?};
+                let mut scope = EvalEnv {
+                    lexical:vec![LexicalFrame{definition:parent,key:parent_key,actuals:vec![],environment:vec![],self_type:None}],
+                    assumptions:vec![],images:vec![],bounds:vec![],invocations:vec![],at:None,
+                };
+                let source_self=self.evaluate_type(module,recipe,&scope,external,active,b)?;
+                if !source_self.classes.is_empty()||!source_self.statics.is_empty(){
+                    return Err(unsupported("static inherent call needs explicit source scope for a retained Self domain",None));
+                }
+                source_self.charge_clone(b)?;
+                target_self=Some(source_self.clone());
+                scope.lexical[0].self_type=Some(source_self);
+                lexical=scope.lexical;
+            }
         }
-        lexical.insert(0,LexicalFrame{definition:*target,key,actuals:checked,environment:vec![],self_type:None});
+        lexical.insert(0,LexicalFrame{definition:*target,key,actuals:checked,environment:vec![],self_type:target_self});
         if !target_definition.environment.is_empty() {return Err(unsupported("ordinary Call cannot manufacture a closure's sealed ghost environment",None));}
         let call_environment=EvalEnv{lexical,assumptions:environment.assumptions.clone(),images:environment.images.clone(),bounds:environment.bounds.clone(),invocations:vec![],at:environment.at};
         let worlds=self.call_worlds(module,callee,*target,&call_environment,environment,active,b)?;
