@@ -411,6 +411,71 @@ impl Ledger {
         };
         self.bind(entry, origin, Some((creator, closure)), left, span)
     }
+    /// A qualified capture may await complete emitted-header formation only
+    /// at its genuine source operation. A factory bound or an equal Type is
+    /// not evidence that this actual entry belongs to this creator/site.
+    pub(crate) fn require_closure_creator(
+        &self,
+        creator: FunctionRef<'_>,
+        expression: NodeId,
+        closure: ClosureId,
+        entry: FunctionId,
+        at: Point,
+        left: &mut usize,
+        span: Span,
+    ) -> R<()> {
+        pay(left, lookup_cost(self.frames.len()).saturating_mul(2), span)?;
+        let parent = self
+            .frames
+            .get(&creator.id)
+            .ok_or_else(|| invalid(span, "qualified capture has no actual creator frame"))?;
+        let child = self
+            .frames
+            .get(&entry)
+            .ok_or_else(|| invalid(span, "qualified capture has no actual closure frame"))?;
+        if creator.foreign.is_some()
+            || child.parent != Some((creator.id, closure))
+            || child.origin.module != parent.origin.module
+            || child.origin.creator != parent.origin.creator
+            || child.origin.closure != Some(expression)
+            || parent.stack.last() != Some(&expression)
+        {
+            return Err(invalid(
+                span,
+                "qualified capture changes its actual creator/site",
+            ));
+        }
+        pay(
+            left,
+            lookup_cost(parent.expressions.len()).saturating_add(1),
+            span,
+        )?;
+        let receipt = parent
+            .expressions
+            .get(&expression)
+            .ok_or_else(|| invalid(span, "qualified capture has no active source expression"))?;
+        let body = creator
+            .blocks
+            .get(at.block.0 as usize)
+            .ok_or_else(|| invalid(span, "qualified capture leaves its actual creator CFG"))?;
+        if receipt.complete
+            || receipt.end.is_some()
+            || body.id != at.block
+            || at.instruction != body.instructions.len()
+        {
+            return Err(invalid(
+                span,
+                "qualified capture has no current preparation boundary",
+            ));
+        }
+        if self.original_closure_definition(closure, left)?.is_none() {
+            return Err(invalid(
+                span,
+                "qualified capture has no immutable original closure site",
+            ));
+        }
+        Ok(())
+    }
     pub fn begin(
         &mut self,
         function: FunctionId,

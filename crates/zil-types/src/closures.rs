@@ -1363,28 +1363,30 @@ impl State {
     pub(super) fn require_source_context(
         &mut self,
         id: ClosureId,
-        creator: Option<FunctionRef<'_>>,
+        creator: FunctionRef<'_>,
+        source: Option<(NodeId, (BlockId, usize))>,
         span: Span,
     ) -> R<()> {
         let pending = &self.pending[id.0 as usize];
         if pending.requires_source_context && pending.source_context.is_none() {
-            if let Some(creator) = creator
-                && creator.foreign.is_none()
-                && creator.environment.is_none()
-                && let Some(header) = &creator.storage_life
-            {
-                self.snapshot(
-                    borrowed_fp::metadata_work(header).saturating_add(creator.parameters.len()),
+            let (expression, (block, instruction)) = source.ok_or_else(|| {
+                unsupported(
                     span,
-                )?;
-                // The complete Typed CFG later proposes and authenticates
-                // this factory's actual input/projection class origins.
-                return Ok(());
-            }
-            return Err(unsupported(
+                    "qualified capture requires its genuine actual creator context",
+                )
+            })?;
+            // This is the real preparation boundary, before capture operands
+            // are evaluated. The existing finish pass still authenticates the
+            // exact MakeClosure and every complete capture/header field.
+            self.semantic_emission.require_closure_creator(
+                creator,
+                expression,
+                id,
+                pending.function,
+                crate::semantics::emission::Point { block, instruction },
+                &mut self.work_left,
                 span,
-                "qualified capture requires its genuine actual creator context",
-            ));
+            )?;
         }
         Ok(())
     }

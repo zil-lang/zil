@@ -3609,17 +3609,22 @@ impl<'a, 'c> Builder<'a, 'c> {
             self.factory_modes.as_ref().map(|modes| &modes.locals),
             source_expression.map(|expression| (self.function.id, expression)),
         )?;
+        let mint = self.current.and_then(|block| {
+            self.function
+                .blocks
+                .get(block.0 as usize)
+                .map(|body| (block, body.instructions.len()))
+        });
         if let Some(expression) = source_expression {
             self.closures
                 .semantic_closure(self.function.id, expression, id, span)?;
-            let mint = self.current.and_then(|block| self.function.blocks.get(block.0 as usize)
-                .map(|body| (block, body.instructions.len())));
             self.closures
                 .bind_source_context(id, self.function.view(), expression, mint, span)?;
         }
         self.closures.require_source_context(
             id,
-            self.factory_bound.is_some().then_some(self.function.view()),
+            self.function.view(),
+            source_expression.zip(mint),
             span,
         )?;
         if let Some(
