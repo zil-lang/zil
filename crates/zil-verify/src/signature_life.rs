@@ -146,15 +146,15 @@ fn pure_value_tree(ty: &Type) -> bool {
     true
 }
 
-fn array_classes(
-    ty: &Type,
+fn array_classes<'a>(
+    ty: &'a Type,
     path: &mut Vec<LifeTypeProjection>,
-    out: &mut Vec<(Vec<LifeTypeProjection>, u32)>,
+    out: &mut Vec<(Vec<LifeTypeProjection>, u32, &'a StorageLifeShape)>,
 ) {
     match ty {
         Type::BorrowedStorage { life, .. } => {
             for class in 0..life.binder_count {
-                out.push((path.clone(), class));
+                out.push((path.clone(), class, life));
             }
         }
         Type::ErrorUnion { error, result } => {
@@ -555,6 +555,46 @@ fn relation_inner(
 pub(super) fn function_relation_pending_views(module:&TypedModule,parameters:&[&Type],result:&Type,c:&StorageLifeContract,span:Option<Span>,allow_callback:bool,allow_byte_input:bool,pending:&[SignatureLifeClass])->Check<()>{
     relation_inputs(parameters,result,c,span,allow_callback,None,Some(module),allow_byte_input,None,pending,&[])
 }
+/// Tie each physical slot of an inline qualified value to the projected
+/// intrinsic class at its actual boundary.
+fn qualified_borrows(
+    c: &StorageLifeContract,
+    shape: &StorageLifeShape,
+    base: StorageBase,
+    prefix: &[LifeTypeProjection],
+    first_class: usize,
+    borrow: &mut usize,
+    constant: &mut usize,
+    span: Option<Span>,
+) -> Check<()> {
+    let invalid = || occurrences::failure(span, base, "invalid qualified physical slot mapping");
+    for slot in &shape.slots {
+        let mut path = Vec::new();
+        for step in prefix {
+            let LifeTypeProjection::Place(selector) = step else { return Err(invalid()) };
+            path.push(ContractProjection::Place(*selector));
+        }
+        path.extend(slot.path.iter().copied().map(ContractProjection::Place));
+        let position = StoragePosition { base, path };
+        if slot.binder >= shape.binder_count {
+            return Err(invalid());
+        }
+        let image = c.classes.get(first_class + slot.binder as usize).ok_or_else(invalid)?;
+        if c.static_bindings.get(*constant) == Some(&position) {
+            if slot.mode != StoredBorrowMode::SharedAddress || physical_binding(c, *borrow, &position).is_some() {
+                return Err(invalid());
+            }
+            *constant += 1;
+        } else {
+            let row = occurrences::binding(c, *borrow, &position, span)?;
+            if row.binder != image.binder {
+                return Err(invalid());
+            }
+            *borrow += 1;
+        }
+    }
+    Ok(())
+}
 /// Complete occurrence rows below a raw wrapper. A qualified nominal is a
 /// domain boundary: its full N is listed once, and its own child map remains
 /// independently checked. Wrapper descendants retain every path and class.
@@ -912,25 +952,8 @@ fn relation_inputs<P:InputType>(
                 // slot in addition to its complete intrinsic class domain.
                 // Borrowing the carrier instead transfers only the outer
                 // address; its referent slots are not new input loans.
-                if !pointee{
-                    for slot in &life.slots{
-                        if slot.binder>=life.binder_count{return Err(invalid());}
-                        let position=StoragePosition{base,path:slot.path.iter().copied().map(ContractProjection::Place).collect()};
-                        let class_row=c.classes.get(first_class+slot.binder as usize).ok_or_else(invalid)?;
-                        if c.static_bindings.get(constant)==Some(&position){
-                            if slot.mode!=StoredBorrowMode::SharedAddress||c.bindings.get(borrow).is_some_and(|row|row.position==position){return Err(invalid());}
-                            constant+=1;continue;
-                        }
-                        let row=occurrences::binding(c, borrow, &position, span)?;
-                        if row.binder != class_row.binder {
-                            return Err(occurrences::failure(span, base, format!(
-                                "signature physical port {:?} binds {:?}; actual projected class {:?} binds {:?}",
-                                position, row.binder, class_row.position, class_row.binder,
-                            )));
-                        }
-                        borrow+=1;
-                        visit(&row.position, row.binder,capture,output&&pending.contains(&class_row.position))?;
-                    }
+                if !pointee {
+                    qualified_borrows(c, life, base, &[], first_class, &mut borrow, &mut constant, span)?;
                 }
             }
             Type::Array { .. } | Type::ErrorUnion { .. } | Type::Tuple(_)
@@ -945,7 +968,10 @@ fn relation_inputs<P:InputType>(
                 };
                 let mut classes = Vec::new();
                 array_classes(actual, &mut path, &mut classes);
-                for (path, local) in classes {
+                for (path, local, life) in classes {
+                    if local == 0 && path.iter().all(|step| matches!(step, LifeTypeProjection::Place(_))) {
+                        qualified_borrows(c, life, base, &path, class, &mut borrow, &mut constant, span)?;
+                    }
                     let expected = SignatureLifeClass { base, path, class: local };
                     let row = occurrences::class(c, class, &expected, span)?;
                     class += 1;

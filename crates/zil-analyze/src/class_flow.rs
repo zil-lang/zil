@@ -88,6 +88,13 @@ fn physical_class_slots(
                 out.push((path, index));
             }
         }
+        Type::ErrorUnion { error, result } if b.stored_enum_addresses && super::stored_flow::enum_address::signature(ty) => {
+            for (arm, child) in [(true, error.as_ref()), (false, result.as_ref())] {
+                prefix.push(PlaceProjection::ErrorArm(arm));
+                physical_class_slots(child, prefix, keys, out, b)?;
+                prefix.pop();
+            }
+        }
         Type::Tuple(fields) => {
             for (index, child) in fields.iter().enumerate() {
                 prefix

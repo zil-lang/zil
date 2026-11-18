@@ -7867,7 +7867,7 @@ fn windows(
                             )?;
                         }
                         if !summaries[function.0 as usize].head_accesses.is_empty() {
-                            for (target, write) in &summaries[function.0 as usize].head_accesses {
+                            'effect: for (target, write) in &summaries[function.0 as usize].head_accesses {
                                 let actual = substitute_call_source(
                                     target,
                                     arguments,
@@ -7877,6 +7877,25 @@ fn windows(
                                     b,
                                 )?;
                                 if actual.targets.is_empty() {
+                                    if let HoldRoot::Parameter(index) = target.base
+                                        && target.retained_port.is_none()
+                                        && let Some(argument) = arguments.get(index as usize)
+                                    {
+                                        let ty = value_type(f, *argument)?;
+                                        let tags = &values[argument.0 as usize].enum_variants;
+                                        if enum_address::signature(ty) && tags.grounded(ty, b)?
+                                            && !tags.slot_active(&target.stored)
+                                        {
+                                            for (path, _) in enum_address::slots(ty, b)? {
+                                                fee(b, path.len().saturating_add(target.stored.len()).saturating_add(1))?;
+                                                if path == target.stored {
+                                                    // No actual value of this call can take the
+                                                    // callee's guarded access to that slot.
+                                                    continue 'effect;
+                                                }
+                                            }
+                                        }
+                                    }
                                     return Err(failure(
                                         "callee head effect has no actual caller manager",
                                     ));

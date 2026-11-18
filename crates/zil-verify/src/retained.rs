@@ -463,8 +463,13 @@ pub(super) fn check_claim(
     // its complete external pointer directory is Known0. Schedule the same
     // constructor/return/ownership CFG consumer; no source or cleanup follows
     // merely from an empty directory or this structural qualification.
-    budget.returned_environment_sources = true;
-    budget.nested_callable_sources = true;
+    // Flat lending entries keep receiver loans in the ordinary borrow CFG.
+    // That proof reconstructs BorrowCapture/Return and the exact declared
+    // capture set. A rich header still needs the stored class/slot solver.
+    if d.storage_life.is_some() || d.lending_captures.is_empty() {
+        budget.returned_environment_sources = true;
+        budget.nested_callable_sources = true;
+    }
     Ok(())
 }
 

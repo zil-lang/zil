@@ -93,6 +93,18 @@ impl Check<'_, '_> {
     ) -> CompileResult<value::Value> {
         operations::available_before(function, (at.0, at.1, SemanticSiteEdge::Before), parent, b)?;
         let parent = self.ssa_value(instance, function, parent, b, depth + 1)?;
+        self.projected_child(function, result, &parent, selector, b, depth)
+    }
+
+    pub(super) fn projected_child(
+        &self,
+        function: &TypedFunction,
+        result: ValueId,
+        parent: &value::Value,
+        selector: PlaceProjection,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<value::Value> {
         let child = Self::pattern_child_type(&parent.ty, selector)
             .ok_or_else(|| fail("actual shared projection leaves its complete parent layout"))?;
         let output = function
@@ -114,14 +126,14 @@ impl Check<'_, '_> {
             // A stored child has its own complete intrinsic domain. Select it
             // from the declaration's full mixed application, preserving its
             // Pointee/phantom rows rather than borrowing the parent's head.
-            let selected = self.actual_nominal_field(&parent, field, b, depth + 1)?;
+            let selected = self.actual_nominal_field(parent, field, b, depth + 1)?;
             if !geometry::same_type(&selected.ty, output, b)? {
                 return Err(fail("actual nominal projection changes its complete original child"));
             }
             return Ok(selected);
         }
         if self.task_domain(child, b)?.is_some() {
-            return self.task_projection(&parent, child, selector, b);
+            return self.task_projection(parent, child, selector, b);
         }
         let Type::Address {
             mutable: false,

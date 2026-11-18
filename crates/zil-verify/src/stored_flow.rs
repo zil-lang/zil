@@ -6043,6 +6043,26 @@ fn check_call(
     {
         for (source, write) in &summaries[function.0 as usize].head_accesses {
             let actual = instantiate(module, f, source, arguments, &solution.values, state, b)?;
+            if actual.sources.is_empty() {
+                let mut inactive = false;
+                if source.retained_port.is_none()
+                    && let HoldRoot::Parameter(index) = source.base
+                    && let Some(value) = arguments.get(index as usize)
+                    && let Some(ty) = f.values.get(value.0 as usize)
+                    && enum_address::signature(ty)
+                {
+                    let tags = &solution.values[value.0 as usize].enum_variants;
+                    for (path, _) in enum_address::slots(ty, b)? {
+                        b.spend(path.len().saturating_add(source.leaf.len()).saturating_add(1))?;
+                        if path == source.leaf {
+                            inactive = tags.grounded(ty, b)? && !tags.slot_active(&path);
+                            break;
+                        }
+                    }
+                }
+                if inactive { continue; }
+                return Err(err("callee head access has no actual argument target"));
+            }
             if *write {
                 store_paths::writable(&actual, &solution.loans, b)?;
             }

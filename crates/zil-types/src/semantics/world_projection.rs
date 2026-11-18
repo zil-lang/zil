@@ -105,7 +105,24 @@ pub(super) fn type_shape_at(
             retained_life,
         } => {
             retained_snapshot(world, retained_life)?;
-            let child = type_shape_at(world, result, depth + 1)?;
+            // A borrowed Task result has its own intrinsic reference head.
+            // Rebuild it through the complete Result embedding in this frame,
+            // as for a reference nested under Pointee in any other carrier.
+            let child = if matches!(result.as_ref(), Type::Address { .. } | Type::Desc(_)) {
+                world.pay(retained_life.retained.len())?;
+                if !retained_life.retained.iter().any(|row| row.path == [LifeTypeProjection::Result]) {
+                    return Err(bad("borrowed Task result has no actual Result class embedding"));
+                }
+                let parent = StorageLifeShape {
+                    binder_count: retained_life.binder_count,
+                    retained: retained_life.retained.clone(),
+                    nominal_arguments: retained_life.nominal_arguments.clone(),
+                    slots: Vec::new(),
+                };
+                address_child_shape(world, &parent, &mut vec![LifeTypeProjection::Result], result, depth + 1)?
+            } else {
+                type_shape_at(world, result, depth + 1)?
+            };
             world.pay(
                 (child.binder_count as usize)
                     .saturating_mul(retained_life.retained.len().saturating_add(1)),

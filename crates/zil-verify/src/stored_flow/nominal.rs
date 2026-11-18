@@ -163,6 +163,14 @@ fn walk(
             }
             continue;
         }
+        // The enum consumer above checked the entire ordered TypeArgument
+        // mapping and every selected physical payload. Its address argument
+        // introduces no nominal lifetime declarations of its own.
+        if enum_address::candidate(&instance.ty)
+            && matches!(actual, LifeNominalActual::QualifiedType { ty: Type::Address { mutable: false, .. }, .. })
+        {
+            continue;
+        }
         let LifeNominalActual::Type(ty) = actual else {
             if matches!(actual, LifeNominalActual::QualifiedType { .. }) {
                 return Err(err("qualified Type argument has no physical stored consumer"));
@@ -249,7 +257,7 @@ fn walk(
             ));
         }
     }
-    if callback_arguments.next().is_some() {
+    if !enum_address::candidate(&instance.ty) && callback_arguments.next().is_some() {
         return Err(err("Package has a retained Type argument without an actual callback input"));
     }
     if expected.len() != life.nominal_arguments.len() {

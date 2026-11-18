@@ -3463,6 +3463,102 @@ impl<'a> Check<'a, '_> {
                 .insert((owner, Query::Expression(expression.id)), copy);
             return Ok(result);
         }
+        // Binary trees recurse through this small frame. Keep the unrelated
+        // constructor/call temporaries off the stack of each operand.
+        if let CoreExprKind::Binary { op, left, right } = &expression.kind {
+            let result = {
+                let boolean = matches!(op, BinaryOp::And | BinaryOp::Or);
+                let equality = matches!(op, BinaryOp::Equal | BinaryOp::NotEqual);
+                let comparison = equality
+                    || matches!(
+                        op,
+                        BinaryOp::Less
+                            | BinaryOp::LessEqual
+                            | BinaryOp::Greater
+                            | BinaryOp::GreaterEqual
+                    );
+                // A comparison's Bool result is not its operand context. Only
+                // arithmetic forwards its numeric result context; logical
+                // operators impose their own Bool operand scheme.
+                let bool_type = SemanticTypeRecipe::Atom(Type::Bool);
+                let operand_wanted = if boolean {
+                    Some(&bool_type)
+                } else if comparison {
+                    None
+                } else {
+                    wanted.filter(|ty| matches!(ty, SemanticTypeRecipe::Atom(ty) if ty.is_integer() || ty.is_float()))
+                };
+                // An untyped literal has no effects. Delaying it permits the
+                // other operand's independent type to supply its numeric
+                // context without evaluating or consuming that operand twice.
+                let (left, right) = if operand_wanted.is_none()
+                    && self.contextual_integer(left, variables, depth + 1)?
+                    && !self.contextual_integer(right, variables, depth + 1)?
+                {
+                    let right_ty = self.expr(owner, right, variables, None, depth + 1)?;
+                    let right_type = self.logical(owner, &right_ty, depth + 1)?;
+                    let left_ty =
+                        self.expr(owner, left, variables, Some(&right_type), depth + 1)?;
+                    (left_ty, right_ty)
+                } else {
+                    let left_ty = self.expr(owner, left, variables, operand_wanted, depth + 1)?;
+                    let left_type = self.logical(owner, &left_ty, depth + 1)?;
+                    let right_ty =
+                        self.expr(owner, right, variables, Some(&left_type), depth + 1)?;
+                    (left_ty, right_ty)
+                };
+                let left = self.logical(owner, &left, depth + 1)?;
+                let right = self.logical(owner, &right, depth + 1)?;
+                self.same(&left, &right)?;
+                let SemanticTypeRecipe::Atom(ty) = left else {
+                    return Err(bad(
+                        "original generic operation lacks a primitive type equality premise",
+                    ));
+                };
+                let integer_only = matches!(
+                    op,
+                    BinaryOp::BitAnd
+                        | BinaryOp::BitOr
+                        | BinaryOp::BitXor
+                        | BinaryOp::ShiftLeft
+                        | BinaryOp::ShiftRight
+                        | BinaryOp::AddWrapping
+                        | BinaryOp::SubtractWrapping
+                        | BinaryOp::MultiplyWrapping
+                );
+                let valid = if boolean {
+                    ty == Type::Bool
+                } else if equality {
+                    matches!(ty, Type::Bool | Type::ForeignHandle) || ty.is_integer() || ty.is_float()
+                } else if integer_only {
+                    ty.is_integer()
+                } else {
+                    ty.is_integer() || ty.is_float()
+                };
+                if !valid {
+                    return Err(bad(
+                        "original binary operator has incompatible primitive endpoint",
+                    ));
+                }
+                SemanticTypeRecipe::Atom(if boolean || comparison {
+                    Type::Bool
+                } else {
+                    ty
+                })
+            };
+            return self.record_expression_type(owner, expression.id, result);
+        }
+        self.nonbinary_expression(owner, expression, variables, wanted, depth)
+    }
+
+    fn nonbinary_expression(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        variables: &mut BTreeMap<String, Binding>,
+        wanted: Option<&SemanticTypeRecipe>,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
         let result = match &expression.kind {
             CoreExprKind::Literal(value) => {
                 if let Constant::WideString(units) = value {
@@ -3819,86 +3915,6 @@ impl<'a> Check<'a, '_> {
                     ));
                 }
                 value
-            }
-            CoreExprKind::Binary { op, left, right } => {
-                let boolean = matches!(op, BinaryOp::And | BinaryOp::Or);
-                let equality = matches!(op, BinaryOp::Equal | BinaryOp::NotEqual);
-                let comparison = equality
-                    || matches!(
-                        op,
-                        BinaryOp::Less
-                            | BinaryOp::LessEqual
-                            | BinaryOp::Greater
-                            | BinaryOp::GreaterEqual
-                    );
-                // A comparison's Bool result is not its operand context. Only
-                // arithmetic forwards its numeric result context; logical
-                // operators impose their own Bool operand scheme.
-                let bool_type = SemanticTypeRecipe::Atom(Type::Bool);
-                let operand_wanted = if boolean {
-                    Some(&bool_type)
-                } else if comparison {
-                    None
-                } else {
-                    wanted.filter(|ty| matches!(ty, SemanticTypeRecipe::Atom(ty) if ty.is_integer() || ty.is_float()))
-                };
-                // An untyped literal has no effects. Delaying it permits the
-                // other operand's independent type to supply its numeric
-                // context without evaluating or consuming that operand twice.
-                let (left, right) = if operand_wanted.is_none()
-                    && self.contextual_integer(left, variables, depth + 1)?
-                    && !self.contextual_integer(right, variables, depth + 1)?
-                {
-                    let right_ty = self.expr(owner, right, variables, None, depth + 1)?;
-                    let right_type = self.logical(owner, &right_ty, depth + 1)?;
-                    let left_ty =
-                        self.expr(owner, left, variables, Some(&right_type), depth + 1)?;
-                    (left_ty, right_ty)
-                } else {
-                    let left_ty = self.expr(owner, left, variables, operand_wanted, depth + 1)?;
-                    let left_type = self.logical(owner, &left_ty, depth + 1)?;
-                    let right_ty =
-                        self.expr(owner, right, variables, Some(&left_type), depth + 1)?;
-                    (left_ty, right_ty)
-                };
-                let left = self.logical(owner, &left, depth + 1)?;
-                let right = self.logical(owner, &right, depth + 1)?;
-                self.same(&left, &right)?;
-                let SemanticTypeRecipe::Atom(ty) = left else {
-                    return Err(bad(
-                        "original generic operation lacks a primitive type equality premise",
-                    ));
-                };
-                let integer_only = matches!(
-                    op,
-                    BinaryOp::BitAnd
-                        | BinaryOp::BitOr
-                        | BinaryOp::BitXor
-                        | BinaryOp::ShiftLeft
-                        | BinaryOp::ShiftRight
-                        | BinaryOp::AddWrapping
-                        | BinaryOp::SubtractWrapping
-                        | BinaryOp::MultiplyWrapping
-                );
-                let valid = if boolean {
-                    ty == Type::Bool
-                } else if equality {
-                    matches!(ty, Type::Bool | Type::ForeignHandle) || ty.is_integer() || ty.is_float()
-                } else if integer_only {
-                    ty.is_integer()
-                } else {
-                    ty.is_integer() || ty.is_float()
-                };
-                if !valid {
-                    return Err(bad(
-                        "original binary operator has incompatible primitive endpoint",
-                    ));
-                }
-                SemanticTypeRecipe::Atom(if boolean || comparison {
-                    Type::Bool
-                } else {
-                    ty
-                })
             }
             CoreExprKind::ReceiverMember(member) => {
                 let definition = self.definition(owner)?;
@@ -4510,11 +4526,19 @@ impl<'a> Check<'a, '_> {
                 ));
             }
         };
+        self.record_expression_type(owner, expression.id, result)
+    }
+    fn record_expression_type(
+        &mut self,
+        owner: SemanticDefinitionId,
+        node: NodeId,
+        result: SemanticTypeRecipe,
+    ) -> R<SemanticTypeRecipe> {
         let copy = copy_recipe(&result, self.limits, self.left)?;
         self.proof
             .proof_mut()?
             .types
-            .insert((owner, Query::Expression(expression.id)), copy);
+            .insert((owner, Query::Expression(node)), copy);
         Ok(result)
     }
     fn insert_binding(

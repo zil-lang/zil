@@ -182,8 +182,11 @@ impl generics::products::Products {
         module: &s::Module,
         expanded: &mut ExpandedModule,
         limits: &Limits,
+        original_declarations: Option<&[zil_ir::LifeNominalDeclaration]>,
     ) -> CompileResult<()> {
-        let Some(program) = self.semantic.as_ref() else {
+        let declarations = self.semantic.as_ref().map(|program| program.nominal_declarations.as_slice())
+            .or(original_declarations);
+        let Some(declarations) = declarations else {
             expanded.semantic_nominal_emissions.clear();
             return Ok(());
         };
@@ -201,6 +204,11 @@ impl generics::products::Products {
                 budget.node(module.span, 0)?;
                 let origin =
                     origins.in_module(module.id, emission.item, &mut budget, module.span)?;
+                if origin.compiler && self.semantic.is_none() {
+                    // Standalone Core already carries the sealed prelude's own
+                    // exact qualified instances. Only authored mints are added.
+                    continue;
+                }
                 let (declaration_id, identity) = if origin.compiler {
                     // Generic Option/Poll storage has a separate exact qualified
                     // producer. Closed task enums have actual compiler ASTs too.
@@ -252,10 +260,8 @@ impl generics::products::Products {
                     )?;
                     (id, original.identity.clone())
                 };
-                budget.identity_work(program.nominal_declarations.len(), module.span)?;
-                let declaration = program
-                    .nominal_declarations
-                    .iter()
+                budget.identity_work(declarations.len(), module.span)?;
+                let declaration = declarations.iter()
                     .find(|row| row.id == declaration_id)
                     .ok_or_else(|| {
                         Diagnostic::error(

@@ -386,6 +386,23 @@ fn expand_with_map_limits_target_impl(
         debit_trait_lowering(&expanded, &mut lower_limits, 1)?;
         products.allowance = Some(lower_limits);
     }
+    if let Some(context) = context
+        && !products.storage.instances.is_empty()
+        && !expanded.semantic_nominal_emissions.is_empty()
+    {
+        let syntax = [module];
+        let (origins, mut remaining) = source_context::capture_original_required(
+            std::slice::from_ref(source), &syntax, context, products.allowance.as_ref().unwrap_or(limits),
+        )?;
+        let inventory = source_declarations::collect_original_declarations_with_budget(
+            &syntax, &origins, &mut remaining,
+        )?;
+        let mut budget = generics::Budget::new(&remaining);
+        let declarations = semantic_nominal_lower::originals(&inventory, &mut budget)
+            .map_err(|error| vec![error])?;
+        products.allowance = Some(budget.remaining_limits());
+        products.bind_semantic_nominals(&specialized, &mut expanded, limits, Some(&declarations))?;
+    }
     products.bind_dynamic_targets(&specialized, &expanded, limits)?;
     products.bind_closure_contexts(&specialized, &mut expanded, limits)?;
     products.bind_callable_contexts(&specialized, &mut expanded, limits)?;
@@ -895,7 +912,7 @@ fn expand_program_with_limits_target_impl(
         {
             products.allowance = Some(remaining);
             products.bind_semantic_functions(module, &mut expanded, limits)?;
-            products.bind_semantic_nominals(module, &mut expanded, limits)?;
+            products.bind_semantic_nominals(module, &mut expanded, limits, None)?;
             products.bind_dynamic_targets(module, &expanded, limits)?;
             products.bind_closure_contexts(module, &mut expanded, limits)?;
             products.bind_callable_contexts(module, &mut expanded, limits)?;

@@ -40,8 +40,19 @@ pub(super) fn inline_capture_borrow<'a>(
             "capture borrow requires actual inline Copy storage and a compatible complete entry",
         )
     };
-    if !inline_capture_borrow_candidate(closure, index, mutable) {
-        return Err(invalid());
+    if closure.storage_life.is_none()
+        && !mutable
+        && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
+        && lending_result(&closure.result)
+        && !closure.lending_captures.is_empty()
+    {
+        // Flat lending entries prove captures and result holds in the actual
+        // BorrowCapture/Return loan pass. Only inline Copy fields borrow here.
+        let payload = closure.captures.get(index as usize).ok_or_else(invalid)?;
+        stored_flow::type_bounds(payload, &budget.limits.clone(), budget)?;
+        if payload.is_copy_value() {
+            return Ok(payload);
+        }
     }
     if mutable && closure.kind == CallableKind::Fn {
         return Err(reject(
@@ -49,6 +60,9 @@ pub(super) fn inline_capture_borrow<'a>(
             None,
             "exclusive capture borrow requires an exclusive or consuming entry",
         ));
+    }
+    if !inline_capture_borrow_candidate(closure, index, mutable) {
+        return Err(invalid());
     }
     let payload = closure.captures.get(index as usize).ok_or_else(invalid)?;
     if !mutable && stored_callables::lending(closure) && stored_callables::scalar(payload) {

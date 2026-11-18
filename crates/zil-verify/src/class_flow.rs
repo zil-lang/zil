@@ -464,20 +464,44 @@ impl Equations {
             pure_class_keys(ty, &mut path, &mut keys, b)?;
         }
         let mut physical_slots = Vec::new();
-        if outer.is_none()
-            && let Type::BorrowedStorage { life, .. } = ty
-        {
-            b.spend(life.slots.len())?;
-            for slot in &life.slots {
-                b.spend(slot.path.len().saturating_add(1))?;
-                physical_slots.push((
-                    slot.path
-                        .iter()
-                        .copied()
-                        .map(ContractProjection::Place)
-                        .collect(),
-                    slot.binder as usize,
-                ));
+        if outer.is_none() {
+            // Walk actual inline carriers, including independent error arms.
+            // Each local class index selects only the full key at this prefix.
+            let enum_addresses = b.stored_enum_addresses;
+            let mut pending = vec![(ty, Vec::<PlaceProjection>::new())];
+            while let Some((current, prefix)) = pending.pop() {
+                b.spend(1)?;
+                let mut add = |projection, child| -> Check<()> {
+                    b.spend(prefix.len().saturating_add(2))?;
+                    let mut path = prefix.clone();
+                    path.push(projection);
+                    pending.push((child, path));
+                    Ok(())
+                };
+                match current {
+                    Type::Tuple(fields) => {
+                        for (index, field) in fields.iter().enumerate().rev() {
+                            add(PlaceProjection::Field(index as u32), field)?;
+                        }
+                    }
+                    Type::ErrorUnion { error, result } if enum_addresses && super::stored_flow::enum_address::signature(current) => {
+                        add(PlaceProjection::ErrorArm(false), result.as_ref())?;
+                        add(PlaceProjection::ErrorArm(true), error.as_ref())?;
+                    }
+                    Type::BorrowedStorage { life, .. } => {
+                        for slot in &life.slots {
+                            b.spend(keys.len().saturating_mul(prefix.len().saturating_add(1))
+                                .saturating_add(prefix.len()).saturating_add(slot.path.len()).saturating_add(1))?;
+                            let index = keys.iter().position(|(path, class)| {
+                                *class == slot.binder && path.len() == prefix.len()
+                                    && path.iter().zip(&prefix).all(|(a, z)| matches!(a, LifeTypeProjection::Place(step) if step == z))
+                            }).ok_or_else(|| bad("qualified slot has no actual class at its inline boundary"))?;
+                            let path = prefix.iter().chain(&slot.path).copied().map(ContractProjection::Place).collect();
+                            physical_slots.push((path, index));
+                        }
+                    }
+                    _ => {}
+                }
             }
         }
         let mut task_ports = Vec::new();

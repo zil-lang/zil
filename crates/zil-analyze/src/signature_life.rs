@@ -90,15 +90,15 @@ fn pure_value_tree(ty: &Type) -> bool {
     true
 }
 
-fn array_classes(
-    ty: &Type,
+fn array_classes<'a>(
+    ty: &'a Type,
     path: &mut Vec<LifeTypeProjection>,
-    out: &mut Vec<(Vec<LifeTypeProjection>, u32)>,
+    out: &mut Vec<(Vec<LifeTypeProjection>, u32, &'a StorageLifeShape)>,
 ) {
     match ty {
         Type::BorrowedStorage { life, .. } => {
             for class in 0..life.binder_count {
-                out.push((path.clone(), class));
+                out.push((path.clone(), class, life));
             }
         }
         Type::ErrorUnion { error, result } => {
@@ -1150,7 +1150,10 @@ fn relation_inner(
                 };
                 let mut classes = Vec::new();
                 array_classes(target, &mut path, &mut classes);
-                for (path, local) in classes {
+                for (path, local, life) in classes {
+                    if local == 0 && path.iter().all(|step| matches!(step, LifeTypeProjection::Place(_))) {
+                        self.qualified_slots(life, base, &path)?;
+                    }
                     let row = self
                         .c
                         .classes

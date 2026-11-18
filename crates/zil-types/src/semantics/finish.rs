@@ -25,6 +25,7 @@ pub(crate) fn program(
             left,
             |left| stored::ordinary_inventory(module, limits, left),
         )?;
+        super::creator_headers::rows::complete_standalone(module, limits, left)?;
         return Ok(None);
     }
     let context = ledger.original.context().cloned().ok_or_else(|| {

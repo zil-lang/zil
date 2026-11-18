@@ -70,8 +70,11 @@ pub(super) fn arguments(
     let mut actual_rows = Vec::new();
     for (ordinal, argument) in instance.arguments.iter().enumerate() {
         b.spend(1)?;
-        if let LifeNominalActual::Type(ty @ Type::Address { mutable: false, .. }) = argument {
-            actual_rows.push((ordinal, ty));
+        if matches!(argument,
+            LifeNominalActual::Type(Type::Address { mutable: false, .. })
+            | LifeNominalActual::QualifiedType { ty: Type::Address { mutable: false, .. }, .. })
+        {
+            actual_rows.push((ordinal, option_address::shared_actual(argument, limits, b)?));
         }
     }
     b.spend(actual_rows.len().saturating_add(life.retained.len()))?;

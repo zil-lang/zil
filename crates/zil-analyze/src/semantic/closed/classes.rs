@@ -2525,6 +2525,14 @@ impl Check<'_, '_> {
                     depth + 1,
                 )
             }
+            InstructionKind::TakeVariantField { local, path }
+                if path.len() == 1 && (self.task_domain(ty, b)?.is_some()
+                    || matches!(ty, Type::Address { mutable: false, .. })) =>
+            {
+                operations::initialized_local_before(function, (block, index), *local, b)?;
+                let parent = self.local_value(instance, function, *local, (block, index), b, depth + 1)?;
+                self.projected_child(function, id, &parent, path[0], b, depth + 1)
+            }
             InstructionKind::ReadVariant {
                 value: parent,
                 variant,

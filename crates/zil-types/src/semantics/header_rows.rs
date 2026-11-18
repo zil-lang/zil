@@ -23,6 +23,94 @@ fn path(left: &mut usize, limits: &Limits, n: usize) -> R<()> {
     }
     Ok(())
 }
+/// Expand preserves the source's one class mapping per qualified boundary.
+/// Standalone Core lacks an original semantic program to materialize its
+/// Typed headers. Derive each transferred physical slot at this boundary.
+pub(in crate::semantics) fn complete_standalone(module: &mut TypedModule, limits: &Limits, left: &mut usize) -> R<()> {
+    fn append(
+        ty: &Type, base: StorageBase, prefix: &mut Vec<PlaceProjection>,
+        contract: &mut StorageLifeContract, limits: &Limits, left: &mut usize,
+    ) -> R<()> {
+        path(left, limits, prefix.len())?;
+        match ty {
+            Type::Tuple(fields) => {
+                for (index, field) in fields.iter().enumerate() {
+                    prefix.push(PlaceProjection::Field(index as u32));
+                    append(field, base, prefix, contract, limits, left)?;
+                    prefix.pop();
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                for (arm, field) in [(true, error.as_ref()), (false, result.as_ref())] {
+                    prefix.push(PlaceProjection::ErrorArm(arm));
+                    append(field, base, prefix, contract, limits, left)?;
+                    prefix.pop();
+                }
+            }
+            Type::BorrowedStorage { life, .. } => {
+                for slot in &life.slots {
+                    pay(left, contract.classes.len().saturating_mul(prefix.len().saturating_add(1)))?;
+                    let mut images = contract.classes.iter().filter(|row| {
+                        row.position.base == base && row.position.class == slot.binder
+                            && row.position.path.len() == prefix.len()
+                            && row.position.path.iter().zip(prefix.iter()).all(|(step, actual)| {
+                                matches!(step, LifeTypeProjection::Place(part) if part == actual)
+                            })
+                    });
+                    let image = images.next().ok_or_else(|| bad("standalone slot lacks its source class binding"))?.binder;
+                    if images.next().is_some() || slot.binder >= life.binder_count {
+                        return Err(bad("standalone slot has an ambiguous or missing class"));
+                    }
+                    path(left, limits, prefix.len().saturating_add(slot.path.len()))?;
+                    let position = StoragePosition {
+                        base,
+                        path: prefix.iter().chain(&slot.path).copied().map(ContractProjection::Place).collect(),
+                    };
+                    pay(left, contract.bindings.len().saturating_mul(position.path.len().saturating_add(2)))?;
+                    // Physical slots follow the same traversal as the Typed
+                    // header consumer. Error arms are visited before success.
+                    let order = |other: &StoragePosition| {
+                        other.base.cmp(&base).then_with(|| {
+                            for (a, z) in other.path.iter().zip(&position.path) {
+                                let cmp = match (a, z) {
+                                    (ContractProjection::Place(PlaceProjection::ErrorArm(a)),
+                                     ContractProjection::Place(PlaceProjection::ErrorArm(z))) => z.cmp(a),
+                                    _ => a.cmp(z),
+                                };
+                                if !cmp.is_eq() { return cmp; }
+                            }
+                            other.path.len().cmp(&position.path.len())
+                        })
+                    };
+                    let index = contract.bindings.iter().position(|row| !order(&row.position).is_lt())
+                        .unwrap_or(contract.bindings.len());
+                    if let Some(row) = contract.bindings.get(index) && row.position == position {
+                        if row.binder != image { return Err(bad("standalone physical slot differs from its class")); }
+                    } else {
+                        if contract.bindings.len() >= limits.max_nodes {
+                            return Err(Diagnostic::limit(Phase::Types, "standalone header occurrence limit exceeded", None));
+                        }
+                        contract.bindings.insert(index, StorageLifeBinding { position, binder: image });
+                    }
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+    for function in &mut module.functions {
+        pay(left, 1)?;
+        let Some(header) = &mut function.storage_life else { continue };
+        if header.classes.is_empty() || function.environment.is_some() { continue; }
+        for (index, local) in function.parameters.iter().enumerate() {
+            let ty = &function.locals.get(local.0 as usize)
+                .filter(|decl| decl.id == *local).ok_or_else(|| bad("standalone header input has no actual local"))?.ty;
+            append(ty, StorageBase::Parameter(index as u32), &mut Vec::new(), header, limits, left)?;
+        }
+        append(&function.return_type, StorageBase::Result, &mut Vec::new(), header, limits, left)?;
+    }
+    Ok(())
+}
 /// A reference to a qualified pointee exports one map of its intrinsic
 /// classes. Descendant occurrences still belong to the pointee's own shape.
 fn qualified_pointee_rows(
