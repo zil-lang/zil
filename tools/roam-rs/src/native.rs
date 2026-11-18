@@ -3,6 +3,7 @@ use crate::{byte_buffer, callable_composition, domain, host, protocol, resource_
 use serde_json::{Value, json};
 use std::{
     fs::{self, File},
+    io::Read,
     path::{Path, PathBuf},
     process::{Command, Output, Stdio},
     sync::atomic::{AtomicU64, Ordering},
@@ -57,6 +58,57 @@ fn resolve_clang() -> Result<PathBuf, String> {
             .ok_or("clang not found")?
     };
     fs::canonicalize(path).map_err(|e| format!("resolve clang: {e}"))
+}
+
+// Toolchain executables are inputs to the oracle, not Roam worker snapshots.
+// Pin their exact bytes while bounding the stream independently of the snapshot cap.
+fn clang_digest(path: &Path) -> Result<String, String> {
+    const MAX_CLANG_BYTES: u64 = 512 * 1024 * 1024;
+    let file = File::open(path).map_err(|e| format!("open clang for hashing: {e}"))?;
+    let metadata = file.metadata().map_err(|e| e.to_string())?;
+    if !metadata.is_file() || metadata.len() > MAX_CLANG_BYTES {
+        return Err("clang executable exceeds the toolchain byte quota".into());
+    }
+    let mut input = file.take(MAX_CLANG_BYTES + 1);
+    // The shipped Clang can be hundreds of MiB. Use the host's SHA-256
+    // implementation when present to keep verification inside worker deadlines.
+    if let Ok(mut child) = Command::new("/usr/bin/sha256sum")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+    {
+        let copied = std::io::copy(
+            &mut input,
+            &mut child.stdin.take().ok_or("missing hash input")?,
+        );
+        let output = child.wait_with_output().map_err(|e| e.to_string())?;
+        if copied.map_err(|e| e.to_string())? > MAX_CLANG_BYTES {
+            return Err("clang executable grew beyond the toolchain byte quota".into());
+        }
+        let hash = std::str::from_utf8(&output.stdout)
+            .map_err(|e| e.to_string())?
+            .split_whitespace()
+            .next()
+            .and_then(Fingerprint::from_hex);
+        return match (output.status.success(), hash) {
+            (true, Some(hash)) => Ok(hash.to_hex()),
+            _ => Err("host SHA-256 failed for clang".into()),
+        };
+    }
+    let mut builder = zil_base::FingerprintBuilder::new();
+    let mut bytes = [0; 64 * 1024];
+    loop {
+        let count = input.read(&mut bytes).map_err(|e| e.to_string())?;
+        if count == 0 {
+            break;
+        }
+        builder.update(&bytes[..count]);
+    }
+    if input.limit() == 0 {
+        return Err("clang executable grew beyond the toolchain byte quota".into());
+    }
+    Ok(builder.digest().to_hex())
 }
 
 /// File capture bounds memory throughout execution, and a live size/deadline
@@ -175,7 +227,7 @@ pub fn clang_proxy(args: &[String]) -> Result<u8, String> {
     let clang = PathBuf::from(pinned["path"].as_str().ok_or("missing pinned clang path")?);
     if !clang.is_absolute()
         || resolve_clang()? != clang
-        || host::digest(&clang)? != pinned["sha256"]
+        || clang_digest(&clang)? != pinned["sha256"]
     {
         return Err("clang proxy identity drift before compilation".into());
     }
@@ -216,7 +268,7 @@ pub fn clang_proxy(args: &[String]) -> Result<u8, String> {
         }
         recorded["byteObserver"] = config;
     }
-    if host::digest(&clang)? != pinned["sha256"] {
+    if clang_digest(&clang)? != pinned["sha256"] {
         recorded["error"] = json!("clang proxy identity drift during compilation");
         host::durable(&dir.join("clang-process.json"), &recorded)?;
         return Err("clang proxy identity drift during compilation".into());
@@ -251,7 +303,7 @@ pub fn identity() -> Result<Value, String> {
     {
         use std::os::unix::process::CommandExt;
         let clang = resolve_clang()?;
-        let hash = host::digest(&clang)?;
+        let hash = clang_digest(&clang)?;
         let root = std::env::temp_dir().join(format!(
             "zil-native-identity-{}-{}",
             std::process::id(),
@@ -348,7 +400,7 @@ fn observe(
     let input_path = root.join("input.zil");
     fs::write(&input_path, source).map_err(|e| e.to_string())?;
     let clang = PathBuf::from(toolchain["path"].as_str().ok_or("invalid clang identity")?);
-    if host::digest(&clang)? != toolchain["sha256"] {
+    if clang_digest(&clang)? != toolchain["sha256"] {
         return Err("clang changed before compilation".into());
     }
     host::durable(&root.join("clang-identity.json"), toolchain)?;
@@ -453,7 +505,7 @@ fn observe(
     } else {
         json!({"kind":"unexpected-runtime","run":detail["run"]})
     };
-    if host::digest(&clang)? != toolchain["sha256"] {
+    if clang_digest(&clang)? != toolchain["sha256"] {
         return Err("clang changed during compilation".into());
     }
     Ok((observed, detail))
@@ -466,7 +518,7 @@ fn observe_c(
     level: &str,
 ) -> Result<(Value, Value), String> {
     let clang = PathBuf::from(toolchain["path"].as_str().ok_or("invalid clang identity")?);
-    if resolve_clang()? != clang || host::digest(&clang)? != toolchain["sha256"] {
+    if resolve_clang()? != clang || clang_digest(&clang)? != toolchain["sha256"] {
         return Err("C reference toolchain identity drift".into());
     }
     let input = root.join("reference.c");
@@ -506,7 +558,7 @@ fn observe_c(
     #[cfg(not(unix))]
     let signal: Option<i32> = None;
     let observation = json!({"kind":"lifecycle","stdout":String::from_utf8_lossy(&run.stdout),"stderr":String::from_utf8_lossy(&run.stderr),"exit":run.status.code()});
-    if host::digest(&clang)? != toolchain["sha256"] {
+    if clang_digest(&clang)? != toolchain["sha256"] {
         return Err("C reference toolchain changed during execution".into());
     }
     let detail = json!({"compile":compile,"sourceSha256":Fingerprint::of(source.as_bytes()).to_hex(),"executableSha256":host::digest(&executable)?,"run":{"argv":[executable],"signal":signal,"observation":observation}});
