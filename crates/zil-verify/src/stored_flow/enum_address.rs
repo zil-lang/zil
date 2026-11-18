@@ -222,16 +222,23 @@ pub(crate) fn shape(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
 }
 
 pub(crate) fn ordinary(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
-    if b.task_borrowed_results && super::task_address::shape(ty) {
+    if !b.stored_enum_addresses {
         return Ok(false);
     }
-    if !b.stored_enum_addresses {
+    checked_ordinary(module, ty, b)
+}
+
+// A semantic Task consumer may replay an opcode before whole-module stored
+// inventory. Authenticate the selected declaration and all actual payloads
+// directly. The feature flag is only a fast path for later stored-flow walks.
+pub(crate) fn checked_ordinary(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    if b.task_borrowed_results && super::task_address::shape(ty) {
         return Ok(false);
     }
     if let Type::ErrorUnion { error, result } = ty {
         b.spend(1)?;
-        let error_sum = ordinary(module, error, b)?;
-        let result_sum = ordinary(module, result, b)?;
+        let error_sum = checked_ordinary(module, error, b)?;
+        let result_sum = checked_ordinary(module, result, b)?;
         // A wrapper is in this domain only when an actual borrowed Enum arm
         // independently selects it; ordinary owning unions keep their proof.
         if !error_sum && !result_sum {
