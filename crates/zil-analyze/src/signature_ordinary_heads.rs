@@ -192,9 +192,11 @@ pub(crate) fn module(module: &TypedModule, limits: &Limits, b: &mut Budget) -> C
     }
     // These actual operations need additional stored-target proofs even when
     // their semantic data domain happens to be zero.
+    // A mutable pointer to an aggregate schedules a possible stored update.
+    // The whole-module type/operation checks below distinguish an actual
+    // stored borrow from an ordinary mutable, zero-domain aggregate head.
     if b.nested_store_windows
         || b.store_option_results
-        || b.stored_slot_updates
         || b.stored_enum_addresses
     {
         return Ok(false);
