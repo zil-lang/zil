@@ -1782,17 +1782,78 @@ impl World<'_, '_> {
                 selected = Some(expected);
             }
         }
+        if selected.is_none()
+            && matches!(&f.blocks[block.0 as usize].instructions[index].kind, InstructionKind::MakePackage { .. })
+            && let Some(rebuilt) = self.rebuilt_package(instance, f, block, index, result, fields, values, locals, implicit)?
+        {
+            return Ok(rebuilt);
+        }
         if selected.is_none() {
             self.pay(128)?;
         }
         selected.ok_or_else(|| {
             let mut error = bad("actual qualified constructor has no original constructor site");
             error.notes.push(format!(
-                "actual constructor: function {:?} block {:?} instruction {} result {:?}",
-                f.id, block, index, result
+                "actual constructor: function {:?} block {:?} instruction {} result {:?}, variant {:?}, operands {}",
+                f.id, block, index, result, variant, fields.len()
             ));
             error
         })
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn rebuilt_package(
+        &mut self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        block: BlockId,
+        index: usize,
+        result: ValueId,
+        fields: &[ValueId],
+        values: &[Option<SharedType>],
+        locals: &[Option<SharedType>],
+        implicit: &BTreeMap<u32, SemanticClassExpr>,
+    ) -> R<Option<SharedType>> {
+        let Some(ty @ Type::Package { fields: declaration, .. }) = function.values.get(result.0 as usize) else {
+            return Ok(None);
+        };
+        let Some(start) = index.checked_sub(fields.len()) else { return Ok(None); };
+        if fields.is_empty() || fields.len() != declaration.len() {
+            return Ok(None);
+        }
+        let children = &function.blocks[block.0 as usize].instructions[start..index];
+        let mut root = None;
+        for (ordinal, ((instruction, operand), (_, field))) in children.iter().zip(fields).zip(declaration).enumerate() {
+            self.pay(1)?;
+            let (local, selected, take) = match instruction.kind {
+                InstructionKind::TakePackageField { local, index } => (local, index, true),
+                InstructionKind::ReadPackageField { local, index } => (local, index, false),
+                _ => return Ok(None),
+            };
+            self.pay(inference::type_snapshot_work(field, instruction.span, self.limits)?)?;
+            if instruction.result != Some(*operand)
+                || selected as usize != ordinal
+                || take != owned_shapes::field(field)
+                || root.is_some_and(|root| root != local)
+            {
+                return Ok(None);
+            }
+            root = Some(local);
+        }
+        let root = root.expect("checked nonempty reconstruction");
+        let parent = locals.get(root.0 as usize).and_then(Option::as_ref)
+            .ok_or_else(|| bad("rebuilt package loses its exact local occupant"))?;
+        if Self::type_of(parent)? != ty {
+            return Err(bad("rebuilt package changes its complete local type"));
+        }
+        let expected = self.emitted_value(instance, function, block, index, result)?
+            .ok_or_else(|| bad("rebuilt package loses its original whole-value observation"))?;
+        self.same(instance.id, parent, &expected, implicit)?;
+        for (ordinal, operand) in fields.iter().enumerate() {
+            let child = self.field_value(parent, ordinal as u32)?;
+            let actual = self.get(values, *operand)?;
+            self.same(instance.id, &actual, &child, implicit)?;
+        }
+        Ok(Some(expected))
     }
     fn body_call(
         &mut self,

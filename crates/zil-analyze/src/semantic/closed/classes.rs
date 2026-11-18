@@ -1966,6 +1966,71 @@ impl Check<'_, '_> {
         value::borrowed_full(child, &life, classes, self.inventory, b)
     }
 
+    #[allow(clippy::too_many_arguments)]
+    fn rebuilt_package(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        (block, index): (BlockId, usize),
+        ty: &Type,
+        fields: &[ValueId],
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Option<Value>> {
+        let Type::Package { fields: declaration, .. } = ty else { return Ok(None); };
+        let Some(start) = index.checked_sub(fields.len()) else { return Ok(None); };
+        if fields.is_empty() || fields.len() != declaration.len() {
+            return Ok(None);
+        }
+        let body = function.blocks.get(block.0 as usize)
+            .filter(|body| body.id == block)
+            .ok_or_else(|| fail("rebuilt package loses its exact actual block"))?;
+        let mut local = None;
+        for (ordinal, ((instruction, operand), (_, field))) in body.instructions[start..index]
+            .iter().zip(fields).zip(declaration).enumerate()
+        {
+            b.type_work(field, false, WORK)?;
+            let (source, selected, take) = match instruction.kind {
+                InstructionKind::TakePackageField { local, index } => (local, index, true),
+                InstructionKind::ReadPackageField { local, index } => (local, index, false),
+                _ => return Ok(None),
+            };
+            if instruction.result != Some(*operand)
+                || selected as usize != ordinal
+                || take == field.is_copy_value()
+                || local.is_some_and(|local| local != source)
+            {
+                return Ok(None);
+            }
+            local = Some(source);
+        }
+        let local = local.expect("checked nonempty reconstruction");
+        b.spend(self.program.sites.len(), WORK)?;
+        if self.program.sites.iter().any(|site| {
+            site.instance == instance.id
+                && matches!(site.action, SemanticSiteAction::Construct { .. })
+                && matches!(site.at, SemanticSiteAddress::Typed {
+                    block: owner, instruction: point, edge: SemanticSiteEdge::After,
+                } if owner == block && point as usize == index)
+        }) {
+            return Ok(None);
+        }
+        operations::initialized_local_before(function, (block, start), local, b)?;
+        let parent = self.local_value(instance, function, local, (block, start), b, depth + 1)?;
+        if !geometry::same_type(&parent.ty, ty, b)? {
+            return Err(fail("rebuilt package changes its complete original occupant"));
+        }
+        for (ordinal, operand) in fields.iter().enumerate() {
+            operations::available_before(function, (block, index, SemanticSiteEdge::Before), *operand, b)?;
+            let expected = self.actual_nominal_field(&parent, ordinal as u32, b, depth + 1)?;
+            let actual = self.ssa_value(instance, function, *operand, b, depth + 1)?;
+            if !actual.equal_paid(&expected, b)? {
+                return Err(fail("rebuilt package changes an original field value"));
+            }
+        }
+        Ok(Some(parent))
+    }
+
     pub(super) fn ssa_value(
         &self,
         instance: &SemanticInstance,
@@ -2043,6 +2108,11 @@ impl Check<'_, '_> {
         let (block, index, instruction) = self.defining(function, id, b)?;
         if matches!(ty, Type::Desc(_))
             && let Some(value) = self.source_description_at(instance, function, id, b, depth + 1)?
+        {
+            return Ok(value);
+        }
+        if let InstructionKind::MakePackage { fields } = &instruction.kind
+            && let Some(value) = self.rebuilt_package(instance, function, (block, index), ty, fields, b, depth + 1)?
         {
             return Ok(value);
         }
@@ -2759,7 +2829,7 @@ impl Check<'_, '_> {
                     fail("class-bearing Sum constructor lacks its exact original occurrence")
                 })
             }
-            InstructionKind::MakeAggregate { fields } => {
+            InstructionKind::MakeAggregate { fields } | InstructionKind::MakePackage { fields } => {
                 let definition = self.inventory.definition(instance.definition, b)?;
                 let SemanticDefinitionBody::FunctionWithBody { sites: recipes, .. } =
                     &definition.body
