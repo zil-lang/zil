@@ -40,12 +40,14 @@ fn pattern_initial_transfer(module: &TypedModule, f: &TypedFunction, local: Loca
                     if end - begin != fields.len() || fields.contains(source) || fields.iter().filter(|field| **field == local).count() != 1 {
                         return Err(bad("pattern unpack does not initialize its exact declaration bundle"));
                     }
-                    // Tuple bindings activate fields in reverse so their
-                    // generated cleanup follows the original field order.
-                    // The Unpack field vector still follows source ordinals.
-                    let tuple = matches!(transfer.kind, InstructionKind::UnpackTuple { .. });
+                    // Qualified Tuple bindings activate fields in reverse so
+                    // cleanup follows field order. The Unpack field vector
+                    // and the exact original projection still keep ordinals.
+                    let reverse = matches!(transfer.kind, InstructionKind::UnpackTuple { .. })
+                        && matches!(f.locals.get(source.0 as usize).map(|local| &local.ty),
+                            Some(Type::BorrowedStorage { storage, .. }) if matches!(storage.as_ref(), Type::Tuple(_)));
                     for (ordinal, field) in fields.iter().enumerate() {
-                        let activation = if tuple { end - 1 - ordinal } else { begin + ordinal };
+                        let activation = if reverse { end - 1 - ordinal } else { begin + ordinal };
                         let instruction = &block.instructions[activation];
                         if instruction.kind != InstructionKind::StorageLive(*field) { return Err(bad("pattern unpack changes its ordered actual declaration bundle")); }
                     }
