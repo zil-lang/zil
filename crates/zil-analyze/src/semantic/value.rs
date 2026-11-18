@@ -1408,6 +1408,50 @@ pub(super) fn ancestor<'a>(
     }
     Ok(instance)
 }
+fn description_producer(
+    function: &TypedFunction,
+    module: &TypedModule,
+    producer: &InstructionKind,
+    payload: &Type,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let local = |id: LocalId| {
+        function.locals.get(id.0 as usize).filter(|declaration| declaration.id == id)
+            .map(|declaration| &declaration.ty)
+            .ok_or_else(|| fail("fresh description occurrence names no actual local"))
+    };
+    let owner = match *producer {
+        InstructionKind::DescribeLocal { local: root } => local(root)?,
+        InstructionKind::DescribeCapture { index } => {
+            function.environment.and_then(|id| module.closures.get(id.0 as usize)
+                .filter(|closure| closure.id == id && closure.function == function.id))
+                .and_then(|closure| closure.captures.get(index as usize))
+                .ok_or_else(|| fail("fresh description occurrence names no actual capture"))?
+        }
+        InstructionKind::DescribePackageField { local: root, index } => {
+            let root = local(root)?;
+            crate::dyn_metadata::ty(root, b)?;
+            let Type::Package { fields, .. } = crate::resources::package_storage(root) else {
+                return Err(fail("fresh description occurrence has no actual Package owner"));
+            };
+            &fields.get(index as usize)
+                .ok_or_else(|| fail("fresh description occurrence names no actual Package field"))?.1
+        }
+        InstructionKind::DescribeAddress { address } => {
+            let Some(Type::Address { inner, .. }) = function.values.get(address.0 as usize) else {
+                return Err(fail("fresh description occurrence has no actual parent address"));
+            };
+            inner
+        }
+        _ => return Err(fail("outer description occurrence has no actual fresh description producer")),
+    };
+    crate::dyn_metadata::ty(owner, b)?;
+    if !matches!(owner, Type::Managed(actual) if actual.as_ref() == payload) {
+        return Err(fail("fresh description occurrence changes its actual complete managed payload"));
+    }
+    Ok(())
+}
+
 pub(super) fn class(
     instance: &SemanticInstance,
     expression: &SemanticClassExpr,
@@ -1436,18 +1480,13 @@ pub(super) fn class(
                 .get(id.0 as usize)
                 .ok_or_else(|| fail("actual outer occurrence names no SSA value"))?;
             crate::dyn_metadata::ty(ty, b)?;
-            let Type::Address { mutable, inner } = ty else {
-                return Err(fail(
-                    "fresh outer occurrence is not an actual address producer",
-                ));
+            let actual_mode = match ty {
+                Type::Address { mutable: false, .. } => StoredBorrowMode::SharedAddress,
+                Type::Address { mutable: true, .. } => StoredBorrowMode::ExclusiveAddress,
+                Type::Desc(_) => StoredBorrowMode::WritableDescription,
+                _ => return Err(fail("fresh outer occurrence has no actual Address or Desc head")),
             };
-            if *mode
-                != if *mutable {
-                    StoredBorrowMode::ExclusiveAddress
-                } else {
-                    StoredBorrowMode::SharedAddress
-                }
-            {
+            if *mode != actual_mode {
                 return Err(fail(
                     "fresh outer occurrence changes its actual producer mode",
                 ));
@@ -1465,11 +1504,18 @@ pub(super) fn class(
                     }
                 }
             }
-            match producer.ok_or_else(|| fail("fresh outer occurrence has no actual producer"))? {
+            let producer = producer.ok_or_else(|| fail("fresh outer occurrence has no actual producer"))?;
+            if let Type::Desc(payload) = ty {
+                description_producer(function, inventory.module, producer, payload, b)?;
+                return Ok(Class::Reborrow(function.id, *id));
+            }
+            let Type::Address { mutable, inner } = ty else {
+                unreachable!("actual address mode");
+            };
+            match producer {
                 InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local } => {
-                    let expected_mutable =
-                        matches!(producer, Some(InstructionKind::BorrowLocalMut { .. }));
+                    let expected_mutable = matches!(producer, InstructionKind::BorrowLocalMut { .. });
                     let local = function
                         .locals
                         .get(local.0 as usize)

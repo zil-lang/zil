@@ -209,6 +209,31 @@ impl Check<'_, '_> {
                 "original capture head is attached to another physical header occurrence",
             ));
         }
+        if matches!((&binding.lexical.ty, &binding.stored.ty),
+            (Type::Managed(_), Type::Desc(_)))
+            && binding.bound_operands.len() == 1
+            && let Some(operand) = binding.bound_operands.first()
+        {
+            let creator = self.inventory.instance(
+                instance.parent.ok_or_else(|| fail("described capture has no original creator"))?,
+                b,
+            )?;
+            let SemanticInstanceTarget::Function(target) = &creator.target else {
+                return Err(fail("described capture creator is not an actual function"));
+            };
+            let function = self.inventory.function(target, b)?;
+            let (_, _, instruction) = self.defining(function, *operand, b)?;
+            if matches!(instruction.kind, InstructionKind::DescribeLocal { .. }
+                | InstructionKind::DescribeCapture { .. }
+                | InstructionKind::DescribePackageField { .. }
+                | InstructionKind::DescribeAddress { .. })
+            {
+                // The creator binding already proves the original anchor,
+                // dominating operand and complete Managed payload at this
+                // exact construction. Preserve its single outside image.
+                return Ok(Some(Class::Reborrow(function.id, *operand)));
+            }
+        }
         Ok(Some(
             binding
                 .stored

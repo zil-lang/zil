@@ -349,6 +349,67 @@ fn direct_and_transitive_write_effects_are_reconstructed_from_callee_body() {
         }
     }
 }
+
+#[test]
+fn exchanging_same_typed_descriptor_arguments_changes_which_owner_is_written() {
+    let mut module = fixture(CallableKind::Fn, false, 1);
+    let mut helper = Body::new(2);
+    for name in ["read", "write"] {
+        let id = LocalId(helper.0.locals.len() as u32);
+        helper.0.locals.push(LocalDecl {
+            id,
+            name: name.into(),
+            ty: desc(),
+            mutable: false,
+            span: s(),
+        });
+        helper.0.parameters.push(id);
+    }
+    let read = helper.value(desc(), InstructionKind::Load(LocalId(0)));
+    let write = helper.value(desc(), InstructionKind::Load(LocalId(1)));
+    let value = helper.value(Type::I32, InstructionKind::ReadDesc { desc: read, index: 0 });
+    helper.op(InstructionKind::WriteDesc { desc: write, index: 0, value });
+    module.functions.push(helper.finish(value));
+
+    let mut entry = Body(module.functions[1].clone());
+    let captured = ValueId(0);
+    let local = entry.local(managed());
+    let initial = entry.constant(65);
+    let owner = entry.value(managed(), InstructionKind::MakeManaged { fields: vec![initial] });
+    entry.op(InstructionKind::Store { local, value: owner });
+    let fresh = entry.value(desc(), InstructionKind::DescribeLocal { local });
+    let call_position = entry.0.blocks[0].instructions.len();
+    let status = entry.value(
+        Type::I32,
+        InstructionKind::Call { function: FunctionId(2), arguments: vec![captured, fresh] },
+    );
+    entry.op(InstructionKind::DropManaged { local });
+    entry.op(InstructionKind::StorageDead(local));
+    module.functions[1] = entry.finish(status);
+
+    let limits = Limits::default();
+    for (arguments, accepted) in [
+        (vec![captured, fresh], true),
+        (vec![fresh, captured], false),
+    ] {
+        module.functions[1].blocks[0].instructions[call_position].kind =
+            InstructionKind::Call { function: FunctionId(2), arguments };
+        let plan = resource_tests::plan(&module);
+        let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+        for result in [
+            verify_module(module.clone(), plan, &module.target, &limits),
+            verify_module_bytes(&bytes, &module.target, &limits),
+        ] {
+            if accepted {
+                result.unwrap();
+            } else {
+                let errors = result.unwrap_err();
+                assert!(errors.iter().any(|diagnostic| diagnostic.code == "E-VERIFY-RESOURCE"), "{errors:?}");
+            }
+        }
+    }
+}
+
 #[test]
 fn consume_can_give_one_field_and_settle_the_remaining_fields() {
     let mut m = fixture(CallableKind::FnOnce, false, 2);

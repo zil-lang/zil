@@ -34,6 +34,8 @@ mod intrinsics;
 mod modes;
 #[path = "original_resources.rs"]
 mod resources;
+#[path = "original_resource_writes.rs"]
+mod resource_writes;
 pub(super) use intrinsics::{IntrinsicCall, IntrinsicKind, RegistrationOp, TaskOp};
 #[path = "original_pattern_matrix.rs"]
 mod pattern_matrix;
@@ -201,6 +203,7 @@ pub(super) struct Proof {
     // The value's own TypeUse keeps its original sigma; only this call uses it.
     pub(super) call_borrows: BTreeMap<(SemanticDefinitionId, NodeId, u32), NodeId>,
     pub(super) temporary_descriptions: BTreeMap<(SemanticDefinitionId, NodeId, u32), TemporaryDescription>,
+    resource_writes: resource_writes::Graph,
     pub(super) return_borrows: BTreeMap<(SemanticDefinitionId, NodeId), BorrowRole>,
     pub(super) shared_views: BTreeMap<(SemanticDefinitionId, Query), NodeId>,
     pub(super) borrow_bindings:
@@ -332,6 +335,7 @@ struct Binding {
     origin_owner: SemanticDefinitionId,
     initialized: bool,
     written: bool,
+    resource_root: Option<resource_writes::Root>,
     taken_fields: BTreeSet<String>,
     // Source shadowing preserves the state of the hidden binder. It must be
     // recovered by its original binding identity when the lexical scope exits.
@@ -4056,6 +4060,10 @@ impl<'a> Check<'a, '_> {
                         origin_owner: value.origin_owner,
                         initialized: value.initialized,
                         written: value.written,
+                        resource_root: self.capture_resource_root(
+                            owner, child.id, &value.ty, value.resource_root, *move_capture,
+                            depth + 1,
+                        )?,
                         taken_fields: value.taken_fields.clone(),
                         shadowed: None,
                     };
@@ -4315,6 +4323,7 @@ impl<'a> Check<'a, '_> {
                     if let Some(result) =
                         self.intrinsic(owner, site.id, expression, variables, wanted, depth + 1)?
                     {
+                        self.intrinsic_resource_write(owner, site.id, arguments, variables, depth + 1)?;
                         let copy = copy_recipe(&result, self.limits, self.left)?;
                         self.proof
                             .proof_mut()?
@@ -4458,6 +4467,7 @@ impl<'a> Check<'a, '_> {
                     depth + 1,
                 )?;
                 self.call_requirements(owner, definition, &actuals, depth + 1)?;
+                self.description_call(owner, target, &arguments, &solved_signature, variables, depth + 1)?;
                 self.pay(actuals.len(), depth)?;
                 self.proof
                     .proof_mut()?
@@ -4732,20 +4742,24 @@ impl<'a> Check<'a, '_> {
         let ty = self.place(owner, object, variables, depth + 1)?;
         let observed = self.observation_type(owner, &ty, depth + 1)?;
         match observed {
-            SemanticTypeRecipe::Desc { .. } => *description = true,
+            SemanticTypeRecipe::Desc { .. } => {
+                let roots = self.resource_place_roots(owner, object, variables, depth + 1)?;
+                self.record_resource_write(roots, None, depth + 1)?;
+                *description = true;
+            }
             SemanticTypeRecipe::Address { mutable: true, .. } =>
                 self.observe_exclusive_capture(owner, object, variables, depth + 1)?,
             SemanticTypeRecipe::Address { mutable: false, .. } =>
                 return Err(bad("original projection write uses a shared address")),
             SemanticTypeRecipe::Managed(_) => {
+                let roots = self.resource_place_roots(owner, object, variables, depth + 1)?;
+                self.record_resource_write(roots, None, depth + 1)?;
                 let mut root = object;
                 while let CoreExprKind::Group(inner) = &root.kind {
                     self.pay(1, depth)?;
                     root = inner;
                 }
-                if matches!(root.kind, CoreExprKind::Name(_)) {
-                    self.observe_exclusive_capture(owner, root, variables, depth + 1)?;
-                } else {
+                if !matches!(root.kind, CoreExprKind::Name(_)) {
                     self.writable_place(owner, object, variables, description, depth + 1)?;
                 }
                 *description = true;
@@ -4830,6 +4844,7 @@ impl<'a> Check<'a, '_> {
                         origin_owner: owner,
                         initialized: true,
                         written: false,
+                        resource_root: None,
                         taken_fields: BTreeSet::new(),
                         shadowed: None,
                     },
@@ -5455,6 +5470,16 @@ impl<'a> Check<'a, '_> {
                             depth + 1,
                         )?;
                     }
+                    let resource_root = if matches!(value, SemanticTypeRecipe::Desc { .. }) {
+                        let alias = resource_writes::Root::Alias(owner, statement.id);
+                        if let Some(initializer) = initializer {
+                            let roots = self.resource_place_roots(owner, initializer, variables, depth + 1)?;
+                            self.record_resource_write(roots, Some(alias), depth + 1)?;
+                        }
+                        Some(alias)
+                    } else {
+                        None
+                    };
                     self.insert_binding(
                         variables,
                         name.clone(),
@@ -5469,6 +5494,7 @@ impl<'a> Check<'a, '_> {
                             origin_owner: owner,
                             initialized: initializer.is_some(),
                             written: false,
+                            resource_root,
                             taken_fields: BTreeSet::new(),
                             shadowed: None,
                         },
@@ -5719,6 +5745,12 @@ impl<'a> Check<'a, '_> {
                         self.same(&actual, &expected)?;
                     }
                     if let CoreExprKind::Name(name) = &target.kind {
+                        if let Some(alias @ resource_writes::Root::Alias(..)) =
+                            variables.get(name).and_then(|binding| binding.resource_root)
+                        {
+                            let roots = self.resource_place_roots(owner, value, variables, depth + 1)?;
+                            self.record_resource_write(roots, Some(alias), depth + 1)?;
+                        }
                         let target = variables
                             .get_mut(name)
                             .ok_or_else(|| bad("original assignment target disappeared"))?;
@@ -6105,6 +6137,7 @@ impl<'a> Check<'a, '_> {
                 origin_owner: owner,
                 initialized: true,
                 written: false,
+                resource_root: None,
                 taken_fields: BTreeSet::new(),
                 shadowed: None,
             },
@@ -6243,6 +6276,8 @@ impl<'a> Check<'a, '_> {
                     .types
                     .insert((definition.id, query.clone()), copy);
             }
+            let resource_root = matches!(ty, SemanticTypeRecipe::Desc { .. })
+                .then_some(resource_writes::Root::Parameter(definition.id, index as u32));
             variables.insert(
                 binder.name.clone(),
                 Binding {
@@ -6256,6 +6291,7 @@ impl<'a> Check<'a, '_> {
                     origin_owner: definition.id,
                     initialized: true,
                     written: false,
+                    resource_root,
                     taken_fields: BTreeSet::new(),
                     shadowed: None,
                 },
@@ -6335,6 +6371,12 @@ impl<'a> Check<'a, '_> {
             .get(&definition.id)
             .copied()
             .unwrap_or(CallableKind::Fn);
+        if definition.kind == SemanticDefinitionKind::Closure
+            && kind == CallableKind::Fn
+            && self.resource_receiver_written(definition.id, 0)?
+        {
+            kind = CallableKind::FnMut;
+        }
         for (name, visible) in &variables {
             let mut current = Some(visible);
             let mut captured = false;
@@ -6489,50 +6531,62 @@ fn check_requested(
     program: &SemanticModule,
     declarations: std::rc::Rc<Vec<super::original_context::Declaration>>,
     requested_snapshot: Option<(SemanticDefinitionId, SemanticOriginalNode)>,
-    contextual_code_goals: code_context::Goals,
+    mut contextual_code_goals: code_context::Goals,
     limits: &Limits,
     left: &mut usize,
 ) -> Result<Proof, code_context::Failure> {
     let definition_positions = definition_positions(program, limits, left)?;
-    let mut check = Check {
-        program,
-        limits,
-        left,
-        proof: ProofAccess::Owned(Proof {
-            definition_positions,
-            declarations,
-            ..Proof::default()
-        }),
-        active: BTreeSet::new(),
-        captures: BTreeMap::new(),
-        loops: Vec::new(),
-        trait_active: Vec::new(),
-        contexts: Vec::new(),
-        closure_result_goal: None,
-        integer_initializers: BTreeMap::new(),
-        contextual_code_goals,
-        contextual_code_need: None,
-        contextual_code_inputs: BTreeMap::new(),
-        contextual_code_calls: BTreeSet::new(),
-        predicate_active: Vec::new(),
-        stage_depth: 0,
-        cleanup_depth: 0,
-        requested_snapshot,
-        snapshot_sources: None,
-        escape_active: Vec::new(),
-    };
-    if let Err(diagnostic) = check_complete(&mut check) {
-        if diagnostic.code == code_context::MISSING
-            && let Some(demand) = check.contextual_code_need
-        {
-            return Err(code_context::Failure::Missing { demand, diagnostic });
+    let mut required_resource_writes = BTreeSet::new();
+    loop {
+        let mut check = Check {
+            program,
+            limits,
+            left: &mut *left,
+            proof: ProofAccess::Owned(Proof {
+                definition_positions: definition_positions.clone(),
+                declarations: declarations.clone(),
+                resource_writes: resource_writes::Graph::seeded(required_resource_writes),
+                ..Proof::default()
+            }),
+            active: BTreeSet::new(),
+            captures: BTreeMap::new(),
+            loops: Vec::new(),
+            trait_active: Vec::new(),
+            contexts: Vec::new(),
+            closure_result_goal: None,
+            integer_initializers: BTreeMap::new(),
+            contextual_code_goals,
+            contextual_code_need: None,
+            contextual_code_inputs: BTreeMap::new(),
+            contextual_code_calls: BTreeSet::new(),
+            predicate_active: Vec::new(),
+            stage_depth: 0,
+            cleanup_depth: 0,
+            requested_snapshot,
+            snapshot_sources: None,
+            escape_active: Vec::new(),
+        };
+        match check_complete(&mut check) {
+            Ok(required) if required.is_empty() => {
+                return check.proof.into_owned().map_err(code_context::Failure::Permanent);
+            }
+            Ok(required) => {
+                required_resource_writes = required;
+                contextual_code_goals = check.contextual_code_goals;
+            }
+            Err(diagnostic) => {
+                if diagnostic.code == code_context::MISSING
+                    && let Some(demand) = check.contextual_code_need
+                {
+                    return Err(code_context::Failure::Missing { demand, diagnostic });
+                }
+                return Err(code_context::Failure::Permanent(diagnostic));
+            }
         }
-        return Err(code_context::Failure::Permanent(diagnostic));
     }
-    check.proof.into_owned().map_err(code_context::Failure::Permanent)
 }
 
-fn check_complete(check: &mut Check<'_, '_>) -> R<()> {
+fn check_complete(check: &mut Check<'_, '_>) -> R<BTreeSet<SemanticDefinitionId>> {
     let program = check.program;
     check.pay(1024, 0)?;
     let phase_start = *check.left;
@@ -6577,6 +6631,10 @@ fn check_complete(check: &mut Check<'_, '_>) -> R<()> {
         "all_functions_and_carriers",
         phase_start.saturating_sub(*check.left),
     );
+    let required_resource_writes = check.settle_resource_receivers()?;
+    if !required_resource_writes.is_empty() {
+        return Ok(required_resource_writes);
+    }
     let phase_start = *check.left;
     check.finish_effects()?;
     check
@@ -6605,7 +6663,7 @@ fn check_complete(check: &mut Check<'_, '_>) -> R<()> {
         .stage_costs
         .insert("protocol_cleanup", phase_start.saturating_sub(*check.left));
     check.proof.proof_mut()?.pure_queries_ready = true;
-    Ok(())
+    Ok(BTreeSet::new())
 }
 
 impl Proof {

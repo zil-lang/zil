@@ -90,11 +90,19 @@ impl Check<'_, '_> {
                 .classes
                 .get(source_value.life.slots[0].binder as usize)
                 .ok_or_else(|| fail("call role source has no complete outer class"))?;
-            let source = self.capture_class_image(source.clone(), b)?;
+            // A captured Desc retains the original free-use class in the
+            // declaration's call receipt. Its creator SSA image is outside
+            // this body and cannot select that original argument node.
+            let description = matches!(actual.ty, Type::Desc(_));
+            let original_source = if description {
+                source.clone()
+            } else {
+                self.capture_class_image(source.clone(), b)?
+            };
             for call in self.inventory.sites_at(self.program, instance.id, at.0, at.1, SemanticSiteEdge::After, b)? {
-                let nodes = self.original.call_region_nodes(instance, call.recipe, ordinal, target, &source, self.inventory, b)?;
+                let nodes = self.original.call_region_nodes(instance, call.recipe, ordinal, target, &original_source, self.inventory, b)?;
                 if nodes.is_empty() { continue; }
-                if matches!(actual.ty, Type::Desc(_))
+                if description
                     && self.original.has_temporary_description(instance, call.recipe, ordinal as usize, self.inventory, b)?
                     && self.temporary_description_source(instance, function, source_operand, b, depth + 1)?
                         .is_some_and(|view| view == *actual)
@@ -117,7 +125,10 @@ impl Check<'_, '_> {
                     }
                 }
             }
-            let value::Class::Reborrow(owner, value) = source else {
+            if description {
+                return Ok(false);
+            }
+            let value::Class::Reborrow(owner, value) = original_source else {
                 return Ok(false);
             };
             if owner != function.id {

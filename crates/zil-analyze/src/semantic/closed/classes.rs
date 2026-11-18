@@ -1395,7 +1395,7 @@ impl Check<'_, '_> {
                     ));
                 }
                 let header = self.header_class(instance, binder, b)?;
-                if header != *class {
+                if header != *class && header != self.capture_class_image(class.clone(), b)? {
                     b.spend(192, WORK)?;
                     let mut errors =
                         fail("captured class differs from the sealed original environment");
@@ -4568,7 +4568,10 @@ impl Check<'_, '_> {
             for (_, _, binder) in
                 self.capture_class_headers(contract, capture, value, class as u32, b)?
             {
-                if self.header_class(child, binder, b)? != *actual_class {
+                let header = self.header_class(child, binder, b)?;
+                if header != *actual_class
+                    && header != self.capture_class_image(actual_class.clone(), b)?
+                {
                     return Ok(false);
                 }
             }

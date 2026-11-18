@@ -235,6 +235,77 @@ fn resource_closure_pure_helper_stays_shared_and_recursive_write_helper_is_exclu
 
 const OBSERVABLE: &str = "extern \"C\" fn putchar(code:i32)->i32; resource Token{code:i32} impl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}} fn consume(give token:Token){} ";
 
+const SECOND_DESCRIPTION_WRITE: &str = "
+fn write_second(first:Token,second:Token,depth:i32)->i32 {
+    let alias=second
+    if depth>0 { return write_second(first,alias,depth-1) }
+    alias.code+=1
+    return first.code
+}
+";
+
+#[test]
+fn resource_closure_only_the_written_parameter_requires_exclusive_capture() {
+    let source = |call: &str| {
+        format!(
+            "{OBSERVABLE}{SECOND_DESCRIPTION_WRITE}
+            fn main()->i32 {{
+                let captured=Token{{code:65}}
+                let callback=move ()=>{{
+                    let fresh=Token{{code:66}}
+                    return {call}
+                }}
+                if callback()!=65 || callback()!=65 {{ return 1 }}
+                return 0
+            }}"
+        )
+    };
+    let (typed, _) = native(&source("write_second(captured,fresh,2)"), "CCA");
+    assert!(typed.contains("CallClosureShared"));
+    let source = source("write_second(fresh,captured,2)");
+    let report = source_report(&source, Stage::Types);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "E-SEMANTIC-ORIGINAL"
+                && diagnostic.message == "original assignment targets an immutable binder"
+                && diagnostic.span.is_some_and(|span| {
+                    source.get(span.start as usize..span.end as usize) == Some("callback")
+                })
+        }),
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn resource_closure_in_recursive_helper_sees_writes_after_its_call_site() {
+    let text = format!(
+        "{OBSERVABLE}
+        fn step(token:Token,depth:i32)->i32 {{
+            if depth>0 {{
+                let fresh=Token{{code:64}}
+                var callback=move ()=>step(fresh,depth-1)
+                if callback()!=65 {{ return 9 }}
+            }}
+            token.code+=1
+            return token.code
+        }}
+        fn main()->i32 {{
+            let token=Token{{code:66}}
+            if step(token,2)!=67 {{ return 1 }}
+            return 0
+        }}"
+    );
+    let (typed, _) = native(&text, "AAC");
+    assert!(typed.contains("CallClosureMut"));
+}
+
 #[test]
 fn resource_closure_mixed_address_and_owner_capture_ends_loan_after_once_native() {
     let text = format!(

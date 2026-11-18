@@ -156,7 +156,7 @@ impl Check<'_, '_> {
                     self.capture_class_headers(contract, index, stored, class as u32, b)?
                 {
                     let actual = self.header_class(instance, binder, b)?;
-                    if actual != *source {
+                    if actual != *source && actual != self.capture_class_image(source.clone(), b)? {
                         return Err(fail(
                             "actual captured head changes its original outer or intrinsic child class",
                         ));

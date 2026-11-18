@@ -1102,6 +1102,7 @@ impl Check<'_, '_> {
             None,
             depth + 1,
         )?;
+        self.description_call(owner, target, &operands, &solved, variables, depth + 1)?;
         if receiver_borrow.is_some() {
             let ordinal = receiver_parameter
                 .ok_or_else(|| bad("implicit method borrow has no original receiver ordinal"))?;
