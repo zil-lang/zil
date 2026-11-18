@@ -197,7 +197,7 @@ pub(super) mod dynamic;
 #[path = "materialize_nominal.rs"]
 mod nominal;
 pub(super) use deferred::populate as populate_deferred_nominals;
-pub(super) use deferred::NominalIndex;
+pub(super) use deferred::{NominalFormation, NominalIndex, NominalPass};
 #[path = "materialize_opaque.rs"]
 mod opaque;
 pub(super) use opaque::call_result_at;

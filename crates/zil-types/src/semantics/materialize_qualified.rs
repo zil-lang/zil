@@ -375,7 +375,7 @@ impl Eval<'_, '_, '_> {
         // A child's complete original field selection is paired with this
         // actual physical occurrence. Form its nominal applications before
         // asking the normal reader to resolve the complete field domain.
-        self.deferred_physical_nominal(scope, &recipe, actual, depth + 1)?;
+        self.deferred_physical_nominal(scope, &recipe, actual, super::NominalPass::Discover, depth + 1)?;
         let actual = super::rewrite::canonical_hint(
             actual,
             &self.module.nominal_proposals.borrow(),

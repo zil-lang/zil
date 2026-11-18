@@ -164,12 +164,9 @@ fn creator_input(
             "implicit capture entry changes its actual creator/environment",
         ));
     }
-    world.pay(world.program.sites.len())?;
     let mut mint = None;
-    for site in &world.program.sites {
-        if site.instance == parent.id
-            && matches!(site.action, SemanticSiteAction::Closure { closure: SemanticClosureTarget::Typed(id), .. } if id == closure)
-        {
+    for site in world.instance_sites(parent.id)? {
+        if matches!(site.action, SemanticSiteAction::Closure { closure: SemanticClosureTarget::Typed(id), .. } if id == closure) {
             if mint.replace(site).is_some() {
                 return Err(bad(
                     "implicit capture has multiple actual creator occurrences",
@@ -295,21 +292,14 @@ fn observe(
     state: &State,
     found: &mut BTreeSet<u32>,
 ) -> R<()> {
-    world.pay(
-        definition
-            .implicit_lifetimes
-            .len()
-            .saturating_add(world.program.sites.len()),
-    )?;
+    world.pay(definition.implicit_lifetimes.len())?;
     let occurrence = definition
         .implicit_lifetimes
         .iter()
         .find(|row| row.ordinal == ordinal)
         .ok_or_else(|| bad("captured Fixed class names an absent original implicit occurrence"))?;
-    for site in &world.program.sites {
-        if site.instance != child.id
-            || !matches!(site.at, SemanticSiteAddress::Typed { block:b,instruction:i,edge:e } if b==block && i as usize==index && e==edge)
-        {
+    for site in world.point_rows(child.id, block, index)? {
+        if !matches!(site.at, SemanticSiteAddress::Typed { edge: actual, .. } if actual == edge) {
             continue;
         }
         let recipe = world.original_recipe(definition, site.recipe)?;

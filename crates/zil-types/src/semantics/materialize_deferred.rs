@@ -8,6 +8,12 @@ mod qualified;
 #[path = "materialize_qualified_rewrite.rs"]
 mod rewrite;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(in crate::semantics) enum NominalPass {
+    Discover,
+    Validate,
+}
+
 #[derive(Clone, Copy)]
 pub(super) enum NominalPosition {
     Committed(usize),
@@ -33,6 +39,14 @@ impl<Row> NominalIndex<Row> {
         limits: &Limits,
         left: &mut usize,
     ) -> R<zil_base::Fingerprint> {
+        if let Type::Record { name, .. } | Type::Package { name, .. } | Type::Enum { name, .. } =
+            stored::physical(ty)
+        {
+            // A physical name selects a bucket only. Every successful
+            // candidate still matches the complete Type and declaration.
+            Self::pay(left, name.len().saturating_add(1))?;
+            return Ok(zil_base::Fingerprint::of(name.as_bytes()));
+        }
         inference::charge_type_snapshot(ty, Span::default(), limits, left, 1)?;
         let mut digest = zil_base::FingerprintBuilder::new();
         crate::semantics::original::protocol::hash_into(&mut digest, left, ty)?;
@@ -185,15 +199,17 @@ impl Eval<'_, '_, '_> {
         scope: SemanticInstanceId,
         recipe: &SemanticTypeRecipe,
         hint: LogicalExpected<'_>,
+        pass: NominalPass,
         depth: usize,
     ) -> R<()> {
-        hint.materialize(|ty| self.deferred_physical_nominal(scope, recipe, ty, depth))
+        hint.materialize(|ty| self.deferred_physical_nominal(scope, recipe, ty, pass, depth))
     }
     fn deferred_physical_nominal(
         &mut self,
         scope: SemanticInstanceId,
         recipe: &SemanticTypeRecipe,
         hint: &Type,
+        pass: NominalPass,
         depth: usize,
     ) -> R<()> {
         self.node(depth)?;
@@ -212,7 +228,7 @@ impl Eval<'_, '_, '_> {
                 _,
             ) => {
                 let recipe = self.original_type_view(scope, *selector, source, depth + 1)?;
-                self.deferred_physical_nominal(scope, &recipe, hint, depth + 1)
+                self.deferred_physical_nominal(scope, &recipe, hint, pass, depth + 1)
             }
             (
                 SemanticTypeRecipe::Nominal {
@@ -255,7 +271,9 @@ impl Eval<'_, '_, '_> {
                 // actuals and their complete domains through the ordinary reader;
                 // finish separately proves every original field and where clause.
                 if let Some(position) = self.existing_deferred_nominal(hint, *declaration)? {
-                    self.check_nominal_application(scope, *definition, arguments, position, depth + 1)?;
+                    if pass == NominalPass::Validate {
+                        self.check_nominal_application(scope, *definition, arguments, position, depth + 1)?;
+                    }
                     return Ok(());
                 }
                 let row = self.qualified_nominal(scope, *definition, arguments, hint, depth + 1)?;
@@ -263,7 +281,7 @@ impl Eval<'_, '_, '_> {
                 self.propose_deferred_nominal(before, row)
             }
             (SemanticTypeRecipe::Qualified { storage, .. }, _) => {
-                self.deferred_physical_nominal(scope, storage, hint, depth + 1)
+                self.deferred_physical_nominal(scope, storage, hint, pass, depth + 1)
             }
             (SemanticTypeRecipe::Managed(recipe), Type::Managed(actual))
             | (SemanticTypeRecipe::Desc { inner: recipe, .. }, Type::Desc(actual))
@@ -281,7 +299,7 @@ impl Eval<'_, '_, '_> {
                 Type::Array {
                     element: actual, ..
                 },
-            ) => self.deferred_physical_nominal(scope, recipe, actual, depth + 1),
+            ) => self.deferred_physical_nominal(scope, recipe, actual, pass, depth + 1),
             (SemanticTypeRecipe::Tuple(recipes), _) => {
                 let Type::Tuple(actuals) = stored::physical(hint) else {
                     return Ok(());
@@ -291,7 +309,7 @@ impl Eval<'_, '_, '_> {
                     return Err(bad("pending tuple use changes its original arity"));
                 }
                 for (recipe, actual) in recipes.iter().zip(actuals) {
-                    self.deferred_physical_nominal(scope, recipe, actual, depth + 1)?;
+                    self.deferred_physical_nominal(scope, recipe, actual, pass, depth + 1)?;
                 }
                 Ok(())
             }
@@ -302,8 +320,8 @@ impl Eval<'_, '_, '_> {
                     result: actual_result,
                 },
             ) => {
-                self.deferred_physical_nominal(scope, error, actual_error, depth + 1)?;
-                self.deferred_physical_nominal(scope, result, actual_result, depth + 1)
+                self.deferred_physical_nominal(scope, error, actual_error, pass, depth + 1)?;
+                self.deferred_physical_nominal(scope, result, actual_result, pass, depth + 1)
             }
             _ => Ok(()),
         }
@@ -313,13 +331,20 @@ impl Eval<'_, '_, '_> {
 /// Only real Typed entry parameters/results and relocated source sites supply
 /// a physical proposal. Unused global aggregate prototypes supply no scope and
 /// are deliberately not promoted to complete applications.
+pub(in crate::semantics) struct NominalFormation {
+    pub catalogue_changed: bool,
+    pub representation_changed: bool,
+    pub state: Formation<()>,
+}
+
 pub(crate) fn populate(
     program: &mut SemanticModule,
     module: &mut TypedModule,
     ledger: &mut Ledger,
+    pass: NominalPass,
     limits: &Limits,
     left: &mut usize,
-) -> R<(bool, Formation<()>)> {
+) -> R<NominalFormation> {
     let mut blocked = BTreeSet::new();
     let pending = {
         // Rebuild the immutable source directory each formation round. A
@@ -359,7 +384,7 @@ pub(crate) fn populate(
                     scope: SemanticScopeRef::Ancestor(0),
                     source: SemanticOriginalTypeSource::Parameter(index as u32),
                 };
-                let request = eval.deferred_physical_nominal(instance.id, &recipe, ty, 0);
+                let request = eval.deferred_physical_nominal(instance.id, &recipe, ty, pass, 0);
                 eval.deferred_result(request, &mut blocked)?;
             }
             let recipe = SemanticTypeRecipe::OriginalType {
@@ -370,6 +395,7 @@ pub(crate) fn populate(
                 instance.id,
                 &recipe,
                 function.result()?,
+                pass,
                 0,
             );
             eval.deferred_result(request, &mut blocked)?;
@@ -431,7 +457,7 @@ pub(crate) fn populate(
                     scope: SemanticScopeRef::Ancestor(0),
                     source: SemanticOriginalTypeSource::Expression(node),
                 };
-                let request = eval.deferred_logical_nominal(site.instance, &recipe, hint, 0);
+                let request = eval.deferred_logical_nominal(site.instance, &recipe, hint, pass, 0);
                 eval.deferred_result(request, &mut blocked)?;
                 continue;
             }
@@ -497,7 +523,7 @@ pub(crate) fn populate(
                 match source {
                     SemanticCoreTypeSource::OriginalRecipe(recipe)
                     | SemanticCoreTypeSource::Expression { recipe, .. } => {
-                        let request = eval.deferred_logical_nominal(*scope, recipe, hint, 0);
+                        let request = eval.deferred_logical_nominal(*scope, recipe, hint, pass, 0);
                         eval.deferred_result(request, &mut blocked)?;
                     }
                     SemanticCoreTypeSource::OriginalExpression { source, .. } => {
@@ -507,7 +533,7 @@ pub(crate) fn populate(
                             source,
                             0,
                         )?;
-                        let request = eval.deferred_logical_nominal(*scope, &recipe, hint, 0);
+                        let request = eval.deferred_logical_nominal(*scope, &recipe, hint, pass, 0);
                         eval.deferred_result(request, &mut blocked)?;
                     }
                 }
@@ -568,17 +594,19 @@ pub(crate) fn populate(
             changed = true;
         }
     }
+    let representation_changed = !replacements.is_empty();
     rewrite::apply(program, module, ledger, &replacements, limits, left)?;
-    Ok((
-        changed,
-        if blocked.is_empty() {
+    Ok(NominalFormation {
+        catalogue_changed: changed,
+        representation_changed,
+        state: if blocked.is_empty() {
             Formation::Complete(())
         } else {
             Formation::NotReady {
                 dependencies: blocked,
             }
         },
-    ))
+    })
 }
 
 fn charge_row(row: &LifeNominalInstance, limits: &Limits, left: &mut usize) -> R<()> {
@@ -665,6 +693,10 @@ mod tests {
         let ledger = Ledger::default();
         let hint = record(Type::Bool);
         let key = NominalIndex::<NominalPosition>::key(&hint, &limits, &mut left).unwrap();
+        assert_eq!(
+            key,
+            NominalIndex::<NominalPosition>::key(&committed[0].ty, &limits, &mut left).unwrap(),
+        );
         let mut index = NominalIndex::default();
         index
             .insert(key, NominalPosition::Committed(0), &mut left)

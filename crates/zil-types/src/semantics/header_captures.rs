@@ -3,7 +3,7 @@
 use super::*;
 #[path = "header_capture_uses.rs"]
 mod first_use;
-use super::super::materialize::Formation;
+use super::super::materialize::{Formation, NominalFormation, NominalPass};
 
 /// Formation is a query over exact actual closure identities. A pending
 /// dependency is never a complete directory with an empty class domain.
@@ -1059,11 +1059,17 @@ pub(in crate::semantics) fn complete_emitted_headers(
     // different header may need an already formed nominal application. Publish
     // only complete rows between rounds; neither dependency supplies an N0 fact.
     let before_nominals = module.life_instances.len();
-    let (nominal_progress, nominal_state) = stored::OrdinaryStats::step(&formation_stats,
+    let NominalFormation {
+        catalogue_changed: nominal_progress,
+        representation_changed,
+        state: nominal_state,
+    } = stored::OrdinaryStats::step(&formation_stats,
         "finish: deferred nominals", left, |left| {
-            super::super::materialize::populate_deferred_nominals(program, module, ledger, limits, left)
+            super::super::materialize::populate_deferred_nominals(
+                program, module, ledger, NominalPass::Discover, limits, left,
+            )
         })?;
-    let nominal_dependencies = match nominal_state {
+    let mut nominal_dependencies = match nominal_state {
         Formation::Complete(()) => BTreeSet::new(),
         Formation::NotReady { dependencies } => dependencies,
     };
@@ -1085,6 +1091,7 @@ pub(in crate::semantics) fn complete_emitted_headers(
     }
     for id in retired { complete.remove(&id); }
     let mut pending = Vec::new();
+    let mut headers_changed = false;
     let mut progress = nominal_progress || module.life_instances.len() != before_nominals;
     pay(left, program.instances.len())?;
     for position in 0..program.instances.len() {
@@ -1191,6 +1198,7 @@ pub(in crate::semantics) fn complete_emitted_headers(
             .ok_or_else(|| bad("completed closure instance disappeared"))?
             .header_embedding = embedding;
         complete.insert(instance);
+        headers_changed = true;
         progress = true;
     }
     pay(left, nominal_dependencies.len())?;
@@ -1204,7 +1212,35 @@ pub(in crate::semantics) fn complete_emitted_headers(
             program, module, ledger, limits, left, &creator_dependencies,
         )?;
     }
-    if pending.is_empty() && nominal_dependencies.is_empty() && !progress { return Ok(()); }
+    if pending.is_empty()
+        && nominal_dependencies.is_empty()
+        && !representation_changed
+        && !headers_changed
+    {
+        // Every physical use was visited. New catalogue rows with the same
+        // physical representation need no extra discovery-only sweep.
+        let NominalFormation {
+            catalogue_changed: validation_progress,
+            state: validation,
+            ..
+        } = stored::OrdinaryStats::step(&formation_stats,
+            "finish: deferred nominal validation", left, |left| {
+                super::super::materialize::populate_deferred_nominals(
+                    program, module, ledger, NominalPass::Validate, limits, left,
+                )
+            })?;
+        match validation {
+            Formation::Complete(()) if !validation_progress => return Ok(()),
+            Formation::Complete(()) => { progress = true; }
+            Formation::NotReady { dependencies } => {
+                progress |= validation_progress;
+                progress |= super::super::creator_headers::populate_closure_results(
+                    program, module, ledger, limits, left, &dependencies,
+                )?;
+                nominal_dependencies = dependencies;
+            }
+        }
+    }
     if !progress {
         let mut diagnostic = Diagnostic::unsupported(Phase::Types,
             "closure declaration directory has unresolved actual header dependencies", None);

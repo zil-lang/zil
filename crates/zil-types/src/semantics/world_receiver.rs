@@ -79,13 +79,8 @@ pub(super) fn seal(
             .ok_or_else(|| bad("method borrow parameter root is absent"))?,
         source @ (SemanticOriginalTypeSource::Binding(_)
         | SemanticOriginalTypeSource::BindingProjection { .. }) => {
-            world.pay(world.program.sites.len())?;
             let mut selected = None;
-            let program = world.program;
-            for declaration in &program.sites {
-                if declaration.instance != caller.id {
-                    continue;
-                }
+            for declaration in world.instance_sites(caller.id)? {
                 let SemanticSiteAction::DeclareLocal {
                     local: SemanticLocalTarget::Typed(local),
                     ..
