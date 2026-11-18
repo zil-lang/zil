@@ -971,34 +971,113 @@ fn an_undeclared_return_phase_includes_the_actual_closing_owner() {
             "let owner=c_register_async(reg,request,drain,callback);",
             "let owner=closing(callback);",
         );
-    for (text, expected) in [
-        (text.clone(), true),
-        (
-            text.replace(
-                "state(owner,Open,Closing,Closed)",
-                "state(owner,Open,Closed)",
-            ),
-            false,
-        ),
-    ] {
-        let report = compile_source(
-            &source(&text),
+    let omit_closing = |text: &str| {
+        text.replace(
+            "state(owner,Open,Closing,Closed)",
+            "state(owner,Open,Closed)",
+        )
+    };
+    let check = |text: &str| {
+        compile_source(
+            &source(text),
             &CompileOptions {
                 stop_after: Stage::Verify,
                 ..CompileOptions::default()
             },
-        );
+        )
+    };
+    // The two original factories lack a declaration-level proof that their
+    // generic environment can be destroyed synchronously.
+    for original in [&text, &omit_closing(&text)] {
+        let report = check(original);
         assert_eq!(
-            report.status == ResultCategory::Success,
-            expected,
+            report.status,
+            ResultCategory::SafeReject,
             "{}",
             report.to_json()
         );
-        assert_ne!(
-            report.status,
-            ResultCategory::InfraError,
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.phase == zil_base::Phase::Types
+                    && d.code == "E-SEMANTIC-ORIGINAL"
+                    && d.message.contains("SyncDrop premise")),
             "{}",
             report.to_json()
+        );
+    }
+    let complete = text.replacen(
+        "ClosedEnvironment>(callback:F)",
+        "ClosedEnvironment + SyncDrop>(callback:F)",
+        1,
+    );
+    let excluded = omit_closing(&complete);
+    let report = check(&complete);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    let report = check(&excluded);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.phase == zil_base::Phase::Analyze
+                && d.code == "E-REGISTRATION"
+                && d.message.contains("original input protocol state")),
+        "{}",
+        report.to_json()
+    );
+
+    let target = zil_base::TargetProfile::default();
+    let limits = zil_base::Limits::default();
+    let typed = |text: &str| {
+        use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+        let unit = source(text);
+        let ast = zil_syntax::parse(&unit).into_result().unwrap();
+        let core = zil_expand::expand_with_map_semantics(
+            &unit,
+            &ast,
+            &limits,
+            &target,
+            SourceIdentityContext::ClosedSnapshot {
+                root: unit.module_id,
+                aliases: &std::collections::BTreeMap::new(),
+                declarations: DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .core;
+        zil_types::check(&core, &target, &limits).unwrap()
+    };
+    let actual = typed(&complete);
+    let mut plan = zil_analyze::analyze(&actual, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&actual, &plan, &limits).unwrap();
+    zil_verify::verify_module(actual, plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+    let actual = typed(&excluded);
+    plan.module_fingerprint = actual.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&actual, &plan, &limits).unwrap();
+    for errors in [
+        zil_verify::verify_module(actual, plan, &target, &limits).unwrap_err(),
+        zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err(),
+    ] {
+        assert!(
+            errors.iter().any(|d| d.code == "E-VERIFY-REGISTRATION"
+                && d.message
+                    .contains("does not satisfy every actual protocol state")),
+            "{errors:?}"
         );
     }
 }
