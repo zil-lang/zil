@@ -27,15 +27,14 @@ fn request(
 
 fn source_call<'a>(
     program: &'a SemanticModule,
+    sites: &BTreeMap<SemanticInstanceId, Vec<usize>>,
     caller: SemanticInstanceId,
     recipe: SemanticSiteId,
     left: &mut usize,
 ) -> R<&'a SemanticSite> {
-    pay(left, program.sites.len())?;
-    let mut found = program
-        .sites
-        .iter()
-        .filter(|site| site.instance == caller && site.recipe == recipe);
+    let rows = site_rows(sites, caller, left)?;
+    let mut found = rows.iter().map(|&ordinal| &program.sites[ordinal])
+        .filter(|site| site.recipe == recipe);
     let site = found
         .next()
         .ok_or_else(|| bad("actual specialization has no original caller mint"))?;
@@ -53,6 +52,69 @@ fn source_call<'a>(
         ));
     }
     Ok(site)
+}
+
+fn site_rows<'a>(
+    sites: &'a BTreeMap<SemanticInstanceId, Vec<usize>>,
+    owner: SemanticInstanceId,
+    left: &mut usize,
+) -> R<&'a [usize]> {
+    pay(left, search(sites.len()))?;
+    let rows = sites.get(&owner).map(Vec::as_slice).unwrap_or_default();
+    pay(left, rows.len())?;
+    Ok(rows)
+}
+
+fn append_site_rows(
+    sites: &mut BTreeMap<SemanticInstanceId, Vec<usize>>,
+    program: &SemanticModule,
+    start: usize,
+    left: &mut usize,
+) -> R<()> {
+    for (ordinal, site) in program.sites.iter().enumerate().skip(start) {
+        pay(left, search(sites.len()).saturating_add(1))?;
+        sites.entry(site.instance).or_default().push(ordinal);
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn appended_mint_resolves_only_in_its_actual_caller_and_keeps_duplicate_rejection() {
+        let first = SemanticInstanceId { module: ModuleId(0), index: 0 };
+        let sibling = SemanticInstanceId { module: ModuleId(0), index: 1 };
+        let recipe = SemanticSiteId(1);
+        let mint = |instance| SemanticSite {
+            instance,
+            recipe,
+            at: SemanticSiteAddress::Core {
+                expression: NodeId(7),
+                occurrence: 0,
+                role: SemanticEmissionRole::Call,
+            },
+            action: SemanticSiteAction::CoreBodyCall,
+        };
+        let mut program = SemanticModule {
+            definitions: Vec::new(),
+            instances: Vec::new(),
+            sites: vec![mint(first)],
+            dyn_scopes: Vec::new(),
+        };
+        let mut index = BTreeMap::new();
+        let mut left = 10_000;
+        append_site_rows(&mut index, &program, 0, &mut left).unwrap();
+        assert!(source_call(&program, &index, sibling, recipe, &mut left).is_err());
+        program.sites.push(mint(sibling));
+        append_site_rows(&mut index, &program, 1, &mut left).unwrap();
+        assert_eq!(source_call(&program, &index, sibling, recipe, &mut left).unwrap().instance, sibling);
+        program.sites.push(mint(sibling));
+        append_site_rows(&mut index, &program, 2, &mut left).unwrap();
+        assert!(source_call(&program, &index, sibling, recipe, &mut left).is_err());
+        assert_eq!(source_call(&program, &index, first, recipe, &mut left).unwrap().instance, first);
+    }
 }
 
 fn called(
@@ -94,6 +156,7 @@ fn called(
 
 fn inherit_impl_calls(
     program: &SemanticModule,
+    sites: &BTreeMap<SemanticInstanceId, Vec<usize>>,
     lower: &mut Lower<'_, '_>,
     input: &BTreeMap<SemanticInstanceId, usize>,
     targets: &BTreeMap<SemanticInstanceId, FunctionId>,
@@ -116,7 +179,7 @@ fn inherit_impl_calls(
         pay(lower.left, search(targets.len()))?;
         let caller_function = targets.get(&caller).copied()
             .ok_or_else(|| bad("original implementation call has no actual caller"))?;
-        let site = source_call(program, caller, call, lower.left)?;
+        let site = source_call(program, sites, caller, call, lower.left)?;
         let origin = lower.frame(*actual)?.origin;
         if let Some(called) = called(lower, caller_function, site, origin)? {
             // A generic implementation may have several methods. Only its
@@ -137,6 +200,7 @@ fn inherit_impl_calls(
 fn created(
     lower: &mut Lower<'_, '_>,
     program: &SemanticModule,
+    sites: &BTreeMap<SemanticInstanceId, Vec<usize>>,
     instance: &SemanticInstance,
     parent: FunctionId,
 ) -> R<FunctionId> {
@@ -153,12 +217,10 @@ fn created(
     let source_parent = instance
         .parent
         .ok_or_else(|| bad("closure request has no lexical parent"))?;
-    pay(lower.left, program.sites.len())?;
+    let rows = site_rows(sites, source_parent, lower.left)?;
     let mut mint = None;
-    for site in &program.sites {
-        if site.instance != source_parent {
-            continue;
-        }
+    for &ordinal in rows {
+        let site = &program.sites[ordinal];
         let SemanticSiteAction::Closure {
             closure: source, ..
         } = &site.action
@@ -277,10 +339,7 @@ pub(super) fn publish(
             return Err(bad("actual instance identity repeats before relocation"));
         }
     }
-    for (ordinal, site) in program.sites.iter().enumerate() {
-        pay(lower.left, search(sites.len()).saturating_add(1))?;
-        sites.entry(site.instance).or_default().push(ordinal);
-    }
+    append_site_rows(&mut sites, program, 0, lower.left)?;
     let mut targets = BTreeMap::new();
     let mut pending = BTreeSet::new();
     let mut inactive = BTreeSet::new();
@@ -306,7 +365,9 @@ pub(super) fn publish(
     }
     let mut activated = BTreeSet::new();
     loop {
+        let prior_sites = program.sites.len();
         let minted = templates::activate(program, lower, &targets, &mut activated)?;
+        append_site_rows(&mut sites, program, prior_sites, lower.left)?;
         for id in minted {
             pay(lower.left, program.instances.len())?;
             let ordinal = program
@@ -361,14 +422,14 @@ pub(super) fn publish(
                 continue;
             };
             let actual = if let Some(call) = call {
-                let site = source_call(program, dependency, call, lower.left)?;
+                let site = source_call(program, &sites, dependency, call, lower.left)?;
                 let SemanticInstanceTarget::Function(target) = &instance.target else {
                     unreachable!()
                 };
                 called(lower, parent, site, Lower::origin(target)?)?
                     .ok_or_else(|| bad("original request does not call its exact actual specialization"))?
             } else {
-                created(lower, program, instance, parent)?
+                created(lower, program, &sites, instance, parent)?
             };
             lower.actual(actual)?;
             if let Some(call) = call {
@@ -394,13 +455,7 @@ pub(super) fn publish(
             ));
         }
     }
-    inherit_impl_calls(program, lower, &input, &targets)?;
-    // The retained-helper activation may have appended exact child mints.
-    sites.clear();
-    for (ordinal, site) in program.sites.iter().enumerate() {
-        pay(lower.left, search(sites.len()).saturating_add(1))?;
-        sites.entry(site.instance).or_default().push(ordinal);
-    }
+    inherit_impl_calls(program, &sites, lower, &input, &targets)?;
     let mut live: BTreeSet<_> = targets.keys().copied().collect();
     let mut queue: Vec<_> = live.iter().copied().collect();
     let mut cursor = 0;

@@ -543,16 +543,37 @@ pub(super) fn program(
     )?;
     let mut originals = BTreeMap::new();
     for definition in &program.definitions {
+        let recipes = match &definition.body {
+            SemanticDefinitionBody::Function { sites, .. }
+            | SemanticDefinitionBody::FunctionWithBody { sites, .. } => {
+                let mut recipes = BTreeMap::new();
+                for recipe in sites {
+                    pay(lower.left, search(recipes.len()).saturating_add(
+                        std::mem::size_of::<(SemanticSiteId, &SemanticSiteRecipe)>(),
+                    ))?;
+                    // Preserve the original declaration's order. The full
+                    // original validation is responsible for uniqueness.
+                    recipes.entry(recipe.id).or_insert(recipe);
+                }
+                Some(recipes)
+            }
+            _ => None,
+        };
         pay(lower.left, search(originals.len()))?;
-        if originals.insert(definition.id, definition).is_some() {
+        if originals.insert(definition.id, (definition, recipes)).is_some() {
             return Err(bad("original semantic definition identity repeats"));
         }
     }
     let mut owners = BTreeMap::new();
+    let mut function_worlds = BTreeMap::<(SemanticDefinitionId, FunctionId), Vec<&SemanticInstance>>::new();
     for instance in &program.instances {
         pay(lower.left, search(owners.len()))?;
         if owners.insert(instance.id, instance).is_some() {
             return Err(bad("actual semantic instance identity repeats"));
+        }
+        if let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(target)) = instance.target {
+            pay(lower.left, search(function_worlds.len()).saturating_add(1))?;
+            function_worlds.entry((instance.definition, target)).or_default().push(instance);
         }
     }
     pay(lower.left, program.sites.len().saturating_mul(2))?;
@@ -585,20 +606,14 @@ pub(super) fn program(
         let owner = owners
             .get(&site.instance)
             .ok_or_else(|| bad("semantic site has no actual original instance"))?;
-        let definition = originals
+        let (definition, recipes) = originals
             .get(&owner.definition)
             .ok_or_else(|| bad("semantic site lost its original definition"))?;
-        let (SemanticDefinitionBody::Function { sites, .. }
-        | SemanticDefinitionBody::FunctionWithBody { sites, .. }) = &definition.body
-        else {
-            return Err(bad(
+        let recipes = recipes.as_ref().ok_or_else(|| bad(
                 "executable semantic site belongs to a nonfunction original scope",
-            ));
-        };
-        pay(lower.left, sites.len())?;
-        let original = sites
-            .iter()
-            .find(|recipe| recipe.id == site.recipe)
+        ))?;
+        pay(lower.left, search(recipes.len()))?;
+        let original = recipes.get(&site.recipe)
             .ok_or_else(|| bad("actual semantic site is absent from its original body"))?;
         if !recipe_kind(&original.kind, &site.action) {
             return Err(bad(
@@ -637,20 +652,14 @@ pub(super) fn program(
                     "dynamic owner observation requires its complete original body",
                 ));
             };
-            pay(
-                lower.left,
-                site_nodes
-                    .len()
-                    .saturating_mul(sites.len().saturating_add(1)),
-            )?;
+            pay(lower.left, site_nodes.len())?;
             let mut selected = None;
             for node in site_nodes
                 .iter()
                 .filter(|node| node.node == SemanticOriginalNode::Expression(*receiver_node))
             {
-                let recipe = sites
-                    .iter()
-                    .find(|recipe| recipe.id == node.site)
+                pay(lower.left, search(recipes.len()))?;
+                let recipe = recipes.get(&node.site)
                     .ok_or_else(|| bad("dynamic owner observation lost its original recipe"))?;
                 let SemanticSiteRecipeKind::TypeUse { expected } = &recipe.kind else {
                     continue;
@@ -707,18 +716,19 @@ pub(super) fn program(
             let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
                 return Err(bad("thin function reference lost its original expression"));
             };
-            pay(lower.left, site_nodes.len().saturating_add(program.instances.len()))?;
+            pay(lower.left, site_nodes.len().saturating_add(search(function_worlds.len())))?;
             let mut nodes = site_nodes.iter().filter(|row| row.site == site.recipe);
             let Some(SemanticOriginalNode::Expression(node)) = nodes.next().map(|row| &row.node) else {
                 return Err(bad("thin function reference has no original expression"));
             };
             let proof = proof.as_ref().ok_or_else(|| bad("thin function reference lacks its checked source body"))?;
             pay(lower.left, search(proof.function_values.len()))?;
+            let children = function_worlds.get(&(*expected, entry)).map(Vec::as_slice).unwrap_or_default();
+            pay(lower.left, children.len())?;
             if nodes.next().is_some() || !declared.is_empty() || !environment.is_empty()
                 || *result != (SemanticOperand::CoreExpression { expression: *expression, occurrence: 0 })
                 || !proof.function_values.get(&(definition.id, *node)).is_some_and(|value| value.target == *expected)
-                || !program.instances.iter().any(|child| child.definition == *expected && child.parent == Some(site.instance)
-                    && child.environment.is_none() && child.target == SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(entry)))
+                || !children.iter().any(|child| child.parent == Some(site.instance) && child.environment.is_none())
             {
                 return Err(bad("thin function reference changes its checked zero-capture child or creator"));
             }
@@ -742,14 +752,8 @@ pub(super) fn program(
                     ..
                 },
             ) => {
-                pay(lower.left, program.instances.len())?;
-                if !program.instances.iter().any(|callee| {
-                    callee.definition == *expected
-                        && callee.target
-                            == SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(
-                                *actual,
-                            ))
-                }) {
+                pay(lower.left, search(function_worlds.len()))?;
+                if !function_worlds.contains_key(&(*expected, *actual)) {
                     return Err(bad("actual static call changes its original definition"));
                 }
             }
@@ -767,15 +771,10 @@ pub(super) fn program(
                 let entry = lower.closures.get(actual)
                     .ok_or_else(|| bad("actual closure site has no environment definition"))?
                     .function;
-                pay(lower.left, program.instances.len())?;
-                if !program.instances.iter().any(|child| {
-                    child.definition == *expected
-                        && child.parent == Some(site.instance)
-                        && child.target
-                            == SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(
-                                entry,
-                            ))
-                }) {
+                pay(lower.left, search(function_worlds.len()))?;
+                let children = function_worlds.get(&(*expected, entry)).map(Vec::as_slice).unwrap_or_default();
+                pay(lower.left, children.len())?;
+                if !children.iter().any(|child| child.parent == Some(site.instance)) {
                     return Err(bad(
                         "closure site changes its original definition or actual lexical parent",
                     ));
