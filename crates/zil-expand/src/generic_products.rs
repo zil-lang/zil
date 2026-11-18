@@ -9,6 +9,9 @@ use zil_ir::*;
 #[derive(Default)]
 pub(crate) struct Products {
     pub(crate) nominal_applications: Vec<crate::semantic_nominal_lower::Application>,
+    /// Final Core node and authenticated original declaration of each product mint.
+    pub(crate) source_product_mints: BTreeMap<(ModuleId, NodeId), LifeDeclarationId>,
+    pub(crate) source_product_declarations: BTreeMap<origins::DeclId, LifeDeclarationId>,
     pub(crate) semantic: Option<crate::source_semantics::program::Program>,
     /// Names emitted from actual trait member origins by the generic normalizer.
     /// A generated spelling alone does not establish provider provenance.
@@ -23,7 +26,7 @@ pub(crate) struct Products {
     pub(crate) dynamic: dynamic::Catalog,
     pub(crate) target_pointer_width: Option<u16>,
     pub(crate) member_patterns: BTreeMap<String, TypeRef>,
-    templates: Vec<(Aggregate, Span)>,
+    templates: Vec<(Aggregate, Span, Option<origins::DeclId>)>,
     applications: Vec<Application>,
     pub(crate) allowance: Option<Limits>,
     pub(crate) cost_profile: Option<budget::CostProfile>,
@@ -59,7 +62,7 @@ pub(super) fn parameters(aggregate: &Aggregate) -> Option<&[GenericParam]> {
 }
 impl Engine<'_> {
     pub(super) fn collect_products(&mut self, module: &Module) -> R<()> {
-        for item in &module.items {
+        for (ordinal, item) in module.items.iter().enumerate() {
             let ItemKind::Aggregate(a) = &item.kind else {
                 continue;
             };
@@ -67,11 +70,13 @@ impl Engine<'_> {
                 continue;
             }
             self.budget.item(item)?;
-            self.products.templates.push((a.clone(), item.span));
+            let origin = self.origins.map(|origins| origins.get(ordinal, item.span))
+                .transpose()?.map(|origin| origin.declaration);
+            self.products.templates.push((a.clone(), item.span, origin));
         }
         if !self.products.is_empty() {
             let mut families = BTreeSet::new();
-            for (a, span) in &self.products.templates {
+            for (a, span, _) in &self.products.templates {
                 self.budget.node(*span, 0)?;
                 self.budget.text(&a.name, *span)?;
                 families.insert(a.name.clone());
@@ -378,7 +383,7 @@ impl Products {
                 .ok_or_else(|| error(Span::default(), "Product recipe identity overflow"))?;
             next.insert(core.module_id, value);
         }
-        for (a, span) in &self.templates {
+        for (a, span, _) in &self.templates {
             budget.node(*span, 0)?;
             budget.text(&a.name, *span)?;
             let module = *owners
@@ -394,7 +399,7 @@ impl Products {
             families.insert(a.name.clone(), (module, id));
         }
         let mut templates = Vec::new();
-        for (a, span) in &self.templates {
+        for (a, span, origin) in &self.templates {
             let formals = parameters(a).expect("collected bounded Product");
             budget.node(*span, 0)?;
             budget.text(&a.name, *span)?;
@@ -415,10 +420,13 @@ impl Products {
                 });
             }
             let (module, id) = families[&a.name];
+            budget.identity_work(self.source_product_declarations.len().saturating_add(1).ilog2() as usize + 1, *span)?;
+            let source_declaration = origin.and_then(|key| self.source_product_declarations.get(&key).copied());
             templates.push((
                 module,
                 CoreAggregateTemplate {
                     id,
+                    source_declaration,
                     name: a.name.clone(),
                     parameters: formals
                         .iter()
@@ -470,6 +478,8 @@ impl Products {
                     )
                 })?;
             let (template_module, template) = families[&a.template];
+            budget.identity_work(self.source_product_mints.len(), Span::default())?;
+            let source_declaration = self.source_product_mints.get(&(module, aggregate)).copied();
             let owner = a
                 .scope
                 .as_ref()
@@ -505,6 +515,7 @@ impl Products {
                 module,
                 CoreAggregateApplication {
                     aggregate,
+                    source_declaration,
                     template_module,
                     template,
                     owner,

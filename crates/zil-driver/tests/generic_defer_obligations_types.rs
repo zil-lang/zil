@@ -308,6 +308,7 @@ fn prepared_and_function_session_recheck_unused_metadata_after_a_scalar_success(
         .core
         .aggregate_templates
         .push(CoreAggregateTemplate {
+            source_declaration: None,
             id: zil_base::NodeId(999),
             name: "Unused".into(),
             parameters: vec![CoreTypeParameter {

@@ -1001,6 +1001,8 @@ pub struct CoreTypeParameter {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreAggregateTemplate {
     pub id: NodeId,
+    /// Original family collected at its declaration, when Source minted it.
+    pub source_declaration: Option<LifeDeclarationId>,
     pub name: String,
     /// Declared order; each bounded value parameter has its own dense index.
     pub parameters: Vec<CoreTypeParameter>,
@@ -1057,6 +1059,9 @@ pub struct CoreTaskPortRecipe {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreAggregateApplication {
     pub aggregate: NodeId,
+    /// The original nominal declaration attached to this concrete mint. The
+    /// physical template below has its own Core node identity.
+    pub source_declaration: Option<LifeDeclarationId>,
     pub template_module: ModuleId,
     pub template: NodeId,
     pub owner: Option<CoreAggregateOwner>,

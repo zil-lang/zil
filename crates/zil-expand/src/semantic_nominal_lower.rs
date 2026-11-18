@@ -511,6 +511,24 @@ impl generics::products::Products {
                     }
                 }
                 pay_declaration(declaration, &mut budget, span)?;
+                if selected.is_some() && !emission.enumeration {
+                    budget.identity_work(self.source_product_mints.len().saturating_add(1), span)?;
+                    budget.lineage_bytes(std::mem::size_of::<((zil_base::ModuleId, NodeId), zil_ir::LifeDeclarationId)>(), span)?;
+                    budget.identity_work(self.source_product_declarations.len().saturating_add(1).ilog2() as usize + 1, span)?;
+                    if let Some(prior) = self.source_product_declarations.get(&origin.declaration) {
+                        if *prior != declaration.id {
+                            return Err(Diagnostic::error(Phase::Expand, "E-SOURCE-SEMANTICS", Some(span),
+                                "one original product family selects two nominal declarations"));
+                        }
+                    } else {
+                        budget.lineage_bytes(std::mem::size_of::<(generics::origins::DeclId, zil_ir::LifeDeclarationId)>(), span)?;
+                        self.source_product_declarations.insert(origin.declaration, declaration.id);
+                    }
+                    if self.source_product_mints.insert((module.id, emission.node), declaration.id).is_some() {
+                        return Err(Diagnostic::error(Phase::Expand, "E-SOURCE-SEMANTICS", Some(span),
+                            "concrete product node has more than one original nominal mint"));
+                    }
+                }
                 let candidate = crate::stored_types::Instance {
                     declaration: declaration.clone(),
                     instance: zil_ir::LifeNominalInstance {

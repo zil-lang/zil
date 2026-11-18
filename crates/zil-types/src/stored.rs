@@ -96,6 +96,34 @@ pub(super) fn aggregate_instance<'a>(
             row.span,
         )?;
         if name == &row.name || name == &format!("@module{}:{}", module.0, row.name) {
+            for application in applications {
+                fee(left, 1, row.span)?;
+                if application.aggregate != row.id { continue; }
+                let Some(source) = application.source_declaration else { continue; };
+                if source != instance.declaration {
+                    return Err(error("E-STORED-IDENTITY", row.span,
+                        "concrete product mint selects another original nominal declaration"));
+                }
+                fee(left, application.arguments.len(), row.span)?;
+                if application.arguments.len() != instance.arguments.len() {
+                    return Err(error("E-STORED-IDENTITY", row.span,
+                        "concrete product mint has another nominal argument count"));
+                }
+                for (argument, actual) in application.arguments.iter().zip(&instance.arguments) {
+                    let CoreAggregateArgument::Concrete(ty) = argument else { continue; };
+                    let (LifeNominalActual::Type(expected)
+                        | LifeNominalActual::QualifiedType { ty: expected, .. }) = actual else {
+                        return Err(error("E-STORED-IDENTITY", row.span,
+                            "concrete product mint requires an actual type argument"));
+                    };
+                    inference::charge_type_snapshot(ty, row.span, limits, left, 1)?;
+                    inference::charge_type_snapshot(expected, row.span, limits, left, 1)?;
+                    if ty != expected {
+                        return Err(error("E-STORED-IDENTITY", row.span,
+                            "concrete product mint has another ordered nominal argument"));
+                    }
+                }
+            }
             return Ok(row);
         }
     }
@@ -110,10 +138,13 @@ pub(super) fn aggregate_instance<'a>(
                 .saturating_add(1),
             Span::default(),
         )?;
-        if instance.declaration.compiler
-            || instance.declaration.module != application.template_module
-            || instance.declaration.declaration != application.template
-            || application.arguments.len() != instance.arguments.len()
+        let same_declaration = match application.source_declaration {
+            Some(source) => source == instance.declaration,
+            None => !instance.declaration.compiler
+                && instance.declaration.module == application.template_module
+                && instance.declaration.declaration == application.template,
+        };
+        if !same_declaration || application.arguments.len() != instance.arguments.len()
         {
             continue;
         }
@@ -1407,4 +1438,66 @@ fn qualified_address_shape(
 
 pub(super) fn canonical_nullary_enum(ty: &Type, limits: &Limits, left: &mut usize) -> R<bool> {
     ordinary_nominal::canonical_nullary_enum(ty, limits, left)
+}
+
+#[cfg(test)]
+mod product_mint_tests {
+    use super::*;
+
+    #[test]
+    fn same_shaped_products_keep_the_original_declaration_of_each_mint() {
+        let text = r#"
+package Left<T:StoreElement> { manages entries:Store<T> }
+package Right<T:StoreElement> { manages entries:Store<T> }
+fn main()->i32 {
+    let a:Store<i64>=store_new()
+    let b:Store<i64>=store_new()
+    let first=Left::<i64>{entries:give a}
+    let second=Right::<i64>{entries:give b}
+    return i32(store_len(first.entries)+store_len(second.entries))
+}
+"#;
+        let limits = Limits::default();
+        let target = TargetProfile::host_llvm();
+        let source = zil_base::SourceUnit::new(
+            zil_base::FileId(0), zil_base::ModuleId(0), "product-mints.zil", text,
+        );
+        let ast = zil_syntax::parse(&source).into_result().unwrap();
+        let mut core = zil_expand::expand_with_map_semantics(
+            &source, &ast, &limits, &target,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &BTreeMap::new(),
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+        ).unwrap().core;
+        crate::check(&core, &target, &limits).unwrap();
+        let mut crossed_families = core.clone();
+        let [first, second] = &mut crossed_families.aggregate_applications[..] else {
+            panic!("expected the two concrete Store packages");
+        };
+        std::mem::swap(&mut first.template, &mut second.template);
+        let errors = crate::check(&crossed_families, &target, &limits).unwrap_err();
+        assert_eq!(errors[0].code, "E-STORED-IDENTITY");
+        assert_eq!(errors[0].message, "concrete product mint selects another original nominal declaration");
+
+        let mut wrong_argument = core.clone();
+        let nominal = wrong_argument.life_instances.iter_mut()
+            .find(|instance| Some(instance.declaration)
+                == wrong_argument.aggregate_applications[0].source_declaration).unwrap();
+        nominal.arguments[0] = LifeNominalActual::Type(Type::U64);
+        let errors = crate::check(&wrong_argument, &target, &limits).unwrap_err();
+        assert_eq!(errors[0].code, "E-STORED-IDENTITY");
+        assert_eq!(errors[0].message, "concrete product mint has another ordered nominal argument");
+        let [first, second] = &mut core.aggregate_applications[..] else {
+            panic!("expected the two concrete Store packages");
+        };
+        assert_eq!(first.arguments, second.arguments);
+        assert_ne!(first.template, second.template);
+        assert_ne!(first.source_declaration.unwrap(), second.source_declaration.unwrap());
+        first.source_declaration = second.source_declaration;
+        let errors = crate::check(&core, &target, &limits).unwrap_err();
+        assert_eq!(errors[0].code, "E-STORED-IDENTITY");
+        assert_eq!(errors[0].message, "concrete product mint selects another original nominal declaration");
+    }
 }

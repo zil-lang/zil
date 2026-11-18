@@ -118,6 +118,9 @@ pub fn preflight_aggregate_metadata(
     for template in &core.aggregate_templates {
         w.node(0, Some(template.span))?;
         w.text(&template.name, template.span)?;
+        if template.source_declaration.is_some() {
+            w.node(0, Some(template.span))?;
+        }
         w.node(0, Some(template.span))?;
         for (index, parameter) in template.parameters.iter().enumerate() {
             if index != 0 {
@@ -137,6 +140,9 @@ pub fn preflight_aggregate_metadata(
     for app in &core.aggregate_applications {
         w.node(0, None)?;
         if app.owner.is_some() {
+            w.node(0, None)?
+        }
+        if app.source_declaration.is_some() {
             w.node(0, None)?
         }
         if app.arguments.len() > limits.max_locals {
@@ -370,6 +376,7 @@ mod tests {
             unsupported: vec![],
             aggregate_applications: vec![],
             aggregate_templates: vec![CoreAggregateTemplate {
+                source_declaration: None,
                 id: NodeId(23),
                 name: "Bag".into(),
                 parameters: vec![CoreTypeParameter {

@@ -527,6 +527,7 @@ enum Walk<'a> {
     W462(&'a SemanticFieldRecipe),
     W463(&'a Vec<SemanticVariantRecipe>),
     W464(&'a SemanticVariantRecipe),
+    OriginalProductDeclaration(&'a Option<LifeDeclarationId>),
 }
 fn prepare<'a>(
     pending: &mut Vec<(Walk<'a>, usize)>,
@@ -970,13 +971,14 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 prepare(
                     &mut pending,
                     meter,
-                    5,
+                    6,
                     std::mem::size_of::<(Walk<'_>, usize)>(),
                 )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W85(&value.fields), depth + 1));
                 pending.push((Walk::W83(&value.parameters), depth + 1));
                 pending.push((Walk::W10(&value.name), depth + 1));
+                pending.push((Walk::OriginalProductDeclaration(&value.source_declaration), depth + 1));
                 pending.push((Walk::W9(&value.id), depth + 1));
             }
             Walk::W33(value) => {
@@ -995,14 +997,22 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 prepare(
                     &mut pending,
                     meter,
-                    5,
+                    6,
                     std::mem::size_of::<(Walk<'_>, usize)>(),
                 )?;
                 pending.push((Walk::W81(&value.arguments), depth + 1));
                 pending.push((Walk::W79(&value.owner), depth + 1));
                 pending.push((Walk::W9(&value.template), depth + 1));
                 pending.push((Walk::W1(&value.template_module), depth + 1));
+                pending.push((Walk::OriginalProductDeclaration(&value.source_declaration), depth + 1));
                 pending.push((Walk::W9(&value.aggregate), depth + 1));
+            }
+            Walk::OriginalProductDeclaration(value) => {
+                meter.node(depth)?;
+                if let Some(declaration) = value {
+                    prepare(&mut pending, meter, 1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    pending.push((Walk::W74(declaration), depth));
+                }
             }
             Walk::W35(value) => {
                 prepare(

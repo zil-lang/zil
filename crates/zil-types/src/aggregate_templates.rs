@@ -302,6 +302,12 @@ impl Index {
                 .templates
                 .get(&(a.template_module, a.template))
                 .ok_or_else(|| bad(d.span, "generic Product application family is absent"))?;
+            if let Some(source) = a.source_declaration
+                && template.source_declaration != Some(source)
+            {
+                return Err(error("E-STORED-IDENTITY", d.span,
+                    "concrete product mint selects another original nominal declaration"));
+            }
             if a.arguments.len() != template.parameters.len() {
                 return Err(bad(
                     d.span,

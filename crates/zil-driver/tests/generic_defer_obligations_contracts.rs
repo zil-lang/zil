@@ -1386,6 +1386,7 @@ fn unused_recursive_recipe_is_rejected_without_relying_on_a_value_use() {
     let span = input.functions[0].span;
     let family = NodeId(9000);
     input.aggregate_templates.push(CoreAggregateTemplate {
+        source_declaration: None,
         id: family,
         name: "UnusedCycle".into(),
         parameters: vec![CoreTypeParameter {
@@ -1579,6 +1580,7 @@ fn phantom_metadata(name: &str) -> CoreModule {
     let mut input = core("resource Ticket{code:i32}fn main(){}");
     let span = input.functions[0].span;
     input.aggregate_templates.push(CoreAggregateTemplate {
+        source_declaration: None,
         id: NodeId(9100),
         name: name.into(),
         parameters: vec![CoreTypeParameter {
@@ -2036,6 +2038,7 @@ fn an_unused_concrete_recipe_cannot_capture_f_hidden_in_another_familys_argument
     let span = header.span;
     let hidden = header.name.clone();
     input.aggregate_templates.push(CoreAggregateTemplate {
+        source_declaration: None,
         id: NodeId(9200),
         name: "UnusedCannotCaptureCallerF".into(),
         parameters: vec![CoreTypeParameter {
