@@ -941,7 +941,9 @@ pub(super) fn ordinary_error_borrow(
         // complete Task domain, actual ports, parents and phase stay in the
         // existing Task and affine-sum consumers and in the same local state.
         crate::dynamic_witness::intrinsic_domain(module,other,b)?;
-    } else if !matches!(other, Type::Package { .. }) || !ordinary_union_shape(module,parent, b)? {
+    } else if !matches!(other, Type::Package { .. } | Type::Managed(_))
+        || !ordinary_union_shape(module, parent, b)?
+    {
         return Ok(false);
     }
     resources::charge_payload(selected, b)?;
@@ -1307,6 +1309,49 @@ pub(super) fn complete_owned_value(module:&TypedModule,ty:&Type,b:&mut Budget)->
 #[cfg(test)]
 mod owned_observation_tests{
     use super::*;
+    #[test]
+    fn copy_error_arm_preserves_direct_managed_sibling_raw_and_wire() {
+        let limits = Limits::default();
+        let error = Type::Enum {
+            name: "FileError".into(),
+            variants: vec![("InvalidPath".into(), vec![])],
+        };
+        let observed = Type::Address { mutable: false, inner: Box::new(error.clone()) };
+        for hidden_address in [false, true] {
+            let (mut module, _) = crate::tests::baseline();
+            let field = if hidden_address { observed.clone() } else { Type::I32 };
+            let owner = Type::Managed(Box::new(Type::Record {
+                name: "File".into(),
+                fields: vec![("fd".into(), field)],
+            }));
+            module.functions[0].locals[0].ty = Type::ErrorUnion {
+                error: Box::new(error.clone()),
+                result: Box::new(owner),
+            };
+            module.functions[0].values = vec![observed.clone(), Type::I32];
+            let plan = CandidatePlan::empty_for(&module);
+            let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+            let (wire, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+            for actual in [&module, &wire] {
+                let f = &actual.functions[0];
+                let borrow = |output, is_error, mutable| Instruction {
+                    result: Some(ValueId(output)),
+                    kind: InstructionKind::BorrowPlaceLocal {
+                        local: LocalId(0), path: vec![PlaceProjection::ErrorArm(is_error)], mutable,
+                    },
+                    span: f.span,
+                };
+                let mut b = Budget::new(&limits);
+                assert_eq!(ordinary_error_borrow(actual, f, &borrow(0, true, false), &mut b).unwrap(), !hidden_address);
+                assert!(!ordinary_error_borrow(actual, f, &borrow(0, true, true), &mut b).unwrap());
+                assert!(!ordinary_error_borrow(actual, f, &borrow(0, false, false), &mut b).unwrap());
+                if !hidden_address {
+                    assert!(ordinary_error_borrow(actual, f, &borrow(1, true, false), &mut b).is_err());
+                }
+            }
+        }
+    }
+
     #[test]
     fn package_record_description_does_not_intercept_other_owner_protocols_raw_wire() {
         let limits = Limits::default();

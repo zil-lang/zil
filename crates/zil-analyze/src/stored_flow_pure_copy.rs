@@ -781,7 +781,8 @@ pub(super) fn ordinary_error_borrow(
         _ => false,
     };
     if !pure(module, parent, b, 0)?
-        && (!matches!(companion, Type::Package { .. }) || !ordinary_union_shape(parent, b)?)
+        && (!matches!(companion, Type::Package { .. } | Type::Managed(_))
+            || !ordinary_union_shape(parent, b)?)
         && !task_companion
     {
         return Ok(false);
