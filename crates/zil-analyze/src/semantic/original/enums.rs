@@ -268,15 +268,40 @@ impl Solver<'_, '_> {
         ) {
             return Ok(None);
         }
-        let (variant, payload) = self.enum_variant(value, member, b)?;
+        if let Some(wanted) = self.receiving_for(frame, node, b)?
+            && matches!(self.state.arena[self.type_root(wanted, b)?], Kind::Nominal { definition: target, .. } if target == *definition)
+        {
+            self.unify(value, wanted, depth + 1, b)?;
+        }
+        let (variant, mut payload) = self.enum_variant(value, member, b)?;
         if payload.len() != arguments.len() {
             return Err(fail(
                 "original enum constructor changes its declared member arity",
             ));
         }
-        for (argument, expected) in arguments.iter().zip(&payload) {
+        for (argument, expected) in arguments.iter().zip(&mut payload) {
             let actual = self.expression_expected(frame, argument, *expected, b, depth + 1)?;
-            self.unify(actual, *expected, depth + 1, b)?;
+            b.lookup(frame.expressions.len(), WORK)?;
+            let source = frame.expressions.get(&argument.id).copied().unwrap_or(actual);
+            let actual_head = self.type_root(source, b)?;
+            let target_head = self.type_root(*expected, b)?;
+            let loan = match (&self.state.arena[actual_head], &self.state.arena[target_head]) {
+                (Kind::Address { mutable: false, life: from, inner },
+                 Kind::Address { mutable: false, life: to, inner: target }) => {
+                    Some((*from, *to, *inner, *target))
+                }
+                _ => None,
+            };
+            if let Some((from, to, inner, target)) = loan
+                && self.view_upper_allows(frame, from, to, &mut BTreeSet::new(), b, depth + 1)?
+            {
+                self.unify(inner, target, depth + 1, b)?;
+                // The operand keeps its own source class. The nominal result keeps
+                // the declared field class proved at this construction boundary.
+                *expected = source;
+            } else {
+                self.unify(actual, *expected, depth + 1, b)?;
+            }
             self.prepare_call_value(frame.definition, argument.id, actual, b)?;
         }
         let Kind::Nominal {

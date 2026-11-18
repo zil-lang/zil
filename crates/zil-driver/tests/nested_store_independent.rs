@@ -195,6 +195,72 @@ fn complete_saved_some_keeps_both_heap_layers_through_helpers() {
 }
 
 #[test]
+fn semantic_lending_payload_keeps_its_original_field_and_selected_exit() {
+    use zil_ir::InstructionKind;
+    let source = include_str!("../../../tests/fixtures/nested-store/lending.zil")
+        .replace("manages inner:Store<Item>;manages mark", "manages inner:Store<Item>;manages sibling:Store<Item>;manages mark")
+        .replace("store_push(rows,Row{inner:give inner,mark:", "let sibling:Store<Item>=store_new()\n store_push(rows,Row{inner:give inner,sibling:give sibling,mark:");
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "lending.zil", &source);
+    let target = TargetProfile::host_llvm();
+    let limits = Limits::default();
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let expanded = zil_expand::expand_with_map_semantics(
+        &unit, &syntax, &limits, &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id, aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    ).unwrap();
+    let module = zil_types::check(&expanded.core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let clean = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&clean, &target, &limits).unwrap();
+
+    for swap_field in [true, false] {
+        let mut altered = module.clone();
+        let function = altered.functions.iter_mut().find(|f| f.name == "peek").unwrap();
+        if swap_field {
+            let windows: Vec<_> = function.blocks.iter().flat_map(|b| &b.instructions)
+                .filter_map(|i| match i.kind {
+                    InstructionKind::OwnedStoreBorrow { store, .. } => Some(store),
+                    _ => None,
+                }).collect();
+            let [_, second] = windows.as_slice() else { panic!("expected two Store windows"); };
+            let manager = function.blocks.iter().flat_map(|b| &b.instructions)
+                .find(|i| i.result == Some(*second)).unwrap();
+            let InstructionKind::DescribeAddress { address } = manager.kind else { panic!("expected a described field"); };
+            let field = function.blocks.iter_mut().flat_map(|b| &mut b.instructions)
+                .find(|i| i.result == Some(address)).unwrap();
+            let InstructionKind::AddressField { index, .. } = &mut field.kind else { panic!("expected a field"); };
+            assert_eq!(*index, 0);
+            *index = 1;
+        } else {
+            let some = function.blocks.iter_mut().flat_map(|b| &mut b.instructions)
+                .find(|i| matches!(&i.kind, InstructionKind::MakeVariant { fields, .. } if fields.len() == 1)).unwrap();
+            let InstructionKind::MakeVariant { variant, fields } = &mut some.kind else { unreachable!() };
+            assert_eq!(*variant, 1);
+            *variant = 0;
+            fields.clear();
+        }
+        let producer_errors = zil_analyze::analyze(&altered, &limits).unwrap_err();
+        assert_eq!(producer_errors[0].code, "E-ANALYZE-IR");
+        let mut claim = plan.clone();
+        claim.module_fingerprint = altered.fingerprint();
+        let bytes = zil_ir::wire::encode_module_candidate(&altered, &claim, &limits).unwrap();
+        let raw = zil_verify::verify_module(altered, claim, &target, &limits).err().unwrap();
+        let wire = zil_verify::verify_module_bytes(&bytes, &target, &limits).err().unwrap();
+        assert_eq!(raw, wire);
+        assert_eq!(raw[0].code, "E-VERIFY-SEMANTIC");
+        assert_eq!(raw[0].message, if swap_field {
+            "actual field index differs from the original ordered nominal/tuple field"
+        } else {
+            "actual enum constructor changes its original variant or mixed arity"
+        });
+    }
+}
+
+#[test]
 fn ordinary_store_descriptions_share_returned_environment_source_lane() {
     pipeline(
         include_str!("../../../tests/fixtures/nested-store/ordinary-environment.zil"),

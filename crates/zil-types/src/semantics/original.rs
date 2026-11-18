@@ -204,6 +204,7 @@ pub(super) struct Proof {
     pub(super) call_borrows: BTreeMap<(SemanticDefinitionId, NodeId, u32), NodeId>,
     pub(super) temporary_descriptions: BTreeMap<(SemanticDefinitionId, NodeId, u32), TemporaryDescription>,
     resource_writes: resource_writes::Graph,
+    pub(super) payload_borrows: BTreeMap<(SemanticDefinitionId, NodeId, usize), (NodeId, BorrowRole)>,
     pub(super) return_borrows: BTreeMap<(SemanticDefinitionId, NodeId), BorrowRole>,
     pub(super) shared_views: BTreeMap<(SemanticDefinitionId, Query), NodeId>,
     pub(super) borrow_bindings:

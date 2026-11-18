@@ -1562,6 +1562,37 @@ fn apply_role(
     Ok(Some((world.share(expected)?, source)))
 }
 
+/// A nominal field uses the loan proved for this constructor and this position.
+/// The original argument still has its own occurrence type.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn payload_view(
+    world: &mut World<'_, '_>, instance: &SemanticInstance, original: &SemanticDefinition,
+    site: &SemanticSite, position: usize, operand: ValueId, actual: &SharedType, expected: &SharedType,
+    values: &[Option<SharedType>], locals: &[Option<SharedType>],
+    implicit: &BTreeMap<u32, SemanticClassExpr>,
+) -> R<bool> {
+    if !matches!(World::type_of(actual)?, Type::Address { mutable: false, .. }) {
+        return Ok(false);
+    }
+    let Some(node) = occurrences::node(world, original, site)? else { return Ok(false); };
+    let ledger = world.ledger;
+    let proof = ledger.original.borrow();
+    let proof = proof.as_ref().ok_or_else(|| bad("nominal payload lacks its original Gamma"))?;
+    world.pay(index::search(proof.payload_borrows.len()))?;
+    let Some((argument, role)) = proof.payload_borrows.get(&(original.id, node, position)) else {
+        return Ok(false);
+    };
+    if occurrences::expression_value(world, instance, original, *argument)? != Some(operand) {
+        return Err(bad("nominal payload changes its actual original argument"));
+    }
+    let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) = instance.target else {
+        return Err(bad("nominal borrow has no actual function body"));
+    };
+    let function = world.function(id)?;
+    Ok(apply_role(world, instance, original, function, role, operand, actual, expected,
+        values, locals, implicit, false)?.is_some())
+}
+
 /// A return consumes only its own original expression's directed result
 /// loan. A call adapter on the same source value is not a result theorem.
 #[allow(clippy::too_many_arguments)]

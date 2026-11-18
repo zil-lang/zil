@@ -138,6 +138,13 @@ pub(super) fn evaluate(
             continue;
         }
         let expected = world.physical_type(instance.id, parameter, World::type_of(&actual)?)?;
+        if matches!(call.kind, IntrinsicKind::NominalConstructor { .. })
+            && borrow_roles::payload_view(world, instance, original, site, ordinal, *operand,
+                &actual, &expected, values, locals, implicit)?
+        {
+            parameters.push(expected);
+            continue;
+        }
         arguments::satisfy(
             world, instance, None, site, ordinal, *operand, &actual, &expected, values, locals,
             implicit,

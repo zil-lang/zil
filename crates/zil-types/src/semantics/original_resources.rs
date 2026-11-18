@@ -934,19 +934,50 @@ impl Check<'_, '_> {
                 .map(|value| value.unwrap_or(SemanticActualRecipe::Infer))
                 .collect()
         };
+        let mut roles = Vec::new();
+        if let Some(SemanticTypeRecipe::Nominal { definition: target, arguments }) = wanted
+            && *target == id
+        {
+            for (position, (value, field)) in values.iter().zip(&body.fields).enumerate() {
+                let mut source = value;
+                while let CoreExprKind::Group(inner) = &source.kind {
+                    self.pay(1, depth)?;
+                    source = inner;
+                }
+                let CoreExprKind::Name(name) = &source.kind else { continue; };
+                self.pay(name.len(), depth)?;
+                if !variables.get(name).is_some_and(|binding|
+                    matches!(binding.ty, SemanticTypeRecipe::Address { mutable: false, .. }))
+                {
+                    continue;
+                }
+                let expected = self.instantiate_template(field, arguments, depth + 1)?;
+                let SemanticTypeRecipe::Address { mutable: false, lifetime: to, inner: target_inner } = &expected
+                else { continue; };
+                let actual = self.expr(owner, value, variables, None, depth + 1)?;
+                let SemanticTypeRecipe::Address { mutable: false, lifetime: from, inner } = &actual
+                else { continue; };
+                if from == to { continue; }
+                self.same(inner, target_inner)?;
+                if let Some(role) = self.projected_borrow_role(
+                    owner, source, source, variables, inner, from, to, false, false, depth + 1,
+                )? {
+                    self.pay(1, depth)?;
+                    let key = (owner, expression.id, position);
+                    let entry = (source.id, role);
+                    let rows = &mut self.proof.proof_mut()?.payload_borrows;
+                    if rows.get(&key).is_some_and(|old| old != &entry) {
+                        return Err(bad("nominal payload changes its original projected source"));
+                    }
+                    rows.insert(key, entry);
+                    roles.push((value.id, expected));
+                }
+            }
+        }
         let operands = values.iter().collect::<Vec<_>>();
-        let (actuals, solved) = self.solve_signature(
-            owner,
-            expression,
-            object,
-            &operands,
-            &signature,
-            &definition.parameters,
-            &written,
-            variables,
-            wanted,
-            false,
-            depth + 1,
+        let (actuals, solved) = self.solve_signature_roles(
+            owner, expression, object, &operands, &signature, &definition.parameters,
+            &written, variables, wanted, false, &BTreeMap::new(), &roles, 0, None, depth + 1,
         )?;
         self.call_requirements(owner, definition, &actuals, depth + 1)?;
         self.pay(1, depth)?;
