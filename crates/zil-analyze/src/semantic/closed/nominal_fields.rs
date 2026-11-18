@@ -409,6 +409,35 @@ impl Check<'_, '_> {
                 let result = self.nominal_field_value(owner, args, result, b, depth + 1)?;
                 value::error_union(error, result, b)
             }
+            SemanticTypeRecipe::Code {
+                kind: SemanticCodeKind::FunctionPointer,
+                signature,
+            } if signature.bound_lifetimes == 0
+                && signature.invocation_lifetimes == 0
+                && signature.call_kind == CallKind::Direct
+                && matches!(signature.result_mode, PassingMode::Infer | PassingMode::Copy) =>
+            {
+                let mut parameters = Vec::new();
+                for parameter in &signature.parameters {
+                    if !matches!(parameter.mode, PassingMode::Infer | PassingMode::Copy) {
+                        return Err(unknown("nominal code field needs its complete parameter mode"));
+                    }
+                    let actual = self.nominal_field_value(owner, args, &parameter.ty, b, depth + 1)?;
+                    if !empty(&actual.life) || !actual.classes.is_empty() {
+                        return Err(unknown("nominal code field parameter retains its original class domain"));
+                    }
+                    self.push_value(&mut parameters, actual.into_type(b)?, b)?;
+                }
+                let result = self.nominal_field_value(owner, args, &signature.result, b, depth + 1)?;
+                if !empty(&result.life) || !result.classes.is_empty() {
+                    return Err(unknown("nominal code field result retains its original class domain"));
+                }
+                let ty = Type::FunctionPointer { parameters, result: Box::new(result.into_type(b)?) };
+                if !crate::class_flow::thin::data(&ty, b, depth + 1)? {
+                    return Err(unknown("nominal code field requires a complete closed Copy ABI"));
+                }
+                Ok(value::scalar(ty))
+            }
             SemanticTypeRecipe::Array { element, length } => {
                 let element = self.nominal_field_value(owner, args, element, b, depth + 1)?;
                 if !empty(&element.life) || !element.classes.is_empty() {
