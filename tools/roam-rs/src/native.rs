@@ -126,6 +126,14 @@ fn capture(
     })
 }
 
+fn task_frame_observer(fail: bool) -> String {
+    format!(
+        "#define FAIL_FRAME {}\n{}",
+        u8::from(fail),
+        include_str!("task_frame_observer.c")
+    )
+}
+
 /// The compiler invokes this same snapshot as a strictly-shaped clang proxy.
 /// Actual clang output is bounded before the existing backend's output() sees it.
 pub fn clang_proxy(args: &[String]) -> Result<u8, String> {
@@ -199,6 +207,10 @@ pub fn clang_proxy(args: &[String]) -> Result<u8, String> {
     }
     let mut actual_args = args.to_vec();
     let observer = dir.join("byte-observer.json");
+    let frame_observer = dir.join("task-frame-observer.json");
+    if observer.exists() && frame_observer.exists() {
+        return Err("two allocation observers select one native program".into());
+    }
     let observer_pin = if observer.exists() {
         let config = host::read_json_file(&observer, EVIDENCE_LIMIT)?;
         let fail = protocol::integer(&config["failAt"])
@@ -220,7 +232,27 @@ pub fn clang_proxy(args: &[String]) -> Result<u8, String> {
             "-Wl,--wrap=realloc".into(),
             "-Wl,--wrap=free".into(),
         ]);
-        Some((path, config))
+        Some(("byteObserver", path, config))
+    } else if frame_observer.exists() {
+        let config = host::read_json_file(&frame_observer, EVIDENCE_LIMIT)?;
+        let fail = config["failFrame"]
+            .as_bool()
+            .ok_or("invalid Task allocation observation")?;
+        let path = dir.join("task-frame-observer.c");
+        if config["model"] != crate::task_results::CONTRACT
+            || fs::read(&path).map_err(|e| e.to_string())? != task_frame_observer(fail).as_bytes()
+            || config["sha256"] != host::digest(&path)?
+        {
+            return Err("Task frame observer differs from frozen worker implementation".into());
+        }
+        actual_args.extend([
+            "-x".into(),
+            "c".into(),
+            path.to_string_lossy().into_owned(),
+            "-Wl,--wrap=calloc".into(),
+            "-Wl,--wrap=free".into(),
+        ]);
+        Some(("taskFrameObserver", path, config))
     } else {
         None
     };
@@ -228,11 +260,11 @@ pub fn clang_proxy(args: &[String]) -> Result<u8, String> {
     command.args(&actual_args).current_dir(&dir);
     let run = capture(&mut command, &dir, "clang", CLANG_TIMEOUT_MS);
     let mut recorded = json!({"argv":std::iter::once(clang.to_string_lossy().into_owned()).chain(actual_args).collect::<Vec<_>>(),"clangSha256":pinned["sha256"]});
-    if let Some((path, config)) = observer_pin {
+    if let Some((label, path, config)) = observer_pin {
         if host::digest(&path)? != config["sha256"] {
-            return Err("byte observer changed during compilation".into());
+            return Err("allocation observer changed during compilation".into());
         }
-        recorded["byteObserver"] = config;
+        recorded[label] = config;
     }
     if clang_digest(&clang)? != pinned["sha256"] {
         recorded["error"] = json!("clang proxy identity drift during compilation");
@@ -608,6 +640,7 @@ fn observe_composition(
     root: &Path,
     toolchain: &Value,
     expected: &Value,
+    task_program: Option<&Value>,
 ) -> Result<(Value, Value), String> {
     if expected["kind"] == "safe-reject" {
         let (observation, detail) = observe(
@@ -620,7 +653,11 @@ fn observe_composition(
             true,
         )?;
         return Ok((
-            callable_composition::observed(expected, observation, &detail["compile"]),
+            if task_program.is_some() {
+                crate::task_results::observed(expected, observation, &detail["compile"])
+            } else {
+                callable_composition::observed(expected, observation, &detail["compile"])
+            },
             detail,
         ));
     }
@@ -634,6 +671,15 @@ fn observe_composition(
             let key = format!("{label}-{name}");
             let dir = root.join(&key);
             fs::create_dir(&dir).map_err(|e| e.to_string())?;
+            if let Some(program) = task_program {
+                let fail = program["exit"] == "allocation-error";
+                let path = dir.join("task-frame-observer.c");
+                fs::write(&path, task_frame_observer(fail)).map_err(|e| e.to_string())?;
+                host::durable(
+                    &dir.join("task-frame-observer.json"),
+                    &json!({"model":crate::task_results::CONTRACT,"failFrame":fail,"sha256":host::digest(&path)?}),
+                )?;
+            }
             let (observed, mut variant) =
                 observe(source, &dir, toolchain, true, level, backend, true)?;
             variant
@@ -660,7 +706,8 @@ pub fn execute(
         |n, reason| json!({"status":"incomplete","steps":n,"issues":[],"reason":reason});
     let start = Instant::now();
     let resource_model = trace["contract"] == resource_closure::CONTRACT;
-    let composition_model = trace["contract"] == callable_composition::CONTRACT;
+    let task_model = trace["contract"] == crate::task_results::CONTRACT;
+    let composition_model = task_model || trace["contract"] == callable_composition::CONTRACT;
     let owned_byte_model = trace["contract"] == byte_buffer::owned::CONTRACT;
     let byte_model = trace["contract"] == byte_buffer::CONTRACT || owned_byte_model;
     let (validate, expected_program, source_program, property): ModelFunctions = if owned_byte_model
@@ -677,6 +724,13 @@ pub fn execute(
             byte_buffer::expected,
             byte_buffer::source,
             byte_buffer::PROPERTY,
+        )
+    } else if task_model {
+        (
+            crate::task_results::validate,
+            crate::task_results::expected,
+            crate::task_results::source,
+            crate::task_results::PROPERTY,
         )
     } else if composition_model {
         (
@@ -780,18 +834,16 @@ pub fn execute(
     let mut evidence = Vec::new();
     let mut history = Vec::new();
     let mut steps = 0;
+    let profile = match crate::profile::Profile::for_case(trace) {
+        Ok(profile) => profile,
+        Err(message) => return protocol::issue("invalid", 0, "native-init", -1, "Error", &message),
+    };
     for (i, action) in actions.iter().enumerate() {
         if start.elapsed() >= Duration::from_millis(options.budget_ms) {
             result = incomplete(steps, "time-budget");
             break;
         }
-        if steps
-            >= options.max_steps.min(if byte_model {
-                byte_buffer::MAX_PROGRAMS
-            } else {
-                scalar::MAX_PROGRAMS
-            })
-        {
+        if steps >= options.max_steps.min(profile.max_steps()) {
             result = incomplete(steps, "step-budget");
             break;
         }
@@ -842,7 +894,13 @@ pub fn execute(
                     owned_byte_model.then_some(&action["program"]),
                 )
             } else if composition_model {
-                observe_composition(&source, &dir, &toolchain, &model)
+                observe_composition(
+                    &source,
+                    &dir,
+                    &toolchain,
+                    &model,
+                    task_model.then_some(&action["program"]),
+                )
             } else {
                 observe(
                     &source,
@@ -897,7 +955,9 @@ pub fn execute(
                 .push(json!({"phase":"complete","step":i,"expected":expected,"observed":observed}));
         }
         if expected != observed {
-            let rule = if composition_model {
+            let rule = if task_model {
+                crate::task_results::property(&action["program"])
+            } else if composition_model {
                 callable_composition::property(&action["program"])
             } else {
                 property
@@ -905,8 +965,8 @@ pub fn execute(
             result = protocol::failure(rule, steps, i as i64, expected, observed);
             if composition_model {
                 let mismatch =
-                    callable_composition::first_compile_failure(evidence.last().unwrap())
-                        .map(callable_composition::compile_location)
+                    crate::bounded_campaign::first_compile_failure(evidence.last().unwrap())
+                        .map(crate::bounded_campaign::compile_location)
                         .unwrap_or_else(
                             || json!({"phase":"runtime","code":"observation-mismatch"}),
                         );

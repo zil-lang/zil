@@ -1,14 +1,12 @@
 //! Independent oracle for scoped FnMut calls returning a tagged union.
-use crate::{host, protocol, search};
+use crate::search;
 use serde_json::{Value, json};
-use std::{collections::BTreeMap, fs, path::Path};
+use std::path::Path;
 
 pub const CONTRACT: &str = "zil-callable-composition-native/1";
 pub const PROPERTY: &str = "callable.receiver-result-and-cleanup";
 const RULE_REFERENCE: &str = "spec/semantic-scopes.md#可调用值与失败出口的组合";
 pub const MAX_PROGRAMS: usize = 32;
-const WORKER_BUDGET_MS: u64 = 22_000;
-const HOST_TIMEOUT_MS: u64 = 24_000;
 const SHAPES: [&str; 7] = ["", "h", "p", "hh", "hp", "ph", "pp"];
 const EXITS: [&str; 4] = ["early", "ok", "decode", "replace"];
 
@@ -298,230 +296,31 @@ pub fn observed(expected: &Value, observation: Value, compile: &Value) -> Value 
     }
 }
 
-pub(crate) fn first_compile_failure(evidence: &Value) -> Option<&Value> {
-    fn failed_compile(compile: &Value) -> Option<&Value> {
-        (!compile["status"].is_null() && compile["status"] != "Success").then_some(compile)
-    }
-    failed_compile(&evidence["compile"]).or_else(|| {
-        ["zil-O0", "zil-O2", "llvm-O0", "llvm-O2"]
-            .into_iter()
-            .find_map(|route| failed_compile(&evidence["variants"][route]["compile"]))
-    })
-}
-
-pub(crate) fn compile_location(compile: &Value) -> Value {
-    json!({"phase":compile["phase"], "code":compile["diagnostics"][0]["code"],
-        "source":compile["diagnostics"][0]["span"], "category":compile["status"]})
-}
-
-fn failure_location(result: &Value) -> Option<(&str, &str)> {
-    if result["status"] == "pass" {
-        return None;
-    }
-    first_compile_failure(&result["nativeEvidence"][0])
-        .map(|compile| {
-            (
-                compile["phase"].as_str().unwrap_or("compile"),
-                compile["diagnostics"][0]["code"]
-                    .as_str()
-                    .unwrap_or("unspecified"),
-            )
-        })
-        .or_else(|| {
-            let issue = &result["issues"][0];
-            Some((
-                issue["phase"].as_str()?,
-                issue["name"].as_str().unwrap_or("unspecified"),
-            ))
-        })
-        .or_else(|| (result["status"] == "fail").then_some(("runtime", "observation-mismatch")))
-        .or_else(|| result["status"].as_str().map(|status| ("harness", status)))
-}
-
-fn outcome(result: &Value) -> &'static str {
-    if result["status"] == "incomplete" || result["reason"] == "time-budget" {
-        "budget-exhausted"
-    } else if result["status"] == "error" && result["reason"] == "timeout" {
-        "host-timeout"
-    } else if result["steps"] != 1 {
-        "unreached"
-    } else if result["status"] == "pass" {
-        "matched"
-    } else if let Some(compile) = first_compile_failure(&result["nativeEvidence"][0]) {
-        match compile["status"].as_str() {
-            Some("ResourceLimit") => "budget-exhausted",
-            Some("Unsupported") => "unsupported",
-            Some("SafeReject") => "rejected-at-first-mismatch",
-            _ => "compiler-error",
-        }
-    } else {
-        "observation-mismatch"
-    }
-}
-
-fn run_case(
-    root: &Path,
-    snapshot: &Path,
-    toolchain: &Value,
-    label: &str,
-    case: &Value,
-) -> Result<Value, String> {
-    let mut case = case.clone();
-    crate::native::bind_identity(&mut case, toolchain)?;
-    let expected = expected(&case["steps"][0]["program"])?;
-    let attempt = root.join(label);
-    let run = host::supervise(
-        &case,
-        host::HostOptions {
-            command: &snapshot.join("roam"),
-            args: vec!["worker".into(), format!("--budget-ms={WORKER_BUDGET_MS}")],
-            timeout_ms: HOST_TIMEOUT_MS,
-            max_output: protocol::MAX_FRAME,
-            attempt: &attempt,
-        },
-    );
-    let (evidence, elapsed_ms) = match run {
-        Ok(run) => (run.result, Some(run.elapsed_ms)),
-        Err(error) => (json!({"status":"error","reason":error}), None),
-    };
-    fs::create_dir_all(&attempt).map_err(|e| e.to_string())?;
-    let proof = json!({"label":label,"expected":expected,"result":evidence});
-    host::durable(&attempt.join("rule-result.json"), &proof)?;
-    // Per-case evidence retains the complete diagnostic and codegen receipts.
-    let program = &case["steps"][0]["program"];
-    let first_failure =
-        failure_location(&evidence).map(|(phase, code)| json!({"phase":phase,"code":code}));
-    Ok(
-        json!({"label":label,"expected":expected,"status":evidence["status"],
-        "steps":evidence["steps"],"reason":evidence.get("reason"),
-        "shape":program["shape"],"property":property(program),"reference":RULE_REFERENCE,
-        "outcome":outcome(&evidence),"exit":program["exit"],"premise":program["premise"],
-        "elapsedMs":elapsed_ms,"lastNativeBoundary":evidence.get("lastNativeBoundary"),
-        "firstFailure":first_failure,"failure":evidence.get("failure")}),
-    )
-}
-
 pub fn campaign(root: &Path, commit: &str, jobs: usize) -> Result<Value, String> {
-    fs::create_dir(root).map_err(|e| e.to_string())?;
-    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    let snapshot = host::freeze(&exe, &root.join("snapshots"), commit)?;
-    let worker_sha = snapshot
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or("frozen worker identity is missing")?;
-    let toolchain = crate::native::identity()?;
-    let cases = fixed();
-    let plan = cases
-        .iter()
-        .map(|(label, case)| {
-            let program = &case["steps"][0]["program"];
-            Ok(
-                json!({"label":label,"program":program,"property":property(program),
-            "reference":RULE_REFERENCE,"contract":contract(program)?}),
-            )
-        })
-        .collect::<Result<Vec<_>, String>>()?;
-    host::durable(&root.join("expectations.json"), &json!(plan))?;
-    let mut results = std::thread::scope(|scope| {
-        let snapshot = &snapshot;
-        let toolchain = &toolchain;
-        let cases = &cases;
-        let workers: Vec<_> = (0..jobs)
-            .map(|worker| {
-                scope.spawn(move || {
-                    cases
-                        .iter()
-                        .enumerate()
-                        .skip(worker)
-                        .step_by(jobs)
-                        .map(|(index, (label, case))| {
-                            run_case(root, snapshot, toolchain, label, case).map(|row| (index, row))
-                        })
-                        .collect::<Result<Vec<_>, _>>()
-                })
-            })
-            .collect();
-        let mut rows = Vec::with_capacity(cases.len());
-        for worker in workers {
-            rows.extend(
-                worker
-                    .join()
-                    .map_err(|_| "callable combination worker panicked")??,
-            );
-        }
-        rows.sort_by_key(|(index, _)| *index);
-        Ok::<Vec<_>, String>(rows.into_iter().map(|(_, row)| row).collect())
-    })?;
-    let passed = |row: &Value| row["status"] == "pass" && row["steps"] == 1;
-    let positive_selected = SHAPES.len() * EXITS.len();
-    let negative_selected = SHAPES.len() * 2;
-    let mut positive_passed = 0;
-    let mut negative_passed = 0;
-    for family in results.chunks_exact_mut(EXITS.len() + 2) {
-        for row in family.iter_mut() {
-            row["publishedScope"] = json!(true);
-        }
-        positive_passed += family[..EXITS.len()]
-            .iter()
-            .filter(|row| passed(row))
-            .count();
-        let baseline = passed(&family[0]);
-        for negative in &mut family[EXITS.len()..] {
-            negative["positiveControlPassed"] = json!(baseline);
-            negative_passed += usize::from(baseline && passed(negative));
-        }
-    }
-    let complete = results.len() == positive_selected + negative_selected
-        && positive_passed == positive_selected
-        && negative_passed == negative_selected;
-    let mut failures = BTreeMap::new();
-    for row in &results {
-        if let Some(phase) = row["firstFailure"]["phase"].as_str() {
-            let key = (
-                row["property"].as_str().expect("generated property"),
-                phase,
-                row["firstFailure"]["code"]
-                    .as_str()
-                    .expect("diagnostic code"),
-                row["publishedScope"].as_bool().expect("classified path"),
-            );
-            let (count, _) = failures.entry(key).or_insert((0, &row["label"]));
-            *count += 1;
-        }
-    }
-    let failure_groups: Vec<_> = failures
-        .into_iter()
-        .map(
-            |((property, phase, code, published_scope), (count, case))| {
-                json!({"property":property,"phase":phase,"code":code,
-                "publishedScope":published_scope,"count":count,"firstCase":case})
-            },
-        )
-        .collect();
-    let report = json!({
-        "contract":CONTRACT, "candidate":commit, "roamSha256":worker_sha,
-        "execution":{"jobs":jobs,"workerBudgetMs":WORKER_BUDGET_MS,"hostTimeoutMs":HOST_TIMEOUT_MS,
-            "clangTimeoutMs":crate::native::CLANG_TIMEOUT_MS,"programTimeoutMs":crate::native::PROGRAM_TIMEOUT_MS,
-            "maxOutputBytes":protocol::MAX_FRAME,"workProfile":"alpha","maxAnalysisSteps":crate::native::CALLABLE_ANALYSIS_STEPS},
-        "bound":{"maximumDepth":2,"operations":["generic helper","field projection"],"exits":EXITS,
-            "shapes":SHAPES, "rule":"§8.1.2.2"},
-        "status":if complete {"pass"} else {"fail"},
-        "positive":{"selected":positive_selected,"passed":positive_passed},
-        "negative":{"selected":negative_selected,"passed":negative_passed},
-        "targetSpace":{"selection":"exhaustive","sampling":0,
-            "positive":{"selected":positive_selected,"passed":positive_passed},
-            "negative":{"selected":negative_selected,"passed":negative_passed},"complete":complete},
-        "boundary":{"selected":0},
-        "failureGroups":failure_groups,
-        "cases":results
-    });
-    host::durable(&root.join("report.json"), &report)?;
-    Ok(report)
+    crate::bounded_campaign::run(
+        &crate::bounded_campaign::Rules {
+            contract_id: CONTRACT,
+            rule_reference: RULE_REFERENCE,
+            shapes: &SHAPES,
+            exits: &EXITS,
+            premises: &["exclusive-receiver", "nominal-error"],
+            operations: &["generic helper", "field projection"],
+            max_depth: 2,
+            rule: "§8.1.2.2",
+            cases: fixed,
+            contract,
+            property,
+        },
+        root,
+        commit,
+        jobs,
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{bounded_campaign::outcome, protocol};
 
     #[test]
     fn budget_after_a_partial_native_step_stays_incomplete() {

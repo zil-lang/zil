@@ -33,14 +33,14 @@ fn run() -> Result<u8, String> {
     }
     if args.is_empty() {
         return Err(
-            "usage: roam worker|campaign|callable-combinations|replay|generate|verify-snapshot|hunt|issue [--key=value]"
+            "usage: roam worker|campaign|callable-combinations|task-result-combinations|replay|generate|verify-snapshot|hunt|issue [--key=value]"
                 .into(),
         );
     }
     let command = args.remove(0);
     let allowed = match command.as_str() {
         "worker" => &["fault", "max-steps", "budget-ms"][..],
-        "callable-combinations" => &["out", "commit", "jobs"][..],
+        "callable-combinations" | "task-result-combinations" => &["out", "commit", "jobs"][..],
         "campaign" => &["out", "commit", "allow-dirty"][..],
         "replay" => &[
             "case",
@@ -105,7 +105,7 @@ fn run() -> Result<u8, String> {
             println!("{}", profile.generate(seed, steps as usize));
             Ok(0)
         }
-        "callable-combinations" | "campaign" => {
+        "callable-combinations" | "task-result-combinations" | "campaign" => {
             let out = PathBuf::from(argument(&args, "out").ok_or("new --out directory required")?);
             let git = |arguments: &[&str]| -> Result<String, String> {
                 let output = std::process::Command::new("git")
@@ -145,15 +145,19 @@ fn run() -> Result<u8, String> {
             if dirty && !allow_dirty {
                 return Err("commit implementation before formal campaign; --allow-dirty=true is development only".into());
             }
-            if command == "callable-combinations" {
+            if command.ends_with("-combinations") {
                 if !cfg!(feature = "llvm-api") {
-                    return Err("callable-combinations requires the llvm-api feature".into());
+                    return Err(format!("{command} requires the llvm-api feature"));
                 }
                 let jobs = number(&args, "jobs", 2)?;
                 if !(1..=4).contains(&jobs) {
-                    return Err("callable-combinations jobs must be in 1..=4".into());
+                    return Err(format!("{command} jobs must be in 1..=4"));
                 }
-                let report = callable_composition::campaign(&out, &commit, jobs as usize)?;
+                let report = if command == "task-result-combinations" {
+                    roam::bounded_campaign::task_campaign(&out, &commit, jobs as usize)?
+                } else {
+                    callable_composition::campaign(&out, &commit, jobs as usize)?
+                };
                 println!(
                     "{}",
                     json!({"status":report["status"],"report":out.join("report.json"),

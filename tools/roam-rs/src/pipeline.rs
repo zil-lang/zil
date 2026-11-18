@@ -931,6 +931,8 @@ fn reduce(queue: &Queue, id: &str, token: &str, options: &Options) -> Result<(Va
                 resource_closure::candidates(&trace)
             } else if profile == Profile::ByteBuffer {
                 byte_buffer::candidates(&trace)
+            } else if profile == Profile::TaskResults {
+                crate::task_results::candidates(&trace)
             } else if profile == Profile::CallableComposition {
                 callable_composition::candidates(&trace)
             } else {

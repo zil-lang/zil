@@ -33,6 +33,12 @@ tools/roam-rs/target/debug/roam callable-combinations --commit="$(git rev-parse 
 
 `targetSpace` 汇总全部 28 个正向观察项和 14 个 Source 反例。只有全部 42 项符合独立预期时，`status` 为 `pass`，`targetSpace.complete` 为真。每条记录链接到[组合规则](../../spec/semantic-scopes.md#可调用值与失败出口的组合)，列明改动的前提、对应合法用例、预期、实际证据及首个失配阶段。预算耗尽、未到达、未支持及观测不符各有独立结果。缩减须保留原规则、首个失配阶段及诊断类别和代码。独立 Raw/Wire 的近邻反例由 `zil-driver` 的 `direct_callback_field_calls_callback_place_raw` 检查同型字段串换，单独报告其覆盖。
 
+## Task 返回借用值的组合验收
+
+同一个已构建的 Roam 可执行文件支持 `task-result-combinations --commit=<提交> --out=<新目录>`。紧凑或完整的 worker 上下文分别经过直接创建或一次所有权转发，得到四种形态。每种形态观察 Ready、启动前取消、Pending 后取消、帧分配失败四个出口，共 16 个正例。独立模型预先给出选中的输入、worker 输出、退出值和帧释放事件。执行时使用两个后端各自的 O0/O2，并用 C 观察器记录实际成功分配、失败及释放。
+
+每种形态另配两个 Ready 对照，分别替换声明的结果来源、在占用期间写入实际输入，共 8 个最近反例。只有对应 Ready 正例已通过且原诊断相符时才计入通过数。每项的独立预期、原源码和四次原生运行记录可从输出目录逐项回查。
+
 ## 协议与行为
 
 - `steps` 的具体动作是重放权威，seed 只记录生成来源。Mulberry32 与原 TS 动作表顺序一致。

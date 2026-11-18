@@ -595,7 +595,9 @@ pub fn supervise(trace: &Value, options: HostOptions<'_>) -> Result<Supervised, 
         })
     };
     if native_root.exists() {
-        if result["status"] != "pass" && trace["contract"] == crate::callable_composition::CONTRACT
+        if result["status"] != "pass"
+            && (trace["contract"] == crate::callable_composition::CONTRACT
+                || trace["contract"] == crate::task_results::CONTRACT)
         {
             if let Some(boundary) = native::last_callable_boundary(&native_root) {
                 result["lastNativeBoundary"] = boundary;
