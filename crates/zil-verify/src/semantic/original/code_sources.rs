@@ -89,10 +89,10 @@ impl CheckedOriginal {
         Ok(())
     }
 
-    fn named_invocation_code(&self,owner:SemanticDefinitionId,prototype:&Prototype,frame:FrameToken,b:&mut Budget)->Check<Ty>{
+    fn named_invocation_code(&self,definition:&SemanticDefinition,prototype:&Prototype,frame:FrameToken,b:&mut Budget)->Check<Ty>{
         let mut inputs=Vec::new();
         let mut declarations=Vec::<Life>::new();
-        let mut position=|ty:&Ty,mode:PassingMode,result:bool,b:&mut Budget|->Check<Ty>{
+        let mut position=|ty:&Ty,mode:PassingMode,parameter:Option<usize>,b:&mut Budget|->Check<Ty>{
             let ty=self.resolved(ty,b)?;
             let Ty::Address{mutable,life,inner}=ty else{
                 if mode!=PassingMode::Infer{return Err(bad("thin code changes a value passing mode"));}
@@ -104,7 +104,15 @@ impl CheckedOriginal {
             if mode!=PassingMode::Infer && mode!=if mutable{PassingMode::BorrowMut}else{PassingMode::Borrow}{
                 return Err(bad("named code address changes the declared passing mode"));
             }
-            if !matches!(&life,Life::Implicit(id,_) if *id==owner) && !prototype.environment.invocation.contains(&life){
+            if let Life::Implicit(owner,ordinal)=&life {
+                if *owner!=definition.id{return Err(bad("named code borrows another declaration's implicit head"));}
+                if let Some(index)=parameter {
+                    b.spend(definition.implicit_lifetimes.len())?;
+                    if !definition.implicit_lifetimes.iter().any(|row|row.ordinal==*ordinal && row.occurrence_path==[1,index as u32]){
+                        return Err(bad("named code address does not select this original parameter's input head"));
+                    }
+                }
+            }else if !prototype.environment.invocation.contains(&life){
                 return Err(unsupported("named thin code needs a root address head owned by its exact declaration",None));
             }
             let mut nested=false;
@@ -112,14 +120,14 @@ impl CheckedOriginal {
             if nested{return Err(unsupported("named thin address has nested borrowed or retained signature roles",None));}
             b.spend(declarations.len().saturating_add(1))?;
             let index=if let Some(i)=declarations.iter().position(|head|head==&life){i}else{
-                if result{return Err(unsupported("named code result has no proved identical input lifetime",None));}
+                if parameter.is_none(){return Err(unsupported("named code result has no proved identical input lifetime",None));}
                 let i=declarations.len();declarations.push(life);i
             };
             Ok(Ty::Address{mutable,life:Life::Invocation(frame,u32::try_from(index).map_err(|_|limit("named code invocation count exceeded"))?),inner})
         };
         b.spend(prototype.parameters.len().saturating_add(1))?;
-        for(ty,mode)in prototype.parameters.iter().zip(&prototype.modes){inputs.push(position(ty,*mode,false,b)?);}
-        let result=position(&prototype.result,prototype.result_mode,true,b)?;
+        for(index,(ty,mode))in prototype.parameters.iter().zip(&prototype.modes).enumerate(){inputs.push(position(ty,*mode,Some(index),b)?);}
+        let result=position(&prototype.result,prototype.result_mode,None,b)?;
         if prototype.environment.invocation.iter().any(|head|!declarations.contains(head)){
             return Err(bad("named thin code loses a declared invocation binder"));
         }
@@ -149,7 +157,7 @@ impl CheckedOriginal {
         let mut inspect=|life:&Life,b:&mut Budget|{b.spend(1)?;scoped=true;Ok(life.clone())};
         for ty in prototype.parameters.iter().chain(std::iter::once(&prototype.result)){self.map_invocation_type(ty,&mut inspect,0,b)?;}
         for requirement in &definition.requirements{self.obligation(module,context,requirement,&selected,env,active,b)?;}
-        let code=if scoped{self.named_invocation_code(target,&prototype,active.fresh(b)?,b)?}else{
+        let code=if scoped{self.named_invocation_code(definition,&prototype,active.fresh(b)?,b)?}else{
             if prototype.invocation_lifetimes!=0{return Err(bad("named code loses an unused quantified domain"));}
             Ty::Code{kind:SemanticCodeKind::FunctionPointer,parameters:prototype.parameters,result:Box::new(prototype.result),modes:prototype.modes,result_mode:prototype.result_mode,call_kind:prototype.call_kind,bound_lifetimes:0,invocation_lifetimes:0}
         };

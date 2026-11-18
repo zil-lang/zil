@@ -307,6 +307,29 @@ fn independent_verify_still_rejects_environment_entry_as_function_ref() {
     assert!(errors[0].code.starts_with("E-VERIFY-"), "{errors:?}");
 }
 
+fn semantic_typed(unit: SourceUnit, target: &TargetProfile, limits: &Limits) -> TypedModule {
+    let ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let aliases = std::collections::BTreeMap::new();
+    let context = zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+        root: unit.module_id,
+        aliases: &aliases,
+        declarations: zil_expand::source_context::DeclarationPlacement::Original,
+    };
+    let core = zil_expand::expand_program_with_semantics(
+        &[unit],
+        &[&ast],
+        &[Vec::new()],
+        limits,
+        target,
+        context,
+    )
+    .unwrap()
+    .remove(0)
+    .0
+    .core;
+    zil_types::check(&core, target, limits).unwrap()
+}
+
 #[test]
 fn named_and_literal_function_addresses_keep_their_original_identity_on_raw_and_wire() {
     use zil_ir::*;
@@ -315,25 +338,7 @@ fn named_and_literal_function_addresses_keep_their_original_identity_on_raw_and_
     let unit = source(
         "fn other(x:i32)->i32=>x-1\nfn main()->i32{let n=7;let named:fn(i32)->i32=other;let literal:fn(i32)->i32=x=>x+1;return literal(named(n))}",
     );
-    let ast = zil_syntax::parse(&unit).into_result().unwrap();
-    let context = zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
-        root: unit.module_id,
-        aliases: &std::collections::BTreeMap::new(),
-        declarations: zil_expand::source_context::DeclarationPlacement::Original,
-    };
-    let core = zil_expand::expand_program_with_semantics(
-        &[unit],
-        &[&ast],
-        &[Vec::new()],
-        &limits,
-        &target,
-        context,
-    )
-    .unwrap()
-    .remove(0)
-    .0
-    .core;
-    let raw = zil_types::check(&core, &target, &limits).unwrap();
+    let raw = semantic_typed(unit, &target, &limits);
     let plan = zil_analyze::analyze(&raw, &limits).unwrap();
     zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
     let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
@@ -488,7 +493,8 @@ fn named_and_literal_function_addresses_keep_their_original_identity_on_raw_and_
             }
             "duplicate child" => {
                 let mut duplicate = child.clone();
-                duplicate.id.index = encoded.instances.iter().map(|i| i.id.index).max().unwrap() + 1;
+                duplicate.id.index =
+                    encoded.instances.iter().map(|i| i.id.index).max().unwrap() + 1;
                 encoded.instances.push(duplicate);
             }
             "capture" => {
@@ -537,6 +543,100 @@ fn named_and_literal_function_addresses_keep_their_original_identity_on_raw_and_
                     && e.category == ResultCategory::SafeReject
                     && e.code == "E-VERIFY-SEMANTIC"),
                 "{mutation}: {errors:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn borrowed_code_keeps_its_invocation_relation_on_named_and_literal_addresses() {
+    use zil_ir::*;
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let raw = semantic_typed(
+        source(
+            "fn read(x:&i32)->i32=>*x\nfn main()->i32{let a:fn(&i32)->i32=read;let b:fn(&i32)->i32=x=>*x;let n=21;return a(&n)+b(&n)-42}",
+        ),
+        &target,
+        &limits,
+    );
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    let program = raw.semantic.as_ref().unwrap();
+    let sites = program
+        .sites
+        .iter()
+        .enumerate()
+        .filter_map(|(i, site)| {
+            let SemanticSiteAction::TypeUse {
+                subject: SemanticOperand::Value(id),
+                expected:
+                    SemanticTypeValue::Resolved {
+                        ty: Type::BorrowedFunctionPointer { .. },
+                        ..
+                    },
+            } = &site.action
+            else {
+                return None;
+            };
+            let owner = program
+                .instances
+                .iter()
+                .find(|instance| instance.id == site.instance)?;
+            let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(f)) = owner.target
+            else {
+                return None;
+            };
+            let SemanticSiteAddress::Typed {
+                block,
+                instruction,
+                edge: SemanticSiteEdge::Before,
+            } = site.at
+            else {
+                return None;
+            };
+            let source = raw.functions[f.0 as usize].blocks[block.0 as usize]
+                .instructions
+                .get(instruction.checked_sub(1)? as usize)?;
+            (source.result == Some(*id)
+                && matches!(source.kind, InstructionKind::FunctionRef { .. }))
+            .then_some(i)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(sites.len(), 2);
+    for i in sites {
+        let mut changed = raw.clone();
+        let SemanticSiteAction::TypeUse {
+            expected: SemanticTypeValue::Resolved { ty, .. },
+            ..
+        } = &mut changed.semantic.as_mut().unwrap().sites[i].action
+        else {
+            panic!()
+        };
+        let Type::BorrowedFunctionPointer {
+            parameters, result, ..
+        } = ty
+        else {
+            panic!()
+        };
+        *ty = Type::FunctionPointer {
+            parameters: parameters.clone(),
+            result: result.clone(),
+        };
+        let mut stale = plan.clone();
+        stale.module_fingerprint = changed.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&changed, &stale, &limits).unwrap();
+        for errors in [
+            zil_verify::verify_module(changed, stale, &target, &limits).unwrap_err(),
+            zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err(),
+        ] {
+            assert!(
+                errors.iter().any(|e| e.phase == Phase::Verify
+                    && e.category == ResultCategory::SafeReject
+                    && e.code == "E-VERIFY-SEMANTIC"),
+                "{errors:?}"
             );
         }
     }
