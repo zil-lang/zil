@@ -45,6 +45,11 @@ impl CheckedOriginal {
         active: &mut ActiveQueries,
         b: &mut Budget,
     ) -> Check<Ty> {
+        let mut callee = callee;
+        while let CoreExprKind::Group(inner) = &callee.kind {
+            b.spend(1)?;
+            callee = inner;
+        }
         let (base, written_types, written_mixed) = match &callee.kind {
             CoreExprKind::TypeApply {
                 callee,

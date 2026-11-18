@@ -253,6 +253,20 @@ fn projection_value(
     }
     Ok(true)
 }
+#[derive(Clone, Copy)]
+enum OperandObservation {
+    Selector,
+    Value,
+    PipelineInput,
+}
+impl OperandObservation {
+    fn observes_value(self) -> bool {
+        match self {
+            Self::Selector => false,
+            Self::Value | Self::PipelineInput => true,
+        }
+    }
+}
 fn observation_operand(
     program: &program::Program,
     definition: SemanticDefinitionId,
@@ -262,23 +276,24 @@ fn observation_operand(
     path: &[u32],
     budget: &mut Budget<'_>,
     span: Span,
-) -> R<(bool, bool)> {
+) -> R<OperandObservation> {
     let mut length = path.len();
     while length > 0 {
         let child = path[length - 1];
         let Some(parent) = body.locate(&path[..length - 1], budget, span)? else {
-            return Ok((true, false));
+            return Ok(OperandObservation::Value);
         };
         let body_nodes::Node::Expression(parent) = parent.node else {
-            return Ok((true, false));
+            return Ok(OperandObservation::Value);
         };
         match &parent.kind {
             s::ExprKind::Group(_) if child == 0 => length -= 1,
             s::ExprKind::TypeApply { .. } if child == 0 => length -= 1,
-            s::ExprKind::Call { .. } if child == 0 => return Ok((false, false)),
-            s::ExprKind::Pipeline { .. } => return Ok((child == 0, child == 0)),
+            s::ExprKind::Call { .. } if child == 0 => return Ok(OperandObservation::Selector),
+            s::ExprKind::Pipeline { .. } if child == 0 => return Ok(OperandObservation::PipelineInput),
+            s::ExprKind::Pipeline { .. } => return Ok(OperandObservation::Selector),
             s::ExprKind::Call { .. } if child > 0 => {
-                return Ok((!static_code_selector(
+                let selector = static_code_selector(
                     program,
                     definition,
                     parent,
@@ -287,16 +302,17 @@ fn observation_operand(
                     nodes,
                     value_names,
                     budget,
-                )?, false));
+                )?;
+                return Ok(if selector { OperandObservation::Selector } else { OperandObservation::Value });
             }
             s::ExprKind::Unary {
                 op: s::UnaryOp::Give,
                 ..
-            } if child == 0 => return Ok((false, false)),
-            _ => return Ok((true, false)),
+            } if child == 0 => return Ok(OperandObservation::Selector),
+            _ => return Ok(OperandObservation::Value),
         }
     }
-    Ok((true, false))
+    Ok(OperandObservation::Value)
 }
 // Some call operands name declarations carried by the operation itself. Only
 // ordinary runtime operands have an independent value emission at this site.
@@ -761,7 +777,7 @@ fn operations(
     value_names.sort_unstable();
     let nodes = directory.nodes;
     for original in &nodes {
-        let (observation, prepared) = observation_operand(
+        let observation = observation_operand(
             program,
             definition,
             &nodes,
@@ -849,12 +865,12 @@ fn operations(
                         expression.kind,
                         s::ExprKind::Name(_) | s::ExprKind::ReceiverMember(_)
                     );
-                let observed_name = observation
+                let observed_name = observation.observes_value()
                     && (local_name
                         || (runtime
                             && projection_value
                             && named_code_value(program, definition, expression, budget)?));
-                let observed_projection = observation
+                let observed_projection = observation.observes_value()
                     && projection_value
                     && matches!(
                         expression.kind,
@@ -1005,7 +1021,9 @@ fn operations(
                                 SemanticEmissionRole::Ascription,
                             ))
                         }
-                        s::ExprKind::Unary { op: s::UnaryOp::Give, .. } if prepared => {
+                        s::ExprKind::Unary { op: s::UnaryOp::Give, .. }
+                            if matches!(observation, OperandObservation::PipelineInput) =>
+                        {
                             let expected = SemanticTypeRecipe::OriginalType {
                                 scope: SemanticScopeRef::Ancestor(0),
                                 source: SemanticOriginalTypeSource::Expression(original.id),

@@ -3340,9 +3340,16 @@ impl<'a> Engine<'a> {
         // rewrites. Associate a call only after this exact original event
         // bundle has been restored; reading it inside expr_call_normal loses
         // the caller identity and cannot form an inference request.
+        let invoked = match &e.kind {
+            ExprKind::Call { callee, .. } => match &callee.kind {
+                ExprKind::Name(name) => Some(name.as_str()),
+                _ => None,
+            },
+            ExprKind::Pipeline { target, .. } => crate::foreign::bare_name(target),
+            _ => None,
+        };
         if result.is_ok()
-            && let ExprKind::Call { callee, .. } = &e.kind
-            && let ExprKind::Name(generated) = &callee.kind
+            && let Some(generated) = invoked
             && !env.contains_key(generated)
             && let Some(program) = self.products.semantic.as_mut()
         {
