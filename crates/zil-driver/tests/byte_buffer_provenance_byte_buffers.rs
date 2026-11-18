@@ -121,6 +121,100 @@ fn byte_storage_has_real_source_operations_and_sealed_single_definition() {
 }
 
 #[test]
+fn byte_view_operations_keep_the_original_mode_and_exact_manager() {
+    let limits = Limits::default();
+    for (primitive, mutable) in [("bytes_view", false), ("bytes_view_mut", true)] {
+        let text = format!(
+            "fn main(){{let selected=bytes_new();let sibling=bytes_new();bytes_len(sibling);{primitive}(selected);}}"
+        );
+        let source = input(&text);
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let target = TargetProfile::default();
+        let expanded = zil_expand::expand_with_map_semantics(
+            &source,
+            &syntax,
+            &limits,
+            &target,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &BTreeMap::new(),
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+        )
+        .unwrap();
+        let pristine = zil_types::check(&expanded.core, &target, &limits).unwrap();
+        let candidate = zil_analyze::analyze(&pristine, &limits).unwrap();
+        zil_verify::verify_module(
+            pristine.clone(),
+            candidate.clone(),
+            &pristine.target,
+            &limits,
+        )
+        .unwrap();
+        let function = &pristine.functions[0];
+        let replacement = function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .find_map(|instruction| match instruction.kind {
+                InstructionKind::ByteBufferLen { buffer } => Some(buffer),
+                _ => None,
+            })
+            .unwrap();
+        for replace_manager in [false, true] {
+            let mut module = pristine.clone();
+            let function = &mut module.functions[0];
+            let borrow = function
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.instructions)
+                .find(|instruction| {
+                    matches!(instruction.kind, InstructionKind::ByteBufferBorrow { .. })
+                })
+                .unwrap();
+            let InstructionKind::ByteBufferBorrow {
+                buffer,
+                mutable: actual,
+            } = &mut borrow.kind
+            else {
+                unreachable!()
+            };
+            if replace_manager {
+                *buffer = replacement;
+            } else {
+                *actual = !mutable;
+                let result = borrow.result.unwrap();
+                let Type::Address { mutable: mode, .. } = &mut function.values[result.0 as usize]
+                else {
+                    unreachable!()
+                };
+                *mode = !mutable;
+            }
+            let diagnostics = zil_analyze::analyze(&module, &limits).unwrap_err();
+            let expected = if replace_manager {
+                "selects another original parent place"
+            } else {
+                "replaces its independently resolved original opcode"
+            };
+            assert!(
+                diagnostics.iter().any(|d| {
+                    d.category == ResultCategory::SafeReject && d.message.contains(expected)
+                }),
+                "{diagnostics:?}"
+            );
+            let mut forged = candidate.clone();
+            forged.module_fingerprint = module.fingerprint();
+            assert!(
+                zil_verify::verify_module(module.clone(), forged.clone(), &module.target, &limits)
+                    .is_err()
+            );
+            let wire = zil_ir::wire::encode_module_candidate(&module, &forged, &limits).unwrap();
+            assert!(zil_verify::verify_module_bytes(&wire, &module.target, &limits).is_err());
+        }
+    }
+}
+
+#[test]
 fn create_give_and_description_parameter_window_returns_compose() {
     passes(
         "fn fresh()->ByteBuffer contract{result(create);}{return bytes_new();}fn relay(give b:ByteBuffer)->ByteBuffer contract{result(give);}{return give b;}fn fill(b:ByteBuffer)->bool{return bytes_reserve(b,3)&&bytes_push(b,8u8);}fn view(b:ByteBuffer)->&[u8]{return bytes_view(b);}fn consume(give b:ByteBuffer)->i32{return i32(bytes_len(b));}fn main()->i32{let a=fresh();let b=relay(give a);if !fill(b){return 5;}let s=view(b);let value=i32(s[0]);return value+consume(give b);}",
