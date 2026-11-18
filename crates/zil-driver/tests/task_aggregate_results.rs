@@ -256,10 +256,18 @@ fn aggregate_result_native_once_transfer_and_cancel() {
     }
 }
 fn queued_candidate(limits: &Limits, target: &zil_base::TargetProfile) -> zil_ir::TypedModule {
+    candidate(
+        include_str!(
+            "../../../tests/language-readiness/task-aggregate-results/queued-nested-result.zil"
+        ),
+        limits,
+        target,
+    )
+}
+
+fn candidate(text: &str, limits: &Limits, target: &zil_base::TargetProfile) -> zil_ir::TypedModule {
     use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
-    let input = source(include_str!(
-        "../../../tests/language-readiness/task-aggregate-results/queued-nested-result.zil"
-    ));
+    let input = source(text);
     let ast = zil_syntax::parse(&input).into_result().unwrap();
     let aliases = Default::default();
     let scope = SourceIdentityContext::ClosedSnapshot {
@@ -612,6 +620,111 @@ fn aggregate_owning_enum_payload_keeps_the_declared_value_role() {
             ResultCategory::Success,
             "owning payload role was erased: {}",
             report.to_json()
+        );
+    }
+}
+
+#[test]
+fn aggregate_child_await_preserves_its_static_worker_and_suspend_abi() {
+    use zil_ir::InstructionKind;
+
+    let (_, text, _) = cases()
+        .into_iter()
+        .find(|(name, _, _)| *name == "child-result")
+        .unwrap();
+    let source = text.replace("fn drive(", "fn sibling(give token:Token)->Packet { task_yield(); return Packet.Item(give token); }\nfn drive(");
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let typed = candidate(&source, &limits, &target);
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let sibling = typed
+        .functions
+        .iter()
+        .find(|f| f.name.ends_with("sibling"))
+        .unwrap()
+        .id;
+    for change in 0..3 {
+        let mut module = typed.clone();
+        let call = module
+            .functions
+            .iter_mut()
+            .flat_map(|f| &mut f.blocks)
+            .flat_map(|block| &mut block.instructions)
+            .find(|op| matches!(op.kind, InstructionKind::SuspendCall { .. }))
+            .unwrap();
+        let InstructionKind::SuspendCall {
+            function,
+            arguments,
+        } = &mut call.kind
+        else {
+            unreachable!()
+        };
+        match change {
+            0 => {}
+            1 => *function = sibling,
+            _ => {
+                call.kind = InstructionKind::Call {
+                    function: *function,
+                    arguments: arguments.clone(),
+                }
+            }
+        }
+        let mut proposed = plan.clone();
+        proposed.module_fingerprint = module.fingerprint();
+        assert_eq!(zil_analyze::analyze(&module, &limits).is_ok(), change == 0);
+        let wire = zil_ir::wire::encode_module_candidate(&module, &proposed, &limits).unwrap();
+        assert_eq!(
+            zil_verify::verify_module(module, proposed, &target, &limits).is_ok(),
+            change == 0
+        );
+        assert_eq!(
+            zil_verify::verify_module_bytes(&wire, &target, &limits).is_ok(),
+            change == 0
+        );
+    }
+}
+
+#[test]
+fn retained_input_checks_real_owning_poll_arm_and_destinations() {
+    use zil_ir::InstructionKind;
+
+    let (_, text, _) = cases()
+        .into_iter()
+        .find(|(name, _, _)| *name == "borrowed-input-owned-result")
+        .unwrap();
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let typed = candidate(&text, &limits, &target);
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    for change in 0..3 {
+        let mut module = typed.clone();
+        let unpack = module.functions.iter_mut().find(|function| function.name.ends_with("drive")).unwrap()
+            .blocks.iter_mut().flat_map(|block| &mut block.instructions)
+            .find(|op| matches!(&op.kind, InstructionKind::UnpackVariant { fields, .. } if !fields.is_empty())).unwrap();
+        let InstructionKind::UnpackVariant {
+            local,
+            fields,
+            variant,
+        } = &mut unpack.kind
+        else {
+            unreachable!()
+        };
+        match change {
+            0 => {}
+            1 => *variant = 0,
+            _ => fields[0] = *local,
+        }
+        let mut proposed = plan.clone();
+        proposed.module_fingerprint = module.fingerprint();
+        assert_eq!(zil_analyze::analyze(&module, &limits).is_ok(), change == 0);
+        let wire = zil_ir::wire::encode_module_candidate(&module, &proposed, &limits).unwrap();
+        assert_eq!(
+            zil_verify::verify_module(module, proposed, &target, &limits).is_ok(),
+            change == 0
+        );
+        assert_eq!(
+            zil_verify::verify_module_bytes(&wire, &target, &limits).is_ok(),
+            change == 0
         );
     }
 }
