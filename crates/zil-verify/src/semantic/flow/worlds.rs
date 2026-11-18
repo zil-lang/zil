@@ -65,7 +65,7 @@ impl CheckedContext {
             let definition=self.definition(module,world.environment.lexical.first().ok_or_else(||bad("Call world has no current original definition"))?.definition,b)?;
             self.evaluate_requirements(module,&definition.requirements,&world.environment,RequirementMode::DeclarationPremise,external,active,b)?;
             for formal in &definition.parameters{if let SemanticFormal::Type{requirements}=formal{self.evaluate_requirements(module,requirements,&world.environment,RequirementMode::DeclarationPremise,external,active,b)?;}}
-            let mut signature=self.evaluate_signature(module,recipe,&world.environment,external,active,b)?;
+            let mut signature=self.entry_signature(module,definition,recipe,&world.environment,external,active,b)?;
             for(parameter,_)in &mut signature.parameters{*parameter=world.boundary.project_type(self,caller,parameter,b)?;}
             signature.result=world.boundary.project_type(self,caller,&signature.result,b)?;
             if let Some(expected)=&selected{

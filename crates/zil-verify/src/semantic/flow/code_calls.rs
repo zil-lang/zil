@@ -80,6 +80,12 @@ impl CheckedContext{
         self.evaluate_requirements(module,&definition.requirements,&selected,RequirementMode::ActualObligation,external,active,b)?;
         let signature=self.world_signature(module,signature,worlds,environment,external,active,b)?;
         let value=self.ordinary_code(module,SemanticCodeKind::FunctionPointer,&signature,b)?;
+        if let Type::BorrowedFunctionPointer{life,..}=&value.ty {
+            let entry=module.functions.get(function.0 as usize).ok_or_else(||bad("borrowed code has no actual entry"))?;
+            if entry.storage_life.as_ref()!=Some(life){
+                return Err(bad("borrowed FunctionRef target changes its complete invocation relation"));
+            }
+        }
         for(site,claim)in claims{
             let required=self.site_expected(module,caller,site,environment,external,active,b)?;
             if !self.same_type(environment,&value,&required,b)?{return Err(bad("code formation changes its complete original context type"));}

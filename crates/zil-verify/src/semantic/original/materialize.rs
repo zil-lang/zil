@@ -116,8 +116,17 @@ impl CheckedOriginal {
             Ty::Infer(_)=>return Err(bad("original inferred type remains unsolved at the executable boundary")),
             Ty::Code{kind,parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes}=>{
                 if parameters.len()!=modes.len(){return Err(bad("original code value omits a complete parameter mode"));}
-                let mut values=Vec::new();for(ty,mode)in parameters.iter().zip(modes){values.push(SemanticParameterRecipe{ty:self.reify_type_at(module,ty,env,depth+1,b)?,mode});}
-                SemanticTypeRecipe::Code{kind,signature:Box::new(SemanticSignatureRecipe{bound_lifetimes,invocation_lifetimes,parameters:values,result:self.reify_type_at(module,&result,env,depth+1,b)?,result_mode,call_kind})}
+                let frame=Self::code_invocation_frame(&parameters,&result,invocation_lifetimes,b)?;
+                let position=|ty:&Ty,b:&mut Budget|->Check<SemanticTypeRecipe>{
+                    if let Ty::Address{mutable,life:life@Life::Invocation(_,index),inner}=ty {
+                        if frame.get(*index as usize)==Some(life){
+                            return Ok(SemanticTypeRecipe::Address{mutable:*mutable,lifetime:SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Invocation(*index)),inner:Box::new(self.reify_type_at(module,inner,env,depth+1,b)?)});
+                        }
+                    }
+                    self.reify_type_at(module,ty,env,depth+1,b)
+                };
+                let mut values=Vec::new();for(ty,mode)in parameters.iter().zip(modes){values.push(SemanticParameterRecipe{ty:position(ty,b)?,mode});}
+                SemanticTypeRecipe::Code{kind,signature:Box::new(SemanticSignatureRecipe{bound_lifetimes,invocation_lifetimes,parameters:values,result:position(&result,b)?,result_mode,call_kind})}
             },
             Ty::Function(_)=>return Err(bad("original static function value lacks its explicit complete code coercion")),
         })

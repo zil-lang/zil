@@ -500,10 +500,12 @@ impl CheckedOriginal {
                 invocation_lifetimes,
                 ..
             } => {
+                let mut code_environment=env.clone();
+                code_environment.invocation=Self::code_invocation_frame(&parameters,&result,invocation_lifetimes,b)?;
                 let prototype = Prototype {
                     parameters,
                     result: *result,
-                    environment: env.clone(),
+                    environment: code_environment,
                     modes,
                     result_mode,
                     call_kind,
@@ -513,6 +515,7 @@ impl CheckedOriginal {
                     callable_kind: None,
                 };
                 let outer_floor = self.next_inference;
+                let prototype=if invocation_lifetimes!=0{self.freshen_code_prototype(&prototype,None,b)?}else{prototype};
                 self.invoke(
                     module,
                     context,

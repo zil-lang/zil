@@ -152,7 +152,8 @@ impl CheckedContext {
         dynamic_metadata::ty(ty,b)?;let mut pending=vec![ty];
         while let Some(ty)=pending.pop(){b.spend(1)?;match ty{
             // A zero pointee/retained domain does not erase an outer borrow.
-            Type::Address{..}|Type::Desc(_)|Type::Dyn{..}|Type::BorrowedFunctionPointer{..}|Type::MutexGuard{..}=>return Ok(false),
+            Type::Address{..}|Type::Desc(_)|Type::Dyn{..}|Type::MutexGuard{..}=>return Ok(false),
+            Type::BorrowedFunctionPointer{parameters,result,life}=>{if life.fixed_binder_count!=0{return Ok(false);}signature_life::charge(life,b)?;crate::borrowed_fp::relation(parameters,result,life,None)?;},
             Type::BorrowedStorage{storage,life}=>{if *life!=empty_life(){return Ok(false);}pending.push(storage);},
             Type::Tuple(fields)=>pending.extend(fields),
             Type::Record{fields,..}|Type::Package{fields,..}=>pending.extend(fields.iter().map(|(_,ty)|ty)),

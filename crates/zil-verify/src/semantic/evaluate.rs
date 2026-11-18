@@ -694,6 +694,20 @@ impl CheckedContext {
         self.evaluate_signature_receiver(module,recipe,environment,None,external,active,b)
     }
     pub(super) fn evaluate_signature_receiver(&self,module:&TypedModule,recipe:&SemanticSignatureRecipe,environment:&EvalEnv,receiver:Option<ClassKey>,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<CheckedSignature>{
+        self.signature_in_domain(module,recipe,environment,receiver,None,external,active,b)
+    }
+
+    pub(super) fn entry_signature(&self,module:&TypedModule,definition:&SemanticDefinition,recipe:&SemanticSignatureRecipe,environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<CheckedSignature>{
+        if definition.kind==SemanticDefinitionKind::Closure {
+            let count=self.original.borrow().as_ref().ok_or_else(||bad("closure entry has no original invocation proof"))?.thin_invocation_count(definition.id,b)?;
+            if let Some(count)=count {
+                if environment.invocations.len()!=count as usize{return Err(bad("thin entry actual invocation domain differs from the original fn context"));}
+                return self.signature_in_domain(module,recipe,environment,None,Some(&environment.invocations),external,active,b);
+            }
+        }
+        self.evaluate_signature(module,recipe,environment,external,active,b)
+    }
+    fn signature_in_domain(&self,module:&TypedModule,recipe:&SemanticSignatureRecipe,environment:&EvalEnv,receiver:Option<ClassKey>,entry:Option<&[ClassKey]>,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<CheckedSignature>{
         if receiver.is_some()&&!original::CheckedOriginal::receiver_signature_recipe(recipe){return Err(bad("Receiver subject role is not this signature's root shared-result occurrence"));}
         dynamic_metadata::recipe(recipe, b)?;
         let mut environment = environment.clone();
@@ -712,11 +726,13 @@ impl CheckedContext {
                 },
             );
         }
-        b.spend(recipe.invocation_lifetimes as usize)?;
-        let frame = active.fresh(b)?;
-        let invocation = (0..recipe.invocation_lifetimes)
-            .map(|index| ClassKey::Invocation { frame, index })
-            .collect::<Vec<_>>();
+        let invocation=if let Some(frame)=entry{
+            b.spend(frame.len())?;frame.to_vec()
+        }else{
+            b.spend(recipe.invocation_lifetimes as usize)?;
+            let frame=active.fresh(b)?;
+            (0..recipe.invocation_lifetimes).map(|index|ClassKey::Invocation{frame,index}).collect()
+        };
         environment.invocations = invocation.clone();
         let mut parameters = Vec::new();
         for (ordinal, parameter) in recipe.parameters.iter().enumerate() {

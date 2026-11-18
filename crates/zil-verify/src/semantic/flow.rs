@@ -75,7 +75,7 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
             }
             let SemanticDefinitionBody::FunctionWithBody{signature,..}=&definition.body else {return Err(bad("actual function has no original signature"));};
             b.diagnostic_stage("actual world signature");
-            let signature=context.evaluate_signature(module,signature,&environment,&mut external,&mut active,b)?;
+            let signature=context.entry_signature(module,definition,signature,&environment,&mut external,&mut active,b)?;
             b.diagnostic_stage("actual world body");
             let body=context.function(module,instance,function,signature,environment,&mut external,&mut active,b)?;
             directory.record(body,b)?;

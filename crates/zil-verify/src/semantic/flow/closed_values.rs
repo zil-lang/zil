@@ -45,7 +45,10 @@ impl CheckedContext {
             Type::MutexGuard{..}|Type::Dyn{..}|Type::OwnedDyn{..}=>return Err(unsupported("opaque value requires its full checked manager/port consumer",None)),
             Type::FunctionPointer{..}|Type::ForeignCallback{..}=>{self.closed_code(module,ty,b)?;},
             Type::Slice{..}=>return Err(unsupported("unsized Slice metadata is valid only below its actual Address boundary",None)),
-            Type::BorrowedFunctionPointer{..}=>return Err(unsupported("borrowed code requires its complete original quantified signature consumer",None)),
+            Type::BorrowedFunctionPointer{parameters,result,life}=>{
+                signature_life::charge(life,b)?;
+                crate::borrowed_fp::relation(parameters,result,life,None)?;
+            },
             _=>{},
         }}
         let(count,_)=dynamic_witness::intrinsic_domain(module,ty,b)?;if count!=0{return Err(bad("complete value inventory has a nonzero intrinsic domain"));}

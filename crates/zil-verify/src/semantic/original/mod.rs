@@ -116,6 +116,7 @@ pub(super) struct CheckedOriginal {
     callable_nodes: BTreeMap<(SemanticDefinitionId, NodeId), NodeId>,
     code_sources: BTreeMap<(SemanticDefinitionId, NodeId), SemanticDefinitionId>,
     thin_literals: BTreeMap<SemanticDefinitionId, SemanticSiteId>,
+    thin_invocations: BTreeMap<SemanticDefinitionId, Vec<Life>>,
     prototypes: BTreeMap<SemanticDefinitionId, Prototype>,
     substitutions: BTreeMap<u64, Ty>,
     life_substitutions: BTreeMap<u64, Life>,
@@ -525,6 +526,20 @@ impl CheckedOriginal {
         b.spend(equalities.len().saturating_add(1))?;
         if left == right {
             return Ok(true);
+        }
+        if let (Ty::Code{parameters:a,result:ar,invocation_lifetimes:n,..},Ty::Code{parameters:z,result:zr,invocation_lifetimes:m,..})=(&left,&right){
+            if n==m && *n!=0{
+                let to=Self::code_invocation_frame(a,ar,*n,b)?;
+                let from=Self::code_invocation_frame(z,zr,*m,b)?;
+                let rewritten=self.map_invocation_type(&right,&mut |life,b|{
+                    b.spend(1)?;
+                    if let Life::Invocation(_,index)=life {
+                        if from.get(*index as usize)==Some(life){return Ok(to[*index as usize].clone());}
+                    }
+                    Ok(life.clone())
+                },0,b)?;
+                if left==rewritten{return Ok(true);}
+            }
         }
         let mut queue = vec![&left];
         let mut seen = Vec::new();

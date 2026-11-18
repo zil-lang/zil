@@ -24,7 +24,12 @@ impl CheckedOriginal {
         for ordinal in 0..parameters.len(){if !self.parameters.contains_key(&(id,ordinal as u32)){let value=self.fresh(b)?;self.parameters.insert((id,ordinal as u32),value);}}
         if !self.results.contains_key(&id){let value=self.fresh(b)?;self.results.insert(id,value);}
         let env=self.environment(module,context,id,active,b)?;
-        let prototype=if definition.kind==SemanticDefinitionKind::Closure&&Self::receiver_signature_recipe(signature){self.receiver_closure_signature(module,context,signature,id,&env,active,b)?}else{self.signature(module,context,signature,&env,active,b)?};
+        let mut prototype=if definition.kind==SemanticDefinitionKind::Closure&&Self::receiver_signature_recipe(signature){self.receiver_closure_signature(module,context,signature,id,&env,active,b)?}else{self.signature(module,context,signature,&env,active,b)?};
+        if let Some(frame)=self.thin_invocations.get(&id){
+            b.spend(frame.len())?;
+            prototype.environment.invocation=frame.clone();
+            prototype.invocation_lifetimes=frame.len() as u32;
+        }
         // Subsequent annotations, constructor schemes and associated types
         // all prove their obligations in this exact independently formed Γ.
         // The outer definition wrapper restores its caller even on failure.

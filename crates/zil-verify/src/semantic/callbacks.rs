@@ -18,6 +18,9 @@ impl CheckedContext{
         self.checked_value(module,&Type::ForeignCallback{parameters,result:Box::new(result.ty.clone())},&empty_life(),vec![],b)
     }
     pub(super) fn ordinary_code(&self,module:&TypedModule,kind:SemanticCodeKind,signature:&CheckedSignature,b:&mut Budget)->Check<CheckedType>{
+        if matches!(kind,SemanticCodeKind::FunctionPointer|SemanticCodeKind::BorrowedFunctionPointer) && !signature.invocation.is_empty(){
+            return self.invocation_code(module,signature,b);
+        }
         if kind!=SemanticCodeKind::FunctionPointer||signature.call_kind!=CallKind::Direct||signature.result_mode!=PassingMode::Infer||!signature.bound.is_empty()||!signature.invocation.is_empty(){return Err(unsupported("ordinary code requires its exact complete pointer ABI and binder header",None));}
         let mut parameters=Vec::new();b.spend(signature.parameters.len().saturating_add(1))?;
         for(value,mode)in &signature.parameters{
@@ -26,6 +29,34 @@ impl CheckedContext{
         }
         ghost_code_value(module,&signature.result,b)?;
         self.checked_value(module,&Type::FunctionPointer{parameters,result:Box::new(signature.result.ty.clone())},&empty_life(),vec![],b)
+    }
+    fn invocation_code(&self,module:&TypedModule,signature:&CheckedSignature,b:&mut Budget)->Check<CheckedType>{
+        if signature.call_kind!=CallKind::Direct||signature.result_mode!=PassingMode::Infer||!signature.bound.is_empty(){
+            return Err(bad("thin invocation code changes its ABI or quantified domain"));
+        }
+        let index=|value:&CheckedType,b:&mut Budget|->Check<Option<u32>>{
+            let Type::Address{mutable,..}=&value.ty else{ghost_code_value(module,value,b)?;return Ok(None);};
+            b.spend(signature.invocation.len().saturating_add(1))?;
+            let mode=if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
+            if value.life.binder_count!=1||value.life.slots.len()!=1||!value.life.slots[0].path.is_empty()||value.life.slots[0].mode!=mode||value.life.slots[0].binder!=0
+                ||!value.life.retained.is_empty()||!value.life.nominal_arguments.is_empty()||!value.statics.is_empty()||value.classes.len()!=1{
+                return Err(unsupported("thin borrowed code requires the complete root address relation at this position",None));
+            }
+            signature.invocation.iter().position(|key|key==&value.classes[0])
+                .map(|index|Some(index as u32)).ok_or_else(||bad("thin code address selects a lifetime outside its own invocation"))
+        };
+        let mut parameters=Vec::new();let mut parameter_lives=Vec::new();
+        b.spend(signature.parameters.len().saturating_add(1))?;
+        for (value,mode) in &signature.parameters{
+            if *mode!=PassingMode::Infer{return Err(bad("thin invocation code changes its parameter responsibility mode"));}
+            parameter_lives.push(index(value,b)?);parameters.push(value.ty.clone());
+        }
+        let binder_count=u32::try_from(signature.invocation.len()).map_err(|_|limit("thin invocation binder count exceeded"))?;
+        let result_life=index(&signature.result,b)?;
+        let relation=StorageLifeContract::from_flat(FunctionLifeContract{binder_count,parameter_lives,result_life}).ok_or_else(||bad("thin invocation relation exceeds its parameter directory"))?;
+        crate::borrowed_fp::relation(&parameters,&signature.result.ty,&relation,None)?;
+        let ty=Type::BorrowedFunctionPointer{parameters,result:Box::new(signature.result.ty.clone()),life:relation};
+        self.checked_value(module,&ty,&empty_life(),vec![],b)
     }
 
 }
@@ -40,6 +71,25 @@ fn ghost_code_value(module:&TypedModule,value:&CheckedType,b:&mut Budget)->Check
 mod tests{
     use super::*;
     fn value(ty:Type)->CheckedType{CheckedType{type_cell: crate::semantic::CheckedTypeData::new(ty),life:empty_life(),classes:vec![],origins:vec![],statics:vec![]}}
+    #[test]
+    fn borrowed_code_reconstructs_its_private_invocation_relation() {
+        let limits=Limits::default();
+        let (module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+        let mut b=Budget::new(&limits);
+        let context=CheckedContext::catalogue(&module,&mut b).unwrap();
+        let key=ClassKey::Invocation{frame:FrameToken(37),index:0};
+        let mut input=value(Type::Address{mutable:false,inner:Box::new(Type::I32)});
+        input.life.binder_count=1;
+        input.life.slots.push(StorageLifeSlot{path:vec![],binder:0,mode:StoredBorrowMode::SharedAddress});
+        input.classes.push(key.clone());input.origins.push(IntrinsicOrigin::DerivedClass{source:key.clone()});
+        let mut signature=CheckedSignature{parameters:vec![(input,PassingMode::Infer)],result:value(Type::I32),
+            result_mode:PassingMode::Infer,call_kind:CallKind::Direct,bound:vec![],invocation:vec![key]};
+        let ty=context.ordinary_code(&module,SemanticCodeKind::FunctionPointer,&signature,&mut b).unwrap();
+        let Type::BorrowedFunctionPointer{life,..}=&ty.ty else {panic!("missing invocation relation")};
+        assert_eq!(life,&StorageLifeContract::from_flat(FunctionLifeContract{binder_count:1,parameter_lives:vec![Some(0)],result_life:None}).unwrap());
+        signature.invocation[0]=ClassKey::Invocation{frame:FrameToken(38),index:0};
+        assert!(context.ordinary_code(&module,SemanticCodeKind::FunctionPointer,&signature,&mut b).is_err());
+    }
     #[test]
     fn c_code_geometry_keeps_all_numeric_widths_and_excludes_borrowed_or_suspend_roles(){
         let limits=Limits::default();let bytes=include_bytes!("fixtures/ordinary-identity-complete-head.wire");

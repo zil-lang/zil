@@ -9,6 +9,31 @@ impl CheckedOriginal {
         Ok(self.thin_literals.get(&child).copied())
     }
 
+    /// A thin code value owns its invocation binders. No surrounding activation
+    /// supplies a binder token merely because its positional number agrees.
+    pub(super) fn code_invocation_frame(parameters: &[Ty], result: &Ty, count: u32, b: &mut Budget) -> Check<Vec<Life>> {
+        if count==0{return Ok(vec![]);}
+        if count as usize>b.limits.max_nodes{return Err(limit("code invocation binder count exceeds its bounded domain"));}
+        b.spend(count as usize+parameters.len()+1)?;
+        let mut frame=None;
+        let mut seen=vec![false;count as usize];
+        for ty in parameters.iter().chain(std::iter::once(result)){
+            if let Ty::Address{life,..}=ty{
+                let Life::Invocation(token,index)=life else{return Err(unsupported("thin address code needs its own invocation-local relation",None));};
+                if frame.replace(*token).is_some_and(|old|old!=*token){return Err(bad("one code signature blends different invocation frames"));}
+                *seen.get_mut(*index as usize).ok_or_else(||bad("code invocation role is outside its declared domain"))?=true;
+            }
+        }
+        let token=frame.ok_or_else(||bad("quantified code signature has no bound address occurrence"))?;
+        if seen.iter().any(|used|!*used){return Err(bad("code signature omits an invocation binder"));}
+        Ok((0..count).map(|i|Life::Invocation(token,i)).collect())
+    }
+    pub(in crate::semantic) fn thin_invocation_count(&self,id:SemanticDefinitionId,b:&mut Budget)->Check<Option<u32>>{
+        if self.thin_invocations.is_empty(){return Ok(None);}
+        b.spend(self.thin_invocations.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
+        Ok(self.thin_invocations.get(&id).map(|frame|frame.len() as u32))
+    }
+
     /// Seed the original child's inference slots before checking its complete body.
     /// Only a pointer type already established by the creator supplies these inputs.
     pub(super) fn contextual_code_inputs(
@@ -22,11 +47,17 @@ impl CheckedOriginal {
             foreign: None, body: SemanticOriginalFunctionBody::Defined(_), .. } = &child.body
             else { return Err(bad("contextual fn literal lacks its receiver-free original body")) };
         b.spend(parameters.len().saturating_add(1))?;
+        if *invocation_lifetimes != 0 {
+            let frame=Self::code_invocation_frame(parameters,result,*invocation_lifetimes,b)?;
+            if let Some(prior)=self.thin_invocations.insert(child.id,frame.clone()) {
+                if prior!=frame{return Err(bad("thin literal has conflicting original invocation contexts"));}
+            }
+        }
         if child.kind != SemanticDefinitionKind::Closure || !child.environment.is_empty()
             || !child.parameters.is_empty() || *call_kind != CallKind::Direct
             || signature.call_kind != *call_kind || signature.result_mode != *result_mode
-            || *bound_lifetimes != 0 || *invocation_lifetimes != 0
-            || signature.bound_lifetimes != 0 || signature.invocation_lifetimes != 0
+            || *bound_lifetimes != 0
+            || signature.bound_lifetimes != 0 || (signature.invocation_lifetimes != 0 && signature.invocation_lifetimes != *invocation_lifetimes)
             || signature.parameters.len() != parameters.len()
             || !signature.parameters.iter().map(|p| p.mode).eq(modes.iter().copied())
         { return Err(bad("contextual fn literal changes its environment or complete original signature")); }
