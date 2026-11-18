@@ -2173,7 +2173,11 @@ pub enum InstructionKind {
     ByteBufferCapacity {
         buffer: ValueId,
     },
-    /// A fresh loan of the initialized prefix, rooted in the real carrier.
+    /// Borrow the initialized prefix of the buffer selected by the actual
+    /// descriptor. The loan keeps its owner's generation and ordered field
+    /// path. A returned view may shorten the loan within that owner's lifetime.
+    /// An exclusive view also requires exclusive access to the selected manager.
+    /// The manager retains responsibility for the buffer on every exit.
     ByteBufferBorrow {
         buffer: ValueId,
         mutable: bool,
