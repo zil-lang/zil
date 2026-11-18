@@ -37,6 +37,29 @@ class CompactResultsTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 compact_results.cleanup(Path('/'), 'workspace')
 
+    def test_cleanup_preflights_second_path_before_removing_first(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            original = root / 'native-evidence/workspace/keep'
+            original.parent.mkdir(parents=True)
+            original.write_text('important')
+            (root / 'target').mkdir()
+            (root / 'target/debug').write_text('not a directory')
+            with self.assertRaises(ValueError):
+                compact_results.cleanup(root, 'workspace')
+            self.assertEqual(original.read_text(), 'important')
+
+    def test_cleanup_preflights_second_symlink_before_removing_first(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as other:
+            root = Path(tmp)
+            original = root / 'native-evidence/workspace/keep'
+            original.parent.mkdir(parents=True)
+            original.write_text('important')
+            (root / 'target').symlink_to(other, target_is_directory=True)
+            with self.assertRaises(ValueError):
+                compact_results.cleanup(root, 'workspace')
+            self.assertEqual(original.read_text(), 'important')
+
     def test_summary_records_failure_and_all_test_counts(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

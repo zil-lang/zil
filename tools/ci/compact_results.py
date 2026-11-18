@@ -22,13 +22,18 @@ def cleanup(root, phase):
     root = Path(root)
     if not root.is_absolute() or root == Path('/') or root != root.resolve() or root.is_symlink():
         raise ValueError('Runner temporary root must be absolute, canonical, and not /')
+    paths = []
+    # Validate the entire phase before deleting any output. A later bad path
+    # must not leave the first directory already removed.
     for relative in PHASE_PATHS[phase]:
         path = root / relative
         if path != path.resolve() or path.is_symlink():
             raise ValueError(f'Cleanup path must not contain a symlink: {path}')
+        if path.exists() and not path.is_dir():
+            raise ValueError(f'Cleanup path is not a directory: {path}')
+        paths.append(path)
+    for path in paths:
         if path.exists():
-            if not path.is_dir():
-                raise ValueError(f'Cleanup path is not a directory: {path}')
             shutil.rmtree(path)
         print(f'Released completed phase output: {path}')
     print(f'Free bytes after cleanup: {shutil.disk_usage(root).free}')
