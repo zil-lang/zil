@@ -509,6 +509,21 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
         b.spend(d.captures.len(), "qualified scalar capture inventory")?;
         let mut admitted = finite(module, d.id);
         for t in &d.captures {
+            // A Fixed environment retains the real cleanup obligation even
+            // when its pointee or another value selects compound memory flow.
+            if let Type::Managed(payload) = t
+                && d.storage_life.as_ref().is_some_and(|life| life.fixed_binder_count > 0)
+                && resource_payload(payload, b)?
+            {
+                let resource = super::stored_flow::owned::registered(module, payload, b)?;
+                super::stored_flow::owned::teardown(module, resource, b)?;
+                if let Some(entry) = resource.teardown {
+                    b.spend(module.resources.len(), "captured resource teardown uniqueness")?;
+                    if module.resources.iter().any(|row| !std::ptr::eq(row, resource) && row.teardown == Some(entry)) {
+                        return Err(bad("captured resources share an actual teardown entry"));
+                    }
+                }
+            }
             if let Type::OwnedDyn { interface } = t {
                 super::dyn_cleanup::capture_interface(module, *interface, b)?;
                 let item = module

@@ -58,30 +58,37 @@ pub(super) fn task_neighbour_instruction(
 }
 
 // Nominal identity checks an actual definition; it grants no target or loan.
-fn registered(module: &TypedModule, payload: &Type, b: &mut Budget) -> CompileResult<()> {
+pub(crate) fn registered<'m>(
+    module: &'m TypedModule,
+    payload: &Type,
+    b: &mut Budget,
+) -> CompileResult<&'m zil_ir::ResourceDefinition> {
     let Type::Record { name, .. } = payload else {
         return Err(failure("resource head has no nominal record payload"));
     };
     fee(b, module.resources.len())?;
+    let mut selected = None;
     for definition in &module.resources {
         fee(b, name.len().saturating_add(definition.name.len()))?;
-        if *name == definition.name {
-            b.type_work(payload, false, "actual resource head payload comparison")?;
-            b.type_work(
-                &definition.payload,
-                false,
-                "actual resource definition comparison",
-            )?;
-            return if *payload == definition.payload {
-                Ok(())
-            } else {
-                Err(failure(
-                    "resource head differs from its actual definition payload",
-                ))
-            };
+        if *name != definition.name {
+            if let Type::Record { name: actual, .. } = &definition.payload {
+                fee(b, name.len().saturating_add(actual.len()))?;
+                if actual == name {
+                    return Err(failure("resource definition name differs from its actual payload"));
+                }
+            }
+            continue;
+        }
+        b.type_work(payload, false, "actual resource head payload comparison")?;
+        b.type_work(&definition.payload, false, "actual resource definition comparison")?;
+        if *payload != definition.payload {
+            return Err(failure("resource head differs from its actual definition payload"));
+        }
+        if selected.replace(definition).is_some() {
+            return Err(failure("resource head has multiple actual definitions"));
         }
     }
-    Err(failure("resource head has no actual resource definition"))
+    selected.ok_or_else(|| failure("resource head has no actual resource definition"))
 }
 
 // Complete ordinary owner values may accompany stored inputs without being a
