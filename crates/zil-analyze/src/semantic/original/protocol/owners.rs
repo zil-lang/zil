@@ -39,7 +39,15 @@ impl Proof<'_, '_> {
             Solver::push(&mut consumed, self.async_owner(self.expression_term(expression.id, b)?, b)?, b)?;
         }
         state.call_effect(arguments, &consumed, b)?;
-        let (mut result, result_role) = self.fresh_owner(state, node, arguments.iter().any(Data::borrow_exposure), b)?;
+        // Moved exact registration heads are private to the new frame on
+        // success. Failure returns each one at its own input ordinal. Borrowed
+        // heads or already opaque inputs can still expose other live owners.
+        b.spend(arguments.len(), WORK)?;
+        let exposed = arguments.iter().zip(&consumed).any(|(argument, moved)| {
+            argument.borrow_exposure()
+                && !(*moved && argument.sources.only_exact_root().is_some() && argument.outcomes.is_empty())
+        });
+        let (mut result, result_role) = self.fresh_owner(state, node, exposed, b)?;
         let mut failure = before.phases;
         b.lookup(failure.len(), WORK)?;
         failure.insert(result_role, 0);

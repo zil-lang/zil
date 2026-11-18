@@ -932,9 +932,16 @@ impl Proof<'_, '_> {
                 .get(&role)
                 .ok_or_else(|| fail("original call state role is absent"))?;
             if current == 0 || current & !mask(&contract.entry, b)? != 0 {
-                return Err(fail(
+                let actual: Vec<_> = [ProtocolState::Open, ProtocolState::Closing, ProtocolState::Closed]
+                    .into_iter().filter(|phase| current & bit(*phase) != 0).collect();
+                let mut errors = fail(
                     "original caller does not satisfy the callee's complete protocol entry",
+                );
+                errors[0].notes.push(format!(
+                    "caller {:?}, callee {:?} parameter {}, original head {role}: expected {:?}, actual {actual:?}",
+                    self.definition.id, target, contract.parameter, contract.entry
                 ));
+                return Err(errors);
             }
             for row in &contract.exits {
                 b.spend(
