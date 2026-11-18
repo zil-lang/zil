@@ -286,7 +286,7 @@ impl Check<'_, '_> {
         local: LocalId,
         at: (BlockId, usize),
         b: &mut Budget,
-        depth: usize,
+        _depth: usize,
     ) -> CompileResult<Option<Value>> {
         b.spend(1, WORK)?;
         if !matches!(
@@ -299,7 +299,13 @@ impl Check<'_, '_> {
             return Ok(None);
         };
         operations::initialized_local_before(function, at, local, b)?;
-        self.reference_role_stores(instance, function, local, &role, b, depth + 1)?;
+        // A read uses the original declaration's complete role at this exact
+        // initialized CFG point. Rechecking all Stores here recursively asks
+        // for the same local while validating p = p or a loop-carried alias.
+        // DeclareLocal independently checks every actual Store through
+        // check_reference_declaration in this same world before publication;
+        // it still authenticates each RHS, full pointee and source identity.
+        // This is a class role only, never a current target, loan or epoch.
         Ok(Some(role.value))
     }
     fn reference_role_input_sources(
