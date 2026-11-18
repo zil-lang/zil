@@ -85,7 +85,7 @@ impl CheckedContext {
             classes.push(key.clone());origins.push(origin.clone());
         }
         let mut child=self.checked_value(module,ty,&life,classes,b)?;
-        if matches!(ty,Type::Closure(_)) && physical.is_some() {
+        if let Type::Closure(id)=ty && physical.is_some() {
             for (index,origin) in origins.iter_mut().enumerate(){
                 let IntrinsicOrigin::Nominal{source,class}=origin else{continue;};
                 b.spend(source.domain.retained.len().saturating_mul(path.len().saturating_add(1)))?;
@@ -96,13 +96,19 @@ impl CheckedContext {
                         .with_note(format!("field path {path:?}, callback class {index}, nominal class {class}")));
                 }
                 let projected=source.class_sources.get(*class as usize).ok_or_else(||bad("physical callback projection lacks its nominal source class"))?;
-                let sealed=child.origins.get(index).ok_or_else(||bad("physical callback lacks its complete sealed child domain"))?;
                 charge_intrinsic_origin(projected,b)?;
-                charge_intrinsic_origin(sealed,b)?;
-                if projected!=sealed{
-                    return Err(bad("physical callback projection substitutes another original child origin")
+                let IntrinsicOrigin::Existing{scope:ScopeKey::Instance(frame),operand:OperandKey::Receiver,path:origin_path,class:ordinal}=projected else{
+                    return Err(bad("physical callback projection has no original Receiver origin")
                         .with_note(format!("field path {path:?}, callback class {index}, nominal class {class}")));
+                };
+                if !origin_path.is_empty() || *ordinal as usize!=index {
+                    return Err(bad("physical callback projection changes its complete Receiver class ordinal")
+                        .with_note(format!("field path {path:?}, callback class {index}, selected {ordinal}")));
                 }
+                // The exact physical entry and original world exist before
+                // the body traversal records any actual construction images.
+                let closure=crate::closures::definition(module,*id,None)?;
+                self.check_closure_origin_scope(module,closure,*frame,b)?;
                 *origin=projected.clone();
             }
         }

@@ -1663,44 +1663,36 @@ impl Builder<'_, '_> {
         Ok(id)
     }
 
-    /// Call a borrowed helper parameter at its actual environment address.
-    pub(super) fn call_borrowed_helper_parameter(
+    /// Invoke at the already prepared environment address. Keeping the
+    /// selected address and local together preserves helper bounds on a
+    /// parenthesized parameter without observing its source a second time.
+    pub(super) fn call_borrowed_closure(
         &mut self,
         callee: &CoreExpr,
+        address: ValueId,
+        ty: Type,
+        local: Option<LocalId>,
         arguments: &[CoreExpr],
         expected: Option<&Type>,
         span: Span,
     ) -> R<(ValueId, Type)> {
-        let (address, ty) = if let CoreExprKind::Name(name) = &callee.kind
-            && let Some(local) = self.lookup(name)
-            && matches!(&self.function.locals[local.0 as usize].ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_)))
-        {
-            let ty = self.function.locals[local.0 as usize].ty.clone();
-            (
-                self.value(InstructionKind::Load(local), ty.clone(), span)?,
-                ty,
-            )
-        } else {
-            self.expr(callee, None)?
-        };
         let Type::Address { mutable, inner } = ty else {
             return Err(unsupported(
                 span,
-                "borrowed helper environment is not an address",
+                "borrowed environment is not an address",
             ));
         };
         let Type::Closure(id) = *inner else {
             return Err(unsupported(
                 span,
-                "borrowed helper environment has no concrete identity",
+                "borrowed environment has no concrete identity",
             ));
         };
         let parameter_bound = self
             .helper_bounds
             .iter()
             .find(|bound| {
-                matches!(&callee.kind, CoreExprKind::Name(name)
-                if self.lookup(name) == self.function.parameters.get(bound.index as usize).copied())
+                local.is_some() && local == self.function.parameters.get(bound.index as usize).copied()
             })
             .cloned();
         let declared = self.declared_state_kind(callee, None, id)?;

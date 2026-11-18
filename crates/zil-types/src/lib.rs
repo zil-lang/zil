@@ -4333,7 +4333,23 @@ impl<'a, 'c> Builder<'a, 'c> {
         }
         if matches!(&ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_)))
         {
-            return self.call_borrowed_helper_parameter(callee, arguments, expected, span);
+            // The callee is either an already evaluated address expression or
+            // a selected local address slot. Read that slot once; the call
+            // emitter consumes this address without evaluating the callee.
+            let address = match (callee_value, existing_place) {
+                (Some(address), _) => address,
+                (None, Some(local)) => {
+                    self.value(InstructionKind::Load(local), ty.clone(), span)?
+                }
+                (None, None) => return Err(error(
+                    "E-SEMANTIC-EMISSION",
+                    callee.span,
+                    "borrowed call has no prepared callee address",
+                )),
+            };
+            return self.call_borrowed_closure(
+                callee, address, ty, existing_place, arguments, expected, span,
+            );
         }
         let Type::Closure(id) = ty else {
             return Err(error(

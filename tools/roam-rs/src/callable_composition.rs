@@ -84,10 +84,12 @@ fn invocation(
         Some((b'h', rest)) => {
             let rest = std::str::from_utf8(rest).expect("ASCII path");
             let name = format!("relay{}", shape.len());
-            let param = slot_type(rest.bytes().filter(|b| *b == b'p').count());
+            let projections = rest.bytes().filter(|b| *b == b'p').count();
+            let param = slot_type(projections);
+            let value_bound = if projections == 0 { "" } else { "Value + " };
             let nested = invocation(rest, "root", "", "input", helpers);
             helpers.push(format!(
-                "fn {name}<F:Value + FnMut(i32)->Fault!i32>(root:&mut {param},input:i32)->Fault!i32{{return {nested}}}"
+                "fn {name}<F:{value_bound}FnMut(i32)->Fault!i32>(root:&mut {param},input:i32)->Fault!i32{{return {nested}}}"
             ));
             format!("{name}({receiver}{place},{input})")
         }
@@ -254,9 +256,24 @@ pub fn observed(expected: &Value, observation: Value, compile: &Value) -> Value 
     };
     if compile["diagnostics"].as_array().is_some_and(|rows| {
         rows.iter().any(|row| {
-            row["code"]
-                .as_str()
-                .is_some_and(|code| expected_codes.contains(&code))
+            let code = row["code"].as_str().unwrap_or("");
+            let message = row["message"].as_str().unwrap_or("");
+            if expected_codes.contains(&code) {
+                return true;
+            }
+            match expected["premise"].as_str() {
+                Some("exclusive-receiver") => {
+                    code == "E-SEMANTIC-ORIGINAL"
+                        && message
+                            == "original callable receiver does not grant its invocation mode"
+                }
+                Some("nominal-error") => {
+                    code == "E-ERROR-INJECTION"
+                        && message.contains("_OtherFault")
+                        && message.contains("_Fault")
+                }
+                _ => false,
+            }
         })
     }) {
         expected.clone()

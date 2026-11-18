@@ -188,11 +188,25 @@ impl CheckedContext {
             if !path.is_empty()||*ordinal as usize!=class||frame.is_some_and(|known|known!=*instance){return Err(bad("Closure origin permutes classes or combines independent source frames"));}frame=Some(*instance);
         }
         if let Some(frame)=frame{
-            let instance=self.instance(module,frame,b)?;
-            if !matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))if function==closure.function)||instance.environment.as_ref().is_none_or(|environment|environment.closure!=SemanticClosureTarget::Typed(id))||self.definition(module,instance.definition,b)?.kind!=SemanticDefinitionKind::Closure{return Err(bad("Closure origin substitutes another actual source entry or environment"));}
-            if super::closures::intrinsic_scope(module,closure,instance.definition,b)?!=ScopeKey::Instance(frame){return Err(bad("Closure origin chooses another intrinsic directory for the same actual entry"));}
+            self.check_closure_origin_scope(module,closure,frame,b)?;
         }
         Ok(Some(domain.origins))
+    }
+
+    pub(in crate::semantic) fn check_closure_origin_scope(
+        &self,module:&TypedModule,closure:&ClosureDefinition,frame:SemanticInstanceId,b:&mut Budget,
+    )->Check<()>{
+        let instance=self.instance(module,frame,b)?;
+        if !matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))if function==closure.function)
+            || instance.environment.as_ref().is_none_or(|environment|environment.closure!=SemanticClosureTarget::Typed(closure.id))
+            || self.definition(module,instance.definition,b)?.kind!=SemanticDefinitionKind::Closure
+        {
+            return Err(bad("Closure origin substitutes another actual source entry or environment"));
+        }
+        if super::closures::intrinsic_scope(module,closure,instance.definition,b)?!=ScopeKey::Instance(frame){
+            return Err(bad("Closure origin chooses another intrinsic directory for the same actual entry"));
+        }
+        Ok(())
     }
 
     fn typed_nominal_origins(&self,module:&TypedModule,ty:&Type,life:&StorageLifeShape,classes:&[ClassKey],active:&mut Vec<Type>,depth:usize,b:&mut Budget)->Check<Vec<IntrinsicOrigin>>{

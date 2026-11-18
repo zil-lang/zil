@@ -16,6 +16,10 @@ impl CheckedOriginal {
         self.integer_variable(ty) || matches!(ty, Ty::Atom(atom) if atom.is_integer())
     }
 
+    pub(super) fn numeric_carrier(&self, ty: &Ty) -> bool {
+        self.integer_carrier(ty) || matches!(ty, Ty::Atom(atom) if atom.is_float())
+    }
+
     pub(super) fn expression_literal(
         &mut self,
         module: &TypedModule,
