@@ -647,6 +647,11 @@ impl Eval<'_, '_, '_> {
         } else {
             ty
         };
+        if self.module.is_emitting()
+            && (persistent.is_integer() || persistent.is_float() || matches!(persistent, Type::Unit | Type::Bool))
+        {
+            return Ok(());
+        }
         self.module.ordinary_zero(
             persistent,
             self.limits,
@@ -695,12 +700,14 @@ impl Eval<'_, '_, '_> {
                 "multiple opaque origins have a free actual result domain",
             ));
         }
-        self.module.ordinary_zero(
-            &Type::Closure(*id),
-            self.limits,
-            self.left,
-            &self.ledger.ordinary_stats,
-        )?;
+        if !self.module.is_emitting() {
+            self.module.ordinary_zero(
+                &Type::Closure(*id),
+                self.limits,
+                self.left,
+                &self.ledger.ordinary_stats,
+            )?;
+        }
         self.fee(
             self.module
                 .closures
@@ -733,6 +740,33 @@ impl Eval<'_, '_, '_> {
         }
         let child = child
             .ok_or_else(|| bad("closed result lacks its actual creator environment"))?;
+        if self.module.is_emitting() {
+            // The complete module is still being built. Reconstruct the same
+            // formation from this exact creator, real capture types and entry.
+            let scalar = |ty: &Type| ty.is_integer() || ty.is_float() || matches!(ty, Type::Bool | Type::Unit);
+            self.fee(closure.captures.len().saturating_add(closure.parameters.len())
+                .saturating_add(self.module.function_lookup_work()))?;
+            if !closure.captures.iter().chain(&closure.parameters).chain([&closure.result]).all(scalar) {
+                return Err(unknown("partial opaque result needs its complete closed capture and entry domains"));
+            }
+            let entry = self.module.function(closure.function)
+                .filter(|f| f.environment == Some(*id))
+                .ok_or_else(|| bad("partial opaque result has no matching emitted entry"))?;
+            let super::super::headers::HeaderFormation::Complete { header, .. } =
+                super::super::headers::form_emitted_header(
+                    self.input, self.module, self.ledger, child, *id, entry, self.limits, self.left,
+                )?
+            else {
+                return Err(unknown("partial opaque result awaits its actual capture header"));
+            };
+            if header.fixed_binder_count != 0 || header.invocation_binder_count != 0
+                || !header.bindings.is_empty() || !header.classes.is_empty() || !header.static_bindings.is_empty()
+                || closure.storage_life.as_ref().is_some_and(|old| old != &header)
+                || entry.storage_life.as_ref().is_some_and(|old| old != &header)
+            {
+                return Err(bad("partial opaque result changes its checked closed environment"));
+            }
+        }
         let actual_environment = &child
             .environment
             .as_ref()

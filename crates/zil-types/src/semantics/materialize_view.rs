@@ -275,6 +275,9 @@ impl<'a> ActualDirectory<'a> {
         parents.insert(key, value.clone());
         Ok(())
     }
+    pub(super) fn is_emitting(&self) -> bool {
+        self.complete.is_none()
+    }
     pub(in crate::semantics) fn complete(&self) -> R<&'a TypedModule> {
         self.complete.ok_or_else(|| {
             unknown(

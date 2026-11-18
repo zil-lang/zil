@@ -1010,22 +1010,28 @@ impl Builder<'_, '_> {
             self.closures.snapshot(before - remaining, span)?;
             let prepared_context =
                 self.actual_task_context(instance, &parameters, &result, span)?;
-            let output = if let Some(prepared) = &prepared_context {
-                tasks::call_create_full(name, &result, prepared)?
+            let (output, bindings) = if let Some(prepared) = &prepared_context {
+                (
+                    tasks::call_create_full(name, &result, prepared)?,
+                    prepared.bindings.clone(),
+                )
             } else {
-                return Err(unsupported(
+                let (context, bindings) = tasks::context_ports::specialized_worker(
+                    self.closures,
+                    instance,
+                    &parameters,
+                    &result,
+                    self.limits,
                     span,
-                    "specialized Task worker awaits its exact original preparation context",
-                ));
+                )?;
+                (
+                    tasks::call_create_type(name, &result, context, &parameters),
+                    bindings,
+                )
             };
             if let Some(wanted) = expected {
                 self.same(&output, wanted, span)?;
             }
-            let bindings = prepared_context
-                .as_ref()
-                .expect("prepared Task context")
-                .bindings
-                .clone();
             let instruction = if name == "task_create_owned" {
                 InstructionKind::TaskCreateOwned {
                     worker: instance,

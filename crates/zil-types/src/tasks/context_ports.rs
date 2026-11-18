@@ -542,6 +542,116 @@ impl<C: Catalog> Project<'_, C> {
     }
 }
 
+/// A bare emitter has no original class recipes. Only actual closed
+/// registration environments and flat worker input occurrences can supply
+/// this context. The later protocol and CFG proofs still check each owner.
+pub(crate) fn specialized_worker(
+    state: &mut closures::State,
+    worker: FunctionId,
+    parameters: &[Type],
+    result: &Type,
+    limits: &Limits,
+    span: Span,
+) -> R<(RetainedLifeShape, Vec<RetainedPortBinding>)> {
+    let unsupported_context = || {
+        unsupported(
+            span,
+            "specialized Task worker needs complete closed registration and flat input occurrences",
+        )
+    };
+    state.snapshot(
+        state
+            .helper_functions
+            .len()
+            .saturating_add(parameters.len()),
+        span,
+    )?;
+    let index = state
+        .helper_functions
+        .iter()
+        .position(|f| f.id == worker)
+        .ok_or_else(unsupported_context)?;
+    let header_work = state.helper_functions[index]
+        .storage_life
+        .as_ref()
+        .map_or(0, |header| {
+            header.bindings.len().saturating_add(parameters.len())
+        });
+    state.snapshot(header_work, span)?;
+    let function = &state.helper_functions[index];
+    if function.return_type != *result
+        || !result.is_copy_value()
+        || !super::retained_pointee(result)
+    {
+        return Err(unsupported_context());
+    }
+    let life = if let Some(header) = &function.storage_life {
+        let life = header
+            .to_flat(parameters.len())
+            .ok_or_else(unsupported_context)?;
+        if life.result_life.is_some()
+            || parameters
+                .iter()
+                .zip(&life.parameter_lives)
+                .any(|(ty, binder)| matches!(ty, Type::Address { .. }) != binder.is_some())
+        {
+            return Err(unsupported_context());
+        }
+        Some(life)
+    } else {
+        None
+    };
+    let mut registrations = 0usize;
+    for ty in parameters {
+        state.snapshot_type(ty, 1, 0, span)?;
+        if let Type::Managed(payload) = ty
+            && let Type::AsyncRegistration { environment } = payload.as_ref()
+            && let Type::Closure(id) = environment.as_ref()
+        {
+            registration::closed_environment(state, *id, span)?;
+            let before = state.remaining_work();
+            let mut left = before;
+            let pending = state
+                .pending
+                .get(id.0 as usize)
+                .ok_or_else(unsupported_context)?;
+            let entry = pending.typed.as_ref().ok_or_else(unsupported_context)?;
+            for capture in &pending.captures {
+                inference::charge_type_snapshot(&capture.ty, span, limits, &mut left, 2)?;
+            }
+            if entry.environment != Some(*id)
+                || !matches!(pending.callable_kind(), CallableKind::Fn | CallableKind::FnMut)
+                || !matches!(entry.parameters.as_slice(), [p] if entry.locals.get(p.0 as usize).is_some_and(|l| l.ty == Type::I32))
+                || entry.return_type != Type::I32
+                || entry
+                    .storage_life
+                    .as_ref()
+                    .is_some_and(|h| h.fixed_binder_count != 0 || h.invocation_binder_count != 0
+                        || !h.classes.is_empty() || !h.bindings.is_empty() || !h.static_bindings.is_empty())
+                || !pending
+                    .captures
+                    .iter()
+                    .all(|c| !c.borrowed && c.ty.is_copy_value() && super::retained_pointee(&c.ty))
+            {
+                return Err(unsupported_context());
+            }
+            state.snapshot(before - left, span)?;
+            registrations += 1;
+        } else if !((ty.is_copy_value() && super::retained_pointee(ty))
+            || matches!(ty, Type::Address {inner, ..} if super::retained_pointee(inner)))
+        {
+            return Err(unsupported_context());
+        }
+    }
+    if registrations == 0 {
+        return Err(unsupported_context());
+    }
+    Ok((
+        super::borrowed_context_with_life(parameters, life.as_ref(), result),
+        super::retained_bindings(parameters),
+    ))
+}
+
 pub(crate) fn from_type(
     catalog: &impl Catalog,
     ty: &Type,
