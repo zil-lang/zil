@@ -317,6 +317,7 @@ fn static_code_selector(
     };
     let provider = match (intrinsic.as_str(), child) {
         ("task_create" | "task_create_owned" | "task_await" | "thread_scope", 1) => false,
+        ("c_callback", 1) if arguments.len() == 1 && !arguments[0].spread => false,
         (name, position) if zil_ir::CallbackRegistration::from_name(name)
             .and_then(|form| form.operands(arguments))
             .is_some_and(|operands| position as usize <= operands.providers.len()) => true,
