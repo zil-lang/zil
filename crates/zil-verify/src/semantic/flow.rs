@@ -571,6 +571,7 @@ impl CheckedContext {
         let entry=module.functions.get(actual_definition.function.0 as usize).ok_or_else(||bad("Closure actual entry is absent"))?;
         if entry.environment!=Some(closure)||entry.storage_life.as_ref()!=Some(relation) {return Err(bad("Closure and actual entry identity/complete header differ"));}
         signature_life::charge(relation,b)?;
+        let intrinsic_scope = super::closures::intrinsic_scope(module, actual_definition, *definition, b)?;
         let mut classes=Vec::new();let mut origins=Vec::new();let mut statics=Vec::new();
         let mut anchored=Vec::new();
         for class in 0..relation.fixed_binder_count {
@@ -588,7 +589,7 @@ impl CheckedContext {
             let SemanticSiteAction::Closure{result:SemanticOperand::Value(result),..}=&site.action else {return Err(bad("actual Closure result is not its defining SSA value"));};
             let creator_scope=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?.key;
             let origin=IntrinsicOrigin::Existing{scope:creator_scope,operand:OperandKey::Value(*result),path:vec![],class};
-            let canonical=IntrinsicOrigin::Existing{scope:ScopeKey::Instance(child.id),operand:OperandKey::Receiver,path:vec![],class};
+            let canonical=IntrinsicOrigin::Existing{scope:intrinsic_scope,operand:OperandKey::Receiver,path:vec![],class};
             b.spend(1)?;self.origin_aliases.borrow_mut().insert(origin.clone(),canonical.clone());
             origins.push(canonical.clone());classes.push(key);
         }

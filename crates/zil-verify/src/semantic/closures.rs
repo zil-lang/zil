@@ -1,6 +1,34 @@
 //! Construct an opaque closure type only from its exact actual entry instance
 //! and complete sealed ghost environment. No Capture or borrow root is invented.
 use super::*;
+
+/// Distinct semantic worlds may execute the same physical Closure entry.
+/// Its intrinsic class ordinals are one type domain, while every world still
+/// has its own checked lexical environment and actual constructor images.
+pub(in crate::semantic) fn intrinsic_scope(
+    module: &TypedModule,
+    closure: &ClosureDefinition,
+    definition: SemanticDefinitionId,
+    b: &mut Budget,
+) -> Check<ScopeKey> {
+    let program = module.semantic.as_ref()
+        .ok_or_else(|| bad("Closure intrinsic scope has no actual semantic program"))?;
+    b.spend(program.instances.len())?;
+    let mut canonical = None;
+    for instance in &program.instances {
+        if instance.target != SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(closure.function)) {
+            continue;
+        }
+        if instance.definition != definition || instance.environment.as_ref()
+            .is_none_or(|environment| environment.closure != SemanticClosureTarget::Typed(closure.id))
+        {
+            return Err(bad("one physical Closure entry has another original definition or environment identity"));
+        }
+        canonical = Some(canonical.map_or(instance.id, |known: SemanticInstanceId| known.min(instance.id)));
+    }
+    canonical.map(ScopeKey::Instance)
+        .ok_or_else(|| bad("Closure intrinsic scope has no exact actual entry world"))
+}
 impl CheckedContext {
     pub(super) fn closure_type(
         &self,
@@ -107,7 +135,6 @@ impl CheckedContext {
                     self_type: None,
                 },
             );
-            let frame_key = ScopeKey::Instance(instance.id);
             let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &original.body else {
                 return Err(bad("Closure original definition has no code signature"));
             };
@@ -215,6 +242,7 @@ impl CheckedContext {
                     mode,
                 });
             }
+            let intrinsic_scope = intrinsic_scope(module, closure, definition, b)?;
             let value = CheckedType {type_cell: crate::semantic::CheckedTypeData::new(ty),
                 life: StorageLifeShape {
                     binder_count: count,
@@ -226,7 +254,7 @@ impl CheckedContext {
                 // domain, not a physical Capture or an activation borrow.
                 origins: (0..count)
                     .map(|class| IntrinsicOrigin::Existing {
-                        scope: frame_key,
+                        scope: intrinsic_scope,
                         operand: OperandKey::Receiver,
                         path: vec![],
                         class,
@@ -237,7 +265,7 @@ impl CheckedContext {
             };
             self.register_closure_cursor(module,instance.id, caller, &actuals, &sealed, &value, b)?;
             if let Some(previous) = &selected {
-                if previous != &value {
+                if !self.same_type(caller, previous, &value, b)? {
                     return Err(bad(
                         "Closure type selects conflicting exact actual specializations",
                     ));

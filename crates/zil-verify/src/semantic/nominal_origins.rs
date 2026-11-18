@@ -190,6 +190,7 @@ impl CheckedContext {
         if let Some(frame)=frame{
             let instance=self.instance(module,frame,b)?;
             if !matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))if function==closure.function)||instance.environment.as_ref().is_none_or(|environment|environment.closure!=SemanticClosureTarget::Typed(id))||self.definition(module,instance.definition,b)?.kind!=SemanticDefinitionKind::Closure{return Err(bad("Closure origin substitutes another actual source entry or environment"));}
+            if super::closures::intrinsic_scope(module,closure,instance.definition,b)?!=ScopeKey::Instance(frame){return Err(bad("Closure origin chooses another intrinsic directory for the same actual entry"));}
         }
         Ok(Some(domain.origins))
     }

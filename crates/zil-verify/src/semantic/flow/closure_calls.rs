@@ -412,7 +412,8 @@ impl CheckedContext {
                 if rows.next().is_some(){return Err(bad("closure call duplicates a fixed intrinsic occurrence"));}
                 let key=self.class(module,&row.actual,&world,b)?;free.push(key.clone());
             }
-            let owner=CheckedType{type_cell: crate::semantic::CheckedTypeData::new(Type::Closure(id)),life:StorageLifeShape{binder_count:header.fixed_binder_count,slots:vec![],retained:vec![],nominal_arguments:vec![]},classes:free,origins:(0..header.fixed_binder_count).map(|class|IntrinsicOrigin::Existing{scope:ScopeKey::Instance(instance.id),operand:OperandKey::Receiver,path:vec![],class}).collect(),statics:receiver.statics.clone()};
+            let intrinsic_scope=super::super::closures::intrinsic_scope(module,closure,definition.id,b)?;
+            let owner=CheckedType{type_cell: crate::semantic::CheckedTypeData::new(Type::Closure(id)),life:StorageLifeShape{binder_count:header.fixed_binder_count,slots:vec![],retained:vec![],nominal_arguments:vec![]},classes:free,origins:(0..header.fixed_binder_count).map(|class|IntrinsicOrigin::Existing{scope:intrinsic_scope,operand:OperandKey::Receiver,path:vec![],class}).collect(),statics:receiver.statics.clone()};
             if let Some(parent)=pending_parent{
                 // The pending creator is expressed in this actual entry
                 // world's complete parent domain. The caller receiver is a

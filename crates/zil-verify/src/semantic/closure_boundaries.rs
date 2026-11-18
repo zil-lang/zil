@@ -13,9 +13,12 @@ impl CheckedContext {
             cursor.expected.charge_clone(b)?;
             for origin in cursor.expected.origins.iter().chain(&expected.origins){nominal_origins::charge_origin(origin,b)?;}
             if cursor.expected!=*expected{continue;}
+            let mut intrinsic_scope=None;
             for(class,origin)in expected.origins.iter().enumerate(){
                 b.spend(1)?;
-                if origin!=&(IntrinsicOrigin::Existing{scope:ScopeKey::Instance(cursor.instance),operand:OperandKey::Receiver,path:vec![],class:class as u32}){return Ok(false);}
+                let IntrinsicOrigin::Existing{scope:scope@ScopeKey::Instance(_),operand:OperandKey::Receiver,path,class:actual}=origin else{return Ok(false);};
+                if !path.is_empty()||*actual as usize!=class||intrinsic_scope.is_some_and(|known|known!=*scope){return Ok(false);}
+                intrinsic_scope=Some(*scope);
             }
             return Ok(true);
         }
