@@ -132,11 +132,11 @@ impl Eval<'_, '_, '_> {
         }).ok_or_else(|| bad("borrowed code exceeds its complete parameter arity"))?;
         self.fee(crate::borrowed_fp::metadata_work(&life))?;
         crate::borrowed_fp::relation(&parameters, &result, &life, Span::default())?;
-        resolved(Type::BorrowedFunctionPointer {
+        Ok(resolved(Type::BorrowedFunctionPointer {
             parameters,
             result: Box::new(result),
             life,
-        }, empty(), Vec::new())
+        }, empty(), Vec::new()))
     }
 
     fn borrowed_code_endpoint(
