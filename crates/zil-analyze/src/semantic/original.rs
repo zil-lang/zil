@@ -2765,13 +2765,7 @@ impl Solver<'_, '_> {
                         }
                         return Ok(term);
                     }
-                    if let Some(term) =
-                        self.copy_member(frame, object, member, owner, b, depth + 1)?
-                    {
-                        b.lookup(frame.expressions.len(), WORK)?;
-                        if frame.expressions.insert(value.id, term).is_some() {
-                            return Err(fail("original Copy-field node is reused"));
-                        }
+                    if let Some(term) = self.observe_member(frame, value, b, depth + 1)? {
                         return Ok(term);
                     }
                     let term = self.expression(frame, object, b, depth + 1)?;

@@ -156,28 +156,59 @@ impl Solver<'_, '_> {
         }
         Ok(Some(place))
     }
-    pub(super) fn copy_member(
+    fn inline_package_field(
+        &self,
+        place: &Place,
+        selected: Term,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        // Only the declared inline Package owner can produce this writable
+        // description. An address edge or a different owning constructor
+        // cannot be turned into an inline Package by field-name selection.
+        let mut current = self.type_root(place.root, b)?;
+        for field in &place.path {
+            b.spend(1, WORK)?;
+            let Kind::Nominal { definition, fields, .. } = &self.state.arena[current] else {
+                return Ok(false);
+            };
+            if !matches!(self.inventory.definition(*definition, b)?.body, SemanticDefinitionBody::Nominal {
+                kind: LifeNominalKind::Package, body: SemanticNominalBody::Product { .. }, ..
+            }) {
+                return Ok(false);
+            }
+            let child = fields.get(*field as usize)
+                .ok_or_else(|| fail("original description leaves its complete Package field path"))?;
+            current = self.type_root(*child, b)?;
+        }
+        Ok(!place.path.is_empty() && current == selected)
+    }
+    pub(super) fn observe_member(
         &mut self,
         frame: &mut Frame,
-        object: &SemanticOriginalExpr,
-        member: &str,
-        owner: &Option<SemanticTypeRecipe>,
+        expression: &SemanticOriginalExpr,
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Option<Term>> {
+        let CoreExprKind::Member { object, member, owner } = &expression.kind else {
+            return Err(fail("original member observation selects another expression"));
+        };
         let Some(mut place) = self.place_inner(frame, object, false, b, depth + 1)? else {
             return Ok(None);
         };
         let (ordinal, field) = self.field(place.selected, member, b, depth + 1)?;
         Self::push(&mut place.path, ordinal, b)?;
         self.place_available(frame, place.anchor, &place.path, false, b)?;
+        let selected = self.type_root(field, b)?;
+        let description = matches!(self.state.arena[selected], Kind::Wrapped(Wrapper::Managed, _))
+            && self.inline_package_field(&place, selected, b)?;
         // Numeric inference is finalized after the complete original body.
         // Observing an array/tuple of pending numeric leaves can defer its Copy
         // obligation; it must not default a constructor's Type before later
         // wanted/field constraints or guess a generic resource to be Copy.
-        let pending_numeric = self.pending_numeric_copy(field, b, depth + 1)?;
-        if !pending_numeric && (matches!(self.state.arena[self.type_root(field, b)?], Kind::Infer(None))
-            || !self.satisfies(field, Predicate::Copy, b, depth + 1)?) {
+        if !description && !self.pending_numeric_copy(field, b, depth + 1)?
+            && (matches!(self.state.arena[selected], Kind::Infer(None))
+                || !self.satisfies(field, Predicate::Copy, b, depth + 1)?)
+        {
             return Ok(None);
         }
         if let Some(owner) = owner {
@@ -185,6 +216,9 @@ impl Solver<'_, '_> {
             self.unify(place.selected, owner, depth + 1, b)?;
         }
         self.place_inner(frame, object, true, b, depth + 1)?;
+        if description {
+            return self.describe_argument(frame, expression, &place, field, b, depth + 1).map(Some);
+        }
         Self::push(
             &mut self.needs,
             Need {
@@ -193,6 +227,10 @@ impl Solver<'_, '_> {
             },
             b,
         )?;
+        b.lookup(frame.expressions.len(), WORK)?;
+        if frame.expressions.insert(expression.id, field).is_some() {
+            return Err(fail("original Copy-field node is reused"));
+        }
         Ok(Some(field))
     }
     fn pending_numeric_copy(&self, term: Term, b: &mut Budget, depth: usize) -> CompileResult<bool> {
