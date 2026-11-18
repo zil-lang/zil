@@ -4346,7 +4346,10 @@ pub(super) fn check(
                 inventory
                     .definitions
                     .get(&parent)
-                    .is_some_and(|owner| matches!(owner.body, SemanticDefinitionBody::Scope(_)))
+                    .is_some_and(|owner| matches!(
+                        owner.body,
+                        SemanticDefinitionBody::Scope(_) | SemanticDefinitionBody::Nominal { .. }
+                    ))
             })
         {
             solver.function(definition.id, None, b, 0)?;
