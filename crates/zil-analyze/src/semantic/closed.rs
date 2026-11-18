@@ -1038,6 +1038,9 @@ impl Check<'_, '_> {
                     .ok_or_else(|| fail("actual parameter local is absent"))?;
                 let expected_value = self.recipe_value(instance, &parameter_recipe.ty, b, 0)?;
                 let expected = &expected_value.ty;
+                if matches!(expected, Type::Closure(_)) && parameter_recipe.mode == PassingMode::Give {
+                    return Err(fail("give requires a Managed owner; use ordinary by-value passing for a closure"));
+                }
                 if !matches!(
                     parameter_recipe.mode,
                     PassingMode::Infer | PassingMode::Copy
@@ -1045,11 +1048,8 @@ impl Check<'_, '_> {
                     (expected, parameter_recipe.mode),
                     (Type::Address { mutable: false, .. }, PassingMode::Borrow)
                         | (Type::Address { mutable: true, .. }, PassingMode::BorrowMut)
-                        // The original signature and its instantiated callable premises
-                        // establish the complete environment. Move/Give transfers that
-                        // value; the resource pass checks the callee's actual takes and
-                        // its remaining obligations on every exit.
-                        | (Type::Managed(_) | Type::Closure(_), PassingMode::Give | PassingMode::Move)
+                        | (Type::Managed(_), PassingMode::Give | PassingMode::Move)
+                        | (Type::Closure(_), PassingMode::Move)
                         | (Type::Desc(_), PassingMode::Describe)
                 ) {
                     return Err(unknown(

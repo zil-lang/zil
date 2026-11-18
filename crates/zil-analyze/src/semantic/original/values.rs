@@ -522,6 +522,58 @@ impl Checked {
             )?)),
         }
     }
+    /// A Fixed ordinal names a slot in the closure ABI. Distinct slots may
+    /// carry the same creator lifetime (including slots of different captures).
+    fn intrinsic_capture_images(
+        child: &SemanticInstance,
+        captures: &[Value],
+        count: u32,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Option<Vec<Class>>> {
+        b.spend(child.header_embedding.len(), WORK)?;
+        let fixed = child.header_embedding.iter().filter(|row| matches!(row.header, StorageBinder::Fixed(_)));
+        if !fixed.clone().all(|row| matches!(&row.actual,
+            SemanticClassExpr::IntrinsicClass { operand: SemanticOperand::Environment(_), path, .. }
+            if path.is_empty())) {
+            return Ok(None);
+        }
+        if fixed.clone().count() != count as usize {
+            return Err(fail("closure Fixed directory changes its complete header count"));
+        }
+        let mut images = vec![None; count as usize];
+        let mut covered = BTreeSet::new();
+        for row in fixed {
+            let StorageBinder::Fixed(index) = row.header else { unreachable!() };
+            let SemanticClassExpr::IntrinsicClass { operand: SemanticOperand::Environment(ordinal), class, .. }
+                = &row.actual else { unreachable!() };
+            let original = captures.get(*ordinal as usize).and_then(|v| v.classes.get(*class as usize))
+                .ok_or_else(|| fail("closure Fixed header leaves its original capture domain"))?;
+            let sealed = value::class(child, &row.actual, inventory, b, depth + 1)?;
+            if &sealed != original {
+                return Err(fail("closure Fixed header changes its original capture class"));
+            }
+            let slot = images.get_mut(index as usize)
+                .ok_or_else(|| fail("closure Fixed header ordinal is out of range"))?;
+            if slot.replace(sealed).is_some() {
+                return Err(fail("closure Fixed header ordinal is repeated"));
+            }
+            b.lookup(covered.len(), WORK)?;
+            covered.insert((*ordinal as usize, *class as usize));
+        }
+        for (ordinal, capture) in captures.iter().enumerate() {
+            for class in 0..capture.classes.len() {
+                b.lookup(covered.len(), WORK)?;
+                if !covered.contains(&(ordinal, class)) {
+                    return Err(fail("closure Fixed directory omits an original capture class"));
+                }
+            }
+        }
+        images.into_iter().map(|image| image.ok_or_else(|| fail("closure Fixed header has no source")))
+            .collect::<CompileResult<Vec<_>>>().map(Some)
+    }
+
     pub(super) fn value(
         &self,
         term: Term,
@@ -787,25 +839,28 @@ impl Checked {
                     .as_ref()
                     .ok_or_else(|| unknown("original closure has no complete intrinsic scope"))?
                     .fixed_binder_count;
+                let mut captures = Vec::new();
                 let mut classes = Vec::new();
-                for environment in environment {
-                    let value =
-                        self.value(*environment, context, program, inventory, b, depth + 1)?;
-                    for class in value.classes {
-                        value::intern(&mut classes, class, b)?;
+                for capture in environment {
+                    let value = self.value(*capture, context, program, inventory, b, depth + 1)?;
+                    for class in &value.classes {
+                        value::intern(&mut classes, class.clone(), b)?;
                     }
+                    Solver::push(&mut captures, value, b)?;
                 }
-                if classes.len() < count as usize {
-                    let child = program
-                        .instances
-                        .iter()
-                        .find(|instance| {
-                            instance.definition == *definition
-                                && instance.environment.as_ref().is_some_and(|environment| {
-                                    environment.closure == SemanticClosureTarget::Typed(id)
-                                })
-                        })
+                if count > 0 {
+                    let mut candidates = program.instances.iter().filter(|instance|
+                        instance.definition == *definition && instance.environment.as_ref().is_some_and(
+                            |environment| environment.closure == SemanticClosureTarget::Typed(id)));
+                    b.spend(program.instances.len(), WORK)?;
+                    let child = candidates.next()
                         .ok_or_else(|| fail("original closure scope has no exact actual child"))?;
+                    if candidates.next().is_some() {
+                        return Err(fail("original closure scope has competing actual children"));
+                    }
+                    if let Some(images) = Self::intrinsic_capture_images(child, &captures, count, inventory, b, depth)? {
+                        classes = images;
+                    } else if classes.len() < count as usize {
                     let source = inventory.definition(child.definition, b)?;
                     for binding in &child.header_embedding {
                         if matches!(binding.header, StorageBinder::Fixed(_)) {
@@ -827,6 +882,7 @@ impl Checked {
                             }
                         }
                     }
+                }
                 }
                 if count as usize != classes.len() {
                     return Err(fail(
