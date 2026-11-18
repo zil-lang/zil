@@ -41,7 +41,7 @@ pub(super) fn build<'a>(module: &'a TypedModule, b: &mut Budget) -> Check<Index<
         if !ids.insert(definition.id) {
             return Err(bad("duplicate original definition identity in body index"));
         }
-        let Some(mut function)=function(definition,b)? else {continue;};
+        let Some(mut function)=function(definition,false,b)? else {continue;};
         function.bind_sites(b)?;
         result.definitions.insert(definition.id, function);
     }
@@ -73,7 +73,7 @@ pub(super) fn build<'a>(module: &'a TypedModule, b: &mut Budget) -> Check<Index<
     Ok(result)
 }
 
-fn function<'a>(definition:&'a SemanticDefinition,b:&mut Budget)->Check<Option<Function<'a>>> {
+fn function<'a>(definition:&'a SemanticDefinition,revisit:bool,b:&mut Budget)->Check<Option<Function<'a>>> {
     let (signature, sites, parameters, receiver_parameter, site_nodes, body) = match &definition.body {
         SemanticDefinitionBody::Function { .. } => return Err(bad("original function inventory omits its complete body")),
         SemanticDefinitionBody::FunctionWithBody { signature, sites, parameters, receiver_parameter, site_nodes, body, .. } =>
@@ -99,6 +99,12 @@ fn function<'a>(definition:&'a SemanticDefinition,b:&mut Budget)->Check<Option<F
     };
     if let SemanticOriginalFunctionBody::Defined(body) = body {
         function.walk(body, b)?;
+        if let Some(progress) = &mut b.diagnostic_progress {
+            progress.original_body_walks += 1;
+            progress.original_body_revisits += usize::from(revisit);
+            progress.original_statement_and_expression_visits +=
+                function.statements.len() + function.expressions.len();
+        }
     }
     Ok(Some(function))
 }
@@ -285,7 +291,7 @@ pub(super) fn select<'a>(source:&'a SourceIndex,requested:&[SemanticDefinitionId
         if definitions.contains_key(id){continue;}
         let cursor=directory.definitions.get(id).ok_or_else(||bad("original local cursor selects no fully checked function definition"))?;
         let definition=program.definitions.get(cursor.ordinal).filter(|definition|definition.id==*id).ok_or_else(||bad("original local cursor changes its immutable definition identity"))?;
-        let mut function=function(definition,b)?.ok_or_else(||bad("original local cursor changes its checked function kind"))?;
+        let mut function=function(definition,true,b)?.ok_or_else(||bad("original local cursor changes its checked function kind"))?;
         let rows=function.expressions.len().saturating_add(function.statements.len()).saturating_add(cursor.nodes.len());
         b.spend(cursor.nodes.len().saturating_mul(rows.checked_ilog2().map_or(1,|n|n as usize+2)).saturating_add(cursor.closures.len()))?;
         for(site,node)in &cursor.nodes{

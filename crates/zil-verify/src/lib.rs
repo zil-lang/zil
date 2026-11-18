@@ -374,6 +374,9 @@ struct DiagnosticProgress {
     stage: &'static str,
     original: Option<(usize, usize, SemanticDefinitionId)>,
     world: Option<(usize, usize, SemanticInstanceId, FunctionId)>,
+    original_body_walks: usize,
+    original_body_revisits: usize,
+    original_statement_and_expression_visits: usize,
     recipes_started: usize,
     recipes_completed: usize,
     frame_hits: usize,
@@ -925,7 +928,11 @@ fn check_module(
     program: Option<&TypedProgram>,
 ) -> Check<CheckedModule> {
     let mut budget = Budget::new(limits);
-    check_module_budget(
+    let report_scans = std::env::var_os("ZIL_VERIFY_PROFILE_SCANS").is_some();
+    if report_scans && budget.diagnostic_progress.is_none() {
+        budget.diagnostic_progress = Some(DiagnosticProgress::default());
+    }
+    let checked = check_module_budget(
         module,
         plan,
         expected_target,
@@ -933,7 +940,13 @@ fn check_module(
         program,
         &mut budget,
         None,
-    )
+    );
+    if report_scans && let Some(progress) = budget.diagnostic_progress {
+        eprintln!("verify-original-body completed={} walks={} revisits={} statement_and_expression_visits={} cfg_block_visits={}",
+            checked.is_ok(), progress.original_body_walks, progress.original_body_revisits,
+            progress.original_statement_and_expression_visits, progress.block_visits);
+    }
+    checked
 }
 fn check_module_budget(
     module: &TypedModule,
