@@ -1370,6 +1370,42 @@ fn scalar_body(
     })
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct MethodDirectory<'a> {
+    pub declarations: &'a [DynDeclaration],
+    pub interfaces: &'a [DynInterface],
+}
+
+impl<'a> MethodDirectory<'a> {
+    pub fn lookup(self, actual: &Type, member: &str, span: Span,
+        mut pay: impl FnMut(usize, Span) -> R<()>) -> R<Option<(DynInterfaceId, u32, &'a DynSlot)>> {
+        let interface = match actual {
+            Type::Address { inner, .. } => match inner.as_ref() {
+                Type::Dyn { interface } | Type::OwnedDyn { interface } => *interface,
+                _ => return Ok(None),
+            },
+            Type::OwnedDyn { interface } => *interface,
+            _ => return Ok(None),
+        };
+        pay(self.interfaces.len(), span)?;
+        let Some(definition) = self.interfaces.iter().find(|candidate| candidate.id == interface) else {
+            return Ok(None);
+        };
+        let mut found = None;
+        for (index, slot) in definition.slots.iter().enumerate() {
+            pay(self.declarations.len().saturating_add(member.len()).saturating_add(1), span)?;
+            let declaration = self.declarations.iter().find(|declaration|
+                declaration.id == slot.member.application.declaration);
+            let Some(row) = declaration.and_then(|decl| decl.members.get(slot.member.ordinal as usize))
+                else { return Ok(None); };
+            if row.name == member && found.replace((interface, index as u32, slot)).is_some() {
+                return Ok(None);
+            }
+        }
+        Ok(found)
+    }
+}
+
 impl Builder<'_, '_> {
     pub(super) fn dyn_method_slot(
         &mut self,
@@ -1379,35 +1415,12 @@ impl Builder<'_, '_> {
         let Some(actual) = self.known_type_checked(object)? else {
             return Ok(None);
         };
-        let result = (|| {
-            let interface = match actual {
-                Type::Address { inner, .. } => match *inner {
-                    Type::Dyn { interface } | Type::OwnedDyn { interface } => interface,
-                    _ => return None,
-                },
-                Type::OwnedDyn { interface } => interface,
-                _ => return None,
-            };
-            let definition = self
-                .dyn_interfaces
-                .iter()
-                .find(|candidate| candidate.id == interface)?;
-            let mut found = None;
-            for (index, slot) in definition.slots.iter().enumerate() {
-                let declaration = self
-                    .dyn_declarations
-                    .iter()
-                    .find(|declaration| declaration.id == slot.member.application.declaration)?;
-                if declaration.members.get(slot.member.ordinal as usize)?.name == member {
-                    if found.is_some() {
-                        return None;
-                    }
-                    found = Some((interface, index as u32));
-                }
-            }
-            found
-        })();
-        Ok(result)
+        let directory = MethodDirectory {
+            declarations: self.dyn_declarations,
+            interfaces: self.dyn_interfaces,
+        };
+        Ok(directory.lookup(&actual, member, object.span, |work, span| self.closures.snapshot(work, span))?
+            .map(|(interface, ordinal, _)| (interface, ordinal)))
     }
 
     pub(super) fn dyn_coerce(

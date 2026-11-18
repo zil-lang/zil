@@ -592,6 +592,9 @@ impl Builder<'_, '_> {
             )?;
             builder.imports = Some(&imports);
             builder.life_instances = self.life_instances;
+            builder.dyn_declarations = self.dyn_declarations;
+            builder.dyn_interfaces = self.dyn_interfaces;
+            builder.dyn_vtables = self.dyn_vtables;
             builder
                 .closures
                 .snapshot(self.actual_functions.len().saturating_add(1), span)?;

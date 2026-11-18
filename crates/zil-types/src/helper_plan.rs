@@ -102,6 +102,7 @@ pub(crate) fn tree_work(count: usize) -> usize {
 
 struct Walk<'a, 'b> {
     context: &'a Context,
+    methods: dyn_dispatch::MethodDirectory<'a>,
     bounds: &'a [CoreCallableParameter],
     bindings: Bindings,
     tables: Rc<Tables>,
@@ -540,7 +541,14 @@ impl Walk<'_, '_> {
                 self.local(name, expression.span)?.unwrap_or(Shape::Unknown)
             }
             CoreExprKind::Call { callee, arguments } => {
-                if let CoreExprKind::TypeApply { callee: target, .. } = &callee.kind {
+                let mut dynamic_result = None;
+                if self.full_values && let CoreExprKind::Member { object, member, owner: None } = &callee.kind {
+                    self.node(depth + 1, callee.span)?;
+                    if let Shape::Complete { ty, .. } = self.expr(object, depth + 2)? {
+                        dynamic_result = self.methods.lookup(&ty, member, callee.span,
+                            |work, span| self.state.snapshot(work, span))?.map(|(_, _, slot)| &slot.result);
+                    }
+                } else if let CoreExprKind::TypeApply { callee: target, .. } = &callee.kind {
                     self.node(depth + 1, callee.span)?;
                     self.expr(target, depth + 2)?;
                 } else {
@@ -550,6 +558,9 @@ impl Walk<'_, '_> {
                 let mut shapes = Vec::with_capacity(arguments.len());
                 for argument in arguments {
                     shapes.push(self.expr(argument, depth + 1)?);
+                }
+                if let Some(result) = dynamic_result {
+                    return self.shape(result, &[], Bindings::default(), expression.span, depth + 1);
                 }
                 if let CoreExprKind::Member { object, member, owner: None } = &callee.kind
                     && let CoreExprKind::Name(name) = &object.kind
@@ -1235,6 +1246,7 @@ fn dependencies(
     instance: Node,
     state: &mut closures::State,
     limits: &Limits,
+    methods: dyn_dispatch::MethodDirectory<'_>,
     span: Span,
 ) -> R<Vec<Node>> {
     state.snapshot(
@@ -1274,6 +1286,7 @@ fn dependencies(
     let tables = state.helper_tables.clone();
     let mut walk = Walk {
         context: &template.context,
+        methods,
         bounds,
         bindings: bindings.clone(),
         tables,
@@ -1337,6 +1350,7 @@ pub(super) fn order(
     root: Node,
     state: &mut closures::State,
     limits: &Limits,
+    methods: dyn_dispatch::MethodDirectory<'_>,
     span: Span,
 ) -> R<Vec<Node>> {
     state.snapshot(1usize.saturating_add(Bindings::storage_delta_work()), span)?;
@@ -1435,7 +1449,7 @@ pub(super) fn order(
                     Some(span),
                 ));
             }
-            let children = dependencies(instance.clone(), state, limits, span)?;
+            let children = dependencies(instance.clone(), state, limits, methods, span)?;
             state.snapshot(
                 children
                     .len()
@@ -1476,6 +1490,7 @@ mod result_shape_tests {
         let mut state = closures::State::new(0, &limits);
         let mut walk = Walk {
             context: &context,
+            methods: dyn_dispatch::MethodDirectory { declarations: &[], interfaces: &[] },
             bounds: &[],
             bindings: Bindings::default(),
             tables: Rc::new(BTreeMap::new()),

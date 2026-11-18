@@ -1179,7 +1179,9 @@ impl Builder<'_, '_> {
             };
             &nested_limits
         };
-        let order = plan::order(root, self.closures, limits, span)?;
+        let order = plan::order(root, self.closures, limits, dyn_dispatch::MethodDirectory {
+            declarations: self.dyn_declarations, interfaces: self.dyn_interfaces,
+        }, span)?;
         for node in order {
             match node {
                 plan::Node::Callable((key, bindings)) => {
@@ -1422,6 +1424,9 @@ impl Builder<'_, '_> {
             self.closures,
         )?;
         builder.life_instances = self.life_instances;
+        builder.dyn_declarations = self.dyn_declarations;
+        builder.dyn_interfaces = self.dyn_interfaces;
+        builder.dyn_vtables = self.dyn_vtables;
         builder
             .closures
             .snapshot(self.actual_functions.len().saturating_add(1), span)?;
