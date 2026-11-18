@@ -658,7 +658,9 @@ impl Variants {
             )]);
         }
         Ok(match ty {
-            Type::Enum { .. } | Type::ErrorUnion { .. } => true,
+            Type::Enum { .. } | Type::ErrorUnion { .. } => {
+                pointee_memory::needs_state(ty, b, depth)?
+            }
             Type::BorrowedStorage { storage, .. }
             | Type::Array {
                 element: storage, ..

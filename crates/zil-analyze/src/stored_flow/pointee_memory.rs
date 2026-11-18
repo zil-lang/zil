@@ -650,6 +650,7 @@ pub(super) fn needs_state(ty: &Type, b: &mut Budget, depth: usize) -> CompileRes
         Type::Enum { variants, .. } => {
             let mut found = false;
             for (_, fields) in variants {
+                fee(b, 1)?;
                 for field in fields {
                     found |= needs_state(field, b, depth + 1)?;
                 }
