@@ -1,5 +1,7 @@
 use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, Stage, compile_source};
+#[path = "task_create_owned/registration_origin.rs"]
+mod registration_origin;
 const SOURCE: &str = r#"
 fn worker(seed:i32,other:i32)->i32 {task_yield();return seed+other;}
 fn main()->i32 {
