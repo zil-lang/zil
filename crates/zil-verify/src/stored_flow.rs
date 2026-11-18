@@ -8953,10 +8953,24 @@ fn solve_check(
             }
             b.spend(actual.len().saturating_add(claim.roots.len()))?;
             if claim.value != ValueId(v as u32) || !actual.iter().eq(claim.roots.iter()) {
-                return Err(err(&format!(
-                    "candidate differs from independently reconstructed stored target roots: {} value {v}: actual {actual:?}, candidate {:?}",
-                    f.name, claim.roots
-                )));
+                let mut failure = err(&format!(
+                    "candidate differs from independently reconstructed stored target roots: {} value {v}: actual {actual:?}, candidate {:?} for {:?}",
+                    f.name, claim.roots, claim.value
+                ));
+                for block in &f.blocks {
+                    b.spend(block.instructions.len().saturating_add(1))?;
+                    if let Some((at, op)) = block.instructions.iter().enumerate()
+                        .find(|(_, op)| op.result == Some(ValueId(v as u32)))
+                    {
+                        failure.span = (op.span.start < op.span.end).then_some(op.span);
+                        failure.relate(zil_base::DiagnosticRole::Result, failure.span,
+                            Some(zil_base::DiagnosticIrLocation {
+                                function: f.id.0, block: Some(block.id.0), instruction: u32::try_from(at).ok(),
+                            }), "The claimed Hold must describe this actual SSA result.");
+                        break;
+                    }
+                }
+                return Err(failure);
             }
         }
     }

@@ -769,6 +769,9 @@ struct Value {
     /// Conservative opaque address-result origins, never actual permissions
     /// or loans. Only the final public Hold projection consumes these rows.
     source_upper: Targets,
+    /// Sources in occupied pointee slots at address formation, for the public
+    /// ValueHold only. Later accesses select current memory and its own loans.
+    pointee_holds: Targets,
     /// DescribeAddress transports an actual weak manager origin. It does not
     /// itself grant an element address or public Hold.
     store_description: Permission,
@@ -985,6 +988,7 @@ fn environment_merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileRes
 fn merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileResult<bool> {
     let mut changed = union(&mut to.pointer, &from.pointer, b)?;
     changed |= dyn_address::upper_union(&mut to.source_upper, &from.source_upper, b)?;
+    changed |= dyn_address::upper_union(&mut to.pointee_holds, &from.pointee_holds, b)?;
     changed |= union(&mut to.store_description, &from.store_description, b)?;
     changed |= task_address::merge(to, from, b)?;
     changed |= dyn_address::merge(to, from, b)?;
@@ -1055,6 +1059,7 @@ fn snapshot(value: &Value, b: &mut Budget) -> CompileResult<Value> {
         saved_heads: pointee_memory::copy_heads(&value.saved_heads, b)?,
         pointer: copy_permission(&value.pointer, b)?,
         source_upper: dyn_address::upper_snapshot(&value.source_upper, b)?,
+        pointee_holds: dyn_address::upper_snapshot(&value.pointee_holds, b)?,
         store_description: copy_permission(&value.store_description, b)?,
         task_ports: if b.task_sources() {
             copy_permission_rows(&value.task_ports, b)?
@@ -1128,6 +1133,7 @@ fn state_copy(s: &State, b: &mut Budget) -> CompileResult<State> {
     Ok(out)
 }
 fn value_work(value: &Value, b: &mut Budget) -> CompileResult<()> {
+    target_work(&value.pointee_holds, b)?;
     target_work(&value.source_upper, b)?;
     for head in &value.saved_heads {
         fee(b, head.len().saturating_add(1))?;
@@ -4462,6 +4468,14 @@ fn projection_only_load(
     Ok((uses == 1).then_some(adjacent).flatten())
 }
 
+fn pointee_holds(current: &Value, to: &mut Targets, b: &mut Budget) -> CompileResult<()> {
+    fee(b, current.slots.len())?;
+    for permission in current.slots.values() {
+        dyn_address::upper_union(to, &permission.targets, b)?;
+    }
+    Ok(())
+}
+
 fn roots(value: &Value, b: &mut Budget) -> CompileResult<Targets> {
     let mut permission = Permission::default();
     union(&mut permission, &value.pointer, b)?;
@@ -5071,6 +5085,15 @@ fn transfer(
                 fee(b,1)?;
                 out.pointer.loans.insert(marker);
             }
+            let ty = &f.locals[local.0 as usize].ty;
+            if carrier(ty).is_some() || shared_array_value(ty)
+                || (matches!(ty, Type::Tuple(_)) && shared_compound(module, ty, b)?)
+            {
+                ordered(b, state.locals.len(), 0)?;
+                if let Some(current) = state.locals.get(local) {
+                    pointee_holds(current, &mut out.pointee_holds, b)?;
+                }
+            }
             if environment_value(module, &f.locals[local.0 as usize].ty, b)? {
                 ordered(b, state.locals.len(), 0)?;
                 if let Some(held) = state.locals.get(local) {
@@ -5098,11 +5121,15 @@ fn transfer(
                 targets.insert(target);
             }
             out.pointer.targets = targets;
-            if let Type::Address { inner, .. } = value_type(
-                    f,
-                    i.result
-                        .ok_or_else(|| failure("Store field result absent"))?,
-                )?
+            let result = i.result.ok_or_else(|| failure("field address lacks result"))?;
+            let ty = value_type(f, result)?;
+            if pointed_carrier(ty).is_some()
+                || matches!(ty, Type::Address { inner, .. } if shared_array_value(inner))
+            {
+                let current = pointee_memory::read(state, &out.pointer, None, false, b)?;
+                pointee_holds(&current, &mut out.pointee_holds, b)?;
+            }
+            if let Type::Address { inner, .. } = ty
                 && matches!(inner.as_ref(), Type::Package { .. })
             {
                 if out.pointer.targets.is_empty() {
@@ -5124,6 +5151,9 @@ fn transfer(
         | InstructionKind::AddressIndex { address, .. }
         | InstructionKind::AddressSlice { address, .. } => {
             union(&mut out.pointer, &get(*address)?.pointer, b)?;
+            if matches!(i.kind, InstructionKind::ReborrowAddress { .. }) {
+                dyn_address::upper_union(&mut out.pointee_holds, &get(*address)?.pointee_holds, b)?;
+            }
             task_address::merge(&mut out, get(*address)?, b)?;
             environment_merge(&mut out, get(*address)?, b)?;
 
@@ -6182,6 +6212,7 @@ fn transfer(
             current.insert(declaration.path.clone(), actual);
         }
         out.slots = current;
+        out.pointee_holds.clear();
     }
     if let Some(permission) = owned_byte_views::seed_description(module, f, i, state, values, b)? {
         out.store_description = permission;
@@ -8366,7 +8397,8 @@ fn derive_cfg(
                 none_values: BTreeSet::new(),
             };
             for (id, value) in values.iter().enumerate() {
-                let upper = pointee_memory::upper(value, b)?;
+                let mut upper = pointee_memory::upper(value, b)?;
+                dyn_address::upper_union(&mut upper, &value.pointee_holds, b)?;
                 if !upper.is_empty() {
                     ordered(b, actual.source_upper_values.len(), 0)?;
                     actual.source_upper_values.insert(ValueId(id as u32), upper);
@@ -12191,7 +12223,10 @@ mod tests {
                 heap_element: None,
             }]
         );
-        super::super::analyze(&m, &Limits::default()).unwrap();
+        let candidate = super::super::analyze(&m, &Limits::default()).unwrap();
+        let holds = &candidate.functions[3].holds;
+        assert_eq!(holds[3].roots, [HoldRoot::Local(LocalId(0)), HoldRoot::Local(LocalId(1))]);
+        assert_eq!(holds[4].roots, [HoldRoot::Local(LocalId(0))]);
     }
     #[test]
     fn copied_field_keeps_target_parent_loan_after_carrier_end() {

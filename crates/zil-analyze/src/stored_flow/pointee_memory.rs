@@ -504,13 +504,18 @@ where
     }
     value.enum_variants.work(b)?;
     value.option_variants.work(b)?;
-    let mut upper = Targets::new();
-    for target in &value.source_upper {
-        for target in source(target, b)?.targets {
-            ordered(b, upper.len(), target_width(&target))?;
-            upper.insert(target);
+    let mut origins = |targets: &Targets, b: &mut Budget| -> CompileResult<Targets> {
+        let mut out = Targets::new();
+        for target in targets {
+            for actual in source(target, b)?.targets {
+                ordered(b, out.len(), target_width(&actual))?;
+                out.insert(actual);
+            }
         }
-    }
+        Ok(out)
+    };
+    let upper = origins(&value.source_upper, b)?;
+    let pointee_holds = origins(&value.pointee_holds, b)?;
     let mut projections = BTreeMap::new();
     for (path, payload) in &value.projections {
         fee(b, path.len().saturating_add(1))?;
@@ -547,6 +552,7 @@ where
         enum_variants: value.enum_variants.clone(),
         option_variants: value.option_variants.clone(),
         source_upper: upper,
+        pointee_holds,
         creation_complete: value.creation_complete,
     })
 }

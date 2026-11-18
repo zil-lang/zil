@@ -8501,6 +8501,66 @@ fn mutable_helper_life_source_derived_wrong_class_capture_and_mutable_call_reach
     let mut bad = zil_types::check(&shared_helper_life_core(&disjoint), &target, &limits).unwrap();
     let mut forged = zil_analyze::analyze(&bad, &limits).unwrap();
     zil_verify::verify_module(bad.clone(), forged.clone(), &target, &limits).unwrap();
+    // The address of tag retains its local and the parameter stored in its
+    // initialized field. Omitting that field source forges the public Hold.
+    let setup = bad.functions.iter().find(|f| f.name == "setup").unwrap();
+    let (block, at, value, local) = setup
+        .blocks
+        .iter()
+        .find_map(|block| {
+            block
+                .instructions
+                .iter()
+                .enumerate()
+                .find_map(|(at, op)| match op.kind {
+                    InstructionKind::BorrowLocal { local }
+                        if setup.locals[local.0 as usize].name == "tag" =>
+                    {
+                        Some((block, at, op.result.unwrap(), local))
+                    }
+                    _ => None,
+                })
+        })
+        .unwrap();
+    let mut wrong = forged.clone();
+    let row = &mut wrong.functions[setup.id.0 as usize].holds[value.0 as usize];
+    assert_eq!(
+        row.roots,
+        vec![HoldRoot::Local(local), HoldRoot::Parameter(0)]
+    );
+    row.roots.retain(|root| *root != HoldRoot::Parameter(0));
+    let omitted = format!(
+        "actual {{{:?}, Parameter(0)}}, candidate [{:?}]",
+        HoldRoot::Local(local),
+        HoldRoot::Local(local)
+    );
+    let bytes = wire::encode_module_candidate(&bad, &wrong, &limits).unwrap();
+    let raw = zil_verify::verify_module(bad.clone(), wrong, &target, &limits).unwrap_err();
+    assert_eq!(
+        raw,
+        zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err()
+    );
+    let expected = zil_base::DiagnosticIrLocation {
+        function: setup.id.0,
+        block: Some(block.id.0),
+        instruction: Some(at as u32),
+    };
+    let span = Some(block.instructions[at].span);
+    assert!(
+        raw.iter().any(|e| e.phase == zil_base::Phase::Verify
+            && e.category == ResultCategory::SafeReject
+            && e.code == "E-VERIFY-STORED"
+            && e.span == span
+            && e.message
+                .contains("independently reconstructed stored target roots")
+            && e.message.contains(&omitted)
+            && e.related
+                .iter()
+                .any(|r| r.role == zil_base::DiagnosticRole::Result
+                    && r.ir == Some(expected)
+                    && r.span == span)),
+        "{raw:?}"
+    );
     let caller = bad.functions.iter_mut().find(|f| f.blocks.iter().flat_map(|b| &b.instructions)
         .filter(|i| matches!(i.kind, InstructionKind::BorrowLocalMut {local} if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))))
         .count() == 2).unwrap();
@@ -8527,25 +8587,42 @@ fn mutable_helper_life_source_derived_wrong_class_capture_and_mutable_call_reach
     instruction.kind = InstructionKind::BorrowLocalMut {
         local: receivers[1],
     };
-    assert!(
-        zil_analyze::analyze(&bad, &limits)
-            .unwrap_err()
-            .iter()
-            .any(|d| d.message.contains("overlaps"))
-    );
+    let (block, position, span) = caller.blocks.iter().find_map(|block| {
+        let (position, instruction) = block.instructions.iter().enumerate()
+            .filter(|(_, i)| matches!(i.kind, InstructionKind::BorrowLocalMut { local } if local == receivers[1]))
+            .nth(1)?;
+        Some((block.id, position, instruction.span))
+    }).unwrap();
+    let location = zil_base::DiagnosticIrLocation {
+        function: caller.id.0,
+        block: Some(block.0),
+        instruction: Some(position as u32),
+    };
+    let analyzed = zil_analyze::analyze(&bad, &limits).unwrap_err();
     forged.module_fingerprint = bad.fingerprint();
     let wire = wire::encode_module_candidate(&bad, &forged, &limits).unwrap();
-    for errors in [
-        zil_verify::verify_module(bad, forged, &target, &limits).unwrap_err(),
-        zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err(),
+    let raw = zil_verify::verify_module(bad, forged, &target, &limits).unwrap_err();
+    let decoded = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert_eq!(raw, decoded);
+    for (phase, errors) in [
+        (zil_base::Phase::Analyze, analyzed),
+        (zil_base::Phase::Verify, raw),
     ] {
         assert!(
-            errors.iter().any(|d| d
-                .message
-                .contains("actual target intersects a live incompatible loan")),
+            errors.iter().any(|error| error.phase == phase
+                && error.code == "E-BORROW-CONFLICT"
+                && error.category == ResultCategory::SafeReject
+                && error.span == Some(span)
+                && error
+                    .related
+                    .iter()
+                    .any(|r| r.role == zil_base::DiagnosticRole::ConflictingAccess
+                        && r.ir == Some(location)
+                        && r.span == Some(span))),
             "{errors:?}"
         );
     }
+
 }
 
 #[test]
