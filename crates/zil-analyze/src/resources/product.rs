@@ -229,11 +229,11 @@ fn admit_shape(
                     let actual = module.expect("ordinary Product has an actual module");
                     // Sum admission independently walks every possible branch
                     // and checks each actual Store's exact sealed resource.
-                    let sum_store = super::sums::admit(actual, ty, budget)?;
-                    if !sum_store {
-                        return Err(error("ordinary Product Sum lacks an owning Store"));
+                    let (sum_store, owns_payload) = super::sums::responsibility(actual, ty, budget)?;
+                    if !owns_payload {
+                        return Err(error("ordinary Product Sum has no independently proved owner"));
                     }
-                    has_stores = true;
+                    has_stores |= sum_store;
                     owned = true;
                 }
                 // A qualified borrowed leaf has no cleanup debt. It is not

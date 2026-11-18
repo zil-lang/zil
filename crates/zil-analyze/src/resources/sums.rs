@@ -129,6 +129,14 @@ fn callable_leaf(
 }
 
 pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
+    responsibility(module, ty, budget).map(|(store, _)| store)
+}
+
+/// Admission proves every arm and returns two independent properties. A
+/// non-Store owner still transfers a cleanup debt on its selected arm.
+pub(super) fn responsibility(
+    module: &TypedModule, ty: &Type, budget: &mut Budget,
+) -> CompileResult<(bool, bool)> {
     budget.type_work(ty, true, "ordinary Sum admission")?;
     fn walk(
         module: &TypedModule,
@@ -332,7 +340,7 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
         }
     }
     let closure_inputs = crate::stored_flow::plain_failure_input_carrier(module, ty, budget)?;
-    walk(module, ty, budget, false, closure_inputs).map(|(store, _)| store)
+    walk(module, ty, budget, false, closure_inputs)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
