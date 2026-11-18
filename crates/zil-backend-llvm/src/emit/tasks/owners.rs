@@ -22,6 +22,7 @@ pub(super) struct OwnerFrame {
     result: Option<usize>,
 }
 pub(super) fn plan(
+    worker:FunctionId,
     frame: &mut FramePlan,
     ownership: Option<&TaskOwnership>,
     module: &TypedModule,
@@ -38,12 +39,14 @@ pub(super) fn plan(
     let mut drops = vec![];
     let mut pollable = vec![];
     let mut groups = vec![];
-    for owner in ownership.owners() {
+    for (owner_index,owner) in ownership.owners().iter().enumerate() {
         nodes.push(frame.fields.len() as u32);
         frame.fields.push(node_ty());
         let registration = matches!(enums::storage_shape(owner.ty()),Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}));
         let child = matches!(enums::storage_shape(owner.ty()),Type::Managed(p) if matches!(p.as_ref(),Type::Task{..}|Type::TaskI32));
-        let group = owner_groups::closure(module, owner.ty(), meter)?;
+        let group=match owner_groups::closure(module,owner.ty(),meter) {
+            Ok(group)=>group,Err(diagnostics)=>return describe_failure(diagnostics,worker,Some(owner_index),owner.ty(),ownership,meter)
+        };
         groups.push(group.is_some());
         pollable.push(if let Some(id) = group {
             Some((owner_groups::symbol(id, "poll"), owner_groups::symbol(id, "request")))
@@ -69,7 +72,9 @@ pub(super) fn plan(
         frame.fields.push(node_ty());
         let registration = matches!(enums::storage_shape(ty), Type::Managed(payload) if matches!(payload.as_ref(), Type::AsyncRegistration { .. }));
         let child = matches!(enums::storage_shape(ty), Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. } | Type::TaskI32));
-        let group = owner_groups::closure(module, ty, meter)?;
+        let group=match owner_groups::closure(module,ty,meter) {
+            Ok(group)=>group,Err(diagnostics)=>return describe_failure(diagnostics,worker,None,ty,ownership,meter)
+        };
         groups.push(group.is_some());
         pollable.push(if let Some(id) = group {
             Some((owner_groups::symbol(id, "poll"), owner_groups::symbol(id, "request")))
@@ -112,6 +117,26 @@ pub(super) fn plan(
         result,
     });
     Ok(())
+}
+/// Diagnostic only: this exports the already-produced immutable public
+/// responsibility artifact. Neither a raw boundary id nor a live responsibility
+/// is interpreted as Closed, synchronous cleanup, or a source permission.
+fn describe_failure<T>(mut diagnostics:Vec<Diagnostic>,worker:FunctionId,owner:Option<usize>,ty:&Type,ownership:&TaskOwnership,meter:&Meter)->CompileResult<T> {
+    let copies=diagnostics.len().saturating_add(1);
+    let limits=meter.limits()?;let before=meter.remaining();let mut work=before;
+    let counted=copy_aggregates::reserve_enum_metadata(ty,&mut work,0,limits);
+    meter.spend(before.checked_sub(work).unwrap_or(before).saturating_mul(64).saturating_mul(copies))?;counted?;
+    let records=ownership.boundaries().iter().fold(ownership.owners().len(),|n,boundary|n.saturating_add(boundary.may_live().len()).saturating_add(1));
+    meter.spend(records.saturating_mul(128).saturating_add(512).saturating_mul(copies))?;
+    let roles=ownership.owners().iter().enumerate().map(|(index,owner)|(index,owner.slot(),owner.cleanup_anchor())).collect::<Vec<_>>();
+    let boundaries=ownership.boundaries().iter().map(|boundary|(boundary.block(),boundary.instruction(),boundary.may_live())).collect::<Vec<_>>();
+    for diagnostic in &mut diagnostics {
+        diagnostic.notes.push(format!("actual worker {worker:?}; canonical owner index {owner:?}; complete actual owner/result type {ty:?}"));
+        if let Some(index)=owner {diagnostic.notes.push(format!("actual owner record {:?}",ownership.owners()[index]));}
+        diagnostic.notes.push(format!("actual canonical roles (index,slot,cleanup_anchor) {roles:?}; actual entry owners {:?}",ownership.entry()));
+        diagnostic.notes.push(format!("actual retirement boundary records (block,instruction,raw_may_live_ids) {boundaries:?}"));
+    }
+    Err(diagnostics)
 }
 fn field(v: &mut Vec<m::Inst>, prefix: &str, ptr: m::Val, index: u32) -> String {
     let name = format!("{prefix}.{index}");

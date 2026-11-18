@@ -818,6 +818,7 @@ fn plan_frame(
     let mut plan = own_frame(machine, meter)?;
     if let Some(verified) = verified {
         owners::plan(
+            id,
             &mut plan,
             verified.task_ownership(id),
             verified.module(),
