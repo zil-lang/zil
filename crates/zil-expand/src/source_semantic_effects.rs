@@ -19,6 +19,7 @@ enum Target {
     Alternatives(usize),
     Elements { index: usize, tuple: bool },
     StoreBorrow,
+    StorePop,
     ByteView,
     OwnedDynFactory,
     StoreReceiver(usize),
@@ -531,7 +532,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
         let known = self.independently_suspend(target, span)?;
         self.vertex.known_suspend |= known;
         match target {
-            Target::Kind(CallKind::Direct) | Target::ContextualThinCode | Target::Prototype(_, CallKind::Direct) | Target::StoreBorrow | Target::ByteView | Target::OwnedDynFactory => {}
+            Target::Kind(CallKind::Direct) | Target::ContextualThinCode | Target::Prototype(_, CallKind::Direct) | Target::StoreBorrow | Target::StorePop | Target::ByteView | Target::OwnedDynFactory => {}
             Target::Kind(CallKind::Suspend)
             | Target::Prototype(_, CallKind::Suspend)
             | Target::Unknown
@@ -1309,6 +1310,19 @@ impl<'a> Scan<'a, '_, '_, '_> {
                         _ => Target::Unknown,
                     });
                 }
+                if called == Target::StorePop && arguments.len() == 1 {
+                    let Target::StoreReceiver(index) = self.target(&arguments[0], depth + 1)? else {
+                        return Ok(Target::Unknown);
+                    };
+                    self.budget.identity_work(1, expression.span)?;
+                    // The exact declared element is the success payload. The
+                    // failure arm has no receiver from this Store.
+                    return Ok(match self.store_elements[index] {
+                        Target::TraitReceiver(id) => Target::FallibleTrait(id),
+                        Target::NominalReceiver(id) => Target::FallibleNominal(id),
+                        _ => Target::Unknown,
+                    });
+                }
                 if called == Target::ByteView && arguments.len() == 1 {
                     return Ok(Target::LengthReceiver);
                 }
@@ -1416,6 +1430,8 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 if crate::primitive_name(name) {
                     if binding.is_none() && matches!(*name, "store_at" | "store_at_mut") {
                         Target::StoreBorrow
+                    } else if binding.is_none() && *name == "store_pop" {
+                        Target::StorePop
                     } else if binding.is_none() && matches!(*name, "bytes_view" | "bytes_view_mut") {
                         Target::ByteView
                     } else if binding.is_none() && *name == "owned_dyn" {
