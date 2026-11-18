@@ -247,7 +247,8 @@ impl Expander<'_> {
         name
     }
 
-    pub(super) fn pipeline(&mut self, origin: Span, input: &s::Expr, target: &s::Expr) -> CoreExpr {
+    pub(super) fn pipeline(&mut self, syntax: &s::Expr, input: &s::Expr, target: &s::Expr) -> CoreExpr {
+        let origin = syntax.span;
         let previous_parent = self.parent_map;
         self.parent_map = Some(self.marker(origin));
         let input_value = self.expr(input);
@@ -267,6 +268,7 @@ impl Expander<'_> {
             origin,
         );
         self.role(call.id, ExpansionRole::PipeCall, vec![target.span]);
+        self.emit_semantic_node(syntax.semantic, call.id, false, origin);
         let result = self.expr_node(
             CoreExprKind::Sequence {
                 bindings: vec![(input_name, input_value)],

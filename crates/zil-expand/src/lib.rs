@@ -1896,7 +1896,7 @@ impl Expander<'_> {
     }
     fn expr_expected(&mut self, e: &s::Expr, expected: Option<&Type>) -> CoreExpr {
         let output = self.expr_expected_inner(e, expected);
-        if !matches!(e.kind, s::ExprKind::Record { .. }) {
+        if !matches!(e.kind, s::ExprKind::Record { .. } | s::ExprKind::Pipeline { .. }) {
             self.emit_semantic_node(e.semantic, output.id, false, e.span);
         }
         output
@@ -1908,7 +1908,7 @@ impl Expander<'_> {
         match &e.kind {
             s::ExprKind::ReceiverMember(n) => self.receiver_member(n, e.span),
             s::ExprKind::Group(v) => self.expr_expected(v, expected),
-            s::ExprKind::Pipeline { input, target } => self.pipeline(e.span, input, target),
+            s::ExprKind::Pipeline { input, target } => self.pipeline(e, input, target),
             s::ExprKind::Record { ty, base, fields } => {
                 if let Some(value) =
                     self.record_enum(e.span, ty.as_deref(), base.as_deref(), fields, e.semantic)

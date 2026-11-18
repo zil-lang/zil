@@ -276,6 +276,7 @@ fn observation_operand(
             s::ExprKind::Group(_) if child == 0 => length -= 1,
             s::ExprKind::TypeApply { .. } if child == 0 => length -= 1,
             s::ExprKind::Call { .. } if child == 0 => return Ok(false),
+            s::ExprKind::Pipeline { .. } if child == 1 => return Ok(false),
             s::ExprKind::Call { .. } if child > 0 => {
                 return Ok(!static_code_selector(
                     program,
@@ -920,7 +921,7 @@ fn operations(
                                 SemanticEmissionRole::Ascription,
                             ))
                         }
-                        s::ExprKind::Call { .. } => Some((
+                        s::ExprKind::Call { .. } | s::ExprKind::Pipeline { .. } => Some((
                             SemanticSiteRecipeKind::OriginalCall,
                             Action::BodyCall,
                             SemanticEmissionRole::Call,

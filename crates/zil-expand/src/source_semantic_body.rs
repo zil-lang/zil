@@ -941,10 +941,33 @@ impl Builder<'_, '_, '_, '_> {
             s::ExprKind::Pipeline { input, target } => {
                 let input = self.body_child_expr(input, 0, mint, path, depth + 1)?;
                 let target = self.body_child_expr(target, 1, mint, path, depth + 1)?;
-                CoreExprKind::Pipeline {
-                    input: self.body_box(input, span)?,
-                    target: self.body_box(target, span)?,
-                }
+                self.budget.lineage_bytes(32, span)?;
+                let name = format!("$pipe_input_{}", id.0);
+                let argument = CoreExpr {
+                    id: self.body_generated_id(mint, input.span, depth + 1)?,
+                    kind: CoreExprKind::Name(self.text(&name, input.span)?),
+                    span: input.span,
+                };
+                let mut arguments = Vec::new();
+                self.push(&mut arguments, argument, span)?;
+                let call = CoreExpr {
+                    id,
+                    kind: CoreExprKind::Call {
+                        callee: self.body_box(target, span)?,
+                        arguments,
+                    },
+                    span,
+                };
+                let mut bindings = Vec::new();
+                self.push(&mut bindings, (name, input), span)?;
+                return Ok(CoreExpr {
+                    id: self.body_generated_id(mint, span, depth + 1)?,
+                    kind: CoreExprKind::Sequence {
+                        bindings,
+                        value: self.body_box(call, span)?,
+                    },
+                    span,
+                });
             }
             s::ExprKind::Name(name) => CoreExprKind::Name(self.text(name, span)?),
             s::ExprKind::ReceiverMember(name) => {

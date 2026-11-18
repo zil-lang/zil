@@ -137,6 +137,7 @@ pub fn discover_tests(path: &Path, options: &CompileOptions) -> CompileResult<Ve
 }
 
 pub(super) fn artifact_candidate(source: &SourceUnit, parsed: &ParseResult) -> bool {
+    use zil_syntax::token::{Symbol, TokenKind};
     let standard = parsed.module.items.iter().any(|item| {
         matches!(&item.kind,
         ast::ItemKind::Import(import) if matches!(import.path.as_slice(),
@@ -158,17 +159,21 @@ pub(super) fn artifact_candidate(source: &SourceUnit, parsed: &ParseResult) -> b
         .tokens
         .iter()
         .any(|token| token.text(&source.text) == "#");
+    let mut after_hash = false;
     standard
         || runtime_generic_ct
         || static_namespace_ct
         || parsed.type_meta_candidate
-        || parsed.tokens.iter().any(|token| {
-            token.kind == zil_syntax::token::TokenKind::Identifier
-                && matches!(
-                    token.text(&source.text),
-                    "Type" | "Syntax" | "Ident" | "quote" | "splice" | "emit"
-                )
-                || token.text(&source.text) == "const"
+        || parsed.tokens.iter().filter(|token| !token.is_trivia()).any(|token| {
+            let hash = std::mem::replace(&mut after_hash, token.kind == TokenKind::Symbol(Symbol::Hash));
+            if token.kind != TokenKind::Identifier {
+                return false;
+            }
+            match token.text(&source.text) {
+                "emit" | "splice" => hash,
+                "Type" | "Syntax" | "Ident" | "quote" | "const" => true,
+                _ => false,
+            }
         })
 }
 
