@@ -347,7 +347,7 @@ pub(super) fn inline_hold_source(
             mutable: false,
             inner,
         } => actual == inner.as_ref(),
-        Type::Desc(inner) if budget.shared_byte_borrow && inner.as_ref() == &Type::ByteBuffer => {
+        Type::Desc(inner) if budget.byte_borrow && inner.as_ref() == &Type::ByteBuffer => {
             matches!(actual,Type::Managed(payload) if payload.as_ref()==&Type::ByteBuffer)
         }
         _ => false,
@@ -385,7 +385,7 @@ pub(super) fn option_byte_hold_source(
     expected: &Type,
     budget: &mut Budget,
 ) -> CompileResult<bool> {
-    if !budget.shared_byte_borrow || !owned_byte_views::hold_type(expected) {
+    if !budget.byte_borrow || !owned_byte_views::hold_type(expected) {
         return Ok(false);
     }
     let count = budget.store_option_byte_holds.len();
@@ -5758,7 +5758,7 @@ fn transfer(
             fee(b, description.loans.len())?;
             out.pointer.loans.extend(&description.loans);
         }
-        InstructionKind::ByteBufferBorrow { mutable: false, .. } => {
+        InstructionKind::ByteBufferBorrow { .. } => {
             out.pointer = owned_byte_views::transfer(module, f, i, values, b)?;
             // The byte kernel's target is the owning manager anchor. When
             // that manager is an actual environment field, its view also
@@ -7976,7 +7976,7 @@ fn windows(
     }
     // Reuse the exact readonly site inventory already used by this window
     // check. Empty/non-byte functions do no extra value scan or proof work.
-    if b.store_option_results && b.shared_byte_borrow && !owned_byte_sites.is_empty() {
+    if b.store_option_results && b.byte_borrow && !owned_byte_sites.is_empty() {
         for (id, value) in values.iter().enumerate() {
             fee(b, 1)?;
             if owned_byte_views::hold_type(&f.values[id])
@@ -8238,7 +8238,7 @@ fn derive_cfg(
                     }
                 }
                 if b.store_option_results
-                    && b.shared_byte_borrow
+                    && b.byte_borrow
                     && matches!(&f.values[id], Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
                 {
                     for target in &value.store_description.targets {
@@ -9226,7 +9226,7 @@ pub(super) fn infer(
         .store_option_results
         .then(|| Vec::with_capacity(facts.len()));
     for (index, function) in facts.into_iter().enumerate() {
-        if b.store_option_results && b.shared_byte_borrow {
+        if b.store_option_results && b.byte_borrow {
             for value in &function.byte_view_values {
                 let count = b.store_option_byte_holds.len();
                 ordered(b, count, 0)?;

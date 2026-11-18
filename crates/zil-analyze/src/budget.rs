@@ -247,7 +247,7 @@ pub(super) struct Budget {
     pub(super) array_outer_functions: Vec<zil_ir::FunctionId>,
     pub(super) byte_queries: bool,
     // Presence schedules proof; heads contain only immutable actual IR.
-    pub(super) shared_byte_borrow: bool,
+    pub(super) byte_borrow: bool,
     pub(super) owned_byte_heads: Option<crate::stored_flow::owned_byte_views::Heads>,
     pub(super) byte_query_presence_checked: bool,
     pub(super) byte_query_functions: Vec<bool>,
@@ -429,7 +429,7 @@ impl Budget {
             qualified_package_returns: false,
             array_outer_functions: Vec::new(),
             byte_queries: false,
-            shared_byte_borrow: false,
+            byte_borrow: false,
             owned_byte_heads: None,
             byte_query_presence_checked: false,
             byte_query_functions: Vec::new(),
@@ -2880,9 +2880,9 @@ pub(super) fn preflight(
                     InstructionKind::ByteBufferLen { .. }
                         | InstructionKind::ByteBufferCapacity { .. }
                 );
-                budget.shared_byte_borrow |= matches!(
+                budget.byte_borrow |= matches!(
                     instruction.kind,
-                    InstructionKind::ByteBufferBorrow { mutable: false, .. }
+                    InstructionKind::ByteBufferBorrow { .. }
                 );
                 match &instruction.kind {
                     InstructionKind::AsyncRegistrationStart {

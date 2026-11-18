@@ -6,7 +6,7 @@ use zil_base::Span;
 fn closed(span: Span) -> Vec<Diagnostic> {
     vec![Diagnostic::unsupported(
         Phase::Analyze,
-        "stored byte view requires an independently grounded ByteBuffer head and a synchronous read consumer",
+        "stored byte view requires an independently grounded ByteBuffer head and a synchronous consumer",
         Some(span),
     )]
 }
@@ -179,7 +179,7 @@ pub(super) fn description_instruction(
 ) -> CompileResult<bool> {
     // The Option lane already authenticates this operation independently.
     // A metadata-only description must not start an owned-view inventory.
-    if !b.shared_byte_borrow || b.store_option_results {
+    if !b.byte_borrow || b.store_option_results {
         return Ok(false);
     }
     if !matches!(i.kind, InstructionKind::DescribePackageField { .. }) {
@@ -201,23 +201,23 @@ pub(super) fn instruction(
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    let InstructionKind::ByteBufferBorrow {
-        buffer,
-        mutable: false,
-    } = i.kind
-    else {
+    let InstructionKind::ByteBufferBorrow { buffer, mutable } = i.kind else {
         return Ok(false);
     };
     fee(b, 4)?;
     let result = i.result.ok_or_else(|| failure("byte view has no result"))?;
-    if !matches!(value_type(f, result)?, Type::Address { mutable: false, inner }
-        if matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8))
+    if !matches!(value_type(f, result)?, Type::Address { mutable: actual, inner }
+        if *actual == mutable
+            && matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8))
     {
-        return Err(failure(
-            "byte view must produce an actual shared byte slice",
-        ));
+        return Err(failure("byte view must produce its exact byte slice mode"));
     }
-    selection(module, f, buffer, i.span, b)?;
+    if let Head::Address(address) = selection(module, f, buffer, i.span, b)?
+        && mutable
+        && !matches!(value_type(f, address)?, Type::Address { mutable: true, .. })
+    {
+        return Err(failure("exclusive byte view cannot strengthen a shared manager address"));
+    }
     Ok(true)
 }
 
@@ -271,11 +271,7 @@ pub(super) fn transfer(
     values: &[Value],
     b: &mut Budget,
 ) -> CompileResult<Permission> {
-    let InstructionKind::ByteBufferBorrow {
-        buffer,
-        mutable: false,
-    } = i.kind
-    else {
+    let InstructionKind::ByteBufferBorrow { buffer, .. } = i.kind else {
         return Err(closed(i.span));
     };
     // An address/heap head retains exactly its actual manager/element route
@@ -311,7 +307,7 @@ pub(super) fn seed_description(
 /// Select only the new pure-stored ByteBuffer family. This is scheduling;
 /// executable sources and every ownership epoch are checked independently.
 pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> CompileResult<bool> {
-    if !b.shared_byte_borrow {
+    if !b.byte_borrow {
         return Ok(false);
     }
     fee(b, module.functions.len())?;
@@ -376,7 +372,7 @@ pub(super) fn drop_package(
     local: LocalId,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    if !b.shared_byte_borrow {
+    if !b.byte_borrow {
         return Ok(false);
     }
     let ty = &f
@@ -514,7 +510,7 @@ impl Sites {
     pub(super) fn collect(f: &TypedFunction, b: &mut Budget) -> CompileResult<Self> {
         // Actual ByteBufferBorrow admission always reconstructs its head
         // before the solver/window pass; an unrelated ordinary view does not.
-        if !b.shared_byte_borrow || b.owned_byte_heads.is_none() {
+        if !b.byte_borrow || b.owned_byte_heads.is_none() {
             return Ok(Self {
                 ids: BTreeSet::new(),
             });
@@ -711,17 +707,11 @@ impl Sites {
             }
         }
         let access = match i.kind {
-            InstructionKind::ByteBufferBorrow {
-                buffer,
-                mutable: false,
-            } => Some((buffer, false)),
+            InstructionKind::ByteBufferBorrow { buffer, mutable } => Some((buffer, mutable)),
             InstructionKind::ByteBufferReserve { buffer, .. }
             | InstructionKind::ByteBufferPush { buffer, .. }
             | InstructionKind::ByteBufferTruncate { buffer, .. }
-            | InstructionKind::ByteBufferBorrow {
-                buffer,
-                mutable: true,
-            } if self.active(active, b)? => Some((buffer, true)),
+                if self.active(active, b)? => Some((buffer, true)),
             _ => None,
         };
         if let Some((buffer, write)) = access {
@@ -730,6 +720,16 @@ impl Sites {
                 return Err(failure(
                     "byte view access has no independently grounded actual byte head",
                 ));
+            }
+            if write {
+                for parent in ancestry(&actual.loans, loans, b)? {
+                    fee(b, 1)?;
+                    if !loans.get(parent).is_some_and(|loan| loan.mutable) {
+                        return Err(failure(
+                            "byte view write authority is limited by its actual shared parent loan",
+                        ));
+                    }
+                }
             }
             use_permission(&actual, write, active, loans, apart, b)?;
         }

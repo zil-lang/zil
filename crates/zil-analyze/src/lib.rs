@@ -449,7 +449,7 @@ fn analyze_budgeted_context(
                         budget.spend(stored.roots.len(), "qualified actual Hold copy")?;
                         actual_holds[index][value] = stored.clone();
                     } else if (matches!(ty, Type::Address { mutable: false, .. })
-                        || (budget.shared_byte_borrow
+                        || (budget.byte_borrow
                             && matches!(ty, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)))
                         && stored.roots != actual_holds[index][value].roots
                     {
