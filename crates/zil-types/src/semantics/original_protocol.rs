@@ -2564,17 +2564,25 @@ impl<'a> Engine<'a, '_> {
                     Ok(Value::Fields(out))
                 }
                 CoreExprKind::RecordUpdate { base, fields, .. } => {
-                    let value = self.expr(owner, base, state, depth + 1)?;
+                    let mut value = self.expr(owner, base, state, depth + 1)?;
                     if !state.reachable {
                         return Ok(Value::Plain);
+                    }
+                    let ty = self.query_type(owner, Query::Expression(base.id), depth + 1)?
+                        .ok_or_else(|| failure("original record update has no solved base type"))?;
+                    // Ordinary Copy parameters and results can carry Plain in
+                    // the cleanup engine. Reconstruct their declaration shape
+                    // without adding ownership identities or permissions.
+                    if matches!(value, Value::Plain)
+                        && self.category(owner, &ty, depth + 1)? == cleanup::Category::Copy
+                    {
+                        value = self.plain_value(owner, &ty, depth + 1)?;
                     }
                     if !matches!(value, Value::Fields(_)) {
                         return Err(pending(
                             "original record update requires the complete base field inventory",
                         ));
                     }
-                    let ty = self.query_type(owner, Query::Expression(base.id), depth + 1)?
-                        .ok_or_else(|| failure("original record update has no solved base type"))?;
                     let order = self.product_fields(owner, &ty, depth + 1)?
                         .ok_or_else(|| failure("original record update loses its declared field order"))?;
                     self.pay(1, depth)?;
