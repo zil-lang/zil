@@ -457,6 +457,38 @@ pub(super) fn value(ty: &Type, b: &mut Budget) -> Check<bool> {
     Ok(false)
 }
 
+/// A direct body call already checks each exact address argument and exports
+/// its actual returned sources through the common call/loan kernel. This
+/// admission is limited to its address operand, never the enclosing payload.
+fn direct_address_argument(
+    module: &TypedModule,
+    caller: &TypedFunction,
+    operation: &InstructionKind,
+    actual: ValueId,
+    b: &mut Budget,
+) -> Check<bool> {
+    let InstructionKind::Call { function, arguments } = operation else { return Ok(false); };
+    let target = module.functions.get(function.0 as usize)
+        .filter(|target| target.id == *function && target.call_kind == CallKind::Direct
+            && target.environment.is_none() && target.foreign.is_none())
+        .ok_or_else(|| err("byte view direct transfer has no exact ordinary callee"))?;
+    let ty = vt(caller, actual)?;
+    if !matches!(ty, Type::Address { .. }) || arguments.len() != target.parameters.len() {
+        return Ok(false);
+    }
+    b.spend(arguments.len())?;
+    let mut found = false;
+    for (arg, local) in arguments.iter().zip(&target.parameters) {
+        if *arg == actual {
+            if target.locals.get(local.0 as usize).is_none_or(|local| &local.ty != ty) {
+                return Ok(false);
+            }
+            found = true;
+        }
+    }
+    Ok(found)
+}
+
 pub(super) struct Sites {
     values: Vec<usize>,
 }
@@ -668,6 +700,11 @@ impl Sites {
                     "byte view boundary input has no complete actual pointer/description source",
                 ));
             }
+            if self.carried(&value.address, loans, b)?
+                && direct_address_argument(module, f, &i.kind, input, b)?
+            {
+                continue;
+            }
             self.boundary_payload(value, &live, loans, requirements, i.span, b)?;
             if let Type::Address { inner, .. } = ty
                 && let Some(id) = returned_environment::closure(inner)
@@ -831,6 +868,7 @@ impl Sites {
             };
             if !ordinary_local
                 && !noescape_call
+                && !direct_address_argument(module, f, &i.kind, input, b)?
                 && !matches!(
                     i.kind,
                     InstructionKind::AddressIndex { .. }
