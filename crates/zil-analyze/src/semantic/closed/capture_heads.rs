@@ -101,6 +101,72 @@ impl Check<'_, '_> {
         found.ok_or_else(|| fail("implicit capture operand has no actual definition"))
     }
 
+    fn implicit_record_observation(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        recipe: &SemanticSiteRecipe,
+        value: ValueId,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let SemanticSiteRecipeKind::TypeUse {
+            expected: expected @ SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0),
+                source: SemanticOriginalTypeSource::Expression(node),
+            },
+        } = &recipe.kind else {
+            return Err(fail("implicit record observation needs its exact original expression"));
+        };
+        let original = self.inventory.original_index(instance.definition, b)?;
+        let mut expression = original.get_expr(*node, b)?;
+        let mut physical = value;
+        loop {
+            b.spend(1, WORK)?;
+            match &expression.kind {
+                CoreExprKind::Group(child) => expression = child,
+                CoreExprKind::Member { object, member, .. } => {
+                    let at = self.definition_at(function, physical, b)?;
+                    let InstructionKind::ExtractField { aggregate, index } =
+                        self.instruction(function, physical, b)?
+                    else {
+                        return Err(fail("implicit record observation changes its exact field operation"));
+                    };
+                    operations::available_before(function, at, *aggregate, b)?;
+                    let Some(Type::Record { fields, .. }) = function.values.get(aggregate.0 as usize)
+                    else {
+                        return Err(unknown("implicit record observation needs a complete inline record"));
+                    };
+                    let (name, _) = fields.get(*index as usize)
+                        .ok_or_else(|| fail("implicit record observation has no actual field"))?;
+                    b.spend(member.len().saturating_add(name.len()), WORK)?;
+                    if name != member {
+                        return Err(fail("implicit record observation changes its original field"));
+                    }
+                    expression = object;
+                    physical = *aggregate;
+                }
+                CoreExprKind::Name(_) => break,
+                _ => return Err(unknown("implicit record observation needs its exact lexical owner")),
+            }
+        }
+        let anchor = self.original.local_read_anchor(instance.definition, expression.id, b)?
+            .ok_or_else(|| unknown("implicit record observation needs its exact local binding"))?;
+        let InstructionKind::Load(local) = self.instruction(function, physical, b)? else {
+            return Err(fail("implicit record observation changes its original local read"));
+        };
+        if self.anchored_local(instance, function, anchor, b)? != *local {
+            return Err(fail("implicit record observation selects another lexical owner"));
+        }
+        let expected = self.recipe_value(instance, expected, b, 0)?;
+        let actual = self.ssa_value(instance, function, value, b, 0)?;
+        if !expected.ty.is_b0_scalar() || !empty(&expected.life) || !expected.classes.is_empty()
+            || !actual.equal_paid(&expected, b)?
+        {
+            return Err(unknown("implicit record observation needs its complete scalar selected value"));
+        }
+        Ok(())
+    }
+
     fn captured_read(
         &self,
         function: &TypedFunction,
@@ -385,6 +451,9 @@ impl Check<'_, '_> {
                                 value,
                                 b,
                             )?;
+                        }
+                        InstructionKind::ExtractField { .. } => {
+                            self.implicit_record_observation(instance, function, recipe, value, b)?;
                         }
                         InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                             if let Some(anchor) =

@@ -353,8 +353,17 @@ impl Checked {
                 source: SemanticOriginalTypeSource::Expression(node),
             },
         } = &recipe.kind else { return Ok(None); };
+        self.local_read_anchor(definition, *node, b)
+    }
+
+    pub(in crate::semantic) fn local_read_anchor(
+        &self,
+        definition: SemanticDefinitionId,
+        node: NodeId,
+        b: &mut Budget,
+    ) -> CompileResult<Option<LocalAnchor>> {
         b.lookup(self.local_reads.len(), WORK)?;
-        Ok(self.local_reads.get(&(definition, *node)).copied())
+        Ok(self.local_reads.get(&(definition, node)).copied())
     }
 
     /// The original Γ selected this environment slot at the actual Name
