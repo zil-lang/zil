@@ -127,6 +127,13 @@ impl State {
             .saturating_add(before.saturating_sub(*world.left));
         Ok(state)
     }
+    fn matches_entry(&self, other: &Self, world: &mut World<'_, '_>) -> R<bool> {
+        let before = *world.left;
+        let result = self.same(other, world);
+        world.comparisons = world.comparisons.saturating_add(1);
+        world.compare_work = world.compare_work.saturating_add(before.saturating_sub(*world.left));
+        result
+    }
     fn same(&self, other: &Self, world: &mut World<'_, '_>) -> R<bool> {
         world.pay(2)?;
         if self.schema != other.schema || self.instance != other.instance {
@@ -458,6 +465,12 @@ impl LiveMetadata {
 }
 impl State {
     fn canonicalize(&mut self, world: &mut World<'_, '_>) -> R<()> {
+        // Only these three directories are retired by this pass. Scalar-only
+        // worlds need no live metadata graph.
+        world.pay(1)?;
+        if self.implicit.is_empty() && self.reborrows.is_empty() && self.value_roots.is_empty() {
+            return Ok(());
+        }
         let mut live = LiveMetadata {
             values: LiveValues::new(world, self.values.len())?,
             ..LiveMetadata::default()
@@ -582,6 +595,12 @@ impl State {
             .retired_metadata
             .saturating_add(before.saturating_sub(after));
         Ok(())
+    }
+    fn measured_key(&self, world: &mut World<'_, '_>, domains: &mut DomainDigests) -> R<zil_base::Fingerprint> {
+        let before = *world.left;
+        let result = self.key(world, domains);
+        world.key_work = world.key_work.saturating_add(before.saturating_sub(*world.left));
+        result
     }
     fn key(
         &self,
@@ -924,13 +943,37 @@ fn same_value_domain(left: &SemanticTypeValue, right: &SemanticTypeValue) -> R<b
     };
     Ok(left_life == right_life && left_classes == right_classes)
 }
+// Block ordinals index only this immutable function. Dense rows make both
+// dominance intersections and reachability lookups independent of block IDs.
+#[derive(Clone, PartialEq, Eq)]
+struct BlockSet(Vec<u64>);
+
+impl BlockSet {
+    fn empty(count: usize) -> Self {
+        Self(vec![0; count.div_ceil(64)])
+    }
+
+    fn insert(&mut self, ordinal: usize) -> bool {
+        let mask = 1u64 << (ordinal % 64);
+        let word = &mut self.0[ordinal / 64];
+        let fresh = *word & mask == 0;
+        *word |= mask;
+        fresh
+    }
+
+    fn contains(&self, ordinal: usize) -> bool {
+        self.0[ordinal / 64] & (1u64 << (ordinal % 64)) != 0
+    }
+}
+
 pub(super) struct Shape {
     source: usize,
     schema: FunctionId,
     blocks: BTreeMap<BlockId, usize>,
     definitions: Vec<(usize, usize)>,
-    dominators: Vec<BTreeSet<usize>>,
-    reachable_from: Vec<BTreeSet<usize>>,
+    dominators: Vec<BlockSet>,
+    reachable_from: Vec<BlockSet>,
+    predecessors: Vec<Vec<usize>>,
 }
 impl Shape {
     pub(super) fn producer<'a>(
@@ -949,32 +992,48 @@ impl Shape {
         Ok((block.id, ordinal, &block.instructions[ordinal]))
     }
 
-    pub(super) fn entry_reaches(
-        &self,
-        world: &mut World<'_, '_>,
-        function: &TypedFunction,
-        target: BlockId,
-    ) -> R<bool> {
-        world.pay(
-            index::search(self.blocks.len())
-                .saturating_mul(2)
-                .saturating_add(1),
-        )?;
+    /// Look up a real program point and its reachable incoming edges in the
+    /// same immutable body used to build the SSA directory.
+    pub(super) fn block_and_predecessors<'f>(
+        &self, world: &mut World<'_, '_>, function: &'f TypedFunction, block: BlockId,
+    ) -> R<(&'f BasicBlock, &[usize])> {
+        world.pay(index::search(self.blocks.len()).saturating_add(1))?;
         if self.source != function as *const TypedFunction as usize || self.schema != function.id {
-            return Err(bad(
-                "capture source query changes its complete immutable CFG",
-            ));
+            return Err(bad("capture source query changes its complete immutable CFG"));
         }
-        let entry = *self
-            .blocks
-            .get(&function.entry)
-            .ok_or_else(|| bad("capture source CFG has no entry"))?;
-        let target = *self
-            .blocks
-            .get(&target)
-            .ok_or_else(|| bad("capture source CFG block is absent"))?;
-        world.pay(index::search(self.reachable_from[entry].len()))?;
-        Ok(entry == target || self.reachable_from[entry].contains(&target))
+        let index = *self.blocks.get(&block)
+            .ok_or_else(|| bad("capture read reaches an absent actual block"))?;
+        Ok((&function.blocks[index], &self.predecessors[index]))
+    }
+
+    pub(super) fn for_function(world: &mut World<'_, '_>, function: &TypedFunction) -> R<Rc<Self>> {
+        world.pay(index::search(world.cfg_shapes.len()).saturating_add(1))?;
+        let cached = world.cfg_shapes.get(&function.id).cloned();
+        let shape = if let Some(shape) = cached {
+            if shape.source != function as *const TypedFunction as usize {
+                return Err(bad(
+                    "immutable CFG structure changed its actual function owner",
+                ));
+            }
+            shape
+        } else {
+            if world.cfg_shapes.len() >= world.limits.max_functions {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "immutable CFG structure directory exceeded",
+                    None,
+                ));
+            }
+            let shape = Rc::new(Cfg::build(world, function)?);
+            world.pay(
+                index::search(world.cfg_shapes.len())
+                    .saturating_add(std::mem::size_of::<(FunctionId, Rc<Shape>)>())
+                    .saturating_add(1),
+            )?;
+            world.cfg_shapes.insert(function.id, shape.clone());
+            shape
+        };
+        Ok(shape)
     }
 }
 pub(super) struct Cfg {
@@ -1000,32 +1059,7 @@ impl Cfg {
         {
             return Err(bad("class CFG changes its exact original instance target"));
         }
-        world.pay(index::search(world.cfg_shapes.len()).saturating_add(1))?;
-        let cached = world.cfg_shapes.get(&function.id).cloned();
-        let shape = if let Some(shape) = cached {
-            if shape.source != function as *const TypedFunction as usize {
-                return Err(bad(
-                    "immutable CFG structure changed its actual function owner",
-                ));
-            }
-            shape
-        } else {
-            if world.cfg_shapes.len() >= world.limits.max_functions {
-                return Err(Diagnostic::limit(
-                    Phase::Types,
-                    "immutable CFG structure directory exceeded",
-                    None,
-                ));
-            }
-            let shape = Rc::new(Self::build(world, function)?);
-            world.pay(
-                index::search(world.cfg_shapes.len())
-                    .saturating_add(std::mem::size_of::<(FunctionId, Rc<Shape>)>())
-                    .saturating_add(1),
-            )?;
-            world.cfg_shapes.insert(function.id, shape.clone());
-            shape
-        };
+        let shape = Shape::for_function(world, function)?;
         // These are fresh for each actual instance: no seen state, live root,
         // ticket, domain equation or protocol outcome crosses this boundary.
         world.pay(function.blocks.len().saturating_add(2))?;
@@ -1041,13 +1075,8 @@ impl Cfg {
     fn build(world: &mut World<'_, '_>, function: &TypedFunction) -> R<Shape> {
         let schema = function.id;
         let count = function.blocks.len();
-        world.pay(
-            count
-                .saturating_mul(count)
-                .saturating_mul(3)
-                .saturating_add(function.values.len())
-                .saturating_add(count),
-        )?;
+        let words = count.div_ceil(64);
+        world.pay(count.saturating_mul(5).saturating_add(function.values.len()))?;
         let mut blocks = BTreeMap::new();
         let missing = (usize::MAX, usize::MAX);
         let mut definitions = vec![missing; function.values.len()];
@@ -1095,42 +1124,56 @@ impl Cfg {
                 successors[index].push(target);
             }
         }
-        let mut reachable = BTreeSet::new();
-        let mut work = vec![entry];
-        while let Some(index) = work.pop() {
-            world.pay(successors[index].len().saturating_add(1))?;
-            if reachable.insert(index) {
-                work.extend(successors[index].iter().copied());
+        // Record reachable nodes at discovery, visiting each adjacency list
+        // once. Rows contain actual CFG edges only (including self reach).
+        world.pay(count.saturating_mul(words.saturating_add(1)))?;
+        let mut reachable_from = Vec::with_capacity(count);
+        for start in 0..count {
+            let mut reached = BlockSet::empty(count);
+            reached.insert(start);
+            let mut pending = vec![start];
+            while let Some(block) = pending.pop() {
+                world.pay(successors[block].len().saturating_mul(2).saturating_add(1))?;
+                for &next in &successors[block] {
+                    if reached.insert(next) {
+                        pending.push(next);
+                    }
+                }
             }
+            reachable_from.push(reached);
         }
-        let mut dominators = vec![BTreeSet::new(); count];
-        for index in &reachable {
-            world.pay(reachable.len())?;
-            dominators[*index] = if *index == entry {
-                BTreeSet::from([entry])
-            } else {
+
+        let reachable = &reachable_from[entry];
+        world.pay(count.saturating_mul(words.saturating_add(1)))?;
+        let mut dominators: Vec<_> = (0..count).map(|block| {
+            if block != entry && reachable.contains(block) {
                 reachable.clone()
-            };
-        }
+            } else {
+                BlockSet::empty(count)
+            }
+        }).collect();
+        dominators[entry].insert(entry);
         loop {
             let mut changed = false;
-            for index in &reachable {
-                if *index == entry {
+            world.pay(count)?;
+            for block in 0..count {
+                if block == entry || !reachable.contains(block) {
                     continue;
                 }
-                world.pay(reachable.len())?;
+                world.pay(words.saturating_add(predecessors[block].len()))?;
                 let mut common = reachable.clone();
-                for predecessor in &predecessors[*index] {
-                    if !reachable.contains(predecessor) {
-                        continue;
+                for &predecessor in &predecessors[block] {
+                    if reachable.contains(predecessor) {
+                        world.pay(words)?;
+                        for (bits, incoming) in common.0.iter_mut().zip(&dominators[predecessor].0) {
+                            *bits &= *incoming;
+                        }
                     }
-                    world.pay(common.len())?;
-                    common.retain(|value| dominators[*predecessor].contains(value));
                 }
-                common.insert(*index);
-                world.pay(common.len().saturating_add(dominators[*index].len()))?;
-                if common != dominators[*index] {
-                    dominators[*index] = common;
+                common.insert(block);
+                world.pay(words.saturating_add(1))?;
+                if common != dominators[block] {
+                    dominators[block] = common;
                     changed = true;
                 }
             }
@@ -1138,19 +1181,12 @@ impl Cfg {
                 break;
             }
         }
-        let mut reachable_from = Vec::with_capacity(count);
-        for start in 0..count {
-            let mut reached = BTreeSet::new();
-            let mut pending = vec![start];
-            while let Some(block) = pending.pop() {
-                world.pay(successors[block].len().saturating_add(1))?;
-                if reached.insert(block) {
-                    pending.extend(successors[block].iter().copied());
-                }
-            }
-            reachable_from.push(reached);
+        for incoming in &mut predecessors {
+            world.pay(incoming.len().saturating_add(1))?;
+            incoming.retain(|ordinal| reachable.contains(*ordinal));
         }
         Ok(Shape {
+            predecessors,
             source: function as *const TypedFunction as usize,
             schema,
             blocks,
@@ -1167,7 +1203,7 @@ impl Cfg {
     }
     pub fn retain_dominating<T>(&self, index: usize, values: &mut [Option<T>]) {
         for (value, (definition, _)) in values.iter_mut().zip(&self.definitions) {
-            if *definition == index || !self.dominators[index].contains(definition) {
+            if *definition == index || !self.dominators[index].contains(*definition) {
                 *value = None;
             }
         }
@@ -1365,8 +1401,8 @@ impl Cfg {
                 .definitions
                 .get(id.0 as usize)
                 .ok_or_else(|| bad("loop role source selects an absent SSA occurrence"))?;
-            return Ok(self.reachable_from[entry].contains(&definition)
-                && self.reachable_from[definition].contains(&entry));
+            return Ok(self.reachable_from[entry].contains(definition)
+                && self.reachable_from[definition].contains(entry));
         }
         Ok(false)
     }
@@ -1393,8 +1429,8 @@ impl Cfg {
         // producer. Its public SSA spelling cannot make the two epochs equal.
         // Mark the occupant, not the spelling: replacement clears this mark.
         if source.is_some_and(|source| {
-            self.reachable_from[index].contains(&source)
-                && (self.dominators[source].contains(&index) || index <= source)
+            self.reachable_from[index].contains(source)
+                && (self.dominators[source].contains(index) || index <= source)
         }) {
             for (ordinal, value) in state.locals.iter().enumerate() {
                 world.pay(index::search(state.role_sources.len()).saturating_add(1))?;
@@ -1436,7 +1472,7 @@ impl Cfg {
         // In particular a previous loop iteration cannot initialize this
         // iteration's SSA, and a sibling branch cannot donate a same-numbered value.
         for (value, (definition, _)) in state.values.iter_mut().zip(&self.definitions) {
-            if *definition == index || !self.dominators[index].contains(definition) {
+            if *definition == index || !self.dominators[index].contains(*definition) {
                 *value = None;
             }
         }
@@ -1458,31 +1494,42 @@ impl Cfg {
             .canonical_work
             .saturating_add(before.saturating_sub(*world.left));
         canonical?;
-        let before = *world.left;
-        let key = state.key(world, &mut self.domains);
-        world.key_work = world
-            .key_work
-            .saturating_add(before.saturating_sub(*world.left));
-        let key = key?;
-        world.pay(index::search(self.seen[index].len()))?;
-        if let Some(candidates) = self.seen[index].get(&key) {
-            world.pay(candidates.len())?;
-            for ordinal in candidates {
-                world.comparisons = world.comparisons.saturating_add(1);
-                let before = *world.left;
-                let checked = state.same(&reaching[index][*ordinal], world);
-                world.compare_work = world
-                    .compare_work
-                    .saturating_add(before.saturating_sub(*world.left));
-                if checked? {
+        // Most blocks receive a single world. Keep small frontiers as exact
+        // states and build a digest directory only when comparisons fan out.
+        // Even a digest hit always compares the complete live state.
+        const INLINE_WORLDS: usize = 4;
+        let previous = &mut reaching[index];
+        let ordinal = previous.len();
+        if ordinal < INLINE_WORLDS {
+            for other in previous.iter() {
+                if state.matches_entry(other, world)? {
                     return Ok(());
                 }
             }
+        } else {
+            let directory = &mut self.seen[index];
+            if directory.is_empty() {
+                for (offset, other) in previous.iter().enumerate() {
+                    let key = other.measured_key(world, &mut self.domains)?;
+                    world.pay(index::search(directory.len()).saturating_add(2))?;
+                    directory.entry(key).or_default().push(offset);
+                }
+            }
+            let key = state.measured_key(world, &mut self.domains)?;
+            world.pay(index::search(directory.len()))?;
+            if let Some(candidates) = directory.get(&key) {
+                world.pay(candidates.len())?;
+                for &offset in candidates {
+                    if state.matches_entry(&previous[offset], world)? {
+                        return Ok(());
+                    }
+                }
+            }
+            world.pay(index::search(directory.len()).saturating_add(2))?;
+            directory.entry(key).or_default().push(ordinal);
         }
-        world.pay(index::search(self.seen[index].len()).saturating_add(2))?;
-        let ordinal = reaching[index].len();
-        reaching[index].push(state);
-        self.seen[index].entry(key).or_default().push(ordinal);
+        world.pay(2)?;
+        previous.push(state);
         work.push_back((index, ordinal));
         Ok(())
     }

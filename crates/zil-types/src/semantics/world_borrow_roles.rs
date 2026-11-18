@@ -16,19 +16,9 @@ pub(super) fn producer<'f>(
     function: &'f TypedFunction,
     value: ValueId,
 ) -> R<(&'f InstructionKind, BlockId, usize)> {
-    world.pay(function.blocks.len())?;
-    let mut result = None;
-    for block in &function.blocks {
-        world.pay(block.instructions.len())?;
-        for (index, operation) in block.instructions.iter().enumerate() {
-            if operation.result == Some(value)
-                && result.replace((&operation.kind, block.id, index)).is_some()
-            {
-                return Err(bad("projected loan SSA has multiple actual producers"));
-            }
-        }
-    }
-    result.ok_or_else(|| bad("projected loan SSA has no actual producer"))
+    let shape = flow::Shape::for_function(world, function)?;
+    let (block, ordinal, operation) = shape.producer(world, function, value)?;
+    Ok((&operation.kind, block, ordinal))
 }
 fn transparent(
     world: &mut World<'_, '_>,
@@ -73,12 +63,7 @@ fn reaching_values_inner(
     at: (BlockId, usize),
     require_unaliased_writes: bool,
 ) -> R<Vec<ActivationSource>> {
-    world.pay(index::search(world.cfg_shapes.len()).saturating_add(1))?;
-    let shape = world
-        .cfg_shapes
-        .get(&function.id)
-        .cloned()
-        .ok_or_else(|| bad("capture source query lacks its checked immutable CFG"))?;
+    let shape = flow::Shape::for_function(world, function)?;
     let mut pending = vec![at];
     let mut seen = std::collections::BTreeSet::new();
     let mut values = std::collections::BTreeSet::new();
@@ -94,12 +79,7 @@ fn reaching_values_inner(
                 None,
             ));
         }
-        world.pay(function.blocks.len())?;
-        let body = function
-            .blocks
-            .iter()
-            .find(|row| row.id == block)
-            .ok_or_else(|| bad("capture read reaches an absent actual block"))?;
+        let (body, predecessors) = shape.block_and_predecessors(world, function, block)?;
         if before > body.instructions.len() {
             return Err(bad(
                 "capture read leaves its exact actual instruction boundary",
@@ -151,24 +131,12 @@ fn reaching_values_inner(
             values.insert(value);
             continue;
         }
-        let mut predecessor = false;
-        for parent in &function.blocks {
-            world.pay(1)?;
-            let reaches = match parent.terminator {
-                Terminator::Jump(target) => target == block,
-                Terminator::Branch {
-                    then_block,
-                    else_block,
-                    ..
-                } => then_block == block || else_block == block,
-                _ => false,
-            };
-            if reaches && shape.entry_reaches(world, function, parent.id)? {
-                pending.push((parent.id, parent.instructions.len()));
-                predecessor = true;
-            }
+        world.pay(predecessors.len())?;
+        for &predecessor in predecessors {
+            let parent = &function.blocks[predecessor];
+            pending.push((parent.id, parent.instructions.len()));
         }
-        if !predecessor {
+        if predecessors.is_empty() {
             return Err(bad(
                 "capture alias reaches entry without its actual initialization",
             ));
@@ -426,12 +394,9 @@ fn binding_source_local(
     source: &SemanticOriginalTypeSource,
     observed: NodeId,
 ) -> R<LocalId> {
-    world.pay(world.program.sites.len())?;
+    let sites = world.instance_sites(instance.id)?;
     let mut found = None;
-    for site in &world.program.sites {
-        if site.instance != instance.id {
-            continue;
-        }
+    for &site in &sites {
         let SemanticSiteAction::DeclareLocal {
             local: SemanticLocalTarget::Typed(local),
             ..
@@ -474,10 +439,8 @@ fn binding_source_local(
         return Err(bad("loan binding has no actual function"));
     };
     let function = world.function(function)?;
-    let program = world.program;
-    world.pay(program.sites.len())?;
-    for site in &program.sites {
-        if site.instance != instance.id || occurrences::node(world, original, site)? != Some(observed) {
+    for site in sites {
+        if occurrences::node(world, original, site)? != Some(observed) {
             continue;
         }
         let recipe = world.original_recipe(original, site.recipe)?;
@@ -555,10 +518,7 @@ fn checked_call_source(
     if !matches!(recipe.kind, SemanticSiteRecipeKind::OriginalCall) {
         return Err(bad("returned source is not its original Call occurrence"));
     }
-    let program = world.program;
-    world.pay(program.sites.len())?;
-    let mut candidates = program.sites.iter().filter(|row| row.instance == instance.id
-        && row.recipe == site
+    let mut candidates = world.instance_sites(instance.id)?.into_iter().filter(|row| row.recipe == site
         && matches!(row.at, SemanticSiteAddress::Typed { block: actual, instruction, edge: SemanticSiteEdge::After }
             if actual == block && instruction as usize == index)
         && matches!(row.action, SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::Call { .. }
@@ -584,9 +544,7 @@ fn whole_receiver_source(
     locals: &[Option<SharedType>], implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<()> {
     if let Cursor::Value(address) = receiver {
-        let program = world.program;
-        world.pay(program.sites.len())?;
-        let mut calls = program.sites.iter().filter(|row| row.instance == instance.id && row.recipe == site
+        let mut calls = world.instance_sites(instance.id)?.into_iter().filter(|row| row.recipe == site
             && matches!(row.at, SemanticSiteAddress::Typed { block, instruction, edge: SemanticSiteEdge::After }
                 if block == at.0 && instruction as usize == at.1));
         let call = calls.next().ok_or_else(|| bad("whole receiver has no exact original call occurrence"))?;
@@ -1061,8 +1019,7 @@ fn trace_steps(
                         ));
                     }
                 };
-                world.pay(world.program.sites.len())?;
-                if !world.program.sites.iter().any(|row| row.instance == instance.id && row.recipe == *site
+                if !world.instance_sites(instance.id)?.into_iter().any(|row| row.recipe == *site
                     && matches!(row.at, SemanticSiteAddress::Typed { block: actual, instruction, edge: SemanticSiteEdge::After } if actual == block && instruction as usize == index)
                     && matches!(row.action, SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::Call { .. })) {
                     return Err(bad("projected Store loan changes its exact original call occurrence"));

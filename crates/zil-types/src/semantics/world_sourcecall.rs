@@ -112,10 +112,8 @@ pub(super) fn shared(
                 "source world request changes its actual function target",
             ));
         }
-        world.pay(world.program.sites.len())?;
-        let mut occurrences = world.program.sites.iter().filter(|row| {
-            row.instance == *caller
-                && row.recipe == *site
+        let mut occurrences = world.instance_sites(*caller)?.into_iter().filter(|row| {
+            row.recipe == *site
                 && matches!(
                     row.action,
                     SemanticSiteAction::Call { .. } | SemanticSiteAction::BodyCall { .. }
@@ -152,10 +150,9 @@ fn shared_creator(
         return Err(bad("shared closure creator lacks its actual function"));
     };
     let body = world.function(function)?;
-    world.pay(world.program.sites.len().saturating_add(body.blocks.len()))?;
-    let mut mints = world.program.sites.iter().filter(|site| {
-        site.instance == creator.id
-            && matches!(&site.action, SemanticSiteAction::Closure {
+    world.pay(body.blocks.len())?;
+    let mut mints = world.instance_sites(creator.id)?.into_iter().filter(|site| {
+        matches!(&site.action, SemanticSiteAction::Closure {
                 closure: SemanticClosureTarget::Typed(id), ..
             } if *id == closure)
     });

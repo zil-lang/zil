@@ -157,6 +157,12 @@ impl<'a> World<'a, '_> {
             &rows[..rows.len().min(16)]
         )
     }
+    fn instance_sites(&mut self, instance: SemanticInstanceId) -> R<Vec<&'a SemanticSite>> {
+        self.pay(index::search(self.index.sites.len()))?;
+        let offsets = self.index.sites.get(&instance).map(Vec::as_slice).unwrap_or(&[]);
+        index::pay(self.left, offsets.len())?;
+        Ok(offsets.iter().map(|&offset| &self.program.sites[offset]).collect())
+    }
     fn instance(&mut self, id: SemanticInstanceId) -> R<&'a SemanticInstance> {
         self.pay(index::search(self.index.instances.len()))?;
         if let Some(offset) = self.index.instances.get(&id) {
@@ -2432,20 +2438,8 @@ impl World<'_, '_> {
         }
         protocol::header(self, original, f)?;
         self.requirements(instance, original, None, None, &BTreeMap::new())?;
-        self.pay(
-            index::search(self.index.sites.len())
-                .saturating_add(f.locals.len())
-                .saturating_add(f.values.len()),
-        )?;
-        let sites: Vec<_> = self
-            .index
-            .sites
-            .get(&instance.id)
-            .into_iter()
-            .flatten()
-            .map(|offset| &self.program.sites[*offset])
-            .collect();
-        self.pay(sites.len())?;
+        let sites = self.instance_sites(instance.id)?;
+        self.pay(f.locals.len().saturating_add(f.values.len()))?;
         let mut locals = vec![None; f.locals.len()];
         let values = vec![None; f.values.len()];
         let mut declared = BTreeMap::new();

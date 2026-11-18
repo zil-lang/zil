@@ -219,7 +219,13 @@ pub(crate) fn populate(
 ) -> R<(bool, Formation<()>)> {
     let mut blocked = BTreeSet::new();
     let pending = {
-        let directory = ActualDirectory::from_module_at(module, "deferred nominals");
+        // Rebuild the immutable source directory each formation round. A
+        // nominal rewrite or newly completed closure changes its inputs.
+        let directory = if let Some(context) = ledger.original.context() {
+            ActualDirectory::indexed(module, program, context, "deferred nominals", limits, left)?
+        } else {
+            ActualDirectory::from_module_at(module, "deferred nominals")
+        };
         let mut eval = Eval {
             input: program,
             module: &directory,
