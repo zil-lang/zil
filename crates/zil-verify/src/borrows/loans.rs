@@ -1,6 +1,7 @@
 //! Exclusive authority is reconstructed from executable CFG operations. The
 //! public Hold candidate describes origins only and cannot manufacture a loan.
 use super::buffer_effects::Apart;
+mod diagnostics;
 mod move_state;
 mod replacement_pins;
 use super::*;
@@ -991,6 +992,7 @@ struct Access<'a> {
     ignore: &'a Loans,
     span: Span,
     apart: Option<&'a RefCell<Apart>>,
+    point: diagnostics::Point<'a>,
 }
 impl Access<'_> {
     fn callback_arguments(
@@ -1047,6 +1049,7 @@ impl Access<'_> {
             ignore: self.ignore,
             span: self.span,
             apart: self.apart,
+            point: self.point,
         }
         .check(&own, roots, write, budget)
     }
@@ -1095,11 +1098,7 @@ impl Access<'_> {
             if related && delegated {
                 continue;
             }
-            return Err(reject(
-                "E-BORROW-CONFLICT",
-                Some(self.span),
-                "access overlaps an active address window without its delegated authority",
-            ));
+            return Err(diagnostics::conflict(self, other, budget));
         }
         Ok(())
     }
@@ -1601,6 +1600,7 @@ pub(super) fn check(
                 ignore: &ignore,
                 span,
                 apart: apart_ref,
+                point: diagnostics::Point { graph, locals: &locals, block: b, instruction: i },
             };
             if let Some((inventory, _)) = &replacements {
                 replacement_pins::check(
