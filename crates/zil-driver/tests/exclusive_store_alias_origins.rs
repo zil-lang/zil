@@ -36,7 +36,13 @@ package State{manages left:Store<Entry>;manages right:Store<Entry>}
 fn make()->State{let a=empty();let b=empty();store_reserve(a,1);store_reserve(b,1);store_push(a,entry(3));store_push(b,entry(5));return State{left:give a,right:give b}}
 "#;
 
-fn rejected_source(label: &str, source: &str, category: ResultCategory, phase: Phase, code: &str) {
+fn rejected_source(
+    label: &str,
+    source: &str,
+    category: ResultCategory,
+    phase: Phase,
+    code: &str,
+) -> zil_driver::CompileReport {
     let dir = directory(label);
     fs::write(dir.join("main.zil"), source).unwrap();
     let report = compile_project(
@@ -55,9 +61,10 @@ fn rejected_source(label: &str, source: &str, category: ResultCategory, phase: P
         "{label}: {}",
         report.to_json()
     );
+    report
 }
 
-fn candidate(source: &str) -> (TypedModule, CandidatePlan) {
+fn typed(source: &str) -> TypedModule {
     let unit = SourceUnit::new(
         FileId(0),
         ModuleId(0),
@@ -68,7 +75,13 @@ fn candidate(source: &str) -> (TypedModule, CandidatePlan) {
     let core = zil_expand::expand(&unit, &ast).unwrap();
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
-    let module = zil_types::check(&core, &target, &limits).unwrap();
+    zil_types::check(&core, &target, &limits).unwrap()
+}
+
+fn candidate(source: &str) -> (TypedModule, CandidatePlan) {
+    let module = typed(source);
+    let target = module.target.clone();
+    let limits = Limits::default();
     let plan = zil_analyze::analyze(&module, &limits).unwrap();
     zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
     (module, plan)
@@ -174,11 +187,56 @@ fn escaping_mutable_window_or_child_address_remains_closed() {
     let (module, plan) = candidate(&source);
     let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
     zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).unwrap();
-    rejected_source(
+    let conflict = source.replace("*p=42;", "store_reserve(s,8);*p=42;");
+    let report = rejected_source(
         "return-copy-child-parent-stays-live",
-        &source.replace("*p=42;", "store_reserve(s,8);*p=42;"),
+        &conflict,
         ResultCategory::SafeReject,
-        Phase::Verify,
+        Phase::Analyze,
+        "E-BORROW-CONFLICT",
+    );
+    let error = report
+        .diagnostics
+        .iter()
+        .find(|d| d.code == "E-BORROW-CONFLICT")
+        .unwrap();
+    let location = error.span.unwrap();
+    assert_eq!(
+        &conflict[location.start as usize..location.end as usize],
+        "store_reserve(s,8)"
+    );
+    for (role, fragment) in [
+        (zil_base::DiagnosticRole::BorrowCreated, "escape(s)"),
+        (zil_base::DiagnosticRole::ConflictingAccess, "store_reserve(s,8)"),
+        (zil_base::DiagnosticRole::LaterUse, "p"),
+    ] {
+        let location = error.related.iter().find(|row| row.role == role).unwrap();
+        let span = location.span.unwrap();
+        assert_eq!(&conflict[span.start as usize..span.end as usize], fragment);
+    }
+    // Reuse the proved Holds for the first reserve's description, capacity
+    // and status at the identical second operation on the same manager.
+    let bad = typed(&conflict);
+    let main = bad.functions.iter().find(|f| f.name == "main").unwrap();
+    let mut plan = plan;
+    let holds = &mut plan.functions[main.id.0 as usize].holds;
+    let mut reserves = main.blocks[0].instructions.iter().filter_map(|ins| {
+        let I::OwnedStoreReserve { store, capacity } = ins.kind else { return None };
+        Some([store, capacity, ins.result.unwrap()])
+    });
+    let first = reserves.next().unwrap();
+    let [head, capacity, status] = reserves.next().unwrap();
+    assert!(reserves.next().is_none());
+    assert_eq!([capacity.0, status.0], [head.0 + 1, head.0 + 2]);
+    let additional = first.map(|id| holds[id.0 as usize].clone());
+    holds.splice(head.0 as usize..head.0 as usize, additional);
+    for (ordinal, hold) in holds.iter_mut().enumerate() {
+        hold.value = zil_ir::ValueId(ordinal as u32);
+    }
+    reject_pair(
+        "return-copy-child-live-reserve",
+        bad,
+        plan,
         "E-BORROW-CONFLICT",
     );
 }

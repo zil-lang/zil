@@ -1367,6 +1367,21 @@ fn relation_inner(
                 || (buffer_window
                     && matches!(p, Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)))
                 && outer(c, StorageBase::Parameter(i as u32)) == out
+        }) && !zero_resources.iter().any(|root| {
+            // The complete, checked Store head can ground a field view. Its
+            // actual projected source and exclusive loan still come from the CFG.
+            let Type::Desc(payload) = root.whole_type else {
+                return false;
+            };
+            let Type::OwnedStore { element } = payload.as_ref() else {
+                return false;
+            };
+            let eligible = if inner == element {
+                !mutable
+            } else {
+                inner.is_copy_value()
+            };
+            eligible && matches!(root.base, StorageBase::Parameter(_)) && outer(c, root.base) == out
         }) && !c.classes.iter().any(|r| {
             let StorageBase::Parameter(i) = r.position.base else {
                 return false;

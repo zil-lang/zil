@@ -9,7 +9,7 @@ impl CheckedOriginal {
         let mut description_heads=BTreeMap::new();
         for (position,parameter) in signature.parameters.iter().enumerate() {
             let SemanticTypeRecipe::Desc{lifetime:SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit{scope:SemanticScopeRef::Ancestor(0),ordinal}),inner}=&parameter.ty else{continue;};
-            if !matches!(inner.as_ref(),SemanticTypeRecipe::Atom(Type::ByteBuffer)){continue;}
+            if !matches!(inner.as_ref(),SemanticTypeRecipe::Atom(Type::ByteBuffer) | SemanticTypeRecipe::OwnedStore(_)){continue;}
             let definition=context.definition(module,target,b)?;
             let position=u32::try_from(position).map_err(|_|limit("description parameter position exceeds its complete domain"))?;
             for implicit in &definition.implicit_lifetimes {
@@ -21,7 +21,7 @@ impl CheckedOriginal {
         }
         let (result,roles)=self.instantiate_prototype_roles(&prototype,Some(target),selected,b)?;
         for (source,position) in description_heads {
-            let Some(Life::Infer(id))=roles.get(&source) else{return Err(bad("original ByteBuffer description has no exact fresh call head"));};
+            let Some(Life::Infer(id))=roles.get(&source) else{return Err(bad("original window description has no exact fresh call head"));};
             // The omitted lifetime at this exact Desc parameter denotes its
             // description Head. Keep the call's inferred class and argument
             // source, and select only this source-authenticated coordinate.

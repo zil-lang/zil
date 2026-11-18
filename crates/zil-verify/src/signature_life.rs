@@ -323,7 +323,23 @@ fn function_resource_inputs<P:InputType>(module:&TypedModule,parameters:&[P],res
                     .map_err(|_| limit("resource occurrence ordinal overflow"))?,
             )
         };
-        if !zero_resource_occurrence(module,ty,span,b)?{continue;}
+        let store_window = matches!(base, StorageBase::Parameter(_))
+            && matches!(ty, Type::Desc(_))
+            && matches!(result, Type::Address { mutable, inner } if
+                crate::dynamic_store::element(ty).is_some_and(|element| {
+                    if inner.as_ref() == element { !mutable } else { inner.is_copy_value() }
+                }));
+        if store_window {
+            crate::dynamic_store::check_carrier(module, ty, span, b)?;
+            let Type::Desc(payload) = ty else { unreachable!() };
+            if crate::tasks::input_scope::module_domain(module, payload, b)?
+                != crate::tasks::input_scope::Domain::Known(0)
+            {
+                continue;
+            }
+        } else if !zero_resource_occurrence(module, ty, span, b)? {
+            continue;
+        }
         crate::stored_flow::type_bounds(ty, &b.limits.clone(), b)?;
         roots.push(KnownZeroRoot {
             base,
@@ -1080,7 +1096,7 @@ fn relation_inputs<P:InputType>(
             "signature Fixed({index}) has no retained input occurrence or independently established result class",
         )));
     }
-    occurrences::returned_root(c, parameters, captures, closure_kind, result, allow_byte_input, span)
+    occurrences::returned_root(c, parameters, captures, closure_kind, result, zero_resources, allow_byte_input, span)
 }
 
 pub(super) fn entails(required: &StorageLifeContract, supplied: &StorageLifeContract) -> bool {

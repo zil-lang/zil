@@ -91,12 +91,14 @@ impl Authority {
 /// The caller has already authenticated every row against the actual physical
 /// signature. A result can reuse only a matching input binding that supplies
 /// its access mode. The body independently proves the returned SSA source.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn returned_root<P: InputType>(
     c: &StorageLifeContract,
     parameters: &[P],
     captures: Option<&[Type]>,
     kind: Option<CallableKind>,
     result: &Type,
+    zero_resources: &[KnownZeroRoot<'_>],
     allow_byte_input: bool,
     span: Option<Span>,
 ) -> Check<()> {
@@ -130,6 +132,12 @@ pub(super) fn returned_root<P: InputType>(
                 if allow_byte_input
                     && payload.as_ref() == &Type::ByteBuffer
                     && matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8) =>
+            {
+                Some(Authority::Description)
+            }
+            (StorageBase::Parameter(_), Some(ty @ Type::Desc(payload)))
+                if matches!(payload.as_ref(), Type::OwnedStore { .. })
+                    && zero_resources.iter().any(|r| r.base == position.base && r.whole_type == ty) =>
             {
                 Some(Authority::Description)
             }

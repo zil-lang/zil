@@ -13,22 +13,23 @@ fn header_grouped<'a>(mut ty: &'a TypeRef, budget: &mut Budget<'_>) -> R<&'a Typ
     Ok(ty)
 }
 
-pub(super) fn byte_buffer_description(parameter: &Param, budget: &mut Budget<'_>) -> R<bool> {
+pub(super) fn window_description(parameter: &Param, budget: &mut Budget<'_>) -> R<bool> {
     if parameter.give {
         return Ok(false);
     }
-    let byte_buffer = |ty: &TypeRef| {
+    let manager = |ty: &TypeRef| {
         matches!(&ty.kind, TypeKind::Named { path, args }
             if path.as_slice() == ["ByteBuffer"] && args.is_empty())
+            || stores::element(ty).is_some()
     };
     let ty = header_grouped(&parameter.ty, budget)?;
     if let TypeKind::Named { path, args } = &ty.kind
         && matches!(path.as_slice(), [name] if name == "Desc" || name == "Ref")
         && let [GenericArg::Type(payload)] = args.as_slice()
     {
-        return Ok(byte_buffer(header_grouped(payload, budget)?));
+        return Ok(manager(header_grouped(payload, budget)?));
     }
-    Ok(byte_buffer(ty))
+    Ok(manager(ty))
 }
 
 /// This paid source walk only selects producer work. Code signatures introduce
@@ -296,7 +297,7 @@ impl Engine<'_> {
                 &mut lives,
                 0,
             )?;
-            if elided_window && byte_buffer_description(parameter, &mut self.budget)? {
+            if elided_window && window_description(parameter, &mut self.budget)? {
                 lives.push(implicit_input(
                     self,
                     ordinal,
