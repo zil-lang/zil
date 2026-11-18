@@ -422,6 +422,23 @@ pub fn collect_original_declarations_with_budget<'a>(
     result
 }
 
+/// Count the full structural namespace, including non-item fields and
+/// variants, before a materializer gives a new tree its module-local IDs.
+pub fn source_declaration_count(module: &s::Module, remaining: &mut Limits) -> CompileResult<u32> {
+    let limits = remaining.clone();
+    let mut budget = Budget {
+        limits: &limits,
+        work: remaining.max_analysis_steps,
+        bytes: remaining.max_source_bytes,
+        nodes: remaining.max_nodes,
+    };
+    let result = trees::Tree::new(module, None, &mut budget).map(|tree| tree.count);
+    remaining.max_analysis_steps = budget.work;
+    remaining.max_source_bytes = budget.bytes;
+    remaining.max_nodes = budget.nodes;
+    result
+}
+
 fn collect_inner<'a>(
     modules: &[&'a s::Module],
     origins: &'a [ModuleDeclarationOrigins],

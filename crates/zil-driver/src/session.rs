@@ -631,6 +631,7 @@ impl CompilationSession {
             report,
             observer,
             || {
+                let aliases = BTreeMap::new();
                 let selected = if selection_needed {
                     Some(super::ct_selection::select(
                         std::slice::from_ref(source),
@@ -640,6 +641,7 @@ impl CompilationSession {
                         source.fingerprint(),
                         &options.target,
                         &options.limits,
+                        &aliases,
                     )?)
                 } else {
                     None
@@ -647,12 +649,11 @@ impl CompilationSession {
                 let syntax = selected
                     .as_ref()
                     .map_or(&parsed.module, |selected| &selected.modules[0]);
-                let aliases = BTreeMap::new();
                 let context = zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
                     root: source.module_id,
                     aliases: &aliases,
-                    declarations: if selected.is_some() {
-                        zil_expand::source_context::DeclarationPlacement::Unavailable
+                    declarations: if let Some(selected) = &selected {
+                        zil_expand::source_context::DeclarationPlacement::Aligned(&selected.origins)
                     } else {
                         zil_expand::source_context::DeclarationPlacement::Original
                     },
@@ -660,7 +661,7 @@ impl CompilationSession {
                 let expanded = zil_expand::expand_with_map_semantics(
                     source,
                     syntax,
-                    &options.limits,
+                    selected.as_ref().map_or(&options.limits, |selected| &selected.remaining),
                     &options.target,
                     context,
                 )?;

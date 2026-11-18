@@ -4,6 +4,7 @@ mod budget;
 mod context;
 mod generation;
 mod hygiene;
+mod lineage;
 mod materialize;
 mod type_values;
 
@@ -107,6 +108,8 @@ impl Receipt {
 pub(super) struct Selected {
     pub modules: Vec<s::Module>,
     pub receipt: Receipt,
+    pub origins: Vec<zil_expand::source_context::ModuleDeclarationOrigins>,
+    pub remaining: Limits,
 }
 
 /// The parser already bounded this lexical tape. Inspecting tokens avoids new
@@ -138,6 +141,7 @@ pub(super) fn select(
     fingerprint: Fingerprint,
     target: &TargetProfile,
     limits: &Limits,
+    aliases: &std::collections::BTreeMap<Vec<String>, ModuleId>,
 ) -> CompileResult<Selected> {
     if sources.len() != modules.len() || modules.len() != imports.len() {
         return Err(vec![Diagnostic::error(
@@ -148,6 +152,17 @@ pub(super) fn select(
         )]);
     }
     let mut budget = Budget::new(limits);
+    let (mut origins, remaining) = zil_expand::source_context::capture_original_required(
+        sources,
+        modules,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root,
+            aliases,
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+        &budget.remaining,
+    )?;
+    budget.remaining = remaining;
     // Both syntax branches were parsed. Bound even the discarded borrowed trees
     // before cloning raw syntax; this does not resolve their names or types.
     for module in modules {
@@ -167,7 +182,7 @@ pub(super) fn select(
     let mut output: Vec<_> = modules.iter().map(|module| (*module).clone()).collect();
     let mut trace = Vec::new();
     let mut generations = Vec::new();
-    for module in &mut output {
+    for (module, origin) in output.iter_mut().zip(&mut origins) {
         let mut materializer = materialize::Materializer {
             module: module.id,
             context: &context,
@@ -178,16 +193,25 @@ pub(super) fn select(
             iterations: Vec::new(),
             for_trace: &mut generations,
             next_generation: 0,
+            body_revision: 0,
         };
-        materializer.items(&mut module.items, 0, false)?;
+        let (_, placements) = materializer.items(
+            &mut module.items,
+            0,
+            false,
+            lineage::ItemList::Module,
+        )?;
+        lineage::bind(module, origin, placements, &mut budget)?;
     }
     Ok(Selected {
         modules: output,
+        origins,
         receipt: Receipt {
             usage: budget.usage(),
             trace,
             generations,
         },
+        remaining: budget.remaining,
     })
 }
 

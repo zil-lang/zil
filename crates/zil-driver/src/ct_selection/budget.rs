@@ -35,6 +35,14 @@ impl Budget {
     pub fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
         self.spend(0, text.len(), span)
     }
+    pub fn bytes(&mut self, bytes: usize, span: Span) -> CompileResult<()> {
+        self.remaining.max_source_bytes = self
+            .remaining
+            .max_source_bytes
+            .checked_sub(bytes)
+            .ok_or_else(|| limit(span, "selection declaration bytes exhausted"))?;
+        Ok(())
+    }
     pub fn copy(&mut self, cost: SyntaxCost, span: Span) -> CompileResult<()> {
         self.spend(cost.nodes, cost.work, span)
     }

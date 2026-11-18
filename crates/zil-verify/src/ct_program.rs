@@ -171,28 +171,77 @@ pub fn verify_ct_program_bytes(
     )
 }
 
-pub(super) fn serializable(ty: &Type) -> bool {
-    match ty {
-        Type::Unit
-        | Type::Bool
-        | Type::I32
-        | Type::I8
-        | Type::I16
-        | Type::Isize
-        | Type::I64
-        | Type::F32
-        | Type::U64
-        | Type::Usize
-        | Type::F64
-        | Type::U8
-        | Type::U16
-        | Type::U32 => true,
-        Type::Tuple(fields) => fields.iter().all(serializable),
-        Type::Record { fields, .. } => fields.iter().all(|(_, t)| serializable(t)),
-        Type::Array { element, .. } => serializable(element),
-        Type::Enum { variants, .. } => variants
-            .iter()
-            .all(|(_, fields)| fields.iter().all(serializable)),
-        _ => false,
+/// Check the selected query's complete Typed result before constructing its
+/// runtime plan. Raw and Wire admission repeat this rule on the verified CFG.
+pub fn check_ct_result_type(ty: &Type, span: Span, limits: &Limits) -> CompileResult<()> {
+    let mut work = limits.max_analysis_steps.min(limits.max_nodes);
+    if serializable_bounded(ty, &mut work, limits.max_call_depth)? {
+        Ok(())
+    } else {
+        Err(vec![Diagnostic::error(
+            Phase::Ct,
+            "E-CT-FORBIDDEN",
+            Some(span),
+            "CT program supports serializable pure Copy values only",
+        )])
     }
+}
+
+pub(super) fn serializable(ty: &Type) -> bool {
+    let mut work = usize::MAX;
+    serializable_bounded(ty, &mut work, usize::MAX).unwrap_or(false)
+}
+
+fn serializable_bounded(ty: &Type, work: &mut usize, max_depth: usize) -> CompileResult<bool> {
+    let quota = || vec![Diagnostic::limit(Phase::Ct, "CT value type budget exceeded", None)];
+    let spend = |work: &mut usize, count| -> CompileResult<()> {
+        *work = work.checked_sub(count).ok_or_else(quota)?;
+        Ok(())
+    };
+    spend(work, 1)?;
+    let mut first = Some((ty, 0usize));
+    let mut pending = Vec::new();
+    while let Some((ty, depth)) = first.take().or_else(|| pending.pop()) {
+        if depth > max_depth {
+            return Err(quota());
+        }
+        let child_depth = depth.saturating_add(1);
+        match ty {
+            Type::Unit
+            | Type::Bool
+            | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
+            | Type::I64
+            | Type::F32
+            | Type::U64
+            | Type::Usize
+            | Type::F64
+            | Type::U8
+            | Type::U16
+            | Type::U32 => {}
+            Type::Tuple(fields) => {
+                spend(work, fields.len())?;
+                pending.extend(fields.iter().rev().map(|ty| (ty, child_depth)));
+            }
+            Type::Record { fields, .. } => {
+                spend(work, fields.len())?;
+                pending.extend(fields.iter().rev().map(|(_, ty)| (ty, child_depth)));
+            }
+            Type::Array { element, .. } => {
+                spend(work, 1)?;
+                first = Some((element, child_depth));
+            }
+            Type::Enum { variants, .. } => {
+                spend(work, variants.len())?;
+                for (_, fields) in variants.iter().rev() {
+                    spend(work, fields.len())?;
+                    pending.extend(fields.iter().rev().map(|ty| (ty, child_depth)));
+                }
+            }
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
 }

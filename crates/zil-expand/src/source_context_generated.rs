@@ -59,6 +59,81 @@ impl SourceTreeIdentity {
     }
 }
 
+/// Each pair of source path and dynamic event identifies the selected arm and
+/// actual emitted declaration. The iteration number is never an AST index.
+#[derive(Clone, Copy, Debug)]
+pub enum SourceSelectionStep {
+    If { then_arm: bool, item: u32 },
+    For { iteration: u32, item: u32 },
+}
+
+pub fn source_selection_site(
+    module: ModuleId,
+    root: u32,
+    steps: &[SourceSelectionStep],
+) -> (SourceTreeIdentity, SourceDeclarationSite) {
+    let mut occurrence = vec![2, root];
+    let mut template = vec![root];
+    for step in steps {
+        match *step {
+            SourceSelectionStep::If { then_arm, item } => {
+                let tag = u32::from(then_arm);
+                occurrence.extend([tag, 0, item]);
+                template.extend([tag, item]);
+            }
+            SourceSelectionStep::For { iteration, item } => {
+                occurrence.extend([2, iteration, item]);
+                template.extend([2, item]);
+            }
+        }
+    }
+    (
+        SourceTreeIdentity::Generated {
+            module,
+            event_path: occurrence,
+        },
+        SourceDeclarationSite {
+            tree: SourceTreeIdentity::Original(module),
+            declaration: NodeId(root),
+            event_path: template,
+        },
+    )
+}
+
+impl GeneratedSourceTree {
+    pub(crate) fn is_selection(&self) -> bool {
+        matches!(self.emitter.tree, SourceTreeIdentity::Original(_))
+            && matches!(self.identity, SourceTreeIdentity::Generated { ref event_path, .. }
+                if event_path.first() == Some(&2))
+    }
+
+    pub(crate) fn matches_selection_site(&self) -> bool {
+        let SourceTreeIdentity::Generated { event_path, .. } = &self.identity else {
+            return false;
+        };
+        let template = &self.emitter.event_path;
+        if !matches!(self.emitter.tree, SourceTreeIdentity::Original(_))
+            || template.first() != Some(&self.emitter.declaration.0)
+            || event_path.get(1) != template.first()
+            || template.len() < 3
+            || (template.len() - 1) % 2 != 0
+            || event_path.len() != 2 + (template.len() - 1) / 2 * 3
+            || self.module.items.len() != 1
+        {
+            return false;
+        }
+        template[1..]
+            .chunks_exact(2)
+            .zip(event_path[2..].chunks_exact(3))
+            .all(|(source, event)| {
+                source[0] <= 2
+                    && source[0] == event[0]
+                    && source[1] == event[2]
+                    && (source[0] == 2 || event[1] == 0)
+            })
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SourceDeclarationSite {
     pub tree: SourceTreeIdentity,

@@ -580,7 +580,10 @@ fn validate_generated(
             "generated tree, event or unique declaration inventory differs",
         ));
     }
-    let event_matches = match &tree.emitter.tree {
+    let event_matches = if tree.is_selection() {
+        budget.identity_work(tree.emitter.event_path.len(), item.span)?;
+        tree.matches_selection_site()
+    } else { match &tree.emitter.tree {
         SourceTreeIdentity::Original(_) => {
             event_path.first() == Some(&0)
                 && event_path.get(1..) == Some(tree.emitter.event_path.as_slice())
@@ -593,7 +596,7 @@ fn validate_generated(
                 && event_path.get(parent.len()) == Some(&1)
                 && event_path.get(parent.len() + 1..) == Some(tree.emitter.event_path.as_slice())
         }
-    };
+    }};
     if !event_matches {
         return Err(error(
             item.span,
@@ -651,9 +654,11 @@ fn validate_generated(
         item.span,
     )?;
     let mut syntax = zil_syntax::GeneratedSyntax::ItemList(vec![original.clone()]);
-    let work = crate::remap_generated_spans(&mut syntax, item.span, &budget.remaining_limits())
-        .map_err(|mut errors| errors.remove(0))?;
-    budget.identity_work(work, item.span)?;
+    if !tree.is_selection() {
+        let work = crate::remap_generated_spans(&mut syntax, item.span, &budget.remaining_limits())
+            .map_err(|mut errors| errors.remove(0))?;
+        budget.identity_work(work, item.span)?;
+    }
     let zil_syntax::GeneratedSyntax::ItemList(original) = syntax else {
         unreachable!()
     };
@@ -957,7 +962,7 @@ impl Engine<'_> {
     }
 }
 
-fn declaration_shape(item: &Item) -> (&'static str, Option<&str>) {
+pub(crate) fn declaration_shape(item: &Item) -> (&'static str, Option<&str>) {
     match &item.kind {
         ItemKind::Function(f) => ("function", Some(f.name.as_str())),
         ItemKind::Extern { function, .. } => ("extern", Some(function.name.as_str())),

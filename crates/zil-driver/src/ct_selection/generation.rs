@@ -311,22 +311,30 @@ impl materialize::Materializer<'_, '_> {
         iterable: &mut s::Expr,
         items: &[s::Item],
         depth: usize,
-    ) -> CompileResult<(Vec<s::Item>, bool)> {
+        directive: &super::lineage::Occurrence,
+    ) -> CompileResult<(Vec<s::Item>, bool, Vec<super::lineage::Placement>)> {
         let values = self.values(binding, iterable, depth)?;
         let mut output = Vec::new();
         let mut output_has_types = false;
-        for value in values {
+        let mut placements = Vec::new();
+        for (iteration, value) in values.into_iter().enumerate() {
             for item in items {
                 let cost = syntax::item_cost(item, &self.budget.remaining)?;
                 self.budget.copy(cost, item.span)?;
             }
             self.budget.spend(items.len(), items.len(), iterable.span)?;
             let mut selected = items.to_vec();
+            let iteration = u32::try_from(iteration).map_err(|_| vec![Diagnostic::limit(
+                Phase::Ct, "#for iteration identity exhausted", Some(iterable.span),
+            )])?;
             let serial = self.enter_iteration(binding, value)?;
-            let result = self.items(&mut selected, depth + 1, true);
+            let result = self.items(
+                &mut selected, depth + 1, true,
+                super::lineage::ItemList::For(directive, iteration),
+            );
             self.locals.pop();
             self.iterations.pop();
-            let has_types = result?;
+            let (has_types, selected_placements) = result?;
             output_has_types |= has_types;
             super::hygiene::items(
                 &mut selected,
@@ -340,8 +348,9 @@ impl materialize::Materializer<'_, '_> {
                 self.budget.node(item.span, depth + 1)?;
                 output.push(item);
             }
+            placements.extend(selected_placements);
         }
-        Ok((output, output_has_types))
+        Ok((output, output_has_types, placements))
     }
 
     pub(super) fn for_statements(

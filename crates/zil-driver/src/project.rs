@@ -690,6 +690,7 @@ impl CompilationSession {
                         fingerprint,
                         &options.target,
                         &options.limits,
+                        &project.paths,
                     )?)
                 } else {
                     None
@@ -699,12 +700,10 @@ impl CompilationSession {
                     .map(|selected| selected.modules.iter().collect::<Vec<_>>());
                 let selected_syntax = materialized.as_deref().unwrap_or(&syntax);
                 let mut ct_result = if artifact_needed {
-                    let mut remaining = selected.as_ref().map_or_else(|| Ok(options.limits.clone()),
-                        |selected| selected.receipt.remaining(&options.limits))?;
-                    remaining.max_ct_steps = remaining.max_ct_steps.min(options.limits.max_ct_steps);
+                    let remaining = selected.as_ref().map_or(&options.limits, |selected| &selected.remaining);
                     Some(super::ct_artifact::materialize_scoped(
                         &project.modules, &parsed, selected_syntax, &project.paths, options.scoped_imports.as_deref(), &imports,
-                        project.root, fingerprint, &options.target, &remaining, locked.as_ref(),
+                        project.root, fingerprint, &options.target, remaining, locked.as_ref(),
                         selected.is_none(),
                     )?)
                 } else { None };
@@ -757,13 +756,17 @@ impl CompilationSession {
                     aliases:&project.paths,
                     declarations:if let Some(origins) = ct_result.as_ref().and_then(|result| result.declaration_origins.as_deref()) {
                         zil_expand::source_context::DeclarationPlacement::Aligned(origins)
-                    } else if selected.is_some() || ct_result.is_some() {
+                    } else if let Some(selected) = selected.as_ref().filter(|_| ct_result.is_none()) {
+                        zil_expand::source_context::DeclarationPlacement::Aligned(&selected.origins)
+                    } else if ct_result.is_some() {
                         zil_expand::source_context::DeclarationPlacement::Unavailable
                     } else {
                         zil_expand::source_context::DeclarationPlacement::Original
                     },
                 };
-                let expand_limits = ct_result.as_ref().and_then(|result| result.lineage_remaining.as_ref()).unwrap_or(&options.limits);
+                let expand_limits = ct_result.as_ref().and_then(|result| result.lineage_remaining.as_ref())
+                    .or_else(|| selected.as_ref().map(|selected| &selected.remaining))
+                    .unwrap_or(&options.limits);
                 let expanded = if let Some(phase) = &runtime_phase {
                     zil_expand::expand_program_with_runtime_ct(
                         &project.modules, syntax, &runtime_imports, expand_limits, &options.target, context, phase,

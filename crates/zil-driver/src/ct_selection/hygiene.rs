@@ -601,8 +601,70 @@ mod generated_enum_tests {
             source.fingerprint(),
             &target,
             &limits,
+            &std::collections::BTreeMap::new(),
         )
         .unwrap();
+        assert_eq!(selected.receipt.generations.len(), 1);
+        assert_eq!(selected.receipt.generations[0].iterations, 1);
+        let syntax = [&selected.modules[0]];
+        let (declarations, _) = zil_expand::source_declarations::collect_original_declarations(
+            &syntax, &selected.origins, &selected.remaining,
+        ).unwrap();
+        assert_eq!(declarations.next_by_module, [(source.module_id, 7)]);
+        let [enumeration, function] = selected.origins[0].items.as_slice() else {
+            panic!("expected two distinct actual selected declarations");
+        };
+        assert_eq!(enumeration.declaration, zil_base::NodeId(1));
+        assert_eq!(function.declaration, zil_base::NodeId(6));
+        for (i, row) in [enumeration, function].into_iter().enumerate() {
+            let generated = row.generated.as_ref().unwrap();
+            assert_eq!(generated.tree.emitter.declaration, zil_base::NodeId(0));
+            assert_eq!(generated.tree.emitter.event_path, [0, 2, i as u32]);
+        }
+        use zil_expand::source_context::SourceTreeIdentity;
+        for (alteration, expected) in [
+            (0, "original selector path"),
+            (1, "original template declaration"),
+            (2, "original array iteration"),
+        ] {
+            let mut forged_origins = selected.origins.clone();
+            let mut wrong_tree = (*forged_origins[0].generated.trees[0]).clone();
+            let SourceTreeIdentity::Generated { event_path, .. } = &mut wrong_tree.identity else {
+                panic!("expected an actual generated source tree");
+            };
+            match alteration {
+                0 => wrong_tree.emitter.event_path[2] = 1,
+                1 => {
+                    wrong_tree.emitter.event_path[2] = 1;
+                    event_path[4] = 1;
+                }
+                _ => event_path[3] = 1,
+            }
+            let wrong_tree = std::sync::Arc::new(wrong_tree);
+            forged_origins[0].generated.trees[0] = wrong_tree.clone();
+            let row = &mut forged_origins[0].items[0];
+            row.identity = wrong_tree.root_identity(0, &row.identity).unwrap();
+            row.generated.as_mut().unwrap().tree = wrong_tree;
+            if alteration == 1 {
+                let mut peer_tree = (*forged_origins[0].generated.trees[1]).clone();
+                let SourceTreeIdentity::Generated { event_path, .. } = &mut peer_tree.identity else {
+                    panic!("expected the other actual generated source tree");
+                };
+                event_path[4] = 0;
+                peer_tree.emitter.event_path[2] = 0;
+                let peer_tree = std::sync::Arc::new(peer_tree);
+                forged_origins[0].generated.trees[1] = peer_tree.clone();
+                let row = &mut forged_origins[0].items[1];
+                row.identity = peer_tree.root_identity(0, &row.identity).unwrap();
+                row.generated.as_mut().unwrap().tree = peer_tree;
+            }
+            let Err(errors) = zil_expand::source_declarations::collect_original_declarations(
+                &syntax, &forged_origins, &selected.remaining,
+            ) else {
+                panic!("the source checker accepted a substituted selector");
+            };
+            assert!(errors[0].message.contains(expected), "{errors:?}");
+        }
         let remaining = selected.receipt.remaining(&limits).unwrap();
         let core = zil_expand::expand_with_map_limits(&source, &selected.modules[0], &remaining)
             .unwrap()

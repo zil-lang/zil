@@ -1,4 +1,5 @@
 use super::*;
+use super::lineage::{ItemList, Occurrence, Placement};
 
 pub(super) struct Materializer<'a, 'b> {
     pub module: ModuleId,
@@ -10,6 +11,7 @@ pub(super) struct Materializer<'a, 'b> {
     pub iterations: Vec<generation::Binding>,
     pub for_trace: &'a mut Vec<generation::ForTrace>,
     pub next_generation: u64,
+    pub body_revision: usize,
 }
 impl Materializer<'_, '_> {
     pub fn items(
@@ -17,11 +19,14 @@ impl Materializer<'_, '_> {
         items: &mut Vec<s::Item>,
         depth: usize,
         generated: bool,
-    ) -> CompileResult<bool> {
+        list: ItemList<'_>,
+    ) -> CompileResult<(bool, Vec<Placement>)> {
         let mut output = Vec::new();
+        let mut placements = Vec::new();
         let mut has_types = false;
-        for mut item in std::mem::take(items) {
+        for (ordinal, mut item) in std::mem::take(items).into_iter().enumerate() {
             self.budget.node(item.span, depth)?;
+            let occurrence = list.child(ordinal, self.budget, item.span)?;
             match &mut item.kind {
                 s::ItemKind::Meta(s::MetaItem::If {
                     condition,
@@ -40,7 +45,11 @@ impl Materializer<'_, '_> {
                     }
                     let chosen = self.choose(condition)?;
                     let selected = if chosen { then_items } else { else_items };
-                    has_types |= self.items(selected, depth + 1, true)?;
+                    let (selected_types, selected_placements) = self.items(
+                        selected, depth + 1, true, ItemList::If(&occurrence, chosen),
+                    )?;
+                    has_types |= selected_types;
+                    placements.extend(selected_placements);
                     for item in std::mem::take(selected) {
                         self.budget.node(item.span, depth + 1)?;
                         output.push(item);
@@ -58,12 +67,13 @@ impl Materializer<'_, '_> {
                             Some(item.span),
                         )]);
                     }
-                    let (generated, generated_types) =
-                        self.for_items(binding, iterable, items, depth + 1)?;
+                    let (generated, generated_types, generated_placements) =
+                        self.for_items(binding, iterable, items, depth + 1, &occurrence)?;
                     has_types |= generated_types;
                     self.budget
                         .spend(generated.len(), generated.len(), item.span)?;
                     output.extend(generated);
+                    placements.extend(generated_placements);
                 }
                 s::ItemKind::Meta(_) => {
                     return Err(vec![Diagnostic::unsupported(
@@ -89,14 +99,22 @@ impl Materializer<'_, '_> {
                             | s::ItemKind::TypeAlias(_)
                             | s::ItemKind::Enum(_)
                     );
+                    let body_revision = self.body_revision;
                     self.item(&mut item, depth + 1)?;
                     self.budget.node(item.span, depth + 1)?;
+                    if !matches!(occurrence, Occurrence::Member) {
+                        self.budget.bytes(std::mem::size_of::<Placement>(), item.span)?;
+                        placements.push(Placement {
+                            occurrence,
+                            body_changed: body_revision != self.body_revision,
+                        });
+                    }
                     output.push(item);
                 }
             }
         }
         *items = output;
-        Ok(has_types)
+        Ok((has_types, placements))
     }
     fn item(&mut self, item: &mut s::Item, depth: usize) -> CompileResult<()> {
         self.budget.node(item.span, depth)?;
@@ -117,7 +135,7 @@ impl Materializer<'_, '_> {
                         self.expression(value, depth + 1)?;
                     }
                 }
-                self.items(&mut a.methods, depth + 1, false)?;
+                self.items(&mut a.methods, depth + 1, false, ItemList::Members)?;
             }
             s::ItemKind::TypeAlias(alias) if !self.iterations.is_empty() => {
                 if let Some(value) = &mut alias.value {
@@ -147,10 +165,10 @@ impl Materializer<'_, '_> {
                 }
             }
             s::ItemKind::Trait(t) => {
-                self.items(&mut t.members, depth + 1, false)?;
+                self.items(&mut t.members, depth + 1, false, ItemList::Members)?;
             }
             s::ItemKind::Impl(i) => {
-                self.items(&mut i.members, depth + 1, false)?;
+                self.items(&mut i.members, depth + 1, false, ItemList::Members)?;
             }
             s::ItemKind::Const(c) => {
                 if let Some(e) = &mut c.value {
@@ -237,6 +255,7 @@ impl Materializer<'_, '_> {
                     then_body,
                     else_body,
                 }) => {
+                    self.body_revision += 1;
                     if !self.iterations.is_empty() {
                         self.expression(condition, depth + 1)?;
                     }
@@ -262,6 +281,7 @@ impl Materializer<'_, '_> {
                     iterable,
                     body,
                 }) => {
+                    self.body_revision += 1;
                     let generated = self.for_statements(binding, iterable, body, depth + 1)?;
                     self.budget
                         .spend(generated.len(), generated.len(), statement.span)?;

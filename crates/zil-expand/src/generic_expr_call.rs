@@ -1294,6 +1294,16 @@ impl Engine<'_> {
                     }
                     if let Some(result) = self.rebase_input_call_result(&target, &actual, e.span)? {
                         Some(result)
+                    } else if let Some((_, function)) = self.foreign_signatures.get(target.as_str()) {
+                        // Foreign calls still have their declared result type.
+                        // The actual call's ABI and execution permissions are
+                        // checked in their own stages.
+                        if let Some(result) = &function.return_type {
+                            self.budget.ty(result)?;
+                            Some(result.clone())
+                        } else {
+                            Some(check::unit(e.span))
+                        }
                     } else {
                         self.signature_result(&target)?
                     }

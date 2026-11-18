@@ -99,7 +99,7 @@ impl<'a> Tree<'a> {
         }
         Ok(())
     }
-    fn new(
+    pub(super) fn new(
         syntax: &'a s::Module,
         generated: Option<&'a GeneratedSourceTree>,
         budget: &mut Budget<'_>,
@@ -237,6 +237,64 @@ impl<'a> Namespace<'a> {
                     .saturating_mul(source.identity_path_len()),
                 span,
             )?;
+            if source.is_selection() {
+                budget.work(
+                    event_path.len().saturating_add(source.emitter.event_path.len()),
+                    span,
+                )?;
+                if !source.matches_selection_site() {
+                    return Err(failure(span, "selected event changes its original selector path"));
+                }
+                let path = &source.emitter.event_path;
+                let (id, mut authored) = namespace.original.at(&path[..1], budget, span)?;
+                let mut has_iteration = false;
+                for (step, event) in path[1..].chunks_exact(2).zip(event_path[2..].chunks_exact(3)) {
+                    let items = match (&authored.kind, step[0]) {
+                        (ItemKind::Meta(s::MetaItem::If { then_items, .. }), 1) => then_items,
+                        (ItemKind::Meta(s::MetaItem::If { else_items, .. }), 0) => else_items,
+                        (ItemKind::Meta(s::MetaItem::For { iterable, items, .. }), 2) => {
+                            has_iteration = true;
+                            let mut iterable = iterable;
+                            while let s::ExprKind::Group(child) = &iterable.kind {
+                                budget.work(1, span)?;
+                                iterable = child;
+                            }
+                            if let s::ExprKind::Array(values) = &iterable.kind
+                                && event[1] as usize >= values.len()
+                            {
+                                return Err(failure(span, "selected event has no original array iteration"));
+                            }
+                            items
+                        }
+                        _ => return Err(failure(span, "selected event does not name an original selector")),
+                    };
+                    authored = items.get(step[1] as usize).ok_or_else(|| {
+                        failure(span, "selected event omits its original template declaration")
+                    })?;
+                }
+                let selected = &source.module.items[0];
+                let (authored_kind, authored_name) = crate::generics::origins::declaration_shape(authored);
+                let (selected_kind, selected_name) = crate::generics::origins::declaration_shape(selected);
+                budget.work(
+                    authored_name.map_or(0, str::len).saturating_add(selected_name.map_or(0, str::len)),
+                    span,
+                )?;
+                let same_name = authored_name == selected_name
+                    || (!authored.public
+                        && has_iteration
+                        && selected_name.is_some_and(|name| {
+                            name.starts_with("$ctfor222$")
+                                && name.rsplit('$').next() == authored_name
+                        }));
+                if id != source.emitter.declaration
+                    || authored_kind != selected_kind
+                    || authored.public != selected.public
+                    || !same_name
+                {
+                    return Err(failure(span, "selected event changes its original template declaration"));
+                }
+                continue;
+            }
             let parent = match &source.emitter.tree {
                 SourceTreeIdentity::Original(_) => {
                     if event_path.first() != Some(&0)

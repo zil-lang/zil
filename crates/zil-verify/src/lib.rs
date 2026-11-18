@@ -146,7 +146,9 @@ pub use ct_frozen_context::verify_ct_program_in_context;
 pub use ct_original::{
     CtOriginalImport, CtOriginalImportTarget, CtOriginalModule, verify_ct_original_definitions,
 };
-pub use ct_program::{VerifiedCTProgram, verify_ct_program, verify_ct_program_bytes};
+pub use ct_program::{
+    VerifiedCTProgram, check_ct_result_type, verify_ct_program, verify_ct_program_bytes,
+};
 
 /// A checked, immutable scalar/readonly-closure CFG, including independently
 /// reconstructed local shared-address provenance and lifetime constraints.

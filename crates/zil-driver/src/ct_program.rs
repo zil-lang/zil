@@ -389,6 +389,15 @@ impl Compiler<'_> {
                 (program.module, entry)
             }
         };
+        let entry_function = typed.functions.get(entry.0 as usize).ok_or_else(|| {
+            vec![Diagnostic::error(
+                Phase::Ct,
+                "E-CT-WRAPPER",
+                Some(expression.span),
+                "typed query entry is absent",
+            )]
+        })?;
+        zil_verify::check_ct_result_type(&entry_function.return_type, expression.span, limits)?;
         let binding = frozen.map(|binding| {
             let mut binding = binding.clone();
             binding.query.wrapper = SemanticFunctionTarget::Typed(entry);

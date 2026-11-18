@@ -10,7 +10,7 @@ use zil_ir::LifeDeclarationIdentity;
 mod generated;
 pub use generated::{
     GeneratedDeclarationOrigin, GeneratedSourceCatalog, GeneratedSourceTree, SourceDeclarationSite,
-    SourceTreeIdentity, source_item_at_path,
+    SourceSelectionStep, SourceTreeIdentity, source_item_at_path, source_selection_site,
 };
 
 #[path = "source_context_lineage.rs"]

@@ -295,23 +295,34 @@ fn source_capability_and_payload_controls_remain_rejections() {
         && related.message == "expected type i64"));
     assert!(diagnostic.related.iter().any(|related| related.span.map(at) == Some("true")
         && related.message == "actual type bool"));
-    reject(
+    let reject_ct = |text: &str, code, occurrence, message| {
+        let report = check(text);
+        assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+        assert_eq!(report.phase, Phase::Ct, "{}", report.to_json());
+        assert!(!report.artifacts.contains_key("executable"));
+        let diagnostic = &report.diagnostics[0];
+        assert_eq!(diagnostic.code, code);
+        assert_eq!(diagnostic.message, message);
+        let actual = diagnostic.span.map(|span| &text[span.start as usize..span.end as usize]);
+        assert_eq!(actual, Some(occurrence));
+    };
+    reject_ct(
         "enum E{N(i64)}fn value()->E{let x:i64=42;return #(E.N(x))}",
-        ResultCategory::SafeReject,
-        Phase::Ct,
         "E-CT-RUNTIME",
+        "x",
+        "compile-time query cannot read runtime binding x",
     );
-    reject(
+    reject_ct(
         "enum E{Empty,Handle(c_handle)}fn make()->E{return E.Empty()}fn value()->E{return #(make())}",
-        ResultCategory::SafeReject,
-        Phase::Ct,
         "E-CT-FORBIDDEN",
+        "make()",
+        "CT program supports serializable pure Copy values only",
     );
-    reject(
+    reject_ct(
         "extern \"C\" fn opaque()->i64;enum E{N(i64)}fn make()->E{unsafe{return E.N(opaque())}}fn value()->E{return #(make())}",
-        ResultCategory::SafeReject,
-        Phase::Ct,
         "E-CT-FORBIDDEN",
+        "{return E.N(opaque())}",
+        "unsafe regions are outside the pure compile-time capability set",
     );
 }
 
