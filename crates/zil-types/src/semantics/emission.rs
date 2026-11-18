@@ -86,6 +86,10 @@ pub(crate) struct Ledger {
     pub(super) frozen: Option<std::rc::Rc<super::frozen_context::FrozenSource>>,
     pub(super) original: super::original_context::Slot,
     pub frames: BTreeMap<FunctionId, Frame>,
+    // Each specialization has its own actual target. An origin alone can
+    // select a target only when its complete set has one member.
+    pub(super) targets: BTreeMap<Origin, Vec<FunctionId>>,
+    closure_entries: BTreeMap<ClosureId, FunctionId>,
     /// Pure original use facts, bound to this request's immutable context.
     original_callable_modes: std::cell::RefCell<Option<std::rc::Rc<callable_modes::Directory>>>,
     /// Full nominal proposals attached only to genuine TaskPoll results.
@@ -202,6 +206,14 @@ impl Ledger {
         )?;
         Ok(true)
     }
+    fn closure_frame(&self, closure: ClosureId, left: &mut usize, span: Span) -> R<Option<&Frame>> {
+        pay(left, lookup_cost(self.closure_entries.len()), span)?;
+        let Some(entry) = self.closure_entries.get(&closure) else { return Ok(None) };
+        pay(left, lookup_cost(self.frames.len()), span)?;
+        self.frames.get(entry).filter(|frame| frame.parent.is_some_and(|(_, actual)| actual == closure))
+            .map(Some).ok_or_else(|| invalid(span, "closure does not match its actual emitted entry"))
+    }
+
     fn original_closure_definition(
         &self, closure: ClosureId, left: &mut usize,
     ) -> R<Option<(&SemanticModule, SemanticDefinitionId)>> {
@@ -209,14 +221,8 @@ impl Ledger {
             .or_else(|| self.frozen.as_deref().map(|frozen| &frozen.semantic))
             ;
         let Some(program) = program else { return Ok(None); };
-        pay(left, self.frames.len(), Span::default())?;
-        let mut origin = None;
-        for frame in self.frames.values().filter(|frame| frame.parent.is_some_and(|(_, id)| id == closure)) {
-            if origin.replace(frame.origin).is_some() {
-                return Err(invalid(Span::default(), "formed capture has several actual entry origins"));
-            }
-        }
-        let Some(origin) = origin else { return Ok(None); };
+        let Some(frame) = self.closure_frame(closure, left, Span::default())? else { return Ok(None) };
+        let origin = frame.origin;
         pay(left, program.instances.len(), Span::default())?;
         let mut owner = None;
         for instance in &program.instances {
@@ -241,15 +247,14 @@ impl Ledger {
     ) -> R<()> {
         let (program, owner) = self.original_closure_definition(closure, left)?
             .ok_or_else(|| invalid(span, "Package callback has no genuine original closure occurrence"))?;
-        pay(left, program.definitions.len().saturating_add(self.frames.len()), span)?;
+        pay(left, program.definitions.len(), span)?;
         let original = program.definitions.iter().find(|row| row.id == owner)
             .ok_or_else(|| invalid(span, "Package callback loses its original definition"))?;
         if original.kind != SemanticDefinitionKind::Closure {
             return Err(invalid(span, "Package callback origin is not its original Closure definition"));
         }
-        let mut entries = self.frames.values().filter(|frame| frame.parent.is_some_and(|(_, id)| id == closure));
-        let entry = entries.next().ok_or_else(|| invalid(span, "Package callback has no actual closure frame"))?;
-        if entries.next().is_some() { return Err(invalid(span, "Package callback repeats its actual entry origin")); }
+        let entry = self.closure_frame(closure, left, span)?
+            .ok_or_else(|| invalid(span, "Package callback has no actual closure frame"))?;
         let (creator, _) = entry.parent.expect("filtered actual closure frame");
         pay(left, lookup_cost(self.frames.len()), span)?;
         let parent = self.frames.get(&creator)
@@ -419,6 +424,20 @@ impl Ledger {
                 span,
                 "actual Typed function has two semantic emission owners",
             ));
+        }
+        pay(left, lookup_cost(self.targets.len()), span)?;
+        if let Some((_, closure)) = parent {
+            pay(left, lookup_cost(self.closure_entries.len()), span)?;
+            if self.closure_entries.contains_key(&closure) {
+                return Err(invalid(span, "one emitted closure has several actual entry functions"));
+            }
+        }
+        let targets = self.targets.entry(origin).or_default();
+        pay(left, 1 + if targets.len() == targets.capacity() { targets.len() } else { 0 }, span)?;
+        targets.try_reserve(1).map_err(|_| invalid(span, "cannot grow the emitted target directory"))?;
+        targets.push(function);
+        if let Some((_, closure)) = parent {
+            self.closure_entries.insert(closure, function);
         }
         self.frames.insert(
             function,

@@ -22,7 +22,7 @@ fn search(n: usize) -> usize {
 struct Lower<'a, 'b> {
     ledger: &'a Ledger,
     functions: BTreeMap<FunctionId, &'a TypedFunction>,
-    closures: &'a [ClosureDefinition],
+    closures: BTreeMap<ClosureId, &'a ClosureDefinition>,
     left: &'b mut usize,
     limits: &'b Limits,
 }
@@ -70,16 +70,12 @@ impl<'a> Lower<'a, '_> {
     }
     fn target(&mut self, target: &SemanticFunctionTarget) -> R<FunctionId> {
         let origin = Self::origin(target)?;
-        pay(self.left, self.ledger.frames.len())?;
-        let mut found = None;
-        for (id, frame) in &self.ledger.frames {
-            if frame.origin == origin {
-                if found.replace(*id).is_some() {
-                    return Err(bad("one Core owner has ambiguous actual Typed targets"));
-                }
-            }
-        }
-        let id = found.ok_or_else(|| bad("Core semantic target has no actual emitter binding"))?;
+        pay(self.left, search(self.ledger.targets.len()))?;
+        let id = match self.ledger.targets.get(&origin).map(Vec::as_slice).unwrap_or_default() {
+            [id] => *id,
+            [] => return Err(bad("Core semantic target has no actual emitter binding")),
+            _ => return Err(bad("one Core owner has ambiguous actual Typed targets")),
+        };
         self.actual(id)?;
         if origin.closure.is_some() {
             self.closure_for_entry(id)?;
@@ -97,18 +93,10 @@ impl<'a> Lower<'a, '_> {
             .parent
             .ok_or_else(|| bad("closure entry has no actual direct creator"))?;
         let function = self.actual(id)?;
-        pay(self.left, self.closures.len())?;
-        let mut matches = self
-            .closures
-            .iter()
-            .filter(|definition| definition.id == closure);
-        let actual = matches
-            .next()
+        pay(self.left, search(self.closures.len()))?;
+        let actual = self.closures.get(&closure)
             .ok_or_else(|| bad("closure emitter binding has no actual environment definition"))?;
-        if matches.next().is_some()
-            || actual.function != id
-            || function.environment != Some(closure)
-        {
+        if actual.function != id || function.environment != Some(closure) {
             return Err(bad(
                 "closure definition and entry identities do not match the actual emitter",
             ));
@@ -130,13 +118,12 @@ impl<'a> Lower<'a, '_> {
                     expression: *expression,
                     occurrence: *occurrence,
                 })?;
-                pay(self.left, self.ledger.frames.len())?;
+                pay(self.left, search(self.ledger.targets.len()))?;
+                let targets = self.ledger.targets.get(&origin).map(Vec::as_slice).unwrap_or_default();
                 let mut found = None;
-                for (id, frame) in &self.ledger.frames {
-                    if frame.origin == origin
-                        && frame.parent.is_some_and(|(parent, _)| parent == creator)
-                        && found.replace(*id).is_some()
-                    {
+                for id in targets {
+                    let frame = self.frame(*id)?;
+                    if frame.parent.is_some_and(|(parent, _)| parent == creator) && found.replace(*id).is_some() {
                         return Err(bad("one actual creator has ambiguous closure entries"));
                     }
                 }
@@ -530,10 +517,17 @@ pub(super) fn program(
             return Err(bad("actual Typed function identity repeats"));
         }
     }
+    let mut closures = BTreeMap::new();
+    for definition in &module.closures {
+        pay(left, search(closures.len()))?;
+        if closures.insert(definition.id, definition).is_some() {
+            return Err(bad("actual closure definition identity repeats"));
+        }
+    }
     let mut lower = Lower {
         ledger,
         functions,
-        closures: &module.closures,
+        closures,
         left,
         limits,
     };
@@ -768,11 +762,8 @@ pub(super) fn program(
                     ..
                 },
             ) => {
-                pay(lower.left, module.closures.len())?;
-                let entry = module
-                    .closures
-                    .iter()
-                    .find(|closure| closure.id == *actual)
+                pay(lower.left, search(lower.closures.len()))?;
+                let entry = lower.closures.get(actual)
                     .ok_or_else(|| bad("actual closure site has no environment definition"))?
                     .function;
                 pay(lower.left, program.instances.len())?;
