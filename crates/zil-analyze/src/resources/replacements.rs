@@ -7,6 +7,7 @@ use zil_ir::PlaceProjection;
 type Target = origins::Place;
 mod package;
 mod public_roles;
+pub(crate) use public_roles::invoked as invoked_envelope_entries;
 mod retirement;
 mod whole_enum;
 #[derive(Clone, Copy)]
@@ -1188,22 +1189,51 @@ impl Program {
         Ok(())
     }
 }
-pub(super) fn infer(
+#[cfg(test)]
+fn infer(
     module: &TypedModule,
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     program: &Program,
     b: &mut Budget,
 ) -> CompileResult<Vec<Effect>> {
+    infer_with_inputs(module, graphs, program, None, b)
+}
+
+pub(super) fn infer_with_inputs(
+    module: &TypedModule,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    program: &Program,
+    mut inputs: Option<&mut Vec<Option<ResourceInputs>>>,
+    b: &mut Budget,
+) -> CompileResult<Vec<Effect>> {
     fee(b, module.functions.len())?;
     let mut effects = vec![Effect::default(); module.functions.len()];
-    // Replacement rows can change later resource transfers. Rerun each body
-    // against the current summaries, then validate only after convergence.
+    let order = crate::stored_flow::static_summary_order(
+        module, crate::stored_flow::SummaryCohort::All, b,
+    )?;
+    if order.is_none() {
+        inputs = None;
+    }
+    if let Some(inputs) = &mut inputs {
+        fee(b, module.functions.len())?;
+        inputs.resize_with(module.functions.len(), || None);
+    }
+    // Replacement rows can change later resource transfers. An acyclic
+    // schedule sees each callee's completed may effects. For the remaining
+    // graphs, iterate until the may ledger converges. Normal-return must
+    // effects only become visible once that ledger is complete.
     loop {
         let mut changed = false;
         let mut musts = Vec::new();
-        for (f, (_, reachable)) in module.functions.iter().zip(graphs) {
+        for position in 0..module.functions.len() {
             fee(b, 1)?;
-            let found = analyze_function_program(
+            let index = order.as_ref().map_or(position, |order| order[position]);
+            let f = &module.functions[index];
+            let (_, reachable) = &graphs[index];
+            let replay = inputs.as_deref_mut().map_or(ResourceReplay::Cold, |inputs| {
+                ResourceReplay::Save(&mut inputs[index])
+            });
+            let found = analyze_function_program_with_replay(
                 module,
                 f,
                 reachable,
@@ -1212,6 +1242,7 @@ pub(super) fn infer(
                 b,
                 None,
                 Some(program),
+                replay,
             )?;
             if program.whole_helper(f.id, b)? {
                 fee(b, 1)?;
@@ -1220,7 +1251,7 @@ pub(super) fn infer(
             }
             changed |= grow_effect(&mut effects[f.id.0 as usize], found, b)?;
         }
-        if !changed {
+        if order.is_some() || !changed {
             for (id, rows) in musts {
                 effects[id.0 as usize].whole_commits = rows;
             }

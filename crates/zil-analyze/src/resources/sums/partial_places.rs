@@ -318,6 +318,10 @@ impl Meta {
         }
         Ok(Self { observes, tests })
     }
+    pub(super) fn charge_observer_lookup(&self, b: &mut Budget) -> CompileResult<()> {
+        b.lookup(self.observes.len(), "partial place actual observation lookup")
+    }
+
     pub(super) fn step(
         &self,
         state: &mut State,

@@ -14,6 +14,7 @@ const PREFIX: &str = "@builtin:OwnedStore<";
 pub(super) struct CarrierCache {
     module: usize,
     complete: BTreeSet<usize>,
+    types: BTreeSet<usize>,
 }
 
 fn cached_carrier(
@@ -80,6 +81,7 @@ pub(super) fn publish_carrier(
         .get_or_insert_with(|| CarrierCache {
             module: module_key,
             complete: BTreeSet::new(),
+            types: BTreeSet::new(),
         })
         .complete
         .insert(key);
@@ -216,9 +218,36 @@ pub(super) fn carrier(
     if cached_carrier(module, element, budget)? {
         return Ok(());
     }
-    // A successful miss intentionally does not publish: the element may be a
-    // temporary clone whose address can be reused later in this same request.
-    carrier_uncached(module, element, budget)
+    let module_key = module as *const TypedModule as usize;
+    if budget.geometry_module != Some(module_key) {
+        return carrier_uncached(module, element, budget);
+    }
+    // Synthesized element Types can be short-lived. Use their complete Type
+    // receipt instead of publishing a pointer to the temporary materialization.
+    let identity = super::semantic::geometry::type_identity(element, budget)?;
+    if let Some(cache) = &budget.pod_store_carriers
+        && cache.module == module_key
+    {
+        let count = cache.types.len();
+        budget.lookup(count, "POD carrier complete Type lookup")?;
+        if budget.pod_store_carriers.as_ref().unwrap().types.contains(&identity) {
+            return Ok(());
+        }
+    }
+    carrier_uncached(module, element, budget)?;
+    let count = budget.pod_store_carriers.as_ref().map_or(0, |cache| cache.types.len());
+    budget.lookup(count, "POD carrier complete Type publication")?;
+    budget.spend(1, "POD carrier complete Type publication")?;
+    let cache = budget.pod_store_carriers.get_or_insert_with(|| CarrierCache {
+        module: module_key,
+        complete: BTreeSet::new(),
+        types: BTreeSet::new(),
+    });
+    if cache.module != module_key {
+        return Err(bad("POD carrier complete Type cache belongs to another module"));
+    }
+    cache.types.insert(identity);
+    Ok(())
 }
 
 // Frozen complete cold path. Its target/layout/canonical/related/type/teardown

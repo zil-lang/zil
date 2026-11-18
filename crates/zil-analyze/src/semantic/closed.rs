@@ -68,6 +68,8 @@ fn empty(life: &StorageLifeShape) -> bool {
         && life.retained.is_empty()
         && life.nominal_arguments.is_empty()
 }
+type ClosedNominalKey = (SemanticDefinitionId, usize, Vec<usize>);
+type ClosedNominalSource = (SemanticDefinitionId, Vec<value::Argument>);
 struct Check<'a, 'i> {
     module: &'a TypedModule,
     program: &'a SemanticModule,
@@ -76,15 +78,18 @@ struct Check<'a, 'i> {
     scope_queries: std::cell::RefCell<BTreeSet<ClosureId>>,
     capture_directories: std::cell::RefCell<BTreeMap<ClosureId, capture_heads::CaptureDirectory>>,
     value_queries: std::cell::RefCell<BTreeSet<(SemanticInstanceId, ValueId)>>,
+    /// Type-only zero-domain proofs for exact immutable SSA coordinates.
+    closed_ssa_types: std::cell::RefCell<BTreeSet<(FunctionId, ValueId)>>,
     task_results: std::cell::RefCell<BTreeMap<(SemanticInstanceId, FunctionId, BlockId, usize), value::Value>>,
     slot_queries: std::cell::RefCell<
         BTreeMap<(SemanticInstanceId, FunctionId, LocalId), Option<value::Value>>,
     >,
     trait_queries: std::cell::RefCell<Vec<traits::ActiveQuery>>,
     nominal_definitions: std::cell::RefCell<BTreeMap<LifeDeclarationId, SemanticDefinitionId>>,
-    /// Pure, fully reconstructed zero-domain declarations. Recursion depth is
-    /// part of the proof. No call-site class, loan or owner state is stored.
-    closed_nominals: std::cell::RefCell<BTreeMap<(SemanticDefinitionId, usize), value::Value>>,
+    /// Complete zero-domain substitutions indexed by declaration, recursion
+    /// depth and ordered, exact argument geometry identities.
+    closed_nominals: std::cell::RefCell<BTreeMap<ClosedNominalKey, value::Value>>,
+    closed_nominal_sources: std::cell::RefCell<BTreeMap<(u32, usize), ClosedNominalSource>>,
 }
 /// Replay a nominal field with declaration-local coordinates. The caller
 /// checks this substitution against the independently obtained field value.
@@ -106,11 +111,13 @@ pub(super) fn coordinate_field(
         scope_queries: Default::default(),
         capture_directories: Default::default(),
         value_queries: Default::default(),
+        closed_ssa_types: Default::default(),
         task_results: Default::default(),
         slot_queries: Default::default(),
         trait_queries: Default::default(),
         nominal_definitions: Default::default(),
         closed_nominals: Default::default(),
+        closed_nominal_sources: Default::default(),
     };
     check.nominal_field_value(definition, arguments, recipe, b, depth)
 }
@@ -1163,11 +1170,13 @@ pub(super) fn check(
         scope_queries: std::cell::RefCell::new(BTreeSet::new()),
         capture_directories: Default::default(),
         value_queries: std::cell::RefCell::new(BTreeSet::new()),
+        closed_ssa_types: Default::default(),
         task_results: Default::default(),
         slot_queries: Default::default(),
         trait_queries: std::cell::RefCell::new(Vec::new()),
         nominal_definitions: std::cell::RefCell::new(BTreeMap::new()),
         closed_nominals: Default::default(),
+        closed_nominal_sources: Default::default(),
     };
     inventory.profile_stage("dyn_tables", b);
     checker.dyn_tables(b)?;

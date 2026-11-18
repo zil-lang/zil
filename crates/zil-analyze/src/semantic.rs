@@ -64,6 +64,7 @@ struct Inventory<'a> {
     module: &'a TypedModule,
     program: &'a SemanticModule,
     limits: &'a zil_base::Limits,
+    metadata_profile: (usize, usize),
     source: Option<&'a CoreProgram>,
     frozen_wrapper: Option<SemanticDefinitionId>,
     definitions: BTreeMap<SemanticDefinitionId, &'a SemanticDefinition>,
@@ -82,6 +83,7 @@ struct Inventory<'a> {
         std::cell::RefCell<BTreeMap<(usize, usize, LifeDeclarationId), SemanticDefinitionId>>,
     drop_methods: std::cell::RefCell<BTreeMap<SemanticDefinitionId, Option<SemanticDefinitionId>>>,
     ordinary_drop_absence: std::cell::RefCell<BTreeSet<SemanticDefinitionId>>,
+    nominal_predicates: std::cell::RefCell<BTreeSet<(usize, u8, usize)>>,
     // Successful immutable sealed-resource directory checks only, isolated
     // by the exact borrowed module and the current metadata limit profile.
     sealed_byte_buffers: std::cell::RefCell<BTreeSet<(usize, usize, usize)>>,
@@ -108,6 +110,7 @@ impl<'a> Inventory<'a> {
             module,
             program,
             limits,
+            metadata_profile: (b.partial_depth, b.helper_nodes),
             source: None,
             frozen_wrapper: None,
             definitions: BTreeMap::new(),
@@ -119,6 +122,7 @@ impl<'a> Inventory<'a> {
             declaration_scopes: std::cell::RefCell::new(BTreeMap::new()),
             drop_methods: std::cell::RefCell::new(BTreeMap::new()),
             ordinary_drop_absence: std::cell::RefCell::new(BTreeSet::new()),
+            nominal_predicates: Default::default(),
             sealed_byte_buffers: std::cell::RefCell::new(BTreeSet::new()),
             geometry: geometry::Inputs::new(module, program, b)?,
             implicit_ordinals: BTreeMap::new(),
@@ -745,11 +749,21 @@ impl<'a> Inventory<'a> {
         b.spend(positions.len(), WORK)?;
         positions.iter().map(|position| program.instances.get(*position).filter(|instance| matches!(instance.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id == function)).ok_or_else(|| fail("actual function world changes its exact program coordinate"))).collect()
     }
-    fn resolved(value: &SemanticTypeValue, b: &mut Budget) -> CompileResult<()> {
+    fn metadata_is_current(&self, program: &SemanticModule, b: &Budget) -> bool {
+        std::ptr::eq(self.program, program)
+            && self.metadata_profile == (b.partial_depth, b.helper_nodes)
+    }
+    fn resolved(
+        value: &SemanticTypeValue,
+        metadata_checked: bool,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
         let SemanticTypeValue::Resolved { ty, life, classes } = value else {
             return Err(fail("executable program retains a Core type operand"));
         };
-        crate::dyn_metadata::ty(ty, b)?;
+        if !metadata_checked {
+            crate::dyn_metadata::ty(ty, b)?;
+        }
         b.spend(classes.len().saturating_add(1), WORK)?;
         if classes.len() != life.binder_count as usize {
             return Err(fail("resolved type loses an intrinsic class occurrence"));
@@ -768,12 +782,12 @@ impl<'a> Inventory<'a> {
         // a separate obligation. Count equality alone never supplies that proof.
         Ok(())
     }
-    fn actuals(actuals: &[SemanticActual], b: &mut Budget) -> CompileResult<()> {
+    fn actuals(actuals: &[SemanticActual], metadata_checked: bool, b: &mut Budget) -> CompileResult<()> {
         b.spend(actuals.len(), WORK)?;
         for actual in actuals {
             match actual {
                 SemanticActual::Type(value) | SemanticActual::Const { ty: value, .. } => {
-                    Self::resolved(value, b)?
+                    Self::resolved(value, metadata_checked, b)?
                 }
                 SemanticActual::CoreRecipe { .. } | SemanticActual::CoreInferred { .. } => {
                     return Err(fail("executable program retains an unresolved Core actual"));
@@ -796,6 +810,7 @@ impl<'a> Inventory<'a> {
         Ok(())
     }
     fn parents(&mut self, program: &'a SemanticModule, b: &mut Budget) -> CompileResult<()> {
+        let metadata_checked = self.metadata_is_current(program, b);
         for definition in &program.definitions {
             let mut active = BTreeSet::new();
             let mut current = Some(definition.id);
@@ -809,12 +824,12 @@ impl<'a> Inventory<'a> {
         }
         for instance in &program.instances {
             let definition = self.definition(instance.definition, b)?;
-            Self::actuals(&instance.actuals, b)?;
+            Self::actuals(&instance.actuals, metadata_checked, b)?;
             if let Some(value) = &instance.self_type {
-                Self::resolved(value, b)?;
+                Self::resolved(value, metadata_checked, b)?;
             }
             if let Some(environment) = &instance.environment {
-                Self::actuals(&environment.actuals, b)?;
+                Self::actuals(&environment.actuals, metadata_checked, b)?;
                 if !matches!(environment.closure, SemanticClosureTarget::Typed(_)) {
                     return Err(fail("environment retains a Core closure target"));
                 }
@@ -880,6 +895,9 @@ impl<'a> Inventory<'a> {
         Ok(())
     }
     fn sites(&self, program: &SemanticModule, b: &mut Budget) -> CompileResult<()> {
+        // The complete recipe visitor already bounded every Type at these
+        // immutable coordinates. Class and actual occurrence checks still run.
+        let metadata_checked = self.metadata_is_current(program, b);
         let mut emitted = BTreeSet::new();
         let mut consumed = BTreeSet::new();
         for site in &program.sites {
@@ -919,12 +937,15 @@ impl<'a> Inventory<'a> {
             )) {
                 return Err(fail("actual emission boundary has competing ghost actions"));
             }
-            b.spend(function.blocks.len().saturating_add(1), WORK)?;
-            let block = function
-                .blocks
-                .iter()
-                .find(|candidate| candidate.id == block)
-                .ok_or_else(|| fail("emission site names an absent actual block"))?;
+            b.spend(1, WORK)?;
+            let block = match function.blocks.get(block.0 as usize).filter(|actual| actual.id == block) {
+                Some(actual) => actual,
+                None => {
+                    b.spend(function.blocks.len(), WORK)?;
+                    function.blocks.iter().find(|actual| actual.id == block)
+                        .ok_or_else(|| fail("emission site names an absent actual block"))?
+                }
+            };
             let actual = block.instructions.get(instruction as usize);
             if actual.is_none()
                 && !(instruction as usize == block.instructions.len()
@@ -936,17 +957,17 @@ impl<'a> Inventory<'a> {
                 ));
             }
             match &site.action {
-                SemanticSiteAction::Construct { value, .. } => Self::resolved(value, b)?,
+                SemanticSiteAction::Construct { value, .. } => Self::resolved(value, metadata_checked, b)?,
                 SemanticSiteAction::TypeUse { expected, .. }
-                | SemanticSiteAction::DeclareLocal { expected, .. } => Self::resolved(expected, b)?,
+                | SemanticSiteAction::DeclareLocal { expected, .. } => Self::resolved(expected, metadata_checked, b)?,
                 SemanticSiteAction::Call { actuals, .. }
-                | SemanticSiteAction::BodyCall { actuals } => Self::actuals(actuals, b)?,
+                | SemanticSiteAction::BodyCall { actuals } => Self::actuals(actuals, metadata_checked, b)?,
                 SemanticSiteAction::CoreBodyCall => {
                     return Err(fail(
                         "executable semantic site retains an unresolved Core call",
                     ));
                 }
-                SemanticSiteAction::Closure { environment, .. } => Self::actuals(environment, b)?,
+                SemanticSiteAction::Closure { environment, .. } => Self::actuals(environment, metadata_checked, b)?,
                 SemanticSiteAction::CallableCall { .. } => {}
             }
             match (&recipe.kind, &site.action) {

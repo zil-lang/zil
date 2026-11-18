@@ -31,7 +31,7 @@ fn current(state: OldState) -> State {
             .cells
             .into_iter()
             .map(|(place, fact)| (place, Cell::Inline(fact)))
-            .collect(),
+            .collect::<Cells>().into(),
         later,
         package_values: state.package_values,
         product_births: state.product_births,
@@ -196,7 +196,7 @@ fn sorted_resource_cells_match_complete_state_lookup_merge_and_preserve_life_sou
             state(count, false),
             "incoming full state remains immutable"
         );
-        for (place, fact) in &sorted.cells {
+        for (place, fact) in sorted.cells.iter() {
             assert_eq!(fact.life, BTreeSet::from([Life::Vacant, Life::Available]));
             assert_eq!(
                 fact.birth,
@@ -272,11 +272,11 @@ fn sorted_resource_cells_reject_wrong_places_and_missing_branch_inventory() {
         &mut Budget::new(&Limits::default()),
     )
     .unwrap();
-    let mut empty = BTreeMap::new();
+    let mut empty = Arc::new(Cells::new());
     assert!(
         !join_cells(
             &mut empty,
-            &BTreeMap::new(),
+            &Arc::new(Cells::new()),
             &mut Budget::new(&Limits::default())
         )
         .unwrap()
@@ -363,7 +363,7 @@ fn sorted_resource_cells_preserve_complete_state_with_actual_packed_order() {
 fn shared(state: OldState) -> State {
     let mut result = current(state);
     let mut setup = Budget::new(&Limits::default());
-    for cell in result.cells.values_mut() {
+    for cell in Arc::make_mut(&mut result.cells).values_mut() {
         let Cell::Inline(fact) = cell else {
             unreachable!()
         };
@@ -393,7 +393,7 @@ fn immutable_resource_facts_preserve_full_old_state_and_external_snapshots() {
     assert_eq!(snapshot(&incoming), old_right);
     assert!(!join(&mut actual, &incoming, &mut Budget::new(&Limits::default())).unwrap());
     assert_eq!(snapshot(&actual), expected);
-    for (place, cell) in &saved.cells {
+    for (place, cell) in saved.cells.iter() {
         let Cell::Shared(old) = cell else {
             unreachable!()
         };

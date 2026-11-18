@@ -50,6 +50,8 @@ pub(super) struct Budget {
     // Membership certifies only that an input coordinate lives for this
     // immutable module. Consumers must establish their own structural proof.
     pub(super) input_type_coordinates: Option<(usize, std::sync::Arc<BTreeSet<usize>>)>,
+    // Complete Hold boundary classification of immutable actual Type nodes.
+    pub(super) hold_boundary_types: BTreeMap<(usize, usize, bool, bool), bool>,
     pub(super) geometry_type_catalog:
         BTreeMap<(Option<usize>, (usize, usize), u64), Vec<crate::semantic::geometry::TypeRecord>>,
     pub(super) geometry_catalog: BTreeMap<
@@ -335,6 +337,7 @@ impl Budget {
             geometry_epoch: std::sync::Arc::new(()),
             geometry_module: None,
             input_type_coordinates: None,
+            hold_boundary_types: BTreeMap::new(),
             geometry_type_catalog: BTreeMap::new(),
             geometry_catalog: BTreeMap::new(),
             geometry_next_type: 0,
@@ -774,6 +777,17 @@ impl Budget {
     pub(super) fn lookup(&mut self, size: usize, context: &str) -> CompileResult<()> {
         // A bounded tree lookup/insertion visits logarithmically many levels.
         self.spend(size.checked_ilog2().map_or(1, |n| n as usize + 2), context)
+    }
+
+    #[track_caller]
+    pub(super) fn lookup_with_width(
+        &mut self,
+        size: usize,
+        width: usize,
+        context: &str,
+    ) -> CompileResult<()> {
+        let levels = size.checked_ilog2().map_or(1, |n| n as usize + 2);
+        self.product(levels, width, 1, context)
     }
 
     pub(super) fn type_work(

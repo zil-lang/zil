@@ -32,7 +32,7 @@ pub(super) fn helper_effects(effect: &Effect, b: &mut Budget) -> CompileResult<(
     Ok(())
 }
 
-pub(super) fn invoked(
+pub(crate) fn invoked(
     module: &TypedModule,
     f: &TypedFunction,
     contract: &CallableParameterContract,
@@ -71,7 +71,8 @@ pub(super) fn invoked(
         let value = *arguments
             .get(role.parameter as usize)
             .ok_or_else(|| error("public replacement role actual input absent"))?;
-        let ty = &f.values[value.0 as usize];
+        let ty = f.values.get(value.0 as usize)
+            .ok_or_else(|| error("public replacement role actual operand absent"))?;
         let ty = if let Type::Address { inner, .. } = ty {
             inner.as_ref()
         } else {

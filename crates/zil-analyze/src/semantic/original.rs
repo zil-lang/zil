@@ -280,6 +280,9 @@ struct ReceivingPlace {
 }
 pub(super) struct Checked {
     arena: Vec<Kind>,
+    // Only complete immutable original worlds enter this directory. Each
+    // result belongs to its exact term and bound on recursive depth.
+    closed_values: Option<std::cell::RefCell<BTreeMap<(usize, Term, usize), value::Value>>>,
     frames: BTreeMap<SemanticDefinitionId, Frame>,
     calls: BTreeMap<(SemanticDefinitionId, NodeId), Call>,
     intrinsics: BTreeMap<(SemanticDefinitionId, NodeId), sealed::Intrinsic>,
@@ -4505,6 +4508,7 @@ pub(super) fn check(
         indexes,
         state: Checked {
             arena: Vec::new(),
+            closed_values: None,
             frames: BTreeMap::new(),
             calls: BTreeMap::new(),
             intrinsics: BTreeMap::new(),
@@ -4802,6 +4806,7 @@ pub(super) fn check(
     solver.check_resume_capabilities(b)?;
     solver.check_scoped_threads(b)?;
     b.spend(module.functions.len(), WORK)?;
+    solver.state.closed_values = Some(Default::default());
     Ok(solver.state)
 }
 
@@ -5456,6 +5461,21 @@ fn entails(available: Predicate, wanted: Predicate) -> bool {
     )
 }
 
+fn site_expression(
+    owner: SemanticDefinitionId,
+    site: SemanticSiteId,
+    inventory: &Inventory<'_>,
+    b: &mut Budget,
+    missing: &str,
+    statement: &str,
+) -> CompileResult<NodeId> {
+    match inventory.original_index(owner, b)?.site_node(site, b)? {
+        Some(SemanticOriginalNode::Expression(node)) => Ok(node),
+        Some(SemanticOriginalNode::Statement(_)) => Err(fail(statement)),
+        None => Err(fail(missing)),
+    }
+}
+
 impl Checked {
     fn root(&self, mut term: Term, b: &mut Budget) -> CompileResult<Term> {
         for _ in 0..=self.arena.len() {
@@ -5605,19 +5625,30 @@ impl Checked {
                 b,
             )?;
         }
-        b.spend(self.frames.len().saturating_add(1), WORK)?;
+        b.lookup(self.frames.len(), WORK)?;
         let frame = self
             .frames
             .get(&context.definition)
             .ok_or_else(|| fail("original Type source has no checked declaration frame"))?;
         let term = match source {
-            SemanticOriginalTypeSource::Expression(id) => { b.spend(frame.expressions.len().saturating_add(1),WORK)?; frame.expressions.get(id).copied() },
-            SemanticOriginalTypeSource::Binding(id) => { b.spend(frame.bindings.len().saturating_add(1),WORK)?; frame.bindings.get(id).copied() },
-            SemanticOriginalTypeSource::BindingProjection {statement,pattern} => {b.spend(pattern.len().saturating_add(self.patterns.len()+1),WORK)?;self.patterns.get(&(context.definition,*statement,pattern.clone())).copied()},
+            SemanticOriginalTypeSource::Expression(id) => {
+                b.lookup(frame.expressions.len(), WORK)?;
+                frame.expressions.get(id).copied()
+            }
+            SemanticOriginalTypeSource::Binding(id) => {
+                b.lookup(frame.bindings.len(), WORK)?;
+                frame.bindings.get(id).copied()
+            }
+            SemanticOriginalTypeSource::BindingProjection { statement, pattern } => {
+                let width = pattern.len().saturating_add(1);
+                b.lookup_with_width(self.patterns.len(), width, WORK)?;
+                b.spend(width, WORK)?;
+                self.patterns.get(&(context.definition, *statement, pattern.clone())).copied()
+            }
             SemanticOriginalTypeSource::Parameter(index) => frame.parameters.get(*index as usize).copied(),
             SemanticOriginalTypeSource::Result => Some(frame.result),
             SemanticOriginalTypeSource::NameAt { at:SemanticOriginalNode::Expression(at),name } => {
-                b.spend(self.names_at.len().saturating_add(1),WORK)?;
+                b.lookup(self.names_at.len(),WORK)?;
                 let rows = self.names_at.get(&(context.definition,*at)).ok_or_else(|| fail("original name Type is not at its checked creator"))?;
                 let mut selected = None;
                 for (key,term) in rows { b.spend(key.len().saturating_add(name.len()),WORK)?; if key == name { selected = Some(*term); } }
@@ -5635,29 +5666,12 @@ impl Checked {
         inventory: &Inventory<'_>,
         b: &mut Budget,
     ) -> CompileResult<(SemanticDefinitionId, Vec<crate::semantic::value::Value>)> {
-        let definition = inventory.definition(context.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
-            return Err(fail("actual call inputs omit their complete original body"));
-        };
-        let mut node = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.site == site {
-                let SemanticOriginalNode::Expression(id) = link.node else {
-                    return Err(fail("actual call input selects an original statement"));
-                };
-                if node.replace(id).is_some() {
-                    return Err(fail("actual call inputs have competing original nodes"));
-                }
-            }
-        }
+        let node = site_expression(context.definition, site, inventory, b,
+            "actual call inputs have no original node", "actual call input selects an original statement")?;
         b.lookup(self.calls.len(), WORK)?;
         let call = self
             .calls
-            .get(&(
-                context.definition,
-                node.ok_or_else(|| fail("actual call inputs have no original node"))?,
-            ))
+            .get(&(context.definition, node))
             .ok_or_else(|| {
                 fail("actual call inputs have no original declaration-domain inference")
             })?;
@@ -5755,23 +5769,8 @@ impl Checked {
         inventory: &Inventory<'_>,
         b: &mut Budget,
     ) -> CompileResult<Option<sealed::Intrinsic>> {
-        let definition = inventory.definition(context.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
-            return Err(fail("actual core operation has no original body"));
-        };
-        let mut selected = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.site == site {
-                let SemanticOriginalNode::Expression(node) = link.node else {
-                    return Err(fail("actual core operation selects a statement"));
-                };
-                if selected.replace(node).is_some() {
-                    return Err(fail("actual core operation has competing original anchors"));
-                }
-            }
-        }
-        let node = selected.ok_or_else(|| fail("actual core operation has no original anchor"))?;
+        let node = site_expression(context.definition, site, inventory, b,
+            "actual core operation has no original anchor", "actual core operation selects a statement")?;
         b.lookup(self.intrinsics.len(), WORK)?;
         Ok(self.intrinsics.get(&(context.definition, node)).copied())
     }
@@ -5782,24 +5781,8 @@ impl Checked {
         inventory: &Inventory<'_>,
         b: &mut Budget,
     ) -> CompileResult<LocalAnchor> {
-        let declaration = inventory.definition(context.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &declaration.body else {
-            return Err(fail("actual native head lacks its original declaration"));
-        };
-        let mut selected = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.site == site {
-                let SemanticOriginalNode::Expression(node) = link.node else {
-                    return Err(fail("actual native head selects an original statement"));
-                };
-                if selected.replace(node).is_some() {
-                    return Err(fail("actual native head has competing source anchors"));
-                }
-            }
-        }
-        let node =
-            selected.ok_or_else(|| fail("actual native head omits its source occurrence"))?;
+        let node = site_expression(context.definition, site, inventory, b,
+            "actual native head omits its source occurrence", "actual native head selects an original statement")?;
         b.lookup(self.intrinsic_anchors.len(), WORK)?;
         self.intrinsic_anchors
             .get(&(context.definition, node))
@@ -5816,28 +5799,8 @@ impl Checked {
         inventory: &Inventory<'_>,
         b: &mut Budget,
     ) -> CompileResult<crate::semantic::value::Value> {
-        let declaration = inventory.definition(context.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &declaration.body else {
-            return Err(fail(
-                "actual native result has no complete original declaration",
-            ));
-        };
-        let mut selected = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.site == site {
-                let SemanticOriginalNode::Expression(node) = link.node else {
-                    return Err(fail("actual native result selects an original statement"));
-                };
-                if selected.replace(node).is_some() {
-                    return Err(fail(
-                        "actual native result has competing original occurrences",
-                    ));
-                }
-            }
-        }
-        let node =
-            selected.ok_or_else(|| fail("actual native result omits its original occurrence"))?;
+        let node = site_expression(context.definition, site, inventory, b,
+            "actual native result omits its original occurrence", "actual native result selects an original statement")?;
         let frame = self
             .frames
             .get(&context.definition)
@@ -5856,25 +5819,8 @@ impl Checked {
         inventory: &Inventory<'_>,
         b: &mut Budget,
     ) -> CompileResult<Vec<crate::semantic::value::Value>> {
-        let declaration = inventory.definition(context.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &declaration.body else {
-            return Err(fail(
-                "actual native inputs have no complete original function",
-            ));
-        };
-        let mut selected = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.site == site {
-                let SemanticOriginalNode::Expression(node) = link.node else {
-                    return Err(fail("actual native call selects an original statement"));
-                };
-                if selected.replace(node).is_some() {
-                    return Err(fail("actual native inputs have competing original anchors"));
-                }
-            }
-        }
-        let node = selected.ok_or_else(|| fail("actual native inputs omit their original node"))?;
+        let node = site_expression(context.definition, site, inventory, b,
+            "actual native inputs omit their original node", "actual native call selects an original statement")?;
         b.lookup(self.intrinsic_inputs.len(), WORK)?;
         let terms = self
             .intrinsic_inputs
@@ -5900,27 +5846,9 @@ impl Checked {
         Vec<crate::semantic::value::Argument>,
         Option<CallKind>,
     )> {
-        let definition = inventory.definition(context.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
-            return Err(fail(
-                "actual BodyCall has no complete original function body",
-            ));
-        };
-        b.spend(site_nodes.len(), WORK)?;
-        let mut selected = None;
-        for node in site_nodes {
-            if node.site != site {
-                continue;
-            }
-            let SemanticOriginalNode::Expression(id) = node.node else {
-                return Err(fail("actual BodyCall selects an original statement"));
-            };
-            if selected.replace(id).is_some() {
-                return Err(fail("actual BodyCall has multiple original nodes"));
-            }
-        }
-        let node = selected.ok_or_else(|| fail("actual BodyCall has no original node"))?;
-        b.spend(self.calls.len().saturating_add(1), WORK)?;
+        let node = site_expression(context.definition, site, inventory, b,
+            "actual BodyCall has no original node", "actual BodyCall selects an original statement")?;
+        b.lookup(self.calls.len(), WORK)?;
         let call = self
             .calls
             .get(&(context.definition, node))
@@ -5942,28 +5870,8 @@ impl Checked {
         inventory: &Inventory<'_>,
         b: &mut Budget,
     ) -> CompileResult<Vec<SemanticDefinitionId>> {
-        let declaration = inventory.definition(instance.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &declaration.body else {
-            return Err(fail(
-                "actual installation lacks its full original function body",
-            ));
-        };
-        let mut selected = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.site == site {
-                let SemanticOriginalNode::Expression(node) = link.node else {
-                    return Err(fail("actual installation selects an original statement"));
-                };
-                if selected.replace(node).is_some() {
-                    return Err(fail(
-                        "actual installation has competing original call nodes",
-                    ));
-                }
-            }
-        }
-        let node =
-            selected.ok_or_else(|| fail("actual installation loses its original call anchor"))?;
+        let node = site_expression(instance.definition, site, inventory, b,
+            "actual installation loses its original call anchor", "actual installation selects an original statement")?;
         b.lookup(self.native_targets.len(), WORK)?;
         let targets = self
             .native_targets

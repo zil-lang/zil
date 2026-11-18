@@ -1480,13 +1480,13 @@ fn store_window_transition(
         | InstructionKind::DropDynOwned { local }
         | InstructionKind::DropManaged { local }
         | InstructionKind::DropPackage { local }
-            if boundary_owner(&f.locals[local.0 as usize].ty, callback_windows, budget)? =>
+            if boundary_owner(module, &f.locals[local.0 as usize].ty, callback_windows, budget)? =>
         {
             Some(Root::Local(local))
         }
         InstructionKind::Store { local, .. } | InstructionKind::DropErrorUnion { local }
             if callback_windows
-                && boundary_owner(&f.locals[local.0 as usize].ty, true, budget)? =>
+                && boundary_owner(module, &f.locals[local.0 as usize].ty, true, budget)? =>
         {
             Some(Root::Local(local))
         }
@@ -1498,7 +1498,7 @@ fn store_window_transition(
                     &f.locals[local.0 as usize].ty, PlaceProjection::Field(index),
                 )
                 && ((forward_windows && matches!(ty, Type::Closure(_)))
-                    || (callback_windows && boundary_owner(ty, true, budget)?)
+                    || (callback_windows && boundary_owner(module, ty, true, budget)?)
                     || dynamic_store::is_owned_carrier(ty)
                     || (matches!(resources::package_storage(ty), Type::Package { .. })
                         && contains_owned_store(ty, budget)?)) =>
@@ -1646,14 +1646,37 @@ fn store_window_transition(
     Ok(())
 }
 
-fn boundary_owner(ty: &Type, callback_windows: bool, budget: &mut Budget) -> CompileResult<bool> {
+fn boundary_owner(
+    module: &TypedModule,
+    ty: &Type,
+    callback_windows: bool,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    if ty.is_b0_scalar() {
+        budget.spend(1, "scalar Hold boundary classification")?;
+        return Ok(false);
+    }
+    let key = (
+        module as *const TypedModule as usize,
+        ty as *const Type as usize,
+        callback_windows,
+        !budget.sum_functions.is_empty(),
+    );
+    budget.lookup(budget.hold_boundary_types.len(), "Hold boundary type lookup")?;
+    if let Some(owned) = budget.hold_boundary_types.get(&key) {
+        return Ok(*owned);
+    }
+    let mut owned = false;
     if callback_windows {
         budget.type_work(ty, false, "owned callback address boundary classification")?;
-        if resources::sums::owned(ty) {
-            return Ok(true);
-        }
+        owned = resources::sums::owned(ty);
     }
-    contains_owned_store(ty, budget)
+    owned = owned || contains_owned_store(ty, budget)?;
+    if budget.immutable_input_type(module, ty)? {
+        budget.lookup(budget.hold_boundary_types.len(), "Hold boundary type publication")?;
+        budget.hold_boundary_types.insert(key, owned);
+    }
+    Ok(owned)
 }
 
 fn infer(

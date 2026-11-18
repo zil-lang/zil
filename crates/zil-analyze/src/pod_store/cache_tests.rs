@@ -307,6 +307,7 @@ fn nonempty_publication_prepays_both_searches_and_preserves_the_old_table_on_fai
         b.pod_store_carriers = Some(CarrierCache {
             module: &two as *const TypedModule as usize,
             complete: old.clone(),
+            types: BTreeSet::new(),
         });
         assert!(
             publish_carrier(&two, second, &mut b)
@@ -323,6 +324,7 @@ fn nonempty_publication_prepays_both_searches_and_preserves_the_old_table_on_fai
     b.pod_store_carriers = Some(CarrierCache {
         module: &two as *const TypedModule as usize,
         complete: old,
+        types: BTreeSet::new(),
     });
     publish_carrier(&two, second, &mut b).unwrap();
     assert_eq!(b.pod_store_carriers.as_ref().unwrap().complete.len(), 2);

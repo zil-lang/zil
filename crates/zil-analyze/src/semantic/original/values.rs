@@ -585,7 +585,42 @@ impl Checked {
                 "original complete value instantiation exceeds its depth",
             ));
         }
-        match &self.arena[self.root(term, b)?] {
+        let root = self.root(term, b)?;
+        let Some(cache) = &self.closed_values else {
+            return self.value_at(root, context, program, inventory, b, depth);
+        };
+        if matches!(self.arena[root], Kind::Atom(_)) || !std::ptr::eq(program, inventory.program) {
+            return self.value_at(root, context, program, inventory, b, depth);
+        }
+        let key = (context as *const SemanticInstance as usize, root, depth);
+        b.lookup(cache.borrow().len(), WORK)?;
+        if let Some(value) = cache.borrow().get(&key) {
+            return value.copy(b);
+        }
+        let value = self.value_at(root, context, program, inventory, b, depth)?;
+        // Synthetic contexts can carry different substituted actuals even
+        // when their numerical instance IDs coincide. Publish only a value
+        // of the immutable instance held by this original inventory.
+        if value.classes.is_empty() {
+            b.lookup(inventory.instances.len(), WORK)?;
+            if inventory.instances.get(&context.id).is_some_and(|held| std::ptr::eq(context, *held)) {
+                b.lookup(cache.borrow().len(), WORK)?;
+                cache.borrow_mut().insert(key, value.copy(b)?);
+            }
+        }
+        Ok(value)
+    }
+
+    fn value_at(
+        &self,
+        root: Term,
+        context: &SemanticInstance,
+        program: &SemanticModule,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Value> {
+        match &self.arena[root] {
             Kind::Atom(ty) => value::borrowed_scalar(ty, inventory, b),
             Kind::Task(task) => self.task_value(task, context, program, inventory, b, depth + 1),
             Kind::Dyn(ty) => self.dyn_value(ty, context, program, inventory, b, depth + 1),
@@ -820,7 +855,7 @@ impl Checked {
                 value::tuple(types, b)
             }
             Kind::Closure { .. } => self.closure_value(
-                term, context, context, None, program, inventory, b, depth + 1,
+                root, context, context, None, program, inventory, b, depth + 1,
             ),
             _ => Err(unknown(
                 "original complete type remains unresolved independently of executable images",

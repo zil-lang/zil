@@ -601,9 +601,13 @@ pub(super) fn same_geometry(
     right: &Arc<Geometry>,
     budget: &mut Budget,
 ) -> CompileResult<bool> {
-    let left = intern::owned(left, budget)?;
-    let right = intern::owned(right, budget)?;
-    Ok(left.geometry_id == right.geometry_id)
+    Ok(identity(left, budget)? == identity(right, budget)?)
+}
+pub(super) fn identity(owner: &Arc<Geometry>, budget: &mut Budget) -> CompileResult<usize> {
+    Ok(intern::owned(owner, budget)?.geometry_id)
+}
+pub(crate) fn type_identity(ty: &Type, budget: &mut Budget) -> CompileResult<usize> {
+    intern::type_identity(ty, budget)
 }
 pub(super) fn check_geometry(owner: &Arc<Geometry>, budget: &mut Budget) -> CompileResult<()> {
     intern::owned(owner, budget)?;

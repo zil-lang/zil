@@ -60,6 +60,13 @@ impl Value {
     pub(super) fn check_geometry(&self, b: &mut Budget) -> CompileResult<()> {
         geometry::check_geometry(&self.geometry, b)
     }
+    pub(super) fn closed_geometry_identity(&self, b: &mut Budget) -> CompileResult<Option<usize>> {
+        if self.classes.is_empty() && empty_shape(&self.life) {
+            Ok(Some(geometry::identity(&self.geometry, b)?))
+        } else {
+            Ok(None)
+        }
+    }
     pub(super) fn from_geometry(
         geometry: std::sync::Arc<geometry::Geometry>,
         classes: Vec<Class>,

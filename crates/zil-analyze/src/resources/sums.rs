@@ -1883,15 +1883,23 @@ impl Plan {
             facts.invalidate(*local, self, budget)?;
             return Ok(None);
         }
-        // Only this bounded set has no remaining implicit tree search. In
-        // particular Meta::step's result observer and managed-success Sum
-        // extraction retain the complete old reserve through the fallback.
+        // Pure scalar results and scope boundaries have no additional Sum
+        // tree search. The partial-result observation lookup is paid directly.
         budget.spend(1, "Sum direct transfer qualification")?;
-        let direct = (self.partial.is_none() || i.result.is_none())
-            && !i
-                .result
-                .and_then(|v| f.values.get(v.0 as usize))
-                .is_some_and(managed_success)
+        let result = i.result.and_then(|v| f.values.get(v.0 as usize));
+        let flat = match &i.kind {
+            InstructionKind::Binary { .. }
+            | InstructionKind::Unary { .. }
+            | InstructionKind::ConvertInteger { .. }
+            | InstructionKind::ExtractField { .. }
+            | InstructionKind::ReadAddress { .. }
+            | InstructionKind::OwnedStoreLen { .. }
+            | InstructionKind::OwnedStoreCapacity { .. } => result.is_some_and(Type::is_b0_scalar),
+            InstructionKind::ScopeEnter { .. } | InstructionKind::ScopeExit { .. } => i.result.is_none(),
+            _ => false,
+        };
+        let direct = flat || (self.partial.is_none() || i.result.is_none())
+            && !result.is_some_and(managed_success)
             && matches!(
                 i.kind,
                 InstructionKind::Constant(_)
@@ -1958,6 +1966,9 @@ impl Plan {
             ));
         }
         if let (Some(meta), Some(state)) = (&self.partial, &mut facts.partial) {
+            if direct && i.result.is_some() {
+                meta.charge_observer_lookup(budget)?;
+            }
             meta.step(state, i, budget)?;
             if partial_places::invalidates(&i.kind) {
                 if let Some(locals) = &self.tagged_locals {

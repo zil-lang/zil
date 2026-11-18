@@ -421,6 +421,15 @@ fn bounded_type_candidate(ty: &Type, b: &mut Budget) -> CompileResult<(usize, u6
     let (digest, id) = structural_type_candidate(ty, work, b)?;
     Ok((work, digest, id))
 }
+pub(super) fn type_identity(ty: &Type, b: &mut Budget) -> CompileResult<usize> {
+    let (work, digest, identity) = bounded_type_candidate(ty, b)?;
+    if let Some(identity) = identity {
+        return Ok(identity);
+    }
+    b.spend(work.saturating_add(1), "semantic geometry Type-only owned copy")?;
+    let owner = Arc::new(Geometry::new(ty.clone(), value::empty()));
+    add_type(&owner, Node::Root, digest, work, b)
+}
 fn shape_work(life: &StorageLifeShape, b: &mut Budget) -> CompileResult<usize> {
     let before = b.remaining();
     crate::dyn_metadata::shape(life, b)?;

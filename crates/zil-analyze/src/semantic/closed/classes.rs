@@ -581,14 +581,12 @@ impl Check<'_, '_> {
                 "original nominal value selects another declaration kind",
             ));
         };
-        let closed = arguments.is_empty() && declaration.parameters.is_empty()
-            && declaration.environment.is_empty() && declaration.requirements.is_empty()
-            && self.trait_queries.borrow().is_empty();
-        let key = (definition, depth);
-        if closed {
+        let key = self.closed_nominal_key(declaration, depth, arguments, b)?;
+        if let Some(key) = &key {
             let entries = self.closed_nominals.borrow();
-            b.lookup(entries.len(), "closed nominal declaration lookup")?;
-            if let Some(value) = entries.get(&key) {
+            b.lookup_with_width(entries.len(), key.2.len().saturating_add(1),
+                "closed nominal substitution lookup")?;
+            if let Some(value) = entries.get(key) {
                 return value.copy(b);
             }
         }
@@ -613,12 +611,34 @@ impl Check<'_, '_> {
         }
         let value = value::nominal(definition, arguments, &fields, self.program, self.original,
             self.inventory, b, depth + 1)?;
-        if closed && value.classes.is_empty() && value.life == value::empty() {
+        if let Some(key) = key && value.classes.is_empty() && value.life == value::empty() {
             let mut entries = self.closed_nominals.borrow_mut();
-            b.lookup(entries.len(), "closed nominal declaration publication")?;
+            b.lookup_with_width(entries.len(), key.2.len().saturating_add(1),
+                "closed nominal substitution publication")?;
             entries.insert(key, value.copy(b)?);
         }
         Ok(value)
+    }
+    fn closed_nominal_key(
+        &self,
+        declaration: &SemanticDefinition,
+        depth: usize,
+        arguments: &[Argument],
+        b: &mut Budget,
+    ) -> CompileResult<Option<ClosedNominalKey>> {
+        if declaration.parameters.len() != arguments.len()
+            || !declaration.environment.is_empty() || !declaration.requirements.is_empty()
+            || !self.trait_queries.borrow().is_empty()
+        {
+            return Ok(None);
+        }
+        let mut key = Vec::new();
+        for argument in arguments {
+            let Argument::Type(value) = argument else { return Ok(None); };
+            let Some(identity) = value.closed_geometry_identity(b)? else { return Ok(None); };
+            self.push_value(&mut key, identity, b)?;
+        }
+        Ok(Some((declaration.id, depth, key)))
     }
     fn nominal_field(
         &self,
@@ -671,6 +691,16 @@ impl Check<'_, '_> {
         )?;
         let instance = &self.module.life_instances[index];
         let index = u32::try_from(index).map_err(|_| fail("nominal inventory ordinal overflow"))?;
+        let cacheable = source_life.is_none() && self.trait_queries.borrow().is_empty();
+        let key = (index, depth);
+        if cacheable {
+            let sources = self.closed_nominal_sources.borrow();
+            b.lookup(sources.len(), "closed nominal actual source lookup")?;
+            if let Some((definition, arguments)) = sources.get(&key) {
+                b.spend(arguments.len().saturating_add(1), "closed nominal actual source copy")?;
+                return Ok((*definition, arguments.clone()));
+            }
+        }
         let cached = {
             let cache = self.nominal_definitions.borrow();
             b.lookup(cache.len(), WORK)?;
@@ -695,8 +725,8 @@ impl Check<'_, '_> {
             cache.insert(instance.declaration, definition);
             definition
         };
-        // Only identity lookup was reused. Every current scope, complete
-        // argument image and intrinsic N/kappa is reconstructed below.
+        // This cold path reconstructs the complete current argument image and
+        // intrinsic nominal domain from the exact original declaration.
         if !matches!(self.inventory.definition(definition, b)?.body, SemanticDefinitionBody::Nominal { declaration, .. } if declaration == instance.declaration)
         {
             return Err(fail(
@@ -757,10 +787,21 @@ impl Check<'_, '_> {
             };
             self.push_value(&mut args, argument, b)?;
         }
-        if self.nominal_value(definition, &args, b, depth)?.ty != *ty {
+        let value = self.nominal_value(definition, &args, b, depth)?;
+        if !geometry::same_type(&value.ty, &geometry.ty, b)? {
             return Err(fail(
                 "nominal inventory differs from full original substitution",
             ));
+        }
+        if cacheable && args.iter().all(|argument| {
+            matches!(argument, Argument::Type(value) if value.classes.is_empty() && empty(&value.life))
+        }) {
+            // Each retained argument shares only its immutable, class-free
+            // geometry. The current occurrence still proves its own source.
+            let mut sources = self.closed_nominal_sources.borrow_mut();
+            b.lookup(sources.len(), "closed nominal actual source publication")?;
+            b.spend(args.len().saturating_add(1), "closed nominal actual source copy")?;
+            sources.insert(key, (definition, args.clone()));
         }
         Ok((definition, args))
     }
@@ -2089,6 +2130,15 @@ impl Check<'_, '_> {
         Ok(Some(parent))
     }
 
+    fn remember_closed_ssa_type(&self, key: Option<(FunctionId, ValueId)>, b: &mut Budget) -> CompileResult<()> {
+        if let Some(key) = key {
+            let mut known = self.closed_ssa_types.borrow_mut();
+            b.lookup(known.len(), WORK)?;
+            known.insert(key);
+        }
+        Ok(())
+    }
+
     pub(super) fn ssa_value(
         &self,
         instance: &SemanticInstance,
@@ -2110,6 +2160,16 @@ impl Check<'_, '_> {
         if ty.is_b0_scalar() {
             return Ok(value::scalar(ty.clone()));
         }
+        let key = self.module.functions.get(function.id.0 as usize)
+            .filter(|actual| std::ptr::eq(*actual, function) && self.trait_queries.borrow().is_empty())
+            .map(|_| (function.id, id));
+        if let Some(key) = key {
+            let known = self.closed_ssa_types.borrow();
+            b.lookup(known.len(), WORK)?;
+            if known.contains(&key) {
+                return value::borrowed_scalar(ty, self.inventory, b);
+            }
+        }
         if let Type::Closure(id) = ty {
             let closure = self
                 .module
@@ -2125,6 +2185,7 @@ impl Check<'_, '_> {
                 // The count selects a proof obligation, never proves it:
                 // reconstruct every real capture and original environment.
                 self.zero_data(ty, b, 0)?;
+                self.remember_closed_ssa_type(key, b)?;
                 return value::borrowed_scalar(ty, self.inventory, b);
             }
         }
@@ -2152,6 +2213,7 @@ impl Check<'_, '_> {
             // This is not an empty-shape shortcut: zero_data walks the full
             // nominal/opaque inventory and rejects nonzero or Unknown scopes.
             self.zero_data(ty, b, 0)?;
+            self.remember_closed_ssa_type(key, b)?;
             return value::borrowed_scalar(ty, self.inventory, b);
         }
         if depth > b.partial_depth {

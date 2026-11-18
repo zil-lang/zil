@@ -2,6 +2,7 @@
 //! code or produce trusted permission certificates. It uses sparse named cells
 //! and explicit sets of possible lifecycle states, independently of Verify.
 use super::*;
+use std::sync::Arc;
 use std::cell::RefCell;
 use std::cmp::Reverse;
 use std::collections::BTreeMap;
@@ -11,7 +12,7 @@ pub(super) fn head_address(ty: &Type) -> bool {
 }
 mod order;
 pub(super) mod product;
-mod replacements;
+pub(super) mod replacements;
 mod summary_graph;
 pub(crate) mod sums;
 
@@ -233,9 +234,11 @@ impl std::ops::Deref for Cell {
         }
     }
 }
+type Cells = BTreeMap<Place, Cell>;
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct State {
-    cells: BTreeMap<Place, Cell>,
+    cells: Arc<Cells>,
     later: order::Order,
     // Complete SSA Packages carry the actual birth of each direct Managed
     // field. Local Packages already have separate lifecycle cells. Unknown
@@ -245,6 +248,13 @@ struct State {
     sums: sums::Facts,
     // Enabled only for the bounded borrowed whole-Package helper proof.
     whole_commits: Option<replacements::Effects>,
+}
+type ResourceInputs = Vec<Option<State>>;
+
+enum ResourceReplay<'a> {
+    Cold,
+    Save(&'a mut Option<ResourceInputs>),
+    Validate(ResourceInputs),
 }
 #[derive(Clone, Copy)]
 struct Shape {
@@ -333,32 +343,38 @@ fn copied(state: &State, place: Place, budget: &mut Budget) -> CompileResult<Fac
     fact_cost(fact, budget)?;
     Ok((**fact).clone())
 }
+fn edit_cells<'a>(cells: &'a mut Arc<Cells>, budget: &mut Budget) -> CompileResult<&'a mut Cells> {
+    budget.spend(1, "resource cell table ownership")?;
+    if Arc::strong_count(cells) > 1 {
+        budget.spend(cells.len(), "resource cell table copy")?;
+        for cell in cells.values() {
+            match cell {
+                Cell::Inline(fact) => fact_cost(fact, budget)?,
+                Cell::Shared(_) => budget.spend(1, "immutable fact header clone and release")?,
+            }
+        }
+    }
+    Ok(Arc::make_mut(cells))
+}
 fn replace(state: &mut State, place: Place, fact: Fact, budget: &mut Budget) -> CompileResult<()> {
     budget.lookup(state.cells.len(), "resource update")?;
-    let Some(old) = state.cells.get(&place) else {
+    let cells = edit_cells(&mut state.cells, budget)?;
+    let Some(slot) = cells.get_mut(&place) else {
         return Err(error("resource update has no typed cell"));
     };
-    let shared = matches!(old, Cell::Shared(_));
-    state
-        .cells
-        .insert(place, stored_fact(fact, shared, budget)?);
+    let shared = matches!(slot, Cell::Shared(_));
+    *slot = stored_fact(fact, shared, budget)?;
     Ok(())
 }
 fn clone_state(state: &State, budget: &mut Budget) -> CompileResult<State> {
     budget.spend(
         state
-            .cells
-            .len()
-            .saturating_add(state.later.storage_cost())
+            .later
+            .storage_cost()
+            .saturating_add(1)
             .saturating_add(state.package_values.len()),
         "resource state clone",
     )?;
-    for cell in state.cells.values() {
-        match cell {
-            Cell::Inline(fact) => fact_cost(fact, budget)?,
-            Cell::Shared(_) => budget.spend(1, "immutable fact header clone and release")?,
-        }
-    }
     for birth in state.package_values.values() {
         budget.spend(birth.len(), "Package SSA birth clone")?;
     }
@@ -368,11 +384,14 @@ fn clone_state(state: &State, budget: &mut Budget) -> CompileResult<State> {
     Ok(state.clone())
 }
 fn join_cells(
-    to: &mut BTreeMap<Place, Cell>,
-    from: &BTreeMap<Place, Cell>,
+    to: &mut Arc<Cells>,
+    from: &Arc<Cells>,
     budget: &mut Budget,
 ) -> CompileResult<bool> {
     budget.spend(1, "resource sorted cell inventory size")?;
+    if Arc::ptr_eq(to, from) {
+        return Ok(false);
+    }
     if to.len() != from.len() {
         return Err(error(
             "incompatible resource states: cell inventory differs",
@@ -381,7 +400,8 @@ fn join_cells(
     budget.spend(to.len(), "resource sorted target cell walk")?;
     budget.spend(from.len(), "resource sorted incoming cell walk")?;
     let mut changed = false;
-    for ((place, target), (other_place, source)) in to.iter_mut().zip(from) {
+    let to = edit_cells(to, budget)?;
+    for ((place, target), (other_place, source)) in to.iter_mut().zip(from.iter()) {
         budget.spend(1, "resource sorted cell key comparison")?;
         if place != other_place {
             return Err(error("incompatible resource states: cell keys differ"));
@@ -1842,7 +1862,7 @@ impl Flow<'_> {
                         {
                             let birth = state.sums.unpack_birth(*local, variant, index, budget)?;
                             forget_order(state, *target, budget)?;
-                            for (place, fact) in &state.cells {
+                            for (place, fact) in state.cells.iter() {
                                 budget.spend(1, "Unpack actual initialization order")?;
                                 if let Place::Local(older) = place
                                     && older != target
@@ -3282,7 +3302,7 @@ impl Flow<'_> {
                             }
                             self.consume(state, *value, check, budget)?;
                             forget_order(state, *local, budget)?;
-                            for (place, fact) in &state.cells {
+                            for (place, fact) in state.cells.iter() {
                                 budget.spend(1, "resource successful initialization order")?;
                                 if let Place::Local(other) = place
                                     && *other != *local
@@ -4177,7 +4197,7 @@ impl Flow<'_> {
                 self.consume(state, value, check, budget)?;
             }
             if check {
-                for (place, fact) in &state.cells {
+                for (place, fact) in state.cells.iter() {
                     budget.spend(1, "normal return resource conservation")?;
                     if matches!(place, Place::Capture(_) | Place::CaptureField { .. }) {
                         if callable != Some(CallableKind::FnOnce) && !exact(fact, Life::Available) {
@@ -4245,8 +4265,26 @@ fn analyze_function_program(
     dependencies: Option<&summary_graph::Dependencies>,
     replacements: Option<&replacements::Program>,
 ) -> CompileResult<Effect> {
+    analyze_function_program_with_replay(
+        module, f, reachable, effects, check, budget, dependencies, replacements,
+        ResourceReplay::Cold,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn analyze_function_program_with_replay(
+    module: &TypedModule,
+    f: &TypedFunction,
+    reachable: &[bool],
+    effects: &[Effect],
+    check: bool,
+    budget: &mut Budget,
+    dependencies: Option<&summary_graph::Dependencies>,
+    replacements: Option<&replacements::Program>,
+    replay: ResourceReplay<'_>,
+) -> CompileResult<Effect> {
     let before = budget.remaining();
-    analyze_function_program_inner(module, f, reachable, effects, check, budget, dependencies, replacements)
+    analyze_function_program_inner(module, f, reachable, effects, check, budget, dependencies, replacements, replay)
         .map_err(|mut errors| {
             if budget.cost_profiling() {
                 for error in &mut errors {
@@ -4286,6 +4324,7 @@ fn analyze_function_program_inner(
     budget: &mut Budget,
     dependencies: Option<&summary_graph::Dependencies>,
     replacements: Option<&replacements::Program>,
+    replay: ResourceReplay<'_>,
 ) -> CompileResult<Effect> {
     if f.foreign.is_some() {
         return Ok(Effect::default());
@@ -4310,109 +4349,124 @@ fn analyze_function_program_inner(
     } else {
         Vec::new()
     };
-    let (package_values, product_births) = package_value_shapes(f, budget)?;
     let whole_helper = if let Some(program) = replacements {
         program.whole_helper(f.id, budget)?
     } else {
         false
     };
-    let mut initial = State {
-        package_values,
-        product_births,
-        whole_commits: whole_helper.then(BTreeMap::new),
-        sums: sums
-            .as_ref()
-            .map(|p| p.initial(module, f, budget))
-            .transpose()?
-            .unwrap_or_default(),
-        ..State::default()
+    let (previous, save) = match replay {
+        ResourceReplay::Cold => (None, None),
+        ResourceReplay::Save(slot) => (None, Some(slot)),
+        ResourceReplay::Validate(states) => (Some(states), None),
     };
-    for (place, s) in &shapes {
-        budget.lookup(initial.cells.len(), "initial resource state")?;
-        let mut fact = Fact::default();
-        if s.owned {
-            fact.life.insert(
-                if matches!(place, Place::Capture(_) | Place::CaptureField { .. }) {
-                    Life::Available
-                } else {
-                    Life::Vacant
-                },
-            );
+    let solved = previous.is_some();
+    let mut input = if let Some(states) = previous {
+        budget.spend(1, "resource fixed-point inputs reuse")?;
+        if states.len() != f.blocks.len() {
+            return Err(error("saved resource CFG has another block inventory"));
         }
-        if matches!(place, Place::Capture(_) | Place::CaptureField { .. }) {
-            fact.birth.insert(if replacements.is_some() {
-                match place {
-                    Place::Capture(index) => Birth::Captured(*index),
-                    _ => Birth::Incoming,
-                }
-            } else {
-                Birth::Incoming
-            });
-        }
-        if let Place::PackageField { local, index } = place
-            && let Type::Package { fields, .. } = package_storage(&f.locals[local.0 as usize].ty)
-            && let child @ Type::Package { .. } = package_storage(&fields[*index as usize].1)
-        {
-            product::add(
-                &mut initial.product_births,
-                product::Carrier::Local(*local),
-                *index,
-                child,
-                budget,
-            )?;
-        }
-        initial.cells.insert(
-            *place,
-            stored_fact(
-                fact,
-                f.locals.len().saturating_add(f.values.len()) >= 64,
-                budget,
-            )?,
-        );
-    }
-    for (index, local) in f.parameters.iter().enumerate() {
-        if let Some(s) = shapes.get(&Place::Local(*local)) {
+        states
+    } else {
+        let (package_values, product_births) = package_value_shapes(f, budget)?;
+        let mut initial = State {
+            package_values,
+            product_births,
+            whole_commits: whole_helper.then(BTreeMap::new),
+            sums: sums
+                .as_ref()
+                .map(|p| p.initial(module, f, budget))
+                .transpose()?
+                .unwrap_or_default(),
+            ..State::default()
+        };
+        for (place, s) in &shapes {
+            budget.lookup(initial.cells.len(), "initial resource state")?;
             let mut fact = Fact::default();
             if s.owned {
-                fact.life.insert(Life::Available);
-                fact.birth.insert(
-                    if replacements.is_some()
-                        && matches!(f.locals[local.0 as usize].ty, Type::Managed(_))
-                    {
-                        Birth::Argument(index as u32)
+                fact.life.insert(
+                    if matches!(place, Place::Capture(_) | Place::CaptureField { .. }) {
+                        Life::Available
                     } else {
-                        Birth::Incoming
+                        Life::Vacant
                     },
                 );
-                for (place, old) in &initial.cells {
-                    budget.spend(1, "incoming resource order")?;
-                    if let Place::Local(older) = place
-                        && old.life.contains(&Life::Available)
-                    {
-                        initial.later.insert(
-                            (*older, *local),
-                            budget,
-                            false,
-                            "incoming resource order insertion",
-                        )?;
+            }
+            if matches!(place, Place::Capture(_) | Place::CaptureField { .. }) {
+                fact.birth.insert(if replacements.is_some() {
+                    match place {
+                        Place::Capture(index) => Birth::Captured(*index),
+                        _ => Birth::Incoming,
+                    }
+                } else {
+                    Birth::Incoming
+                });
+            }
+            if let Place::PackageField { local, index } = place
+                && let Type::Package { fields, .. } = package_storage(&f.locals[local.0 as usize].ty)
+                && let child @ Type::Package { .. } = package_storage(&fields[*index as usize].1)
+            {
+                product::add(
+                    &mut initial.product_births,
+                    product::Carrier::Local(*local),
+                    *index,
+                    child,
+                    budget,
+                )?;
+            }
+            Arc::get_mut(&mut initial.cells).expect("unpublished initial cells").insert(
+                *place,
+                stored_fact(
+                    fact,
+                    f.locals.len().saturating_add(f.values.len()) >= 64,
+                    budget,
+                )?,
+            );
+        }
+        for (index, local) in f.parameters.iter().enumerate() {
+            if let Some(s) = shapes.get(&Place::Local(*local)) {
+                let mut fact = Fact::default();
+                if s.owned {
+                    fact.life.insert(Life::Available);
+                    fact.birth.insert(
+                        if replacements.is_some()
+                            && matches!(f.locals[local.0 as usize].ty, Type::Managed(_))
+                        {
+                            Birth::Argument(index as u32)
+                        } else {
+                            Birth::Incoming
+                        },
+                    );
+                    for (place, old) in initial.cells.iter() {
+                        budget.spend(1, "incoming resource order")?;
+                        if let Place::Local(older) = place
+                            && old.life.contains(&Life::Available)
+                        {
+                            initial.later.insert(
+                                (*older, *local),
+                                budget,
+                                false,
+                                "incoming resource order insertion",
+                            )?;
+                        }
                     }
                 }
+                if s.description {
+                    let source = Source::Argument(index as u32);
+                    fact.sources.insert(if matches!(&f.locals[local.0 as usize].ty, Type::Desc(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. })) { source.store_parent() } else { source });
+                }
+                replace(&mut initial, Place::Local(*local), fact, budget)?;
+                package_transition(f, &mut initial, *local, Life::Available, false, budget)?;
             }
-            if s.description {
-                let source = Source::Argument(index as u32);
-                fact.sources.insert(if matches!(&f.locals[local.0 as usize].ty, Type::Desc(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. })) { source.store_parent() } else { source });
-            }
-            replace(&mut initial, Place::Local(*local), fact, budget)?;
-            package_transition(f, &mut initial, *local, Life::Available, false, budget)?;
         }
-    }
-    budget.product(f.blocks.len(), 2, 1, "resource diagnostic CFG")?;
-    let mut input: Vec<Option<State>> = vec![None; f.blocks.len()];
-    input[f.entry.0 as usize] = Some(initial);
-    let mut stack = vec![f.entry.0 as usize];
+        budget.product(f.blocks.len(), 2, 1, "resource diagnostic CFG")?;
+        let mut input: Vec<Option<State>> = vec![None; f.blocks.len()];
+        input[f.entry.0 as usize] = Some(initial);
+        input
+    };
+    let mut stack = if solved { Vec::new() } else { vec![f.entry.0 as usize] };
     let ranks =
-        if budget.pod_stores || (budget.store_option_results && budget.ordinary_error_places)
-            || f.locals.len().saturating_add(f.values.len()) >= 64 && f.blocks.len() > 1 {
+        if !solved && (budget.pod_stores || (budget.store_option_results && budget.ordinary_error_places)
+            || f.locals.len().saturating_add(f.values.len()) >= 64 && f.blocks.len() > 1) {
             pod_resource_ranks(f, budget)?
         } else {
             Vec::new()
@@ -4524,6 +4578,9 @@ fn analyze_function_program_inner(
         effect.whole_commits = returns;
     }
     if !check {
+        if let Some(slot) = save {
+            *slot = Some(input);
+        }
         return Ok(effect);
     }
     for (b, incoming) in input.into_iter().enumerate() {
@@ -4824,9 +4881,18 @@ pub(super) fn check_module(
         }
     } else {
         let program = replacements::Program::new(module, graphs, budget)?;
-        let effects = replacements::infer(module, graphs, &program, budget)?;
+        let mut saved_inputs = Vec::new();
+        let effects = replacements::infer_with_inputs(module, graphs, &program, Some(&mut saved_inputs), budget)?;
+        // Normal-return must effects are published after may convergence.
+        // A nonempty one can change forward transfer and requires a new solve.
+        budget.spend(effects.len(), "resource fixed-point summary compatibility")?;
+        if effects.iter().any(|effect| effect.whole_commits.as_ref().is_some_and(|rows| !rows.is_empty())) {
+            saved_inputs.clear();
+        }
         for (f, (_, reachable)) in module.functions.iter().zip(graphs) {
-            analyze_function_program(
+            let replay = saved_inputs.get_mut(f.id.0 as usize).and_then(Option::take)
+                .map_or(ResourceReplay::Cold, ResourceReplay::Validate);
+            analyze_function_program_with_replay(
                 module,
                 f,
                 reachable,
@@ -4835,6 +4901,7 @@ pub(super) fn check_module(
                 budget,
                 None,
                 Some(&program),
+                replay,
             )?;
         }
         program.close_retirement_pairs(module, graphs, budget)?;
@@ -4905,7 +4972,7 @@ fn analyze_function_eager_reference(
                 budget,
             )?;
         }
-        initial.cells.insert(
+        Arc::get_mut(&mut initial.cells).expect("unpublished initial cells").insert(
             *place,
             stored_fact(
                 fact,
@@ -4920,7 +4987,7 @@ fn analyze_function_eager_reference(
             if s.owned {
                 fact.life.insert(Life::Available);
                 fact.birth.insert(Birth::Incoming);
-                for (place, old) in &initial.cells {
+                for (place, old) in initial.cells.iter() {
                     budget.spend(1, "incoming resource order")?;
                     if let Place::Local(older) = place
                         && old.life.contains(&Life::Available)

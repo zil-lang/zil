@@ -919,23 +919,11 @@ impl Checked {
         inventory: &Inventory<'_>,
         b: &mut Budget,
     ) -> CompileResult<Option<ActualConstructor>> {
-        let declaration = inventory.definition(context.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &declaration.body else {
-            return Err(fail("actual variant has no complete original definition"));
+        let selected = inventory.original_index(context.definition, b)?.site_node(site, b)?
+            .ok_or_else(|| fail("actual variant has no original node anchor"))?;
+        let SemanticOriginalNode::Expression(node) = selected else {
+            return Err(fail("actual variant selects an original statement"));
         };
-        let mut selected = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.site == site {
-                let SemanticOriginalNode::Expression(node) = link.node else {
-                    return Err(fail("actual variant selects an original statement"));
-                };
-                if selected.replace(node).is_some() {
-                    return Err(fail("actual variant has competing original node anchors"));
-                }
-            }
-        }
-        let node = selected.ok_or_else(|| fail("actual variant has no original node anchor"))?;
         b.lookup(self.enum_constructors.len(), WORK)?;
         let Some(constructor) = self.enum_constructors.get(&(context.definition, node)) else {
             return Ok(None);

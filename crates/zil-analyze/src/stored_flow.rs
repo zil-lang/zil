@@ -8170,18 +8170,26 @@ fn windows(
     Ok(())
 }
 
-// For this ordinary stored/owner lane the only interprocedural summary reads
-// follow actual direct Call operands. The graph includes calls in every block:
-// some completeness checks also inspect structurally unreachable calls.
-fn direct_summary_order(module: &TypedModule, b: &mut Budget) -> CompileResult<Option<Vec<usize>>> {
-    if !b.store_option_results
-        || !b.ordinary_error_places
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum SummaryCohort {
+    Stored,
+    All,
+}
+
+// The ordinary stored/owner lane reads summaries through direct calls and
+// statically identified closure receivers. Include every block because some
+// completeness checks inspect even structurally unreachable calls.
+pub(super) fn static_summary_order(
+    module: &TypedModule,
+    cohort: SummaryCohort,
+    b: &mut Budget,
+) -> CompileResult<Option<Vec<usize>>> {
+    if !(b.pod_stores || b.store_option_results && b.ordinary_error_places)
         || b.tasks
         || b.registrations
         || b.async_registrations
         || b.scoped_foreign
         || b.dyn_contexts
-        || !module.closures.is_empty()
         || !module.dyn_interfaces.is_empty()
         || !module.dyn_vtables.is_empty()
     {
@@ -8190,59 +8198,79 @@ fn direct_summary_order(module: &TypedModule, b: &mut Budget) -> CompileResult<O
     let count = module.functions.len();
     b.spend(
         count.saturating_mul(std::mem::size_of::<Vec<usize>>() + 3 * std::mem::size_of::<usize>()),
-        "stored summary direct call schedule allocation",
+        "static summary call schedule allocation",
     )?;
     let mut users = vec![Vec::new(); count];
     let mut outstanding = vec![0usize; count];
     let mut ready = Vec::with_capacity(count);
     let mut order = Vec::with_capacity(count);
     for (caller, function) in module.functions.iter().enumerate() {
-        if !b.composition_stored.is_empty() && !b.composition_stored[caller] {
+        if cohort == SummaryCohort::Stored && b.composition_stored.get(caller) == Some(&false) {
             continue;
         }
         b.spend(
             function.blocks.len().saturating_add(1),
-            "stored summary direct call inventory",
+            "static summary call inventory",
         )?;
         for block in &function.blocks {
-            b.spend(block.instructions.len(), "stored summary direct call inventory")?;
+            b.spend(block.instructions.len(), "static summary call inventory")?;
             for operation in &block.instructions {
-                match operation.kind {
-                    InstructionKind::Call { function, .. } => {
-                        let callee = function.0 as usize;
-                        let users = users
-                            .get_mut(callee)
+                let mut envelope_entries = Vec::new();
+                let callee = match &operation.kind {
+                    InstructionKind::Call { function: target, arguments } => {
+                        let declaration = module.functions.get(target.0 as usize)
                             .ok_or_else(|| failure("stored summary call target is absent"))?;
-                        b.spend(
-                            std::mem::size_of::<usize>().saturating_mul(users.len().saturating_add(2)),
-                            "stored summary direct call edge",
-                        )?;
-                        users.push(caller);
-                        outstanding[caller] = outstanding[caller]
-                            .checked_add(1)
-                            .ok_or_else(|| failure("stored summary call count overflow"))?;
+                        if cohort == SummaryCohort::All && let Some(contract) = &declaration.callable_contract {
+                            // The replacement proof reads the actual callback
+                            // entry as well as the helper's ordinary summary.
+                            envelope_entries = super::resources::replacements::invoked_envelope_entries(
+                                module, function, contract, arguments, b,
+                            )?;
+                        }
+                        *target
                     }
                     InstructionKind::SuspendCall { .. }
                     | InstructionKind::CallIndirect { .. }
                     | InstructionKind::CallDynSlot { .. }
-                    | InstructionKind::CallClosure { .. }
+                    | InstructionKind::WithScopedThread { .. }
+                    | InstructionKind::WithSyncCell { .. }
+                    | InstructionKind::WithForeignCallback { .. } => return Ok(None),
+                    kind @ (InstructionKind::CallClosure { .. }
                     | InstructionKind::CallClosureBorrowed { .. }
                     | InstructionKind::CallClosureShared { .. }
                     | InstructionKind::CallClosureMut { .. }
-                    | InstructionKind::CallClosureOnce { .. } => return Ok(None),
-                    _ => {}
+                    | InstructionKind::CallClosureOnce { .. }) => {
+                        let Some((definition, _)) = super::stored_callables::called(module, function, kind) else {
+                            return Ok(None);
+                        };
+                        definition.function
+                    }
+                    _ => continue,
+                };
+                for entry in std::iter::once(callee.0 as usize)
+                    .chain(envelope_entries.into_iter().map(|(entry, _)| entry))
+                {
+                    let users = users.get_mut(entry)
+                        .ok_or_else(|| failure("stored summary call target is absent"))?;
+                    let relocation = if users.capacity() == users.len() { users.len() } else { 0 };
+                    b.spend(relocation.saturating_add(2).saturating_mul(std::mem::size_of::<usize>()),
+                        "static summary call edge")?;
+                    users.push(caller);
+                    outstanding[caller] = outstanding[caller]
+                        .checked_add(1)
+                        .ok_or_else(|| failure("stored summary call count overflow"))?;
                 }
             }
         }
     }
-    b.spend(count, "stored summary direct call root scan")?;
+    b.spend(count, "static summary call root scan")?;
     ready.extend(
         outstanding.iter().enumerate().filter_map(|(index, degree)| (*degree == 0).then_some(index)),
     );
     while let Some(callee) = ready.pop() {
         b.spend(
             users[callee].len().saturating_mul(3).saturating_add(2),
-            "stored summary direct call schedule",
+            "static summary call schedule",
         )?;
         order.push(callee);
         for &caller in &users[callee] {
@@ -8274,7 +8302,7 @@ fn derive_cfg(
     let mut observed_none = false;
     fee(b, module.functions.len())?;
     let mut summaries = vec![Facts::default(); module.functions.len()];
-    let order = direct_summary_order(module, b)?;
+    let order = static_summary_order(module, SummaryCohort::Stored, b)?;
     loop {
         let mut changed = false;
         for position in 0..module.functions.len() {

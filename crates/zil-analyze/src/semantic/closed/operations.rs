@@ -183,7 +183,7 @@ pub(super) fn initialized_local_before(
 
 impl Point<'_> {
     fn local(&self, local: LocalId, b: &mut Budget) -> CompileResult<&Type> {
-        b.spend(self.function.locals.len().saturating_add(1), WORK)?;
+        b.spend(1, WORK)?;
         let declaration = self
             .function
             .locals
@@ -195,7 +195,7 @@ impl Point<'_> {
             .blocks
             .get(self.block.id.0 as usize)
             .ok_or_else(|| fail("semantic local has no actual initialization state"))?;
-        b.spend(plan.initialized_in.len(), WORK)?;
+        b.lookup(plan.initialized_in.len(), WORK)?;
         let mut initialized = plan.initialized_in.contains(&local);
         let end = self
             .instruction
@@ -264,12 +264,16 @@ impl Point<'_> {
         }
         // An actual path to this site which avoids the definition disproves
         // dominance. Walk real CFG edges; an asserted type is not a def/use edge.
-        b.spend(self.function.blocks.len().saturating_add(1), WORK)?;
+        b.spend(1, WORK)?;
         let mut seen = BTreeSet::new();
         let mut pending = vec![self.function.entry];
         while let Some(current) = pending.pop() {
-            b.spend(seen.len().saturating_add(1), WORK)?;
-            if current == block || !seen.insert(current) {
+            b.spend(1, WORK)?;
+            if current == block {
+                continue;
+            }
+            b.lookup(seen.len(), WORK)?;
+            if !seen.insert(current) {
                 continue;
             }
             if current == self.block.id {
@@ -281,22 +285,16 @@ impl Point<'_> {
                 .get(current.0 as usize)
                 .filter(|actual| actual.id == current)
                 .ok_or_else(|| fail("semantic SSA dominance encounters an invalid actual block"))?;
-            match actual.terminator {
-                Terminator::Jump(next) => {
-                    b.spend(1, WORK)?;
-                    pending.push(next);
-                }
-                Terminator::Branch {
-                    then_block,
-                    else_block,
-                    ..
-                } => {
-                    b.spend(2, WORK)?;
-                    pending.push(then_block);
-                    pending.push(else_block);
-                }
-                _ => {}
-            }
+            let edges = match actual.terminator {
+                Terminator::Jump(next) => [Some(next), None],
+                Terminator::Branch { then_block, else_block, .. } => [Some(then_block), Some(else_block)],
+                _ => continue,
+            };
+            let count = 1 + usize::from(edges[1].is_some());
+            let relocation = if pending.capacity() - pending.len() < count { pending.len() } else { 0 };
+            b.spend(relocation.saturating_add(count), WORK)?;
+            pending.try_reserve(count).map_err(|_| fail("semantic dominance worklist allocation failed"))?;
+            pending.extend(edges.into_iter().flatten());
         }
         if !self
             .initialization
@@ -1832,6 +1830,7 @@ impl Check<'_, '_> {
         // event table. They answer presence/location queries; every original
         // recipe, actual event, duplicate and state obligation is still checked.
         let mut emitted_recipes = BTreeSet::new();
+        let mut world_sites = BTreeMap::new();
         let mut operation_sites: BTreeMap<
             (SemanticInstanceId, BlockId, usize), Vec<&SemanticSite>,
         > = BTreeMap::new();
@@ -1841,6 +1840,7 @@ impl Check<'_, '_> {
             b.spend(1, WORK)?;
             b.lookup(emitted_recipes.len(), WORK)?;
             emitted_recipes.insert((site.instance, site.recipe));
+            site_index::append(&mut world_sites, site.instance, site, b)?;
             if let SemanticSiteAddress::Typed { block, instruction, .. } = site.at {
                 b.lookup(operation_sites.len(), WORK)?;
                 let rows = operation_sites.entry((site.instance, block, instruction as usize)).or_default();
@@ -1858,6 +1858,8 @@ impl Check<'_, '_> {
             };
             let function = self.inventory.function(target, b)?;
             let definition = self.inventory.definition(instance.definition, b)?;
+            b.lookup(world_sites.len(), WORK)?;
+            let sites = world_sites.get(&instance.id).map_or(&[][..], Vec::as_slice);
             let SemanticDefinitionBody::FunctionWithBody {
                 sites: recipes,
                 body,
@@ -1868,21 +1870,14 @@ impl Check<'_, '_> {
                 return Err(fail("original function body is absent"));
             };
             if let Some(actual) = &function.foreign {
-                b.spend(
-                    recipes.len().saturating_add(self.program.sites.len() + 1),
-                    WORK,
-                )?;
+                b.spend(recipes.len().saturating_add(1), WORK)?;
                 if !matches!(body, SemanticOriginalFunctionBody::External)
                     || foreign.as_ref() != Some(actual)
                     || function.call_kind != CallKind::Direct
                     || function.environment.is_some()
                     || !function.blocks.is_empty()
                     || !recipes.is_empty()
-                    || self
-                        .program
-                        .sites
-                        .iter()
-                        .any(|site| site.instance == instance.id)
+                    || !sites.is_empty()
                 {
                     return Err(fail(
                         "foreign declaration changes its original external body or emits runtime sites",
@@ -1897,12 +1892,9 @@ impl Check<'_, '_> {
             let mut declared = BTreeMap::new();
             let mut declared_values = BTreeMap::new();
             self.inventory.profile_step("local declarations", b);
-            for site in &self.program.sites {
+            for &site in sites {
                 self.inventory.profile_site(site, b);
                 b.spend(1, WORK)?;
-                if site.instance != instance.id {
-                    continue;
-                }
                 let SemanticSiteAction::DeclareLocal {
                     local: SemanticLocalTarget::Typed(local),
                     expected,
@@ -1943,12 +1935,10 @@ impl Check<'_, '_> {
             self.inventory.profile_step("original operations", b);
             let mut code_references = BTreeSet::new();
             let mut ct_trees = BTreeMap::new();
-            for site in &self.program.sites {
+            let original_nodes = self.inventory.original_index(definition.id, b)?;
+            for &site in sites {
                 self.inventory.profile_site(site, b);
                 b.spend(1, WORK)?;
-                if site.instance != instance.id {
-                    continue;
-                }
                 let SemanticSiteAddress::Typed {
                     block,
                     instruction,
@@ -1965,11 +1955,7 @@ impl Check<'_, '_> {
                 if !initialization.reachable[block.id.0 as usize] {
                     return Err(fail("semantic operation has no reachable actual site"));
                 }
-                b.spend(recipes.len(), WORK)?;
-                let recipe = recipes
-                    .iter()
-                    .find(|recipe| recipe.id == site.recipe)
-                    .ok_or_else(|| fail("actual semantic action has no original recipe"))?;
+                let recipe = original_nodes.recipe(site.recipe, b)?;
                 let checked = self.operation(
                     instance,
                     site,
@@ -2009,34 +1995,14 @@ impl Check<'_, '_> {
                     }
                 }
             }
-            let original_nodes = self.inventory.original_index(definition.id, b)?;
             self.inventory.profile_step("recipe coverage", b);
             for recipe in recipes {
                 self.inventory.profile_recipe(recipe.id, b);
                 b.lookup(emitted_recipes.len(), WORK)?;
                 if !emitted_recipes.contains(&(instance.id, recipe.id)) {
-                    let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } =
-                        &definition.body
-                    else {
-                        return Err(fail("emission coverage loses its original body"));
-                    };
-                    let mut selected = None;
-                    for link in site_nodes {
-                        b.spend(1, WORK)?;
-                        if link.site == recipe.id {
-                            let node = match link.node {
-                                SemanticOriginalNode::Expression(node)
-                                | SemanticOriginalNode::Statement(node) => node,
-                            };
-                            if selected.replace(node).is_some() {
-                                return Err(fail(
-                                    "emission coverage has duplicate original node links",
-                                ));
-                            }
-                        }
-                    }
-                    let node = selected
+                    let node = original_nodes.site_node(recipe.id, b)?
                         .ok_or_else(|| fail("emission recipe has no original operation node"))?;
+                    let (SemanticOriginalNode::Expression(node) | SemanticOriginalNode::Statement(node)) = node;
                     // A raw source stage is proved universally as well. Its
                     // selected CT execution is checked in the frozen context;
                     // it is not an extra executable operation in this runtime.

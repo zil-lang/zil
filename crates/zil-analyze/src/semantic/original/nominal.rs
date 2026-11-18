@@ -1408,24 +1408,34 @@ pub(in crate::semantic) fn predicate_actual(
             Ok(true)
         }
         Type::Record { fields, .. } | Type::Package { fields, .. } => {
+            let life = match complete {
+                Type::BorrowedStorage { life, .. } => Some(life),
+                _ => None,
+            };
+            let geometry = inventory.geometry.type_value(complete, life, b)?;
+            let position = crate::stored_flow::nominal_instance_index(
+                inventory.module, &geometry.ty, inventory.limits, b,
+            )?;
+            let predicate_ordinal = match predicate {
+                Predicate::Copy => 0,
+                Predicate::Value => 1,
+                Predicate::SyncDrop => 2,
+                Predicate::StoreElement => 3,
+                Predicate::Capability(_) => unreachable!("capability handled before structural predicates"),
+            };
+            let key = (position, predicate_ordinal, depth);
+            let proven = &inventory.nominal_predicates;
+            b.lookup(proven.borrow().len(), "original nominal structural predicate lookup")?;
+            if proven.borrow().contains(&key) {
+                return Ok(true);
+            }
             crate::stored_flow::validate_plain_nominal_zero(
                 inventory.module,
                 ty,
                 inventory.limits,
                 b,
             )?;
-            let mut declaration = None;
-            for instance in &inventory.module.life_instances {
-                crate::dyn_metadata::ty(&instance.ty, b)?;
-                crate::dyn_metadata::ty(complete, b)?;
-                if instance.ty == *complete && declaration.replace(instance.declaration).is_some() {
-                    return Err(fail(
-                        "actual nominal predicate has competing exact identities",
-                    ));
-                }
-            }
-            let declaration = declaration
-                .ok_or_else(|| fail("actual nominal predicate has no original identity"))?;
+            let declaration = inventory.module.life_instances[position].declaration;
             let mut owner = None;
             for definition in inventory.definitions.values() {
                 b.spend(1, WORK)?;
@@ -1469,20 +1479,23 @@ pub(in crate::semantic) fn predicate_actual(
                         }
                     }
                     crate::pod_store::semantic_element(inventory.module, complete, b)?;
-                    return Ok(true);
+                } else {
+                    return Err(unknown(
+                        "nominal StoreElement needs complete actual layout qualification",
+                    ));
                 }
-                return Err(unknown(
-                    "nominal StoreElement needs complete actual layout qualification",
-                ));
-            }
-            if matches!(ty, Type::Package { .. }) && matches!(predicate, Predicate::Copy) {
-                return Ok(false);
-            }
-            for (_, field) in fields {
-                if !predicate_actual(field, predicate, inventory, b, depth + 1)? {
+            } else {
+                if matches!(ty, Type::Package { .. }) && matches!(predicate, Predicate::Copy) {
                     return Ok(false);
                 }
+                for (_, field) in fields {
+                    if !predicate_actual(field, predicate, inventory, b, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
             }
+            b.lookup(proven.borrow().len(), "original nominal structural predicate publication")?;
+            proven.borrow_mut().insert(key);
             Ok(true)
         }
         Type::Enum { variants, .. } => {
