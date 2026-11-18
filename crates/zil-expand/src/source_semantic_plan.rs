@@ -276,11 +276,12 @@ fn observation_operand(
             s::ExprKind::Group(_) if child == 0 => length -= 1,
             s::ExprKind::TypeApply { .. } if child == 0 => length -= 1,
             s::ExprKind::Call { .. } if child == 0 => return Ok(false),
-            s::ExprKind::Call { .. } if child == 1 => {
-                return Ok(!static_worker_selector(
+            s::ExprKind::Call { .. } if child > 0 => {
+                return Ok(!static_code_selector(
                     program,
                     definition,
                     parent,
+                    child,
                     &path[..length - 1],
                     nodes,
                     value_names,
@@ -296,15 +297,13 @@ fn observation_operand(
     }
     Ok(true)
 }
-// A sealed task/thread operation selects static code in argument zero. That
-// original expression remains part of its full Call obligation, but is not a
-// runtime value read: the actual opcode carries a FunctionId, not an SSA use.
-// Resolve both the intrinsic and code declaration in the original namespace;
-// ordinary calls, local shadows and computed callable values retain readings.
-fn static_worker_selector(
+// Some call operands name declarations carried by the operation itself. Only
+// ordinary runtime operands have an independent value emission at this site.
+fn static_code_selector(
     program: &program::Program,
     definition: SemanticDefinitionId,
     call: &s::Expr,
+    child: u32,
     call_path: &[u32],
     nodes: &[body::OriginalBodyNode],
     value_names: &[zil_base::NodeId],
@@ -316,13 +315,12 @@ fn static_worker_selector(
     let s::ExprKind::Name(intrinsic) = &callee.kind else {
         return Ok(false);
     };
-    if !matches!(
-        intrinsic.as_str(),
-        "task_create" | "task_create_owned" | "task_await" | "thread_scope"
-    ) {
-        return Ok(false);
-    }
-    let Some(worker) = arguments.first() else {
+    let provider = match (intrinsic.as_str(), child) {
+        ("task_create" | "task_create_owned" | "task_await" | "thread_scope", 1) => false,
+        ("c_register" | "c_with_callback", 1..=2) | ("c_register_async", 1..=3) => true,
+        _ => return Ok(false),
+    };
+    let Some(operand) = arguments.get((child - 1) as usize) else {
         return Ok(false);
     };
     budget.identity_work(
@@ -362,8 +360,8 @@ fn static_worker_selector(
     {
         return Ok(false);
     }
-    *path.last_mut().unwrap() = 1;
-    let mut expression = &worker.value;
+    *path.last_mut().unwrap() = child;
+    let mut expression = &operand.value;
     let mut parts = Vec::new();
     let mut depth = 0;
     loop {
@@ -402,7 +400,7 @@ fn static_worker_selector(
         }
     }
     parts.reverse();
-    static_code_binding(program, names, &parts, budget, call.span)
+    static_code_binding(program, names, &parts, provider, budget, call.span)
 }
 
 // A function used as a value emits FunctionRef and needs its own original
@@ -411,6 +409,7 @@ fn static_code_binding(
     program: &program::Program,
     names: &[SemanticOriginalNameBinding],
     parts: &[&str],
+    foreign_provider: bool,
     budget: &mut Budget<'_>,
     span: Span,
 ) -> R<bool> {
@@ -453,13 +452,9 @@ fn static_code_binding(
                     row.kind,
                     SemanticDefinitionKind::Function | SemanticDefinitionKind::Method
                 )
-                && matches!(
-                    &row.body,
-                    SemanticDefinitionBody::FunctionWithBody {
-                        receiver_parameter: None,
-                        ..
-                    }
-                )
+                && matches!(&row.body,
+                    SemanticDefinitionBody::FunctionWithBody { receiver_parameter: None, foreign, .. }
+                    if !foreign_provider || foreign.is_some())
         }))
 }
 fn named_code_value(
@@ -488,7 +483,7 @@ fn named_code_value(
     let SemanticDefinitionBody::FunctionWithBody { names, .. } = &original.body else {
         return Ok(false);
     };
-    static_code_binding(program, names, &[name.as_str()], budget, expression.span)
+    static_code_binding(program, names, &[name.as_str()], false, budget, expression.span)
 }
 // Assignment navigation selects a place; it does not evaluate a whole
 // aggregate value at each Name/Member prefix. Index operands and explicit
