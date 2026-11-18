@@ -214,6 +214,14 @@ fn analyze_budgeted_context(
             predecessors,
             reachable,
         } = initialization;
+        if !budget.error_takes.is_empty() {
+            budget.lookup(budget.error_takes.len(), "owning ErrorUnion transfer directory")?;
+            for (block, position, value, error_arm) in budget.error_takes.remove(&f.id).into_iter().flatten() {
+                if reachable[block.0 as usize] {
+                    resources::sums::check_error_take(f, &predecessors, block.0 as usize, position, value, error_arm, budget)?;
+                }
+            }
+        }
         resources::sums::dyn_tags::check(f, &predecessors, &reachable, budget)?;
         // Share the established CFG walk with returned-environment checks;
         // modules with no callable factory need no extra whole-module pass.

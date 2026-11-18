@@ -256,6 +256,71 @@ fn aggregate_result_native_once_transfer_and_cancel() {
     }
 }
 #[test]
+fn queued_result_transfers_only_the_actual_poll_arm() {
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+    use zil_ir::{InstructionKind, Terminator};
+    let input = source(include_str!(
+        "../../../tests/language-readiness/task-aggregate-results/queued-nested-result.zil"
+    ));
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let aliases = Default::default();
+    let scope = SourceIdentityContext::ClosedSnapshot {
+        root: input.module_id,
+        aliases: &aliases,
+        declarations: DeclarationPlacement::Original,
+    };
+    let expanded =
+        zil_expand::expand_with_map_semantics(&input, &ast, &limits, &target, scope).unwrap();
+    let mut module = zil_types::check(&expanded.core, &target, &limits).unwrap();
+    let mut claim = zil_analyze::analyze(&module, &limits).unwrap();
+    let drive = module
+        .functions
+        .iter_mut()
+        .find(|function| function.name == "drive")
+        .unwrap();
+    let branch = drive
+        .blocks
+        .iter_mut()
+        .find(|block| {
+            block
+                .instructions
+                .iter()
+                .any(|instruction| matches!(instruction.kind, InstructionKind::TaskPoll { .. }))
+        })
+        .unwrap();
+    let Terminator::Branch {
+        then_block,
+        else_block,
+        ..
+    } = &mut branch.terminator
+    else {
+        panic!("expected the actual TaskPoll result test");
+    };
+    std::mem::swap(then_block, else_block);
+    let rejected = zil_analyze::analyze(&module, &limits).unwrap_err();
+    assert!(
+        rejected.iter().any(|d| d.code == "E-ANALYZE-ERROR-TAG"),
+        "{rejected:?}"
+    );
+    claim.module_fingerprint = module.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &claim, &limits).unwrap();
+    for rejected in [
+        zil_verify::verify_module(module, claim, &target, &limits),
+        zil_verify::verify_module_bytes(&bytes, &target, &limits),
+    ] {
+        let errors = rejected
+            .err()
+            .expect("a swapped owning result tag must be rejected");
+        assert!(
+            errors.iter().any(|d| d.code == "E-VERIFY-ERROR-TAG"),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
 fn aggregate_result_independent_raw_wire_resource_identity() {
     let limits = Limits::default();
     let target = zil_base::TargetProfile::default();

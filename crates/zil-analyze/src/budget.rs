@@ -212,6 +212,7 @@ pub(super) struct Budget {
     // Empty on legacy modules; populated only by the paid ordinary admission.
     pub(super) ordinary_store_functions: Vec<bool>,
     pub(super) sum_functions: Vec<bool>,
+    pub(super) error_takes: BTreeMap<FunctionId, Vec<(zil_ir::BlockId, usize, ValueId, bool)>>,
     pub(super) addressed_sums: bool,
     pub(super) mixed_address_sums: bool,
     // Reconstructed from actual owned-signature parameters, never a claim.
@@ -403,6 +404,7 @@ impl Budget {
             address_capture_closures: BTreeSet::new(),
             ordinary_store_functions: Vec::new(),
             sum_functions: Vec::new(),
+            error_takes: BTreeMap::new(),
             addressed_sums: false,
             mixed_address_sums: false,
             borrowed_callback_inputs: false,
@@ -2879,8 +2881,14 @@ pub(super) fn preflight(
                 "instruction",
             )?;
             budget.input(1, "block preflight")?;
-            for instruction in &block.instructions {
+            for (position, instruction) in block.instructions.iter().enumerate() {
                 budget.input(1, "instruction preflight")?;
+                if let InstructionKind::TakeErrorUnion { value, is_error } = instruction.kind {
+                    budget.lookup(budget.error_takes.len(), "owning ErrorUnion transfer directory")?;
+                    budget.spend(4, "owning ErrorUnion transfer occurrence")?;
+                    budget.error_takes.entry(function.id).or_default()
+                        .push((block.id, position, value, is_error));
+                }
                 if module.target.pointer_width == 32 {
                     match &instruction.kind {
                         InstructionKind::Constant(Constant::Isize(n))

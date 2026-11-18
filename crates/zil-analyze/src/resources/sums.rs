@@ -26,6 +26,72 @@ pub(crate) fn owned(ty: &Type) -> bool {
     }
 }
 
+/// A Take consumes even a Copy arm of an affine union. Its actual SSA value
+/// must have the selected constructor or arrive on that value's ErrorTag edge.
+pub(crate) fn check_error_take(
+    f: &TypedFunction,
+    predecessors: &[Vec<usize>],
+    block: usize,
+    position: usize,
+    union: ValueId,
+    error_arm: bool,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    let fail = || {
+        vec![zil_base::Diagnostic::error(
+            zil_base::Phase::Analyze,
+            "E-ANALYZE-ERROR-TAG",
+            Some(f.blocks[block].instructions[position].span),
+            "owning ErrorUnion transfer lacks its exact active arm",
+        )]
+    };
+    let source = crate::shared_definition(f, union, budget)?;
+    let defining = &f.blocks[source.block.0 as usize].instructions[source.instruction];
+    if let InstructionKind::MakeErrorUnion { is_error, .. } = defining.kind {
+        if is_error != error_arm {
+            return Err(fail());
+        }
+        return crate::semantic::source_value_available(
+            f,
+            (f.blocks[block].id, position),
+            union,
+            budget,
+        );
+    }
+    let [predecessor] = predecessors[block].as_slice() else {
+        return Err(fail());
+    };
+    let incoming = &f.blocks[*predecessor];
+    let Terminator::Branch {
+        condition,
+        then_block,
+        else_block,
+    } = incoming.terminator
+    else {
+        return Err(fail());
+    };
+    if f.entry.0 as usize == block
+        || then_block == else_block
+        || (if error_arm { then_block } else { else_block }) != f.blocks[block].id
+    {
+        return Err(fail());
+    }
+    let test = crate::shared_definition(f, condition, budget)?;
+    let observed = &f.blocks[test.block.0 as usize].instructions[test.instruction];
+    if f.values.get(condition.0 as usize) != Some(&Type::Bool)
+        || !matches!(observed.kind, InstructionKind::ErrorTag { value } if value == union)
+    {
+        return Err(fail());
+    }
+    crate::semantic::source_value_available(f, (test.block, test.instruction), union, budget)?;
+    crate::semantic::source_value_available(
+        f,
+        (incoming.id, incoming.instructions.len()),
+        condition,
+        budget,
+    )
+}
+
 fn callable_leaf(
     module: &TypedModule,
     id: ClosureId,
