@@ -1397,15 +1397,27 @@ impl Check<'_, '_> {
                 },
             ) => {
                 let callee = self.inventory.function(actual_target, b)?;
-                let actual_instance = self.function_instance(callee.id, b)?;
-                if actual_instance.definition != *target
-                    || callee.environment.is_some()
+                if callee.environment.is_some()
                     || !self.actual_vectors(instance, recipes, actuals, b, 0)?
-                    || !self.actual_vectors(instance, recipes, &actual_instance.actuals, b, 0)?
                 {
                     return Err(fail(
                         "actual call changes its original definition or full mixed substitution",
                     ));
+                }
+                let mut caller_actuals = Vec::new();
+                for actual in actuals {
+                    let actual = self.actual_value(instance, actual, b, 0)?;
+                    self.push_value(&mut caller_actuals, actual, b)?;
+                }
+                let worlds = self.function_worlds(callee.id, b)?;
+                if worlds.is_empty() {
+                    return Err(fail("actual call has no complete original target world"));
+                }
+                for world in worlds {
+                    if world.definition != *target {
+                        return Err(fail("actual call changes its original definition"));
+                    }
+                    self.operation_mixed_arguments(world, &caller_actuals, b)?;
                 }
                 let instruction =
                     instruction.ok_or_else(|| fail("actual call instruction is absent"))?;
@@ -1499,14 +1511,12 @@ impl Check<'_, '_> {
                     .get(closure.0 as usize)
                     .filter(|actual| actual.id == *closure)
                     .ok_or_else(|| fail("actual closure construction has no definition"))?;
-                let child = self.function_instance(actual.function, b)?;
+                let child = self.closure_creator_world(actual.function, instance.id, *closure, b)?;
                 let closed = child
                     .environment
                     .as_ref()
                     .ok_or_else(|| fail("actual closure has no creator-sealed environment"))?;
                 if child.definition != *definition
-                    || child.parent != Some(instance.id)
-                    || closed.closure != SemanticClosureTarget::Typed(*closure)
                     || !child.actuals.is_empty()
                     || !self.actual_vectors(instance, recipes, environment, b, 0)?
                     || !self.actual_vectors(instance, recipes, &closed.actuals, b, 0)?

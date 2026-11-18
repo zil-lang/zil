@@ -766,13 +766,6 @@ impl Check<'_, '_> {
         }
         Ok(())
     }
-    fn function_instance(
-        &self,
-        target: FunctionId,
-        b: &mut Budget,
-    ) -> CompileResult<&SemanticInstance> {
-        self.shared_zero_view(target, b)
-    }
     fn instances(&self, b: &mut Budget) -> CompileResult<()> {
         for instance in &self.program.instances {
             self.inventory.profile_instance(instance, b);

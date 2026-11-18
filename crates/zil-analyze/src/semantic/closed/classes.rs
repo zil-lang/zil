@@ -820,16 +820,11 @@ impl Check<'_, '_> {
     }
     pub(super) fn form_ghost_capture_directory(
         &self,
-        id: ClosureId,
+        closure: &ClosureDefinition,
+        instance: &SemanticInstance,
         b: &mut Budget,
     ) -> CompileResult<Vec<BTreeSet<(u32, u32)>>> {
-        let closure = self
-            .module
-            .closures
-            .get(id.0 as usize)
-            .filter(|definition| definition.id == id)
-            .ok_or_else(|| fail("ghost capture directory has another closure identity"))?;
-        let instance = self.function_instance(closure.function, b)?;
+        let id = closure.id;
         let definition = self.inventory.definition(instance.definition, b)?;
         let function = self
             .inventory
@@ -3513,7 +3508,7 @@ impl Check<'_, '_> {
             }
             self.original
                 .receiver_sources(
-                    self.function_instance(entry.id, b)?.definition,
+                    self.function_definition(entry.id, b)?,
                     self.inventory,
                     b,
                 )?
@@ -4402,7 +4397,7 @@ impl Check<'_, '_> {
             .get(id.0 as usize)
             .filter(|definition| definition.id == id)
             .ok_or_else(|| fail("ghost creator names another actual closure"))?;
-        let child = self.function_instance(definition.function, b)?;
+        let child = self.closure_creator_world(definition.function, instance.id, id, b)?;
         let function = match &instance.target {
             SemanticInstanceTarget::Function(target) => self.inventory.function(target, b)?,
             _ => return Err(fail("ghost creator has no real caller function")),
@@ -4430,9 +4425,6 @@ impl Check<'_, '_> {
             }
             // Only the all-creators proof can connect this exact physical
             // operand to a different lexical upper at its stored header.
-            if child.parent != Some(instance.id) {
-                return Err(fail("ghost creator changes its actual lexical parent"));
-            }
             if bindings.is_none() {
                 bindings = Some(self.capture_creator_bindings(child, definition, b)?);
             }

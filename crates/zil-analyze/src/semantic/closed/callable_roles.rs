@@ -195,8 +195,9 @@ impl Check<'_, '_> {
                 "actual callable changes its original fixed execution kind",
             ));
         }
-        let actual_instance = self.function_instance(definition.function, b)?;
-        let declaration = self.inventory.definition(actual_instance.definition, b)?;
+        let declaration = self
+            .inventory
+            .definition(self.function_definition(definition.function, b)?, b)?;
         let SemanticDefinitionBody::FunctionWithBody {
             signature: original,
             ..

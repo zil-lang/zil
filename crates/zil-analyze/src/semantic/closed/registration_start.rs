@@ -57,7 +57,7 @@ impl Check<'_, '_> {
             ));
         }
         for (provider, expected) in providers.into_iter().zip(targets) {
-            if self.function_instance(provider, b)?.definition != expected {
+            if self.function_definition(provider, b)? != expected {
                 return Err(fail(
                     "actual registration installation substitutes another original foreign provider",
                 ));

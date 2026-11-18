@@ -13,6 +13,7 @@ type ActiveHeads = BTreeSet<(FunctionId, ValueId, Vec<PlaceProjection>, Option<u
 
 // An opaque child's Fixed class may have several original occurrences. Its
 // class equality theorem is not an actual storage/head selection interface.
+#[derive(PartialEq, Eq)]
 pub(super) enum CaptureDirectory {
     Address(Vec<u32>),
     Ghost(Vec<BTreeSet<(u32, u32)>>),
@@ -27,15 +28,22 @@ impl CaptureDirectory {
     pub(super) fn is_empty(&self) -> bool {
         self.len() == 0
     }
-    fn copy_paid(&self,b:&mut Budget)->CompileResult<Self> {
-        match self {
-            Self::Address(rows)=>{b.spend(rows.len().saturating_add(1),WORK)?;Ok(Self::Address(rows.clone()))}
-            Self::Ghost(rows)=>{
-                b.spend(rows.len().saturating_add(1),WORK)?;
-                for row in rows {b.spend(row.len().saturating_add(1),WORK)?;}
-                Ok(Self::Ghost(rows.clone()))
+    fn charge_rows(&self, b: &mut Budget) -> CompileResult<()> {
+        b.spend(self.len().saturating_add(1), WORK)?;
+        if let Self::Ghost(rows) = self {
+            for row in rows {
+                b.spend(row.len().saturating_add(1), WORK)?;
             }
         }
+        Ok(())
+    }
+
+    fn copy_paid(&self, b: &mut Budget) -> CompileResult<Self> {
+        self.charge_rows(b)?;
+        Ok(match self {
+            Self::Address(rows) => Self::Address(rows.clone()),
+            Self::Ghost(rows) => Self::Ghost(rows.clone()),
+        })
     }
     fn address(self) -> CompileResult<Vec<u32>> {
         match self {
@@ -172,11 +180,6 @@ impl Check<'_, '_> {
         id: ClosureId,
         b: &mut Budget,
     ) -> CompileResult<CaptureDirectory> {
-        if self.has_ghost_capture(id, b)? {
-            return self
-                .form_ghost_capture_directory(id, b)
-                .map(CaptureDirectory::Ghost);
-        }
         b.spend(self.module.closures.len().saturating_add(1), WORK)?;
         let closure = self
             .module
@@ -184,11 +187,37 @@ impl Check<'_, '_> {
             .get(id.0 as usize)
             .filter(|closure| closure.id == id)
             .ok_or_else(|| fail("implicit head directory names an absent closure"))?;
+        let ghost = self.has_ghost_capture(id, b)?;
+        let mut directory = None;
+        for world in self.function_worlds(closure.function, b)? {
+            let rows = if ghost {
+                CaptureDirectory::Ghost(self.form_ghost_capture_directory(closure, world, b)?)
+            } else {
+                self.address_capture_directory(closure, world, b)?
+            };
+            if let Some(previous) = &directory {
+                rows.charge_rows(b)?;
+                if &rows != previous {
+                    return Err(fail("shared closure worlds disagree on their physical capture directory"));
+                }
+            } else {
+                directory = Some(rows);
+            }
+        }
+        directory.ok_or_else(|| fail("capture directory has no complete closure world"))
+    }
+
+    fn address_capture_directory(
+        &self,
+        closure: &ClosureDefinition,
+        instance: &SemanticInstance,
+        b: &mut Budget,
+    ) -> CompileResult<CaptureDirectory> {
+        let id = closure.id;
         let life = closure
             .storage_life
             .as_ref()
             .ok_or_else(|| fail("actual capture directory is Unknown"))?;
-        let instance = self.function_instance(closure.function, b)?;
         let definition = self.inventory.definition(instance.definition, b)?;
         let function = self
             .inventory

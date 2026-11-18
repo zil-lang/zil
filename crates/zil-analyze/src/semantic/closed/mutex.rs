@@ -63,7 +63,7 @@ impl Check<'_, '_> {
                 let targets = self
                     .original
                     .native_targets(instance, site, self.inventory, b)?;
-                if targets.as_slice() != [self.function_instance(*worker, b)?.definition] {
+                if targets.as_slice() != [self.function_definition(*worker, b)?] {
                     return Err(fail(
                         "structured thread executes another original worker target",
                     ));
