@@ -1772,6 +1772,7 @@ fn terminal_native_profiles(text: &str, entry: &str, expected: i64) {
 #[test]
 fn returned_generic_closure_keeps_its_original_creator_instance() {
     use zil_base::{Limits, TargetProfile};
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
     use zil_ir::{SemanticClosureTarget, Type};
 
     let limits = Limits::default();
@@ -1787,7 +1788,19 @@ fn main()->i32 {
 fn main()->i32{let a=factory::<i32>(1);let b=factory::<i64>(2);return a()+b()-3}
 ";
     for (text, capture_types) in [(different_widths, [Type::I32, Type::I64]), (phantom, [Type::I32, Type::I32])] {
-        let core = capture_context_relations_source_core(text);
+        let unit = source(text);
+        let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+        let core = zil_expand::expand_with_map_semantics(
+            &unit,
+            &syntax,
+            &limits,
+            &target,
+            SourceIdentityContext::ClosedSnapshot {
+                root: unit.module_id,
+                aliases: &Default::default(),
+                declarations: DeclarationPlacement::Original,
+            },
+        ).unwrap().core;
         let typed = zil_types::check(&core, &target, &limits).unwrap();
         let semantic = typed.semantic.as_ref().unwrap();
         let children: Vec<_> = semantic.instances.iter().enumerate().filter_map(|(index, child)| {
@@ -1819,9 +1832,17 @@ fn main()->i32{let a=factory::<i32>(1);let b=factory::<i64>(2);return a()+b()-3}
             worlds[second].parent = Some(left);
             plan.module_fingerprint = wrong.fingerprint();
             let bytes = zil_ir::wire::encode_module_candidate(&wrong, &plan, &limits).unwrap();
-            assert!(zil_analyze::analyze(&wrong, &limits).is_err());
-            assert!(zil_verify::verify_module(wrong, plan, &target, &limits).is_err());
-            assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err());
+            let errors = zil_analyze::analyze(&wrong, &limits).unwrap_err();
+            assert!(errors.iter().any(|error| error.code == "E-ANALYZE-IR"
+                && error.message.contains("captured value has no actual environment construction in its real parent")), "{errors:?}");
+            for result in [
+                zil_verify::verify_module(wrong, plan, &target, &limits),
+                zil_verify::verify_module_bytes(&bytes, &target, &limits),
+            ] {
+                let errors = result.err().expect("the same-width closure has another actual creator");
+                assert!(errors.iter().any(|error| error.code == "E-VERIFY-SEMANTIC"
+                    && error.message.contains("actual Call specialization result whole type differs")), "{errors:?}");
+            }
         }
     }
 }
