@@ -455,7 +455,16 @@ pub(super) fn semantic_owned_capture(
         "completed ordinary owner environment",
     )?;
     if !b.semantic_closures_proven.contains(&closure.id) {
-        return Ok(false);
+        // The sealed registration constructor also identifies its immutable
+        // callback. Check the actual closed environment, synchronous teardown
+        // graph, and concrete owning fields before checking the entry's uses.
+        if !matches!(ty, Type::Package { .. }) || b.async_callback_environments.is_empty() {
+            return Ok(false);
+        }
+        b.lookup(b.async_callback_environments.len(), "actual async registration callback identity")?;
+        if !b.async_callback_environments.contains(&closure.id) { return Ok(false); }
+        let registration = Type::AsyncRegistration { environment: Box::new(Type::Closure(closure.id)) };
+        super::registration::semantic_resource_scope(module, &registration, b)?;
     }
     if !module
         .closures

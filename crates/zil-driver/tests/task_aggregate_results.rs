@@ -255,16 +255,12 @@ fn aggregate_result_native_once_transfer_and_cancel() {
         }
     }
 }
-#[test]
-fn queued_result_transfers_only_the_actual_poll_arm() {
+fn queued_candidate(limits: &Limits, target: &zil_base::TargetProfile) -> zil_ir::TypedModule {
     use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
-    use zil_ir::{InstructionKind, Terminator};
     let input = source(include_str!(
         "../../../tests/language-readiness/task-aggregate-results/queued-nested-result.zil"
     ));
     let ast = zil_syntax::parse(&input).into_result().unwrap();
-    let limits = Limits::default();
-    let target = zil_base::TargetProfile::host_llvm();
     let aliases = Default::default();
     let scope = SourceIdentityContext::ClosedSnapshot {
         root: input.module_id,
@@ -272,8 +268,72 @@ fn queued_result_transfers_only_the_actual_poll_arm() {
         declarations: DeclarationPlacement::Original,
     };
     let expanded =
-        zil_expand::expand_with_map_semantics(&input, &ast, &limits, &target, scope).unwrap();
-    let mut module = zil_types::check(&expanded.core, &target, &limits).unwrap();
+        zil_expand::expand_with_map_semantics(&input, &ast, limits, target, scope).unwrap();
+    zil_types::check(&expanded.core, target, limits).unwrap()
+}
+
+#[test]
+fn queued_registered_package_rebuilds_from_the_actual_callback_and_provider() {
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let mut typed = queued_candidate(&limits, &target);
+    typed.semantic = None;
+    let proved = zil_analyze::analyze(&typed, &limits).unwrap();
+    for mutation in 0..3 {
+        let mut module = typed.clone();
+        if mutation == 1 {
+            let registration = module
+                .resources
+                .iter_mut()
+                .find(|row| matches!(row.payload, zil_ir::Type::AsyncRegistration { .. }))
+                .unwrap();
+            registration.name.push_str(".forged");
+        }
+        if mutation == 2 {
+            let start = module
+                .functions
+                .iter_mut()
+                .flat_map(|f| &mut f.blocks)
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| {
+                    matches!(
+                        i.kind,
+                        zil_ir::InstructionKind::AsyncRegistrationStart { .. }
+                    )
+                })
+                .unwrap();
+            let zil_ir::InstructionKind::AsyncRegistrationStart {
+                request_close,
+                poll_drain,
+                ..
+            } = &mut start.kind
+            else {
+                unreachable!()
+            };
+            std::mem::swap(request_close, poll_drain);
+        }
+        let accepted = mutation == 0;
+        assert_eq!(zil_analyze::analyze(&module, &limits).is_ok(), accepted);
+        let mut claim = proved.clone();
+        claim.module_fingerprint = module.fingerprint();
+        let bytes = zil_ir::wire::encode_module_candidate(&module, &claim, &limits).unwrap();
+        assert_eq!(
+            zil_verify::verify_module(module, claim, &target, &limits).is_ok(),
+            accepted
+        );
+        assert_eq!(
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).is_ok(),
+            accepted
+        );
+    }
+}
+
+#[test]
+fn queued_result_transfers_only_the_actual_poll_arm() {
+    use zil_ir::{InstructionKind, Terminator};
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let mut module = queued_candidate(&limits, &target);
     let mut claim = zil_analyze::analyze(&module, &limits).unwrap();
     let drive = module
         .functions

@@ -237,6 +237,7 @@ pub(super) struct Budget {
     pub(super) head_descriptions: bool,
     pub(super) registrations: bool,
     pub(super) async_registrations: bool,
+    pub(super) async_callback_environments: BTreeSet<zil_ir::ClosureId>,
     pub(super) protocol_contracts: bool,
     pub(super) protocol_checked: bool,
     pub(super) stored_enum_addresses: bool,
@@ -427,6 +428,7 @@ impl Budget {
             head_descriptions: false,
             registrations: false,
             async_registrations: false,
+            async_callback_environments: BTreeSet::new(),
             protocol_contracts: false,
             protocol_checked: false,
             stored_enum_addresses: false,
@@ -2940,6 +2942,10 @@ pub(super) fn preflight(
                             || callback.0 as usize >= function.values.len()
                         {
                             return Err(bad("async registration operand outside actual tables"));
+                        }
+                        if let Type::Closure(id) = function.values[callback.0 as usize] {
+                            budget.lookup(budget.async_callback_environments.len(), "actual async registration callback identity")?;
+                            budget.async_callback_environments.insert(id);
                         }
                         budget.lookup(
                             budget.scoped_functions.len(),

@@ -142,6 +142,8 @@ fn analyze_budgeted_context(
     bind_initialization(module, budget)?;
     // These declaration-role facts belong to this complete analysis run, even
     // if a caller reuses Budget storage or a previous module address.
+    budget.error_takes.clear();
+    budget.async_callback_environments.clear();
     budget.semantic_reference_results.clear();
     budget.semantic_reference_locals.clear();
     budget.semantic_reborrow_regions.clear();
