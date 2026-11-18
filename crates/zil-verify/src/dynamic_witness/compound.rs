@@ -116,7 +116,8 @@ impl<'a,'m> Walk<'a,'m> {
                 // A complete wrapper value carries the pointee's declared
                 // TypeArgument and other retained selectors through its whole
                 // map. Physical slots stay in the embedded pointee type.
-                if semantic.last() == Some(&LifeTypeProjection::Pointee) {
+                if matches!(semantic.last(), Some(LifeTypeProjection::Pointee
+                    | LifeTypeProjection::Place(PlaceProjection::ErrorArm(_)))) {
                     self.retained_descendants(life, semantic, &map, b)?;
                 }
                 for row in &life.nominal_arguments {

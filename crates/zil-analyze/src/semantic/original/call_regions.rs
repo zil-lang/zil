@@ -32,6 +32,7 @@ pub(super) struct Source {
     pub life: Option<Term>, // None is an independently checked Static source.
     pub input: bool,
     pub anchor: Option<LocalAnchor>,
+    direct_local: Option<NodeId>,
     pub upper: Option<Term>,
 }
 pub(super) struct Region {
@@ -268,6 +269,7 @@ impl Solver<'_, '_> {
             life: source_life,
             input: false,
             anchor: None,
+            direct_local: None,
             upper: None,
         };
         let mut source_expression = expression;
@@ -283,6 +285,11 @@ impl Solver<'_, '_> {
             .get(&(frame.definition, source_expression.id))
         {
             source.anchor = borrow.anchor;
+            if let Some(LocalAnchor::Binding(local)) = borrow.anchor
+                && !borrow.indirect && borrow.path.is_empty()
+                && borrow.index.is_none() && borrow.slice.is_none() {
+                source.direct_local = Some(local);
+            }
             source.upper = borrow.role.as_ref().and_then(|role| role.upper);
         } else if let Some(description) = self
             .state
@@ -406,7 +413,8 @@ impl Solver<'_, '_> {
             )?;
             self.unify(input.life, target, depth + 1, b)?;
             if let Some(source) = input.source.life {
-                if !self.call_source_allows(frame, source, target, b, depth + 1)? {
+                if !self.call_source_allows(frame, source, target, b, depth + 1)?
+                    && !self.local_storage_covers_call(frame, &input.source, target, b)? {
                     let mut errors = fail("original call outer exceeds one of its complete incoming source bounds");
                     let mut describe = |term: Term| -> CompileResult<String> {
                         Ok(match &self.state.arena[self.root(term, b)?] {
@@ -424,6 +432,18 @@ impl Solver<'_, '_> {
             }
         }
         Ok(())
+    }
+    // Two loans of the same actual stack cell have distinct occurrences.
+    // The cell nevertheless covers an inner call region already bounded by
+    // that very same direct local storage in the same activation.
+    fn local_storage_covers_call(&self, frame: &Frame, source: &Source, target: Term, b: &mut Budget) -> CompileResult<bool> {
+        let Some(local) = source.direct_local else { return Ok(false) };
+        let Kind::Life(Life::Implicit(owner, ordinal)) = self.state.arena[self.root(target, b)?] else { return Ok(false) };
+        if owner != frame.definition { return Ok(false); }
+        b.lookup(self.state.call_regions.len(), WORK)?;
+        let Some(region) = self.state.call_regions.get(&(owner, ordinal)) else { return Ok(false) };
+        b.spend(region.sources.len(), WORK)?;
+        Ok(region.sources.iter().any(|incoming| incoming.direct_local == Some(local)))
     }
     pub(super) fn call_source_allows(
         &mut self,

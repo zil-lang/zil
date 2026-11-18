@@ -56,6 +56,26 @@ fn reaching_values(
 ) -> R<Vec<ActivationSource>> {
     reaching_values_inner(world, function, local, at, false)
 }
+/// Only direct whole-slot stores can replace a local whose storage was never
+/// exposed. Loading its pointer value exposes the referent, not the slot.
+fn private_pointer_slot(world: &mut World<'_, '_>, function: &TypedFunction, local: LocalId) -> R<bool> {
+    if !matches!(function.locals.get(local.0 as usize).map(|row| &row.ty), Some(Type::Address { .. })) {
+        return Ok(false);
+    }
+    for block in &function.blocks {
+        world.pay(block.instructions.len().saturating_add(1))?;
+        for operation in &block.instructions {
+            if matches!(operation.kind, InstructionKind::Load(_) | InstructionKind::Store { .. }
+                | InstructionKind::StorageLive(_) | InstructionKind::StorageDead(_)
+                | InstructionKind::TakeLocal { .. }) { continue; }
+            for touched in operation.kind.local_operands() {
+                world.pay(1)?;
+                if touched == local { return Ok(false); }
+            }
+        }
+    }
+    Ok(true)
+}
 fn reaching_values_inner(
     world: &mut World<'_, '_>,
     function: &TypedFunction,
@@ -64,6 +84,7 @@ fn reaching_values_inner(
     require_unaliased_writes: bool,
 ) -> R<Vec<ActivationSource>> {
     let shape = flow::Shape::for_function(world, function)?;
+    let mut private = None;
     let mut pending = vec![at];
     let mut seen = std::collections::BTreeSet::new();
     let mut values = std::collections::BTreeSet::new();
@@ -122,8 +143,12 @@ fn reaching_values_inner(
                 | InstructionKind::Binary { .. } | InstructionKind::ConvertInteger { .. }
                 | InstructionKind::ConvertNumber { .. } | InstructionKind::ExtractField { .. }
                 | InstructionKind::ReadPackageField { .. } => {}
-                _ if require_unaliased_writes => return Err(bad(
-                    "local returned source crosses an untracked writable operation")),
+                _ if require_unaliased_writes => {
+                    if private.is_none() { private = Some(private_pointer_slot(world, function, local)?); }
+                    if private != Some(true) {
+                        return Err(bad("local returned source crosses an untracked writable operation"));
+                    }
+                }
                 _ => {}
             }
         }
