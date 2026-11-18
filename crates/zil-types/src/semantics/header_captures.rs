@@ -1189,6 +1189,17 @@ pub(in crate::semantics) fn complete_emitted_headers(
         complete.insert(instance);
         progress = true;
     }
+    pay(left, nominal_dependencies.len())?;
+    let mut creator_dependencies = nominal_dependencies.clone();
+    for (_, _, dependencies) in &pending {
+        pay(left, dependencies.len().saturating_mul(creator_dependencies.len().saturating_add(dependencies.len()).saturating_add(1).ilog2() as usize + 1))?;
+        creator_dependencies.extend(dependencies);
+    }
+    if !creator_dependencies.is_empty() {
+        progress |= super::super::creator_headers::populate_closure_results(
+            program, module, ledger, limits, left, &creator_dependencies,
+        )?;
+    }
     if pending.is_empty() && nominal_dependencies.is_empty() && !progress { return Ok(()); }
     if !progress {
         let mut diagnostic = Diagnostic::unsupported(Phase::Types,

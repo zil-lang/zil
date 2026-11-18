@@ -365,7 +365,7 @@ impl Eval<'_, '_, '_> {
         output: ValueId,
         depth: usize,
     ) -> R<()> {
-        let SemanticTypeValue::Resolved { life, classes, .. } = value else {
+        let SemanticTypeValue::Resolved { ty, life, classes } = value else {
             return Err(bad("callee result retains an unresolved whole type"));
         };
         self.fee(classes.len())?;
@@ -498,9 +498,21 @@ impl Eval<'_, '_, '_> {
                             && row.position.path.is_empty()
                             && row.position.class as usize == class_index
                     });
-                    let row = rows.next().ok_or_else(|| {
-                        unknown("opaque result has no complete original input class relation")
-                    })?;
+                    let Some(row) = rows.next() else {
+                        if candidate.environment.is_none()
+                            && let Type::Closure(id) = stored::physical(ty)
+                        {
+                            self.pending_header = Some(*id);
+                            return Err(Diagnostic::new(
+                                Phase::Types,
+                                zil_base::ResultCategory::Unsupported,
+                                PENDING_HEADER,
+                                "opaque result awaits its complete original creator input class relation",
+                                None,
+                            ));
+                        }
+                        return Err(unknown("opaque result has no complete original input class relation"));
+                    };
                     if rows.next().is_some() {
                         return Err(bad("opaque result class relation is ambiguous"));
                     }

@@ -2,6 +2,7 @@
 //! binder identities are preserved; caller images never determine a header.
 use super::emission::Ledger;
 use crate::*;
+use std::collections::BTreeSet;
 #[path = "header_rows.rs"]
 pub(super) mod rows;
 fn bad(message: &str) -> Diagnostic {
@@ -181,6 +182,30 @@ pub(super) fn populate(
     limits: &Limits,
     left: &mut usize,
 ) -> R<()> {
+    populate_proposals(program, module, ledger, limits, left, None).map(|_| ())
+}
+
+pub(super) fn populate_closure_results(
+    program: &mut SemanticModule,
+    module: &mut TypedModule,
+    ledger: &Ledger,
+    limits: &Limits,
+    left: &mut usize,
+    requested: &BTreeSet<ClosureId>,
+) -> R<bool> {
+    populate_proposals(program, module, ledger, limits, left, Some(requested))
+}
+
+fn populate_proposals(
+    program: &mut SemanticModule,
+    module: &mut TypedModule,
+    ledger: &Ledger,
+    limits: &Limits,
+    left: &mut usize,
+    requested: Option<&BTreeSet<ClosureId>>,
+) -> R<bool> {
+    use super::materialize::Formation;
+
     let view = if let Some(context) = ledger.original.context() {
         super::materialize::ActualDirectory::indexed(
             module,
@@ -194,7 +219,7 @@ pub(super) fn populate(
         super::materialize::ActualDirectory::from_module_at(module, "creator_headers")
     };
     let mut changes = Vec::new();
-    for instance in &program.instances {
+    'instances: for instance in &program.instances {
         pay(left, 1)?;
         if instance.environment.is_some() {
             continue;
@@ -215,6 +240,15 @@ pub(super) fn populate(
             .iter()
             .find(|function| function.id == id)
             .ok_or_else(|| bad("ordinary header target is absent"))?;
+        if let Some(requested) = requested {
+            let Type::Closure(closure) = stored::physical(&function.return_type) else {
+                continue;
+            };
+            pay(left, requested.len().saturating_add(1).ilog2() as usize + 1)?;
+            if !requested.contains(closure) {
+                continue;
+            }
+        }
         let original = program
             .definitions
             .iter()
@@ -242,7 +276,7 @@ pub(super) fn populate(
                 scope: SemanticScopeRef::Ancestor(0),
                 source: SemanticOriginalTypeSource::Parameter(ordinal as u32),
             };
-            let value = super::materialize::type_in_view(
+            let value = super::materialize::form_type_in_view(
                 program,
                 &view,
                 ledger,
@@ -252,6 +286,13 @@ pub(super) fn populate(
                 limits,
                 left,
             )?;
+            let value = match value {
+                Formation::Complete(value) => value,
+                Formation::NotReady { .. } if requested.is_some() => continue 'instances,
+                Formation::NotReady { .. } => {
+                    return Err(bad("ordinary parameter awaits a complete closure header"));
+                }
+            };
             rows::append(
                 &value,
                 StorageBase::Parameter(ordinal as u32),
@@ -266,7 +307,7 @@ pub(super) fn populate(
             scope: SemanticScopeRef::Ancestor(0),
             source: SemanticOriginalTypeSource::Result,
         };
-        let value = super::materialize::type_in_view(
+        let value = super::materialize::form_type_in_view(
             program,
             &view,
             ledger,
@@ -276,6 +317,13 @@ pub(super) fn populate(
             limits,
             left,
         )?;
+        let value = match value {
+            Formation::Complete(value) => value,
+            Formation::NotReady { .. } if requested.is_some() => continue,
+            Formation::NotReady { .. } => {
+                return Err(bad("ordinary result awaits a complete closure header"));
+            }
+        };
         rows::append(
             &value,
             StorageBase::Result,
@@ -441,9 +489,15 @@ pub(super) fn populate(
             }
         }
         canonical_invocations(&mut proposed, &mut embedding, limits, left)?;
-        changes.push((instance.id, id, proposed, embedding));
+        if requested.is_none()
+            || function.storage_life.as_ref() != Some(&proposed)
+            || instance.header_embedding != embedding
+        {
+            changes.push((instance.id, id, proposed, embedding));
+        }
     }
     drop(view);
+    let progress = !changes.is_empty();
     for (instance, function, header, embedding) in changes {
         pay(
             left,
@@ -465,5 +519,5 @@ pub(super) fn populate(
             .ok_or_else(|| bad("ordinary header scope disappeared"))?
             .header_embedding = embedding;
     }
-    Ok(())
+    Ok(progress)
 }
