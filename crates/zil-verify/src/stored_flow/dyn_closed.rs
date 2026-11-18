@@ -553,6 +553,40 @@ mod tests {
         (module, f, interface, local)
     }
     #[test]
+    fn erased_sum_leaf_requires_closed_context_and_known_cleanup_raw_wire() {
+        let (module, _, interface, _) = boundary();
+        let owner = Type::OwnedDyn { interface };
+        let route = Type::Enum {
+            name: "Route".into(),
+            variants: vec![("Empty".into(), vec![]), ("Object".into(), vec![owner])],
+        };
+        let tuple = Type::Tuple(vec![Type::U8, route.clone()]);
+        let limits = Limits::default();
+        for check in [None, Some("Context"), Some("retained classes"), Some("cleanup")] {
+            let mut candidate = module.clone();
+            let item = &mut candidate.dyn_interfaces[0];
+            match check {
+                Some("Context") => item.context = Some(Type::I32),
+                Some("retained classes") => item.retained_life.binder_count = 1,
+                Some("cleanup") => item.owning_cleanup = None,
+                _ => {}
+            }
+            let plan = CandidatePlan::empty_for(&candidate);
+            let bytes = zil_ir::wire::encode_module_candidate(&candidate, &plan, &limits).unwrap();
+            let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+            for actual in [&candidate, &decoded] {
+                let mut budget = Budget::new(&limits);
+                budget.sums = true;
+                assert!(crate::sums::owned_enum(&route));
+                assert!(!route.is_copy_value());
+                assert_eq!(crate::sums::check_type_for(actual, &tuple, None, &mut budget).is_ok(), check.is_none());
+                assert_eq!(crate::stored_owned::target_free_product_or_sum(actual, &tuple, &mut budget).unwrap_or(false), check.is_none());
+                assert!(!crate::stored_owned::target_free_value(actual, &tuple, &mut budget).unwrap());
+            }
+        }
+    }
+
+    #[test]
     fn borrowed_method_result_keeps_actual_head_and_parent_until_last_use() {
         let (module, f, interface, local) = boundary();
         let mut budget = Budget::new(&Limits::default());

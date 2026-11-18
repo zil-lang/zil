@@ -374,23 +374,45 @@ pub(super) fn ordinary_store_value<'a>(module:&'a TypedModule,ty:&'a Type,b:&mut
 /// Complete ordinary data qualification, shared by owned products, sum tags
 /// and Store elements. It supplies no Copy flag, owner, loan or cleanup proof.
 pub(super) fn target_free_value<'a>(module:&'a TypedModule,ty:&'a Type,b:&mut Budget)->Check<bool>{
+    target_free_tree(module, ty, false, b)
+}
+
+pub(super) fn target_free_product_or_sum(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    // This lane serves Tuple and Enum transport. Store and the other
+    // consumers of the ordinary value test retain their own admissible leaves.
+    let closed_erasure = matches!(ty, Type::Tuple(_) | Type::Enum { .. });
+    target_free_tree(module, ty, closed_erasure, b)
+}
+
+fn target_free_tree(
+    module: &TypedModule,
+    ty: &Type,
+    closed_erasure: bool,
+    b: &mut Budget,
+) -> Check<bool> {
     stored_flow::type_work(ty,&b.limits.clone(),b)?;
-    let mut pending=vec![(ty,0usize)];
-    while let Some((ty,depth))=pending.pop(){
+    let mut pending=vec![(ty, 0usize, closed_erasure)];
+    while let Some((ty, depth, closed_erasure))=pending.pop(){
         b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("ordinary Store target domain depth exceeded"));}
         match ty{
             Type::BorrowedStorage{storage,life}=>{
                 if life.binder_count!=0||!life.slots.is_empty()||!life.retained.is_empty()||!life.nominal_arguments.is_empty(){return Ok(false);}
                 // An empty annotation is not its declaration/actual proof.
                 super::stored_flow::qualification(module,ty,&b.limits.clone(),b)?;
-                pending.push((storage,depth+1));
+                pending.push((storage, depth + 1, false));
             },
-            Type::Record{fields,..}|Type::Package{fields,..}=>{b.spend(fields.len())?;pending.extend(fields.iter().map(|(_,ty)|(ty,depth+1)));},
-            Type::Tuple(fields)=>{b.spend(fields.len())?;pending.extend(fields.iter().map(|ty|(ty,depth+1)));},
-            Type::Enum{variants,..}=>{b.spend(variants.len())?;for(_,fields)in variants{b.spend(fields.len())?;pending.extend(fields.iter().map(|ty|(ty,depth+1)));}},
-            Type::Managed(inner)|Type::Array{element:inner,..}|Type::OwnedStore{element:inner}=>pending.push((inner,depth+1)),
-            Type::ErrorUnion{error,result}=>{pending.push((error,depth+1));pending.push((result,depth+1));},
+            Type::Record{fields,..}|Type::Package{fields,..}=>{b.spend(fields.len())?;pending.extend(fields.iter().map(|(_, ty)| (ty, depth + 1, false)));},
+            Type::Tuple(fields)=>{b.spend(fields.len())?;pending.extend(fields.iter().map(|ty| (ty, depth + 1, closed_erasure)));},
+            Type::Enum{variants,..}=>{b.spend(variants.len())?;for(_,fields)in variants{b.spend(fields.len())?;pending.extend(fields.iter().map(|ty| (ty, depth + 1, closed_erasure)));}},
+            Type::Managed(inner)|Type::Array{element:inner,..}|Type::OwnedStore{element:inner}=>pending.push((inner, depth + 1, false)),
+            Type::ErrorUnion{error,result}=>{pending.push((error, depth + 1, false));pending.push((result, depth + 1, false));},
             Type::ByteBuffer=>{},
+            Type::OwnedDyn { interface } if closed_erasure => {
+                if super::dynamic_ports::interface(module, *interface, b)?.context.is_some() {
+                    return Ok(false);
+                }
+                super::dynamic_dispatch::closed_owned(module, *interface, b)?;
+            },
             Type::Closure(id)=>{
                 // A real complete closure directory determines its persistent
                 // κ domain. Invocation parameter borrows are not stored data;
@@ -400,7 +422,7 @@ pub(super) fn target_free_value<'a>(module:&'a TypedModule,ty:&'a Type,b:&mut Bu
                 if count!=0{return Ok(false);}
                 let definition=super::closures::definition(module,*id,None)?;
                 b.spend(definition.captures.len())?;
-                pending.extend(definition.captures.iter().map(|capture|(capture,depth+1)));
+                pending.extend(definition.captures.iter().map(|capture| (capture, depth + 1, false)));
             },
             Type::FunctionPointer{..}=>if !super::class_flow::plain_pointer_type(ty,b)?{return Ok(false);},
             Type::ForeignCallback{parameters,result}=>{resources::charge_payload(ty,b)?;super::native_values::callback_signature(parameters,result,None)?;},

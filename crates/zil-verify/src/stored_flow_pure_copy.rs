@@ -676,7 +676,7 @@ fn ordinary_owned_fields(mut pending: Vec<(&Type, usize)>, b: &mut Budget) -> Ch
 }
 
 fn complete_owned_fields(module:&TypedModule,pending:Vec<(&Type,usize)>,b:&mut Budget)->Check<bool>{
-    for(ty,_)in pending{if !crate::stored_owned::target_free_value(module,ty,b)?{return Ok(false);}}
+    for(ty,_)in pending{if !crate::stored_owned::target_free_product_or_sum(module,ty,b)?{return Ok(false);}}
     Ok(true)
 }
 

@@ -34,7 +34,7 @@ pub(super) fn owned(ty: &Type) -> bool {
 fn owned_leaf(ty: &Type) -> bool {
     match ty {
         Type::BorrowedStorage { storage, .. } => owned_leaf(storage),
-        Type::Managed(_) | Type::Closure(_) => true,
+        Type::Managed(_) | Type::OwnedDyn { .. } | Type::Closure(_) => true,
         Type::Tuple(fields) => fields.iter().any(owned_leaf),
         Type::Record { fields, .. } | Type::Package { fields, .. } => {
             fields.iter().any(|(_, field)| owned_leaf(field))
@@ -133,16 +133,16 @@ pub(super) fn needs_shape(ty: &Type, budget: &mut Budget) -> Check<bool> {
 
 pub(super) fn check_type_for(
     module: &TypedModule,
-    ty: &Type,
+    root: &Type,
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
-    resources::charge_payload(ty, budget)?;
+    resources::charge_payload(root, budget)?;
     let owning_container = matches!(
-        ty,
+        root,
         Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Package { .. }
     );
-    let mut pending = vec![ty];
+    let mut pending = vec![root];
     let mut qualified_addresses = BTreeSet::new();
     while let Some(ty) = pending.pop() {
         resources::charge_payload(ty, budget)?;
@@ -160,7 +160,11 @@ pub(super) fn check_type_for(
                     "erased-owner allocation outcome has a different error route",
                 ));
             }
-            dynamic_dispatch::type_owned(module, *interface, budget)?;
+            if std::ptr::eq(ty, root) {
+                dynamic_dispatch::type_owned(module, *interface, budget)?;
+            } else {
+                dynamic_dispatch::closed_owned(module, *interface, budget)?;
+            }
             continue;
         }
         if matches!(ty, Type::Address { .. })
@@ -241,6 +245,9 @@ pub(super) fn check_type_for(
                 }
             }
             Type::Managed(_) => resources::check_type_for(module, ty, span, budget)?,
+            Type::OwnedDyn { interface } => {
+                dynamic_dispatch::closed_owned(module, *interface, budget)?;
+            }
             Type::Tuple(fields) => {
                 budget.spend(fields.len())?;
                 for field in fields {
