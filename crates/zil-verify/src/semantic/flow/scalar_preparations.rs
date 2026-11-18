@@ -16,7 +16,7 @@ pub(super) fn slot(
     readonly: bool,
     b: &mut Budget,
 ) -> Check<Option<Slot>> {
-    slot_kind(f, local, readonly, false, None, b)
+    slot_kind(f, local, readonly, SlotKind::Scalar, None, b)
 }
 pub(super) fn unpacked_slot(
     f: &TypedFunction,
@@ -24,13 +24,15 @@ pub(super) fn unpacked_slot(
     at: (BlockId, usize),
     b: &mut Budget,
 ) -> Check<Option<Slot>> {
-    slot_kind(f, local, true, false, Some(at), b)
+    slot_kind(f, local, true, SlotKind::Scalar, Some(at), b)
 }
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SlotKind { Scalar, Owned, CopyValue }
 fn slot_kind(
     f: &TypedFunction,
     local: LocalId,
     readonly: bool,
-    owned: bool,
+    kind: SlotKind,
     unpack: Option<(BlockId, usize)>,
     b: &mut Budget,
 ) -> Check<Option<Slot>> {
@@ -43,13 +45,16 @@ fn slot_kind(
         return Ok(None);
     }
     let ty = &declaration.ty;
-    if if owned {
-        !matches!(ty, Type::Closure(_))
-    } else {
-        !ty.is_integer() && !ty.is_float() && !matches!(ty, Type::Unit | Type::Bool)
-    } {
-        return Ok(None);
-    }
+    let owned=kind==SlotKind::Owned;
+    let eligible=match kind {
+        SlotKind::Owned=>matches!(ty, Type::Closure(_)),
+        SlotKind::Scalar=>ty.is_integer()||ty.is_float()||matches!(ty,Type::Unit|Type::Bool),
+        SlotKind::CopyValue=>{
+            crate::stored_flow::type_work(ty, &b.limits.clone(), b)?;
+            ty.is_copy_value()
+        },
+    };
+    if !eligible{return Ok(None);}
     crate::stored_flow::type_work(ty, &b.limits.clone(), b)?;
     let mut live = None;
     let mut stores = Vec::new();
@@ -188,7 +193,7 @@ pub(in crate::semantic::flow) fn owning_source(
     local: LocalId,
     b: &mut Budget,
 ) -> Check<Option<ValueId>> {
-    let Some(slot) = slot_kind(f, local, false, true, None, b)? else {
+    let Some(slot) = slot_kind(f, local, false, SlotKind::Owned, None, b)? else {
         return Ok(None);
     };
     let [(store_block, store_at, value)] = slot.stores.as_slice() else {
@@ -282,9 +287,19 @@ pub(super) fn source(
     local: LocalId,
     b: &mut Budget,
 ) -> Check<Option<ValueId>> {
-    let Some(slot) = slot(f, local, true, b)? else {
-        return Ok(None);
-    };
+    source_with_slot(module,f,block,at,local,slot(f,local,true,b)?,b)
+}
+
+pub(in crate::semantic::flow) fn copy_value_source(
+    module:&TypedModule,f:&TypedFunction,block:BlockId,at:u32,local:LocalId,b:&mut Budget,
+)->Check<Option<ValueId>> {
+    source_with_slot(module,f,block,at,local,slot_kind(f,local,true,SlotKind::CopyValue,None,b)?,b)
+}
+
+fn source_with_slot(
+    module:&TypedModule,f:&TypedFunction,block:BlockId,at:u32,local:LocalId,slot:Option<Slot>,b:&mut Budget,
+)->Check<Option<ValueId>> {
+    let Some(slot)=slot else{return Ok(None);};
     let [(store_block, store_at, value)] = slot.stores.as_slice() else {
         return Ok(None);
     };

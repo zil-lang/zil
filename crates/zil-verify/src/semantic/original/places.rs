@@ -61,6 +61,27 @@ impl CheckedOriginal {
         }
         Ok(result)
     }
+    pub(in crate::semantic) fn record_spread(&self,module:&TypedModule,definition:SemanticDefinitionId,span:Span,b:&mut Budget)->Check<Option<(NodeId,Vec<(String,NodeId)>)>> {
+        if !self.checked.contains(&definition){return Err(bad("record spread lacks its independently checked original body"));}
+        let index=self.source_index(module,&[definition],b)?;
+        let function=index.definitions.get(&definition).ok_or_else(||bad("record spread original body is absent"))?;
+        let mut found=None;
+        for expression in function.expressions.values(){
+            b.spend(1)?;
+            if expression.span!=span{continue;}
+            if let CoreExprKind::RecordUpdate{base,fields,..}=&expression.kind {
+                if found.is_some(){return Err(bad("actual record spread selects ambiguous original expressions"));}
+                b.spend(fields.len())?;
+                let mut rows=Vec::new();
+                for (name,value) in fields {
+                    b.spend(name.len().saturating_add(1))?;
+                    rows.push((name.clone(),value.id));
+                }
+                found=Some((base.id,rows));
+            }
+        }
+        Ok(found)
+    }
     pub(in crate::semantic) fn scalar_input<'a>(&'a self,module:&TypedModule,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(&'a SemanticOriginalExpr,Type)>{
         let Ty::Atom(carrier)=self.original_type(definition,&SemanticOriginalTypeSource::Expression(node),b)? else{return Err(bad("scalar source input lacks its independent original carrier"));};
         if !carrier.is_integer()&&!carrier.is_float()&&!matches!(carrier,Type::Unit|Type::Bool){return Err(bad("source input is not an independently checked scalar expression"));}

@@ -6,6 +6,11 @@ impl CheckedContext {
     pub(in crate::semantic::flow) fn copy_field_update(
         &self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,instruction:&Instruction,b:&mut Budget,
     )->Check<()> {
+        let spread=self.original.borrow().as_ref().ok_or_else(||bad("Copy field update has no complete original body"))?
+            .record_spread(module,caller.definition,instruction.span,b)?;
+        if let Some((base,fields))=spread {
+            return self.copy_record_spread(module,caller,f,instruction,base,&fields,b);
+        }
         let result=instruction.result.ok_or_else(||bad("Copy field update has no SSA result"))?;
         let (block,at,_)=super::owner_sources::producer(f,result,b)?;
         let block=f.blocks.get(block.0 as usize).ok_or_else(||bad("Copy field update has no actual block"))?;
@@ -55,6 +60,54 @@ impl CheckedContext {
         }
         let ty=f.values.get(root_value.0 as usize).ok_or_else(||bad("Copy field update has no actual parent type"))?;
         self.original_projection_source_prefix(module,caller,f,root_value,caller.definition,original.target,true,Some((ty,&path)),b)
+    }
+
+    fn copy_record_spread(
+        &self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,instruction:&Instruction,
+        base:zil_base::NodeId,fields:&[(String,zil_base::NodeId)],b:&mut Budget,
+    )->Check<()> {
+        let result=instruction.result.ok_or_else(||bad("record spread field has no SSA result"))?;
+        let (block,at,_)=super::owner_sources::producer(f,result,b)?;
+        let body=f.blocks.get(block.0 as usize).ok_or_else(||bad("record spread has no actual block"))?;
+        let mut final_value=result;
+        for next in body.instructions.iter().skip(at as usize+1) {
+            b.spend(1)?;
+            if matches!(next.kind,InstructionKind::UpdateField{aggregate,..} if aggregate==final_value)
+                && next.span==instruction.span {
+                final_value=next.result.ok_or_else(||bad("record spread field has no actual result"))?;
+            }
+        }
+        let mut actual_count=0usize;
+        for other in &f.blocks {
+            b.spend(other.instructions.len())?;
+            actual_count=actual_count.saturating_add(other.instructions.iter().filter(|op|
+                op.span==instruction.span&&matches!(op.kind,InstructionKind::UpdateField{..})).count());
+        }
+        if actual_count!=fields.len(){return Err(bad("record spread changes the number of explicit field publications"));}
+        let mut selected=final_value;
+        let mut seen=BTreeSet::new();
+        for _ in fields {
+            b.spend(fields.len().saturating_add(seen.len()).saturating_add(1))?;
+            let (_,_,update)=super::owner_sources::producer(f,selected,b)?;
+            let InstructionKind::UpdateField{aggregate,index,value}=update.kind else{return Err(bad("record spread omits an original explicit field"));};
+            if update.span!=instruction.span||!seen.insert(index){return Err(bad("record spread changes or repeats an original field"));}
+            let Some(Type::Record{fields:layout,..})=f.values.get(aggregate.0 as usize) else{return Err(bad("record spread has no exact Copy Record base"));};
+            let (name,_)=layout.get(index as usize).ok_or_else(||bad("record spread publishes an absent field"))?;
+            let (_,node)=fields.iter().find(|(field,_)|field==name).ok_or_else(||bad("record spread changes the original explicit field identity"))?;
+            let (at_block,at,operand)=super::owner_sources::producer(f,value,b)?;
+            let value=if let InstructionKind::Load(local)=operand.kind {
+                super::owner_sources::scalar_preparations::copy_value_source(module,f,at_block,at,local,b)?.unwrap_or(value)
+            }else{value};
+            self.assignment_value_source(module,caller,f,value,*node,b)?;
+            selected=aggregate;
+        }
+        let (at_block,at,operand)=super::owner_sources::producer(f,selected,b)?;
+        if let InstructionKind::Load(local)=operand.kind {
+            if let Some(source)=super::owner_sources::scalar_preparations::copy_value_source(module,f,at_block,at,local,b)? {
+                selected=source;
+            }
+        }
+        self.assignment_value_source(module,caller,f,selected,base,b)
     }
 
     pub(in crate::semantic::flow) fn description_field_write(
