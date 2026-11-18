@@ -328,6 +328,11 @@ struct Binding {
     // recovered by its original binding identity when the lexical scope exits.
     shadowed: Option<Box<Binding>>,
 }
+struct IntegerInitializer {
+    expression: NodeId,
+    spelling: String,
+    span: Span,
+}
 struct Check<'a, 'b> {
     program: &'a SemanticModule,
     limits: &'b Limits,
@@ -341,6 +346,7 @@ struct Check<'a, 'b> {
     // Only the active literal can use its contextual result as a typing goal.
     // Completed body facts remain in Proof::types and carry the checked exits.
     closure_result_goal: Option<(SemanticDefinitionId, SemanticTypeRecipe)>,
+    integer_initializers: BTreeMap<SemanticDefinitionId, BTreeMap<NodeId, IntegerInitializer>>,
     predicate_active: Vec<(SemanticDefinitionId, u8, SemanticTypeRecipe)>,
     stage_depth: usize,
     cleanup_depth: usize,
@@ -944,6 +950,9 @@ impl<'a> Check<'a, '_> {
         }
         Ok(match ty {
             SemanticTypeRecipe::Atom(ty) => ty.is_copy_value(),
+            SemanticTypeRecipe::OriginalType { source: SemanticOriginalTypeSource::Binding(_), .. } => {
+                matches!(self.resolve(owner, ty, depth + 1)?, SemanticTypeRecipe::Atom(ty) if ty.is_integer())
+            }
             SemanticTypeRecipe::Address { mutable: false, .. } => true,
             SemanticTypeRecipe::Code { kind, signature } => self
                 .function_value_copy(owner, *kind, signature, depth + 1)?
@@ -1136,9 +1145,14 @@ impl<'a> Check<'a, '_> {
                 if value.used || !value.initialized || !value.taken_fields.is_empty() {
                     return Err(bad("original place was already transferred"));
                 }
+                let integer = self.binding_integer(value, None, depth + 1)?;
                 value.observed = true;
                 self.observe_capture(owner, name, value, depth + 1)?;
-                copy_recipe(&value.ty, self.limits, self.left)
+                if let Some(integer) = integer {
+                    Ok(integer)
+                } else {
+                    copy_recipe(&value.ty, self.limits, self.left)
+                }
             }
             CoreExprKind::Group(inner) => self.place(owner, inner, variables, depth + 1),
             CoreExprKind::Member { object, member, .. } => {
@@ -1768,6 +1782,9 @@ impl<'a> Check<'a, '_> {
                     .parent
                     .ok_or_else(|| bad("original type query escapes its lexical parent"))?;
             }
+            if let SemanticOriginalTypeSource::Binding(binding) = source {
+                self.infer_integer_binding(target, *binding, None, depth + 1)?;
+            }
             let value = self
                 .proof
                 .types
@@ -2374,7 +2391,7 @@ impl<'a> Check<'a, '_> {
                         value: bl.as_ref().clone(),
                     };
                     self.bind_actual(*ordinal, actual, solutions, depth + 1)?;
-                } else if al != bl {
+                } else if !self.same_array_length(al, bl)? {
                     return Err(bad("original call changes a rigid array length"));
                 }
             }
@@ -3134,7 +3151,12 @@ impl<'a> Check<'a, '_> {
         }
         Ok(result)
     }
-    fn contextual_integer(&mut self, expression: &SemanticOriginalExpr, depth: usize) -> R<bool> {
+    fn contextual_integer(
+        &mut self,
+        expression: &SemanticOriginalExpr,
+        variables: &BTreeMap<String, Binding>,
+        depth: usize,
+    ) -> R<bool> {
         self.pay(1, depth)?;
         match &expression.kind {
             CoreExprKind::Integer(text) => {
@@ -3149,7 +3171,20 @@ impl<'a> Check<'a, '_> {
             | CoreExprKind::Unary {
                 op: UnaryOp::Negate,
                 operand: inner,
-            } => self.contextual_integer(inner, depth + 1),
+            } => self.contextual_integer(inner, variables, depth + 1),
+            CoreExprKind::Name(name) if !self.integer_initializers.is_empty() => {
+                self.pay(name.len().saturating_add(variables.len()), depth)?;
+                let Some(value) = variables.get(name) else { return Ok(false); };
+                let Query::Binding(binding) = value.origin else { return Ok(false); };
+                self.pay(self.integer_initializers.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+                if let Some(count) = self.integer_initializers.get(&value.origin_owner).map(BTreeMap::len) {
+                    self.pay(count.saturating_add(1).ilog2() as usize
+                        + self.proof.types.len().saturating_add(1).ilog2() as usize + 2, depth)?;
+                    return Ok(self.integer_initializers[&value.origin_owner].contains_key(&binding)
+                        && !self.proof.types.contains_key(&(value.origin_owner, Query::Binding(binding))));
+                }
+                Ok(false)
+            }
             CoreExprKind::Binary { op, left, right }
                 if !matches!(
                     op,
@@ -3163,11 +3198,64 @@ impl<'a> Check<'a, '_> {
                         | BinaryOp::Or
                 ) =>
             {
-                Ok(self.contextual_integer(left, depth + 1)?
-                    && self.contextual_integer(right, depth + 1)?)
+                Ok(self.contextual_integer(left, variables, depth + 1)?
+                    && self.contextual_integer(right, variables, depth + 1)?)
             }
             _ => Ok(false),
         }
+    }
+
+    /// An unannotated immutable literal has one integer type shared by all
+    /// its occurrences, including observations from lexical children.
+    fn infer_integer_binding(
+        &mut self,
+        owner: SemanticDefinitionId,
+        binder: NodeId,
+        wanted: Option<&SemanticTypeRecipe>,
+        depth: usize,
+    ) -> R<Option<SemanticTypeRecipe>> {
+        if self.integer_initializers.is_empty() {
+            return Ok(None);
+        }
+        self.pay(self.integer_initializers.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+        let Some(initializers) = self.integer_initializers.get(&owner) else { return Ok(None); };
+        let work = initializers.len().saturating_add(1).ilog2() as usize + 1;
+        self.pay(work, depth)?;
+        let Some(initializer) = self.integer_initializers[&owner].get(&binder) else {
+            return Ok(None);
+        };
+        let work = initializer.spelling.len().saturating_add(
+            self.proof.types.len().saturating_add(1).ilog2() as usize + 1,
+        );
+        self.pay(work, depth)?;
+        let key = (owner, Query::Binding(binder));
+        if let Some(ty) = self.proof.types.get(&key) {
+            return copy_recipe(ty, self.limits, self.left).map(Some);
+        }
+        let initializer = &self.integer_initializers[&owner][&binder];
+        let wanted = match wanted {
+            Some(SemanticTypeRecipe::Atom(ty)) if ty.is_integer() => Some(ty),
+            _ => None,
+        };
+        let ty = SemanticTypeRecipe::Atom(integer(
+            &initializer.spelling, wanted, false, initializer.span,
+        )?.ty());
+        let expression = initializer.expression;
+        let copy = copy_recipe(&ty, self.limits, self.left)?;
+        let proof = self.proof.proof_mut()?;
+        proof.types.insert(key, copy);
+        proof.types.insert((owner, Query::Expression(expression)), ty.clone());
+        Ok(Some(ty))
+    }
+
+    fn binding_integer(
+        &mut self,
+        binding: &Binding,
+        wanted: Option<&SemanticTypeRecipe>,
+        depth: usize,
+    ) -> R<Option<SemanticTypeRecipe>> {
+        let Query::Binding(binder) = binding.origin else { return Ok(None); };
+        self.infer_integer_binding(binding.origin_owner, binder, wanted, depth + 1)
     }
     fn expr(
         &mut self,
@@ -3364,9 +3452,12 @@ impl<'a> Check<'a, '_> {
                 {
                     value.ty = self.closure_scalar_input(owner, ordinal, wanted, depth + 1)?;
                 }
+                let integer = self.binding_integer(value, wanted, depth + 1)?;
                 value.observed = true;
                 let observed = self.observation_type(owner, &value.ty, depth + 1)?;
-                let result = if let SemanticTypeRecipe::Managed(inner) = &observed {
+                let result = if let Some(integer) = integer {
+                    integer
+                } else if let SemanticTypeRecipe::Managed(inner) = &observed {
                     let inner = copy_recipe(inner, self.limits, self.left)?;
                     SemanticTypeRecipe::Desc {
                         lifetime: self.borrow_life(owner, expression.id)?,
@@ -3692,8 +3783,8 @@ impl<'a> Check<'a, '_> {
                 // other operand's independent type to supply its numeric
                 // context without evaluating or consuming that operand twice.
                 let (left, right) = if operand_wanted.is_none()
-                    && self.contextual_integer(left, depth + 1)?
-                    && !self.contextual_integer(right, depth + 1)?
+                    && self.contextual_integer(left, variables, depth + 1)?
+                    && !self.contextual_integer(right, variables, depth + 1)?
                 {
                     let right_ty = self.expr(owner, right, variables, None, depth + 1)?;
                     let right_type = self.logical(owner, &right_ty, depth + 1)?;
@@ -4093,8 +4184,8 @@ impl<'a> Check<'a, '_> {
                 let mut left = self.clone_variables(variables)?;
                 let mut right = self.clone_variables(variables)?;
                 let (a, b) = if wanted.is_none()
-                    && self.contextual_integer(then_value, depth + 1)?
-                    && !self.contextual_integer(else_value, depth + 1)?
+                    && self.contextual_integer(then_value, variables, depth + 1)?
+                    && !self.contextual_integer(else_value, variables, depth + 1)?
                 {
                     // Each branch has its own original state. Check the
                     // independently typed peer once before defaulting the
@@ -5162,6 +5253,23 @@ impl<'a> Check<'a, '_> {
                     ty,
                     initializer,
                 } => {
+                    let integer = if !*mutable && ty.is_none()
+                        && let Some(initializer) = initializer
+                        && let CoreExprKind::Integer(spelling) = &initializer.kind
+                        && self.contextual_integer(initializer, variables, depth + 1)?
+                    {
+                        self.snapshot(owner, SemanticOriginalNode::Expression(initializer.id), variables)?;
+                        self.pay(spelling.len().saturating_add(self.integer_initializers.len()).saturating_add(1), depth)?;
+                        self.integer_initializers.entry(owner).or_default().insert(statement.id,
+                            IntegerInitializer { expression: initializer.id, spelling: spelling.clone(), span: initializer.span });
+                        Some(SemanticTypeRecipe::OriginalType {
+                            scope: SemanticScopeRef::Ancestor(0),
+                            source: SemanticOriginalTypeSource::Binding(statement.id),
+                        })
+                    } else {
+                        None
+                    };
+                    let deferred = integer.is_some();
                     let annotation = ty
                         .as_ref()
                         .map(|ty| self.resolve(owner, ty, depth + 1))
@@ -5198,7 +5306,9 @@ impl<'a> Check<'a, '_> {
                             .map(|ty| copy_recipe(ty, self.limits, self.left))
                             .transpose()?
                     };
-                    let actual = if let (Some(value), Some(expected)) = (initializer, hint.as_ref())
+                    let actual = if deferred {
+                        integer
+                    } else if let (Some(value), Some(expected)) = (initializer, hint.as_ref())
                     {
                         if let Some(view) = self.shared_input_view(
                             owner,
@@ -5264,11 +5374,13 @@ impl<'a> Check<'a, '_> {
                     } else {
                         value
                     };
-                    let copy = copy_recipe(&value, self.limits, self.left)?;
-                    self.proof
-                        .proof_mut()?
-                        .types
-                        .insert((owner, Query::Binding(statement.id)), copy);
+                    if !deferred {
+                        let copy = copy_recipe(&value, self.limits, self.left)?;
+                        self.proof
+                            .proof_mut()?
+                            .types
+                            .insert((owner, Query::Binding(statement.id)), copy);
+                    }
                     if let Some(initializer) = initializer {
                         if !*mutable {
                             self.record_task_binding(
@@ -5879,8 +5991,8 @@ impl<'a> Check<'a, '_> {
         self.pay(1, depth)?;
         // As for arithmetic, an unsuffixed literal has no effects and can
         // receive the independently typed other endpoint's integer context.
-        let (a, b) = if self.contextual_integer(start, depth + 1)?
-            && !self.contextual_integer(end, depth + 1)?
+        let (a, b) = if self.contextual_integer(start, variables, depth + 1)?
+            && !self.contextual_integer(end, variables, depth + 1)?
         {
             let b = self.expr(owner, end, variables, None, depth + 1)?;
             let wanted = self.logical(owner, &b, depth + 1)?;
@@ -6121,6 +6233,15 @@ impl<'a> Check<'a, '_> {
         self.stage_depth = outer_stage;
         self.cleanup_depth = outer_cleanup;
         body_result?;
+        if let Some(initializers) = self.integer_initializers.get(&definition.id) {
+            let count = initializers.len();
+            self.pay(count, 0)?;
+            let binders: Vec<_> = self.integer_initializers[&definition.id].keys().copied().collect();
+            for binder in binders {
+                self.infer_integer_binding(definition.id, binder, None, 0)?;
+            }
+            self.integer_initializers.remove(&definition.id);
+        }
         for query in deferred_parameters {
             self.pay(self.proof.types.len().saturating_add(1).ilog2() as usize + 1, 0)?;
             if !self.proof.types.contains_key(&(definition.id, query)) {
@@ -6319,6 +6440,7 @@ fn check_requested(
         trait_active: Vec::new(),
         contexts: Vec::new(),
         closure_result_goal: None,
+        integer_initializers: BTreeMap::new(),
         predicate_active: Vec::new(),
         stage_depth: 0,
         cleanup_depth: 0,

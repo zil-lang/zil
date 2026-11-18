@@ -42,6 +42,7 @@ pub(super) fn borrowed_check<'a, 'b>(
         trait_active: Vec::new(),
         contexts: vec![owner],
         closure_result_goal: None,
+        integer_initializers: BTreeMap::new(),
         predicate_active: Vec::new(),
         stage_depth: 0,
         cleanup_depth: 0,
