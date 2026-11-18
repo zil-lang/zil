@@ -416,7 +416,7 @@ impl Check<'_, '_> {
                     .get(local.0 as usize)
                     .filter(|declaration| declaration.id == *local)
                     .ok_or_else(|| fail("actual package field borrow has no local declaration"))?;
-                if !matches!(actual.ty, Type::Package { .. })
+                if !matches!(crate::resources::package_storage(&actual.ty), Type::Package { .. })
                     || *mutable != *output_mutable
                     || self.borrow_field_type(&actual.ty, &[*field], b)? != output_inner.as_ref()
                 {
