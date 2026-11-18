@@ -11,6 +11,8 @@ mod closure_context;
 mod value_operands;
 mod ct_frozen;
 mod semantic_scopes;
+mod original_pattern_rows;
+pub use original_pattern_rows::*;
 pub use ct_frozen::*;
 pub use semantic_scopes::*;
 mod storage_sources;

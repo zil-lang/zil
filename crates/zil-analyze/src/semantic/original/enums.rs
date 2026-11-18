@@ -538,7 +538,7 @@ impl Solver<'_, '_> {
         let entered = frame.alive;
         let before = self.copy_locals(&frame.locals, b)?;
         let prefix = before.len();
-        let irrefutable = self.pattern_bind(
+        self.pattern_bind(
             frame,
             statement,
             &mut Vec::new(),
@@ -549,6 +549,8 @@ impl Solver<'_, '_> {
             b,
             depth + 1,
         )?;
+        b.spend(2, WORK)?;
+        let irrefutable = self.covers_patterns(&[vec![Some(pattern)]], &[subject], b, depth + 1)?;
         self.block(frame, then_body, b, depth + 1)?;
         if frame.alive {
             self.cleanup(frame.definition, &frame.locals[prefix..], b)?;
@@ -602,6 +604,152 @@ impl Solver<'_, '_> {
         Ok(())
     }
 
+    fn covers_patterns(
+        &self,
+        rows: &[OriginalPatternRow<'_>],
+        columns: &[Term],
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<bool> {
+        self.step(depth, b)?;
+        b.spend(
+            rows.len().saturating_mul(columns.len().saturating_add(1)),
+            WORK,
+        )?;
+        if rows.is_empty() {
+            return Ok(false);
+        }
+        if rows
+            .iter()
+            .any(|row| row.iter().copied().all(original_pattern_any))
+        {
+            return Ok(true);
+        }
+        let Some((subject, tail)) = columns.split_first() else {
+            return Err(fail(
+                "original pattern matrix has inconsistent column arity",
+            ));
+        };
+        if rows.iter().all(|row| original_pattern_any(row[0])) {
+            return self.pattern_branch(rows, OriginalPatternHead::Default, &[], tail, b, depth);
+        }
+        match &self.state.arena[self.type_root(*subject, b)?] {
+            Kind::Atom(Type::Bool) => {
+                for value in [false, true] {
+                    if !self.pattern_branch(
+                        rows,
+                        OriginalPatternHead::Bool(value),
+                        &[],
+                        tail,
+                        b,
+                        depth,
+                    )? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Kind::Atom(Type::Unit) => {
+                self.pattern_branch(rows, OriginalPatternHead::Tuple, &[], tail, b, depth)
+            }
+            Kind::Tuple(fields) => {
+                self.pattern_branch(rows, OriginalPatternHead::Tuple, fields, tail, b, depth)
+            }
+            Kind::ErrorUnion { error, result } => {
+                for (is_error, payload) in [(false, result), (true, error)] {
+                    if !self.pattern_branch(
+                        rows,
+                        OriginalPatternHead::ErrorArm(is_error),
+                        std::slice::from_ref(payload),
+                        tail,
+                        b,
+                        depth,
+                    )? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Kind::Nominal {
+                definition, fields, ..
+            } => {
+                let declaration = self.inventory.definition(*definition, b)?;
+                let SemanticDefinitionBody::Nominal {
+                    kind: LifeNominalKind::Enum,
+                    body: SemanticNominalBody::Enum { variants },
+                    ..
+                } = &declaration.body
+                else {
+                    return self.pattern_branch(
+                        rows,
+                        OriginalPatternHead::Default,
+                        &[],
+                        tail,
+                        b,
+                        depth,
+                    );
+                };
+                let mut remaining = fields.as_slice();
+                for variant in variants {
+                    b.spend(1, WORK)?;
+                    let Some((payload, rest)) = remaining.split_at_checked(variant.fields.len())
+                    else {
+                        return Err(fail(
+                            "original enum coverage lacks a complete variant payload",
+                        ));
+                    };
+                    remaining = rest;
+                    if !self.pattern_branch(
+                        rows,
+                        OriginalPatternHead::Variant(&variant.name),
+                        payload,
+                        tail,
+                        b,
+                        depth,
+                    )? {
+                        return Ok(false);
+                    }
+                }
+                if !remaining.is_empty() {
+                    return Err(fail(
+                        "original enum coverage has extra unowned variant payloads",
+                    ));
+                }
+                Ok(!variants.is_empty())
+            }
+            // Unknown and open scalar type domains supply no finite literal set.
+            _ => self.pattern_branch(rows, OriginalPatternHead::Default, &[], tail, b, depth),
+        }
+    }
+
+    fn pattern_branch(
+        &self,
+        rows: &[OriginalPatternRow<'_>],
+        head: OriginalPatternHead<'_>,
+        fields: &[Term],
+        tail: &[Term],
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<bool> {
+        let width = fields.len().saturating_add(tail.len());
+        let mut work = width.saturating_add(rows.len().saturating_mul(width.saturating_add(1)));
+        if let OriginalPatternHead::Variant(expected) = head {
+            for row in rows {
+                if let Some(
+                    CorePatternKind::Variant { variant, .. }
+                    | CorePatternKind::Constructor { variant, .. },
+                ) = row[0].map(|pattern| &pattern.kind)
+                {
+                    work = work.saturating_add(expected.len().saturating_add(variant.len()));
+                }
+            }
+        }
+        b.spend(work, WORK)?;
+        let rows = specialize_original_patterns(rows, head, fields.len());
+        let columns = fields.iter().chain(tail).copied().collect::<Vec<_>>();
+        self.covers_patterns(&rows, &columns, b, depth + 1)
+    }
+
     pub(super) fn match_statement(
         &mut self,
         frame: &mut Frame,
@@ -618,10 +766,6 @@ impl Solver<'_, '_> {
         let base = self.copy_locals(&frame.locals, b)?;
         let base_len = base.len();
         let mut joined: Option<Vec<Local>> = None;
-        let mut coverage = BTreeSet::new();
-        let mut total = false;
-        let mut bools = BTreeSet::new();
-        let mut errors = BTreeSet::new();
         for (arm_index, arm) in arms.iter().enumerate() {
             frame.locals = self.copy_locals(&base, b)?;
             frame.alive = original_alive;
@@ -629,7 +773,7 @@ impl Solver<'_, '_> {
                 u32::try_from(arm_index)
                     .map_err(|_| resource("original match arm ordinal overflow"))?,
             ];
-            let irrefutable = self.pattern_bind(
+            self.pattern_bind(
                 frame,
                 statement,
                 &mut path,
@@ -640,25 +784,6 @@ impl Solver<'_, '_> {
                 b,
                 depth + 1,
             )?;
-            match &arm.pattern.kind {
-                CorePatternKind::Name(_) | CorePatternKind::Wildcard => total = true,
-                CorePatternKind::Tuple(_) if irrefutable => total = true,
-                CorePatternKind::Constructor { variant, .. }
-                | CorePatternKind::Variant { variant, .. }
-                    if irrefutable =>
-                {
-                    let (index, _) = self.enum_variant(subject, variant, b)?;
-                    b.lookup(coverage.len(), WORK)?;
-                    coverage.insert(index);
-                }
-                CorePatternKind::Bool(value) => {
-                    bools.insert(*value);
-                }
-                CorePatternKind::ErrorArm { is_error, .. } if irrefutable => {
-                    errors.insert(*is_error);
-                }
-                _ => {}
-            }
             self.block(frame, &arm.body, b, depth + 1)?;
             if frame.alive {
                 self.cleanup(frame.definition, &frame.locals[base_len..], b)?;
@@ -678,31 +803,20 @@ impl Solver<'_, '_> {
                 }
             }
         }
-        if !total {
-            match &self.state.arena[self.type_root(subject, b)?] {
-                Kind::Nominal { definition, .. } => {
-                    let declaration = self.inventory.definition(*definition, b)?;
-                    let SemanticDefinitionBody::Nominal {
-                        kind: LifeNominalKind::Enum,
-                        body: SemanticNominalBody::Enum { variants },
-                        ..
-                    } = &declaration.body
-                    else {
-                        return Err(fail("original match lacks an exhaustive subject family"));
-                    };
-                    if coverage.len() != variants.len() {
-                        return Err(unknown(
-                            "original match does not prove complete enum coverage",
-                        ));
-                    }
-                }
-                Kind::Atom(Type::Bool) if bools.len() == 2 => {}
-                Kind::ErrorUnion { .. } if errors.len() == 2 => {}
-                _ => {
-                    return Err(unknown(
-                        "original match needs its complete exhaustive pattern coverage proof",
-                    ));
-                }
+        b.spend(arms.len(), WORK)?;
+        if !arms
+            .iter()
+            .any(|arm| original_pattern_any(Some(&arm.pattern)))
+        {
+            b.spend(arms.len().saturating_mul(2), WORK)?;
+            let rows = arms
+                .iter()
+                .map(|arm| vec![Some(&arm.pattern)])
+                .collect::<Vec<_>>();
+            if !self.covers_patterns(&rows, &[subject], b, depth + 1)? {
+                return Err(fail(
+                    "original match omits a possible symbolic constructor or payload",
+                ));
             }
         }
         frame.alive = joined.is_some();

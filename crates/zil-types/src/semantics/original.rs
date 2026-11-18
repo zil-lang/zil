@@ -34,6 +34,8 @@ mod modes;
 #[path = "original_resources.rs"]
 mod resources;
 pub(super) use intrinsics::{IntrinsicCall, IntrinsicKind, RegistrationOp, TaskOp};
+#[path = "original_pattern_matrix.rs"]
+mod pattern_matrix;
 #[path = "original_nominal_where.rs"]
 mod nominal_where;
 #[path = "original_roles.rs"]
@@ -5912,105 +5914,6 @@ impl<'a> Check<'a, '_> {
             _ => false,
         })
     }
-    fn exhaustive(
-        &mut self,
-        owner: SemanticDefinitionId,
-        ty: &SemanticTypeRecipe,
-        arms: &[SemanticOriginalMatchArm],
-        depth: usize,
-    ) -> R<()> {
-        self.pay(arms.len(), depth)?;
-        if arms.iter().any(|arm| {
-            matches!(
-                &arm.pattern.kind,
-                CorePatternKind::Wildcard | CorePatternKind::Name(_)
-            )
-        }) {
-            return Ok(());
-        }
-        let ty = self.logical(owner, ty, depth + 1)?;
-        let complete = match ty {
-            SemanticTypeRecipe::ErrorUnion { .. } => {
-                let mut tags = [false; 2];
-                for arm in arms {
-                    if let CorePatternKind::ErrorArm { is_error, pattern } = &arm.pattern.kind {
-                        tags[usize::from(*is_error)] |= self.irrefutable(pattern, depth + 1)?;
-                    }
-                }
-                tags.into_iter().all(|tag| tag)
-            }
-            SemanticTypeRecipe::Atom(Type::Bool) => {
-                let mut tags = [false; 2];
-                for arm in arms {
-                    self.pay(1, depth)?;
-                    if let CorePatternKind::Bool(value) = &arm.pattern.kind {
-                        tags[usize::from(*value)] = true;
-                    }
-                }
-                tags.into_iter().all(|tag| tag)
-            }
-            SemanticTypeRecipe::Nominal { definition, .. } => {
-                let definition = self.definition(definition)?;
-                let SemanticDefinitionBody::Nominal {
-                    body: SemanticNominalBody::Enum { variants },
-                    ..
-                } = &definition.body
-                else {
-                    let mut complete = false;
-                    for arm in arms {
-                        complete |= self.irrefutable(&arm.pattern, depth + 1)?;
-                    }
-                    return if complete {
-                        Ok(())
-                    } else {
-                        Err(bad("original product match needs an irrefutable arm"))
-                    };
-                };
-                let mut complete = true;
-                for variant in variants {
-                    let mut covered = false;
-                    for arm in arms {
-                        self.pay(1, depth)?;
-                        if let CorePatternKind::Variant {
-                            variant: name,
-                            fields,
-                            ..
-                        }
-                        | CorePatternKind::Constructor {
-                            variant: name,
-                            fields,
-                            ..
-                        } = &arm.pattern.kind
-                        {
-                            if name == &variant.name {
-                                let mut all = true;
-                                for field in fields {
-                                    all &= self.irrefutable(field, depth + 1)?;
-                                }
-                                covered |= all;
-                            }
-                        }
-                    }
-                    complete &= covered;
-                }
-                complete
-            }
-            _ => {
-                let mut complete = false;
-                for arm in arms {
-                    complete |= self.irrefutable(&arm.pattern, depth + 1)?;
-                }
-                complete
-            }
-        };
-        if !complete {
-            return Err(bad(
-                "original match omits a possible symbolic constructor or payload",
-            ));
-        }
-        Ok(())
-    }
-
     fn function(
         &mut self,
         definition: &'a SemanticDefinition,
