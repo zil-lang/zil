@@ -6,7 +6,7 @@ pub(super) struct CreatorBinding {
     pub(super) capture: u32,
     pub(super) lexical: Value,
     pub(super) stored: Value,
-    pub(super) reborrowed: BTreeSet<ValueId>,
+    pub(super) bound_operands: BTreeSet<ValueId>,
 }
 impl Check<'_, '_> {
     /// Evaluate only the proved original occurrence equations. The full
@@ -298,7 +298,7 @@ impl Check<'_, '_> {
             let expected = self.resolved(parent, actual, b, 0)?;
             let mut selected = None;
             let mut stored = None;
-            let mut reborrowed = BTreeSet::new();
+            let mut bound_operands = BTreeSet::new();
             let mut creators = 0usize;
             for block in &function.blocks {
                 for (index, instruction) in block.instructions.iter().enumerate() {
@@ -344,14 +344,17 @@ impl Check<'_, '_> {
                                 && self.pointee(&value, b)?.equal_paid(&expected, b)?
                         {
                             value
-                        } else if !moved
-                            && self
-                                .capture_reborrow(parent, function, *operand, value, &expected, b)?
+                        } else if moved
+                            && self.moved_reference_operand(
+                                parent, function, *operand, &value, &expected, b,
+                            )?
+                            || !moved
+                                && self.capture_reborrow(parent, function, *operand, value, &expected, b)?
                         {
-                            // The header stores the lexical upper. The actual
-                            // reborrow still has its own loan in the CFG.
-                            b.lookup(reborrowed.len(), WORK)?;
-                            reborrowed.insert(*operand);
+                            // The closure stores the proved lexical bound.
+                            // The actual source still has its own CFG loan.
+                            b.lookup(bound_operands.len(), WORK)?;
+                            bound_operands.insert(*operand);
                             expected.copy(b)?
                         } else {
                             return Err(fail(
@@ -394,7 +397,7 @@ impl Check<'_, '_> {
                 CreatorBinding {
                     capture: selected
                         .ok_or_else(|| fail("captured value has no physical original operand"))?,
-                    reborrowed,
+                    bound_operands,
                     lexical: expected,
                     stored: stored
                         .ok_or_else(|| fail("captured value has no complete stored head"))?,

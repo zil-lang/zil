@@ -308,6 +308,42 @@ impl Check<'_, '_> {
         // This is a class role only, never a current target, loan or epoch.
         Ok(Some(role.value))
     }
+    /// A moved slot uses its complete input bound only after its real
+    /// initialized load and every actual Store prove the original sources.
+    pub(super) fn moved_reference_operand(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        operand: ValueId,
+        actual: &Value,
+        expected: &Value,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        if !matches!(expected.ty, Type::Address { mutable: false, .. }) {
+            return Ok(false);
+        }
+        let (block, index, instruction) = self.defining(function, operand, b)?;
+        let (InstructionKind::Load(local) | InstructionKind::TakeLocal { local }) =
+            instruction.kind else { return Ok(false); };
+        let Some(role) = self.reference_role_for_local(instance, function, local, b)? else {
+            return Ok(false);
+        };
+        if !actual.equal_paid(&role.value, b)? || role.writes.is_empty() {
+            return Ok(false);
+        }
+        for write in &role.writes {
+            b.spend(1, WORK)?;
+            if !matches!(write.anchor, Some(original::LocalAnchor::Parameter(_)))
+                || !write.value.equal_paid(expected, b)?
+            {
+                return Ok(false);
+            }
+        }
+        operations::initialized_local_before(function, (block, index), local, b)?;
+        self.reference_role_stores(instance, function, local, &role, b, 0)?;
+        Ok(true)
+    }
+
     fn reference_role_input_sources(
         &self,
         world: &SemanticInstance,

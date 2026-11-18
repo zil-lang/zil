@@ -4436,8 +4436,8 @@ impl Check<'_, '_> {
                     if binding.capture != capture {
                         continue;
                     }
-                    b.lookup(binding.reborrowed.len(), WORK)?;
-                    if binding.reborrowed.contains(operand)
+                    b.lookup(binding.bound_operands.len(), WORK)?;
+                    if binding.bound_operands.contains(operand)
                         && proved.replace(&binding.stored).is_some()
                     {
                         return Err(fail("ghost creator capture has competing lexical bounds"));
