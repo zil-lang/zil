@@ -157,6 +157,13 @@ fn add_local_fields<'a>(
     Ok(())
 }
 
+fn physical_storage(ty: &Type) -> &Type {
+    match ty {
+        Type::BorrowedStorage { storage, .. } => storage,
+        ty => ty,
+    }
+}
+
 pub(super) fn start(
     f: &TypedFunction,
     slots: &Slots,
@@ -183,7 +190,7 @@ pub(super) fn start(
     for (index, local) in f.locals.iter().enumerate() {
         if let Some(debt) = slots.managed_local[index] {
             charge_payload(&local.ty, budget)?;
-            if let Type::Package { fields, .. } = &local.ty {
+            if let Some(fields) = package_storage(&local.ty) {
                 add_local_fields(
                     &mut owners,
                     local.id,
@@ -204,7 +211,7 @@ pub(super) fn start(
                     budget,
                 )?;
             } else if matches!(
-                local.ty,
+                physical_storage(&local.ty),
                 Type::Managed(_)
                     | Type::Tuple(_)
                     | Type::Enum { .. }
@@ -230,7 +237,7 @@ pub(super) fn start(
             charge_payload(ty, budget)?;
             if !arrays::is_owned_type(ty)
                 && !matches!(
-                    ty,
+                    physical_storage(ty),
                     Type::Managed(_)
                         | Type::Package { .. }
                         | Type::Tuple(_)

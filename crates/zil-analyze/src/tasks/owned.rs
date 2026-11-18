@@ -181,10 +181,17 @@ fn frame_tag_local_instruction(
 ) -> CompileResult<bool> {
     let InstructionKind::PlaceTagLocal { local, path } = &instruction.kind else { return Ok(false); };
     let root = local_type(f, *local, Some(instruction.span))?;
-    if !path.is_empty()
-        || !matches!(root, Type::Enum { .. } | Type::ErrorUnion { .. })
-        || !complete_aggregate(module, root, budget)?
-    {
+    let complete = match (root, path.as_slice()) {
+        (Type::ErrorUnion { error, result }, [])
+            if matches!(result.as_ref(), Type::Managed(task) if matches!(task.as_ref(), Type::Task { .. }))
+                && crate::stored_flow::failure_shape(error, budget)? =>
+        {
+            pollable_storage(module, root, budget)?
+        }
+        (Type::Enum { .. } | Type::ErrorUnion { .. }, []) => complete_aggregate(module, root, budget)?,
+        _ => false,
+    };
+    if !complete {
         return Err(vec![Diagnostic::unsupported(Phase::Analyze,
             "task PlaceTagLocal requires a complete Sum local root and empty path", Some(instruction.span))]);
     }
