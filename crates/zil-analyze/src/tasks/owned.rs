@@ -402,6 +402,16 @@ fn frame_storage_instruction(
             | InstructionKind::ConvertNumber { .. }
             | InstructionKind::MakeOwnedTuple { .. }
             | InstructionKind::DropTuple { .. }
+            // The ordinary resource CFG checks the actual element ordinal,
+            // live shell, moves, replacement and cleanup at every operation.
+            // Frame eligibility does not assign Closed to any element.
+            | InstructionKind::MakeOwnedArray { .. }
+            | InstructionKind::TakeOwnedArrayElement { .. }
+            | InstructionKind::BorrowOwnedArrayElement { .. }
+            | InstructionKind::ProjectOwnedArrayField { .. }
+            | InstructionKind::StoreOwnedArrayElement { .. }
+            | InstructionKind::DropOwnedArrayElement { .. }
+            | InstructionKind::DropOwnedArray { .. }
             | InstructionKind::MakePackage { .. }
             | InstructionKind::DropPackage { .. }
             | InstructionKind::TakePackageField { .. }
@@ -538,9 +548,8 @@ fn complete_aggregate(module: &TypedModule, t: &Type, budget: &mut Budget) -> Co
                 work.extend([error.as_ref(), result.as_ref()]);
             }
             Type::Array { element, .. } => {
-                if !record(element, budget)? {
-                    return Ok(false);
-                }
+                budget.spend(1, "complete task array element recipe")?;
+                work.push(element);
             }
             _ => return Ok(false),
         }
@@ -605,6 +614,12 @@ fn aggregate_resources<'a>(
             Type::ErrorUnion { error, result } => {
                 budget.spend(2, "complete task aggregate arms")?;
                 work.extend([error.as_ref(), result.as_ref()]);
+            }
+            Type::Array { element, .. } => {
+                // This is a cleanup-definition inventory. Actual element
+                // occupants and their distinct debts stay in the resource CFG.
+                budget.spend(1, "complete task array cleanup recipe")?;
+                work.push(element);
             }
             _ => {}
         }
@@ -920,6 +935,11 @@ fn pollable_storage_at(module: &TypedModule, t: &Type, budget: &mut Budget,
         Type::ErrorUnion { error, result } => {
             Ok(pollable_storage_at(module, error, budget, depth + 1, active)?
                 && pollable_storage_at(module, result, budget, depth + 1, active)?)
+        }
+        Type::Array { element, .. } => {
+            // A homogeneous physical recipe is checked once. No occupant's
+            // origin, Closed phase, or replacement generation follows from it.
+            pollable_storage_at(module, element, budget, depth + 1, active)
         }
         Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. }) => {
             crate::ownership_store::payload_definition(module, p, budget)?;
@@ -1756,6 +1776,94 @@ mod frame_consumer_tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
         ));
+    }
+
+    #[test]
+    fn array_frame_keeps_complete_callable_resources_without_proving_closed() {
+        let mut module = crate::static_utf8_tests::module();
+        let task = Type::Task {
+            result: Box::new(Type::I32),
+            retained_life: super::super::empty_context(),
+        };
+        let owner = Type::Managed(Box::new(task.clone()));
+        let life = StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 0,
+            bindings: vec![],
+            static_bindings: vec![],
+            classes: vec![],
+        };
+        module.functions[0].environment = Some(ClosureId(0));
+        module.functions[0].storage_life = Some(life.clone());
+        module.functions[0].return_type = Type::I32;
+        module.closures = vec![zil_ir::ClosureDefinition {
+            id: ClosureId(0),
+            function: FunctionId(0),
+            captures: vec![owner.clone(), owner.clone()],
+            parameters: vec![],
+            result: Type::I32,
+            kind: CallableKind::FnMut,
+            lending_captures: vec![],
+            storage_life: Some(life),
+        }];
+        module.resources = vec![zil_ir::ResourceDefinition {
+            name: format!("{TASK_RESOURCE_NAME_PREFIX}{}", task.fingerprint()),
+            payload: task,
+            teardown: None,
+        }];
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        budget.task_input_scopes =
+            Some(super::super::input_scope::build(&module, &limits, &mut budget).unwrap());
+        let mut prior_work = None;
+        for length in [1, 2, u32::MAX] {
+            let array = Type::Array {
+                element: Box::new(Type::Closure(ClosureId(0))),
+                length,
+            };
+            let before = budget.remaining();
+            assert!(pollable_storage(&module, &array, &mut budget).unwrap());
+            assert!(complete_aggregate(&module, &array, &mut budget).unwrap());
+            assert_eq!(
+                aggregate_resources(&module, &array, &mut budget).unwrap(),
+                vec![&owner, &owner],
+                "both same-typed captured resource leaves remain in the recipe"
+            );
+            assert!(
+                super::super::drop_sync::contains_kind(&module, &array, &mut budget, false)
+                    .unwrap(),
+                "frame storage must retain the separate actual Task cleanup obligation"
+            );
+            let work = before - budget.remaining();
+            if let Some(previous) = prior_work {
+                assert_eq!(
+                    work, previous,
+                    "a type recipe does not expand an array into occupants"
+                );
+            }
+            prior_work = Some(work);
+        }
+        let array = Type::Array {
+            element: Box::new(Type::Closure(ClosureId(0))),
+            length: 1,
+        };
+        for invalid in 0..3 {
+            let mut changed = module.clone();
+            match invalid {
+                0 => changed.resources.clear(),
+                1 => changed.resources[0].name = "not-the-task-allocator".into(),
+                _ => changed.resources.push(changed.resources[0].clone()),
+            }
+            assert!(
+                pollable_storage(&changed, &array, &mut budget).is_err(),
+                "an array must not hide a missing, substituted or duplicate resource identity"
+            );
+        }
+        module.closures.clear();
+        assert!(
+            !pollable_storage(&module, &array, &mut budget).unwrap(),
+            "the element still needs its actual closure definition"
+        );
     }
 
     #[test]
