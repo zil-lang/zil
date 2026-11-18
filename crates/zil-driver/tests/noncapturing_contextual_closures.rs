@@ -606,7 +606,7 @@ fn borrowed_code_keeps_its_invocation_relation_on_named_and_literal_addresses() 
         })
         .collect::<Vec<_>>();
     assert_eq!(sites.len(), 2);
-    for i in sites {
+    for (i, erase) in sites.into_iter().flat_map(|i| [(i, true), (i, false)]) {
         let mut changed = raw.clone();
         let SemanticSiteAction::TypeUse {
             expected: SemanticTypeValue::Resolved { ty, .. },
@@ -621,9 +621,15 @@ fn borrowed_code_keeps_its_invocation_relation_on_named_and_literal_addresses() 
         else {
             panic!()
         };
-        *ty = Type::FunctionPointer {
-            parameters: parameters.clone(),
-            result: result.clone(),
+        let expected_code = if erase {
+            *ty = Type::FunctionPointer {
+                parameters: parameters.clone(),
+                result: result.clone(),
+            };
+            "E-VERIFY-DYN-WITNESS"
+        } else {
+            **result = Type::Bool;
+            "E-VERIFY-SEMANTIC"
         };
         let mut stale = plan.clone();
         stale.module_fingerprint = changed.fingerprint();
@@ -635,7 +641,7 @@ fn borrowed_code_keeps_its_invocation_relation_on_named_and_literal_addresses() 
             assert!(
                 errors.iter().any(|e| e.phase == Phase::Verify
                     && e.category == ResultCategory::SafeReject
-                    && e.code == "E-VERIFY-SEMANTIC"),
+                    && e.code == expected_code),
                 "{errors:?}"
             );
         }
