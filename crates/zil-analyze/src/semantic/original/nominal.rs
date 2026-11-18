@@ -708,8 +708,11 @@ impl Solver<'_, '_> {
                 "original record construction selects a non-product declaration",
             ));
         };
-        if !complete && *kind != LifeNominalKind::Record {
-            return Err(fail("original record update selects a non-record declaration"));
+        if !complete {
+            if *kind != LifeNominalKind::Record {
+                return Err(fail("original record update selects a non-record declaration"));
+            }
+            super::resources::ordinary_drop_absent(*definition, self.inventory, b)?;
         }
         b.spend(fields.len().saturating_add(values.len()), WORK)?;
         let fields = fields.clone();

@@ -3427,7 +3427,7 @@ impl<'a> Builder<'a, '_> {
         let CoreExprKind::RecordUpdate { ty, base, fields } = &e.kind else {
             unreachable!("expression dispatcher variant")
         };
-        let (mut current, actual) = self.expr(base, ty.as_ref().or(expected))?;
+        let (mut current, actual) = self.transfer_expr(base, ty.as_ref().or(expected))?;
         if !matches!(actual, Type::Record { .. }) {
             return Err(error(
                 "E-RECORD-TYPE",
@@ -3435,24 +3435,29 @@ impl<'a> Builder<'a, '_> {
                 "record update requires a nominal record",
             ));
         }
-        let mut seen = BTreeSet::new();
+        let mut prepared = BTreeMap::new();
         for (name, value) in fields {
-            if !seen.insert(name) {
+            let (index, field) = field_ref(&actual, name, value.span)?;
+            self.closures.snapshot(prepared.len().saturating_add(1).ilog2() as usize + 1, value.span)?;
+            if prepared.contains_key(&index) {
                 return Err(error(
                     "E-FIELD-DUPLICATE",
                     value.span,
                     "duplicate update field",
                 ));
             }
-            if let Type::Record { fields, .. } = &actual
-                && let Some((_, field)) = fields.iter().find(|(field, _)| field == name)
-                && !field.is_copy_value()
+            if !field.is_copy_value()
                 && stored::pure_inline(field, &mut self.match_work_left, self.limits, value.span)?
             {
                 self.closures.snapshot_type(field, 1, 0, value.span)?;
             }
-            let (index, t) = field(&actual, name, value.span)?;
-            let value = self.expr(value, Some(&t))?.0;
+            let (replacement, replacement_type) = self.transfer_expr(value, Some(field))?;
+            self.same(&replacement_type, field, value.span)?;
+            prepared.insert(index, replacement);
+        }
+        // Prepare every RHS in source order before emitting the update chain.
+        // The nominal field ordinal gives the commit order.
+        for (index, value) in prepared {
             if !actual.is_copy_value()
                 && stored::pure_inline(&actual, &mut self.match_work_left, self.limits, e.span)?
             {

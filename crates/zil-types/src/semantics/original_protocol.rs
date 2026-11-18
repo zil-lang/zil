@@ -2564,17 +2564,41 @@ impl<'a> Engine<'a, '_> {
                     Ok(Value::Fields(out))
                 }
                 CoreExprKind::RecordUpdate { base, fields, .. } => {
-                    let base = self.expr(owner, base, state, depth + 1)?;
-                    if !matches!(base, Value::Fields(_)) {
+                    let value = self.expr(owner, base, state, depth + 1)?;
+                    if !state.reachable {
+                        return Ok(Value::Plain);
+                    }
+                    if !matches!(value, Value::Fields(_)) {
                         return Err(pending(
                             "original record update requires the complete base field inventory",
                         ));
                     }
+                    let ty = self.query_type(owner, Query::Expression(base.id), depth + 1)?
+                        .ok_or_else(|| failure("original record update has no solved base type"))?;
+                    let order = self.product_fields(owner, &ty, depth + 1)?
+                        .ok_or_else(|| failure("original record update loses its declared field order"))?;
                     self.pay(1, depth)?;
                     let slot = state.temporaries.len();
-                    state.temporaries.push(base);
+                    state.temporaries.push(value);
+                    let mut prepared = BTreeMap::new();
                     for (name, expression) in fields {
                         let value = self.expr(owner, expression, state, depth + 1)?;
+                        if !state.reachable {
+                            state.temporaries.truncate(slot);
+                            return Ok(Value::Plain);
+                        }
+                        self.pay(name.len().saturating_add(lookup_work(prepared.len())).saturating_add(1), depth)?;
+                        if prepared.insert(name.as_str(), state.temporaries.len()).is_some() {
+                            return Err(failure("original record update repeats a prepared field"));
+                        }
+                        state.temporaries.push(value);
+                    }
+                    for (name, _) in order.iter() {
+                        self.pay(name.len().saturating_add(lookup_work(prepared.len())), depth)?;
+                        let Some(index) = prepared.remove(name.as_str()) else {
+                            continue;
+                        };
+                        let value = std::mem::replace(&mut state.temporaries[index], Value::Plain);
                         let Value::Fields(base) = &mut state.temporaries[slot] else {
                             return Err(failure("original record update lost its in-flight base"));
                         };
@@ -2585,7 +2609,11 @@ impl<'a> Engine<'a, '_> {
                         let old = std::mem::replace(field, value);
                         self.drop_value(&old, state, depth + 1)?;
                     }
-                    Ok(state.temporaries.remove(slot))
+                    if !prepared.is_empty() {
+                        return Err(failure("original record update prepared a field outside its declaration"));
+                    }
+                    state.temporaries.truncate(slot + 1);
+                    Ok(state.temporaries.pop().expect("complete update base"))
                 }
                 CoreExprKind::Member { .. } => {
                     if let Some(value) =
