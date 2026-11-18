@@ -777,7 +777,27 @@ impl Type {
             // Copying the code address never copies its invocation payload.
             // Signature and relation eligibility must be validated separately.
             Self::BorrowedFunctionPointer { .. } => true,
-            _ => false,
+            Self::Dyn { .. }
+            | Self::OwnedDyn { .. }
+            | Self::BorrowedStorage { .. }
+            | Self::ByteBuffer
+            | Self::OwnedStore { .. }
+            | Self::SyncCell(_)
+            | Self::Mutex { .. }
+            | Self::MutexGuard { .. }
+            | Self::Registration { .. }
+            | Self::AsyncRegistration { .. }
+            | Self::TaskI32
+            | Self::Task { .. }
+            | Self::Slice { .. }
+            | Self::Named(_)
+            | Self::Package { .. }
+            | Self::Address { .. }
+            | Self::Managed(_)
+            | Self::Desc(_)
+            | Self::Closure(_)
+            | Self::Opaque { .. }
+            | Self::Unsupported(_) => false,
         }
     }
     pub fn aggregate_fields(&self) -> Option<Vec<&Type>> {

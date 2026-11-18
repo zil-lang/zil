@@ -928,11 +928,27 @@ pub(super) struct Shape {
     source: usize,
     schema: FunctionId,
     blocks: BTreeMap<BlockId, usize>,
-    definitions: Vec<usize>,
+    definitions: Vec<(usize, usize)>,
     dominators: Vec<BTreeSet<usize>>,
     reachable_from: Vec<BTreeSet<usize>>,
 }
 impl Shape {
+    pub(super) fn producer<'a>(
+        &self,
+        world: &mut World<'_, '_>,
+        function: &'a TypedFunction,
+        value: ValueId,
+    ) -> R<(BlockId, usize, &'a Instruction)> {
+        world.pay(1)?;
+        if self.schema != function.id || self.source != function as *const TypedFunction as usize {
+            return Err(bad("SSA producer query changes its exact actual function"));
+        }
+        let &(block, ordinal) = self.definitions.get(value.0 as usize)
+            .ok_or_else(|| bad("SSA producer query selects an absent value"))?;
+        let block = &function.blocks[block];
+        Ok((block.id, ordinal, &block.instructions[ordinal]))
+    }
+
     pub(super) fn entry_reaches(
         &self,
         world: &mut World<'_, '_>,
@@ -1033,25 +1049,26 @@ impl Cfg {
                 .saturating_add(count),
         )?;
         let mut blocks = BTreeMap::new();
-        let mut definitions = vec![usize::MAX; function.values.len()];
+        let missing = (usize::MAX, usize::MAX);
+        let mut definitions = vec![missing; function.values.len()];
         for (index, block) in function.blocks.iter().enumerate() {
             if blocks.insert(block.id, index).is_some() {
                 return Err(bad("class CFG repeats a block identity"));
             }
             world.pay(block.instructions.len())?;
-            for instruction in &block.instructions {
+            for (ordinal, instruction) in block.instructions.iter().enumerate() {
                 if let Some(result) = instruction.result {
                     let definition = definitions
                         .get_mut(result.0 as usize)
                         .ok_or_else(|| bad("class CFG defines an absent SSA value"))?;
-                    if *definition != usize::MAX {
+                    if *definition != missing {
                         return Err(bad("class CFG repeats an SSA definition"));
                     }
-                    *definition = index;
+                    *definition = (index, ordinal);
                 }
             }
         }
-        if definitions.contains(&usize::MAX) {
+        if definitions.contains(&missing) {
             return Err(bad("class CFG has an SSA value without a definition"));
         }
         let entry = *blocks
@@ -1149,7 +1166,7 @@ impl Cfg {
             .ok_or_else(|| bad("capture CFG block is absent"))
     }
     pub fn retain_dominating<T>(&self, index: usize, values: &mut [Option<T>]) {
-        for (value, definition) in values.iter_mut().zip(&self.definitions) {
+        for (value, (definition, _)) in values.iter_mut().zip(&self.definitions) {
             if *definition == index || !self.dominators[index].contains(definition) {
                 *value = None;
             }
@@ -1344,7 +1361,7 @@ impl Cfg {
             ..
         } = image
         {
-            let definition = *self
+            let (definition, _) = *self
                 .definitions
                 .get(id.0 as usize)
                 .ok_or_else(|| bad("loop role source selects an absent SSA occurrence"))?;
@@ -1418,7 +1435,7 @@ impl Cfg {
         // Only definitions strictly dominating entry to this block survive.
         // In particular a previous loop iteration cannot initialize this
         // iteration's SSA, and a sibling branch cannot donate a same-numbered value.
-        for (value, definition) in state.values.iter_mut().zip(&self.definitions) {
+        for (value, (definition, _)) in state.values.iter_mut().zip(&self.definitions) {
             if *definition == index || !self.dominators[index].contains(definition) {
                 *value = None;
             }

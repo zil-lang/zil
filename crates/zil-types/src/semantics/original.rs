@@ -237,6 +237,7 @@ pub(super) struct Proof {
     pure_queries: source_cache::Cache,
     premises: source_cache::Premises,
     compile_time_calls: BTreeSet<(SemanticDefinitionId, SemanticSiteId)>,
+    pub(super) compile_time_results: BTreeSet<(SemanticDefinitionId, NodeId)>,
     cleanup_calls: BTreeSet<(SemanticDefinitionId, SemanticSiteId)>,
     pub local_roles: BTreeMap<(SemanticDefinitionId, NodeId), LocalRole>,
     pub scope_calls: BTreeMap<
@@ -3509,7 +3510,10 @@ impl<'a> Check<'a, '_> {
                     .ok_or_else(|| bad("original stage nesting overflows"))?;
                 let result = self.expr(owner, value, variables, wanted, depth + 1);
                 self.stage_depth = outer_stage;
-                result?
+                let result = result?;
+                self.pay(self.proof.compile_time_results.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+                self.proof.proof_mut()?.compile_time_results.insert((owner, expression.id));
+                result
             }
             CoreExprKind::Group(value) => self.expr(owner, value, variables, wanted, depth + 1)?,
             CoreExprKind::String(spelling) => {

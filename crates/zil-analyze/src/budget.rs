@@ -2106,6 +2106,7 @@ pub(super) fn preflight(
                     && !super::stored_callables::exclusive_capture(ty)
                     && !super::stored_callables::owned_capture(ty, budget)?
                     && !super::stored_callables::ordinary_capture(module, ty, budget)?
+                    && !super::stored_callables::semantic_shared_callable_capture(module, closure, ty, budget)?
                     && !matches!(ty,Type::Closure(child) if super::stored_callables::finite(module,*child))
                 {
                     return Err(vec![Diagnostic::unsupported(

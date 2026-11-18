@@ -163,13 +163,16 @@ impl Check<'_, '_> {
             if !self.capture_values_equal(&actual, expected, b)? {
                 return Err(fail("actual scoped callback changes a complete original operand"));
             }
-            if let Some(source) = self.original_subject_value(instance, function, node, b)? {
+            let source = self.original_subject_value(instance, function, node, b)?;
+            let anchor = self.original.local_read_anchor(instance.definition, node, b)?;
+            if let Some(anchor) = anchor
+                && !self.anchored_value(instance, function, anchor, source.unwrap_or(operand), b, 0)?
+            {
+                return Err(fail("actual scoped callback uses a different original lexical binding"));
+            }
+            if let Some(source) = source {
                 self.original_producer_value(function, operand, source, b)?;
-            } else if let Some(anchor) = self.original.local_read_anchor(instance.definition, node, b)? {
-                if !self.anchored_value(instance, function, anchor, operand, b, 0)? {
-                    return Err(fail("actual scoped callback uses a different original lexical binding"));
-                }
-            } else {
+            } else if anchor.is_none() {
                 return Err(fail("actual scoped callback operand has no exact original producer"));
             }
         }

@@ -395,6 +395,41 @@ pub(super) fn ordinary_capture(
     closed_callback_data(inner, b)?;
     super::stored_flow::owned::ordinary_value(module, t, b)
 }
+/// A shared callable capture has an actual child environment and its own
+/// physical outer borrow. Its child classes are verified by the original
+/// creator/entry proof and its usable targets by the invocation flow.
+pub(super) fn semantic_shared_callable_capture(
+    module: &TypedModule,
+    parent: &ClosureDefinition,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let Type::Address { mutable: false, inner } = ty else {
+        return Ok(false);
+    };
+    let Type::Closure(child) = inner.as_ref() else {
+        return Ok(false);
+    };
+    b.lookup(b.semantic_closures_proven.len(), "complete shared callable capture bodies")?;
+    if parent.storage_life.is_none()
+        || !b.semantic_closures_proven.contains(&parent.id)
+        || !b.semantic_closures_proven.contains(child)
+    {
+        return Ok(false);
+    }
+    if !module.closures.get(parent.id.0 as usize)
+        .is_some_and(|actual| std::ptr::eq(actual, parent))
+    {
+        return Err(bad("shared callable capture changes its actual environment"));
+    }
+    let child = module.closures.get(child.0 as usize).filter(|actual| actual.id == *child)
+        .ok_or_else(|| bad("shared callable capture omits its actual child"))?;
+    Ok(child.kind == CallableKind::Fn
+        && child.storage_life.is_some()
+        && child.lending_captures.is_empty()
+        && scalar(&child.result))
+}
+
 /// Complete original environment formation and actual ordinary owner
 /// qualification are separate obligations. This selects the existing resource
 /// consumers; it grants no borrowed target, mutation or synchronous cleanup.
@@ -620,6 +655,7 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
                     || owned_capture(t, b)?
                     || semantic_owned_capture(module, d, t, b)?
                     || ordinary_capture(module, t, b)?
+                    || semantic_shared_callable_capture(module, d, t, b)?
                     || super::forward::nested_capture(module, d, t, b)?
                     || matches!(t,Type::Closure(child) if b.returned_borrowed_environments.contains(child) && finite(module,*child))
             } else {

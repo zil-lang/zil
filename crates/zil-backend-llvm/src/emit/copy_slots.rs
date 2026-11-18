@@ -22,8 +22,8 @@ fn pay(work: &mut usize, amount: usize, span: Span) -> CompileResult<()> {
     Ok(())
 }
 
-// This explicit whitelist is a physical-use inventory, not a proof visitor.
-// New operations must be audited here; the wildcard forbids pooling altogether.
+// Only these operations are eligible for pooling. Their SSA uses come from
+// the Typed instruction schema, including repeated uses of the same value.
 fn operands(
     i: &InstructionKind,
     work: &mut usize,
@@ -36,135 +36,55 @@ fn operands(
         I::Call { arguments, .. }
         | I::ForeignCall { arguments, .. }
         | I::MakeAggregate { fields: arguments }
-        | I::MakeVariant {
-            fields: arguments, ..
-        } => {
-            pay(
-                work,
-                arguments
-                    .len()
-                    .saturating_add(1)
-                    .saturating_mul(lookup_cost),
-                span,
-            )?;
-            for value in arguments {
-                visit(*value);
-            }
+        | I::MakeVariant { fields: arguments, .. } => {
+            pay(work, arguments.len().saturating_add(1).saturating_mul(lookup_cost), span)?;
         }
-        I::CallIndirect { callee, arguments } => {
-            pay(
-                work,
-                arguments
-                    .len()
-                    .saturating_add(2)
-                    .saturating_mul(lookup_cost),
-                span,
-            )?;
-            visit(*callee);
-            for value in arguments {
-                visit(*value);
-            }
+        I::CallIndirect { arguments, .. } => {
+            pay(work, arguments.len().saturating_add(2).saturating_mul(lookup_cost), span)?;
         }
-        I::Store { value, .. }
-        | I::Unary { operand: value, .. }
-        | I::ConvertInteger { value, .. }
-        | I::ConvertNumber { value, .. }
-        | I::ExtractField {
-            aggregate: value, ..
-        }
-        | I::VariantTag { value }
-        | I::ReadVariant { value, .. }
-        | I::MakeErrorUnion { value, .. }
-        | I::ErrorTag { value }
-        | I::ReadErrorUnion { value, .. }
-        | I::TakeErrorUnion { value, .. }
-        | I::ReadAddress { address: value }
-        | I::ReborrowAddress { address: value, .. }
-        | I::AddressField { address: value, .. }
-        | I::SliceLength { address: value }
-        | I::DescribeAddress { address: value }
-        | I::ReadDesc { desc: value, .. }
-        | I::BorrowPlaceAddress { address: value, .. }
-        | I::PlaceTagAddress { address: value, .. }
-        | I::VariantTagAddress { address: value, .. }
-        | I::BorrowVariantAddress { address: value, .. }
-        | I::OwnedStorePop { store: value }
-        | I::OwnedStoreLen { store: value }
-        | I::OwnedStoreCapacity { store: value }
-        | I::ByteBufferLen { buffer: value }
-        | I::ByteBufferCapacity { buffer: value }
-        | I::ByteBufferBorrow { buffer: value, .. } => visit(*value),
-        I::Binary { left, right, .. } => {
-            visit(*left);
-            visit(*right);
-        }
-        I::ExtractIndex { aggregate, index } => {
-            visit(*aggregate);
-            visit(*index);
-        }
-        I::UpdateField {
-            aggregate, value, ..
-        } => {
-            visit(*aggregate);
-            visit(*value);
-        }
-        I::UpdateIndex {
-            aggregate,
-            index,
-            value,
-        } => {
-            visit(*aggregate);
-            visit(*index);
-            visit(*value);
-        }
-        I::WriteAddress { address, value }
-        | I::WriteDesc {
-            desc: address,
-            value,
-            ..
-        } => {
-            visit(*address);
-            visit(*value);
-        }
-        I::AddressIndex { address, index } => {
-            visit(*address);
-            visit(*index);
-        }
-        I::AddressSlice {
-            address,
-            start,
-            end,
-        } => {
-            visit(*address);
-            for value in start.iter().chain(end) {
-                visit(*value);
-            }
-        }
-        I::OwnedStoreReserve { store, capacity } => {
-            visit(*store);
-            visit(*capacity);
-        }
-        I::OwnedStorePush { store, value } => {
-            visit(*store);
-            visit(*value);
-        }
-        I::OwnedStoreBorrow { store, index } | I::OwnedStoreBorrowMut { store, index } => {
-            visit(*store);
-            visit(*index);
-        }
-        I::ByteBufferReserve { buffer, capacity } => {
-            visit(*buffer);
-            visit(*capacity);
-        }
-        I::ByteBufferPush { buffer, value } => {
-            visit(*buffer);
-            visit(*value);
-        }
-        I::ByteBufferTruncate { buffer, length } => {
-            visit(*buffer);
-            visit(*length);
-        }
-        I::ScopeEnter { .. }
+        I::Store { .. }
+        | I::Unary { .. }
+        | I::ConvertInteger { .. }
+        | I::ConvertNumber { .. }
+        | I::ExtractField { .. }
+        | I::VariantTag { .. }
+        | I::ReadVariant { .. }
+        | I::MakeErrorUnion { .. }
+        | I::ErrorTag { .. }
+        | I::ReadErrorUnion { .. }
+        | I::TakeErrorUnion { .. }
+        | I::ReadAddress { .. }
+        | I::ReborrowAddress { .. }
+        | I::AddressField { .. }
+        | I::SliceLength { .. }
+        | I::DescribeAddress { .. }
+        | I::ReadDesc { .. }
+        | I::BorrowPlaceAddress { .. }
+        | I::PlaceTagAddress { .. }
+        | I::VariantTagAddress { .. }
+        | I::BorrowVariantAddress { .. }
+        | I::OwnedStorePop { .. }
+        | I::OwnedStoreLen { .. }
+        | I::OwnedStoreCapacity { .. }
+        | I::ByteBufferLen { .. }
+        | I::ByteBufferCapacity { .. }
+        | I::ByteBufferBorrow { .. }
+        | I::Binary { .. }
+        | I::ExtractIndex { .. }
+        | I::UpdateField { .. }
+        | I::UpdateIndex { .. }
+        | I::WriteAddress { .. }
+        | I::WriteDesc { .. }
+        | I::AddressIndex { .. }
+        | I::AddressSlice { .. }
+        | I::OwnedStoreReserve { .. }
+        | I::OwnedStorePush { .. }
+        | I::OwnedStoreBorrow { .. }
+        | I::OwnedStoreBorrowMut { .. }
+        | I::ByteBufferReserve { .. }
+        | I::ByteBufferPush { .. }
+        | I::ByteBufferTruncate { .. }
+        | I::ScopeEnter { .. }
         | I::ScopeExit { .. }
         | I::UnsafeEnter { .. }
         | I::UnsafeExit { .. }
@@ -195,6 +115,9 @@ fn operands(
         | I::OwnedStoreNew { .. }
         | I::ByteBufferNew => {}
         _ => return Ok(false),
+    }
+    for operand in i.value_operands() {
+        visit(operand);
     }
     Ok(true)
 }

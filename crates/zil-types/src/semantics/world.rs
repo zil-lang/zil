@@ -15,6 +15,8 @@ mod borrow_roles;
 mod calls;
 #[path = "world_capture.rs"]
 mod capture;
+#[path = "world_ct_data.rs"]
+mod ct_data;
 #[path = "world_dyn.rs"]
 mod dynamic;
 #[path = "world_flow.rs"]
@@ -1586,6 +1588,7 @@ impl World<'_, '_> {
         result: ValueId,
         variant: Option<u32>,
         fields: &[ValueId],
+        ct_constructor: Option<&SharedType>,
         values: &[Option<SharedType>],
         locals: &[Option<SharedType>],
         implicit: &BTreeMap<u32, SemanticClassExpr>,
@@ -1772,6 +1775,14 @@ impl World<'_, '_> {
                     }
                 }
                 selected = Some(expected);
+            }
+        }
+        if let Some(expected) = ct_constructor {
+            if let Some(ordinary) = &selected {
+                self.same(instance.id, ordinary, expected, implicit)?;
+            } else {
+                ct_data::check_operands(self, instance.id, expected, variant, fields, values, implicit)?;
+                selected = Some(self.share(expected)?);
             }
         }
         if selected.is_none()
@@ -2484,6 +2495,7 @@ impl World<'_, '_> {
         }
         let mut cfg = flow::Cfg::new(self, instance, f)?;
         cfg.check_sites(self, f, &sites)?;
+        let ct_constructors = ct_data::constructors(self, &cfg, instance, original, f, &sites, &implicit)?;
         let mut incoming_roots = BTreeMap::new();
         self.pay(f.parameters.len().saturating_mul(2))?;
         for local in &f.parameters {
@@ -3447,6 +3459,9 @@ impl World<'_, '_> {
                                         | Type::Managed(_)
                                 )
                             ) {
+                                let result = instruction.result
+                                    .ok_or_else(|| bad("constructor has no result"))?;
+                                self.pay(index::search(ct_constructors.len()))?;
                                 Some(
                                     self.constructor(
                                         instance,
@@ -3455,9 +3470,7 @@ impl World<'_, '_> {
                                         &sites,
                                         block.id,
                                         index,
-                                        instruction
-                                            .result
-                                            .ok_or_else(|| bad("constructor has no result"))?,
+                                        result,
                                         match instruction.kind {
                                             InstructionKind::MakeVariant { variant, .. } => {
                                                 Some(variant)
@@ -3465,6 +3478,7 @@ impl World<'_, '_> {
                                             _ => None,
                                         },
                                         fields,
+                                        ct_constructors.get(&result),
                                         &values,
                                         &locals,
                                         &implicit,

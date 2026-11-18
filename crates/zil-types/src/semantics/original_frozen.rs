@@ -314,6 +314,7 @@ fn clone_proof(
             .saturating_add(source.effective_call_kind.len())
             .saturating_add(source.borrowed_capture_heads.len())
             .saturating_add(source.compile_time_calls.len())
+            .saturating_add(source.compile_time_results.len())
             .saturating_add(source.cleanup_calls.len())
             .saturating_add(source.frozen_environments.len()),
         0,
