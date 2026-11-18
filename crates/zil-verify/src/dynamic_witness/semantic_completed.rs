@@ -4,11 +4,16 @@ use super::*;
 use std::{collections::BTreeMap,rc::Rc};
 
 type Key=(usize,usize,u64,Option<ScopeKey>,Option<SitePoint>,LifeDeclarationId,u8,u32);
+type RelationKey=(usize,LifeDeclarationId,LifeDeclarationId,SemanticDefinitionId,SemanticDefinitionId,u8);
 struct Entry{identity:Rc<()>,limits:Limits,depth:usize,environment:EvalEnv,request:ExternalRequest,value:ExternalValue}
-struct Relation{module:usize,identity:Rc<()>,limits:Limits,depth:usize,relation:OriginalMethodRelation}
+struct Relation{identity:Rc<()>,limits:Limits,depth:usize}
 #[derive(Default)]
-pub(super) struct Completed{rows:BTreeMap<Key,Vec<Entry>>,len:usize,relations:Vec<Relation>}
+pub(super) struct Completed{rows:BTreeMap<Key,Vec<Entry>>,len:usize,relations:BTreeMap<RelationKey,Vec<Relation>>,relation_count:usize}
 fn lookup(n:usize)->usize{n.checked_ilog2().map_or(1,|n|n as usize+2)}
+fn relation_key(module:&TypedModule,relation:&OriginalMethodRelation)->RelationKey{
+    let source=match relation.source{DynDefinitionScope::TraitDefault=>0,DynDefinitionScope::ImplOverride=>1};
+    (module as *const TypedModule as usize,relation.trait_declaration,relation.implementation_declaration,relation.trait_signature,relation.body,source)
+}
 fn key(module:&TypedModule,context:&semantic::CheckedContext,env:&EvalEnv,request:&ExternalRequest)->Option<Key>{
     let epoch=context.completed_original_epoch()?;
     let (application,kind,member)=match request{
@@ -102,15 +107,35 @@ fn request_equal(a:&ExternalRequest,z:&ExternalRequest,b:&mut Budget)->Check<boo
 impl Completed{
     pub(super) fn relation_known(&self,module:&TypedModule,context:&semantic::CheckedContext,relation:&OriginalMethodRelation,active:&semantic::ActiveQueries,b:&mut Budget)->Check<bool>{
         if context.completed_original_epoch().is_none(){return Ok(false);}
-        for row in &self.relations{
-            b.spend(20)?;
-            if row.module==module as *const TypedModule as usize&&context.same_static_identity(&row.identity)&&row.limits==b.limits&&active.depth()<=row.depth&&row.relation==*relation{return Ok(true);}
+        let key=relation_key(module,relation);
+        b.spend(lookup(self.relations.len()).saturating_add(6))?;
+        let Some(rows)=self.relations.get(&key)else{return Ok(false);};
+        for row in rows{
+            b.spend(14)?;
+            if context.same_static_identity(&row.identity)&&row.limits==b.limits&&active.depth()<=row.depth{return Ok(true);}
         }Ok(false)
     }
     pub(super) fn relation_success(&mut self,module:&TypedModule,context:&semantic::CheckedContext,relation:&OriginalMethodRelation,active:&semantic::ActiveQueries,b:&mut Budget)->Check<()>{
         if context.completed_original_epoch().is_none(){return Ok(());}
-        if self.relations.len()>=b.limits.max_nodes{return Err(limit("completed original method directory exceeds selected bound"));}
-        b.spend(21)?;self.relations.push(Relation{module:module as *const TypedModule as usize,identity:context.static_identity(),limits:b.limits.clone(),depth:active.depth(),relation:relation.clone()});Ok(())
+        let key=relation_key(module,relation);
+        let search=lookup(self.relations.len()).saturating_add(6);
+        b.spend(search)?;
+        let mut moved=0;
+        if let Some(rows)=self.relations.get_mut(&key){
+            for row in rows.iter_mut(){
+                b.spend(14)?;
+                if context.same_static_identity(&row.identity)&&row.limits==b.limits{
+                    row.depth=row.depth.max(active.depth());
+                    return Ok(());
+                }
+            }
+            if rows.len()==rows.capacity(){moved=rows.len();}
+        }
+        if self.relation_count>=b.limits.max_nodes{return Err(limit("completed original method directory exceeds selected bound"));}
+        b.spend(search.saturating_add(15).saturating_add(moved))?;
+        self.relations.entry(key).or_default().push(Relation{identity:context.static_identity(),limits:b.limits.clone(),depth:active.depth()});
+        self.relation_count+=1;
+        Ok(())
     }
 
     pub(super) fn get(&self,module:&TypedModule,context:&semantic::CheckedContext,env:&EvalEnv,request:&ExternalRequest,active:&semantic::ActiveQueries,b:&mut Budget)->Check<Option<ExternalValue>>{

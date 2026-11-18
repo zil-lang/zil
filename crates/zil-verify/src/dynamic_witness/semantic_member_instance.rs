@@ -160,7 +160,7 @@ pub(crate) fn build_requests(
         let result=domain.symbols.incoming(&signature.result,b)?;
         let sources=result_sources(module,context,environment,function,signature,&mut domain,&result,b)?;
         let(contract,operands)=contracts::materialize(recipe,|pattern,b|{
-            let recipe=associated::scoped_type_recipe(module,owner,pattern,b,0)?;
+            let recipe=associated::scoped_type_recipe_view(module,owner,pattern,b)?;
             let value=context.evaluate_type(module,&recipe,environment,proofs,active,b)?;
             domain.value(&value,b)?;domain.symbols.incoming(&value,b)
         },b)?;

@@ -61,6 +61,8 @@ pub(crate) struct Structure{
     stored_bounds:BTreeMap<(usize,usize),Vec<Limits>>,
     owners:BTreeMap<(OwnerKey,SemanticDefinitionId),usize>,
     lexical_scopes:BTreeMap<OwnerKey,Vec<SemanticDefinitionId>>,
+    dyn_declarations:BTreeMap<LifeDeclarationId,Vec<usize>>,
+    trait_providers:Option<BTreeMap<LifeDeclarationId,Vec<(usize,SemanticDefinitionId)>>>,
     nominal_declarations:BTreeMap<LifeDeclarationId,Vec<usize>>,
     borrowed_callback_domains:BTreeMap<ClosureId,u32>,
     nominal_instances:BTreeMap<LifeDeclarationId,Vec<usize>>,
@@ -82,7 +84,7 @@ impl Structure{
             program:module.semantic.as_ref().map(|program|program as *const SemanticModule as usize),
             declarations:(module.dyn_declarations.as_ptr() as usize,module.dyn_declarations.len()),
             types:BTreeSet::new(),recipes:BTreeSet::new(),declaration_nodes:BTreeSet::new(),
-            type_success:TypeFacts::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),lexical_scopes:BTreeMap::new(),nominal_declarations:BTreeMap::new(),nominal_instances:BTreeMap::new(),scope_instances:BTreeMap::new(),shared_types:BTreeMap::new(),type_owners:BTreeMap::new(),borrowed_callback_domains:BTreeMap::new(),
+            type_success:TypeFacts::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),lexical_scopes:BTreeMap::new(),dyn_declarations:BTreeMap::new(),trait_providers:None,nominal_declarations:BTreeMap::new(),nominal_instances:BTreeMap::new(),scope_instances:BTreeMap::new(),shared_types:BTreeMap::new(),type_owners:BTreeMap::new(),borrowed_callback_domains:BTreeMap::new(),
         };
         for function in &module.functions{
             result.ty(&function.return_type,b)?;
@@ -111,7 +113,8 @@ impl Structure{
             result.ty(&instance.ty,b)?;
             for actual in &instance.arguments{b.spend(1)?;match actual{LifeNominalActual::Type(ty)|LifeNominalActual::QualifiedType{ty,..}=>result.ty(ty,b)?,_=>{}}}
         }
-        for declaration in &module.dyn_declarations{
+        for (index,declaration) in module.dyn_declarations.iter().enumerate(){
+            add_index(&mut result.dyn_declarations,declaration.id,index,b)?;
             b.spend(lookup(result.declaration_nodes.len()).saturating_add(2))?;
             result.declaration_nodes.insert(declaration as *const DynDeclaration as usize);
             for kind in &declaration.parameters{if let LifeParameterKind::Const(ty)=kind{result.ty(ty,b)?;}}
@@ -276,12 +279,78 @@ pub(crate) fn owner_success(program:&SemanticModule,declarations:&[DynDeclaratio
 /// All original scope claims for this exact owner and immutable module.
 /// The consumer still proves the complete owner, mixed formals and actual Γ.
 pub(crate) fn lexical_scopes(module:&TypedModule,owner:&SemanticDynOwner,b:&mut Budget)->Check<Option<Vec<SemanticDefinitionId>>>{
+    let Some(program)=&module.semantic else{return Ok(None);};
+    program_lexical_scopes(program,&module.dyn_declarations,owner,b)
+}
+pub(crate) fn program_lexical_scopes(program:&SemanticModule,declarations:&[DynDeclaration],owner:&SemanticDynOwner,b:&mut Budget)->Check<Option<Vec<SemanticDefinitionId>>>{
     let Some(state)=&b.structural else{return Ok(None);};
-    if state.module!=module as *const TypedModule as usize{return Ok(None);}
+    if state.program!=Some(program as *const SemanticModule as usize)||state.declarations!=(declarations.as_ptr() as usize,declarations.len()){return Ok(None);}
     let fee=lookup(state.lexical_scopes.len());b.spend(fee)?;
     let state=b.structural.take().unwrap();
     let result=(||{let rows=state.lexical_scopes.get(&owner_key(owner));b.spend(rows.map_or(0,Vec::len))?;Ok(Some(rows.cloned().unwrap_or_default()))})();
     b.structural=Some(state);result
+}
+pub(crate) fn dyn_declarations<'a>(module:&'a TypedModule,id:LifeDeclarationId,b:&mut Budget)->Check<Vec<&'a DynDeclaration>>{
+    let rows:Vec<usize>=if let Some(rows)=registered_rows(module,b,|state,b|index_rows(&state.dyn_declarations,&id,b))?{rows}else{
+        b.spend(module.dyn_declarations.len())?;
+        module.dyn_declarations.iter().enumerate().filter_map(|(index,row)|(row.id==id).then_some(index)).collect()
+    };
+    b.spend(rows.len())?;
+    Ok(rows.into_iter().map(|index|&module.dyn_declarations[index]).collect())
+}
+
+/// Reuse the exact checked owner role of a declaration. Selection and
+/// instantiation still run against every matching original implementation.
+pub(crate) fn trait_providers(
+    module:&TypedModule,
+    declaration:LifeDeclarationId,
+    b:&mut Budget,
+)->Check<Vec<(usize,SemanticDefinitionId)>>{
+    let registered=b.structural.as_ref().is_some_and(|state|state.module==module as *const TypedModule as usize);
+    if registered&&b.structural.as_ref().unwrap().trait_providers.is_none(){
+        let mut directory=BTreeMap::<_,Vec<_>>::new();
+        for (index,id,application) in provider_scopes(module,b)?{
+            b.spend(lookup(directory.len()).saturating_add(2))?;
+            let rows=directory.entry(application).or_default();
+            b.spend(1usize.saturating_add(if rows.len()==rows.capacity(){rows.len()}else{0}))?;
+            rows.push((index,id));
+        }
+        b.structural.as_mut().unwrap().trait_providers=Some(directory);
+    }
+    if registered{
+        let state=b.structural.take().unwrap();
+        let result=(||{
+            let directory=state.trait_providers.as_ref().unwrap();
+            b.spend(lookup(directory.len()))?;
+            let rows=directory.get(&declaration);
+            b.spend(rows.map_or(0,Vec::len))?;
+            Ok(rows.cloned().unwrap_or_default())
+        })();
+        b.structural=Some(state);
+        result
+    }else{
+        let providers=provider_scopes(module,b)?;
+        b.spend(providers.len())?;
+        Ok(providers.into_iter().filter_map(|(index,id,application)|(application==declaration).then_some((index,id))).collect())
+    }
+}
+
+fn provider_scopes(
+    module:&TypedModule,
+    b:&mut Budget,
+)->Check<Vec<(usize,SemanticDefinitionId,LifeDeclarationId)>>{
+    b.spend(module.dyn_declarations.len())?;
+    let mut providers=Vec::new();
+    for (index,implementation) in module.dyn_declarations.iter().enumerate(){
+        if implementation.kind!=DynDeclarationKind::Impl{continue;}
+        let definition=crate::dynamic_witness::semantic_external::original_scope(module,implementation.id,b)?;
+        if let SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl{trait_application,..})=&definition.body{
+            if providers.len()>=b.limits.max_nodes{return Err(limit("original provider directory exceeds selected node bound"));}
+            b.spend(1usize.saturating_add(if providers.len()==providers.capacity(){providers.len()}else{0}))?;
+            providers.push((index,definition.id,trait_application.declaration));
+        }
+    }
+    Ok(providers)
 }
 fn registered_rows(module:&TypedModule,b:&mut Budget,select:impl FnOnce(&Structure,&mut Budget)->Check<Vec<usize>>)->Check<Option<Vec<usize>>>{
     let Some(state)=&b.structural else{return Ok(None);};

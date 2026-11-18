@@ -11,6 +11,7 @@ pub(super) struct ConstructedType{
     // Pointer keys remain live even if the logical child values are released.
     _children:Vec<Rc<CheckedTypeData>>,
     value:Rc<CheckedTypeData>,
+    checked_bounds:(usize,usize),
 }
 impl CheckedContext{
     pub(crate) fn physical_constructor(&self,kind:PhysicalConstructor,children:&[CheckedType],life:&StorageLifeShape,b:&mut Budget)->Check<Rc<CheckedTypeData>>{
@@ -26,8 +27,10 @@ impl CheckedContext{
         }
         let levels=self.constructed_types.borrow().len().checked_ilog2().map_or(1,|n|n as usize+2);
         b.spend(levels.saturating_mul(key_units))?;
+        let bounds=(b.limits.max_nodes,b.limits.max_call_depth.min(128));
         if let Some(value)=self.constructed_types.borrow().get(&key){
-            dynamic_metadata::bounds_type(&value.value.ty,b)?;
+            b.spend(2)?;
+            if value.checked_bounds!=bounds{dynamic_metadata::bounds_type(&value.value.ty,b)?;}
             return Ok(value.value.clone());
         }
         use PhysicalConstructor as K;
@@ -44,7 +47,7 @@ impl CheckedContext{
         dynamic_metadata::adopt_type_cell(&value,b)?;
         dynamic_metadata::bounds_type(&value.ty,b)?;
         b.spend(levels.saturating_mul(key_units).saturating_add(children.len()).saturating_add(2))?;
-        self.constructed_types.borrow_mut().insert(key,ConstructedType{_children:children.iter().map(|child|child.type_cell.clone()).collect(),value:value.clone()});
+        self.constructed_types.borrow_mut().insert(key,ConstructedType{_children:children.iter().map(|child|child.type_cell.clone()).collect(),value:value.clone(),checked_bounds:bounds});
         Ok(value)
     }
 }

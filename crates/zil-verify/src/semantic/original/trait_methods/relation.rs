@@ -5,7 +5,7 @@ use super::*;
 impl CheckedOriginal {
     #[allow(clippy::too_many_arguments)]
     pub(in crate::semantic) fn method_relation(&mut self,module:&TypedModule,context:&CheckedContext,trait_id:LifeDeclarationId,impl_id:LifeDeclarationId,expected_id:SemanticDefinitionId,body_id:SemanticDefinitionId,source:DynDefinitionScope,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
-        self.checked_method_body(module,body_id,b)?;
+        self.checked_method_body(module,context,body_id,b)?;
         let trait_scope=dynamic_witness::semantic_external::original_scope(module,trait_id,b)?;
         let impl_scope=dynamic_witness::semantic_external::original_scope(module,impl_id,b)?;
         let expected=context.definition(module,expected_id,b)?;let body=context.definition(module,body_id,b)?;

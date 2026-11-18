@@ -1,6 +1,7 @@
 //! Original, static trait queries. Provider selection reads declarations and
 //! their lexical recipes; no runtime interface or vtable is manufactured.
 use super::*;
+use std::borrow::Cow;
 
 /// Private intrinsic keys are separate from their outside class images. A
 /// receiver with two existing κ and one outside image therefore still gives
@@ -180,15 +181,11 @@ fn declaration<'a>(
     id: LifeDeclarationId,
     b: &mut Budget,
 ) -> Check<&'a DynDeclaration> {
-    b.spend(module.dyn_declarations.len())?;
-    let mut rows = module.dyn_declarations.iter().filter(|d| d.id == id);
-    let row = rows
-        .next()
-        .ok_or_else(|| bad("original static query declaration is absent"))?;
-    if rows.next().is_some() {
-        return Err(bad("original static query declaration is duplicated"));
+    match dynamic_metadata::dyn_declarations(module,id,b)?.as_slice(){
+        [row]=>Ok(*row),
+        []=>Err(bad("original static query declaration is absent")),
+        _=>Err(bad("original static query declaration is duplicated")),
     }
-    Ok(row)
 }
 
 pub(super) fn scope<'a>(
@@ -200,18 +197,7 @@ pub(super) fn scope<'a>(
         .semantic
         .as_ref()
         .ok_or_else(|| bad("original static query has no semantic scopes"))?;
-    let owner = SemanticDynOwner::Declaration(id);
-    let scope=if let Some(rows)=dynamic_metadata::lexical_scopes(module,&owner,b)?{
-        let [scope]=rows.as_slice()else{return Err(bad(if rows.is_empty(){"original declaration has no lexical scope binding"}else{"original declaration has duplicate lexical scopes"}));};*scope
-    }else{
-        b.spend(program.dyn_scopes.len())?;
-        let mut rows=program.dyn_scopes.iter().filter(|row|row.owner==owner);
-        let row=rows.next().ok_or_else(||bad("original declaration has no lexical scope binding"))?;
-        if rows.next().is_some(){return Err(bad("original declaration has duplicate lexical scopes"));}row.scope
-    };
-    // This location is only an untrusted structural claim. Every query still
-    // proves its complete original owner, kinds, mixed formals and scope.
-    bridge::owner(module, &owner, scope, b)
+    original_program_scope(program,&module.dyn_declarations,id,b)
 }
 
 fn actual_equal(
@@ -956,9 +942,7 @@ pub(super) fn scoped_type_recipe(
     };
     Ok(match p {
         DynTypePattern::Semantic { scope, ty } => {
-            bridge::owner(module, owner, *scope, b)?;
-            dynamic_metadata::recipe(ty.as_ref(), b)?;
-            ty.as_ref().clone()
+            checked_type_recipe(module, owner, *scope, ty, b)?.clone()
         }
         DynTypePattern::SelfType => SemanticTypeRecipe::SelfType {
             scope: SemanticScopeRef::Ancestor(
@@ -1069,6 +1053,31 @@ pub(super) fn scoped_type_recipe(
             result: nested(result, b)?,
         },
     })
+}
+fn checked_type_recipe<'a>(
+    module:&TypedModule,
+    owner:&SemanticDynOwner,
+    scope:SemanticDefinitionId,
+    ty:&'a SemanticTypeRecipe,
+    b:&mut Budget,
+)->Check<&'a SemanticTypeRecipe>{
+    bridge::owner(module,owner,scope,b)?;
+    dynamic_metadata::recipe(ty,b)?;
+    Ok(ty)
+}
+
+pub(super) fn scoped_type_recipe_view<'a>(
+    module:&TypedModule,
+    owner:&SemanticDynOwner,
+    pattern:&'a DynTypePattern,
+    b:&mut Budget,
+)->Check<Cow<'a,SemanticTypeRecipe>>{
+    let DynTypePattern::Semantic{scope,ty}=pattern else{
+        return scoped_type_recipe(module,owner,pattern,b,0).map(Cow::Owned);
+    };
+    b.spend(1)?;
+    if b.limits.max_call_depth==0{return Err(limit("original associated type recipe depth exceeded"));}
+    checked_type_recipe(module,owner,*scope,ty,b).map(Cow::Borrowed)
 }
 fn scoped_constant_recipe(
     module: &TypedModule,
@@ -1788,6 +1797,7 @@ fn query_inner(
     } else {
         // Every associated member is part of the original trait instance,
         // including unused members and defaults. No ordinal coincidence is used.
+        let mut methods_checked = false;
         for (ordinal, member) in trait_decl.members.iter().enumerate() {
             match member.kind {
                 DynMemberKind::Type => {
@@ -1804,6 +1814,7 @@ fn query_inner(
                         active,
                         b,
                     )?;
+                    methods_checked = true;
                     if collect {charge_type(receiver,b)?;for actual in &application.arguments{charge_actual(actual,b)?;}b.spend(1)?;completed.push((ExternalRequest::AssociatedType{receiver:receiver.clone(),application:application.clone(),member:ordinal as u32},value));}
                 }
                 DynMemberKind::Constant => {
@@ -1820,22 +1831,29 @@ fn query_inner(
                         active,
                         b,
                     )?;
+                    methods_checked = true;
                     if collect {charge_type(receiver,b)?;for actual in &application.arguments{charge_actual(actual,b)?;}b.spend(1)?;completed.push((ExternalRequest::AssociatedConst{receiver:receiver.clone(),application:application.clone(),member:ordinal as u32},value));}
                 }
                 DynMemberKind::Method(_) => {}
             }
         }
-        methods(
-            proofs,
-            module,
-            context,
-            trait_decl,
-            implementation,
-            &trait_env,
-            &impl_env,
-            active,
-            b,
-        )?;
+        // A successful associated check has already established the exact
+        // RHS and its bounds, then checked every method for these same trait
+        // and impl environments. Replaying that check after dropping the RHS
+        // would recursively reconstruct the same provider and equation.
+        if !methods_checked {
+            methods(
+                proofs,
+                module,
+                context,
+                trait_decl,
+                implementation,
+                &trait_env,
+                &impl_env,
+                active,
+                b,
+            )?;
+        }
         Ok(ExternalValue::Proved)
     }
 }
@@ -1868,22 +1886,19 @@ fn provider<'a>(
         return Err(bad("original trait scope has another body"));
     }
     let mut selected = None;
-    b.spend(module.dyn_declarations.len())?;
-    for implementation in &module.dyn_declarations {
-        if implementation.kind != DynDeclarationKind::Impl {
-            continue;
-        }
-        let definition = scope(module, implementation.id, b)?;
+    for (index, id) in dynamic_metadata::trait_providers(module,application.declaration,b)? {
+        let implementation = &module.dyn_declarations[index];
+        let definition = context.definition(module,id,b)?;
         let SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl {
             self_type,
             trait_application,
             ..
         }) = &definition.body
         else {
-            continue;
+            return Err(bad("original provider directory selects a nontrait impl"));
         };
         if trait_application.declaration != application.declaration {
-            continue;
+            return Err(bad("original provider directory selects another trait impl"));
         }
         if trait_application.arguments.len() != application.arguments.len() {
             return Err(bad(
@@ -2128,6 +2143,10 @@ fn method_selection<'a>(
         .as_ref()
         .ok_or_else(|| bad("original method proof has no semantic program"))?;
     let find = |owner: SemanticDynOwner, b: &mut Budget| -> Check<&SemanticDefinition> {
+        if let Some(rows)=dynamic_metadata::lexical_scopes(module,&owner,b)?{
+            let [scope]=rows.as_slice()else{return Err(bad(if rows.is_empty(){"exact original method scope binding is absent"}else{"exact original method scope binding is duplicated"}));};
+            return bridge::owner(module,&owner,*scope,b);
+        }
         b.spend(program.dyn_scopes.len())?;
         let mut rows = program.dyn_scopes.iter().filter(|r| r.owner == owner);
         let row = rows
@@ -2863,11 +2882,13 @@ fn associated(
         .value
         .as_ref()
         .ok_or_else(|| bad("selected original associated member has no RHS"))?;
+    let owner_key=SemanticDynOwner::Declaration(owner);
+    let trait_key=SemanticDynOwner::Declaration(trait_decl.id);
     let value = match (recipe, constant) {
         (DynAssociatedValueRecipe::Type(pattern), false) => {
             ExternalValue::Type(context.evaluate_type(
                 module,
-                &type_recipe(module, owner, pattern, b, 0)?,
+                scoped_type_recipe_view(module,&owner_key,pattern,b)?.as_ref(),
                 env,
                 proofs,
                 active,
@@ -2877,14 +2898,14 @@ fn associated(
         (DynAssociatedValueRecipe::Constant { ty, value }, true) => {
             let carrier = context.evaluate_type(
                 module,
-                &type_recipe(module, owner, ty, b, 0)?,
+                scoped_type_recipe_view(module,&owner_key,ty,b)?.as_ref(),
                 env,
                 proofs,
                 active,
                 b,
             )?;
             for (owner, row, environment) in
-                [(owner, row, env), (trait_decl.id, declaration, trait_env)]
+                [(&owner_key, row, env), (&trait_key, declaration, trait_env)]
             {
                 let expected = row
                     .carrier
@@ -2892,7 +2913,7 @@ fn associated(
                     .ok_or_else(|| bad("original associated constant has no complete carrier"))?;
                 let expected = context.evaluate_type(
                     module,
-                    &type_recipe(module, owner, expected, b, 0)?,
+                    scoped_type_recipe_view(module,owner,expected,b)?.as_ref(),
                     environment,
                     proofs,
                     active,

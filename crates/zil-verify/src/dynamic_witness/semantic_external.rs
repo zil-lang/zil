@@ -19,8 +19,12 @@ pub(crate) fn original_scope<'a>(
     associated::scope(module, id, b)
 }
 pub(crate) fn original_program_scope<'a>(program:&'a SemanticModule,declarations:&[DynDeclaration],id:LifeDeclarationId,b:&mut Budget)->Check<&'a SemanticDefinition>{
-    b.spend(program.dyn_scopes.len())?;
     let owner=SemanticDynOwner::Declaration(id);
+    if let Some(rows)=dynamic_metadata::program_lexical_scopes(program,declarations,&owner,b)?{
+        let [scope]=rows.as_slice()else{return Err(bad(if rows.is_empty(){"original declaration has no lexical scope binding"}else{"original declaration has duplicate lexical scopes"}));};
+        return super::bridge::program_owner(program,declarations,&owner,*scope,b);
+    }
+    b.spend(program.dyn_scopes.len())?;
     let mut rows=program.dyn_scopes.iter().filter(|row|row.owner==owner);
     let row=rows.next().ok_or_else(||bad("original declaration has no lexical scope binding"))?;
     if rows.next().is_some(){return Err(bad("original declaration has duplicate lexical scopes"));}

@@ -20,10 +20,10 @@ impl CheckedOriginal {
         let hidden=self.results.get(&owner).ok_or_else(||bad("opaque original result role is absent"))?;
         self.reify_type(module,hidden,env,b)
     }
-    pub(in crate::semantic) fn checked_method_body(&self,module:&TypedModule,id:SemanticDefinitionId,b:&mut Budget)->Check<()>{
-        let programme=module.semantic.as_ref().ok_or_else(||bad("original method obligation has no complete programme"))?;b.spend(programme.definitions.len().saturating_add(2))?;
-        let mut definitions=programme.definitions.iter().filter(|row|row.id==id);let definition=definitions.next().ok_or_else(||bad("selected original method body is absent"))?;
-        if definitions.next().is_some()||definition.kind!=SemanticDefinitionKind::Method||!matches!(definition.body,SemanticDefinitionBody::FunctionWithBody{body:SemanticOriginalFunctionBody::Defined(_),..}){return Err(bad("selected method has no unique complete original Defined body"));}
+    pub(in crate::semantic) fn checked_method_body(&self,module:&TypedModule,context:&CheckedContext,id:SemanticDefinitionId,b:&mut Budget)->Check<()>{
+        let definition=context.definition(module,id,b)?;
+        b.spend(2)?;
+        if definition.kind!=SemanticDefinitionKind::Method||!matches!(definition.body,SemanticDefinitionBody::FunctionWithBody{body:SemanticOriginalFunctionBody::Defined(_),..}){return Err(bad("selected method has no unique complete original Defined body"));}
         if !self.checked.contains(&id)||!self.prototypes.contains_key(&id){return Err(bad("selected original method has unfinished universal body obligations"));}
         // This container is installed in CheckedContext only after all use,
         // cleanup, effects and protocol obligations have completed. It is not
