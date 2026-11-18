@@ -413,7 +413,14 @@ pub(in crate::stored_flow) fn summarize_after(
             b.spend(1)?;
             physical.push((path, symbolic, stable));
         }
-        if matches!(ty, Type::ErrorUnion { .. } | Type::Enum { .. })
+        if option_address::signature(ty) {
+            // The sealed Option constructor/read lane records its actual tag
+            // in the dedicated Option ledger. Ordinary Option modules do not
+            // run the Task tag-tree producer; an empty Enum ledger therefore
+            // cannot stand in for, or veto, the real Option evidence.
+            payload.option_variants.work(b)?;
+            summary.complete &= payload.option_variants.mask() != 0;
+        } else if matches!(ty, Type::ErrorUnion { .. } | Type::Enum { .. })
             || matches!(ty,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Enum{..}))
         {
             summary.complete &= payload.enum_variants.grounded(ty, b)?;
@@ -1326,5 +1333,376 @@ mod tests {
                     && path == &key
                     && sources == &symbolic(4).sources)
         );
+    }
+}
+
+#[cfg(test)]
+mod option_root_tests {
+    use super::*;
+
+    fn option() -> Type {
+        Type::BorrowedStorage {
+            storage: Box::new(Type::Enum {
+                name: "Option".into(),
+                variants: vec![
+                    ("None".into(), vec![]),
+                    (
+                        "Some".into(),
+                        vec![Type::Address {
+                            mutable: false,
+                            inner: Box::new(Type::I32),
+                        }],
+                    ),
+                ],
+            }),
+            life: StorageLifeShape {
+                binder_count: 1,
+                slots: vec![StorageLifeSlot {
+                    path: key(),
+                    binder: 0,
+                    mode: StoredBorrowMode::SharedAddress,
+                }],
+                retained: vec![StorageRetainedBinding {
+                    path: vec![LifeTypeProjection::TypeArgument(0)],
+                    class: 0,
+                    binder: 0,
+                }],
+                nominal_arguments: vec![],
+            },
+        }
+    }
+    fn key() -> Path {
+        vec![PlaceProjection::Variant(VariantProjection {
+            variant: 1,
+            index: 0,
+        })]
+    }
+    fn source(base: HoldRoot, leaf: Path) -> Source {
+        Source {
+            static_dependency: StaticProvenance::NotStatic,
+            retained_port: None,
+            base,
+            leaf,
+            inline: vec![],
+            heap_parents: vec![],
+            heap_element: None,
+        }
+    }
+    fn payload(mask: u8, permission: Option<Permission>, b: &mut Budget) -> Payload {
+        let mut out = Payload {
+            option_variants: if mask == 0 {
+                option_address::Variants::default()
+            } else {
+                option_address::Variants::construction(u32::from(mask == 2), b).unwrap()
+            },
+            ..Default::default()
+        };
+        if let Some(permission) = permission {
+            add_leaf(&mut out, &key(), &permission, b).unwrap();
+        }
+        out
+    }
+
+    // These are actual memory/after components. Whole raw/Source admission
+    // additionally authenticates the sealed nominal instance and constructors.
+    #[test]
+    fn option_root_writes_and_after_use_real_option_tags_for_direct_mut_and_once_entries() {
+        for kind in [None, Some(CallableKind::FnMut), Some(CallableKind::FnOnce)] {
+            let (mut module, _) = crate::tests::baseline();
+            let ty = option();
+            let carrier = Type::Address {
+                mutable: true,
+                inner: Box::new(ty.clone()),
+            };
+            let borrowed = Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I32),
+            };
+            let base = if kind.is_some() {
+                HoldRoot::Capture(0)
+            } else {
+                HoldRoot::Parameter(0)
+            };
+            let input = if kind.is_some() {
+                HoldRoot::Capture(1)
+            } else {
+                HoldRoot::Parameter(1)
+            };
+            let storage = if kind.is_some() {
+                StorageBase::Capture(0)
+            } else {
+                StorageBase::Parameter(0)
+            };
+            let input_storage = if kind.is_some() {
+                StorageBase::Capture(1)
+            } else {
+                StorageBase::Parameter(1)
+            };
+            let relation = StorageLifeContract {
+                fixed_binder_count: 1,
+                invocation_binder_count: 1,
+                bindings: vec![
+                    StorageLifeBinding {
+                        position: StoragePosition {
+                            base: storage,
+                            path: vec![],
+                        },
+                        binder: StorageBinder::Invocation(0),
+                    },
+                    StorageLifeBinding {
+                        position: StoragePosition {
+                            base: input_storage,
+                            path: vec![],
+                        },
+                        binder: StorageBinder::Fixed(0),
+                    },
+                ],
+                classes: vec![SignatureLifeClassBinding {
+                    position: SignatureLifeClass {
+                        base: storage,
+                        path: vec![LifeTypeProjection::Pointee],
+                        class: 0,
+                    },
+                    binder: StorageBinder::Fixed(0),
+                }],
+                static_bindings: vec![],
+            };
+            let f = &mut module.functions[0];
+            f.return_type = Type::Unit;
+            f.storage_life = Some(relation.clone());
+            if let Some(kind) = kind {
+                f.parameters.clear();
+                f.environment = Some(ClosureId(0));
+                module.closures.push(ClosureDefinition {
+                    id: ClosureId(0),
+                    function: FunctionId(0),
+                    captures: vec![carrier.clone(), borrowed.clone()],
+                    parameters: vec![],
+                    result: Type::Unit,
+                    kind,
+                    storage_life: Some(relation),
+                    lending_captures: vec![],
+                });
+            } else {
+                f.parameters = vec![LocalId(0), LocalId(1)];
+                f.locals = vec![
+                    LocalDecl {
+                        id: LocalId(0),
+                        name: "slot".into(),
+                        ty: carrier,
+                        mutable: false,
+                        span: f.span,
+                    },
+                    LocalDecl {
+                        id: LocalId(1),
+                        name: "value".into(),
+                        ty: borrowed,
+                        mutable: false,
+                        span: f.span,
+                    },
+                ];
+            }
+            let f = &module.functions[0];
+            let limits = Limits::default();
+            let mut b = Budget::new(&limits);
+            assert!(!b.task_sources());
+            let current = Permission {
+                sources: vec![source(input, vec![])],
+                loans: vec![0],
+            };
+            let old = payload(2, Some(current.clone()), &mut b);
+            let entry = Frame {
+                pointees: vec![(base, old.clone())],
+                ..Default::default()
+            };
+            let solution = Solution {
+                values: vec![],
+                outputs: vec![],
+                entry: entry.clone(),
+                loans: vec![Loan {
+                    sources: current.sources.clone(),
+                    ..Default::default()
+                }],
+                sites: vec![],
+                dyn_sites: dyn_leases::Sites::default(),
+            };
+            for mask in [1, 2] {
+                let replacement = payload(mask, (mask == 2).then(|| current.clone()), &mut b);
+                let mut state = entry.clone();
+                write(
+                    &mut state,
+                    &Permission {
+                        sources: vec![source(base, vec![])],
+                        loans: vec![],
+                    },
+                    &ty,
+                    &replacement,
+                    &module,
+                    &mut b,
+                )
+                .unwrap();
+                assert!(!state.pending_external_update);
+                let beta = memory_holder(&state, base, &mut b).unwrap().unwrap();
+                assert_eq!(beta.option_variants.mask(), mask);
+                assert_eq!(leaf(beta, &key(), &mut b).unwrap().is_some(), mask == 2);
+                assert!(
+                    !beta.enum_variants.present(),
+                    "Option evidence is not a fabricated Enum tag"
+                );
+                let mut summary = Summary {
+                    complete: true,
+                    ..Default::default()
+                };
+                summarize_after(&module, f, &entry, &state, &solution, &mut summary, &mut b)
+                    .unwrap();
+                assert!(
+                    summary.complete,
+                    "entry {kind:?}, actual Option mask {mask}"
+                );
+                assert_eq!(summary.value_after.0.len(), 1);
+                let row = &summary.value_after.0[0];
+                assert_eq!(row.base, base);
+                assert!(
+                    row.through,
+                    "consuming the closure must not discard a mutable pointee effect"
+                );
+                assert_eq!(row.physical.len(), usize::from(mask == 2));
+                if mask == 2 {
+                    assert_eq!(row.physical[0].1.sources, current.sources);
+                }
+            }
+            for invalid in [payload(0, None, &mut b), payload(2, None, &mut b)] {
+                let mut state = entry.clone();
+                write(
+                    &mut state,
+                    &Permission {
+                        sources: vec![source(base, vec![])],
+                        loans: vec![],
+                    },
+                    &ty,
+                    &invalid,
+                    &module,
+                    &mut b,
+                )
+                .unwrap();
+                assert!(
+                    state.pending_external_update,
+                    "unknown tag or missing active Some target cannot complete a write"
+                );
+                assert_eq!(
+                    memory_holder(&state, base, &mut b).unwrap().unwrap(),
+                    &old,
+                    "a pending write cannot erase the real old occupant"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn option_input_dependencies_read_beta_and_weak_writes_preserve_possible_old_occupants() {
+        let (mut module, _) = crate::tests::baseline();
+        let ty = option();
+        let carrier = Type::Address {
+            mutable: true,
+            inner: Box::new(ty.clone()),
+        };
+        module.functions[0].parameters = vec![LocalId(0)];
+        module.functions[0].locals[0].ty = carrier.clone();
+        let mut caller = module.functions[0].clone();
+        caller.values = vec![carrier];
+        let instruction = Instruction {
+            result: None,
+            kind: InstructionKind::Call {
+                function: FunctionId(0),
+                arguments: vec![ValueId(0)],
+            },
+            span: caller.span,
+        };
+        let limits = Limits::default();
+        let mut b = Budget::new(&limits);
+        let input = option_address::Variants::parameter(0, &mut b).unwrap();
+        let summary = Summary {
+            complete: true,
+            field_result_facts: vec![(
+                vec![],
+                ResultFacts {
+                    option: input,
+                    ..Default::default()
+                },
+            )],
+            ..Default::default()
+        };
+        for mask in [0, 1, 2] {
+            let mut alpha = payload(if mask == 1 { 2 } else { 1 }, None, &mut b);
+            alpha.address = Permission {
+                sources: vec![source(HoldRoot::Parameter(0), vec![])],
+                loans: vec![],
+            };
+            let values = [alpha];
+            let frame = Frame {
+                external: vec![Payload::default()],
+                pointees: vec![(HoldRoot::Parameter(0), payload(mask, None, &mut b))],
+                ..Default::default()
+            };
+            let before = call_results::Before::function(
+                &module,
+                &caller,
+                &instruction,
+                &values,
+                &frame,
+                &mut b,
+            )
+            .unwrap();
+            let mut result = Payload::default();
+            let known = before
+                .field_results(
+                    &summary,
+                    &ty,
+                    &instruction,
+                    &vec![],
+                    &mut [],
+                    &mut result,
+                    &mut b,
+                )
+                .unwrap();
+            assert_eq!(known, mask != 0);
+            assert_eq!(
+                result.option_variants.mask(),
+                mask,
+                "the unrelated alpha tag cannot stand for current beta memory"
+            );
+        }
+        let permission = |index| Permission {
+            sources: vec![source(HoldRoot::Parameter(index), vec![])],
+            loans: vec![index as usize],
+        };
+        let first = payload(2, Some(permission(2)), &mut b);
+        let second = payload(2, Some(permission(3)), &mut b);
+        let mut frame = Frame {
+            locals: vec![first, second],
+            ..Default::default()
+        };
+        let head = Permission {
+            sources: vec![
+                source(HoldRoot::Local(LocalId(0)), vec![]),
+                source(HoldRoot::Local(LocalId(1)), vec![]),
+            ],
+            loans: vec![],
+        };
+        let none = payload(1, None, &mut b);
+        write(&mut frame, &head, &ty, &none, &module, &mut b).unwrap();
+        for (index, occupant) in frame.locals.iter().enumerate() {
+            assert_eq!(
+                occupant.option_variants.mask(),
+                3,
+                "a may-target update cannot claim every cell was selected"
+            );
+            assert_eq!(
+                leaf(occupant, &key(), &mut b).unwrap().unwrap(),
+                &permission(index as u32 + 2),
+                "old data and all existing parents remain possible"
+            );
+        }
+        assert!(option_address::Variants::construction(2, &mut b).is_err());
     }
 }

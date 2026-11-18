@@ -97,25 +97,43 @@ pub(super) fn instance(
         LifeNominalActual::Type(ty) => ty,
         LifeNominalActual::QualifiedType { ty, life } => {
             type_work(ty, limits, b)?;
-            b.spend(life.slots.len().saturating_add(life.retained.len())
-                .saturating_add(life.nominal_arguments.len()).saturating_add(1))?;
-            if life.binder_count != 1 || !life.retained.is_empty()
+            b.spend(
+                life.slots
+                    .len()
+                    .saturating_add(life.retained.len())
+                    .saturating_add(life.nominal_arguments.len())
+                    .saturating_add(1),
+            )?;
+            if life.binder_count != 1
+                || !life.retained.is_empty()
                 || !life.nominal_arguments.is_empty()
                 || !matches!(life.slots.as_slice(), [slot]
                     if slot.path.is_empty() && slot.binder == 0
                         && slot.mode == StoredBorrowMode::SharedAddress)
             {
-                return Err(err("Option Type actual omits or changes its own outer borrow class"));
+                return Err(err(
+                    "Option Type actual omits or changes its own outer borrow class",
+                ));
             }
             ty
         }
-        _ => return Err(err("builtin Option changes its full-ordinal Type actual kind")),
+        _ => {
+            return Err(err(
+                "builtin Option changes its full-ordinal Type actual kind",
+            ));
+        }
     };
     type_work(actual_ty, limits, b)?;
     if actual_ty != &variants[1].1[0] {
-        return Err(err("Option Type actual differs from the complete Some payload"));
+        return Err(err(
+            "Option Type actual differs from the complete Some payload",
+        ));
     }
-    let Type::Address { inner, mutable: false } = actual_ty else {
+    let Type::Address {
+        inner,
+        mutable: false,
+    } = actual_ty
+    else {
         return Err(err("Option Type actual is not its shared outer borrow"));
     };
     let pointee = match inner.as_ref() {
@@ -124,7 +142,9 @@ pub(super) fn instance(
     };
     let (classes, pending) = crate::dynamic_witness::intrinsic_domain(module, pointee, b)?;
     if classes != 0 || pending {
-        return Err(err("Option outer borrow cannot erase its pointee's persistent domain"));
+        return Err(err(
+            "Option outer borrow cannot erase its pointee's persistent domain",
+        ));
     }
     crate::dynamic_witness::structural_actual(module, pointee, DynStructuralBound::Value, b)
 }
@@ -223,9 +243,7 @@ pub(super) fn transfer(
     let path = &life.slots[0].path;
     match &i.kind {
         InstructionKind::MakeVariant { variant, fields } => {
-            out.option_variants.constructed = 1u8
-                .checked_shl(*variant)
-                .ok_or_else(|| err("Option variant bit is invalid"))?;
+            out.option_variants = Variants::construction(*variant, b)?;
             for id in fields {
                 add_leaf(&mut out, path, &get(*id)?.address, b)?;
             }
@@ -302,13 +320,30 @@ pub(super) fn closed_pointee(ty: &Type, limits: &Limits, b: &mut Budget) -> Chec
 /// Bottom is no producer evidence; input dependencies conservatively evaluate
 /// to both variants until a call substitutes the actual caller's evidence.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) enum Input{Parameter(u32),Capture(u32)}
+pub(super) enum Input {
+    Parameter(u32),
+    Capture(u32),
+}
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct Variants {
     constructed: u8,
-    inputs: Vec<(Input,Path)>,
+    inputs: Vec<(Input, Path)>,
 }
 impl Variants {
+    /// Record the tag of an independently checked actual Option constructor.
+    /// The bit alone supplies no nominal, initialization, source or loan proof.
+    pub(super) fn construction(variant: u32, b: &mut Budget) -> Check<Self> {
+        b.spend(1)?;
+        if variant > 1 {
+            return Err(err(
+                "Option constructor tag is outside its two real variants",
+            ));
+        }
+        Ok(Self {
+            constructed: 1u8 << variant,
+            inputs: vec![],
+        })
+    }
     pub(super) fn mask(&self) -> u8 {
         self.constructed | if self.inputs.is_empty() { 0 } else { 3 }
     }
@@ -316,7 +351,9 @@ impl Variants {
         if self.mask() != 0 {
             let n = self.inputs.len().saturating_add(1);
             b.spend(n)?;
-            for(_,path)in &self.inputs{b.spend(path.len())?;}
+            for (_, path) in &self.inputs {
+                b.spend(path.len())?;
+            }
         }
         Ok(())
     }
@@ -331,9 +368,12 @@ impl Variants {
         for input in &other.inputs {
             let n = self.inputs.len().saturating_add(1);
             b.spend(n)?;
-            for(_,path)in &self.inputs{b.spend(path.len().saturating_add(input.1.len()).saturating_add(1))?;}
+            for (_, path) in &self.inputs {
+                b.spend(path.len().saturating_add(input.1.len()).saturating_add(1))?;
+            }
             if !self.inputs.contains(input) {
-                b.spend(input.1.len())?;self.inputs.push(input.clone());
+                b.spend(input.1.len())?;
+                self.inputs.push(input.clone());
                 changed = true;
             }
         }
@@ -344,8 +384,16 @@ impl Variants {
                 .saturating_mul(self.inputs.len())
                 .saturating_add(1);
             b.spend(n)?;
-            let width=self.inputs.iter().fold(1usize,|n,(_,path)|n.max(path.len().saturating_add(1)));
-            b.spend(self.inputs.len().saturating_mul(self.inputs.len()).saturating_mul(width))?;
+            let width = self
+                .inputs
+                .iter()
+                .fold(1usize, |n, (_, path)| n.max(path.len().saturating_add(1)));
+            b.spend(
+                self.inputs
+                    .len()
+                    .saturating_mul(self.inputs.len())
+                    .saturating_mul(width),
+            )?;
             self.inputs.sort_unstable();
         }
         Ok(changed)
@@ -355,28 +403,74 @@ impl Variants {
         b.spend(n)?;
         Ok(Self {
             constructed: 0,
-            inputs: vec![(Input::Parameter(index),Vec::new())],
+            inputs: vec![(Input::Parameter(index), Vec::new())],
         })
     }
-    pub(super) fn parameter_at(index:u32,path:&[PlaceProjection],b:&mut Budget)->Check<Self>{b.spend(path.len().saturating_add(2))?;Ok(Self{constructed:0,inputs:vec![(Input::Parameter(index),path.to_vec())]})}
-    pub(super) fn input_at(input:Input,path:&[PlaceProjection],b:&mut Budget)->Check<Self>{b.spend(path.len().saturating_add(2))?;Ok(Self{constructed:0,inputs:vec![(input,path.to_vec())]})}
-    pub(super) fn substitute_with(&self,b:&mut Budget,mut actual:impl FnMut(Input,&[PlaceProjection],&mut Budget)->Check<Self>)->Check<(Self,bool)>{
-        self.work(b)?;let mut out=Self{constructed:self.constructed,inputs:vec![]};let mut known=true;
-        for(input,path)in &self.inputs{b.spend(path.len().saturating_add(1))?;let value=actual(*input,path,b)?;known&=value.mask()!=0;out.join(&value,b)?;}
-        Ok((out,known))
-    }
-    pub(super) fn substitute_known(&self,arguments:&[ValueId],values:&[Payload],b:&mut Budget)->Check<(Self,bool)>{
-        self.substitute_with(b,|input,path,b|{
-            let Input::Parameter(index)=input else{return Ok(Self::default());};
-            let id=arguments.get(index as usize).ok_or_else(||err("Option summary input is absent"))?;
-            let actual=values.get(id.0 as usize).ok_or_else(||err("Option summary actual is absent"))?;
-            value_transport::option_at(actual,path,b)
+    pub(super) fn parameter_at(
+        index: u32,
+        path: &[PlaceProjection],
+        b: &mut Budget,
+    ) -> Check<Self> {
+        b.spend(path.len().saturating_add(2))?;
+        Ok(Self {
+            constructed: 0,
+            inputs: vec![(Input::Parameter(index), path.to_vec())],
         })
     }
-    pub(super) fn substitute(&self,arguments:&[ValueId],values:&[Payload],b:&mut Budget)->Check<Self>{
-        let(value,known)=self.substitute_known(arguments,values,b)?;Ok(if known{value}else{Self::default()})
+    pub(super) fn input_at(input: Input, path: &[PlaceProjection], b: &mut Budget) -> Check<Self> {
+        b.spend(path.len().saturating_add(2))?;
+        Ok(Self {
+            constructed: 0,
+            inputs: vec![(input, path.to_vec())],
+        })
     }
-
+    pub(super) fn substitute_with(
+        &self,
+        b: &mut Budget,
+        mut actual: impl FnMut(Input, &[PlaceProjection], &mut Budget) -> Check<Self>,
+    ) -> Check<(Self, bool)> {
+        self.work(b)?;
+        let mut out = Self {
+            constructed: self.constructed,
+            inputs: vec![],
+        };
+        let mut known = true;
+        for (input, path) in &self.inputs {
+            b.spend(path.len().saturating_add(1))?;
+            let value = actual(*input, path, b)?;
+            known &= value.mask() != 0;
+            out.join(&value, b)?;
+        }
+        Ok((out, known))
+    }
+    pub(super) fn substitute_known(
+        &self,
+        arguments: &[ValueId],
+        values: &[Payload],
+        b: &mut Budget,
+    ) -> Check<(Self, bool)> {
+        self.substitute_with(b, |input, path, b| {
+            let Input::Parameter(index) = input else {
+                return Ok(Self::default());
+            };
+            let id = arguments
+                .get(index as usize)
+                .ok_or_else(|| err("Option summary input is absent"))?;
+            let actual = values
+                .get(id.0 as usize)
+                .ok_or_else(|| err("Option summary actual is absent"))?;
+            value_transport::option_at(actual, path, b)
+        })
+    }
+    pub(super) fn substitute(
+        &self,
+        arguments: &[ValueId],
+        values: &[Payload],
+        b: &mut Budget,
+    ) -> Check<Self> {
+        let (value, known) = self.substitute_known(arguments, values, b)?;
+        Ok(if known { value } else { Self::default() })
+    }
 }
 
 // Signature class traversal is metadata-only dispatch. Full declaration,
@@ -563,18 +657,28 @@ pub(super) fn refine(
 }
 
 #[cfg(test)]
-mod dependency_tests{
+mod dependency_tests {
     use super::*;
     #[test]
-    fn constructed_none_does_not_discharge_an_unknown_actual_dependency(){
-        let mut b=Budget::new(&Limits::default());
-        let input=Variants{constructed:1,inputs:vec![(Input::Capture(0),vec![PlaceProjection::Field(1)])]};
-        for mask in [0u8,1,2]{
-            let(value,known)=input.substitute_with(&mut b,|namespace,path,_|{
-                assert_eq!(namespace,Input::Capture(0));assert_eq!(path,[PlaceProjection::Field(1)]);
-                Ok(Variants{constructed:mask,inputs:vec![]})
-            }).unwrap();
-            assert_eq!(known,mask!=0);assert_eq!(value.mask(),1|mask);
+    fn constructed_none_does_not_discharge_an_unknown_actual_dependency() {
+        let mut b = Budget::new(&Limits::default());
+        let input = Variants {
+            constructed: 1,
+            inputs: vec![(Input::Capture(0), vec![PlaceProjection::Field(1)])],
+        };
+        for mask in [0u8, 1, 2] {
+            let (value, known) = input
+                .substitute_with(&mut b, |namespace, path, _| {
+                    assert_eq!(namespace, Input::Capture(0));
+                    assert_eq!(path, [PlaceProjection::Field(1)]);
+                    Ok(Variants {
+                        constructed: mask,
+                        inputs: vec![],
+                    })
+                })
+                .unwrap();
+            assert_eq!(known, mask != 0);
+            assert_eq!(value.mask(), 1 | mask);
         }
     }
 }
