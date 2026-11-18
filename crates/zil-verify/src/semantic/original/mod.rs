@@ -40,6 +40,8 @@ mod record_constructors;
 mod resources;
 mod schemes;
 mod scoped_threads;
+mod scoped_callbacks;
+pub(in crate::semantic) use scoped_callbacks::ScopedCallbackSources;
 mod sealed;
 mod structural;
 mod substitution;
@@ -159,6 +161,7 @@ pub(super) struct CheckedOriginal {
     creation_returns: Vec<Binder>,
     executing_effects: BTreeMap<SemanticDefinitionId, CallKind>,
     intrinsic_calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), intrinsics::Use>,
+    scoped_callbacks: BTreeMap<(SemanticDefinitionId, SemanticSiteId), ScopedCallbackSources>,
     scoped_threads:
         BTreeMap<(SemanticDefinitionId, SemanticSiteId), (SemanticDefinitionId, NodeId, NodeId)>,
     scoped_thread_workers: Vec<(SemanticDefinitionId, Ty, Env)>,

@@ -70,6 +70,9 @@ impl CheckedContext {
             let target=use_.worker.ok_or_else(||bad("c_callback has no independently resolved original static target"))?;
             return self.actual_c_callback(module,instruction,target,environment,external,active,b).map(Some);
         }
+        if use_.kind == Intrinsic::ScopedCallback {
+            return self.actual_scoped_callback(module,caller,f,instruction,site,values,environment,external,active,b).map(Some);
+        }
         if use_.kind==Intrinsic::ThreadScope{
             return self.actual_scoped_thread(module,caller,f,instruction,site,values,environment,external,active,b).map(Some);
         }

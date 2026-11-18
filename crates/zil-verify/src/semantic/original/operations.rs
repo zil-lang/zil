@@ -498,6 +498,7 @@ impl CheckedOriginal {
                     _ => Ty::Atom(Type::Unit),
                 }
             }
+            Intrinsic::ScopedCallback => self.scoped_callback(module, context, site, arguments, env, bindings, active, b)?,
             Intrinsic::ThreadScope => {
                 self.scoped_thread(module, context, site, arguments, env, bindings, active, b)?
             }
@@ -681,7 +682,7 @@ impl CheckedOriginal {
         let env = self.environment(module, context, id, active, b)?;
         self.call_signature(module, context, id, signature, &env, active, b)
     }
-    fn operation_callable(
+    pub(super) fn operation_callable(
         &mut self,
         module: &TypedModule,
         context: &CheckedContext,

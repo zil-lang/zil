@@ -250,3 +250,36 @@ impl CheckedContext {
         *occupant=None;Ok(())
     }
 }
+
+impl CheckedContext {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn actual_scoped_callback(
+        &self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,instruction:&Instruction,
+        site:&SemanticSite,values:&[Option<CheckedType>],environment:&EvalEnv,
+        external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget,
+    )->Check<CheckedType> {
+        let InstructionKind::WithForeignCallback { register, close, callback, body, .. } = instruction.kind else {
+            return Err(bad("scoped callback source selects a different actual opcode"));
+        };
+        let source = self.original.borrow().as_ref().ok_or_else(|| bad("scoped callback lacks an original body"))?
+            .scoped_callback_sources(caller.definition, site.recipe, b)?;
+        for (function, definition) in [register, close].into_iter().zip(source.providers) {
+            self.operation_target(module, function, definition, b)?;
+        }
+        self.intrinsic_buffer_source(module, caller, f, callback, source.callback, b)?;
+        let head = value_at(values, callback)?;
+        if !matches!(&head.ty, Type::Address { mutable: true, inner } if matches!(inner.as_ref(), Type::Closure(_))) {
+            return Err(bad("scoped callback must refer to the actual exclusive closure environment"));
+        }
+        self.call_input_source(module, caller, f, body, source.body_node, source.body_place, b)?;
+        let expected = self.evaluate_type(module, &SemanticTypeRecipe::OriginalType {
+            scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Expression(source.body_node),
+        }, environment, external, active, b)?;
+        if !self.same_type(environment, value_at(values, body)?, &expected, b)? {
+            return Err(bad("scoped callback body changes its original callable type or environment"));
+        }
+        let result = crate::scoped_callback::instruction(module, f, instruction, b)?
+            .ok_or_else(|| bad("scoped callback does not produce the registration result"))?;
+        self.closed_value(module, &result, b)
+    }
+}

@@ -196,7 +196,7 @@ impl CheckedContext{
         for original in site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(node)){
             b.spend(program.sites.len())?;
             for site in program.sites.iter().filter(|site|site.instance==caller.id&&site.recipe==original.site){match site.action{
-                SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(value),..}|SemanticSiteAction::Construct{result:SemanticOperand::Value(value),..}=>{sources.insert(value);},
+                SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(value),..}|SemanticSiteAction::Construct{result:SemanticOperand::Value(value),..}|SemanticSiteAction::Closure{result:SemanticOperand::Value(value),..}=>{sources.insert(value);},
                 SemanticSiteAction::BodyCall{..}|SemanticSiteAction::Call{..}=>{
                     let SemanticSiteAddress::Typed{block,instruction,..}=site.at else{return Err(bad("address input retains a nonactual original call"));};
                     if let Some(value)=f.blocks.get(block.0 as usize).and_then(|block|block.instructions.get(instruction as usize)).and_then(|instruction|instruction.result){sources.insert(value);}
