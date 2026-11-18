@@ -1059,6 +1059,9 @@ fn zero_opaque_application(
                 trait_active: Vec::new(), contexts: gamma.contexts.to_vec(),
                 closure_result_goal: None,
                 integer_initializers: BTreeMap::new(),
+                contextual_code_goals: BTreeMap::new(),
+                contextual_code_inputs: BTreeMap::new(),
+                contextual_code_calls: BTreeSet::new(),
                 predicate_active: Vec::new(), stage_depth: 0, cleanup_depth: 0,
                 requested_snapshot: None, snapshot_sources: None, escape_active: Vec::new(),
             }

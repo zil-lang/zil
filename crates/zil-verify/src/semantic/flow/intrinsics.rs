@@ -180,7 +180,7 @@ impl CheckedContext {
                     ));
                 }
                 self.intrinsic_buffer_source(module, caller, f, buffer, source, b).map_err(|mut error| {
-                    error.relate(DiagnosticRole::Input, Some(instruction.span), intrinsic_location(f, site.at), format!(
+                    error.relate(DiagnosticRole::Input, Some(instruction.span), intrinsic_location(f, &site.at), format!(
                         "byte operation owner argument 0 uses descriptor SSA {:?}", buffer
                     ));
                     error
@@ -440,9 +440,9 @@ impl CheckedContext {
     }
 }
 
-fn intrinsic_location(f: &TypedFunction, at: SemanticSiteAddress) -> Option<DiagnosticIrLocation> {
+fn intrinsic_location(f: &TypedFunction, at: &SemanticSiteAddress) -> Option<DiagnosticIrLocation> {
     let SemanticSiteAddress::Typed { block, instruction, .. } = at else {
         return None;
     };
-    Some(DiagnosticIrLocation { function: f.id.0, block: Some(block.0), instruction: Some(instruction) })
+    Some(DiagnosticIrLocation { function: f.id.0, block: Some(block.0), instruction: Some(*instruction) })
 }

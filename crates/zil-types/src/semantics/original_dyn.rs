@@ -262,6 +262,7 @@ impl Check<'_, '_> {
             &BTreeMap::new(),
             &receiver_roles,
             0,
+            None,
             depth + 1,
         )?;
         let mut implicit = BTreeMap::new();

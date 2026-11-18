@@ -109,14 +109,31 @@ fn source_interface(
         .iter()
         .find(|row| row.id == instance.definition)
         .ok_or_else(|| bad("frozen query instance lost its original declaration"))?;
-    let proof = super::original::check_at_with_declarations(
+    use super::original_code_context as code_context;
+    let check = |goals, left| super::original::check_at_with_declarations(
         program,
         input.declarations.clone(),
         definition.id,
         binding.query.original,
+        goals,
         limits,
         left,
-    )?;
+    );
+    let proof = match check(Default::default(), left) {
+        Err(error) if error.code == code_context::MISSING => {
+            // Only source syntax enters this pass and it never evaluates a CT
+            // expression. Gamma independently validates the proposed input.
+            let inferred = inference::infer_original_code_context(source, limits, left)
+                .map_err(|errors| errors.into_iter().next().unwrap_or_else(|| error.clone()))?;
+            pay(left, inferred.modules.len())?;
+            let cores: Vec<_> = inferred.modules.iter().map(|row| &row.core).collect();
+            let core = inference::original_code_context(&cores, limits, left)?;
+            let goals = code_context::bind(program, &core, limits, left)?;
+            if goals.is_empty() { return Err(error); }
+            check(goals, left)?
+        }
+        result => result?,
+    };
     if !proof.complete.contains(&definition.id) {
         return Err(bad(
             "frozen query owner has no complete original body proof",

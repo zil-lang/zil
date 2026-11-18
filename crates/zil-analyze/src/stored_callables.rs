@@ -152,6 +152,7 @@ fn borrowed_owned_candidate(d: &ClosureDefinition) -> bool {
             d.result,
             Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
         )
+        && !d.result.is_copy_value()
 }
 
 fn closed_callback_data(ty: &Type, b: &mut Budget) -> CompileResult<()> {
@@ -254,15 +255,17 @@ fn copy_product_result(module: &TypedModule, definition: &ClosureDefinition) -> 
         && definition.storage_life.is_some()
         && definition.lending_captures.is_empty()
         && matches!(definition.kind, CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce)
-        && copy_product(&definition.result)
+        && (copy_product(&definition.result)
+            || matches!(definition.result, Type::Enum { .. } | Type::ErrorUnion { .. })
+                && definition.result.is_copy_value())
 }
 
-fn original_copy_product(
+fn original_copy_data(
     definition: &ClosureDefinition,
     ty: &Type,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    if !copy_product(ty) || definition.storage_life.is_none() {
+    if definition.storage_life.is_none() {
         return Ok(false);
     }
     b.lookup(b.semantic_closures_proven.len(), "original inline callback data")?;
@@ -288,7 +291,7 @@ pub(super) fn validate_copy_product_result(
     if life.bindings.iter().any(|row| row.position.base == StorageBase::Result)
         || life.static_bindings.iter().any(|row| row.base == StorageBase::Result)
         || life.classes.iter().any(|row| row.position.base == StorageBase::Result)
-        || !original_copy_product(definition, &definition.result, b)?
+        || !original_copy_data(definition, &definition.result, b)?
     {
         return Err(bad("callback Copy result lacks its complete original target-free product type"));
     }
@@ -1059,7 +1062,7 @@ pub(super) fn types(
                 // access. Its constant contents are independently checked at
                 // every module constructor and write before planning.
                 if d.kind == zil_ir::CallableKind::Fn
-                    || !(scalar(t) || constant_slot || original_copy_product(d, t, b)?
+                    || !(scalar(t) || constant_slot || copy_product(t) && original_copy_data(d, t, b)?
                         || checked_capture_write(f, i, b)?)
                     || i.result.is_some()
                     || f.values.get(value.0 as usize) != Some(t)

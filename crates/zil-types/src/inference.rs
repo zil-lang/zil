@@ -21,6 +21,8 @@ struct Budget<'a> {
     shared_arrays: bool,
     products: aggregate_templates::Products,
     current_module: zil_base::ModuleId,
+    contextual_inputs: Option<semantics::original_code_context::CoreInputs>,
+    current_creator: zil_base::NodeId,
 }
 impl<'a> Budget<'a> {
     fn new(limits: &'a Limits) -> Self {
@@ -36,6 +38,8 @@ impl<'a> Budget<'a> {
             shared_arrays: false,
             products: None,
             current_module: zil_base::ModuleId(0),
+            contextual_inputs: None,
+            current_creator: zil_base::NodeId(0),
         }
     }
     fn work(&mut self, count: usize, span: Span) -> R<()> {
@@ -376,8 +380,29 @@ pub(super) fn infer_program_closures_borrowed_with_frozen<'a>(
     limits: &Limits,
     frozen: Option<&semantics::frozen_context::FrozenSource>,
 ) -> CompileResult<Cow<'a, CoreProgram>> {
-    let original = program;
     let mut budget = Budget::new(limits);
+    infer_program_closures_with_budget(program, frozen, &mut budget)
+}
+
+pub(crate) fn infer_original_code_context<'a>(
+    program: &'a CoreProgram,
+    limits: &Limits,
+    left: &mut usize,
+) -> CompileResult<Cow<'a, CoreProgram>> {
+    let mut budget = Budget::new(limits);
+    budget.work = *left;
+    let result = infer_program_closures_with_budget(program, None, &mut budget);
+    *left = budget.work;
+    result
+}
+
+fn infer_program_closures_with_budget<'a>(
+    program: &'a CoreProgram,
+    frozen: Option<&semantics::frozen_context::FrozenSource>,
+    mut budget: &mut Budget<'_>,
+) -> CompileResult<Cow<'a, CoreProgram>> {
+    let original = program;
+    let limits = budget.limits;
     if program
         .modules
         .iter()
@@ -1743,6 +1768,10 @@ fn expression_has_closure_closure(
                         validate_type(ty, depth + 1, parameter.span, budget)?;
                     }
                 }
+                if let Some(inputs) = &mut budget.contextual_inputs {
+                    let origin = (budget.current_module, budget.current_creator, e.id);
+                    inputs.record(origin, parameters, e.span, &mut budget.work)?;
+                }
                 if let Some(ty) = return_type {
                     validate_type(ty, depth + 1, e.span, budget)?;
                 }
@@ -1752,6 +1781,30 @@ fn expression_has_closure_closure(
         _ => unreachable!("closure presence dispatch"),
     }
     Ok(true)
+}
+
+pub(crate) fn original_code_context(
+    cores: &[&CoreModule],
+    limits: &Limits,
+    left: &mut usize,
+) -> R<semantics::original_code_context::CoreInputs> {
+    let mut budget = Budget::new(limits);
+    budget.work = *left;
+    budget.contextual_inputs = Some(Default::default());
+    let result: R<()> = (|| {
+        for core in cores.iter().filter(|core| core.semantic.is_some()) {
+            budget.work(core.functions.len().saturating_add(1), Span::default())?;
+            budget.current_module = core.module_id;
+            for function in &core.functions {
+                budget.current_creator = function.id;
+                contains_closure(&function.body, 0, &mut budget)?;
+            }
+        }
+        Ok(())
+    })();
+    *left = budget.work;
+    result?;
+    Ok(budget.contextual_inputs.expect("code context collector enabled"))
 }
 fn expression_has_closure_unary(
     e: &CoreExpr,

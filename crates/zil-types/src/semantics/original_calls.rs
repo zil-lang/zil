@@ -1099,6 +1099,7 @@ impl Check<'_, '_> {
             &BTreeMap::new(),
             &roles,
             0,
+            None,
             depth + 1,
         )?;
         if receiver_borrow.is_some() {
@@ -1974,6 +1975,26 @@ impl Check<'_, '_> {
             self.pay(1, depth)?;
             selected_place = inner;
         }
+        if let CoreExprKind::Name(name) = &selected_place.kind {
+            self.pay(name.len().saturating_add(variables.len().saturating_add(1).ilog2() as usize), depth)?;
+            if let Some(binding) = variables.get(name)
+                && let SemanticTypeRecipe::OriginalType {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    source: SemanticOriginalTypeSource::Parameter(ordinal),
+                } = &binding.ty
+                && binding.origin_owner == owner
+                && binding.origin == Query::Parameter(*ordinal)
+                && !self.proof.types.contains_key(&(owner, Query::Parameter(*ordinal)))
+            {
+                return Err(zil_base::Diagnostic::new(
+                    Phase::Types,
+                    zil_base::ResultCategory::Unsupported,
+                    code_context::MISSING,
+                    "original callable parameter requires a complete source call context",
+                    Some(base.span),
+                ));
+            }
+        }
         let evaluated_rvalue = !matches!(selected_place.kind,
             CoreExprKind::Name(_) | CoreExprKind::Member { .. }
                 | CoreExprKind::Unary { op: UnaryOp::Dereference, .. });
@@ -2002,6 +2023,10 @@ impl Check<'_, '_> {
                 receiver = None;
                 value
             }
+        };
+        let contextual_callee = match value {
+            SemanticTypeRecipe::Closure { definition, .. } => Some(*definition),
+            _ => None,
         };
         let operation = self.opaque_callable_operation(value, depth + 1)?;
         let (mut selected, mut invocation_origins) = if let Some((kind, signature, origins)) = operation {
@@ -2106,6 +2131,7 @@ impl Check<'_, '_> {
             &invocation_origins,
             &[],
             0,
+            contextual_callee,
             depth + 1,
         )?;
         if !actuals.is_empty() {

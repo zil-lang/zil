@@ -1,6 +1,7 @@
 //! Symbolic facts obtained from the immutable original bodies. This module has
 //! no TypedModule, ValueId, closure runtime ID or instance actuals as input.
 use crate::*;
+use super::original_code_context as code_context;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_base::NodeId;
 #[path = "original_associated.rs"]
@@ -347,6 +348,9 @@ struct Check<'a, 'b> {
     // Completed body facts remain in Proof::types and carry the checked exits.
     closure_result_goal: Option<(SemanticDefinitionId, SemanticTypeRecipe)>,
     integer_initializers: BTreeMap<SemanticDefinitionId, BTreeMap<NodeId, IntegerInitializer>>,
+    contextual_code_goals: code_context::Goals,
+    contextual_code_inputs: BTreeMap<SemanticDefinitionId, BTreeSet<u32>>,
+    contextual_code_calls: BTreeSet<SemanticDefinitionId>,
     predicate_active: Vec<(SemanticDefinitionId, u8, SemanticTypeRecipe)>,
     stage_depth: usize,
     cleanup_depth: usize,
@@ -2488,6 +2492,7 @@ impl<'a> Check<'a, '_> {
             &BTreeMap::new(),
             &[],
             0,
+            None,
             depth,
         )
     }
@@ -2506,6 +2511,7 @@ impl<'a> Check<'a, '_> {
         invocation_origins: &BTreeMap<u32, call_regions::Role>,
         roles: &[(NodeId, SemanticTypeRecipe)],
         parameter_offset: u32,
+        contextual_callee: Option<SemanticDefinitionId>,
         depth: usize,
     ) -> R<(Vec<SemanticActualRecipe>, SemanticSignatureRecipe)> {
         self.pay(arguments.len().saturating_add(formals.len()), depth)?;
@@ -2628,9 +2634,16 @@ impl<'a> Check<'a, '_> {
                 self.limits,
                 self.left,
             )?;
-            let hint = complete_parameter.as_ref().or_else(|| {
-                matches!(parameter.ty, SemanticTypeRecipe::Atom(_)).then_some(&parameter.ty)
-            });
+            let authenticates_context = contextual_callee
+                .and_then(|child| self.contextual_code_inputs.get(&child))
+                .is_some_and(|parameters| parameters.contains(&(parameter_ordinal as u32)));
+            let hint = if authenticates_context {
+                None
+            } else {
+                complete_parameter.as_ref().or_else(|| {
+                    matches!(parameter.ty, SemanticTypeRecipe::Atom(_)).then_some(&parameter.ty)
+                })
+            };
             self.pay(roles.len(), depth)?;
             let actual =
                 if let Some((_, role)) = roles.iter().find(|(node, _)| *node == argument.id) {
@@ -2816,6 +2829,12 @@ impl<'a> Check<'a, '_> {
         };
         let signature =
             substitute::signature_fresh(signature, &substitution, self.limits, self.left)?;
+        if let Some(child) = contextual_callee
+            && self.contextual_code_inputs.contains_key(&child)
+        {
+            self.pay(1, depth)?;
+            self.contextual_code_calls.insert(child);
+        }
         Ok((actuals, signature))
     }
     fn ordinary_value(
@@ -6154,6 +6173,13 @@ impl<'a> Check<'a, '_> {
                 } if *ordinal as usize == index);
             let deferred = if unannotated_closure_input {
                 self.pay(self.proof.types.len().saturating_add(1).ilog2() as usize + 2, 0)?;
+                if !self.proof.types.contains_key(&(definition.id, query.clone())) {
+                    if let Some(ty) = self.contextual_code_goals.get(&definition.id).and_then(|row| row.get(&(index as u32))) {
+                        let ty = copy_recipe(ty, self.limits, self.left)?;
+                        self.contextual_code_inputs.entry(definition.id).or_default().insert(index as u32);
+                        self.proof.proof_mut()?.types.insert((definition.id, query.clone()), ty);
+                    }
+                }
                 !self.proof.types.contains_key(&(definition.id, query.clone()))
             } else {
                 false
@@ -6342,15 +6368,16 @@ impl<'a> Check<'a, '_> {
     }
 }
 pub(super) fn check(program: &SemanticModule, limits: &Limits, left: &mut usize) -> R<Proof> {
-    check_requested(program, std::rc::Rc::default(), None, limits, left)
+    check_requested(program, std::rc::Rc::default(), None, Default::default(), limits, left)
 }
 pub(super) fn check_with_declarations(
     program: &SemanticModule,
     declarations: std::rc::Rc<Vec<super::original_context::Declaration>>,
+    goals: code_context::Goals,
     limits: &Limits,
     left: &mut usize,
 ) -> R<Proof> {
-    check_requested(program, declarations, None, limits, left)
+    check_requested(program, declarations, None, goals, limits, left)
 }
 pub(super) fn check_at(
     program: &SemanticModule,
@@ -6363,6 +6390,7 @@ pub(super) fn check_at(
         program,
         std::rc::Rc::default(),
         Some((owner, node)),
+        Default::default(),
         limits,
         left,
     )
@@ -6372,10 +6400,11 @@ pub(super) fn check_at_with_declarations(
     declarations: std::rc::Rc<Vec<super::original_context::Declaration>>,
     owner: SemanticDefinitionId,
     node: SemanticOriginalNode,
+    goals: code_context::Goals,
     limits: &Limits,
     left: &mut usize,
 ) -> R<Proof> {
-    check_requested(program, declarations, Some((owner, node)), limits, left)
+    check_requested(program, declarations, Some((owner, node)), goals, limits, left)
 }
 fn definition_positions(
     program: &SemanticModule,
@@ -6419,6 +6448,7 @@ fn check_requested(
     program: &SemanticModule,
     declarations: std::rc::Rc<Vec<super::original_context::Declaration>>,
     requested_snapshot: Option<(SemanticDefinitionId, SemanticOriginalNode)>,
+    contextual_code_goals: code_context::Goals,
     limits: &Limits,
     left: &mut usize,
 ) -> R<Proof> {
@@ -6439,6 +6469,9 @@ fn check_requested(
         contexts: Vec::new(),
         closure_result_goal: None,
         integer_initializers: BTreeMap::new(),
+        contextual_code_goals,
+        contextual_code_inputs: BTreeMap::new(),
+        contextual_code_calls: BTreeSet::new(),
         predicate_active: Vec::new(),
         stage_depth: 0,
         cleanup_depth: 0,
@@ -6478,6 +6511,11 @@ fn check_requested(
             return Err(bad(
                 "original code definition has no checked lexical creation context",
             ));
+        }
+    }
+    for child in check.contextual_code_inputs.keys() {
+        if !check.contextual_code_calls.contains(child) {
+            return Err(pending("original callable input requires a checked call of its lexical closure"));
         }
     }
     check.proof.proof_mut()?.stage_costs.insert(
