@@ -890,6 +890,7 @@ pub(super) struct Facts {
     pub apart: BTreeSet<(Target, Target)>,
     head_accesses: BTreeMap<Target, bool>,
     complete: bool,
+    incomplete_aggregates: BTreeSet<ValueId>,
     returned_enum_variants: enum_address::Variants,
     enum_values: BTreeMap<ValueId, enum_address::Variants>,
     returned_variants: option_address::Variants,
@@ -1183,6 +1184,7 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
 }
 
 fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
+    fee(b, f.incomplete_aggregates.len())?;
     target_work(&f.returned_source_upper, b)?;
     for (path, p) in &f.returned_projections {
         fee(b, path.len().saturating_add(1))?;
@@ -3060,11 +3062,16 @@ fn returns(
                         "environment result escapes local or explicit input storage",
                     ));
                 };
-                let capture = d.captures.get(index as usize)
+                let capture = d
+                    .captures
+                    .get(index as usize)
                     .ok_or_else(|| failure("lending source names an absent capture"))?;
-                if !source.stored.is_empty() || source.retained_port.is_some()
-                    || source.heap_element.is_some() || !source.heap_parents.is_empty()
-                    || !(super::stored_callables::scalar(capture) || retained::closed_copy(capture, b)?)
+                if !source.stored.is_empty()
+                    || source.retained_port.is_some()
+                    || source.heap_element.is_some()
+                    || !source.heap_parents.is_empty()
+                    || !(super::stored_callables::scalar(capture)
+                        || retained::closed_copy(capture, b)?)
                 {
                     return Err(failure("lending source leaves its actual inline capture"));
                 }
@@ -8103,6 +8110,7 @@ fn derive_cfg(
                 apart: BTreeSet::new(),
                 head_accesses: BTreeMap::new(),
                 complete: false,
+                incomplete_aggregates: BTreeSet::new(),
                 returned_enum_variants: enum_address::Variants::default(),
                 enum_values: BTreeMap::new(),
                 returned_variants: option_address::Variants::default(),
@@ -8638,6 +8646,8 @@ fn derive_cfg(
                     && pointee_memory::aggregate(ty)
                     && !pointee_memory::complete(value, ty, b)?
                 {
+                    ordered(b, actual.incomplete_aggregates.len(), 0)?;
+                    actual.incomplete_aggregates.insert(ValueId(id as u32));
                     grounded = false;
                 }
                 if value.creation_complete == Some(false) {
@@ -8920,6 +8930,14 @@ fn derive_cfg(
                 "stored/address producer has incomplete actual target facts in {}",
                 f.name
             ));
+            for value in &facts.incomplete_aggregates {
+                errors[0].notes.push(format!(
+                    "unresolved complete aggregate obligation {} value {}: {:?}",
+                    f.name,
+                    value.0,
+                    f.values.get(value.0 as usize)
+                ));
+            }
             for (other, found) in module.functions.iter().zip(&summaries) {
                 if !found.complete {
                     for (value, ty) in other.values.iter().enumerate() {
@@ -9311,14 +9329,19 @@ pub(super) fn inline_capture_loan(
     mutable: bool,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    let definition = f.environment
+    let definition = f
+        .environment
         .and_then(|id| module.closures.get(id.0 as usize))
         .filter(|d| d.function == f.id && super::stored_callables::lending(d))
         .ok_or_else(|| failure("capture borrow has no actual lending entry"))?;
     if mutable && definition.kind != CallableKind::FnMut {
-        return Err(failure("exclusive capture borrow needs an exclusive receiver"));
+        return Err(failure(
+            "exclusive capture borrow needs an exclusive receiver",
+        ));
     }
-    let ty = definition.captures.get(index as usize)
+    let ty = definition
+        .captures
+        .get(index as usize)
         .ok_or_else(|| failure("capture borrow names an absent environment field"))?;
     if !super::stored_callables::scalar(ty) && !retained::closed_copy(ty, b)? {
         return Err(failure("capture borrow needs a closed inline data field"));

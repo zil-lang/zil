@@ -545,6 +545,9 @@ impl Variants {
         })
     }
     pub(super) fn value_input(base: HoldRoot, ty: &Type, b: &mut Budget) -> CompileResult<Self> {
+        if !pointee_memory::needs_state(ty, b, 0)? {
+            return Ok(Self::default());
+        }
         Self::input(base, None, ty, Vec::new(), b, 0)
     }
     pub(super) fn runtime_poll(b: &mut Budget) -> CompileResult<Self> {
@@ -640,6 +643,9 @@ impl Variants {
         ty: &Type,
         b: &mut Budget,
     ) -> CompileResult<Self> {
+        if !pointee_memory::needs_state(ty, b, 0)? {
+            return Ok(Self::default());
+        }
         Self::input(base, Some(pointer), ty, Vec::new(), b, 0)
     }
     fn has_sums(ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<bool> {

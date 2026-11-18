@@ -189,7 +189,7 @@ fn candidate(
     Ok(Some(out))
 }
 pub(super) fn complete(value: &Value, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
-    if !value.enum_variants.complete_tree(ty, b)? {
+    if needs_state(ty, b, 0)? && !value.enum_variants.complete_tree(ty, b)? {
         return Ok(false);
     }
     if value.creation_complete == Some(false)
@@ -519,6 +519,7 @@ pub(super) fn sum_transfer(
     // Canonical qualified Option keeps its existing instance/None proof and
     // exact old transfer. This path handles the remaining Copy sum geometry.
     if option_address::signature(ty)
+        || !needs_state(ty, b, 0)?
         || !ty.is_copy_value()
         || !matches!(physical, Type::Enum { .. } | Type::ErrorUnion { .. })
     {
@@ -608,37 +609,63 @@ pub(super) fn sum_transfer(
     Ok(Some(out))
 }
 
-pub(super) fn relevant(ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<bool> {
+pub(super) fn needs_state(ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<bool> {
     fee(b, 1)?;
     if depth > b.partial_depth {
         return Err(vec![Diagnostic::limit(
             Phase::Analyze,
-            "pointee structure exceeds finite depth",
+            "stored state inventory exceeds finite type depth",
             None,
         )]);
     }
     Ok(match ty {
-        Type::Address { .. } | Type::Enum { .. } | Type::ErrorUnion { .. } => true,
+        Type::Address { .. }
+        | Type::Desc(_)
+        | Type::Closure(_)
+        | Type::Task { .. }
+        | Type::Dyn { .. }
+        | Type::OwnedDyn { .. } => true,
         Type::BorrowedStorage { storage, .. }
         | Type::Array {
             element: storage, ..
-        } => relevant(storage, b, depth + 1)?,
+        }
+        | Type::Managed(storage)
+        | Type::Opaque {
+            hidden: storage, ..
+        } => needs_state(storage, b, depth + 1)?,
         Type::Tuple(fields) => {
             let mut found = false;
             for field in fields {
-                found |= relevant(field, b, depth + 1)?;
+                found |= needs_state(field, b, depth + 1)?;
             }
             found
         }
         Type::Record { fields, .. } | Type::Package { fields, .. } => {
             let mut found = false;
             for (_, field) in fields {
-                found |= relevant(field, b, depth + 1)?;
+                found |= needs_state(field, b, depth + 1)?;
             }
             found
         }
+        Type::Enum { variants, .. } => {
+            let mut found = false;
+            for (_, fields) in variants {
+                for field in fields {
+                    found |= needs_state(field, b, depth + 1)?;
+                }
+            }
+            found
+        }
+        Type::ErrorUnion { error, result } => {
+            let left = needs_state(error, b, depth + 1)?;
+            let right = needs_state(result, b, depth + 1)?;
+            left || right
+        }
         _ => false,
     })
+}
+pub(super) fn relevant(ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<bool> {
+    needs_state(ty, b, depth)
 }
 
 pub(super) fn projection_work(value: &Projection, b: &mut Budget) -> CompileResult<()> {
