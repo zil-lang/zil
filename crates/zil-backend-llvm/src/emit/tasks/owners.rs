@@ -39,12 +39,13 @@ pub(super) fn plan(
     let mut drops = vec![];
     let mut pollable = vec![];
     let mut groups = vec![];
+    let retirement_roles=owner_groups::RetirementRoles::of(ownership,meter)?;
     for (owner_index,owner) in ownership.owners().iter().enumerate() {
         nodes.push(frame.fields.len() as u32);
         frame.fields.push(node_ty());
         let registration = matches!(enums::storage_shape(owner.ty()),Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}));
         let child = matches!(enums::storage_shape(owner.ty()),Type::Managed(p) if matches!(p.as_ref(),Type::Task{..}|Type::TaskI32));
-        let group=match owner_groups::closure(module,owner.ty(),meter) {
+        let group=match retirement_roles.group(owner_index,module,owner.ty(),meter) {
             Ok(group)=>group,Err(diagnostics)=>return describe_failure(diagnostics,worker,Some(owner_index),owner.ty(),ownership,meter)
         };
         groups.push(group.is_some());

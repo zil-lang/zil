@@ -95,6 +95,44 @@ fn validate(module:&TypedModule,id:ClosureId,depth:usize,meter:&Meter)->CompileR
     Ok(())
 }
 
+/// The checked artifact lists every canonical intermediate, including owners
+/// consumed between two poll returns. Only entry owners and the union of all
+/// actual continuation boundaries can be reached by cancellation. This is a
+/// machine scheduling fact, not a Closed or synchronous-cleanup type proof.
+/// Saved results are separate roots and always use `closure` directly.
+pub(super) struct RetirementRoles(Vec<bool>);
+impl RetirementRoles {
+    pub(super) fn of(ownership: &zil_verify::TaskOwnership, meter: &Meter) -> CompileResult<Self> {
+        Self::from_rows(ownership.owners().len(), ownership.entry(),
+            ownership.boundaries().iter().map(|boundary| boundary.may_live()), meter)
+    }
+    fn from_rows<'a>(count: usize, entry: &[usize], boundaries: impl Iterator<Item=&'a [usize]>, meter: &Meter) -> CompileResult<Self> {
+        meter.spend(count.saturating_add(entry.len()).saturating_add(1))?;
+        let mut roles=vec![false;count];
+        for &index in entry { Self::mark(&mut roles,index)?; }
+        for row in boundaries {
+            meter.spend(row.len().saturating_add(1))?;
+            for &index in row { Self::mark(&mut roles,index)?; }
+        }
+        Ok(Self(roles))
+    }
+    fn mark(roles: &mut [bool], index: usize) -> CompileResult<()> {
+        let Some(role)=roles.get_mut(index) else {
+            return invalid("E-CODEGEN-TASK", "retirement boundary references an absent canonical owner", None);
+        };
+        *role=true; Ok(())
+    }
+    pub(super) fn group(&self, index: usize, module: &TypedModule, ty: &Type, meter: &Meter) -> CompileResult<Option<ClosureId>> {
+        meter.spend(1)?;
+        // Concrete Closure helpers are also called by actual DropClosure and
+        // consuming-invocation markers. Keep that complete helper directory.
+        // A non-Closure intermediate never exposed at a retirement boundary
+        // keeps its ordinary transfer/drop helper, but needs no resumable one.
+        if !self.0[index] && !matches!(enums::storage_shape(ty),Type::Closure(_)) { return Ok(None); }
+        closure(module,ty,meter)
+    }
+}
+
 pub(super) fn closure(module: &TypedModule, ty: &Type, meter: &Meter) -> CompileResult<Option<ClosureId>> {
     let physical=enums::storage_shape(ty);
     let Type::Closure(id)=physical else {
@@ -207,8 +245,9 @@ pub(super) fn helpers(layouts: &LayoutContext<'_>, verified: &VerifiedModule, me
     let mut pending=Vec::new();
     for f in &module.functions {
         if let Some(ownership)=verified.task_ownership(f.id) {
-            for owner in ownership.owners() {
-                if let Some(id)=closure(module,owner.ty(),meter)? { pending.push(id); }
+            let roles=RetirementRoles::of(ownership,meter)?;
+            for (index,owner) in ownership.owners().iter().enumerate() {
+                if let Some(id)=roles.group(index,module,owner.ty(),meter)? { pending.push(id); }
             }
             if let Some(ty)=ownership.result_type()
                 && let Some(id)=closure(module,ty,meter)? { pending.push(id); }
@@ -255,6 +294,41 @@ mod tests {
         assert!(closure(&wrong,&Type::Closure(ClosureId(0)),layouts.meter()).is_err());
         let mut missing=module.clone();missing.resources.pop();
         assert!(closure(&missing,&Type::Closure(ClosureId(0)),layouts.meter()).is_err());
+    }
+    #[test]
+    fn canonical_intermediate_keeps_ordinary_transfer_without_inventing_a_retirement_route() {
+        let module=module();let limits=zil_base::Limits::default();let meter=Meter::with_limits(limits.max_analysis_steps,&limits);
+        let ty=Type::ErrorUnion{error:Box::new(Type::Unit),result:Box::new(Type::Managed(Box::new(Type::TaskI32)))};
+        let rows=[vec![2],vec![],vec![4,2]];
+        let roles=RetirementRoles::from_rows(5,&[0],rows.iter().map(Vec::as_slice),&meter).unwrap();
+        assert_eq!(roles.0,vec![true,false,true,false,true]);
+        // A task_create result that is transferred before any suspension
+        // retains the exact ordinary tagged cleanup helper, not a fake Empty.
+        assert_eq!(roles.group(1,&module,&ty,&meter).unwrap(),None);
+        assert_eq!(drop_plan::task_leaf(&ty,&module.resources,&limits,&meter).unwrap(),Some(drop_plan::symbol(&ty)));
+        for index in [0,2,4] {
+            assert!(roles.group(index,&module,&ty,&meter).is_err(),"entry and every possible retirement boundary still require a real asynchronous field recipe");
+        }
+        // Saved results are independently reachable even if no boundary row
+        // names a local/SSA owner; they never pass through the intermediate lane.
+        assert!(closure(&module,&ty,&meter).is_err());
+        // Concrete environment helpers remain needed by actual closure-drop
+        // and consuming-call markers, independently of aggregate intermediates.
+        assert_eq!(roles.group(1,&module,&Type::Closure(ClosureId(0)),&meter).unwrap(),Some(ClosureId(0)));
+    }
+    #[test]
+    fn canonical_retirement_roles_reject_missing_indices_and_pay_all_boundary_rows() {
+        let rows=[vec![1,2],vec![],vec![2]];
+        let cost=4+1+1 + 3+1+2;
+        let exact=Meter::new(cost);
+        assert!(RetirementRoles::from_rows(4,&[0],rows.iter().map(Vec::as_slice),&exact).is_ok());
+        assert_eq!(exact.remaining(),0);
+        let short=Meter::new(cost-1);
+        assert!(RetirementRoles::from_rows(4,&[0],rows.iter().map(Vec::as_slice),&short).is_err());
+        let meter=Meter::new(100);
+        assert!(RetirementRoles::from_rows(2,&[2],std::iter::empty(),&meter).is_err());
+        let missing=[2];
+        assert!(RetirementRoles::from_rows(2,&[],std::iter::once(missing.as_slice()),&meter).is_err());
     }
     #[test]
     fn canonical_composite_async_debt_never_silently_selects_an_ordinary_helper() {
