@@ -10,13 +10,19 @@ pub(in crate::source_semantics) struct OriginalClosureScope {
 struct Bound {
     name: String,
     source: Option<SemanticOriginalTypeSource>,
+    pattern: bool,
+}
+#[derive(Default)]
+struct ValueUses {
+    names: Vec<NodeId>,
+    patterns: Vec<NodeId>,
 }
 struct Free<'a> {
     available: &'a BTreeSet<String>,
     bound: Vec<Bound>,
     found: Vec<(String, NodeId)>,
     scopes: Option<Vec<OriginalClosureScope>>,
-    value_uses: Option<Vec<NodeId>>,
+    value_uses: Option<ValueUses>,
     typing_stages: bool,
 }
 impl Builder<'_, '_, '_, '_> {
@@ -80,13 +86,13 @@ impl Builder<'_, '_, '_, '_> {
         body: &SemanticOriginalBlock,
         parameters: &[SemanticOriginalClosureParameter],
         available: &BTreeSet<String>,
-    ) -> R<Vec<NodeId>> {
+    ) -> R<(Vec<NodeId>, Vec<NodeId>)> {
         let mut free = Free {
             available,
             bound: Vec::new(),
             found: Vec::new(),
             scopes: None,
-            value_uses: Some(Vec::new()),
+            value_uses: Some(ValueUses::default()),
             typing_stages: true,
         };
         for (ordinal, parameter) in parameters.iter().enumerate() {
@@ -100,8 +106,9 @@ impl Builder<'_, '_, '_, '_> {
             )?;
         }
         self.free_block(body, &mut free, 0)?;
-        free.value_uses
-            .ok_or_else(|| error(body.span, "original runtime value-use mode was lost"))
+        let uses = free.value_uses
+            .ok_or_else(|| error(body.span, "original runtime value-use mode was lost"))?;
+        Ok((uses.names, uses.patterns))
     }
     fn free_bind(
         &mut self,
@@ -111,7 +118,7 @@ impl Builder<'_, '_, '_, '_> {
         span: Span,
     ) -> R<()> {
         let name = self.text(name, span)?;
-        self.push(&mut free.bound, Bound { name, source }, span)
+        self.push(&mut free.bound, Bound { name, source, pattern: false }, span)
     }
     fn free_closure_scope(
         &mut self,
@@ -182,7 +189,10 @@ impl Builder<'_, '_, '_, '_> {
             self.budget.text(&bound.name, span)?;
             if bound.name == name {
                 if let Some(uses) = free.value_uses.as_mut() {
-                    self.push(uses, id, span)?;
+                    self.push(&mut uses.names, id, span)?;
+                    if bound.pattern {
+                        self.push(&mut uses.patterns, id, span)?;
+                    }
                 }
                 return Ok(());
             }
@@ -199,7 +209,7 @@ impl Builder<'_, '_, '_, '_> {
             return Ok(());
         }
         if let Some(uses) = free.value_uses.as_mut() {
-            self.push(uses, id, span)?;
+            self.push(&mut uses.names, id, span)?;
             return Ok(());
         }
         for (previous, _) in &free.found {
@@ -222,7 +232,8 @@ impl Builder<'_, '_, '_, '_> {
         self.budget.node(pattern.span, depth)?;
         match &pattern.kind {
             CorePatternKind::Name(name) => {
-                self.free_bind(name, source, free, pattern.span)?;
+                let name = self.text(name, pattern.span)?;
+                self.push(&mut free.bound, Bound { name, source, pattern: true }, pattern.span)?;
             }
             CorePatternKind::Tuple(fields)
             | CorePatternKind::Variant { fields, .. }

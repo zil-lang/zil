@@ -171,6 +171,60 @@ impl Check<'_, '_> {
         Ok(result)
     }
 
+    // The source binds a Copy payload. The compiler reads it through the
+    // selected shared address while the actual Sum kernel checks its tag.
+    fn copied_pattern_local(
+        &self, function: &TypedFunction, local: LocalId, path: &[PlaceProjection],
+        address: ValueId, b: &mut Budget,
+    ) -> CompileResult<Option<LocalId>> {
+        let mut child = &function.locals.get(local.0 as usize)
+            .filter(|entry| entry.id == local)
+            .ok_or_else(|| fail("actual Copy binding has no whole pattern local"))?.ty;
+        for selector in path {
+            b.spend(1, WORK)?;
+            child = Self::pattern_child_type(child, *selector)
+                .ok_or_else(|| fail("actual Copy binding leaves its complete original pattern layout"))?;
+        }
+        let Some(Type::Address { mutable: false, inner }) = function.values.get(address.0 as usize) else {
+            return Err(fail("actual Copy pattern projection lacks its shared address result"));
+        };
+        if !geometry::same_type(child, inner, b)? {
+            return Err(fail("actual Copy pattern projection changes its exact Copy payload"));
+        }
+        if !child.is_copy_value() {
+            return Ok(None);
+        }
+        let mut destination = None;
+        for block in &function.blocks {
+            for (index, instruction) in block.instructions.iter().enumerate() {
+                b.spend(1, WORK)?;
+                if !matches!(instruction.kind, InstructionKind::ReadAddress { address: source } if source == address) {
+                    continue;
+                }
+                operations::available_before(function, (block.id, index, SemanticSiteEdge::Before), address, b)?;
+                let result = instruction.result.ok_or_else(|| fail("actual Copy pattern read has no value result"))?;
+                let output = function.values.get(result.0 as usize)
+                    .ok_or_else(|| fail("actual Copy pattern read result has no complete type"))?;
+                if !geometry::same_type(child, output, b)? {
+                    return Err(fail("actual Copy pattern read changes its complete payload"));
+                }
+                if let Some(local) = self.stored_pattern_value(function, result, b)? {
+                    let binding = function.locals.get(local.0 as usize)
+                        .filter(|entry| entry.id == local)
+                        .ok_or_else(|| fail("actual Copy pattern store has no binding local"))?;
+                    if !geometry::same_type(child, &binding.ty, b)? {
+                        return Err(fail("actual Copy pattern store changes its binding type"));
+                    }
+                    if destination.is_some_and(|previous| previous != local) {
+                        return Err(fail("actual Copy pattern payload has several binding destinations"));
+                    }
+                    destination = Some(local);
+                }
+            }
+        }
+        Ok(destination)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn projected_shared_value(
         &self,
@@ -528,6 +582,16 @@ impl Check<'_, '_> {
             for instruction in &block.instructions {
                 b.spend(1, WORK)?;
                 match &instruction.kind {
+                    InstructionKind::BorrowPlaceLocal { local, path: actual, mutable: false }
+                        if *local == root && origin.borrow.is_none() => {
+                        b.spend(actual.len().saturating_add(path.len() + 1), WORK)?;
+                        if *actual == path {
+                            let address = instruction.result.ok_or_else(|| fail("actual Copy pattern avoids its shared address result"))?;
+                            if let Some(local) = self.copied_pattern_local(function, root, &path, address, b)? {
+                                accept(local)?;
+                            }
+                        }
+                    }
                     InstructionKind::BorrowPlaceLocal { local, path: actual, mutable }
                         if *local == root && origin.borrow.is_some_and(|borrow| borrow.mutable == *mutable) => {
                         b.spend(actual.len().saturating_add(path.len() + 1), WORK)?;

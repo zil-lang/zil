@@ -228,6 +228,7 @@ fn recipe_work(
 struct DefinitionBodyNodes {
     definition: SemanticDefinitionId,
     value_names: Vec<zil_base::NodeId>,
+    pattern_names: Vec<zil_base::NodeId>,
     nodes: Vec<body::OriginalBodyNode>,
 }
 struct InvocationFrame {

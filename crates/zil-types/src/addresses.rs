@@ -816,6 +816,12 @@ impl Builder<'_, '_> {
                 if matches!(object.kind, CoreExprKind::Member { .. })
                     && let Some((local, path, field @ Type::Closure(_))) = self.local_product_path(e)?
                 {
+                    let mut root = object.as_ref();
+                    while let CoreExprKind::Member { object, .. } = &root.kind {
+                        self.closures.snapshot(1, root.span)?;
+                        root = object;
+                    }
+                    self.semantic_local_place(root, local)?;
                     if mutable && !self.function.locals[local.0 as usize].mutable {
                         return Err(error("E-IMMUTABLE-ASSIGNMENT", e.span,
                             "exclusive field borrow requires a mutable Package position"));
@@ -829,6 +835,7 @@ impl Builder<'_, '_> {
                     && let Some((local, index, field)) = self.package_place(e)?
                     && !(mutable && packages::product::owned_supported(&field))
                 {
+                    self.semantic_local_place(object, local)?;
                     return self.borrow_package_field(local, index, field, mutable, e.span);
                 }
                 let (address, ty) = self.projection_base(object, mutable)?;
@@ -925,6 +932,7 @@ impl Builder<'_, '_> {
                 if let Some((local, index, element @ Type::Closure(_))) =
                     self.owned_array_place(e)?
                 {
+                    self.semantic_local_place(object, local)?;
                     if mutable && !self.function.locals[local.0 as usize].mutable {
                         return Err(error(
                             "E-IMMUTABLE-ASSIGNMENT",

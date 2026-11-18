@@ -571,6 +571,24 @@ fn projection_navigation(
     }
     Ok(false)
 }
+
+fn projected_borrow_root(
+    body: &mut SourceBody<'_>, path: &[u32], budget: &mut Budget<'_>, span: Span,
+) -> R<bool> {
+    let mut length = path.len();
+    while length > 0 && path[length - 1] == 0 {
+        length -= 1;
+        let Some(parent) = body.locate(&path[..length], budget, span)? else { return Ok(false); };
+        let body_nodes::Node::Expression(expression) = parent.node else { return Ok(false); };
+        match &expression.kind {
+            s::ExprKind::Member { .. } | s::ExprKind::Index { .. } | s::ExprKind::Slice { .. }
+                | s::ExprKind::Group(_) => {},
+            s::ExprKind::Unary { op: s::UnaryOp::Borrow | s::UnaryOp::BorrowMut, .. } => return Ok(true),
+            _ => return Ok(false),
+        }
+    }
+    Ok(false)
+}
 fn implicit_observation(
     program: &mut program::Program,
     definition: SemanticDefinitionId,
@@ -775,6 +793,7 @@ fn operations(
     };
     let directory = program.original_nodes.remove(index);
     let mut value_names = directory.value_names;
+    let mut pattern_names = directory.pattern_names;
     budget.identity_work(
         value_names
             .len()
@@ -782,6 +801,9 @@ fn operations(
         span,
     )?;
     value_names.sort_unstable();
+    let pattern_search = pattern_names.len().checked_ilog2().unwrap_or(0) as usize + 1;
+    budget.identity_work(pattern_names.len().saturating_mul(pattern_search), span)?;
+    pattern_names.sort_unstable();
     let nodes = directory.nodes;
     for original in &nodes {
         let observation = observation_operand(
@@ -797,6 +819,11 @@ fn operations(
         let projection_value = projection_value(body, &original.path, budget, span)?;
         let navigation = assignment_navigation(body, &original.path, budget, span)?;
         let prefix = projection_navigation(body, &original.path, budget, span)?;
+        let borrowed_pattern_root = if prefix && !pattern_names.is_empty() {
+            budget.identity_work(pattern_search, span)?;
+            pattern_names.binary_search(&original.id).is_ok()
+                && projected_borrow_root(body, &original.path, budget, span)?
+        } else { false };
         let Some(located) = body.locate(&original.path, budget, span)? else {
             return Err(error(
                 span,
@@ -1106,7 +1133,7 @@ fn operations(
                 if let Some((kind, action, role)) = action {
                     if !runtime
                         || ((navigation
-                            || (prefix
+                            || (prefix && !borrowed_pattern_root
                                 && matches!(
                                     expression.kind,
                                     s::ExprKind::Name(_) | s::ExprKind::ReceiverMember(_)

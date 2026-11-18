@@ -623,8 +623,26 @@ impl CheckedContext {
                         pending.push((false,value.0,path,false));
                     },
                     InstructionKind::ReadAddress{address}=>{
-                        if path.pop()!=Some(LifeTypeProjection::Pointee){return Err(bad("pattern binding changes its original dereference boundary"));}
-                        pending.push((false,address.0,path,false));
+                        if path.last()==Some(&LifeTypeProjection::Pointee){
+                            path.pop();
+                            pending.push((false,address.0,path,false));
+                            continue;
+                        }
+                        let(_,_,borrow)=self.site_index.producers.get(f,*address,b)?;
+                        let InstructionKind::BorrowPlaceLocal{local,path:actual,mutable:false}=&borrow.kind else{
+                            return Err(bad("pattern binding changes its original dereference boundary"));
+                        };
+                        let output=f.values.get(index as usize).ok_or_else(||bad("pattern Copy read result has no complete type"))?;
+                        dynamic_metadata::ty(output,b)?;
+                        if !output.is_copy_value(){return Err(bad("pattern Copy read selects an owning payload"));}
+                        crate::check_instruction(module,f,borrow,b)?;
+                        for step in actual.iter().rev(){
+                            b.spend(1)?;
+                            if path.pop()!=Some(LifeTypeProjection::Place(*step)){
+                                return Err(bad("pattern Copy read changes its exact original selected place"));
+                            }
+                        }
+                        pending.push((true,local.0,path,false));
                     },
                     InstructionKind::TakeVariantField{local, path:actual}|InstructionKind::TakeTupleField{local,path:actual}=>{
                         for step in actual.iter().rev(){b.spend(1)?;if path.pop()!=Some(LifeTypeProjection::Place(*step)){return Err(bad("pattern binding changes its exact original selected place"));}}pending.push((true,local.0,path,false));

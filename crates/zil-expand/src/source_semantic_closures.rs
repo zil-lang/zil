@@ -444,11 +444,11 @@ impl Builder<'_, '_, '_, '_> {
             // runtime ClosureId or an inferred implementation target.
             let component = self.text(&id.index.to_string(), span)?;
             self.push(&mut identity.declaration_path, component, span)?;
-            let value_names = match &original.body {
+            let (value_names, pattern_names) = match &original.body {
                 SemanticOriginalFunctionBody::Defined(body) => {
                     self.original_value_uses(body, &parameters, &available)?
                 }
-                _ => Vec::new(),
+                _ => (Vec::new(), Vec::new()),
             };
             let definition = SemanticDefinition {
                 id,
@@ -478,6 +478,7 @@ impl Builder<'_, '_, '_, '_> {
                 DefinitionBodyNodes {
                     definition: id,
                     value_names,
+                    pattern_names,
                     nodes: original.nodes,
                 },
                 span,

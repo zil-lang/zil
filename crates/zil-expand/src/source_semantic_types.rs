@@ -1312,17 +1312,18 @@ impl Builder<'_, '_, '_, '_> {
                         input.span,
                     )?;
                 }
-                let value_names = match &body {
+                let (value_names, pattern_names) = match &body {
                     SemanticOriginalFunctionBody::Defined(body) => self.original_value_uses(
                         body,
                         &original_parameters,
                         &std::collections::BTreeSet::new(),
                     )?,
-                    _ => Vec::new(),
+                    _ => (Vec::new(), Vec::new()),
                 };
                 let body_index = DefinitionBodyNodes {
                     definition: self.id(index),
                     value_names,
+                    pattern_names,
                     nodes: original_body.nodes,
                 };
                 let mut indices = std::mem::take(&mut self.body_nodes);
