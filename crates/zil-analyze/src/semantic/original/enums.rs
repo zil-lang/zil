@@ -148,40 +148,11 @@ impl Solver<'_, '_> {
         if self.local(frame, path[0], b)?.is_some() {
             return Ok(None);
         }
-        let declaration = self.inventory.definition(frame.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { names, .. } = &declaration.body else {
-            return Err(fail(
-                "original enum constructor lacks its lexical name inventory",
-            ));
-        };
-        let mut selected = None;
-        for binding in names {
-            b.spend(
-                binding
-                    .path
-                    .iter()
-                    .map(String::len)
-                    .sum::<usize>()
-                    .saturating_add(path.iter().map(|s| s.len()).sum::<usize>() + 1),
-                WORK,
-            )?;
-            if binding.namespace == SemanticOriginalNamespace::Value
-                && binding.path.len() == 1
-                && binding.path[0] == path[0]
-            {
-                return Ok(None);
-            }
-            if binding.namespace != SemanticOriginalNamespace::Type
-                || binding.path.len() != path.len()
-                || !binding.path.iter().zip(&path).all(|(a, b)| a == b)
-            {
-                continue;
-            }
-            if selected.replace(&binding.value).is_some() {
-                return Err(fail("original enum owner has competing type bindings"));
-            }
+        let names = self.inventory.original_index(frame.definition, b)?;
+        if names.name(SemanticOriginalNamespace::Value, &path[..1], b)?.is_some() {
+            return Ok(None);
         }
-        let Some(selected) = selected else {
+        let Some(selected) = names.name(SemanticOriginalNamespace::Type, &path, b)? else {
             return Ok(None);
         };
         let value = match selected {

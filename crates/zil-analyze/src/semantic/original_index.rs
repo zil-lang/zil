@@ -14,16 +14,45 @@ impl<T> Copy for Node<'_, T> {}
 impl<T> Clone for Node<'_, T> {
     fn clone(&self) -> Self { *self }
 }
+type NameRows<'a> = [BTreeMap<Vec<&'a str>, &'a SemanticOriginalNameValue>; 3];
+fn namespace_index(namespace: &SemanticOriginalNamespace) -> usize {
+    match namespace {
+        SemanticOriginalNamespace::Value => 0,
+        SemanticOriginalNamespace::Type => 1,
+        SemanticOriginalNamespace::Lifetime => 2,
+    }
+}
 pub(super) struct Index<'a, T = SemanticTypeRecipe> {
     nodes: BTreeMap<NodeId, Node<'a, T>>,
     erased: BTreeSet<NodeId>,
     navigation: BTreeSet<NodeId>,
+    names: NameRows<'a>,
     declarations: BTreeMap<NodeId, SemanticSiteId>,
     recipes: BTreeMap<u32, &'a SemanticSiteRecipe>,
     site_nodes: BTreeMap<u32, SemanticOriginalNode>,
     events: BTreeMap<(NodeId, EventRole), SemanticSiteId>,
 }
 impl<'a> Index<'a> {
+    /// Query an exact lexical path in its declared namespace. Local shadowing
+    /// and the binding's admissible role are still checked by each operation.
+    pub(super) fn name(
+        &self,
+        namespace: SemanticOriginalNamespace,
+        path: &[&str],
+        b: &mut Budget,
+    ) -> CompileResult<Option<&'a SemanticOriginalNameValue>> {
+        let rows = &self.names[namespace_index(&namespace)];
+        let width = path
+            .iter()
+            .fold(path.len(), |size, part| size.saturating_add(part.len()));
+        b.product(
+            width.saturating_add(1),
+            rows.len().checked_ilog2().map_or(1, |n| n as usize + 2),
+            1,
+            WORK,
+        )?;
+        Ok(rows.get(path).copied())
+    }
     /// All runtime returns of this exact definition, including returns reached
     /// through expression operands. The exhaustive walk owns the boundary:
     /// nested closure bodies have their own directories, and erased CT bodies
@@ -453,6 +482,7 @@ fn walk_from<'a, T>(root: Work<'a, T>, b: &mut Budget) -> CompileResult<Index<'a
         nodes,
         erased,
         navigation,
+        names: Default::default(),
         declarations: BTreeMap::new(),
         recipes: BTreeMap::new(),
         site_nodes: BTreeMap::new(),
@@ -739,18 +769,14 @@ fn no_infer(value: &SemanticActualRecipe, b: &mut Budget) -> CompileResult<()> {
     }
     Ok(())
 }
-fn names(values: &[SemanticOriginalNameBinding], b: &mut Budget) -> CompileResult<()> {
-    let mut seen = BTreeSet::new();
+fn names<'a>(values: &'a [SemanticOriginalNameBinding], b: &mut Budget) -> CompileResult<NameRows<'a>> {
+    let mut names: NameRows<'a> = Default::default();
     for value in values {
         b.spend(1, WORK)?;
         if value.path.is_empty() || value.path.iter().any(String::is_empty) {
             return Err(bad("original name binding has an empty path component"));
         }
-        let namespace = match value.namespace {
-            SemanticOriginalNamespace::Value => 0u8,
-            SemanticOriginalNamespace::Type => 1,
-            SemanticOriginalNamespace::Lifetime => 2,
-        };
+        let rows = &mut names[namespace_index(&value.namespace)];
         let width = value
             .path
             .iter()
@@ -760,11 +786,13 @@ fn names(values: &[SemanticOriginalNameBinding], b: &mut Budget) -> CompileResul
             .ok_or_else(|| bad("original name comparison size overflows"))?;
         b.product(
             width,
-            seen.len().checked_ilog2().map_or(1, |n| n as usize + 2),
+            rows.len().checked_ilog2().map_or(1, |n| n as usize + 2),
             1,
             WORK,
         )?;
-        if !seen.insert((namespace, value.path.as_slice())) {
+        b.spend(value.path.len(), WORK)?;
+        let path: Vec<_> = value.path.iter().map(String::as_str).collect();
+        if rows.insert(path, &value.value).is_some() {
             return Err(bad("original name path and namespace are bound twice"));
         }
         match (&value.namespace, &value.value) {
@@ -791,7 +819,7 @@ fn names(values: &[SemanticOriginalNameBinding], b: &mut Budget) -> CompileResul
             }
         }
     }
-    Ok(())
+    Ok(names)
 }
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum EventRole { Construct, Call, TypeUse, DeclareLocal, Closure }
@@ -857,7 +885,7 @@ pub(super) fn index<'a>(
             "original operation index requires a complete original function body",
         ));
     };
-    names(bindings, b)?;
+    let validated_names = names(bindings, b)?;
     let mut output = match body {
         SemanticOriginalFunctionBody::Defined(body) => walk(body, b)?,
         SemanticOriginalFunctionBody::External | SemanticOriginalFunctionBody::Declaration => {
@@ -865,6 +893,7 @@ pub(super) fn index<'a>(
                 nodes: BTreeMap::new(),
                 erased: BTreeSet::new(),
                 navigation: BTreeSet::new(),
+                names: Default::default(),
                 declarations: BTreeMap::new(),
                 recipes: BTreeMap::new(),
         site_nodes: BTreeMap::new(),
@@ -872,6 +901,7 @@ pub(super) fn index<'a>(
             }
         }
     };
+    output.names = validated_names;
     let mut recipes = BTreeMap::new();
     for recipe in sites {
         b.lookup(recipes.len(), WORK)?;

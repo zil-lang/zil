@@ -1037,62 +1037,96 @@ fn afters_reserved(
     reserved: Option<&[Vec<Vec<ValueId>>]>,
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<Live>>> {
-    budget.product(f.blocks.len(), 2, 1, "resource liveness blocks")?;
+    let count = f.blocks.len();
+    budget.product(count, 6, 1, "description liveness CFG storage")?;
     let transfers = description_inventory(f, reachable, shapes, budget)?;
-    let mut entry = vec![Live::new(); f.blocks.len()];
-    let mut exit = entry.clone();
-    loop {
-        let mut changed = false;
-        for (b, block) in f.blocks.iter().enumerate().rev() {
-            if !reachable[b] {
-                continue;
+    let mut predecessors = vec![Vec::new(); count];
+    let mut result = Vec::with_capacity(count);
+    for (block, body) in f.blocks.iter().enumerate() {
+        budget.spend(
+            body.instructions.len(),
+            "description liveness history storage",
+        )?;
+        result.push(vec![Live::new(); body.instructions.len()]);
+        if reachable[block] {
+            for successor in next(body) {
+                budget.spend(2, "description liveness CFG edge")?;
+                predecessors
+                    .get_mut(successor)
+                    .ok_or_else(|| error("invalid resource CFG edge"))?
+                    .push(block);
             }
-            let mut live = Live::new();
-            for successor in next(block) {
-                let incoming = entry
-                    .get(successor)
-                    .ok_or_else(|| error("invalid resource CFG edge"))?;
-                budget.spend(
-                    live.len().saturating_add(incoming.len()),
-                    "description liveness union",
-                )?;
-                live.extend(incoming);
-            }
-            budget.spend(live.len(), "description liveness exit clone")?;
-            exit[b] = live.clone();
-            for position in (0..block.instructions.len()).rev() {
-                transfers[b][position].reverse(&mut live, budget)?;
-                if let Some(reserved) = reserved {
-                    retained_uses(&mut live, &reserved[b][position], shapes, budget)?;
-                }
-            }
-            budget.spend(
-                live.len().saturating_add(entry[b].len()).saturating_add(1),
-                "description liveness convergence",
-            )?;
-            if live != entry[b] {
-                changed = true;
-                entry[b] = live;
-            }
-        }
-        if !changed {
-            break;
         }
     }
-    let mut result = vec![];
-    for (b, block) in f.blocks.iter().enumerate() {
-        budget.spend(block.instructions.len(), "description liveness history")?;
-        let mut rows = vec![Live::new(); block.instructions.len()];
-        let mut live = std::mem::take(&mut exit[b]);
-        for j in (0..block.instructions.len()).rev() {
-            budget.spend(live.len(), "description liveness history clone")?;
-            rows[j] = live.clone();
-            transfers[b][j].reverse(&mut live, budget)?;
-            if let Some(reserved) = reserved {
-                retained_uses(&mut live, &reserved[b][j], shapes, budget)?;
+    // A successor contributes only its entry set. When that set grows, exactly
+    // its predecessors need another visit. Each final row is the set after
+    // its actual instruction, including any retained replacement operands.
+    let mut entry: Vec<Option<Live>> = vec![None; count];
+    let mut pending: VecDeque<_> = (0..count).rev().collect();
+    let mut queued = vec![true; count];
+    while let Some(block) = pending.pop_front() {
+        budget.spend(1, "description liveness worklist visit")?;
+        queued[block] = false;
+        let mut live = Live::new();
+        if reachable[block] {
+            for successor in next(&f.blocks[block]) {
+                budget.spend(1, "description liveness successor")?;
+                if let Some(incoming) = &entry[successor] {
+                    budget.spend(
+                        live.len().saturating_add(incoming.len()),
+                        "description liveness union",
+                    )?;
+                    live.extend(incoming);
+                }
             }
         }
-        result.push(rows);
+        let rows = &mut result[block];
+        if let Some(previous_entry) = &entry[block] {
+            // In an empty block, entry is also exit. Otherwise the last
+            // instruction's after-set already stores the previous exit.
+            let previous_exit = rows.last().unwrap_or(previous_entry);
+            budget.spend(
+                live.len().min(previous_exit.len()).saturating_add(1),
+                "description liveness exit equality",
+            )?;
+            if live == *previous_exit {
+                continue;
+            }
+        }
+        for (position, row) in rows.iter_mut().enumerate().rev() {
+            budget.spend(
+                live.len().saturating_add(row.len()),
+                "description liveness history clone",
+            )?;
+            row.clone_from(&live);
+            transfers[block][position].reverse(&mut live, budget)?;
+            if let Some(reserved) = reserved {
+                retained_uses(&mut live, &reserved[block][position], shapes, budget)?;
+            }
+        }
+        let changed = match &entry[block] {
+            Some(previous) => {
+                budget.spend(
+                    live.len().min(previous.len()).saturating_add(1),
+                    "description liveness entry equality",
+                )?;
+                live != *previous
+            }
+            None => !live.is_empty(),
+        };
+        entry[block] = Some(live);
+        if changed {
+            budget.spend(
+                predecessors[block].len(),
+                "description liveness predecessor schedule",
+            )?;
+            for &predecessor in &predecessors[block] {
+                if !queued[predecessor] {
+                    queued[predecessor] = true;
+                    pending.push_back(predecessor);
+                }
+            }
+        }
     }
     Ok(result)
 }

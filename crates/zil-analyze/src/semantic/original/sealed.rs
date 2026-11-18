@@ -169,36 +169,8 @@ pub(super) fn resolve(
     if locals.contains(path[0]) {
         return Ok(Resolution::Deferred);
     }
-    let definition = inventory.definition(owner, b)?;
-    let SemanticDefinitionBody::FunctionWithBody { names, .. } = &definition.body else {
-        return Err(fail(
-            "core operation resolution has no complete original name table",
-        ));
-    };
-    let mut bound = None;
-    for binding in names {
-        b.spend(
-            binding
-                .path
-                .iter()
-                .map(String::len)
-                .sum::<usize>()
-                .saturating_add(path.iter().map(|part| part.len()).sum::<usize>() + 1),
-            WORK,
-        )?;
-        if binding.namespace != SemanticOriginalNamespace::Value
-            || binding.path.len() != path.len()
-            || !binding.path.iter().zip(path).all(|(a, b)| a == b)
-        {
-            continue;
-        }
-        if bound.replace(&binding.value).is_some() {
-            return Err(fail(
-                "core operation has ambiguous original lexical bindings",
-            ));
-        }
-    }
-    if let Some(bound) = bound {
+    let index = inventory.original_index(owner, b)?;
+    if let Some(bound) = index.name(SemanticOriginalNamespace::Value, path, b)? {
         return match bound {
             SemanticOriginalNameValue::Definition(id) => {
                 inventory.definition(*id, b)?;
@@ -213,23 +185,10 @@ pub(super) fn resolve(
     let Some(intrinsic) = Intrinsic::lookup(path[0]) else {
         return Ok(Resolution::Deferred);
     };
-    if matches!(intrinsic, Intrinsic::NumericConvert(_)) {
-        for binding in names {
-            b.spend(
-                binding
-                    .path
-                    .iter()
-                    .map(String::len)
-                    .sum::<usize>()
-                    .saturating_add(path[0].len() + 1),
-                WORK,
-            )?;
-            if binding.namespace == SemanticOriginalNamespace::Type
-                && binding.path.as_slice() == [path[0]]
-            {
-                return Ok(Resolution::Deferred);
-            }
-        }
+    if matches!(intrinsic, Intrinsic::NumericConvert(_))
+        && index.name(SemanticOriginalNamespace::Type, path, b)?.is_some()
+    {
+        return Ok(Resolution::Deferred);
     }
     // A same-module declaration cannot disappear from Names to uncover a core
     // operation. Imports must likewise have their real explicit name binding;

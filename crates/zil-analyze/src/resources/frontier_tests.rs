@@ -583,3 +583,117 @@ fn ordinary_error_option_cfg_order_matches_complete_stack_fixed_point() {
         }
     }
 }
+
+#[test]
+fn description_liveness_keeps_loop_exits_and_reserved_operands_at_their_instruction() {
+    let mut module = fixture(&[vec![]], &[0]);
+    let f = &mut module.functions[0];
+    f.values
+        .extend([Type::Bool, desc(), desc(), desc(), desc()]);
+    let branch = |yes, no| Terminator::Branch {
+        condition: ValueId(3),
+        then_block: BlockId(yes),
+        else_block: BlockId(no),
+    };
+    let load = |result, local| instruction(Some(result), InstructionKind::Load(LocalId(local)));
+    let end = Terminator::Return(Some(ValueId(2)));
+    f.blocks = [
+        (
+            vec![
+                instruction(Some(2), InstructionKind::Constant(Constant::I32(1))),
+                instruction(Some(3), InstructionKind::Constant(Constant::Bool(true))),
+                load(0, 0),
+                load(1, 1),
+            ],
+            branch(1, 2),
+        ),
+        (
+            vec![
+                instruction(None, InstructionKind::StorageDead(LocalId(0))),
+                instruction(
+                    None,
+                    InstructionKind::WriteDesc {
+                        desc: ValueId(0),
+                        index: 0,
+                        value: ValueId(2),
+                    },
+                ),
+            ],
+            Terminator::Jump(BlockId(3)),
+        ),
+        (
+            vec![instruction(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(1),
+                    value: ValueId(1),
+                },
+            )],
+            Terminator::Jump(BlockId(3)),
+        ),
+        (vec![load(4, 0)], branch(1, 4)),
+        (vec![load(5, 1)], end.clone()),
+        (vec![load(6, 0), load(7, 1)], end),
+    ]
+    .into_iter()
+    .enumerate()
+    .map(|(index, (instructions, terminator))| BasicBlock {
+        id: BlockId(index as u32),
+        instructions,
+        terminator,
+    })
+    .collect();
+    let reachable = [true, true, true, true, true, false];
+    let a = Place::Local(LocalId(0));
+    let b = Place::Local(LocalId(1));
+    let u = Place::Value(ValueId(0));
+    let v = Place::Value(ValueId(1));
+    let shapes: Shapes = [a, b, u, v]
+        .into_iter()
+        .map(|p| {
+            (
+                p,
+                Shape {
+                    owned: false,
+                    description: true,
+                },
+            )
+        })
+        .collect();
+    let mut reserved: Vec<_> = f
+        .blocks
+        .iter()
+        .map(|block| vec![vec![]; block.instructions.len()])
+        .collect();
+    reserved[4][0].push(ValueId(1));
+    for retained in [false, true] {
+        let actual = afters_reserved(
+            f,
+            &reachable,
+            &shapes,
+            retained.then_some(&reserved),
+            &mut Budget::new(&Limits::default()),
+        )
+        .unwrap();
+        let mut loop_entry = Live::from([a, b, u]);
+        let mut loop_exit = Live::from([b, u]);
+        if retained {
+            loop_entry.insert(v);
+            loop_exit.insert(v);
+        }
+        let expected = vec![
+            vec![
+                Live::from([a, b]),
+                Live::from([a, b]),
+                Live::from([a, b, u]),
+                Live::from([a, b, u, v]),
+            ],
+            vec![loop_entry.clone(), loop_entry.clone()],
+            vec![loop_entry],
+            vec![loop_exit],
+            vec![Live::new()],
+            vec![Live::from([b]), Live::new()],
+        ];
+        assert_eq!(actual, expected, "replacement operand retained={retained}");
+    }
+}

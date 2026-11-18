@@ -586,7 +586,7 @@ impl Checked {
             ));
         }
         match &self.arena[self.root(term, b)?] {
-            Kind::Atom(ty) => Ok(value::scalar(ty.clone())),
+            Kind::Atom(ty) => value::borrowed_scalar(ty, inventory, b),
             Kind::Task(task) => self.task_value(task, context, program, inventory, b, depth + 1),
             Kind::Dyn(ty) => self.dyn_value(ty, context, program, inventory, b, depth + 1),
             Kind::MutexGuard { payload, life } => {
@@ -979,7 +979,7 @@ impl Checked {
             && ty.is_b0_scalar()
         {
             b.spend(1, WORK)?;
-            return Ok(value::scalar(ty.clone()));
+            return value::borrowed_scalar(ty, inventory, b);
         }
         // A frozen original call retains its complete declaration type but
         // has no runtime Call result to seed. Observe its plain value only

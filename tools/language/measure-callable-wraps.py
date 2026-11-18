@@ -56,8 +56,13 @@ def main():
     cli = args.cli.resolve()
     receipt = read(args.receipt)
     matrix = read(args.campaign / 'report.json')
+    # wait4 can include the forked measurement process's pre-exec RSS. Stream
+    # the compiler digest so that a binary-sized Python buffer cannot set the
+    # same artificial RSS floor for every independently executed program.
+    with cli.open('rb') as binary:
+        compiler_digest = hashlib.file_digest(binary, 'sha256').hexdigest()
     if (receipt['exit_code'] or receipt['source_commit'] != matrix['candidate'] or
-            hashlib.sha256(cli.read_bytes()).hexdigest() != receipt['cli_sha256']):
+            compiler_digest != receipt['cli_sha256']):
         parser.error('The CLI, build receipt and campaign must identify the same candidate')
     samples = []
     with tempfile.TemporaryDirectory() as directory:

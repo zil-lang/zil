@@ -375,39 +375,14 @@ impl Solver<'_, '_> {
         depth: usize,
     ) -> CompileResult<Term> {
         self.step(depth, b)?;
-        let definition = self.inventory.definition(frame.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { names, .. } = &definition.body else {
-            return Err(fail("written lifetime has no complete lexical name table"));
-        };
+        let names = self.inventory.original_index(frame.definition, b)?;
         let name = name.strip_prefix('\'').unwrap_or(name);
-        let mut selected = None;
-        for binding in names {
-            b.spend(
-                name.len()
-                    .saturating_add(binding.path.iter().map(String::len).sum::<usize>() + 1),
-                WORK,
-            )?;
-            if binding.namespace == SemanticOriginalNamespace::Lifetime
-                && binding.path.as_slice() == [name]
-            {
-                let SemanticOriginalNameValue::Recipe(SemanticActualRecipe::Life(life)) =
-                    &binding.value
-                else {
-                    return Err(fail("written lifetime name has another original kind"));
-                };
-                if selected.replace(life).is_some() {
-                    return Err(fail("written lifetime name is ambiguous"));
-                }
-            }
+        match names.name(SemanticOriginalNamespace::Lifetime, &[name], b)? {
+            Some(SemanticOriginalNameValue::Recipe(SemanticActualRecipe::Life(life))) =>
+                self.life(frame, life, b, depth + 1),
+            Some(_) => Err(fail("written lifetime name has another original kind")),
+            None => Err(fail("written lifetime is absent from its original lexical context")),
         }
-        self.life(
-            frame,
-            selected.ok_or_else(|| {
-                fail("written lifetime is absent from its original lexical context")
-            })?,
-            b,
-            depth + 1,
-        )
     }
     pub(super) fn instantiate(
         &mut self,
