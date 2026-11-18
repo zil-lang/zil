@@ -101,6 +101,24 @@ impl Variants {
         self.nested.iter().find(|(p,_)|p.as_slice()==[*step])
             .is_none_or(|(_,child)|child.path_active(tail))
     }
+    pub(super) fn excludes_path(&self, path: &[PlaceProjection], b: &mut Budget) -> Check<bool> {
+        let mut row = self;
+        for step in path {
+            b.spend(row.nested.len().saturating_add(row.constructed.len()).saturating_add(1))?;
+            let tag = match step {
+                PlaceProjection::ErrorArm(arm) => Some(u32::from(*arm)),
+                PlaceProjection::Variant(field) => Some(field.variant),
+                _ => None,
+            };
+            if let Some(tag) = tag && tag < row.domain && row.inputs.is_empty()
+                && !row.constructed.is_empty() && row.constructed.binary_search(&tag).is_err() {
+                return Ok(true);
+            }
+            let Some((_, child)) = row.nested.iter().find(|(p, _)| p.as_slice() == [*step]) else { break; };
+            row = child;
+        }
+        Ok(false)
+    }
     pub(in crate::stored_flow) fn project(&self,path:&[PlaceProjection],b:&mut Budget)->Check<Self>{
         let mut current=self;
         for step in path {

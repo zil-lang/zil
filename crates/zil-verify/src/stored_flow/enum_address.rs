@@ -645,31 +645,60 @@ impl Variants {
         &self,b:&mut Budget,
         actual:&mut impl FnMut(option_address::Input,&[PlaceProjection],&mut Budget)->Check<Self>,
     )->Check<(Self,bool)>{
-        if !self.present(){return Ok((Self::default(),true));}
-        self.work(b)?;
-        let mut out=Self{domain:self.domain,constructed:self.constructed.clone(),..Self::default()};
-        let mut known=true;
-        for(input,path)in &self.inputs{
-            b.spend(path.len().saturating_add(1))?;
-            let selected=actual(*input,path,b)?;
-            known&=selected.domain==self.domain&&(!selected.constructed.is_empty()||!selected.inputs.is_empty());
-            selected.work(b)?;
-            let root=Self{domain:selected.domain,constructed:selected.constructed.clone(),inputs:selected.inputs.clone(),..Self::default()};
-            out.join(&root,b)?;
-        }
-        for(path,child)in &self.nested{
-            if matches!(path.as_slice(),[PlaceProjection::ErrorArm(arm)]if !out.active(u32::from(*arm))){continue;}
-            let(value,ready)=child.substitute_with(b,actual)?;known&=ready;
-            b.spend(path.len().saturating_add(1))?;out.nested.push((path.clone(),value));
-        }
-        Ok((out,known))
+        let (value, known) = self.substitute_inputs(b, &mut |input, path, b| actual(input, path, b).map(Some))?;
+        Ok((value.unwrap_or_default(), known))
     }
-    pub(super) fn substitute_known(&self,arguments:&[ValueId],values:&[Payload],b:&mut Budget)->Check<(Self,bool)>{
-        self.substitute_with(b,&mut |input,path,b|{
-            let option_address::Input::Parameter(input)=input else{return Ok(Self::default());};
-            let payload=arguments.get(input as usize).and_then(|v|values.get(v.0 as usize)).ok_or_else(||err("Enum result dependency has no actual argument"))?;
-            payload.enum_variants.project(path,b)
-        })
+    // None denotes a real, proved inactive input selector. A missing tag
+    // directory is still an unresolved input and keeps the summary pending.
+    fn substitute_inputs(&self, b: &mut Budget,
+        actual: &mut impl FnMut(option_address::Input, &[PlaceProjection], &mut Budget) -> Check<Option<Self>>,
+    ) -> Check<(Option<Self>, bool)> {
+        if !self.present() { return Ok((Some(Self::default()), true)); }
+        self.work(b)?;
+        let mut out = Self { domain: self.domain, constructed: self.constructed.clone(), ..Self::default() };
+        let mut known = true;
+        let mut excluded = false;
+        for (input, path) in &self.inputs {
+            b.spend(path.len().saturating_add(1))?;
+            let Some(selected) = actual(*input, path, b)? else { excluded = true; continue; };
+            known &= selected.domain == self.domain && (!selected.constructed.is_empty() || !selected.inputs.is_empty());
+            selected.work(b)?;
+            let root = Self { domain: selected.domain, constructed: selected.constructed, inputs: selected.inputs, ..Self::default() };
+            out.join(&root, b)?;
+        }
+        for (path, child) in &self.nested {
+            if matches!(path.as_slice(),[PlaceProjection::ErrorArm(arm)] if !out.active(u32::from(*arm))) { continue; }
+            let (value, ready) = child.substitute_inputs(b, actual)?;
+            known &= ready;
+            b.spend(path.len().saturating_add(1))?;
+            if let Some(value) = value {
+                out.nested.push((path.clone(), value));
+            } else if let [PlaceProjection::ErrorArm(arm)] = path.as_slice()
+                && out.inputs.is_empty() {
+                // This concrete arm requires the projected payload. Every
+                // callee source of that payload is excluded by a caller tag.
+                b.spend(out.constructed.len())?;
+                out.constructed.retain(|tag| *tag != u32::from(*arm));
+                excluded = true;
+            } else {
+                known = false;
+            }
+        }
+        if known && excluded && out.constructed.is_empty() && out.inputs.is_empty() {
+            return Ok((None, true));
+        }
+        Ok((Some(out), known))
+    }
+    pub(super) fn substitute_known(&self, arguments: &[ValueId], values: &[Payload], b: &mut Budget) -> Check<(Self, bool)> {
+        let (value, known) = self.substitute_inputs(b, &mut |input, path, b| {
+            let option_address::Input::Parameter(input) = input else { return Ok(Some(Self::default())); };
+            let payload = arguments.get(input as usize).and_then(|v| values.get(v.0 as usize))
+                .ok_or_else(|| err("Enum result dependency has no actual argument"))?;
+            if payload.enum_variants.excludes_path(path, b)? { return Ok(None); }
+            payload.enum_variants.project(path, b).map(Some)
+        })?;
+        let complete = known && value.is_some();
+        Ok((value.unwrap_or_default(), complete))
     }
     pub(super) fn substitute(&self,arguments:&[ValueId],values:&[Payload],b:&mut Budget)->Check<Self>{
         let(value,known)=self.substitute_known(arguments,values,b)?;
@@ -1145,4 +1174,44 @@ pub(super) fn poll_instance(instance: &LifeNominalInstance, b: &mut Budget) -> C
         return Err(err("Poll lacks its complete shared payload shape"));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod substitution_tests {
+    use super::*;
+
+    #[test]
+    fn propagated_error_tag_needs_an_active_parameter_arm() {
+        let limits = zil_base::Limits::default();
+        let mut b = Budget::new(&limits);
+        let error = vec![PlaceProjection::ErrorArm(true)];
+        let parameter_error = Variants {
+            domain: 3,
+            inputs: vec![(option_address::Input::Parameter(0), error.clone())],
+            ..Variants::default()
+        };
+        let result = Variants {
+            domain: 2,
+            constructed: vec![0, 1],
+            nested: vec![(error.clone(), parameter_error)],
+            ..Variants::default()
+        };
+        let resolve = |tags: Variants, b: &mut Budget| {
+            let input = Payload { enum_variants: tags, ..Payload::default() };
+            result.substitute_known(&[ValueId(0)], &[input], b).unwrap()
+        };
+        let tagged = |tag| Variants { domain: 2, constructed: vec![tag], ..Variants::default() };
+        let (success, known) = resolve(tagged(0), &mut b);
+        assert!(known);
+        assert_eq!(success.constructed, [0]);
+        assert!(success.nested.is_empty());
+        assert!(!resolve(Variants::default(), &mut b).1);
+        assert!(!resolve(tagged(1), &mut b).1);
+
+        let mut failure = tagged(1);
+        failure.nested.push((error.clone(), Variants { domain: 3, constructed: vec![2], ..Variants::default() }));
+        let (result, known) = resolve(failure, &mut b);
+        assert!(known && result.active(1));
+        assert_eq!(result.project(&error, &mut b).unwrap().constructed, [2]);
+    }
 }
