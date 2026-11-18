@@ -1068,6 +1068,23 @@ impl<'a> Inventory<'a> {
                     }
                 }
                 (
+                    SemanticSiteRecipeKind::Closure { definition, environment },
+                    SemanticSiteAction::TypeUse {
+                        subject: SemanticOperand::Value(result),
+                        expected: SemanticTypeValue::Resolved { ty: Type::FunctionPointer { .. }, .. },
+                    },
+                ) => {
+                    let child = self.definition(*definition, b)?;
+                    if child.parent != Some(instance.definition) || !environment.is_empty()
+                        || !child.environment.is_empty() || edge != SemanticSiteEdge::After
+                        || !matches!(actual, Some(instruction) if instruction.result == Some(*result)
+                            && matches!(instruction.kind, InstructionKind::FunctionRef { .. }))
+                        || !matches!(function.values.get(result.0 as usize), Some(Type::FunctionPointer { .. }))
+                    {
+                        return Err(fail("thin closure site changes its original code creation boundary"));
+                    }
+                }
+                (
                     SemanticSiteRecipeKind::Closure { .. },
                     SemanticSiteAction::Closure {
                         result: SemanticOperand::Value(result),

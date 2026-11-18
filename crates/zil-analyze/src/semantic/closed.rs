@@ -872,6 +872,9 @@ impl Check<'_, '_> {
                 }
                 (SemanticDefinitionKind::Closure, Some(actual), Some(environment))
                     if environment.closure == SemanticClosureTarget::Typed(actual) => {}
+                (SemanticDefinitionKind::Closure, None, None) => {
+                    self.thin_child_creator(instance, function.id, b)?;
+                }
                 _ => {
                     return Err(unknown(
                         "original function kind requires its exact entry and creator environment proof",

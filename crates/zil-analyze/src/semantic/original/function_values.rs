@@ -150,6 +150,54 @@ impl Solver<'_, '_> {
             ));
         }
         let (_, parameters, result) = self.scheme(frame, None, target, &[], None, b, depth + 1)?;
+        self.fixed_code_value(frame.definition, value.id, target, parameters, result, signature, b)
+            .map(Some)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn thin_closure_value(
+        &mut self,
+        frame: &Frame,
+        node: NodeId,
+        target: SemanticDefinitionId,
+        captures: bool,
+        parameters: Vec<Term>,
+        result: Term,
+        signature: &SemanticSignatureRecipe,
+        unchanged: Term,
+        b: &mut Budget,
+    ) -> CompileResult<Term> {
+        let Some(receiving) = self.receiving_for(frame, node, b)? else {
+            return Ok(unchanged);
+        };
+        if !matches!(self.state.arena[self.type_root(receiving, b)?],
+            Kind::Code { kind: SemanticCodeKind::FunctionPointer, .. })
+        {
+            return Ok(unchanged);
+        }
+        let declaration = self.inventory.definition(target, b)?;
+        if captures || !declaration.environment.is_empty() || !declaration.parameters.is_empty() {
+            return Err(fail("original thin closure retains an environment or generic actuals"));
+        }
+        self.fixed_code_value(frame.definition, node, target, parameters, result, signature, b)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn fixed_code_value(
+        &mut self,
+        owner: SemanticDefinitionId,
+        node: NodeId,
+        target: SemanticDefinitionId,
+        parameters: Vec<Term>,
+        result: Term,
+        signature: &SemanticSignatureRecipe,
+        b: &mut Budget,
+    ) -> CompileResult<Term> {
+        if signature.call_kind != CallKind::Direct || signature.bound_lifetimes != 0
+            || signature.invocation_lifetimes != 0 || parameters.len() != signature.parameters.len()
+        {
+            return Err(unknown("original thin code value requires its complete fixed signature"));
+        }
         let mut modes = Vec::new();
         for (term, parameter) in parameters.iter().zip(&signature.parameters) {
             if !matches!(parameter.mode, PassingMode::Infer | PassingMode::Copy) {
@@ -187,7 +235,7 @@ impl Solver<'_, '_> {
         if self
             .state
             .function_values
-            .insert((frame.definition, value.id), target)
+            .insert((owner, node), target)
             .is_some()
         {
             return Err(fail("original function reference node is repeated"));
@@ -203,7 +251,6 @@ impl Solver<'_, '_> {
             },
             b,
         )
-        .map(Some)
     }
 
     pub(super) fn code_call(
@@ -320,7 +367,7 @@ impl Checked {
         site: SemanticSiteId,
         inventory: &Inventory<'_>,
         b: &mut Budget,
-    ) -> CompileResult<Option<SemanticDefinitionId>> {
+    ) -> CompileResult<Option<(NodeId, SemanticDefinitionId)>> {
         let definition = inventory.definition(context.definition, b)?;
         let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
             return Err(fail("original code value has no body inventory"));
@@ -332,7 +379,7 @@ impl Checked {
                 if let SemanticOriginalNode::Expression(node) = link.node {
                     b.lookup(self.function_values.len(), WORK)?;
                     if let Some(target) = self.function_values.get(&(context.definition, node)) {
-                        if found.replace(*target).is_some() {
+                        if found.replace((node, *target)).is_some() {
                             return Err(fail("original code value has multiple node links"));
                         }
                     }

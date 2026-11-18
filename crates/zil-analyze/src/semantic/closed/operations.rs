@@ -1534,6 +1534,36 @@ impl Check<'_, '_> {
                 self.result(instruction, point.function, &definition.result)?;
             }
             (
+                SemanticSiteRecipeKind::Closure { definition, environment },
+                SemanticSiteAction::TypeUse {
+                    subject: subject @ SemanticOperand::Value(result),
+                    expected,
+                },
+            ) => {
+                let (node, target) = self.original.function_reference(
+                    instance, site.recipe, self.inventory, b,
+                )?.ok_or_else(|| fail("thin closure has no original fixed code proof"))?;
+                if target != *definition || !environment.is_empty() || point.edge != SemanticSiteEdge::After {
+                    return Err(fail("thin closure changes its original creator, domain or result boundary"));
+                }
+                let original = self.recipe_value(instance, &SemanticTypeRecipe::OriginalType {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    source: SemanticOriginalTypeSource::Expression(node),
+                }, b, 0)?;
+                if !matches!(original.ty, Type::FunctionPointer { .. })
+                    || !empty(&original.life) || !original.classes.is_empty()
+                {
+                    return Err(fail("thin closure changes its complete original code type"));
+                }
+                self.original_claim(instance, expected, &original, b)?;
+                let instruction = instruction.ok_or_else(|| fail("thin closure has no actual code reference"))?;
+                if instruction.result != Some(*result) {
+                    return Err(fail("thin closure changes its exact actual code result"));
+                }
+                self.function_reference(instance, site.recipe, point.function, subject, &original.ty, b)?;
+                self.result(instruction, point.function, &original.ty)?;
+            }
+            (
                 SemanticSiteRecipeKind::Closure {
                     definition,
                     environment: recipes,
@@ -1706,6 +1736,7 @@ impl Check<'_, '_> {
                 }
             }
             self.inventory.profile_step("original operations", b);
+            let mut code_references = BTreeSet::new();
             for site in &self.program.sites {
                 self.inventory.profile_site(site, b);
                 b.spend(1, WORK)?;
@@ -1758,6 +1789,17 @@ impl Check<'_, '_> {
                             instance.id.module.0,instance.id.index,definition.id.module.0,definition.id.index,function.id.0,site.recipe.0,block.id.0,instruction,edge));
                     }
                     return Err(errors);
+                }
+                if let SemanticSiteAction::TypeUse {
+                    subject: SemanticOperand::Value(value),
+                    expected: SemanticTypeValue::Resolved { ty: Type::FunctionPointer { .. }, .. },
+                } = &site.action
+                    && self.original.function_reference(instance, site.recipe, self.inventory, b)?.is_some()
+                {
+                    b.lookup(code_references.len(), WORK)?;
+                    if !code_references.insert(*value) {
+                        return Err(fail("actual code reference repeats its exact original TypeUse"));
+                    }
                 }
             }
             let original_nodes = self.inventory.original_index(definition.id, b)?;
@@ -1929,6 +1971,14 @@ impl Check<'_, '_> {
                         if let Some(images) = declared.get(&local) {
                             self.match_heads(instance, images, &SemanticOperand::Value(value),
                                 (block.id, index, SemanticSiteEdge::Before), b)?;
+                        }
+                    }
+                    if matches!(instruction.kind, InstructionKind::FunctionRef { .. }) {
+                        let output = instruction.result
+                            .ok_or_else(|| fail("actual function reference has no code result SSA"))?;
+                        b.lookup(code_references.len(), WORK)?;
+                        if !code_references.contains(&output) {
+                            return Err(fail("actual function reference has no exact original TypeUse"));
                         }
                     }
                     let requires = match instruction.kind {

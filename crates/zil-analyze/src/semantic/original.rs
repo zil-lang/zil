@@ -2864,6 +2864,7 @@ impl Solver<'_, '_> {
                         .ok_or_else(|| fail("original child capture footprint is absent"))?
                         .captured;
                     b.spend(captured.len(), WORK)?;
+                    let has_captures = !captured.is_empty();
                     let captures = captured
                         .iter()
                         .map(|(index, ty)| (*index, *ty))
@@ -3018,10 +3019,10 @@ impl Solver<'_, '_> {
                     let child_frame = self.state.frames.remove(&target)
                         .ok_or_else(|| fail("closure annotations lack their checked child frame"))?;
                     let annotations: CompileResult<()> = (|| {
-                        for (parameter, expected) in parameters.iter().zip(expected) {
+                        for (parameter, expected) in parameters.iter().zip(&expected) {
                             if let Some(annotation) = &parameter.ty {
                                 let annotation = self.recipe(&child_frame, annotation, b, depth + 1)?;
-                                self.unify(annotation, expected, depth + 1, b)?;
+                                self.unify(annotation, *expected, depth + 1, b)?;
                             }
                         }
                         if let Some(annotation) = return_type {
@@ -3036,7 +3037,10 @@ impl Solver<'_, '_> {
                     })?;
                     annotations?;
                     self.same_body(body, target, b)?;
-                    term
+                    self.thin_closure_value(
+                        frame, value.id, target, has_captures, expected, result,
+                        child_signature, term, b,
+                    )?
                 }
                 CoreExprKind::If {
                     condition,

@@ -12,7 +12,7 @@ impl Check<'_, '_> {
         expected: &Type,
         b: &mut Budget,
     ) -> CompileResult<()> {
-        let Some(original) = self
+        let Some((_, original)) = self
             .original
             .function_reference(instance, site, self.inventory, b)?
         else {
@@ -41,10 +41,17 @@ impl Check<'_, '_> {
                 "actual function reference has no complete original world",
             ));
         }
+        let declaration = self.inventory.definition(original, b)?;
+        let thin = declaration.kind == SemanticDefinitionKind::Closure;
+        let mut creators = 0usize;
         for world in worlds {
+            if world.parent == Some(instance.id) {
+                creators += 1;
+            }
             if world.definition != original
                 || !world.actuals.is_empty()
-                || world.parent.is_some()
+                || thin && world.parent.is_none()
+                || !thin && world.parent.is_some()
                 || world.environment.is_some()
                 || world.self_type.is_some()
                 || !world.header_embedding.is_empty()
@@ -53,6 +60,11 @@ impl Check<'_, '_> {
                     "actual function reference selects another original specialization or environment",
                 ));
             }
+        }
+        if thin && (creators != 1 || declaration.parent != Some(instance.definition)
+            || !declaration.environment.is_empty() || !matches!(expected, Type::FunctionPointer { .. }))
+        {
+            return Err(fail("thin function reference changes its exact original creator"));
         }
         let actual = self
             .inventory
@@ -68,6 +80,15 @@ impl Check<'_, '_> {
                 ));
             }
         };
+        if thin && let Some(header) = &actual.storage_life {
+            crate::signature_life::charge(header, b)?;
+            if header.fixed_binder_count != 0 || header.invocation_binder_count != 0
+                || !header.bindings.is_empty() || !header.static_bindings.is_empty()
+                || !header.classes.is_empty()
+            {
+                return Err(fail("thin function reference changes its class-free fixed code ABI"));
+            }
+        }
         if actual.call_kind != CallKind::Direct
             || actual.foreign.is_some()
             || actual.environment.is_some()
@@ -92,6 +113,49 @@ impl Check<'_, '_> {
                     "actual function reference changes its complete original parameter or mode",
                 ));
             }
+        }
+        Ok(())
+    }
+
+    pub(super) fn thin_child_creator(
+        &self,
+        child: &SemanticInstance,
+        entry: FunctionId,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let creator = self.inventory.instance(
+            child.parent.ok_or_else(|| fail("thin child has no actual lexical creator"))?, b,
+        )?;
+        let SemanticInstanceTarget::Function(target) = &creator.target else {
+            return Err(fail("thin child has no actual function creator"));
+        };
+        let function = self.inventory.function(target, b)?;
+        let mut found = false;
+        for site in &self.program.sites {
+            b.spend(1, WORK)?;
+            if site.instance != creator.id {
+                continue;
+            }
+            let SemanticSiteAction::TypeUse {
+                subject: subject @ SemanticOperand::Value(value),
+                expected: SemanticTypeValue::Resolved { ty: expected @ Type::FunctionPointer { .. }, .. },
+            } = &site.action else { continue; };
+            if !self.original.function_reference(creator, site.recipe, self.inventory, b)?
+                .is_some_and(|(_, target)| target == child.definition)
+            {
+                continue;
+            }
+            if !matches!(self.defining(function, *value, b)?.2.kind,
+                InstructionKind::FunctionRef { function } if function == entry)
+                || found
+            {
+                return Err(fail("thin child changes or repeats its actual creator reference"));
+            }
+            self.function_reference(creator, site.recipe, function, subject, expected, b)?;
+            found = true;
+        }
+        if !found {
+            return Err(fail("thin child has no original checked code creation site"));
         }
         Ok(())
     }
