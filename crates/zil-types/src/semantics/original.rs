@@ -3714,7 +3714,7 @@ impl<'a> Check<'a, '_> {
                 let valid = if boolean {
                     ty == Type::Bool
                 } else if equality {
-                    ty == Type::Bool || ty.is_integer() || ty.is_float()
+                    matches!(ty, Type::Bool | Type::ForeignHandle) || ty.is_integer() || ty.is_float()
                 } else if integer_only {
                     ty.is_integer()
                 } else {
