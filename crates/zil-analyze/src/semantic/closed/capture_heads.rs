@@ -332,6 +332,7 @@ impl Check<'_, '_> {
         for occurrence in &definition.implicit_lifetimes {
             let mut emitted = false;
             let mut source_operand = None;
+            let mut call_region = false;
             for recipe in recipes {
                 b.spend(
                     recipe

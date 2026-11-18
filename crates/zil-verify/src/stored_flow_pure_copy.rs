@@ -763,6 +763,29 @@ pub(super) fn frame_protocol_aggregate(module: &TypedModule, f: &TypedFunction, 
     Ok(protocol_leaf)
 }
 
+// The frame owner stays a protocol aggregate. Only this independently
+// selected target-free subtree forms an ordinary address; the actual tag,
+// initialized path, allocation and loan remain obligations of Sum/loan flow.
+pub(super) fn frame_protocol_borrow(
+    module: &TypedModule, f: &TypedFunction, instruction: &Instruction, b: &mut Budget,
+) -> Check<bool> {
+    let InstructionKind::BorrowPlaceLocal { local, path, mutable } = &instruction.kind else {
+        return Ok(false);
+    };
+    let parent = local_type(f, *local, Some(instruction.span))?;
+    if !frame_protocol_aggregate(module, f, parent, b)? { return Ok(false); }
+    let selected = crate::sums::place_type(f, *local, path, Some(instruction.span), b)?;
+    if *mutable && !selected.is_copy_value() { return Ok(false); }
+    if !crate::stored_owned::target_free_value(module, selected, b)? { return Ok(false); }
+    let limits = b.limits.clone();
+    let expected = crate::sums::check_instruction(f, instruction, &limits, b)?;
+    let output = vt(f, instruction.result.ok_or_else(|| err("frame pattern address lacks its actual SSA result"))?)?;
+    if expected.as_ref() != Some(output) {
+        return Err(err("frame pattern address changes its selected field or access mode"));
+    }
+    Ok(true)
+}
+
 // Ordinary affine products may have no stored targets while still owning
 // resources. Complete actual type and Sum checks precede their transfers;
 // neither this lane nor a zero domain discharges tag/init/debt/cleanup facts.
