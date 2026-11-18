@@ -1515,11 +1515,14 @@ fn sum_copy_payload_does_not_turn_a_nonowning_package_into_product_permission() 
         }
         for result in both(&m) {
             if package {
-                assert!(
-                    result
-                        .unwrap_err()
-                        .iter()
-                        .any(|d| d.message.contains("Managed leaf"))
+                assert_eq!(
+                    result.unwrap_err(),
+                    vec![Diagnostic::error(
+                        Phase::Analyze,
+                        "E-ANALYZE-IR",
+                        None,
+                        "resource closure: ordinary Product has no transitive owning leaf",
+                    )]
                 );
             } else {
                 result.unwrap();
