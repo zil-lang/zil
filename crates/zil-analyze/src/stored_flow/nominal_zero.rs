@@ -554,6 +554,22 @@ fn type_zero_at(
             type_zero_at(module, error, limits, b, active, depth + 1, purpose)?;
             type_zero_at(module, result, limits, b, active, depth + 1, purpose)
         }
+        Type::BorrowedFunctionPointer { parameters, result, life } => {
+            crate::signature_life::charge(life, b)?;
+            crate::borrowed_fp::relation(parameters, result, life)?;
+            fee(b, parameters.len().saturating_add(1))?;
+            for occurrence in parameters.iter().chain(std::iter::once(result.as_ref())) {
+                let data = match occurrence {
+                    Type::Address { inner, .. } => inner.as_ref(),
+                    value => value,
+                };
+                // Invocation binders belong to this code signature, never
+                // to the stored pointer value. The full data shape is still
+                // required beyond each separately checked signature head.
+                type_zero_at(module, data, limits, b, active, depth + 1, purpose)?;
+            }
+            Ok(())
+        }
         Type::FunctionPointer { parameters, result }
         | Type::ForeignCallback { parameters, result } => {
             fee(b, parameters.len())?;
@@ -687,7 +703,6 @@ fn type_zero_at(
         Type::Opaque { .. }
         | Type::TaskI32
         | Type::MutexGuard { .. }
-        | Type::BorrowedFunctionPointer { .. }
         | Type::Named(_)
         | Type::Unsupported(_) => Err(failure(
             "plain nominal dependency has no complete zero-domain proof",
