@@ -984,19 +984,22 @@ impl Engine<'_, '_> {
         self.task_exit_count += 1;
         Ok(())
     }
-    fn callable_return_value(&mut self, value: &Value, depth: usize) -> R<bool> {
+    fn has_return_facts(&mut self, value: &Value, depth: usize) -> R<bool> {
         self.pay(1, depth)?;
         Ok(match value {
-            Value::Closure { .. } | Value::Cleanup { source: Some(_), .. } => true,
-            Value::Error { payload, .. } | Value::Boxed(payload) => self.callable_return_value(payload, depth + 1)?,
-            Value::Tuple(values) | Value::Choice(values) | Value::Variant { fields: values, .. } => {
+            // A tag selects which owning projections exist at the caller.
+            // Even a fieldless arm has an observable cleanup fact.
+            Value::Closure { .. } | Value::Cleanup { source: Some(_), .. }
+            | Value::Variant { .. } | Value::Error { .. } => true,
+            Value::Boxed(payload) => self.has_return_facts(payload, depth + 1)?,
+            Value::Tuple(values) | Value::Choice(values) => {
                 let mut any = false;
-                for value in values { any |= self.callable_return_value(value, depth + 1)?; }
+                for value in values { any |= self.has_return_facts(value, depth + 1)?; }
                 any
             }
             Value::Fields(values) => {
                 let mut any = false;
-                for value in values.values() { any |= self.callable_return_value(value, depth + 1)?; }
+                for value in values.values() { any |= self.has_return_facts(value, depth + 1)?; }
                 any
             }
             _ => false,
@@ -1090,7 +1093,7 @@ impl Engine<'_, '_> {
         let reusable = self.definition(target)?.kind == SemanticDefinitionKind::Closure
             && matches!(self.proof.kinds.get(&target), Some(CallableKind::Fn | CallableKind::FnMut));
         let mut transported = reusable || exits.iter().any(|exit| !exit.phases.is_empty());
-        for exit in &exits { transported |= self.callable_return_value(&exit.value, depth + 1)?; }
+        for exit in &exits { transported |= self.has_return_facts(&exit.value, depth + 1)?; }
         if !transported { return Ok(None); }
         // A generic body may return different input projections from different
         // arms. A concrete argument rules out only arms whose original input
