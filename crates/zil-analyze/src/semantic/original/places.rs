@@ -182,6 +182,37 @@ impl Solver<'_, '_> {
         }
         Ok(!place.path.is_empty() && current == selected)
     }
+    pub(super) fn give_package_field(
+        &mut self,
+        frame: &mut Frame,
+        operand: &SemanticOriginalExpr,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Term> {
+        let place = self.place(frame, operand, true, b, depth + 1)?
+            .ok_or_else(|| fail("original give has no exact owning Package place"))?;
+        let selected = self.type_root(place.selected, b)?;
+        let owns = match self.state.arena[selected] {
+            Kind::Wrapped(Wrapper::Managed, _) => true,
+            Kind::Nominal { definition, .. } => matches!(
+                self.inventory.definition(definition, b)?.body,
+                SemanticDefinitionBody::Nominal {
+                    kind: LifeNominalKind::Package,
+                    body: SemanticNominalBody::Product { .. },
+                    ..
+                }
+            ),
+            _ => false,
+        };
+        if !owns || !self.inline_package_field(&place, selected, b)? {
+            return Err(fail("original give requires a direct owning Package field"));
+        }
+        if frame.alive {
+            self.retire_lexical_place(frame, place.anchor, &place.path, b)?;
+        }
+        Ok(place.selected)
+    }
+
     pub(super) fn observe_member(
         &mut self,
         frame: &mut Frame,

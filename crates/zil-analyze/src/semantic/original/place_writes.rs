@@ -120,27 +120,34 @@ impl Solver<'_, '_> {
                 "original consuming entry cannot take through an indirect or indexed place",
             ));
         }
+        self.retire_lexical_place(frame, place.anchor, &place.path, b)
+    }
+    pub(super) fn retire_lexical_place(
+        &mut self,
+        frame: &mut Frame,
+        anchor: Option<LocalAnchor>,
+        path: &[u32],
+        b: &mut Budget,
+    ) -> CompileResult<()> {
         let index = self
-            .availability_local(frame, place.anchor, b)?
+            .availability_local(frame, anchor, b)?
             .ok_or_else(|| fail("original consuming entry has no exact owning place"))?;
         if frame.locals[index].borrowed {
             return Err(fail(
                 "original consuming entry cannot take from a borrowed lexical owner",
             ));
         }
-        if place.path.is_empty() {
+        if path.is_empty() {
             frame.locals[index].used = true;
             frame.locals[index].live = false;
         } else {
             b.spend(
-                place
-                    .path
-                    .len()
+                path.len()
                     .saturating_add(frame.locals[index].maybe_vacant.len() + 1),
                 WORK,
             )?;
-            frame.locals[index].vacant.insert(place.path.clone());
-            frame.locals[index].maybe_vacant.insert(place.path.clone());
+            frame.locals[index].vacant.insert(path.to_vec());
+            frame.locals[index].maybe_vacant.insert(path.to_vec());
         }
         Ok(())
     }
