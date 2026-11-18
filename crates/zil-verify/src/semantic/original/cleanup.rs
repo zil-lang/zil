@@ -120,7 +120,17 @@ impl CheckedOriginal {
         b.spend(self.task_closed_cleanups.len().saturating_add(self.task_async_cleanups.len()).saturating_add(self.task_synchronous_cleanups.len()).saturating_add(self.callable_retirements.len()))?;
         let nested_task=self.task_closed_cleanups.iter().chain(&self.task_async_cleanups).chain(&self.task_synchronous_cleanups).any(|(definition,child)|Some(*definition)==env.lexical.first().map(|frame|frame.definition)&&child.binder==place.binder&&child.fields.len()>place.fields.len()&&child.fields.starts_with(&place.fields));
         let nested_retirement=capture_exit&&self.callable_retirements.iter().any(|((definition,child),role)|*role==CallableRetirement::ActivationCapture&&Some(*definition)==env.lexical.first().map(|frame|frame.definition)&&child.binder==place.binder&&child.fields.len()>place.fields.len()&&child.fields.starts_with(&place.fields));
-        if partial||nested_task||nested_retirement {
+        let enum_cleanup = if capture_exit && !direct {
+            place.binder.charge_clone(b)?;
+            b.spend(place.fields.iter().map(String::len).sum::<usize>().saturating_add(self.enum_cleanup_variants.len().saturating_add(1).ilog2() as usize + 1))?;
+            self.enum_cleanup_variants.get(&(env.current()?, place.clone())).and_then(Option::as_ref)
+        } else { None };
+        let exact_enum = enum_cleanup.is_some();
+        if partial||nested_task||nested_retirement||exact_enum {
+            let enum_cleanup = if let Some(known) = enum_cleanup {
+                b.spend(known.variants.values().fold(1usize, |work, fields| fields.iter().fold(work.saturating_add(1), |work, field| work.saturating_add(field.len().saturating_add(1)))))?;
+                Some((known.definition, known.variants.clone()))
+            } else { None };
             let ty=self.resolved(ty,b)?;
             let fields=match &ty{
                 Ty::Tuple(fields)=>fields.iter().enumerate().map(|(index,field)|(index.to_string(),field.clone())).collect::<Vec<_>>(),
@@ -145,15 +155,24 @@ impl CheckedOriginal {
                             }
                         }
                         SemanticDefinitionBody::Nominal { body: SemanticNominalBody::Enum { variants }, .. }
-                            if nested_task && !partial =>
+                            if nested_task || partial || exact_enum =>
                         {
+                            if enum_cleanup.as_ref().is_some_and(|(expected, _)| expected != id) {
+                                return Err(bad("original enum cleanup changes its checked active declaration"));
+                            }
                             for (tag, variant) in variants.iter().enumerate() {
                                 b.spend(variant.fields.len().saturating_add(1))?;
                                 let tag = u32::try_from(tag).map_err(|_| limit("original enum cleanup ordinal overflow"))?;
+                                let vacant = if let Some((_, possible)) = &enum_cleanup {
+                                    let Some(fields) = possible.get(&tag) else { continue; };
+                                    Some(fields)
+                                } else { None };
                                 for (index, field) in variant.fields.iter().enumerate() {
                                     b.spend(32)?;
+                                    let name = super::protocol::owner_variant_field(tag, index);
+                                    if vacant.is_some_and(|fields| fields.contains(&name)) { continue; }
                                     children.push((
-                                        super::protocol::owner_variant_field(tag, index),
+                                        name,
                                         self.ty(module, context, field, &selected, active, b)?,
                                     ));
                                 }

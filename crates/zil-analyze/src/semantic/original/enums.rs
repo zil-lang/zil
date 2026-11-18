@@ -10,6 +10,12 @@ pub(super) struct Constructor {
     pub(super) payload: Vec<Term>,
 }
 impl Solver<'_, '_> {
+    pub(super) fn pattern_reference_mode(
+        &self, pattern: &SemanticOriginalPattern, b: &mut Budget, depth: usize,
+    ) -> CompileResult<Option<bool>> {
+        original_pattern_reference_mode(pattern, depth, &mut |depth| self.step(depth, b))
+    }
+
     pub(super) fn tuple_binding(
         &mut self,
         frame: &mut Frame,
@@ -357,8 +363,15 @@ impl Solver<'_, '_> {
         }
         match &pattern.kind {
             CorePatternKind::Name(name) => {
+                if source.retained.is_some() && source.anchor.is_some() && frame.alive
+                    && !self.satisfies(subject, Predicate::Copy, b, depth + 1)?
+                {
+                    let selected = self.pattern_vacancy(source, physical, b)?;
+                    self.place_available(frame, source.anchor, &selected, false, b)?;
+                    self.retire_lexical_place(frame, source.anchor, &selected, b)?;
+                }
                 self.bind(frame, name, subject, false, b)?;
-                let anchor = self.pattern_anchor(frame.definition, source, physical, b)?;
+                let anchor = self.pattern_anchor(frame.definition, source, physical, None, b)?;
                 frame
                     .locals
                     .last_mut()
@@ -367,14 +380,46 @@ impl Solver<'_, '_> {
                 Ok(true)
             }
             CorePatternKind::Wildcard => {
-                Self::push(
+                if source.retained.is_none() { Self::push(
                     &mut self.needs,
                     Need {
                         term: subject,
                         predicate: Predicate::SyncDrop,
                     },
                     b,
-                )?;
+                )?; }
+                Ok(true)
+            }
+            CorePatternKind::Reference { mutable, pattern: inner } => {
+                if !matches!(inner.kind, CorePatternKind::Name(_) | CorePatternKind::Wildcard) {
+                    return Err(fail("original reference pattern requires a name or discard"));
+                }
+                if *mutable && matches!(self.state.arena[self.type_root(subject, b)?], Kind::Wrapped(Wrapper::Managed, _)) {
+                    return Err(fail("ordinary original resource head reference must remain shared"));
+                }
+                let selected = self.pattern_vacancy(source, physical, b)?;
+                self.place_available(frame, source.anchor, &selected, false, b)?;
+                b.spend(path.len().saturating_add(2), WORK)?;
+                let mut occurrence = vec![ORIGINAL_PATTERN_BORROW, statement.0];
+                occurrence.extend_from_slice(path);
+                let ordinal = self.inventory.implicit_ordinal(frame.definition, &occurrence, b)?
+                    .ok_or_else(|| fail("original reference pattern lacks its precise lifetime occurrence"))?;
+                let life = self.term(Kind::Life(Life::Implicit(frame.definition, ordinal)), b)?;
+                let address = self.term(Kind::Address { mutable: *mutable, life, inner: subject }, b)?;
+                if let CorePatternKind::Name(name) = &inner.kind {
+                    Self::push(path, 0, b)?;
+                    b.spend(path.len(), WORK)?;
+                    let key = (frame.definition, statement, path.clone());
+                    b.lookup(self.state.patterns.len(), WORK)?;
+                    if self.state.patterns.insert(key, address).is_some() {
+                        return Err(fail("original reference pattern repeats its binding path"));
+                    }
+                    path.pop();
+                    self.bind(frame, name, address, false, b)?;
+                    let anchor = self.pattern_anchor(frame.definition, source, physical,
+                        Some(pattern_places::PatternBorrow { mutable: *mutable, ordinal, span: pattern.span }), b)?;
+                    frame.locals.last_mut().ok_or_else(|| fail("original reference pattern loses its binder"))?.anchor = Some(anchor);
+                }
                 Ok(true)
             }
             CorePatternKind::Tuple(patterns) => {
@@ -424,7 +469,7 @@ impl Solver<'_, '_> {
                         "original error/success pattern has another complete subject family",
                     ));
                 };
-                Self::push(path, u32::from(*is_error), b)?;
+                Self::push(path, 0, b)?;
                 Self::push(physical, PlaceProjection::ErrorArm(*is_error), b)?;
                 let result = self.pattern_bind(
                     frame,
@@ -529,8 +574,8 @@ impl Solver<'_, '_> {
         depth: usize,
     ) -> CompileResult<()> {
         self.step(depth, b)?;
-        let subject = self.expression(frame, value, b, depth + 1)?;
-        let source = self.pattern_subject(frame, value, b, depth + 1)?;
+        let mode = self.pattern_reference_mode(pattern, b, depth + 1)?;
+        let (subject, source) = self.observed_pattern_subject(frame, value, mode, b, depth + 1)?;
         let entered = frame.alive;
         let before = self.copy_locals(&frame.locals, b)?;
         let prefix = before.len();
@@ -557,7 +602,7 @@ impl Solver<'_, '_> {
         frame.alive = entered;
         // A failed pattern still owns the complete unmatched subject. Until
         // a narrower variant cleanup proof exists, require its full SyncDrop.
-        if !irrefutable {
+        if !irrefutable && source.retained.is_none() {
             Self::push(
                 &mut self.needs,
                 Need {
@@ -756,8 +801,13 @@ impl Solver<'_, '_> {
         depth: usize,
     ) -> CompileResult<()> {
         self.step(depth, b)?;
-        let subject = self.expression(frame, value, b, depth + 1)?;
-        let source = self.pattern_subject(frame, value, b, depth + 1)?;
+        let mut mode = None;
+        for arm in arms {
+            if let Some(mutable) = self.pattern_reference_mode(&arm.pattern, b, depth + 1)? {
+                mode = Some(mode.unwrap_or(false) || mutable);
+            }
+        }
+        let (subject, source) = self.observed_pattern_subject(frame, value, mode, b, depth + 1)?;
         let original_alive = frame.alive;
         let base = self.copy_locals(&frame.locals, b)?;
         let base_len = base.len();

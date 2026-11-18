@@ -219,6 +219,10 @@ impl Solver<'_, '_> {
                         kind: LifeNominalKind::Record | LifeNominalKind::Package,
                         body: SemanticNominalBody::Product { .. },
                         ..
+                    } | SemanticDefinitionBody::Nominal {
+                        kind: LifeNominalKind::Enum,
+                        body: SemanticNominalBody::Enum { .. },
+                        ..
                     }
                 ) {
                     return Err(fail("original partial cleanup has no plain product owner"));

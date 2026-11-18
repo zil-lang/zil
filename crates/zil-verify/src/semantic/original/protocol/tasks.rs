@@ -536,6 +536,7 @@ impl<'a> Engine<'a> {
             .collect::<Vec<_>>();
         for binder in leaving {
             if let Some(value) = state.values.get(&binder).cloned() {
+                self.record_enum_cleanup(state, &root_place(&binder), &value, b, 0)?;
                 self.task_cleanup_value(state, &value, None, b)?;
             }
             state.values.remove(&binder);
@@ -562,7 +563,59 @@ impl<'a> Engine<'a> {
         }
         Ok(())
     }
+
+    fn record_enum_cleanup(&mut self, state: &State, root: &Place, value: &Value, b: &mut Budget, depth: usize) -> Check<()> {
+        b.spend(1)?;
+        if depth > b.limits.max_call_depth { return Err(limit("original enum cleanup exceeds its finite field depth")); }
+        let mut cleanup = None;
+        let children = match value {
+            Value::Variant { definition, tag, fields, .. } => {
+                cleanup = Some((*definition, *tag, BTreeSet::new()));
+                fields.as_slice()
+            }
+            Value::Product(fields) => fields.as_slice(),
+            _ => &[],
+        };
+        for (field, value) in children {
+            let child = Self::retained_pattern_field(Some(root), field, b)?
+                .ok_or_else(|| bad("original enum cleanup loses its selected owner path"))?;
+            if let Some((_, _, vacant)) = &mut cleanup
+                && matches!(value, Value::Vacant)
+                && state.owners.get(&child).is_some_and(|owner| owner.owned && owner.states == DEAD)
+            {
+                b.spend(field.len().saturating_add(1))?;
+                vacant.insert(field.clone());
+            }
+            self.record_enum_cleanup(state, &child, value, b, depth + 1)?;
+        }
+        root.binder.charge_clone(b)?;
+        b.spend(root.fields.iter().map(String::len).sum::<usize>().saturating_add(self.enum_cleanups.len().saturating_add(1).ilog2() as usize + 1))?;
+        match (self.enum_cleanups.entry(root.clone()), cleanup) {
+            (std::collections::btree_map::Entry::Occupied(mut row), None) => { row.insert(None); }
+            (std::collections::btree_map::Entry::Vacant(row), None) => { row.insert(None); }
+            (std::collections::btree_map::Entry::Vacant(row), Some((definition, tag, vacant))) => {
+                row.insert(Some(EnumCleanup { definition, variants: BTreeMap::from([(tag, vacant)]) }));
+            }
+            (std::collections::btree_map::Entry::Occupied(mut row), Some((definition, tag, vacant))) => {
+                if let Some(bound) = row.get_mut() {
+                    if bound.definition != definition { return Err(bad("original enum cleanup changes its nominal declaration")); }
+                    match bound.variants.entry(tag) {
+                        std::collections::btree_map::Entry::Occupied(mut paths) => {
+                            b.spend(paths.get().len().saturating_mul(vacant.len().saturating_add(1)))?;
+                            paths.get_mut().retain(|path| vacant.contains(path));
+                        }
+                        std::collections::btree_map::Entry::Vacant(paths) => { paths.insert(vacant); }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
     pub(super) fn task_exit(&mut self, state: &mut State, exit:ProtocolExit, b: &mut Budget) -> Check<()> {
+        b.spend(state.values.len())?;
+        for (binder, value) in &state.values {
+            self.record_enum_cleanup(state, &root_place(binder), value, b, 0)?;
+        }
         // Snapshot before activation exit changes ownership. Closed is tied
         // to this generation; neither a later exit nor actual callers replace it.
         for(root,owner)in &state.owners{
@@ -794,11 +847,12 @@ impl<'a> Engine<'a> {
             .get_mut(&place.binder)
             .ok_or_else(|| bad("Task projected move has no real original containing binding"))?;
         for name in &place.fields {
-            let Value::Product(fields) = value else {
-                return Err(unsupported(
+            let fields = match value {
+                Value::Product(fields) | Value::Variant { fields, .. } => fields,
+                _ => return Err(unsupported(
                     "Task projected move crosses an unsupported original storage constructor",
                     None,
-                ));
+                )),
             };
             value = &mut fields
                 .iter_mut()
@@ -806,7 +860,11 @@ impl<'a> Engine<'a> {
                 .ok_or_else(|| bad("Task projected move selects another original field"))?
                 .1;
         }
-        *value = Value::Plain;
+        *value = if matches!(value, Value::Owner { root, borrowed: false } if root == place) {
+            Value::Vacant
+        } else {
+            Value::Plain
+        };
         Ok(())
     }
     pub(super) fn task_assign_place(

@@ -4,6 +4,40 @@ use crate::{CorePatternKind, SemanticOriginalPattern};
 
 pub type OriginalPatternRow<'a> = Vec<Option<&'a SemanticOriginalPattern>>;
 
+/// Reserved implicit lifetime paths begin with this marker, followed by the
+/// original statement node and the logical pattern binding coordinates.
+pub const ORIGINAL_PATTERN_BORROW: u32 = 48;
+
+/// A syntactic reference pattern retains its subject place. Its strongest
+/// authored mode is used to check the subject's independently derived access.
+pub fn original_pattern_reference_mode<E>(
+    pattern: &SemanticOriginalPattern,
+    depth: usize,
+    pay: &mut impl FnMut(usize) -> Result<(), E>,
+) -> Result<Option<bool>, E> {
+    pay(depth)?;
+    let mut reference = None;
+    let mut visit = |child| -> Result<(), E> {
+        if let Some(mutable) = original_pattern_reference_mode(child, depth + 1, pay)? {
+            reference = Some(reference.unwrap_or(false) || mutable);
+        }
+        Ok(())
+    };
+    match &pattern.kind {
+        CorePatternKind::Reference { mutable, .. } => return Ok(Some(*mutable)),
+        CorePatternKind::Tuple(fields) | CorePatternKind::Variant { fields, .. }
+        | CorePatternKind::Constructor { fields, .. } => {
+            for field in fields { visit(field)?; }
+        }
+        CorePatternKind::Record { fields, .. } | CorePatternKind::RecordConstructor { fields, .. } => {
+            for (_, field) in fields { visit(field)?; }
+        }
+        CorePatternKind::ErrorArm { pattern, .. } => visit(pattern)?,
+        _ => {}
+    }
+    Ok(reference)
+}
+
 #[derive(Clone, Copy)]
 pub enum OriginalPatternHead<'a> {
     Default,
@@ -16,11 +50,13 @@ pub enum OriginalPatternHead<'a> {
 }
 
 pub fn original_pattern_any(pattern: Option<&SemanticOriginalPattern>) -> bool {
-    pattern.is_none_or(|pattern| {
-        matches!(
+    pattern.is_none_or(|pattern| match &pattern.kind {
+        CorePatternKind::Name(_) | CorePatternKind::Wildcard => true,
+        CorePatternKind::Reference { pattern, .. } => matches!(
             pattern.kind,
             CorePatternKind::Name(_) | CorePatternKind::Wildcard
-        )
+        ),
+        _ => false,
     })
 }
 

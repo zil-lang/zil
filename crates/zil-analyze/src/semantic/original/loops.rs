@@ -156,24 +156,19 @@ impl Solver<'_, '_> {
         let before = self.copy_locals(&frame.locals, b)?;
         let mut subject = None;
         if let Some(condition) = condition {
-            let term = self.expression(frame, condition, b, depth + 1)?;
-            if pattern.is_none() {
+            if let Some((_, pattern)) = pattern {
+                let mode = self.pattern_reference_mode(pattern, b, depth + 1)?;
+                subject = Some(self.observed_pattern_subject(frame, condition, mode, b, depth + 1)?);
+            } else {
+                let term = self.expression(frame, condition, b, depth + 1)?;
                 let boolean = self.atom(Type::Bool, b)?;
                 self.unify(term, boolean, depth + 1, b)?;
-            } else {
-                subject = Some(term);
             }
         }
         let after_condition = self.copy_locals(&frame.locals, b)?;
         if let Some((statement, pattern)) = pattern {
-            let subject =
+            let (subject, source) =
                 subject.ok_or_else(|| fail("original pattern loop has no condition value"))?;
-            let source = self.pattern_subject(
-                frame,
-                condition.ok_or_else(|| fail("original pattern loop has no original subject"))?,
-                b,
-                depth + 1,
-            )?;
             self.pattern_bind(
                 frame,
                 statement,
@@ -185,14 +180,14 @@ impl Solver<'_, '_> {
                 b,
                 depth + 1,
             )?;
-            Self::push(
+            if source.retained.is_none() { Self::push(
                 &mut self.needs,
                 Need {
                     term: subject,
                     predicate: Predicate::SyncDrop,
                 },
                 b,
-            )?;
+            )?; }
         }
         if let Some(range) = range {
             match range.binding {
@@ -218,8 +213,10 @@ impl Solver<'_, '_> {
                     // to the Range expression as a whole.
                     let source = pattern_places::PatternSubject {
                         node: range.start,
+                        success_projections: 0,
                         anchor: None,
                         path: Vec::new(),
+                        retained: None,
                     };
                     if !self.pattern_bind(
                         frame,

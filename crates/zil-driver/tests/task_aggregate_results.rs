@@ -16,6 +16,8 @@ const PARTIAL_REGISTRATION: &str =
     include_str!("../../../tests/language-readiness/task-aggregate-results/inline-registration-tuple-selective.zil");
 const INLINE_CHILD: &str =
     include_str!("../../../tests/language-readiness/task-aggregate-results/inline-task-enum.zil");
+const PARTIAL_CHILD: &str =
+    include_str!("../../../tests/language-readiness/task-aggregate-results/inline-task-enum-selective.zil");
 fn source(text: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "task-aggregate.zil", text)
 }
@@ -772,10 +774,12 @@ fn inline_protocol_aggregates_follow_the_actual_continuation_and_cleanup_edge() 
     let partial_normal = selective(&normal);
     let partial_interrupted = selective(&interrupted_tuple);
     let partial_moved_registration = PARTIAL_REGISTRATION.replace("give pair.0", "give pair.1");
-    let enum_return = INLINE_CHILD.replace(
+    let poll_to_completion = |text: &str| text.replace(
         "    match task_poll(&mut task) {\n        .err(_)=>{return 90;}\n        .ok(poll)=>{match poll {\n            Poll.Pending()=>{}\n            Poll.Ready(_)=>{}\n        }}\n    }",
         "    loop {\n        match task_poll(&mut task) {\n            .err(_)=>{return 90;}\n            .ok(poll)=>{match poll {\n                Poll.Pending()=>{continue;}\n                Poll.Ready(_)=>{break;}\n            }}\n        }\n    }",
     );
+    let enum_return = poll_to_completion(INLINE_CHILD);
+    let enum_partial_return = poll_to_completion(PARTIAL_CHILD);
     let cases = [
         (
             "tuple-cancel",
@@ -849,6 +853,24 @@ fn inline_protocol_aggregates_follow_the_actual_continuation_and_cleanup_edge() 
             "inline-task-enum-observer.c",
             "AB selected child closed between its neighboring fields\n",
         ),
+        (
+            "enum-partial-cancel",
+            PARTIAL_CHILD,
+            "inline-task-enum-observer.c",
+            "AB selected child closed between its neighboring fields\n",
+        ),
+        (
+            "enum-partial-return",
+            &enum_partial_return,
+            "inline-task-enum-observer.c",
+            "AB selected child closed between its neighboring fields\n",
+        ),
+        (
+            "enum-partial-failure",
+            include_str!("../../../tests/language-readiness/task-aggregate-results/inline-task-enum-selective-failure.zil"),
+            "inline-task-enum-observer.c",
+            "AB selected child closed between its neighboring fields\n",
+        ),
     ];
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
         if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -911,6 +933,47 @@ fn inline_protocol_aggregates_follow_the_actual_continuation_and_cleanup_edge() 
                 fs::remove_dir_all(dir).unwrap();
             }
         }
+    }
+}
+
+#[test]
+fn mixed_enum_reference_requires_its_exact_original_field() {
+    use zil_ir::{InstructionKind, PlaceProjection, VariantProjection};
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let text = PARTIAL_CHILD
+        .replace("manages Task<i32>,manages Mark) }", "manages Task<i32>,manages Mark,manages Mark) }")
+        .replace("let packet=Packet.Live(give before,give task,give after);", "let neighbor=Mark{code:67};\n            let packet=Packet.Live(give before,give task,give after,give neighbor);")
+        .replace("Packet.Live(extracted,_,ref observer)", "Packet.Live(extracted,_,ref observer,_)");
+    let mut module = candidate(&text, &limits, &target);
+    let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+    let worker = module.functions.iter_mut().find(|function| function.name == "worker").unwrap();
+    let field = worker.blocks.iter_mut().flat_map(|block| &mut block.instructions)
+        .find_map(|instruction| match &mut instruction.kind {
+            InstructionKind::BorrowPlaceLocal { path, mutable: false, .. } => match path.as_mut_slice() {
+                [PlaceProjection::Variant(field)] if *field == (VariantProjection { variant: 1, index: 2 }) => Some(field),
+                _ => None,
+            },
+            _ => None,
+        }).unwrap();
+    field.index = 3;
+    let rejected = zil_analyze::analyze(&module, &limits).unwrap_err();
+    assert!(rejected.iter().any(|d| d.code == "E-ANALYZE-IR"
+        && d.message.contains("actual reference pattern changes its original root, active variant, field, or mode")), "{rejected:?}");
+
+    plan.module_fingerprint = module.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    for checked in [
+        zil_verify::verify_module(module, plan, &target, &limits),
+        zil_verify::verify_module_bytes(&wire, &target, &limits),
+    ] {
+        let rejected = checked.err().expect("another active same-typed field cannot replace the original reference");
+        assert!(rejected.iter().any(|d| d.code == "E-VERIFY-SEMANTIC"
+            && d.message.contains("actual reference pattern changes its original active variant, field, or mode")), "{rejected:?}");
     }
 }
 

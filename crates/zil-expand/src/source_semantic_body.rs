@@ -576,7 +576,64 @@ impl Builder<'_, '_, '_, '_> {
                 )?)
             }
         };
+        // Pattern borrows have separate lexical occurrences within a
+        // statement. Their original binder path is independent of the
+        // selected Typed place or the inferred lifetime class.
+        let mut borrow_path = vec![ORIGINAL_PATTERN_BORROW, id.0];
+        match &kind {
+            CoreStatementKind::TupleBinding { pattern, .. }
+            | CoreStatementKind::IfLet { pattern, .. }
+            | CoreStatementKind::WhileLet { pattern, .. } => {
+                self.body_pattern_borrows(pattern, &mut borrow_path, depth + 1)?;
+            }
+            CoreStatementKind::Match { arms, .. } => {
+                for (index, arm) in arms.iter().enumerate() {
+                    self.body_path(&mut borrow_path, index, arm.span)?;
+                    self.body_pattern_borrows(&arm.pattern, &mut borrow_path, depth + 1)?;
+                    borrow_path.pop();
+                }
+            }
+            _ => {}
+        }
         Ok(CoreStatement { id, kind, span })
+    }
+
+    fn body_pattern_borrows(
+        &mut self,
+        pattern: &SemanticOriginalPattern,
+        path: &mut Vec<u32>,
+        depth: usize,
+    ) -> R<()> {
+        self.budget.node(pattern.span, depth)?;
+        match &pattern.kind {
+            CorePatternKind::Reference { pattern, .. } => {
+                self.implicit(path, pattern.span)?;
+            }
+            CorePatternKind::Tuple(fields)
+            | CorePatternKind::Variant { fields, .. }
+            | CorePatternKind::Constructor { fields, .. } => {
+                for (index, field) in fields.iter().enumerate() {
+                    self.body_path(path, index, field.span)?;
+                    self.body_pattern_borrows(field, path, depth + 1)?;
+                    path.pop();
+                }
+            }
+            CorePatternKind::Record { fields, .. }
+            | CorePatternKind::RecordConstructor { fields, .. } => {
+                for (index, (_, field)) in fields.iter().enumerate() {
+                    self.body_path(path, index, field.span)?;
+                    self.body_pattern_borrows(field, path, depth + 1)?;
+                    path.pop();
+                }
+            }
+            CorePatternKind::ErrorArm { pattern, .. } => {
+                self.body_path(path, 0, pattern.span)?;
+                self.body_pattern_borrows(pattern, path, depth + 1)?;
+                path.pop();
+            }
+            _ => {}
+        }
+        Ok(())
     }
     fn body_const_formal(&mut self, ty: &s::TypeRef) -> R<bool> {
         let s::TypeKind::Named { path, args } = &ty.kind else {

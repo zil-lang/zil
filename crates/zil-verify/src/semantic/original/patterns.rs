@@ -1,17 +1,76 @@
 use super::*;
+
+#[derive(Clone)]
+pub(super) struct PatternOrigin {
+    node: NodeId,
+    path: Vec<u32>,
+    retained: Option<Place>,
+}
+
+pub(super) struct PatternBorrow {
+    statement: NodeId,
+    path: Vec<u32>,
+    ordinal: u32,
+    mutable: bool,
+}
+
+pub(in crate::semantic) struct PatternSource {
+    pub subject: NodeId,
+    pub projections: Vec<LifeTypeProjection>,
+    pub name: String,
+    pub span: Span,
+    pub mutable: bool,
+    pub reference: Option<Span>,
+}
+
 impl CheckedOriginal {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn pattern(&mut self,module:&TypedModule,context:&CheckedContext,pattern:&SemanticOriginalPattern,subject:&Ty,mutable:bool,env:&Env,bindings:&mut BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Type,token},b,|active,b|{
-            if let Some((node,path))=&self.pattern_origin{b.spend(path.len().saturating_add(1))?;self.pattern_types.insert((env.current()?,*node,path.clone()),subject.clone());}
+            if let Some(origin)=&self.pattern_origin{b.spend(origin.path.len().saturating_add(1))?;self.pattern_types.insert((env.current()?,origin.node,origin.path.clone()),subject.clone());}
             match &pattern.kind {
                 CorePatternKind::Wildcard=>{},
-                CorePatternKind::Name(name)=>{let identity=Binder::Pattern{definition:env.current()?,token:active.fresh(b)?};if let Some((node,path))=&self.pattern_origin{b.spend(path.len().saturating_mul(2).saturating_add(1))?;self.pattern_types.insert((env.current()?,*node,path.clone()),subject.clone());self.pattern_bindings.insert((env.current()?,*node,path.clone()),identity.clone());}let binding=Binding{ty:subject.clone(),mutable,identity};self.declare(env,&binding,b)?;bindings.insert(name.clone(),binding);},
-                CorePatternKind::Tuple(patterns)=>{let fields=match self.resolved(subject,b)?{Ty::Tuple(fields)=>fields,Ty::Atom(Type::Unit)if patterns.is_empty()=>vec![],_=>return Err(bad("original tuple pattern has non-Tuple subject"))};if fields.len()!=patterns.len(){return Err(bad("original tuple pattern arity differs"));}for(index,(pattern,field))in patterns.iter().zip(fields).enumerate(){self.pattern_child(module,context,index as u32,pattern,&field,mutable,env,bindings,active,b)?;}},
-                CorePatternKind::Reference{mutable:exclusive,pattern}=>{let Ty::Address{mutable:actual,inner,..}=self.resolved(subject,b)? else{return Err(bad("original reference pattern has no Address subject"));};if *exclusive&&!actual{return Err(bad("original mutable pattern upgrades shared Address"));}self.pattern_child(module,context,0,pattern,&inner,mutable,env,bindings,active,b)?;},
-                CorePatternKind::Record{ty,fields}=>{let expected=self.ty(module,context,ty,env,active,b)?;self.unify(subject,&expected,b)?;let mut seen=BTreeSet::new();for(index,(name,pattern))in fields.iter().enumerate(){if !seen.insert(name){return Err(bad("duplicate original record pattern field"));}let field=self.field(module,context,subject,name,env,active,b)?;self.pattern_child(module,context,index as u32,pattern,&field,mutable,env,bindings,active,b)?;}},
-                CorePatternKind::RecordConstructor{definition,fields}=>{let Ty::Nominal(actual,_)=self.resolved(subject,b)? else{return Err(bad("original record pattern subject lacks nominal identity"));};if definition.is_some_and(|id|id!=actual){return Err(bad("original record pattern changes declaration"));}let mut seen=BTreeSet::new();for(index,(name,pattern))in fields.iter().enumerate(){if !seen.insert(name){return Err(bad("duplicate original record pattern field"));}let field=self.field(module,context,subject,name,env,active,b)?;self.pattern_child(module,context,index as u32,pattern,&field,mutable,env,bindings,active,b)?;}},
-                CorePatternKind::ErrorArm{is_error,pattern}=>{let Ty::ErrorUnion(error,result)=self.resolved(subject,b)? else{return Err(bad("original ErrorArm subject is not ErrorUnion"));};self.pattern_child(module,context,0,pattern,if *is_error{&error}else{&result},mutable,env,bindings,active,b)?;},
+                CorePatternKind::Name(name)=>{
+                    if let Some(place) = self.pattern_origin.as_ref().and_then(|origin| origin.retained.clone()) {
+                        self.read_original(module, context, &place, subject, env, true, active, b)?;
+                    }
+                    let identity=Binder::Pattern{definition:env.current()?,token:active.fresh(b)?};if let Some(origin)=&self.pattern_origin{b.spend(origin.path.len().saturating_mul(2).saturating_add(1))?;self.pattern_types.insert((env.current()?,origin.node,origin.path.clone()),subject.clone());self.pattern_bindings.insert((env.current()?,origin.node,origin.path.clone()),identity.clone());}let binding=Binding{ty:subject.clone(),mutable,identity};self.declare(env,&binding,b)?;bindings.insert(name.clone(),binding);},
+                CorePatternKind::Tuple(patterns)=>{let fields=match self.resolved(subject,b)?{Ty::Tuple(fields)=>fields,Ty::Atom(Type::Unit)if patterns.is_empty()=>vec![],_=>return Err(bad("original tuple pattern has non-Tuple subject"))};if fields.len()!=patterns.len(){return Err(bad("original tuple pattern arity differs"));}for(index,(pattern,field))in patterns.iter().zip(fields).enumerate(){self.pattern_child(module,context,index as u32,Some(index.to_string()),pattern,&field,mutable,env,bindings,active,b)?;}},
+                CorePatternKind::Reference { mutable: exclusive, pattern: inner } => {
+                    if !matches!(inner.kind, CorePatternKind::Name(_) | CorePatternKind::Wildcard) {
+                        return Err(bad("original reference pattern requires a name or discard"));
+                    }
+                    if *exclusive && matches!(self.resolved(subject,b)?, Ty::Managed(_)) {
+                        return Err(bad("ordinary original resource head reference must remain shared"));
+                    }
+                    let origin = self.pattern_origin.as_ref().ok_or_else(|| bad("reference pattern has no original binding occurrence"))?;
+                    let definition = context.definition(module,env.current()?,b)?;
+                    b.spend(definition.implicit_lifetimes.len().saturating_mul(origin.path.len().saturating_add(2)))?;
+                    let mut matches = definition.implicit_lifetimes.iter().filter(|row|
+                        row.occurrence_path.strip_prefix(&[ORIGINAL_PATTERN_BORROW, origin.node.0]) == Some(origin.path.as_slice()));
+                    let ordinal = matches.next().ok_or_else(|| bad("reference pattern lacks its exact original lifetime"))?.ordinal;
+                    if matches.next().is_some() { return Err(bad("reference pattern repeats its original lifetime")); }
+                    if let Some(place) = origin.retained.clone() {
+                        self.read_original(module,context,&place,subject,env,false,active,b)?;
+                    }
+                    if matches!(inner.kind, CorePatternKind::Name(_)) {
+                        let origin = self.pattern_origin.as_ref().expect("validated pattern origin");
+                        b.spend(origin.path.len().saturating_add(2))?;
+                        let mut path = origin.path.clone();
+                        path.push(0);
+                        let borrow = PatternBorrow { statement: origin.node, path, ordinal, mutable: *exclusive };
+                        if let Some(old) = self.pattern_borrows.insert((definition.id, pattern.span), borrow)
+                            && (old.ordinal != ordinal || old.mutable != *exclusive)
+                        {
+                            return Err(bad("reference pattern has ambiguous original borrow occurrence"));
+                        }
+                    }
+                    let address = Ty::Address { mutable: *exclusive, life: Life::Implicit(definition.id,ordinal), inner: Box::new(subject.clone()) };
+                    self.pattern_child(module,context,0,None,inner,&address,mutable,env,bindings,active,b)?;
+                },
+                CorePatternKind::Record{ty,fields}=>{let expected=self.ty(module,context,ty,env,active,b)?;self.unify(subject,&expected,b)?;let mut seen=BTreeSet::new();for(index,(name,pattern))in fields.iter().enumerate(){if !seen.insert(name){return Err(bad("duplicate original record pattern field"));}let field=self.field(module,context,subject,name,env,active,b)?;self.pattern_child(module,context,index as u32,Some(name.clone()),pattern,&field,mutable,env,bindings,active,b)?;}},
+                CorePatternKind::RecordConstructor{definition,fields}=>{let Ty::Nominal(actual,_)=self.resolved(subject,b)? else{return Err(bad("original record pattern subject lacks nominal identity"));};if definition.is_some_and(|id|id!=actual){return Err(bad("original record pattern changes declaration"));}let mut seen=BTreeSet::new();for(index,(name,pattern))in fields.iter().enumerate(){if !seen.insert(name){return Err(bad("duplicate original record pattern field"));}let field=self.field(module,context,subject,name,env,active,b)?;self.pattern_child(module,context,index as u32,Some(name.clone()),pattern,&field,mutable,env,bindings,active,b)?;}},
+                CorePatternKind::ErrorArm{is_error,pattern}=>{let Ty::ErrorUnion(error,result)=self.resolved(subject,b)? else{return Err(bad("original ErrorArm subject is not ErrorUnion"));};self.pattern_child(module,context,0,Some(format!("$error:{}", u32::from(*is_error))),pattern,if *is_error{&error}else{&result},mutable,env,bindings,active,b)?;},
                 CorePatternKind::Variant{ty,variant,fields}=>{let expected=self.ty(module,context,ty,env,active,b)?;self.unify(subject,&expected,b)?;self.variant_pattern(module,context,subject,variant,fields,mutable,env,bindings,active,b)?;},
                 CorePatternKind::Constructor{definition,variant,fields}=>{let Ty::Nominal(actual,_)=self.resolved(subject,b)? else{return Err(bad("original variant subject lacks nominal identity"));};if definition.is_some_and(|id|id!=actual){return Err(bad("original variant changes declaration"));}self.variant_pattern(module,context,subject,variant,fields,mutable,env,bindings,active,b)?;},
                 CorePatternKind::Integer(text)=>{let ty=self.literal_original(module,text,false,Some(subject),b)?;self.unify(subject,&ty,b)?;},
@@ -24,20 +83,33 @@ impl CheckedOriginal {
     #[allow(clippy::too_many_arguments)]
     fn variant_pattern(&mut self,module:&TypedModule,context:&CheckedContext,subject:&Ty,name:&str,patterns:&[SemanticOriginalPattern],mutable:bool,env:&Env,bindings:&mut BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         let Ty::Nominal(id,arguments)=self.resolved(subject,b)? else{return Err(bad("original variant subject is not nominal"));};
-        let definition=context.definition(module,id,b)?;let SemanticDefinitionBody::Nominal{body:SemanticNominalBody::Enum{variants},..}=&definition.body else{return Err(bad("original variant owner is not Enum"));};let variant=variants.iter().find(|variant|variant.name==name).ok_or_else(||bad("original enum has no such variant"))?;if variant.fields.len()!=patterns.len(){return Err(bad("original variant pattern arity differs"));}
+        let definition=context.definition(module,id,b)?;let SemanticDefinitionBody::Nominal{body:SemanticNominalBody::Enum{variants},..}=&definition.body else{return Err(bad("original variant owner is not Enum"));};b.spend(variants.len())?;let (tag, variant)=variants.iter().enumerate().find(|(_,variant)|variant.name==name).ok_or_else(||bad("original enum has no such variant"))?;if variant.fields.len()!=patterns.len(){return Err(bad("original variant pattern arity differs"));}
         let mut selected=self.environment(module,context,id,active,b)?;selected.lexical[0].actuals=arguments;
-        for(index,(pattern,recipe))in patterns.iter().zip(&variant.fields).enumerate(){let ty=self.ty(module,context,recipe,&selected,active,b)?;self.pattern_child(module,context,index as u32,pattern,&ty,mutable,env,bindings,active,b)?;}Ok(())
+        for(index,(pattern,recipe))in patterns.iter().zip(&variant.fields).enumerate(){let ty=self.ty(module,context,recipe,&selected,active,b)?;self.pattern_child(module,context,index as u32,Some(protocol::owner_variant_field(tag as u32,index)),pattern,&ty,mutable,env,bindings,active,b)?;}Ok(())
     }
 }
 
 impl CheckedOriginal {
-    pub(in crate::semantic) fn pattern_place(&self,module:&TypedModule,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(NodeId,Vec<LifeTypeProjection>,String,Span,bool)>{
+    pub(in crate::semantic) fn pattern_place(&self,module:&TypedModule,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<PatternSource>{
         let place=self.value_places.get(&(definition,node)).ok_or_else(||bad("pattern observation has no independently checked original Place"))?;
         let Binder::Pattern{definition:owner,..}=&place.binder else{return Err(bad("pattern observation changes its original binder category"));};
         if *owner!=definition{return Err(bad("pattern observation changes its original lexical owner"));}
         let mut selected=None;
         for((scope,statement,path),binder)in &self.pattern_bindings{b.spend(path.len().saturating_add(1))?;if *scope==definition&&binder==&place.binder{if selected.replace((*statement,path.clone())).is_some(){return Err(bad("pattern binder has multiple original binding occurrences"));}}}
         let(statement,path)=selected.ok_or_else(||bad("pattern binder lacks its complete original occurrence"))?;
+        self.pattern_binding_source(module,definition,statement,&path,b)
+    }
+
+    pub(in crate::semantic) fn pattern_borrow_source(
+        &self, module: &TypedModule, definition: SemanticDefinitionId, span: Span, b: &mut Budget,
+    ) -> Check<Option<(NodeId, Vec<LifeTypeProjection>, u32, bool)>> {
+        b.spend(self.pattern_borrows.len().saturating_add(1).ilog2() as usize + 1)?;
+        let Some(borrow) = self.pattern_borrows.get(&(definition, span)) else { return Ok(None); };
+        let source = self.pattern_binding_source(module,definition,borrow.statement,&borrow.path,b)?;
+        Ok(Some((source.subject, source.projections, borrow.ordinal, borrow.mutable)))
+    }
+
+    fn pattern_binding_source(&self,module:&TypedModule,definition:SemanticDefinitionId,statement:NodeId,path:&[u32],b:&mut Budget)->Check<PatternSource>{
         let index=self.source_index(module,&[definition],b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("pattern owner has no original body"))?;
         let statement=function.statements.get(&statement).ok_or_else(||bad("pattern binding statement is absent"))?;
         let(subject,mut pattern,mut consumed,mutable)=match &statement.kind{
@@ -46,7 +118,7 @@ impl CheckedOriginal {
             CoreStatementKind::TupleBinding{initializer,pattern,mutable,..}=>(initializer,pattern,0,*mutable),
             _=>return Err(bad("pattern binder selects another original statement role")),
         };
-        let mut subject=subject;let mut projections=Vec::new();
+        let mut subject=subject;let mut projections=Vec::new();let mut reference=None;
         loop{
             b.spend(1)?;
             if self.injections.contains_key(&(definition,subject.id)){break;}
@@ -64,6 +136,7 @@ impl CheckedOriginal {
             b.spend(1)?;let child=path[consumed] as usize;
             let parent=self.pattern_types.get(&(definition,statement.id,path[..consumed].to_vec())).ok_or_else(||bad("pattern projection lacks its independently checked whole parent type"))?;
             pattern=match &pattern.kind{
+                CorePatternKind::Reference{pattern: inner,..}if child==0=>{reference=Some(pattern.span);inner},
                 CorePatternKind::ErrorArm{is_error,pattern}if child==0=>{projections.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(*is_error)));pattern},
                 CorePatternKind::Tuple(fields)=>{projections.push(LifeTypeProjection::Place(PlaceProjection::Field(child as u32)));fields.get(child).ok_or_else(||bad("tuple pattern child is absent"))?},
                 CorePatternKind::Variant{variant,fields,..}|CorePatternKind::Constructor{variant,fields,..}=>{
@@ -83,7 +156,8 @@ impl CheckedOriginal {
             };consumed+=1;
         }
         let CorePatternKind::Name(name)=&pattern.kind else{return Err(bad("pattern source does not end at its actual original value binder"));};
-        b.spend(name.len())?;Ok((subject.id,projections,name.clone(),pattern.span,mutable))
+        b.spend(name.len())?;
+        Ok(PatternSource { subject: subject.id, projections, name: name.clone(), span: pattern.span, mutable, reference })
     }
 }
 
@@ -93,8 +167,34 @@ fn function_definition<'a>(module:&'a TypedModule,id:SemanticDefinitionId,b:&mut
 }
 
 impl CheckedOriginal {
+    pub(super) fn pattern_mode(pattern: &SemanticOriginalPattern, b: &mut Budget) -> Check<Option<bool>> {
+        original_pattern_reference_mode(pattern, 0, &mut |depth| {
+            b.spend(1)?;
+            if depth > b.limits.max_call_depth { return Err(limit("original reference pattern exceeds its finite depth")); }
+            Ok(())
+        })
+    }
+
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn pattern_root(&mut self,module:&TypedModule,context:&CheckedContext,node:NodeId,path:&[u32],pattern:&SemanticOriginalPattern,subject:&Ty,mutable:bool,env:&Env,bindings:&mut BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+    pub(super) fn pattern_subject(
+        &mut self, module: &TypedModule, context: &CheckedContext, source: &SemanticOriginalExpr,
+        expected: Option<&Ty>, mode: Option<bool>, env: &Env, bindings: &BTreeMap<String, Binding>,
+        active: &mut ActiveQueries, b: &mut Budget,
+    ) -> Check<(Ty, Option<Place>)> {
+        let Some(mutable) = mode else {
+            return Ok((self.expression(module,context,source,env,bindings,expected,active,b)?, None));
+        };
+        let (ty, place) = self.place(module,context,source,env,bindings,active,b)?;
+        if let Some(place) = &place {
+            if mutable { self.mutable_place(module,context,source,env,bindings,active,b)?; }
+            self.read_original_parent(module,context,place,&ty,env,active,b)?;
+        }
+        if let Some(expected) = expected { self.relate_value(&ty,expected,b)?; }
+        Ok((ty, place))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn pattern_root(&mut self,module:&TypedModule,context:&CheckedContext,node:NodeId,path:&[u32],pattern:&SemanticOriginalPattern,subject:&Ty,retained:Option<Place>,mutable:bool,env:&Env,bindings:&mut BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         let mut pending=vec![pattern];let mut names=BTreeSet::new();
         while let Some(pattern)=pending.pop(){b.spend(1)?;match &pattern.kind{
             CorePatternKind::Name(name)=>{b.spend(name.len())?;if !names.insert(name){return Err(bad("original pattern binds the same value name twice"));}},
@@ -102,12 +202,18 @@ impl CheckedOriginal {
             CorePatternKind::Record{fields,..}|CorePatternKind::RecordConstructor{fields,..}=>pending.extend(fields.iter().map(|(_,pattern)|pattern)),
             CorePatternKind::Reference{pattern,..}|CorePatternKind::ErrorArm{pattern,..}=>pending.push(pattern),_=>{},
         }}
-        b.spend(path.len())?;let previous=self.pattern_origin.replace((node,path.to_vec()));
+        b.spend(path.len())?;let previous=self.pattern_origin.replace(PatternOrigin { node, path: path.to_vec(), retained });
         let result=self.pattern(module,context,pattern,subject,mutable,env,bindings,active,b);self.pattern_origin=previous;result
     }
     #[allow(clippy::too_many_arguments)]
-    fn pattern_child(&mut self,module:&TypedModule,context:&CheckedContext,index:u32,pattern:&SemanticOriginalPattern,subject:&Ty,mutable:bool,env:&Env,bindings:&mut BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
-        let(node,mut path)=self.pattern_origin.clone().ok_or_else(||bad("original pattern child has no actual binder root"))?;b.spend(path.len().saturating_add(1))?;path.push(index);
-        let previous=self.pattern_origin.replace((node,path));let result=self.pattern(module,context,pattern,subject,mutable,env,bindings,active,b);self.pattern_origin=previous;result
+    fn pattern_child(&mut self,module:&TypedModule,context:&CheckedContext,index:u32,field:Option<String>,pattern:&SemanticOriginalPattern,subject:&Ty,mutable:bool,env:&Env,bindings:&mut BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+        let mut origin=self.pattern_origin.clone().ok_or_else(||bad("original pattern child has no actual binder root"))?;
+        b.spend(origin.path.len().saturating_add(1))?;
+        origin.path.push(index);
+        origin.retained = match (origin.retained, field) {
+            (Some(mut place), Some(field)) => { b.spend(field.len().saturating_add(1))?; place.fields.push(field); Some(place) }
+            _ => None,
+        };
+        let previous=self.pattern_origin.replace(origin);let result=self.pattern(module,context,pattern,subject,mutable,env,bindings,active,b);self.pattern_origin=previous;result
     }
 }

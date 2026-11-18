@@ -2,8 +2,68 @@
 //! tag/field selection and destination Store operations. Names and equal
 //! physical types do not choose a destination.
 use super::*;
+use crate::semantic::value::Class;
 
 impl Check<'_, '_> {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn original_pattern_borrow_class(
+        &self, instance: &SemanticInstance, function: &TypedFunction, local: LocalId,
+        path: &[PlaceProjection], mutable: bool, span: zil_base::Span, b: &mut Budget, depth: usize,
+    ) -> CompileResult<Option<Class>> {
+        let mut selected = None;
+        for origin in self.original.pattern_origins() {
+            b.spend(1, WORK)?;
+            let Some(borrow) = origin.borrow.filter(|borrow| borrow.span == span && origin.owner == instance.definition) else { continue; };
+            b.spend(origin.subject.path.len().saturating_add(origin.path.len()).saturating_add(path.len()), WORK)?;
+            let root = if let Some(anchor) = origin.subject.anchor {
+                self.anchored_local_at(instance, function, anchor, b, depth + 1)?
+            } else {
+                let value = self.projected_pattern_subject(instance, function, origin.subject.node,
+                    origin.subject.success_projections, b, depth + 1)?
+                    .ok_or_else(|| fail("pattern borrow temporary lacks its exact original source"))?;
+                self.stored_pattern_value(function, value, b)?
+                    .ok_or_else(|| fail("pattern borrow temporary lacks its original holding slot"))?
+            };
+            let expected = origin.subject.path.iter().copied().map(PlaceProjection::Field).chain(origin.path.iter().copied());
+            if root != local || borrow.mutable != mutable || !path.iter().copied().eq(expected) {
+                return Err(fail("actual reference pattern changes its original root, active variant, field, or mode"));
+            }
+            if selected.replace(Class::Implicit(instance.id, borrow.ordinal)).is_some() {
+                return Err(fail("actual reference pattern has competing original borrow occurrences"));
+            }
+        }
+        Ok(selected)
+    }
+
+    pub(super) fn check_pattern_borrows(&self, b: &mut Budget) -> CompileResult<()> {
+        let mut owners = BTreeSet::new();
+        for origin in self.original.pattern_origins() {
+            b.spend(1, WORK)?;
+            if origin.borrow.is_some() {
+                b.lookup(owners.len(), WORK)?;
+                owners.insert(origin.owner);
+            }
+        }
+        if owners.is_empty() { return Ok(()); }
+        for instance in &self.program.instances {
+            b.lookup(owners.len(), WORK)?;
+            if !owners.contains(&instance.definition) { continue; }
+            let SemanticInstanceTarget::Function(target) = &instance.target else { continue; };
+            let function = self.inventory.function(target, b)?;
+            for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
+                b.spend(1, WORK)?;
+                let (local, path, mutable): (_, &[PlaceProjection], _) = match &instruction.kind {
+                    InstructionKind::BorrowPlaceLocal { local, path, mutable } => (*local, path, *mutable),
+                    InstructionKind::BorrowLocal { local } => (*local, &[], false),
+                    InstructionKind::BorrowLocalMut { local } => (*local, &[], true),
+                    _ => continue,
+                };
+                self.original_pattern_borrow_class(instance, function, local, path, mutable, instruction.span, b, 0)?;
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn original_subject_value(
         &self,
         instance: &SemanticInstance,
@@ -431,6 +491,24 @@ impl Check<'_, '_> {
             for instruction in &block.instructions {
                 b.spend(1, WORK)?;
                 match &instruction.kind {
+                    InstructionKind::BorrowPlaceLocal { local, path: actual, mutable }
+                        if *local == root && origin.borrow.is_some_and(|borrow| borrow.mutable == *mutable) => {
+                        b.spend(actual.len().saturating_add(path.len() + 1), WORK)?;
+                        if *actual == path {
+                            let value = instruction.result.ok_or_else(|| fail("actual pattern borrow has no SSA result"))?;
+                            if let Some(local) = self.stored_pattern_value(function, value, b)? {
+                                accept(local)?;
+                            }
+                        }
+                    }
+                    InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local }
+                        if *local == root && path.is_empty() && origin.borrow.is_some_and(|borrow|
+                            borrow.mutable == matches!(instruction.kind, InstructionKind::BorrowLocalMut { .. })) => {
+                        let value = instruction.result.ok_or_else(|| fail("actual pattern borrow has no SSA result"))?;
+                        if let Some(local) = self.stored_pattern_value(function, value, b)? {
+                            accept(local)?;
+                        }
+                    }
                     InstructionKind::TakeVariantField {
                         local,
                         path: actual,
@@ -438,7 +516,7 @@ impl Check<'_, '_> {
                     | InstructionKind::TakeTupleField {
                         local,
                         path: actual,
-                    } if *local == root => {
+                    } if *local == root && origin.borrow.is_none() => {
                         b.spend(actual.len().saturating_add(path.len() + 1), WORK)?;
                         if *actual == path {
                             let value = instruction.result.ok_or_else(|| {
@@ -449,7 +527,7 @@ impl Check<'_, '_> {
                             }
                         }
                     }
-                    InstructionKind::UnpackTuple { local, fields } if *local == root => {
+                    InstructionKind::UnpackTuple { local, fields } if *local == root && origin.borrow.is_none() => {
                         if let [PlaceProjection::Field(index)] = path.as_slice()
                             && let Some(local) = fields.get(*index as usize)
                         {
@@ -461,7 +539,7 @@ impl Check<'_, '_> {
                         local,
                         variant,
                         fields,
-                    } if *local == root => {
+                    } if *local == root && origin.borrow.is_none() => {
                         let index = match path.as_slice() {
                             [PlaceProjection::Variant(step)] if step.variant == *variant => {
                                 Some(step.index)

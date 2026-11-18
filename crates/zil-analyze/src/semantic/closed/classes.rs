@@ -3069,6 +3069,24 @@ impl Check<'_, '_> {
                 }
                 Ok(output)
             }
+            InstructionKind::BorrowPlaceLocal { local, path, mutable } => {
+                if let Some(value) = self.source_borrow(instance, function, id, b, depth + 1)? {
+                    return Ok(value);
+                }
+                let class = self.original_pattern_borrow_class(instance,function,*local,path,*mutable,instruction.span,b,depth + 1)?
+                    .ok_or_else(|| unknown("actual projected borrow lacks its complete original pattern or expression"))?;
+                operations::initialized_local_before(function, (block, index), *local, b)?;
+                let mut child = self.local_value(instance,function,*local,(block,index),b,depth + 1)?;
+                for &selector in path {
+                    b.spend(1, WORK)?;
+                    child = self.closure_child_value(&child, selector, b)?;
+                }
+                let output = value::address(*mutable, class, child, b)?;
+                if !geometry::same_type(&output.ty, ty, b)? {
+                    return Err(fail("actual pattern borrow changes its complete selected address type"));
+                }
+                Ok(output)
+            }
             InstructionKind::BorrowLocal { .. } | InstructionKind::BorrowLocalMut { .. } => {
                 if let Some(value) = self.source_borrow(instance, function, id, b, depth + 1)? {
                     return Ok(value);
@@ -3109,7 +3127,9 @@ impl Check<'_, '_> {
                     };
                     let child =
                         self.local_value(instance, function, local, (block, index), b, depth + 1)?;
-                    value::address(mutable, Class::Reborrow(function.id, id), child, b)?
+                    let class = self.original_pattern_borrow_class(instance,function,local,&[],mutable,instruction.span,b,depth + 1)?
+                        .unwrap_or(Class::Reborrow(function.id, id));
+                    value::address(mutable, class, child, b)?
                 };
                 if expected.ty != *ty {
                     return Err(fail("borrow SSA loses its complete original type"));

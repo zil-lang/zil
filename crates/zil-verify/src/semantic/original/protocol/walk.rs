@@ -120,7 +120,7 @@ impl<'a> Engine<'a> {
                 ..
             } => {
                 let value = self.expression(initializer, &mut state, depth + 1, b)?;
-                self.bind_pattern(statement.id, &[], pattern, &value, &mut state, b)?;
+                self.bind_pattern(statement.id, &[], pattern, &value, None, &mut state, b)?;
             }
             Expression(value) => {
                 let actual=self.expression(value, &mut state, depth + 1, b)?;
@@ -203,11 +203,12 @@ impl<'a> Engine<'a> {
             } => {
                 let observed = self.expression(value, &mut state, depth + 1, b)?;
                 let poll = self.node_discriminant(value, b)?;
+                let retained = if CheckedOriginal::pattern_mode(pattern,b)?.is_some() { self.task_place(value,b)? } else { None };
                 let mut result = Outcome::default();
                 for selected in self.select(&state, &observed, pattern, poll, true, b)? {
                     let mut selected = selected;
-                    self.bind_pattern(statement.id, &[], pattern, &observed, &mut selected, b)?;
-                    self.consume_fallible_task_arm(value, poll, pattern, &observed, &mut selected, b)?;
+                    self.bind_pattern(statement.id, &[], pattern, &observed, retained.as_ref(), &mut selected, b)?;
+                    if retained.is_none() { self.consume_fallible_task_arm(value, poll, pattern, &observed, &mut selected, b)?; }
                     let next =
                         self.block(then_body, selected, deferred, loop_start, depth + 1, b)?;
                     self.collect(&mut result, next, b)?;
@@ -229,6 +230,9 @@ impl<'a> Engine<'a> {
             Match { value, arms } => {
                 let observed = self.expression(value, &mut state, depth + 1, b)?;
                 let poll = self.node_discriminant(value, b)?;
+                let mut keeps_subject = false;
+                for arm in arms { keeps_subject |= CheckedOriginal::pattern_mode(&arm.pattern,b)?.is_some(); }
+                let retained = if keeps_subject { self.task_place(value,b)? } else { None };
                 let mut covered = 0u8;
                 let mut result = Outcome::default();
                 for (ordinal, arm) in arms.iter().enumerate() {
@@ -240,10 +244,11 @@ impl<'a> Engine<'a> {
                             &[ordinal as u32],
                             &arm.pattern,
                             &observed,
+                            retained.as_ref(),
                             &mut selected,
                             b,
                         )?;
-                        self.consume_fallible_task_arm(value, poll, &arm.pattern, &observed, &mut selected, b)?;
+                        if retained.is_none() { self.consume_fallible_task_arm(value, poll, &arm.pattern, &observed, &mut selected, b)?; }
                         let next =
                             self.block(&arm.body, selected, deferred, loop_start, depth + 1, b)?;
                         self.collect(&mut result, next, b)?;
@@ -402,8 +407,11 @@ impl<'a> Engine<'a> {
                     .unwrap_or(Discriminant::Other);
                 let mut incoming = Vec::new();
                 if let Some((statement, pattern)) = pattern {
+                    let retained = if let Some(source) = condition
+                        && CheckedOriginal::pattern_mode(pattern,b)?.is_some()
+                    { self.task_place(source,b)? } else { None };
                     for mut branch in self.select(&state, &observed, pattern, poll, true, b)? {
-                        self.bind_pattern(statement, &[], pattern, &observed, &mut branch, b)?;
+                        self.bind_pattern(statement, &[], pattern, &observed, retained.as_ref(), &mut branch, b)?;
                         incoming.push(branch);
                     }
                     for branch in self.select(&state, &observed, pattern, poll, false, b)? {
@@ -567,18 +575,31 @@ impl<'a> Engine<'a> {
             Ok(vec![])
         }
     }
+    pub(super) fn retained_pattern_field(parent: Option<&Place>, field: &str, b: &mut Budget) -> Check<Option<Place>> {
+        let Some(parent) = parent else { return Ok(None); };
+        parent.binder.charge_clone(b)?;
+        b.spend(parent.fields.iter().map(String::len).sum::<usize>().saturating_add(field.len() + 1))?;
+        let mut place = parent.clone();
+        place.fields.push(field.to_owned());
+        Ok(Some(place))
+    }
+
     fn bind_pattern(
         &mut self,
         statement: NodeId,
         path: &[u32],
         pattern: &SemanticOriginalPattern,
         value: &Value,
+        retained: Option<&Place>,
         state: &mut State,
         b: &mut Budget,
     ) -> Check<()> {
         b.spend(path.len().saturating_add(1))?;
         match &pattern.kind {
             CorePatternKind::Name(_) => {
+                if let Some(place) = retained && tasks::owner_value(value) {
+                    self.task_take_place(state, place, b)?;
+                }
                 let binder = self
                     .original
                     .pattern_bindings
@@ -589,6 +610,7 @@ impl<'a> Engine<'a> {
                 self.bind(state, binder.clone(), value.clone(), b)
             }
             CorePatternKind::Wildcard => {
+                if retained.is_some() { return Ok(()); }
                 if matches!(value, Value::Product(_) | Value::Variant { .. }) {
                     return self.task_cleanup_value(state, value, None, b);
                 }
@@ -628,19 +650,23 @@ impl<'a> Engine<'a> {
                     b.spend(path.len().saturating_add(1))?;
                     let mut child = path.to_vec();
                     child.push(index as u32);
-                    let actual = match value {
-                        Value::Product(values) => values.get(index).map(|(_, value)| value).ok_or_else(|| {
+                    let selected = match value {
+                        Value::Product(values) => values.get(index).ok_or_else(|| {
                             bad("Task product pattern changes its complete original arity")
                         })?,
                         Value::Variant { fields: values, .. } => {
                             if !selected_owner_variant(value, pattern, b)?.unwrap_or(false) || values.len() != fields.len() {
                                 return Err(bad("original owner pattern does not select its exact active variant and fields"));
                             }
-                            &values[index].1
+                            &values[index]
                         }
-                        _ => &Value::Plain,
+                        _ => {
+                            self.bind_pattern(statement, &child, field, &Value::Plain, None, state, b)?;
+                            continue;
+                        }
                     };
-                    self.bind_pattern(statement, &child, field, actual, state, b)?;
+                    let projected = Self::retained_pattern_field(retained, &selected.0, b)?;
+                    self.bind_pattern(statement, &child, field, &selected.1, projected.as_ref(), state, b)?;
                 }
                 Ok(())
             }
@@ -673,7 +699,8 @@ impl<'a> Engine<'a> {
                     } else {
                         &Value::Plain
                     };
-                    self.bind_pattern(statement, &child, field, actual, state, b)?;
+                    let projected = Self::retained_pattern_field(retained, name, b)?;
+                    self.bind_pattern(statement, &child, field, actual, projected.as_ref(), state, b)?;
                 }
                 Ok(())
             }
@@ -681,12 +708,13 @@ impl<'a> Engine<'a> {
                 let mut child = path.to_vec();
                 child.push(0);
                 let payload = self.task_failure_payload(state, value, *is_error, b)?;
-                self.bind_pattern(statement, &child, pattern, &payload, state, b)
+                self.bind_pattern(statement, &child, pattern, &payload, None, state, b)
             }
             CorePatternKind::Reference { pattern, .. } => {
                 let mut child = path.to_vec();
                 child.push(0);
-                self.bind_pattern(statement, &child, pattern, value, state, b)
+                let borrowed = tasks::task_borrow_value(value.clone());
+                self.bind_pattern(statement, &child, pattern, &borrowed, None, state, b)
             }
             _ => Ok(()),
         }
@@ -774,7 +802,7 @@ mod error_arm_coverage_tests{
             }
             let body:SemanticOriginalBlock=zil_ir::CoreBlock{statements:vec![zil_ir::CoreStatement{id:NodeId(901),kind:CoreStatementKind::Match{value:zil_ir::CoreExpr{id:NodeId(900),kind:CoreExprKind::Name("sum".into()),span},arms},span}],span};
             let mut births=tasks::SynchronousBirths::default();let summaries=BTreeMap::new();
-            let mut engine=Engine{original:&original,module:&module,index:&index,current:definition,contracts:vec![],inputs:BTreeMap::new(),poll:false,next:0,closed_tasks:BTreeSet::new(),async_tasks:BTreeSet::new(),retiring_captures:BTreeSet::new(),capture_exits:vec![],capture_inputs:BTreeMap::new(),synchronous_births:&mut births,result_sources_by_function:&summaries,returned_sources:None,fallible_task_result:false,error_unwind:vec![],task_loop_keys:vec![],result_shapes:BTreeMap::new(),callable_roles:BTreeMap::new(),callable_targets:BTreeMap::new(),creation_shapes:BTreeMap::new()};
+            let mut engine=Engine{original:&original,module:&module,index:&index,current:definition,contracts:vec![],inputs:BTreeMap::new(),poll:false,next:0,closed_tasks:BTreeSet::new(),async_tasks:BTreeSet::new(),enum_cleanups:BTreeMap::new(),retiring_captures:BTreeSet::new(),capture_exits:vec![],capture_inputs:BTreeMap::new(),synchronous_births:&mut births,result_sources_by_function:&summaries,returned_sources:None,fallible_task_result:false,error_unwind:vec![],task_loop_keys:vec![],result_shapes:BTreeMap::new(),callable_roles:BTreeMap::new(),callable_targets:BTreeMap::new(),creation_shapes:BTreeMap::new()};
             let outcome=engine.block(&body,State::default(),&[],None,0,&mut b).unwrap();
             assert_eq!(outcome.fall.is_none(),typed_sum&&complete&&!refutable,"a real exhaustive two-arm return has no third cleanup/source route; missing type/arm or refutable payload must retain it");
         }

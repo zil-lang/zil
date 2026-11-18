@@ -62,6 +62,39 @@ fn pattern_initial_transfer(module: &TypedModule, f: &TypedFunction, local: Loca
 }
 
 impl CheckedContext{
+    pub(in crate::semantic::flow) fn pattern_borrow_class(
+        &self, module: &TypedModule, caller: &SemanticInstance, f: &TypedFunction,
+        instruction: &Instruction, local: LocalId, path: &[PlaceProjection], mutable: bool,
+        scope: ScopeKey, b: &mut Budget,
+    ) -> Check<Option<ClassKey>> {
+        let (root, root_node, ordinal) = {
+            let original = self.original.borrow();
+            let original = original.as_ref().ok_or_else(|| bad("pattern borrow lacks its original body proof"))?;
+            let Some((subject, expected, ordinal, expected_mode)) = original.pattern_borrow_source(
+                module, caller.definition, instruction.span, b,
+            )? else { return Ok(None); };
+            let (root, parents) = original.address_place(module, caller.definition, subject, b)?;
+            let AddressRoot::Place(root_node) = root else {
+                return Err(bad("pattern borrow changes its original lexical subject"));
+            };
+            let ty = local_type(f, local, Some(instruction.span))?;
+            let Some((prefix, selected)) = path.split_at_checked(parents.len()) else {
+                return Err(bad("pattern borrow omits an original parent projection"));
+            };
+            b.spend(expected.len().saturating_add(selected.len()))?;
+            if mutable != expected_mode || consume_reserved_fields(ty, prefix, &parents, b)? != parents.len()
+                || selected.iter().copied().map(LifeTypeProjection::Place).ne(expected.into_iter())
+            {
+                return Err(bad("actual reference pattern changes its original active variant, field, or mode"));
+            }
+            let (root, fields) = original.buffer_place(caller.definition, root_node, b)?;
+            if !fields.is_empty() { return Err(bad("pattern borrow loses its complete original root")); }
+            (root, root_node, ordinal)
+        };
+        self.projected_local_root(module, caller, f, local, root, root_node, b)?;
+        Ok(Some(ClassKey::Implicit { scope, ordinal }))
+    }
+
     pub(in crate::semantic::flow) fn original_tuple_give_source(
         &self, module: &TypedModule, caller: &SemanticInstance, f: &TypedFunction,
         subject: &SemanticOperand, node: NodeId, b: &mut Budget,
@@ -459,9 +492,28 @@ impl CheckedContext{
 
 impl CheckedContext {
     fn pattern_local_root(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,local:LocalId,node:NodeId,b:&mut Budget)->Check<()>{
-        let(subject,path,name,span,mutable)=self.original.borrow().as_ref().ok_or_else(||bad("pattern address has no independent original body proof"))?.pattern_place(module,caller.definition,node,b)?;
+        let source=self.original.borrow().as_ref().ok_or_else(||bad("pattern address has no independent original body proof"))?.pattern_place(module,caller.definition,node,b)?;
         let declaration=f.locals.get(local.0 as usize).ok_or_else(||bad("pattern address local is absent"))?;
-        if declaration.name!=name||declaration.span!=span||declaration.mutable!=mutable{return Err(bad("pattern address changes its exact original binding declaration"));}
+        if declaration.name!=source.name||declaration.span!=source.span||declaration.mutable!=source.mutable{return Err(bad("pattern address changes its exact original binding declaration"));}
+        let initial = pattern_initial_transfer(module, f, local, source.span, b)?;
+        if let Some(reference) = source.reference {
+            let PatternStart::Value(value) = initial else {
+                return Err(bad("named reference pattern lacks its actual initial borrow"));
+            };
+            let (_, _, instruction) = self.site_index.producers.get(f, value, b)?;
+            if instruction.span != reference {
+                return Err(bad("named reference pattern substitutes another original occurrence"));
+            }
+            let (root, path, mutable) = match &instruction.kind {
+                InstructionKind::BorrowPlaceLocal { local, path, mutable } => (*local, path.as_slice(), *mutable),
+                InstructionKind::BorrowLocal { local } => (*local, &[][..], false),
+                InstructionKind::BorrowLocalMut { local } => (*local, &[][..], true),
+                _ => return Err(bad("named reference pattern initial value is not its physical borrow")),
+            };
+            return self.pattern_borrow_class(module, caller, f, instruction, root, path, mutable, ScopeKey::Instance(caller.id), b)?
+                .map(|_| ()).ok_or_else(|| bad("named reference pattern lacks its original class"));
+        }
+        let subject = source.subject;
         let definition=self.definition(module,caller.definition,b)?;
         let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&definition.body else{return Err(bad("pattern address owner has no complete original body"));};
         let program=module.semantic.as_ref().ok_or_else(||bad("pattern address programme is absent"))?;

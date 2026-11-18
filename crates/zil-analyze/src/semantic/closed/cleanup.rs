@@ -6,6 +6,7 @@ type ReplacementSource = (ValueId, Vec<PlaceProjection>);
 
 impl Check<'_, '_> {
     pub(super) fn cleanup_occurrences(&self, b: &mut Budget) -> CompileResult<()> {
+        self.check_pattern_borrows(b)?;
         for (ordinal, pending) in self.original.pending_cleanups().iter().enumerate() {
             b.spend(1, WORK)?;
             let mut instances = 0usize;
@@ -54,7 +55,7 @@ impl Check<'_, '_> {
                         }
                         let local = self.stored_pattern_value(function, value, b)?
                             .ok_or_else(|| fail("original discarded cleanup has no actual owning temporary"))?;
-                        (local, &[][..])
+                        (local, Vec::new())
                     }
                     original::CleanupSource::Unknown => return Err(fail("original cleanup has no source occurrence")),
                 };
@@ -68,7 +69,7 @@ impl Check<'_, '_> {
                     if !slot.logical().equal_paid(&expected, b)? {
                         return Err(fail("original slot cleanup changes its complete logical subject"));
                     }
-                } else if !geometry::same_type(&expected.ty, self.cleanup_path_type(&declaration.ty, path, b)?, b)? {
+                } else if !geometry::same_type(&expected.ty, self.cleanup_path_type(&declaration.ty, &path, b)?, b)? {
                     return Err(fail("original cleanup occurrence changes its complete instantiated subject type"));
                 }
                 // A Suspend declaration may dispose of its actual closed
@@ -111,7 +112,7 @@ impl Check<'_, '_> {
                                     (block.id, position), &expected, b)?;
                             } else {
                                 self.cleanup_local_subject(instance, function, local,
-                                    (block.id, position), path, &expected, producer, b)?;
+                                    (block.id, position), &path, &expected, producer, b)?;
                             }
                             if !synchronous {
                                 b.lookup(b.semantic_cleanup_sites.len(), WORK)?;
@@ -189,6 +190,17 @@ impl Check<'_, '_> {
                         .ok_or_else(|| fail("conditional cleanup write loses its actual local root"))?;
                     return Ok(local != owner && geometry::same_type(inner, &declaration.ty, b)?);
                 }
+                InstructionKind::BorrowPlaceLocal { local, ref path, mutable: true } => {
+                    operations::initialized_local_before(function, at, local, b)?;
+                    let declaration = function.locals.get(local.0 as usize).filter(|row| row.id == local && row.mutable)
+                        .ok_or_else(|| fail("conditional cleanup write requires its actual mutable root"))?;
+                    let selected = self.cleanup_path_type(&declaration.ty, path, b)?;
+                    // An actual scalar field has no stored class or owner
+                    // debt. The Sum and loan kernels still decide whether
+                    // this write is valid at the active field and epoch.
+                    return Ok(geometry::same_type(inner, selected, b)?
+                        && (local != owner || selected.is_b0_scalar()));
+                }
                 InstructionKind::AddressField { address: parent, index: field } => {
                     let Some(Type::Address { mutable: true, inner: aggregate }) = function.values.get(parent.0 as usize) else {
                         return Ok(false);
@@ -214,7 +226,7 @@ impl Check<'_, '_> {
     // A conditional owning drop is not a read. Validate every live reaching
     // source independently; an actual removal supplies only a vacant debt.
     fn cleanup_local_subject(&self, instance: &SemanticInstance, function: &TypedFunction,
-        local: LocalId, at: (BlockId, usize), path: &[u32], expected: &value::Value,
+        local: LocalId, at: (BlockId, usize), path: &[PlaceProjection], expected: &value::Value,
         producer: Option<ValueId>, b: &mut Budget) -> CompileResult<()> {
         let initialization = crate::shared_initialization(function, b)?;
         let mut pending = Vec::new();
@@ -264,8 +276,7 @@ impl Check<'_, '_> {
                     | InstructionKind::TakeVariantField { local: target, path: ref taken }
                         if target == local && !path.is_empty() => {
                             b.spend(taken.len().saturating_add(path.len()), WORK)?;
-                            let overlap = taken.iter().copied().zip(path.iter().copied())
-                                .all(|(actual, expected)| actual == PlaceProjection::Field(expected));
+                            let overlap = taken.starts_with(path) || path.starts_with(taken);
                             if overlap && taken.len() > path.len() {
                                 return Err(unknown("original residual cleanup crosses a nested actual take"));
                             }
@@ -384,30 +395,51 @@ impl Check<'_, '_> {
         Ok(())
     }
 
-    fn cleanup_path_type<'a>(&self, mut ty: &'a Type, path: &[u32], b: &mut Budget) -> CompileResult<&'a Type> {
+    fn cleanup_path_type<'a>(&self, mut ty: &'a Type, path: &[PlaceProjection], b: &mut Budget) -> CompileResult<&'a Type> {
         for &field in path {
             b.spend(1, WORK)?;
-            ty = Self::pattern_child_type(ty, PlaceProjection::Field(field))
+            ty = Self::pattern_child_type(ty, field)
                 .ok_or_else(|| fail("original residual cleanup selects an absent actual child"))?;
         }
         Ok(ty)
     }
 
-    fn cleanup_path_value(&self, mut value: value::Value, path: &[u32], b: &mut Budget) -> CompileResult<value::Value> {
+    fn cleanup_path_value(&self, mut value: value::Value, path: &[PlaceProjection], b: &mut Budget) -> CompileResult<value::Value> {
         for &field in path {
             b.spend(1, WORK)?;
-            value = self.closure_child_value(&value, PlaceProjection::Field(field), b)?;
+            value = self.closure_child_value(&value, field, b)?;
         }
         Ok(value)
     }
 
-    fn cleanup_place<'a>(&self, function: &TypedFunction, root: LocalId,
-        path: &'a [u32], b: &mut Budget) -> CompileResult<(LocalId, &'a [u32])> {
-        if path.is_empty() { return Ok((root, path)); }
+    fn cleanup_place(&self, function: &TypedFunction, root: LocalId,
+        path: &[u32], b: &mut Budget) -> CompileResult<(LocalId, Vec<PlaceProjection>)> {
+        if path.is_empty() { return Ok((root, Vec::new())); }
         if function.call_kind == CallKind::Suspend
-            && function.locals.get(root.0 as usize).is_some_and(|local| local.id == root && matches!(local.ty, Type::Tuple(_)))
+            && let Some(local) = function.locals.get(root.0 as usize).filter(|local| local.id == root && matches!(local.ty, Type::Tuple(_) | Type::Enum { .. }))
         {
-            return Ok((root, path));
+            b.spend(path.len(), WORK)?;
+            let mut selectors = Vec::new();
+            let mut ty = &local.ty;
+            for &ordinal in path {
+                let selector = match ty {
+                    Type::Enum { variants, .. } => {
+                        let mut field = ordinal as usize;
+                        let mut ordinal = None;
+                        for (tag, (_, payload)) in variants.iter().enumerate() {
+                            b.spend(1, WORK)?;
+                            if let Some(remaining) = field.checked_sub(payload.len()) { field = remaining; }
+                            else { ordinal = Some(PlaceProjection::Variant(VariantProjection { variant: tag as u32, index: field as u32 })); break; }
+                        }
+                        ordinal.ok_or_else(|| fail("original residual cleanup leaves its Enum variants"))?
+                    }
+                    Type::ErrorUnion { .. } if ordinal < 2 => PlaceProjection::ErrorArm(ordinal == 1),
+                    _ => PlaceProjection::Field(ordinal),
+                };
+                ty = Self::pattern_child_type(ty, selector).ok_or_else(|| fail("original residual cleanup leaves its inline storage"))?;
+                selectors.push(selector);
+            }
+            return Ok((root, selectors));
         }
         let mut selected = None;
         for block in &function.blocks {
@@ -430,7 +462,7 @@ impl Check<'_, '_> {
                 selected = Some(local);
             }
         }
-        selected.map(|local| (local, &[][..]))
+        selected.map(|local| (local, Vec::new()))
             .ok_or_else(|| unknown("original cleanup child needs its complete actual selected drop operation"))
     }
 

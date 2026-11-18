@@ -291,7 +291,8 @@ impl CheckedContext {
                         let child=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual borrowed local has no initialized semantic occupant"))?;
                         let result=instruction.result.ok_or_else(||bad("actual local borrow has no SSA result"))?;
                         let mode=if matches!(instruction.kind,InstructionKind::BorrowLocalMut{..}){StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
-                        let outer=ClassKey::Outer{scope,operand:OperandKey::Value(result),path:vec![],mode};
+                        let outer=self.pattern_borrow_class(module,instance,f,instruction,*local,&[],mode==StoredBorrowMode::ExclusiveAddress,scope,b)?
+                            .unwrap_or(ClassKey::Outer{scope,operand:OperandKey::Value(result),path:vec![],mode});
                         Some(dynamic_witness::semantic_external::construct(self,&environment,dynamic_witness::semantic_external::Constructor::Address{mode,outer:Some(outer)},std::slice::from_ref(child),active,b)?)
                     }
                     InstructionKind::ReborrowAddress{address,mutable}=>{

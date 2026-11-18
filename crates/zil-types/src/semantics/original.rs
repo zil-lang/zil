@@ -211,6 +211,7 @@ pub(super) struct Proof {
         BTreeMap<(SemanticDefinitionId, NodeId), SemanticOriginalTypeSource>,
     pub(super) call_regions: BTreeMap<(SemanticDefinitionId, u32), call_regions::CallRegion>,
     pub field_reborrows: BTreeMap<(SemanticDefinitionId, NodeId), FieldReborrow>,
+    pub(super) pattern_borrows: BTreeMap<(SemanticDefinitionId, Span), (u32, bool)>,
     pub declarations: std::rc::Rc<Vec<super::original_context::Declaration>>,
     pub associated_complete: BTreeSet<LifeDeclarationId>,
     pub capture_names: BTreeMap<SemanticDefinitionId, Vec<String>>,
@@ -4938,6 +4939,32 @@ impl<'a> Check<'a, '_> {
             )),
         }
     }
+    fn pattern_reference_mode(&mut self, pattern: &SemanticOriginalPattern, depth: usize) -> R<Option<bool>> {
+        original_pattern_reference_mode(pattern, depth, &mut |depth| self.pay(1, depth))
+    }
+
+    fn pattern_subject_type(
+        &mut self, owner: SemanticDefinitionId, value: &SemanticOriginalExpr,
+        mode: Option<bool>, variables: &mut BTreeMap<String, Binding>,
+        wanted: Option<&SemanticTypeRecipe>, depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        match mode {
+            None => self.expr(owner, value, variables, wanted, depth),
+            Some(false) => self.place(owner, value, variables, depth),
+            Some(true) => {
+                // A fresh rvalue can establish its own writable temporary.
+                // A lexical or indirect place must retain its real permission.
+                if matches!(value.kind, CoreExprKind::Name(_) | CoreExprKind::Member { .. }
+                    | CoreExprKind::Group(_) | CoreExprKind::Index { .. }
+                    | CoreExprKind::Unary { op: UnaryOp::Dereference, .. })
+                {
+                    self.writable(owner, value, variables, depth + 1)?;
+                }
+                self.place(owner, value, variables, depth)
+            }
+        }
+    }
+
     fn pattern(
         &mut self,
         owner: SemanticDefinitionId,
@@ -5019,28 +5046,41 @@ impl<'a> Check<'a, '_> {
             }
             CorePatternKind::Reference {
                 mutable: requested,
-                pattern,
+                pattern: binding,
             } => {
-                let ty = self.logical(owner, ty, depth + 1)?;
-                let SemanticTypeRecipe::Address {
-                    mutable: available,
-                    inner,
-                    ..
-                } = ty
-                else {
-                    return Err(bad("original reference pattern has no borrowed subject"));
-                };
-                if *requested && !available {
-                    return Err(bad("original pattern strengthens shared access"));
+                if !matches!(binding.kind, CorePatternKind::Name(_) | CorePatternKind::Wildcard) {
+                    return Err(bad("original reference pattern requires a name or discard"));
                 }
+                let implicit = &self.definition(owner)?.implicit_lifetimes;
+                self.pay(implicit.len().saturating_mul(path.len().saturating_add(2)), depth)?;
+                let mut selected = implicit.iter().filter(|row| {
+                    row.occurrence_path.strip_prefix(&[ORIGINAL_PATTERN_BORROW, statement.0]) == Some(path.as_slice())
+                });
+                let ordinal = selected.next().ok_or_else(|| bad("original reference pattern lacks its occurrence"))?.ordinal;
+                if selected.next().is_some() { return Err(bad("original reference pattern repeats its occurrence")); }
+                if matches!(binding.kind, CorePatternKind::Name(_)) {
+                    self.pay(self.proof.pattern_borrows.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+                    let previous = self.proof.proof_mut()?.pattern_borrows.insert((owner, pattern.span), (ordinal, *requested));
+                    if previous.is_some_and(|value| value != (ordinal, *requested)) {
+                        return Err(bad("original reference pattern has competing borrow occurrences"));
+                    }
+                }
+                let inner = copy_recipe(ty, self.limits, self.left)?;
+                let address = SemanticTypeRecipe::Address {
+                    mutable: *requested,
+                    lifetime: SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit {
+                        scope: SemanticScopeRef::Ancestor(0), ordinal,
+                    }),
+                    inner: Box::new(inner),
+                };
                 self.pay(1, depth)?;
                 path.push(0);
                 self.pattern(
                     owner,
                     statement,
                     path,
-                    pattern,
-                    &inner,
+                    binding,
+                    &address,
                     mutable,
                     variables,
                     names,
@@ -5552,9 +5592,11 @@ impl<'a> Check<'a, '_> {
                         .as_ref()
                         .map(|ty| self.resolve(owner, ty, depth + 1))
                         .transpose()?;
-                    let actual = self.expr(
+                    let mode = self.pattern_reference_mode(pattern, depth + 1)?;
+                    let actual = self.pattern_subject_type(
                         owner,
                         initializer,
+                        mode,
                         variables,
                         annotation.as_ref(),
                         depth + 1,
@@ -5585,7 +5627,8 @@ impl<'a> Check<'a, '_> {
                     then_body,
                     else_body,
                 } => {
-                    let ty = self.expr(owner, value, variables, None, depth + 1)?;
+                    let mode = self.pattern_reference_mode(pattern, depth + 1)?;
+                    let ty = self.pattern_subject_type(owner, value, mode, variables, None, depth + 1)?;
                     self.pay(2, depth)?;
                     let mut branches = Vec::new();
                     let mut matched = self.clone_variables(variables)?;
@@ -5618,7 +5661,13 @@ impl<'a> Check<'a, '_> {
                     }
                 }
                 CoreStatementKind::Match { value, arms } => {
-                    let ty = self.expr(owner, value, variables, None, depth + 1)?;
+                    let mut mode = None;
+                    for arm in arms {
+                        if let Some(mutable) = self.pattern_reference_mode(&arm.pattern, depth + 1)? {
+                            mode = Some(mode.unwrap_or(false) || mutable);
+                        }
+                    }
+                    let ty = self.pattern_subject_type(owner, value, mode, variables, None, depth + 1)?;
                     self.pay(arms.len(), depth)?;
                     let mut branches = Vec::new();
                     for (ordinal, arm) in arms.iter().enumerate() {
@@ -5676,7 +5725,8 @@ impl<'a> Check<'a, '_> {
                     value,
                     body,
                 } => {
-                    let ty = self.expr(owner, value, variables, None, depth + 1)?;
+                    let mode = self.pattern_reference_mode(pattern, depth + 1)?;
+                    let ty = self.pattern_subject_type(owner, value, mode, variables, None, depth + 1)?;
                     let mut iteration = self.clone_variables(variables)?;
                     self.pattern(
                         owner,

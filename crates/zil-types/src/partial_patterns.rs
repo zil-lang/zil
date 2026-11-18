@@ -81,6 +81,9 @@ impl Builder<'_, '_> {
             }
         }
         if !consume && let Some(place) = locate(self, e)? {
+            if place.path.is_empty() {
+                self.semantic_local_place(e, place.local)?;
+            }
             return Ok(place);
         }
         let (v, t) = if consume && matches!(e.kind, CoreExprKind::Member { .. }) {

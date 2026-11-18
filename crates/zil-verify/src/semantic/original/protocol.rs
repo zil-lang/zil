@@ -13,6 +13,13 @@ pub(super) fn owner_variant_field(tag: u32, index: usize) -> String {
     format!("$variant:{tag}:{index}")
 }
 
+/// Possible active tags and protocol slots already vacated, from all real
+/// original scope exits of this place. An untracked state supplies no bound.
+pub(super) struct EnumCleanup {
+    pub(super) definition: SemanticDefinitionId,
+    pub(super) variants: BTreeMap<u32, BTreeSet<String>>,
+}
+
 pub(super) struct CaptureExit{root:Place,generation:u64,phase:u8,sources:Sources,exit:ProtocolExit,unchanged:bool}
 struct Engine<'a> {
     original: &'a CheckedOriginal,
@@ -25,6 +32,7 @@ struct Engine<'a> {
     next: u64,
     closed_tasks: BTreeSet<Place>,
     async_tasks: BTreeSet<Place>,
+    enum_cleanups: BTreeMap<Place, Option<EnumCleanup>>,
     retiring_captures:BTreeSet<Place>,
     capture_exits:Vec<CaptureExit>,
     capture_inputs:BTreeMap<Place,u64>,
@@ -199,6 +207,7 @@ impl CheckedOriginal {
                 next: 0,
                 closed_tasks: BTreeSet::new(),
                 async_tasks: BTreeSet::new(),
+                enum_cleanups: BTreeMap::new(),
                 retiring_captures:BTreeSet::new(),capture_exits:vec![],capture_inputs:BTreeMap::new(),
                 synchronous_births:&mut synchronous_births,
                 result_sources_by_function:&result_sources_by_function,
@@ -322,6 +331,7 @@ impl CheckedOriginal {
             }
             let closed = std::mem::take(&mut engine.closed_tasks);
             let asynchronous = std::mem::take(&mut engine.async_tasks);
+            let enum_cleanups = std::mem::take(&mut engine.enum_cleanups);
             let retiring_captures=std::mem::take(&mut engine.retiring_captures);
             let capture_exits=std::mem::take(&mut engine.capture_exits);
             let returned=engine.returned_sources.take();
@@ -336,6 +346,10 @@ impl CheckedOriginal {
             for root in asynchronous {
                 b.spend(1)?;
                 self.task_async_cleanups.insert((id, root));
+            }
+            for (root, cleanup) in enum_cleanups {
+                b.spend(1)?;
+                self.enum_cleanup_variants.insert((id, root), cleanup);
             }
             self.current=previous;
         }
