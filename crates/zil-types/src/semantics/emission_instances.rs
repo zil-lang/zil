@@ -81,6 +81,7 @@ fn append_site_rows(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use zil_base::ModuleId;
 
     #[test]
     fn appended_mint_resolves_only_in_its_actual_caller_and_keeps_duplicate_rejection() {
