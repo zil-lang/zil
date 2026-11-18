@@ -7,13 +7,14 @@ transfers exactly one T. It does not impose an additional Copy requirement.
 An explicit resource result mode on `E!R` wraps the successful R in its owning
 carrier; it never wraps the whole error union or changes its selected tag.
 
-The finite inline continuation profile accepts closed products and sums whose
-owning leaves have actual canonical inline resource definitions and whose
-complete reachable cleanup is synchronous Direct code. Alternatives are
-exclusive, rather than simultaneous debts. Both kernels independently check
-actual inputs, locals, SSA slots, results, leaf identity and cleanup. Nested
-closed captures use the same actual leaf checks and retain the separate
-registration ClosedEnvironment/no-future obligations.
+The finite inline continuation profile checks actual canonical resource
+definitions for owning Product and Sum leaves. Synchronous leaves require
+their complete Direct cleanup. A live continuation responsibility may also
+settle Task and asynchronous registration leaves through their existing close
+protocols. Alternatives are exclusive and cleanup selects the active tag. Both
+kernels independently check actual inputs, locals, SSA slots, results, leaf
+identity and cleanup. Nested captures retain the separate registration
+ClosedEnvironment and no-future obligations.
 
 Each complete owning result has a distinct live responsibility node in the
 stable frame. Ordinary ownership transfer moves responsibility to this slot
@@ -66,6 +67,12 @@ Cleanup follows the actual capture order and live flags. A child whose close
 returns Pending keeps its flag, the enclosing owner node, environment storage,
 and saved continuation. Ready permits retirement of that child only; the
 whole callable is retired after all remaining captures have been settled.
+An inline capture uses the same field and active alternative order as ordinary
+cleanup. Moved Package fields are skipped using their actual flags. The stable
+owner or capture records the next unfinished cleanup step before returning
+Pending. Repeated close requests do not call completed steps. A new occupant
+starts with its own initial progress. This continuation protocol grants no
+synchronous Drop capability to an ordinary caller.
 Nested callable environments obey the same rule. Their cleanup never invokes
 the user callable body and must not repeat the ordinary recursive drop after
 its capture segments have already been destroyed. Mid-body Drop and

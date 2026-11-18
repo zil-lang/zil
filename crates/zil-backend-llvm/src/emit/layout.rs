@@ -14,6 +14,7 @@ pub(super) enum FieldRole {
     Ordinary,
     Capture(u32),
     CaptureFlag { capture: u32, ordinal: u32 },
+    CaptureDropCursor(u32),
     Tag,
     Payload,
 }
@@ -438,6 +439,17 @@ impl Environments for Builder<'_, '_, '_> {
                 ));
             }
         }
+        for (index, ty) in definition.captures.iter().enumerate() {
+            if drop_plan::inline_aggregate(ty) && drop_plan::contains_pending(ty, 0, self.meter, &|id| {
+                self.meter.spend(lookup_work(self.closures.len(), 1))?;
+                self.closures.get(&id).copied().ok_or_else(|| vec![Diagnostic::error(
+                    Phase::Codegen, "E-CODEGEN-LAYOUT", None,
+                    "inline cleanup has no actual capture environment",
+                )])
+            })? {
+                fields.push((FieldRole::CaptureDropCursor(index as u32), leaf(m::Ty::Int(32), 4, 4)));
+            }
+        }
         let mut recipe = product(self, fields)?;
         self.meter.spend(lookup_work(self.active.len(),1).saturating_add(lookup_work(self.environments.len(),1)).saturating_add(32))?;
         Arc::get_mut(&mut recipe).expect("new environment recipe").machine=environment_type(id);
@@ -659,6 +671,11 @@ impl<'a> LayoutContext<'a> {
                     "capture has no actual live-flag field",
                 )]
             })
+    }
+    pub(super) fn capture_drop_cursor(&self, id: ClosureId, capture: u32) -> CompileResult<Option<u32>> {
+        let recipe = self.environment(id)?;
+        self.meter.spend(recipe.fields.len())?;
+        Ok(recipe.fields.iter().find(|field| field.role == FieldRole::CaptureDropCursor(capture)).map(|field| field.index))
     }
     pub(super) fn with_work<R>(
         &self,

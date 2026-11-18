@@ -349,13 +349,15 @@ impl FunctionEmitter<'_> {
     ) -> CompileResult<()> {
         let recipe=self.layouts.environment(environment)?;
         self.layouts.meter().spend(recipe.fields.len())?;
-        let flags=recipe.fields.iter().filter_map(|field|match field.role {
-            layout::FieldRole::CaptureFlag{capture,..}if capture==index=>Some(field.index),_=>None
-        }).collect::<Vec<_>>();
-        for flag in flags {
+        for field in &recipe.fields {
+            let value = match field.role {
+                layout::FieldRole::CaptureFlag { capture, .. } if capture == index => m::Arg::new(m::Ty::Int(1), true),
+                layout::FieldRole::CaptureDropCursor(capture) if capture == index => m::Arg::new(m::Ty::Int(32), 0),
+                _ => continue,
+            };
             self.layouts.meter().spend(16)?;let pointer=self.temp();
-            self.event(m::Event::Instruction(m::Inst::new(Some(m::name(pointer.clone())),m::Op::Gep{ty:environment_type(environment),ptr:m::local("env".into()),indices:vec![m::Arg::new(m::Ty::Int(32),0),m::Arg::new(m::Ty::Int(32),flag)]})));
-            self.event(m::Event::Instruction(m::Inst::new(None,m::Op::Store{arg:m::Arg::new(m::Ty::Int(1),true),ptr:m::val(pointer),align:1})));
+            self.event(m::Event::Instruction(m::Inst::new(Some(m::name(pointer.clone())),m::Op::Gep{ty:environment_type(environment),ptr:m::local("env".into()),indices:vec![m::Arg::new(m::Ty::Int(32),0),m::Arg::new(m::Ty::Int(32),field.index)]})));
+            self.event(m::Event::Instruction(m::Inst::new(None,m::Op::Store{arg:value,ptr:m::val(pointer),align:1})));
         }
         Ok(())
     }

@@ -8,6 +8,21 @@ pub(super) fn symbol(id: ClosureId, operation: &str) -> String {
     format!("zil.task.group.{}.{operation}", id.0)
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum Group {
+    Closure(ClosureId),
+    Inline(String),
+}
+
+impl Group {
+    pub(super) fn helpers(&self) -> (String, String, bool) {
+        match self {
+            Self::Closure(id) => (symbol(*id, "poll"), symbol(*id, "request"), false),
+            Self::Inline(name) => (format!("{name}.poll"), format!("{name}.request"), true),
+        }
+    }
+}
+
 fn definition(module: &TypedModule, id: ClosureId) -> CompileResult<&ClosureDefinition> {
     module.closures.get(id.0 as usize).filter(|d| d.id == id).ok_or_else(|| {
         vec![Diagnostic::error(Phase::Codegen, "E-CODEGEN-TASK", None,
@@ -16,24 +31,7 @@ fn definition(module: &TypedModule, id: ClosureId) -> CompileResult<&ClosureDefi
 }
 
 fn scan(module: &TypedModule, ty: &Type, depth: usize, meter: &Meter) -> CompileResult<bool> {
-    meter.spend(1)?;
-    if depth >= 64 {
-        return unsupported("cleanup group exceeds finite inline depth", None);
-    }
-    Ok(match enums::storage_shape(ty) {
-        Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}|Type::TaskI32|Type::AsyncRegistration{..})=>true,
-        Type::Closure(id)=>{let mut found=false;for capture in &definition(module,*id)?.captures{found|=scan(module,capture,depth+1,meter)?;}found},
-        Type::Managed(payload)=>match payload.as_ref(){Type::Mutex{payload}=>scan(module,payload,depth+1,meter)?,Type::OwnedStore{element}=>scan(module,element,depth+1,meter)?,_=>false},
-        Type::Tuple(fields)=>{let mut found=false;for field in fields{found|=scan(module,field,depth+1,meter)?;}found},
-        Type::Record{fields,..}|Type::Package{fields,..}=>{let mut found=false;for(_,field)in fields{found|=scan(module,field,depth+1,meter)?;}found},
-        Type::Array{element,length}=>*length!=0&&scan(module,element,depth+1,meter)?,
-        Type::Enum{variants,..}=>{let mut found=false;for(_,fields)in variants{for field in fields{found|=scan(module,field,depth+1,meter)?;}}found},
-        Type::ErrorUnion{error,result}=>scan(module,error,depth+1,meter)?|scan(module,result,depth+1,meter)?,
-        // A borrowed head owns no pointee. OwnedDyn has an independent actual
-        // provider/drop ABI gate before any prepared module is published.
-        Type::Address{..}|Type::Desc(_)|Type::OwnedDyn{..}=>false,
-        _=>false,
-    })
+    drop_plan::contains_pending(ty, depth, meter, &|id| definition(module, id))
 }
 
 fn type_work(ty: &Type, meter: &Meter) -> CompileResult<()> {
@@ -86,8 +84,8 @@ fn validate(module:&TypedModule,id:ClosureId,depth:usize,meter:&Meter)->CompileR
         match physical {
             Type::Closure(child)if scan(module,ty,0,meter)?=>validate(module,*child,depth+1,meter)?,
             Type::Managed(payload)if matches!(payload.as_ref(),Type::Task{..}|Type::TaskI32|Type::AsyncRegistration{..})=>{},
+            _ if drop_plan::inline_aggregate(ty) && scan(module, ty, 0, meter)? => {},
             _=>{
-                if scan(module,ty,0,meter)? {return unsupported("asynchronous composite capture needs its complete resumable field recipe",None);}
                 if !synchronous(module,ty,0,meter)? {return unsupported("cleanup group synchronous capture lacks a complete actual Direct teardown",None);}
             }
         }
@@ -122,15 +120,29 @@ impl RetirementRoles {
         };
         *role=true; Ok(())
     }
-    pub(super) fn group(&self, index: usize, module: &TypedModule, ty: &Type, meter: &Meter) -> CompileResult<Option<ClosureId>> {
+    pub(super) fn group(&self, index: usize, module: &TypedModule, ty: &Type, meter: &Meter) -> CompileResult<Option<Group>> {
         meter.spend(1)?;
         // Concrete Closure helpers are also called by actual DropClosure and
         // consuming-invocation markers. Keep that complete helper directory.
         // A non-Closure intermediate never exposed at a retirement boundary
         // keeps its ordinary transfer/drop helper, but needs no resumable one.
         if !self.0[index] && !matches!(enums::storage_shape(ty),Type::Closure(_)) { return Ok(None); }
-        closure(module,ty,meter)
+        route(module,ty,meter)
     }
+}
+
+pub(super) fn route(module: &TypedModule, ty: &Type, meter: &Meter) -> CompileResult<Option<Group>> {
+    let physical = enums::storage_shape(ty);
+    if drop_plan::inline_aggregate(physical) {
+        if !scan(module, ty, 0, meter)? {
+            return Ok(None);
+        }
+        // The complete actual Type is checked again before this symbol can
+        // share an emitted helper; its fingerprint is an addressing key.
+        type_work(ty, meter)?;
+        return Ok(Some(Group::Inline(format!("zil.task.inline.drop.{}", ty.fingerprint()))));
+    }
+    closure(module, ty, meter).map(|id| id.map(Group::Closure))
 }
 
 pub(super) fn closure(module: &TypedModule, ty: &Type, meter: &Meter) -> CompileResult<Option<ClosureId>> {
@@ -155,11 +167,12 @@ fn clear(v: &mut Vec<m::Inst>, index: usize) {
 }
 fn next(index: usize) -> String { format!("check.{}", index + 1) }
 
-fn functions(layouts: &LayoutContext<'_>, module: &TypedModule, id: ClosureId, limits: &zil_base::Limits, meter: &Meter) -> CompileResult<Vec<m::Item>> {
+pub(super) fn functions(layouts: &LayoutContext<'_>, module: &TypedModule, id: ClosureId, pending: &mut Vec<ClosureId>, meter: &Meter) -> CompileResult<Vec<m::Item>> {
     let d = definition(module, id)?;
     meter.spend(d.captures.len().saturating_mul(256).saturating_add(128))?;
     let mut poll = vec![block("entry", vec![inst(None, m::Op::Branch("check.0".into()))])];
     let mut request = vec![block("entry", vec![inst(None, m::Op::Branch("check.0".into()))])];
+    let mut items = vec![];
     for (index, ty) in d.captures.iter().enumerate() {
         let check = format!("check.{index}");
         let body = format!("leaf.{index}");
@@ -177,9 +190,25 @@ fn functions(layouts: &LayoutContext<'_>, module: &TypedModule, id: ClosureId, l
         let mut p = vec![];
         // Every leaf has its own SSA spelling within this helper.
         let payload = format!("payload.{index}");
-        gep(&mut p, &payload, &environment_type(id), loc("env"), index as u32);
+        let cursor = layouts.capture_drop_cursor(id, index as u32)?;
+        let pointer = format!("cursor.{index}");
+        if let Some(cursor) = cursor {
+            gep(&mut p, &pointer, &environment_type(id), loc("env"), cursor);
+        } else {
+            gep(&mut p, &payload, &environment_type(id), loc("env"), index as u32);
+        }
         let mut r = p.clone();
-        match enums::storage_shape(ty) {
+        if cursor.is_some() {
+            let name = format!("zil.task.group.{}.capture.{index}", id.0);
+            items.extend(super::inline_drop::capture_functions(layouts, module, ty, id, index as u32, &name, pending, meter)?);
+            let args = || vec![m::Arg::new(m::Ty::Ptr, loc("env")), m::Arg::new(m::Ty::Ptr, loc(&pointer))];
+            call(&mut r, None, m::Ty::Void, m::global(format!("{name}.request")), args());
+            let ready = format!("ready.{index}");
+            call(&mut p, Some(&ready), m::Ty::Int(1), m::global(format!("{name}.poll")), args());
+            cond(&mut p, &ready, &finish, "pending");
+            poll.push(block(&body, p));
+            p = vec![];
+        } else { match enums::storage_shape(ty) {
             Type::Managed(inner) if matches!(inner.as_ref(),Type::Task{..}|Type::TaskI32) => {
                 call(&mut r,None,m::Ty::Void,m::global("zil.task.request_cancel".into()),vec![m::Arg::new(m::Ty::Ptr,loc(&payload))]);
                 let frame = format!("frame.{index}");
@@ -226,7 +255,7 @@ fn functions(layouts: &LayoutContext<'_>, module: &TypedModule, id: ClosureId, l
                 call(&mut p,None,m::Ty::Void,m::global(resource_closures::capture_drop_symbol(id,index as u32)),vec![m::Arg::new(m::Ty::Ptr,loc("env"))]);
                 branch(&mut p,&finish);poll.push(block(&body,p));p=vec![];
             },
-        }
+        } }
         clear(&mut p,index);
         branch(&mut p,&next(index));
         poll.push(block(&finish,p));
@@ -236,32 +265,57 @@ fn functions(layouts: &LayoutContext<'_>, module: &TypedModule, id: ClosureId, l
     poll.push(block(&format!("check.{}",d.captures.len()),vec![inst(None,m::Op::Return(Some(m::Arg::new(m::Ty::Int(1),true))))]));
     poll.push(block("pending",vec![inst(None,m::Op::Return(Some(m::Arg::new(m::Ty::Int(1),false))))]));
     request.push(block(&format!("check.{}",d.captures.len()),vec![inst(None,m::Op::Return(None))]));
-    Ok(vec![function(symbol(id,"poll"),m::Ty::Int(1),vec![m::Param::new(m::Ty::Ptr,"env")],poll),function(symbol(id,"request"),m::Ty::Void,vec![m::Param::new(m::Ty::Ptr,"env")],request)])
+    items.extend([function(symbol(id,"poll"),m::Ty::Int(1),vec![m::Param::new(m::Ty::Ptr,"env")],poll),function(symbol(id,"request"),m::Ty::Void,vec![m::Param::new(m::Ty::Ptr,"env")],request)]);
+    Ok(items)
 }
 
 pub(super) fn helpers(layouts: &LayoutContext<'_>, verified: &VerifiedModule, meter: &Meter) -> CompileResult<Vec<m::Item>> {
     let module=verified.module();
     let mut needed=BTreeSet::new();
     let mut pending=Vec::new();
+    let mut inline: BTreeMap<String, &Type> = BTreeMap::new();
+    let mut add = |route, ty| -> CompileResult<()> {
+        match route {
+            Some(Group::Closure(id)) => pending.push(id),
+            Some(Group::Inline(name)) => {
+                meter.spend(inline.len().checked_ilog2().map_or(1, |depth| depth as usize + 2))?;
+                if let Some(previous) = inline.get(&name) {
+                    type_work(previous, meter)?;
+                    type_work(ty, meter)?;
+                    if *previous != ty {
+                        return invalid("E-CODEGEN-TASK", "resumable inline helper changes its complete actual Type", None);
+                    }
+                } else {
+                    inline.insert(name, ty);
+                }
+            }
+            None => {}
+        }
+        Ok(())
+    };
     for f in &module.functions {
         if let Some(ownership)=verified.task_ownership(f.id) {
             let roles=RetirementRoles::of(ownership,meter)?;
             for (index,owner) in ownership.owners().iter().enumerate() {
-                if let Some(id)=roles.group(index,module,owner.ty(),meter)? { pending.push(id); }
+                add(roles.group(index,module,owner.ty(),meter)?, owner.ty())?;
             }
-            if let Some(ty)=ownership.result_type()
-                && let Some(id)=closure(module,ty,meter)? { pending.push(id); }
-
+            if let Some(ty)=ownership.result_type() {
+                add(route(module,ty,meter)?, ty)?;
+            }
         }
     }
     let mut result=vec![];
+    for (name, ty) in inline {
+        result.extend(super::inline_drop::functions(layouts, module, ty, &name, &mut pending, meter)?);
+    }
     while let Some(id)=pending.pop() {
         meter.spend(needed.len().saturating_add(1))?;
         if !needed.insert(id) {continue;}
         for ty in &definition(module,id)?.captures {
-            if let Some(child)=closure(module,ty,meter)? { pending.push(child); }
+            if matches!(enums::storage_shape(ty), Type::Closure(_))
+                && let Some(child)=closure(module,ty,meter)? { pending.push(child); }
         }
-        result.extend(functions(layouts,module,id,verified.limits(),meter)?);
+        result.extend(functions(layouts,module,id,&mut pending,meter)?);
     }
     Ok(result)
 }
@@ -282,7 +336,7 @@ mod tests {
     fn resumable_environment_keeps_synchronous_package_capture_flags_and_real_teardown() {
         let module=module();let limits=zil_base::Limits::default();let layouts=&LayoutContext::for_test_module(&module,&limits).unwrap();
         assert_eq!(closure(&module,&Type::Closure(ClosureId(0)),layouts.meter()).unwrap(),Some(ClosureId(0)));
-        let generated=functions(layouts,&module,ClosureId(0),&limits,layouts.meter()).unwrap();
+        let generated=functions(layouts,&module,ClosureId(0),&mut vec![],layouts.meter()).unwrap();
         let poll=generated.iter().find_map(|item|match item {m::Item::Function(function)if function.name==symbol(ClosureId(0),"poll")=>Some(function),_=>None}).unwrap();
         assert!(poll.blocks.as_ref().unwrap().iter().flat_map(|block|&block.instructions).any(|instruction|matches!(&instruction.op,m::Op::Call{callee,args,..}if *callee==m::global(resource_closures::capture_drop_symbol(ClosureId(0),1))&&args[0].value==loc("env"))));
         let captures=resource_closures::drop_functions(layouts,&module.closures,&module.resources).unwrap();
@@ -307,14 +361,14 @@ mod tests {
         assert_eq!(roles.group(1,&module,&ty,&meter).unwrap(),None);
         assert_eq!(drop_plan::task_leaf(&ty,&module.resources,&limits,&meter).unwrap(),Some(drop_plan::symbol(&ty)));
         for index in [0,2,4] {
-            assert!(roles.group(index,&module,&ty,&meter).is_err(),"entry and every possible retirement boundary still require a real asynchronous field recipe");
+            assert!(matches!(roles.group(index,&module,&ty,&meter).unwrap(),Some(Group::Inline(_))),"entry and every possible retirement boundary still require a real asynchronous field recipe");
         }
         // Saved results are independently reachable even if no boundary row
         // names a local/SSA owner; they never pass through the intermediate lane.
-        assert!(closure(&module,&ty,&meter).is_err());
+        assert!(matches!(route(&module,&ty,&meter).unwrap(), Some(Group::Inline(_))));
         // Concrete environment helpers remain needed by actual closure-drop
         // and consuming-call markers, independently of aggregate intermediates.
-        assert_eq!(roles.group(1,&module,&Type::Closure(ClosureId(0)),&meter).unwrap(),Some(ClosureId(0)));
+        assert_eq!(roles.group(1,&module,&Type::Closure(ClosureId(0)),&meter).unwrap(),Some(Group::Closure(ClosureId(0))));
     }
     #[test]
     fn canonical_retirement_roles_reject_missing_indices_and_pay_all_boundary_rows() {
@@ -335,9 +389,9 @@ mod tests {
         let mut module=module();let limits=zil_base::Limits::default();let meter=Meter::with_limits(limits.max_analysis_steps,&limits);
         let task=Type::Managed(Box::new(Type::TaskI32));
         for ty in [Type::Tuple(vec![task.clone()]),Type::Array{element:Box::new(task.clone()),length:1},Type::Enum{name:"UnknownActive".into(),variants:vec![("Empty".into(),vec![]),("Live".into(),vec![task.clone()])]},Type::ErrorUnion{error:Box::new(Type::Unit),result:Box::new(task.clone())}] {
-            assert!(closure(&module,&ty,&meter).is_err());
+            assert!(matches!(route(&module,&ty,&meter).unwrap(), Some(Group::Inline(_))));
             module.closures[0].captures[1]=ty;
-            assert!(closure(&module,&Type::Closure(ClosureId(0)),&meter).is_err());
+            assert_eq!(closure(&module,&Type::Closure(ClosureId(0)),&meter).unwrap(), Some(ClosureId(0)));
         }
         assert_eq!(closure(&module,&task,&meter).unwrap(),None,"the dedicated canonical Task route remains available");
         let borrowed=Type::Address{mutable:false,inner:Box::new(task.clone())};

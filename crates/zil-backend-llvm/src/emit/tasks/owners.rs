@@ -5,7 +5,9 @@ use zil_ir::TypedModule;
 use zil_verify::{TaskOwnerAction, TaskOwnerSlot, TaskOwnership};
 const MARK: &str = "zil.task.owner.marker.";
 fn node_ty() -> m::Ty {
-    m::Ty::Struct(vec![m::Ty::Ptr; 6])
+    let mut fields = vec![m::Ty::Ptr; 6];
+    fields.extend([m::Ty::Int(32), m::Ty::Int(1)]);
+    m::Ty::Struct(fields)
 }
 fn helper(op: &str) -> String {
     format!("zil.task.owner.{op}")
@@ -14,7 +16,7 @@ pub(super) struct OwnerFrame {
     anchor: u32,
     nodes: Vec<u32>,
     drops: Vec<Option<String>>,
-    pollable: Vec<Option<(String, String)>>,
+    pollable: Vec<Option<(String, String, bool)>>,
     groups: Vec<bool>,
     // Only consuming invocations can temporarily redirect a canonical SSA
     // owner to its actual mutable environment spill. A later Link resets it.
@@ -49,15 +51,16 @@ pub(super) fn plan(
             Ok(group)=>group,Err(diagnostics)=>return describe_failure(diagnostics,worker,Some(owner_index),owner.ty(),ownership,meter)
         };
         groups.push(group.is_some());
-        pollable.push(if let Some(id) = group {
-            Some((owner_groups::symbol(id, "poll"), owner_groups::symbol(id, "request")))
+        pollable.push(if let Some(group) = group {
+            Some(group.helpers())
         } else if registration {
             Some((
                 "zil.async_registration.drop".into(),
                 "zil.async_registration.request_head".into(),
+                false,
             ))
         } else if child {
-            Some(("zil.task.poll_close".into(), "zil.task.request_cancel".into()))
+            Some(("zil.task.poll_close".into(), "zil.task.request_cancel".into(), false))
         } else {
             None
         });
@@ -73,16 +76,16 @@ pub(super) fn plan(
         frame.fields.push(node_ty());
         let registration = matches!(enums::storage_shape(ty), Type::Managed(payload) if matches!(payload.as_ref(), Type::AsyncRegistration { .. }));
         let child = matches!(enums::storage_shape(ty), Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. } | Type::TaskI32));
-        let group=match owner_groups::closure(module,ty,meter) {
+        let group=match owner_groups::route(module,ty,meter) {
             Ok(group)=>group,Err(diagnostics)=>return describe_failure(diagnostics,worker,None,ty,ownership,meter)
         };
         groups.push(group.is_some());
-        pollable.push(if let Some(id) = group {
-            Some((owner_groups::symbol(id, "poll"), owner_groups::symbol(id, "request")))
+        pollable.push(if let Some(group) = group {
+            Some(group.helpers())
         } else if registration {
-            Some(("zil.async_registration.drop".into(), "zil.async_registration.request_head".into()))
+            Some(("zil.async_registration.drop".into(), "zil.async_registration.request_head".into(), false))
         } else if child {
-            Some(("zil.task.poll_close".into(), "zil.task.request_cancel".into()))
+            Some(("zil.task.poll_close".into(), "zil.task.request_cancel".into(), false))
         } else { None });
         drops.push(if registration { None } else {
             drop_plan::task_leaf(ty, &module.resources, limits, meter)?
@@ -153,6 +156,18 @@ fn read(v: &mut Vec<m::Inst>, prefix: &str, ptr: m::Val, index: u32) -> String {
     let value = format!("{prefix}.value");
     load(v, &value, m::Ty::Ptr, loc(p));
     value
+}
+fn cursor(v: &mut Vec<m::Inst>, node: m::Val) -> String {
+    field(v, "owner.cursor", node, 6)
+}
+fn cursor_abi(v: &mut Vec<m::Inst>, node: m::Val) -> String {
+    let flag = field(v, "owner.inline", node, 7);
+    load(v, "inline", m::Ty::Int(1), loc(flag));
+    "inline".into()
+}
+fn setup_cursor_abi(v: &mut Vec<m::Inst>, prefix: &str, node: m::Val, inline: bool) {
+    let flag = field(v, prefix, node, 7);
+    store(v, m::Ty::Int(1), m::val(inline), loc(flag));
 }
 pub(super) fn setup(v: &mut Vec<m::Inst>, frame: &m::Ty, owners: Option<&OwnerFrame>) {
     let Some(owners) = owners else {
@@ -247,6 +262,7 @@ pub(super) fn initialize(
                 role.map_or(m::Val::Null, |name| m::global(name.into())),
             );
         }
+        setup_cursor_abi(v, &format!("owner.inline.{index}"), loc(format!("task.owner.{index}")), owners.pollable[index].as_ref().is_some_and(|route| route.2));
         write(
             v,
             &format!("owner.storage.{index}"),
@@ -269,6 +285,7 @@ pub(super) fn initialize(
         for (field, role) in [(4, owners.pollable[index].as_ref().map(|p|p.0.as_str())), (5, owners.pollable[index].as_ref().map(|p|p.1.as_str()))] {
             write(v, &format!("owner.result.async.{field}"), loc(format!("task.owner.{index}")), field, role.map_or(m::Val::Null, |name|m::global(name.into())));
         }
+        setup_cursor_abi(v, "owner.result.inline", loc(format!("task.owner.{index}")), owners.pollable[index].as_ref().is_some_and(|route| route.2));
         write(
             v,
             "owner.result.storage",
@@ -562,6 +579,8 @@ pub(super) fn helpers(meter: &Meter, retarget: bool) -> CompileResult<Vec<m::Ite
         vec![m::Arg::new(m::Ty::Ptr, loc("node"))],
     );
     let prev = read(&mut v, "tail", loc("anchor"), 0);
+    let progress = cursor(&mut v, loc("node"));
+    store(&mut v, m::Ty::Int(32), m::val(0), loc(progress));
     write(&mut v, "node.prev", loc("node"), 0, loc(&prev));
     write(&mut v, "node.next", loc("node"), 1, loc("anchor"));
     write(&mut v, "tail.next", loc(prev), 1, loc("node"));
@@ -585,6 +604,8 @@ pub(super) fn helpers(meter: &Meter, retarget: bool) -> CompileResult<Vec<m::Ite
         vec![m::Arg::new(m::Ty::Ptr, loc("node"))],
     );
     let next = read(&mut v, "successor", loc("after"), 1);
+    let progress = cursor(&mut v, loc("node"));
+    store(&mut v, m::Ty::Int(32), m::val(0), loc(progress));
     write(&mut v, "node.prev", loc("node"), 0, loc("after"));
     write(&mut v, "node.next", loc("node"), 1, loc(&next));
     write(&mut v, "after.next", loc("after"), 1, loc("node"));
@@ -615,15 +636,25 @@ pub(super) fn helpers(meter: &Meter, retarget: bool) -> CompileResult<Vec<m::Ite
         "ne",
     );
     cond(&mut check, "async", "poll", "drop");
+    let mut poll_route = vec![];
+    let inline = cursor_abi(&mut poll_route, loc(&tail));
+    cond(&mut poll_route, &inline, "poll.inline", "poll.leaf");
     let mut polled = vec![];
     call(
         &mut polled,
         Some("ready"),
         m::Ty::Int(1),
-        loc(poll),
+        loc(&poll),
         vec![m::Arg::new(m::Ty::Ptr, loc(&payload))],
     );
     cond(&mut polled, "ready", "drop", "pending");
+    let mut polled_inline = vec![];
+    let progress = cursor(&mut polled_inline, loc(&tail));
+    call(&mut polled_inline, Some("inline.ready"), m::Ty::Int(1), loc(poll), vec![
+        m::Arg::new(m::Ty::Ptr, loc(&payload)),
+        m::Arg::new(m::Ty::Ptr, loc(progress)),
+    ]);
+    cond(&mut polled_inline, "inline.ready", "drop", "pending");
     let mut d = vec![];
     // Pending retains the actual intrusive obligation. Only Ready unlinks.
     call(
@@ -660,7 +691,9 @@ pub(super) fn helpers(meter: &Meter, retarget: bool) -> CompileResult<Vec<m::Ite
             block("entry", vec![inst(None, m::Op::Branch("loop".into()))]),
             block("loop", v),
             block("check", check),
-            block("poll", polled),
+            block("poll", poll_route),
+            block("poll.leaf", polled),
+            block("poll.inline", polled_inline),
             block("drop", d),
             block("invoke", invoke),
             block(
@@ -715,15 +748,25 @@ pub(super) fn helpers(meter: &Meter, retarget: bool) -> CompileResult<Vec<m::Ite
         "ne",
     );
     cond(&mut check, "has.request", "invoke", "advance");
+    let mut request_route = vec![];
+    let inline = cursor_abi(&mut request_route, loc("node"));
+    cond(&mut request_route, &inline, "invoke.inline", "invoke.leaf");
     let mut invoke = vec![];
     call(
         &mut invoke,
         None,
         m::Ty::Void,
-        loc(req),
-        vec![m::Arg::new(m::Ty::Ptr, loc(payload))],
+        loc(&req),
+        vec![m::Arg::new(m::Ty::Ptr, loc(&payload))],
     );
     branch(&mut invoke, "advance");
+    let mut inline_request = vec![];
+    let progress = cursor(&mut inline_request, loc("node"));
+    call(&mut inline_request, None, m::Ty::Void, loc(req), vec![
+        m::Arg::new(m::Ty::Ptr, loc(payload)),
+        m::Arg::new(m::Ty::Ptr, loc(progress)),
+    ]);
+    branch(&mut inline_request, "advance");
     let mut advance = vec![];
     read(&mut advance, "next", loc("node"), 1);
     branch(&mut advance, "loop");
@@ -735,7 +778,9 @@ pub(super) fn helpers(meter: &Meter, retarget: bool) -> CompileResult<Vec<m::Ite
             block("entry", start),
             block("loop", test),
             block("check", check),
-            block("invoke", invoke),
+            block("invoke", request_route),
+            block("invoke.leaf", invoke),
+            block("invoke.inline", inline_request),
             block("advance", advance),
             block("done", vec![inst(None, m::Op::Return(None))]),
         ],

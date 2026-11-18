@@ -1,6 +1,7 @@
 //! Persistent scalar continuation frames. Source TaskYield becomes a saved pc;
 //! all actual machine SSA and local storage survive return from poll.
 use super::*;
+mod inline_drop;
 mod owner_groups;
 mod owners;
 mod native_root;

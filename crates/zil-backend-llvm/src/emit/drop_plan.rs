@@ -396,15 +396,69 @@ fn limit() -> Vec<Diagnostic> {
 
 /// Every node owns its exact pointer-relative layout, never a flat union of debts.
 #[derive(Clone, Debug)]
-enum DropPlan {
+pub(super) enum DropPlan {
     Empty,
     Leaf(String),
+    Task,
+    Closure(ClosureId),
     Product(m::Ty, Vec<(u32, DropPlan)>),
     Array(m::Ty, u32, Box<DropPlan>),
     Mutex(m::Ty,Box<DropPlan>),
     AsyncRegistration,
     Enum(m::Ty, Vec<DropPlan>),
     Error(m::Ty, Box<DropPlan>, Box<DropPlan>),
+}
+
+pub(super) fn inline_aggregate(ty: &Type) -> bool {
+    matches!(enums::storage_shape(ty), Type::Tuple(_) | Type::Record { .. } | Type::Package { .. }
+        | Type::Array { .. } | Type::Enum { .. } | Type::ErrorUnion { .. })
+}
+
+/// Query potential asynchronous leaves of the actual native storage tree.
+/// This describes a cleanup path, without classifying an occupant as Closed.
+pub(super) fn contains_pending<'m>(
+    ty: &Type,
+    depth: usize,
+    meter: &tasks::Meter,
+    closure: &impl Fn(ClosureId) -> CompileResult<&'m ClosureDefinition>,
+) -> CompileResult<bool> {
+    meter.spend(1)?;
+    if depth >= 64 {
+        return unsupported("cleanup group exceeds finite inline depth", None);
+    }
+    let children = |types: &[Type]| {
+        let mut found = false;
+        for ty in types {
+            found |= contains_pending(ty, depth + 1, meter, closure)?;
+        }
+        Ok::<_, Vec<Diagnostic>>(found)
+    };
+    Ok(match enums::storage_shape(ty) {
+        Type::Managed(payload) => match payload.as_ref() {
+            Type::Task { .. } | Type::TaskI32 | Type::AsyncRegistration { .. } => true,
+            Type::Mutex { payload } | Type::OwnedStore { element: payload } => contains_pending(payload, depth + 1, meter, closure)?,
+            _ => false,
+        },
+        Type::Closure(id) => children(&closure(*id)?.captures)?,
+        Type::Tuple(fields) => children(fields)?,
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
+            let mut found = false;
+            for (_, ty) in fields {
+                found |= contains_pending(ty, depth + 1, meter, closure)?;
+            }
+            found
+        }
+        Type::Array { element, length } => *length != 0 && contains_pending(element, depth + 1, meter, closure)?,
+        Type::Enum { variants, .. } => {
+            let mut found = false;
+            for (_, fields) in variants {
+                found |= children(fields)?;
+            }
+            found
+        }
+        Type::ErrorUnion { error, result } => contains_pending(error, depth + 1, meter, closure)? | contains_pending(result, depth + 1, meter, closure)?,
+        _ => false,
+    })
 }
 fn link(
     ty: &Type,
@@ -423,7 +477,7 @@ fn link(
     // pointer representation as an ordinary Package field. Their existing
     // helpers release the whole environment/owner exactly once.
     if let Type::Closure(id) = ty {
-        return Ok(DropPlan::Leaf(format!("zil.closure.drop.{}", id.0)));
+        return Ok(DropPlan::Closure(*id));
     }
     if let Type::OwnedDyn { interface } = ty {
         return Ok(DropPlan::Leaf(dyn_dispatch::owner_drop_symbol(*interface)));
@@ -456,7 +510,7 @@ fn link(
         return Ok(if matches!(r.payload, Type::Registration { .. }) {
             DropPlan::Leaf("zil.registration.drop".into())
         } else if matches!(r.payload, Type::TaskI32 | Type::Task { .. }) {
-            DropPlan::Leaf("zil.task.drop".into())
+            DropPlan::Task
         } else if r.payload == Type::ByteBuffer {
             DropPlan::Leaf("zil.bytes.drop".into())
         } else if let Some(f) = r.teardown {
@@ -489,6 +543,8 @@ pub(super) fn task_leaf(
     match result? {
         DropPlan::Empty => Ok(None),
         DropPlan::Leaf(symbol) => Ok(Some(symbol)),
+        DropPlan::Task => Ok(Some("zil.task.drop".into())),
+        DropPlan::Closure(id) => Ok(Some(format!("zil.closure.drop.{}", id.0))),
         _ => unsupported(
             "continuation canonical slot needs ordinary complete cleanup helper",
             None,
@@ -501,13 +557,14 @@ fn product_plan(layouts: &LayoutContext<'_>,
     resources: &[ResourceDefinition],
     budget: &mut Budget<'_>,
     depth: usize,
+    inline: bool,
 ) -> CompileResult<DropPlan> {
     let mut children = Vec::new();
     for (index, t) in fields.iter().enumerate() {
         // A typed GEP clones the product machine type. Pay its complete size
         // before building it, without re-planning each descendant's cleanup.
         budget.tree(ty, depth)?;
-        children.push((index as u32, link(t, resources, budget, depth + 1)?));
+        children.push((index as u32, child_plan(layouts, t, resources, budget, depth + 1, inline)?));
     }
     Ok(DropPlan::Product(layouts.value_type(ty)?, children))
 }
@@ -517,17 +574,49 @@ fn plan(layouts: &LayoutContext<'_>,
     budget: &mut Budget<'_>,
     depth: usize,
 ) -> CompileResult<DropPlan> {
+    full_plan(layouts, ty, resources, budget, depth, false)
+}
+pub(super) fn inline_plan(
+    layouts: &LayoutContext<'_>,
+    ty: &Type,
+    resources: &[ResourceDefinition],
+    meter: &tasks::Meter,
+) -> CompileResult<DropPlan> {
+    let mut limits = meter.limits()?.clone();
+    limits.max_analysis_steps = meter.remaining();
+    let mut budget = Budget::new(&limits);
+    let result = full_plan(layouts, ty, resources, &mut budget, 0, true);
+    meter.spend(budget.spent())?;
+    result
+}
+fn child_plan(
+    layouts: &LayoutContext<'_>, ty: &Type, resources: &[ResourceDefinition], budget: &mut Budget<'_>,
+    depth: usize, inline: bool,
+) -> CompileResult<DropPlan> {
+    if inline {
+        full_plan(layouts, ty, resources, budget, depth, true)
+    } else {
+        link(ty, resources, budget, depth)
+    }
+}
+fn full_plan(layouts: &LayoutContext<'_>,
+    ty: &Type,
+    resources: &[ResourceDefinition],
+    budget: &mut Budget<'_>,
+    depth: usize,
+    inline: bool,
+) -> CompileResult<DropPlan> {
     budget.tree(ty, depth)?;
     Ok(match ty {
         Type::BorrowedStorage { storage, .. } => {
-            return plan(layouts, storage, resources, budget, depth + 1);
+            return full_plan(layouts, storage, resources, budget, depth + 1, inline);
         }
         Type::Address { .. } | Type::Desc(_) => DropPlan::Empty,
         t if t.is_copy_value() => DropPlan::Empty,
         Type::Managed(payload) if matches!(payload.as_ref(),Type::AsyncRegistration{..})=>DropPlan::AsyncRegistration,
         Type::Managed(inner) if matches!(inner.as_ref(),Type::Mutex{..})=>{
             let Type::Mutex{payload}=inner.as_ref()else{unreachable!()};
-            DropPlan::Mutex(generic_mutex::layout(layouts,payload)?,Box::new(plan(layouts,payload,resources,budget,depth+1)?))
+            DropPlan::Mutex(generic_mutex::layout(layouts,payload)?,Box::new(full_plan(layouts,payload,resources,budget,depth+1,inline)?))
         }
         Type::Managed(_) | Type::Closure(_) | Type::OwnedDyn { .. } => {
             return link(ty, resources, budget, depth);
@@ -539,11 +628,12 @@ fn plan(layouts: &LayoutContext<'_>,
                 resources,
                 budget,
                 depth,
+                inline,
             );
         }
         Type::Array{element,length}=>{
             budget.pay(depth,64)?;
-            DropPlan::Array(layouts.value_type(ty)?,*length,Box::new(link(element,resources,budget,depth+1)?))
+            DropPlan::Array(layouts.value_type(ty)?,*length,Box::new(child_plan(layouts,element,resources,budget,depth+1,inline)?))
         }
         Type::Tuple(fields) => {
             return product_plan(layouts,
@@ -552,6 +642,7 @@ fn plan(layouts: &LayoutContext<'_>,
                 resources,
                 budget,
                 depth,
+                inline,
             );
         }
         Type::Enum { variants, .. } => {
@@ -569,14 +660,15 @@ fn plan(layouts: &LayoutContext<'_>,
                     resources,
                     budget,
                     depth + 1,
+                    inline,
                 )?);
             }
             DropPlan::Enum(layouts.value_type(ty)?, children)
         }
         Type::ErrorUnion { error, result } => DropPlan::Error(
             layouts.value_type(ty)?,
-            Box::new(link(error, resources, budget, depth + 1)?),
-            Box::new(link(result, resources, budget, depth + 1)?),
+            Box::new(child_plan(layouts, error, resources, budget, depth + 1, inline)?),
+            Box::new(child_plan(layouts, result, resources, budget, depth + 1, inline)?),
         ),
         _ => return unsupported("unsupported complete Sum cleanup leaf", None),
     })
@@ -628,6 +720,8 @@ impl Emitter<'_> {
                     vararg: None,
                 },
             ),
+            DropPlan::Task => self.emit(&DropPlan::Leaf("zil.task.drop".into()), ptr)?,
+            DropPlan::Closure(id) => self.emit(&DropPlan::Leaf(format!("zil.closure.drop.{}", id.0)), ptr)?,
             DropPlan::Product(ty, fields) => {
                 for (index, p) in fields {
                     if !matches!(p, DropPlan::Empty) {
@@ -1179,6 +1273,8 @@ mod owned_sum_drop_plan_tests {
             match plan {
                 DropPlan::Empty => {},
                 DropPlan::Leaf(name) => { out.insert(name.clone()); },
+                DropPlan::Task => { out.insert("zil.task.drop".into()); },
+                DropPlan::Closure(id) => { out.insert(format!("zil.closure.drop.{}", id.0)); },
                 DropPlan::Product(_, fields) => for (_, child) in fields { references(child, out); },
                 DropPlan::Enum(_, fields) => for child in fields { references(child, out); },
                 DropPlan::Array(_,_,child)|DropPlan::Mutex(_,child)=>references(child,out),
