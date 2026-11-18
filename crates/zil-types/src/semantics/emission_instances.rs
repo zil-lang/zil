@@ -156,11 +156,8 @@ fn created(
         return Ok(entry);
     }
     let closure = lower.closure(&environment.closure, parent)?;
-    pay(lower.left, lower.closures.len())?;
-    let actual = lower
-        .closures
-        .iter()
-        .find(|row| row.id == closure)
+    pay(lower.left, search(lower.closures.len()))?;
+    let actual = lower.closures.get(&closure)
         .ok_or_else(|| bad("actual closure request has no definition"))?;
     let entry = actual.function;
     if lower.frame(entry)?.origin != origin || lower.frame(entry)?.parent != Some((parent, closure))
