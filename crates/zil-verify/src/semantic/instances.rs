@@ -1,6 +1,7 @@
 //! Definition bodies see fresh original lifetime identities. Partition images
 //! and caller substitutions never replace that rigid checking environment.
 use super::*;
+mod default_self;
 pub(super) struct ClosedFrames{limits:Limits,lexical:Vec<LexicalFrame>}
 impl CheckedContext {
     pub(crate) fn environment_for_instance(&self,module:&TypedModule,id:SemanticInstanceId,active:&mut ActiveQueries,b:&mut Budget)->Check<EvalEnv> {
@@ -93,6 +94,11 @@ impl CheckedContext {
                 self.finish_external_methods(module,&mut external,active,b)?;
                 if !external.callable_shapes.is_empty()||!external.pending_statics.is_empty(){return Err(unsupported("impl Self construction retains unproved entry/static obligations",None));}
                 Some(value)
+            }else if let SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait{declaration})=&definition.body
+                && instance.self_type.is_some(){
+                let token=FrameToken((u64::from(id.module.0)<<32)|u64::from(id.index));
+                Some(active.with_query(DependencyKey{kind:QueryKind::Instance,token},b,|active,b|
+                    self.default_self(module,instance,*declaration,&lexical[0].actuals,active,b))?)
             }else if matches!(definition.kind,SemanticDefinitionKind::Method){
                 lexical.get(1).and_then(|parent|parent.self_type.clone())
             }else{None};
