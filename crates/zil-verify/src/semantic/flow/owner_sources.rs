@@ -65,7 +65,7 @@ impl CheckedContext{
         self.original_projection_source_prefix(module,caller,f,value,definition,node,read_value,None,b)
     }
     #[allow(clippy::too_many_arguments)]
-    fn original_projection_source_prefix(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,definition:SemanticDefinitionId,node:NodeId,read_value:bool,prefix:Option<(&Type,&[PlaceProjection])>,b:&mut Budget)->Check<()>{
+    pub(in crate::semantic::flow) fn original_projection_source_prefix(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,definition:SemanticDefinitionId,node:NodeId,read_value:bool,prefix:Option<(&Type,&[PlaceProjection])>,b:&mut Budget)->Check<()>{
         if definition!=caller.definition{return Err(bad("indirect borrow selects another original lexical owner"));}
         let(root,projections)=self.original.borrow().as_ref().ok_or_else(||bad("indirect borrow lacks its complete original body proof"))?.address_place(module,definition,node,b)?;
         let skip=if let Some((ty,path))=prefix{consume_reserved_fields(ty,path,&projections,b)?}else{0};

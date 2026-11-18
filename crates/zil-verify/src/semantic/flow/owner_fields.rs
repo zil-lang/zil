@@ -5,7 +5,7 @@ use super::*;
 
 impl CheckedContext{
     #[allow(clippy::too_many_arguments)]
-    pub(in crate::semantic::flow) fn owner_field_instruction(&self,module:&TypedModule,_instance:&SemanticInstance,f:&TypedFunction,instruction:&Instruction,state:&mut State,values:&[Option<CheckedType>],environment:&EvalEnv,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>>{
+    pub(in crate::semantic::flow) fn owner_field_instruction(&self,module:&TypedModule,instance:&SemanticInstance,f:&TypedFunction,instruction:&Instruction,state:&mut State,values:&[Option<CheckedType>],environment:&EvalEnv,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>>{
         crate::check_instruction(module,f,instruction,b)?;
         let scope=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?.key;
         match &instruction.kind{
@@ -101,7 +101,11 @@ impl CheckedContext{
             InstructionKind::WriteDesc{desc,index,value}=>{
                 let parent=value_at(values,*desc)?;
                 let child=self.child_value(module,parent,&[LifeTypeProjection::Pointee,LifeTypeProjection::Place(PlaceProjection::Field(*index))],b)?;
-                if !self.compatible(environment,value_at(values,*value)?,&child,b)?{return Err(bad("description write changes its complete selected child domain"));}Ok(None)
+                if !child.ty.is_copy_value()||!self.same_type(environment,value_at(values,*value)?,&child,b)?{
+                    return Err(bad("description write requires the exact Copy child domain"));
+                }
+                self.description_field_write(module,instance,f,instruction,*desc,*index,*value,b)?;
+                Ok(None)
             },
             _=>Err(bad("another opcode reached the owning field ghost transport")),
         }

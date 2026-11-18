@@ -187,6 +187,14 @@ impl CheckedOriginal {
     }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn mutable_place(&mut self,module:&TypedModule,context:&CheckedContext,target:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+        self.write_place(module,context,target,None,env,bindings,active,b)
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn assignment_place(&mut self,module:&TypedModule,context:&CheckedContext,target:&SemanticOriginalExpr,field:&Ty,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+        self.write_place(module,context,target,Some(field),env,bindings,active,b)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn write_place(&mut self,module:&TypedModule,context:&CheckedContext,target:&SemanticOriginalExpr,assignment:Option<&Ty>,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         // place/expression has evaluated this exact target once already. This
         // pass proves lexical/exclusive mutability from its checked types; it
         // must not execute a base, index or call expression a second time.
@@ -202,7 +210,7 @@ impl CheckedOriginal {
                 self.used.entry(definition).or_default().insert(binding.identity.clone());
                 self.written.entry(definition).or_default().insert(binding.identity.clone());Ok(())
             },
-            CoreExprKind::Group(inner)=>self.mutable_place(module,context,inner,env,bindings,active,b),
+            CoreExprKind::Group(inner)=>self.write_place(module,context,inner,assignment,env,bindings,active,b),
             CoreExprKind::Unary{op:UnaryOp::Dereference,operand}=>{
                 let ty=self.write_parent_type(module,context,operand,env,active,b)?;
                 if matches!(ty,Ty::Address{mutable:true,..}){Ok(())}else{Err(bad("original write/borrow-mut dereferences a nonexclusive Address"))}
@@ -211,6 +219,13 @@ impl CheckedOriginal {
                 let ty=self.write_parent_type(module,context,object,env,active,b)?;
                 match ty{
                     Ty::Address{mutable:true,..}=>Ok(()),
+                    Ty::Desc{inner,..} if matches!(target.kind,CoreExprKind::Member{..})=>{
+                        let field=assignment.ok_or_else(||bad("original description cannot create an exclusive address"))?;
+                        if !self.resource_payload(module,context,&inner,b)? {
+                            return Err(bad("original description write has no declared resource payload"));
+                        }
+                        self.require_copy(module,context,field,env,active,b)
+                    },
                     Ty::Address{mutable:false,..}|Ty::Desc{..}=>Err(bad("original projected write crosses a shared observation")),
                     _=>self.mutable_place(module,context,object,env,bindings,active,b),
                 }

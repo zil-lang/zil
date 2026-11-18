@@ -82,6 +82,15 @@ impl CheckedContext{
                 let parent=value_at(values,*aggregate)?;if !value_at(values,*index)?.ty.is_integer(){return Err(bad("actual array index lacks its full integer carrier"));}
                 self.child_value(module,parent,&[LifeTypeProjection::Element],b).map(Some)
             },
+            InstructionKind::UpdateField{aggregate,index,value}=>{
+                let parent=value_at(values,*aggregate)?;
+                let child=self.child_value(module,parent,&[LifeTypeProjection::Place(PlaceProjection::Field(*index))],b)?;
+                if !child.ty.is_copy_value()||!self.same_type(environment,value_at(values,*value)?,&child,b)?{
+                    return Err(bad("ordinary field update requires the exact Copy child domain"));
+                }
+                self.copy_field_update(module,instance,f,instruction,b)?;
+                Ok(Some(parent.clone()))
+            },
             InstructionKind::UpdateIndex{aggregate,index,value}=>{
                 let parent=value_at(values,*aggregate)?;if !value_at(values,*index)?.ty.is_integer(){return Err(bad("actual array update index lacks its complete integer carrier"));}
                 let child=self.child_value(module,parent,&[LifeTypeProjection::Element],b)?;

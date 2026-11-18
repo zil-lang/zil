@@ -192,6 +192,30 @@ impl CheckedContext {
         if f.parameters.len()!=signature.parameters.len()||f.return_type!=signature.result.ty||f.result_mode!=signature.result_mode||f.call_kind!=signature.call_kind {return Err(bad("actual function ABI differs from the original complete signature"));}
         let scope=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?.key;
         b.spend(f.locals.len().saturating_add(f.values.len()).saturating_add(f.blocks.len()))?;
+        {
+            let original = self.original.borrow();
+            let expected = original.as_ref().and_then(|o|o.foreign_literals.get(&instance.definition));
+            if expected.is_some() || f.values.iter().any(|ty|matches!(ty,Type::ForeignHandle|Type::CWideString)) {
+                let mut matched = BTreeSet::new();
+                for block in &f.blocks {
+                    b.spend(block.instructions.len())?;
+                    for (ordinal, instruction) in block.instructions.iter().enumerate() {
+                        let InstructionKind::Constant(value @ (Constant::NullHandle|Constant::NullWideString|Constant::WideString(_))) = &instruction.kind else {continue};
+                        crate::native_values::constant(value,&module.target,Some(instruction.span),&b.limits.clone(),b)?;
+                        let mut found = false;
+                        for site in self.actual_sites(module, instance.id, block.id, ordinal as u32 + 1, b)? {
+                            let Some(source) = expected.and_then(|entries|entries.get(&site.recipe)) else {continue};
+                            if !matches!(site.at,SemanticSiteAddress::Typed{edge:SemanticSiteEdge::Before,..}) || !matches!(site.action,SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(id),..} if Some(id)==instruction.result) {continue}
+                            dynamic_metadata::constant(value,b)?;
+                            if found || value != source || !matched.insert(site.recipe) {return Err(bad("foreign literal differs from its unique original TypeUse payload"));}
+                            found = true;
+                        }
+                        if !found {return Err(bad("actual foreign literal lacks its original TypeUse and SSA result"));}
+                    }
+                }
+                if expected.is_some_and(|entries|entries.len()!=matched.len()) {return Err(bad("original foreign literal has no matching actual constant"));}
+            }
+        }
         let mut initial=State{locals:vec![None;f.locals.len()]};
         for (index,(parameter,(expected,_))) in f.parameters.iter().zip(&signature.parameters).enumerate() {
             let local=f.locals.get(parameter.0 as usize).ok_or_else(||bad("actual parameter local is absent"))?;
@@ -244,7 +268,7 @@ impl CheckedContext {
                 let produced=match &instruction.kind {
                     InstructionKind::StaticUtf8{..}=>Some(self.static_utf8(module,instance,f,instruction,b)?),
                     InstructionKind::Constant(constant)=>{
-                        let value=atomic(&constant.ty(),b)?;
+                        let value=if matches!(constant,Constant::NullHandle|Constant::NullWideString|Constant::WideString(_)) {self.construct_value(module,&constant.ty(),&empty_life(),vec![],b)?} else {atomic(&constant.ty(),b)?};
                         for site in sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::Construct{..})){
                             let expected=self.site_expected(module,instance,site,&environment,external,active,b)?;
                             if !self.same_type(&environment,&value,&expected,b)?{return Err(bad("actual constant constructor differs from its original payload role"));}
@@ -298,7 +322,7 @@ impl CheckedContext {
                     }
                     InstructionKind::BindPackageCapture{..}|InstructionKind::EndPackageCapture{..}|InstructionKind::DropPackageField{..}|InstructionKind::StorePackageField{..}|InstructionKind::ReadPackageField{..}|InstructionKind::TakePackageField{..}|InstructionKind::DescribePackageField{..}|InstructionKind::BorrowPackageField{..}|InstructionKind::DescribeCapture{..}|InstructionKind::BorrowCapture{..}|InstructionKind::WriteCapture{..}|InstructionKind::DropPackage{..}|InstructionKind::ExtractField{..}|InstructionKind::AddressField{..}|InstructionKind::DescribeAddress{..}|InstructionKind::ReadDesc{..}|InstructionKind::WriteDesc{..}=>self.owner_field_instruction(module,instance,f,instruction,&mut state,&values,&environment,active,b)?,
                     InstructionKind::SliceLength{..} if sites.iter().any(|site|matches!(site.action,SemanticSiteAction::BodyCall{..}))=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
-                    InstructionKind::LoadStoredBorrow{..}|InstructionKind::StoreStoredBorrow{..}|InstructionKind::MakeVariant{..}|InstructionKind::VariantTag{..}|InstructionKind::ReadVariant{..}|InstructionKind::ExtractIndex{..}|InstructionKind::UpdateIndex{..}|InstructionKind::AddressIndex{..}|InstructionKind::AddressSlice{..}|InstructionKind::SliceLength{..}=>self.product_instruction(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
+                    InstructionKind::UpdateField{..}|InstructionKind::LoadStoredBorrow{..}|InstructionKind::StoreStoredBorrow{..}|InstructionKind::MakeVariant{..}|InstructionKind::VariantTag{..}|InstructionKind::ReadVariant{..}|InstructionKind::ExtractIndex{..}|InstructionKind::UpdateIndex{..}|InstructionKind::AddressIndex{..}|InstructionKind::AddressSlice{..}|InstructionKind::SliceLength{..}=>self.product_instruction(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::MakeErrorUnion{..}|InstructionKind::ReadErrorUnion{..}|InstructionKind::TakeErrorUnion{..}|InstructionKind::ErrorTag{..}|InstructionKind::VariantTagLocal{..}|InstructionKind::ReadVariantLocal{..}|InstructionKind::PlaceTagLocal{..}|InstructionKind::TakeVariantField{..}|InstructionKind::TakeTupleField{..}|InstructionKind::BorrowPlaceLocal{..}|InstructionKind::UnpackTuple{..}|InstructionKind::UnpackVariant{..}|InstructionKind::DropErrorUnion{..}|InstructionKind::DropEnum{..}|InstructionKind::DropTuple{..}=>self.sum_instruction(module,instance,f,instruction,&sites,&mut state,&values,signature,&environment,external,active,b)?,
                     InstructionKind::ReservePlaceLocal{..}|InstructionKind::ReservePlaceAddress{..}|InstructionKind::CommitPlaceReplace{..}|InstructionKind::AbortPlaceReservation{..}=>self.replacement_instruction(module,instance,f,instruction,&mut state,&values,&environment,external,active,b)?,
                     InstructionKind::TakeOwnedArrayElement{..}|InstructionKind::StoreOwnedArrayElement{..}|InstructionKind::DropOwnedArrayElement{..}|InstructionKind::BorrowOwnedArrayElement{..}|InstructionKind::DropOwnedArray{..}=>self.persistent_instruction(module,instance,f,instruction,&mut state,&values,&environment,active,b)?,
@@ -405,7 +429,7 @@ impl CheckedContext {
                     }
                     InstructionKind::ScopeEnter{..}|InstructionKind::ScopeExit{..}|InstructionKind::UnsafeEnter{..}|InstructionKind::UnsafeExit{..}=>None,
                     InstructionKind::Unary{operand,..}=>{let value=value_at(&values,*operand)?;if !value.ty.is_b0_scalar() {return Err(bad("unary operation changes a semantic carrier"));}Some(atomic(f.values.get(instruction.result.ok_or_else(||bad("unary result is absent"))?.0 as usize).ok_or_else(||bad("unary result type is absent"))?,b)?)},
-                    InstructionKind::Binary{left,right,..}=>{if !value_at(&values,*left)?.ty.is_b0_scalar()||!value_at(&values,*right)?.ty.is_b0_scalar() {return Err(bad("binary operation changes a semantic carrier"));}Some(atomic(f.values.get(instruction.result.ok_or_else(||bad("binary result is absent"))?.0 as usize).ok_or_else(||bad("binary result type is absent"))?,b)?)},
+                    InstructionKind::Binary{op,left,right}=>{let l=&value_at(&values,*left)?.ty;let r=&value_at(&values,*right)?.ty;let handle_eq=matches!(op,BinaryOp::Equal|BinaryOp::NotEqual)&&*l==Type::ForeignHandle&&*r==Type::ForeignHandle&&instruction.result.and_then(|v|f.values.get(v.0 as usize))==Some(&Type::Bool);if !handle_eq&&(!l.is_b0_scalar()||!r.is_b0_scalar()) {return Err(bad("binary operation changes a semantic carrier"));}Some(atomic(f.values.get(instruction.result.ok_or_else(||bad("binary result is absent"))?.0 as usize).ok_or_else(||bad("binary result type is absent"))?,b)?)},
                     _=>return Err(unsupported("actual instruction lacks complete independent semantic transfer",Some(instruction.span))),
                 };
                 if let Some(id)=instruction.result {

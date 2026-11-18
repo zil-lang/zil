@@ -33,6 +33,7 @@ mod materialize;
 mod names;
 mod operations;
 mod places;
+pub(in crate::semantic) use places::Assignment;
 mod protocol;
 mod receiver_signatures;
 mod record_constructors;
@@ -78,6 +79,7 @@ pub(super) struct CheckedOriginal {
     // Structural cursors and original expressions borrow this exact owned,
     // immutable source snapshot. They cannot inherit a recycled view address.
     source_grammar: Option<index::SourceIndex>,
+    pub(super) foreign_literals: BTreeMap<SemanticDefinitionId, BTreeMap<SemanticSiteId, Constant>>,
     nominal_field_owner: Option<SemanticDefinitionId>,
     nominal_value_formals: BTreeSet<(SemanticDefinitionId, u32)>,
     expressions: BTreeMap<(SemanticDefinitionId, NodeId), Ty>,
@@ -170,6 +172,28 @@ impl CheckedOriginal {
         let index = index::build(module, b)?;
         result.source_grammar = Some(index::snapshot(module, &index, b)?);
         for function in index.definitions.values() {
+            let mut required = BTreeSet::new();
+            b.spend(function.expressions.len())?;
+            for expression in function.expressions.values() {
+                if matches!(expression.kind, CoreExprKind::Literal(Constant::NullHandle | Constant::NullWideString | Constant::WideString(_))) {
+                    required.insert(expression.id);
+                }
+            }
+            if !required.is_empty() {
+                b.spend(function.sites.len())?;
+                let entries = result.foreign_literals.entry(function.definition.id).or_default();
+                for site in function.sites {
+                    let Some(index::Node::Expression(expression)) = function.nodes.get(&site.id) else {continue};
+                    let CoreExprKind::Literal(value @ (Constant::NullHandle | Constant::NullWideString | Constant::WideString(_))) = &expression.kind else {continue};
+                    let SemanticSiteRecipeKind::TypeUse {expected: SemanticTypeRecipe::OriginalType {scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Expression(node)}} = &site.kind else {continue};
+                    if *node != expression.id || !required.remove(node) {
+                        return Err(bad("foreign literal TypeUse changes or repeats its original expression"));
+                    }
+                    dynamic_metadata::constant(value,b)?;
+                    entries.insert(site.id,value.clone());
+                }
+                if !required.is_empty() {return Err(bad("original foreign literal lacks its exact TypeUse"));}
+            }
             b.spend(function.parameters.len().saturating_add(1))?;
             if function.parameters.len() != function.signature.parameters.len() {
                 return Err(bad(

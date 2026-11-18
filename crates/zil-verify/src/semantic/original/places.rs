@@ -196,6 +196,28 @@ impl CheckedOriginal {
 }
 
 impl CheckedOriginal {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn description_binding(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,expected:Option<&Ty>,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<Ty>>{
+        // An existing managed name is observed by a description binding.
+        // Fresh construction and explicit give remain owners.
+        let mut source=expression;
+        while let CoreExprKind::Group(inner)=&source.kind{b.spend(1)?;source=inner;}
+        let CoreExprKind::Name(name)=&source.kind else{return Ok(None);};
+        let Some(binding)=bindings.get(name) else{return Ok(None);};
+        let managed=self.resolved(&binding.ty,b)?;
+        if !matches!(managed,Ty::Managed(_)) || expected.is_some_and(|ty|!matches!(ty,Ty::Desc{..})){
+            return Ok(None);
+        }
+        let (ty,place)=self.place(module,context,expression,env,bindings,active,b)?;
+        let place=place.ok_or_else(||bad("description binding has no actual managed place"))?;
+        self.read_original(module,context,&place,&ty,env,false,active,b)?;
+        let alias=self.observed_argument(source,&ty,env,b)?;
+        if expression.id!=source.id{
+            self.expressions.insert((env.current()?,expression.id),alias.clone());
+        }
+        Ok(Some(alias))
+    }
+
     /// Closed observation schemes use the same argument-category adaptation
     /// as ordinary Describe parameters. Exclusive owner addresses stay intact.
     pub(super) fn observed_argument(&mut self,expression:&SemanticOriginalExpr,value:&Ty,env:&Env,b:&mut Budget)->Check<Ty>{
