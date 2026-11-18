@@ -402,14 +402,23 @@ impl Eval<'_, '_, '_> {
             }
             map.push(index);
         }
-        inherit_child_shape(
-            parent,
-            &life,
-            LifeTypeProjection::Place(field),
-            &map,
-            self.limits,
-            self.left,
-        )?;
+        // A directly stored address already names its one class in the
+        // physical slot. Its pointee contributes no opaque class directory.
+        let direct_address = matches!(actual.as_ref(), Type::Address { .. })
+            && life.binder_count == 1
+            && matches!(life.slots.as_slice(), [slot] if slot.path.is_empty() && slot.binder == 0)
+            && life.retained.is_empty()
+            && life.nominal_arguments.is_empty();
+        if !direct_address {
+            inherit_child_shape(
+                parent,
+                &life,
+                LifeTypeProjection::Place(field),
+                &map,
+                self.limits,
+                self.left,
+            )?;
+        }
         for slot in &life.slots {
             self.fee(slot.path.len().saturating_add(2))?;
             if parent.slots.len() >= self.limits.max_nodes {
