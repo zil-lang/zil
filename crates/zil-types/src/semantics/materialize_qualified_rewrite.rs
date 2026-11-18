@@ -3,14 +3,54 @@
 use super::*;
 use crate::aggregates::dyn_metadata::{self as dynamic, TypeResolver};
 
-pub(super) struct Rewrite<'a> {
-    pub replacements: &'a [(Type, Type)],
-    pub limits: &'a Limits,
-    pub left: &'a mut usize,
+type Replacements<'a> = BTreeMap<zil_base::Fingerprint, Vec<(&'a Type, &'a Type)>>;
+
+fn nominal_name(ty: &Type) -> Option<&str> {
+    match stored::physical(ty) {
+        Type::Record { name, .. } | Type::Package { name, .. } | Type::Enum { name, .. } => {
+            Some(name)
+        }
+        _ => None,
+    }
+}
+
+fn name_lookup_work(entries: usize) -> usize {
+    (entries.saturating_add(1).ilog2() as usize + 2).saturating_mul(12)
+}
+
+fn name_key(name: &str, left: &mut usize) -> R<zil_base::Fingerprint> {
+    let mut digest = zil_base::FingerprintBuilder::new();
+    crate::semantics::original::protocol::hash_into(&mut digest, left, &name)?;
+    Ok(digest.digest())
+}
+
+fn index_replacement<'a>(
+    replacements: &mut Replacements<'a>,
+    before: &'a Type,
+    after: &'a Type,
+    left: &mut usize,
+) -> R<()> {
+    let name = nominal_name(before)
+        .ok_or_else(|| bad("qualified replacement has no actual nominal constructor"))?;
+    let key = name_key(name, left)?;
+    *left = left
+        .checked_sub(
+            name_lookup_work(replacements.len())
+                .saturating_add(std::mem::size_of::<(zil_base::Fingerprint, &Type, &Type)>()),
+        )
+        .ok_or_else(|| Diagnostic::limit(Phase::Types, "qualified replacement index work exceeded", None))?;
+    replacements.entry(key).or_default().push((before, after));
+    Ok(())
+}
+
+pub(super) struct Rewrite<'a, 'types> {
+    replacements: &'a Replacements<'types>,
+    limits: &'a Limits,
+    left: &'a mut usize,
     changed: bool,
     invalidated: BTreeSet<ClosureId>,
 }
-impl Rewrite<'_> {
+impl Rewrite<'_, '_> {
     fn pay(&mut self, work: usize) -> R<()> {
         *self.left = self.left.checked_sub(work).ok_or_else(|| {
             Diagnostic::limit(Phase::Types, "qualified type rewrite work exceeded", None)
@@ -19,8 +59,14 @@ impl Rewrite<'_> {
     }
     fn rewrite(&mut self, value: &mut Type, depth: usize, root: bool) -> R<()> {
         self.charge(depth, Span::default())?;
-        if root {
-            for (before, after) in self.replacements {
+        if root && let Some(name) = nominal_name(value) {
+            let key = name_key(name, self.left)?;
+            self.pay(name_lookup_work(self.replacements.len()))?;
+            let replacements = self.replacements.get(&key).map_or(&[][..], Vec::as_slice);
+            if !replacements.is_empty() {
+                inference::charge_type_snapshot(value, Span::default(), self.limits, self.left, 1)?;
+            }
+            for &(before, after) in replacements {
                 inference::charge_type_snapshot(
                     before,
                     Span::default(),
@@ -28,7 +74,6 @@ impl Rewrite<'_> {
                     self.left,
                     1,
                 )?;
-                inference::charge_type_snapshot(value, Span::default(), self.limits, self.left, 1)?;
                 if value == before {
                     inference::charge_type_snapshot(
                         after,
@@ -138,7 +183,8 @@ impl Rewrite<'_> {
     }
     fn apply(&mut self, value: &mut Type) -> R<bool> {
         self.changed = false;
-        *value = self.ty(value, 0, Span::default())?;
+        inference::charge_type_snapshot(value, Span::default(), self.limits, self.left, 1)?;
+        self.rewrite(value, 0, true)?;
         Ok(self.changed)
     }
     fn row(&mut self, row: &mut LifeNominalInstance) -> R<()> {
@@ -198,7 +244,7 @@ impl Rewrite<'_> {
         Ok(())
     }
 }
-impl TypeResolver for Rewrite<'_> {
+impl TypeResolver for Rewrite<'_, '_> {
     fn charge(&mut self, depth: usize, _: Span) -> R<()> {
         self.pay(1)?;
         if depth > self.limits.max_call_depth {
@@ -223,7 +269,7 @@ impl TypeResolver for Rewrite<'_> {
         crate::dyn_metadata::semantic_operand_snapshot(value, self.limits, self.left, 1)
     }
 }
-impl crate::semantics::rewrite::Context for Rewrite<'_> {
+impl crate::semantics::rewrite::Context for Rewrite<'_, '_> {
     fn node(&mut self, depth: usize) -> R<()> {
         self.charge(depth, Span::default())
     }
@@ -238,12 +284,12 @@ pub(super) fn canonical_hint<'a>(
     limits: &Limits,
     left: &mut usize,
 ) -> R<std::borrow::Cow<'a, Type>> {
-    let mut replacements = Vec::new();
+    let mut replacements = Replacements::new();
     for (before, row) in proposals {
         inference::charge_type_snapshot(before, Span::default(), limits, left, 1)?;
         inference::charge_type_snapshot(&row.ty, Span::default(), limits, left, 1)?;
         if before != &row.ty {
-            replacements.push((before.clone(), row.ty.clone()));
+            index_replacement(&mut replacements, before, &row.ty, left)?;
         }
     }
     if replacements.is_empty() {
@@ -275,8 +321,12 @@ pub(super) fn apply(
     if replacements.is_empty() {
         return Ok(());
     }
+    let mut index = Replacements::new();
+    for (before, after) in replacements {
+        index_replacement(&mut index, before, after, left)?;
+    }
     let mut cx = Rewrite {
-        replacements,
+        replacements: &index,
         limits,
         left,
         changed: false,

@@ -8,7 +8,167 @@ mod qualified;
 #[path = "materialize_qualified_rewrite.rs"]
 mod rewrite;
 
+#[derive(Clone, Copy)]
+pub(super) enum NominalPosition {
+    Committed(usize),
+    Proposed(usize),
+}
+
+/// A digest narrows the actual Type comparisons. Each candidate still needs
+/// its complete Type equality, and the selected declaration still resolves
+/// all mixed arguments at the actual use.
+pub(in crate::semantics) struct NominalIndex<Row> {
+    buckets: BTreeMap<zil_base::Fingerprint, Vec<Row>>,
+}
+
+impl<Row> Default for NominalIndex<Row> {
+    fn default() -> Self {
+        Self { buckets: BTreeMap::new() }
+    }
+}
+
+impl<Row> NominalIndex<Row> {
+    pub(in crate::semantics) fn key(
+        ty: &Type,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<zil_base::Fingerprint> {
+        inference::charge_type_snapshot(ty, Span::default(), limits, left, 1)?;
+        let mut digest = zil_base::FingerprintBuilder::new();
+        crate::semantics::original::protocol::hash_into(&mut digest, left, ty)?;
+        Ok(digest.digest())
+    }
+
+    fn lookup_fee(&self) -> usize {
+        self.buckets
+            .len()
+            .saturating_add(1)
+            .ilog2()
+            .saturating_add(2) as usize * 12
+    }
+
+    fn pay(left: &mut usize, amount: usize) -> R<()> {
+        *left = left.checked_sub(amount).ok_or_else(|| {
+            Diagnostic::limit(Phase::Types, "deferred nominal index work exceeded", None)
+        })?;
+        Ok(())
+    }
+
+    pub(in crate::semantics) fn insert(
+        &mut self,
+        key: zil_base::Fingerprint,
+        row: Row,
+        left: &mut usize,
+    ) -> R<()> {
+        Self::pay(
+            left,
+            self.lookup_fee()
+                .saturating_add(std::mem::size_of::<(zil_base::Fingerprint, Row)>()),
+        )?;
+        self.buckets.entry(key).or_default().push(row);
+        Ok(())
+    }
+
+    pub(in crate::semantics) fn get(&self, key: &zil_base::Fingerprint, left: &mut usize) -> R<&[Row]> {
+        Self::pay(left, self.lookup_fee())?;
+        Ok(self.buckets.get(key).map_or(&[], Vec::as_slice))
+    }
+}
+
 impl Eval<'_, '_, '_> {
+    pub(super) fn nominal_candidates_for_hint(&mut self, hint: &Type) -> R<Vec<NominalPosition>> {
+        let module = self.module;
+        let mut index = module.deferred_nominals.borrow_mut();
+        if index.is_none() {
+            let mut directory = NominalIndex::default();
+            self.fee(module.life_instances.len())?;
+            for (position, row) in module.life_instances.iter().enumerate() {
+                let key = NominalIndex::<NominalPosition>::key(&row.ty, self.limits, self.left)?;
+                directory.insert(key, NominalPosition::Committed(position), self.left)?;
+            }
+            *index = Some(directory);
+        }
+        let index = index.as_ref().expect("initialized nominal index");
+        let hint_key = NominalIndex::<NominalPosition>::key(hint, self.limits, self.left)?;
+        let bucket = index.get(&hint_key, self.left)?;
+        self.fee(bucket.len().saturating_mul(std::mem::size_of::<NominalPosition>()))?;
+        Ok(bucket.to_vec())
+    }
+
+    fn existing_deferred_nominal(
+        &mut self,
+        hint: &Type,
+        declaration: LifeDeclarationId,
+    ) -> R<Option<NominalPosition>> {
+        let bucket = self.nominal_candidates_for_hint(hint)?;
+        let module = self.module;
+        let staged = module.nominal_proposals.borrow();
+        let mut found = None;
+        for position in bucket {
+            self.fee(1)?;
+            let (before, row) = match position {
+                NominalPosition::Committed(position) => (None, &module.life_instances[position]),
+                NominalPosition::Proposed(position) => {
+                    let (before, row) = &staged[position];
+                    (Some(before), row)
+                }
+            };
+            inference::charge_type_snapshot(hint, Span::default(), self.limits, self.left, 1)?;
+            inference::charge_type_snapshot(&row.ty, Span::default(), self.limits, self.left, 1)?;
+            let matches = if &row.ty == hint {
+                true
+            } else if let Some(before) = before {
+                inference::charge_type_snapshot(
+                    hint,
+                    Span::default(),
+                    self.limits,
+                    self.left,
+                    1,
+                )?;
+                inference::charge_type_snapshot(
+                    before,
+                    Span::default(),
+                    self.limits,
+                    self.left,
+                    1,
+                )?;
+                before == hint
+            } else {
+                false
+            };
+            if matches {
+                if found.is_some() || row.declaration != declaration {
+                    return Err(bad(match position {
+                        NominalPosition::Committed(_) => {
+                            "existing actual nominal has ambiguous original identity"
+                        }
+                        NominalPosition::Proposed(_) => {
+                            "actual nominal repeats or changes its original declaration"
+                        }
+                    }));
+                }
+                found = Some(position);
+            }
+        }
+        Ok(found)
+    }
+
+    fn propose_deferred_nominal(&mut self, before: Type, row: LifeNominalInstance) -> R<()> {
+        let mut staged = self.module.nominal_proposals.borrow_mut();
+        let position = NominalPosition::Proposed(staged.len());
+        let mut index = self.module.deferred_nominals.borrow_mut();
+        let index = index.as_mut().expect("nominal proposal follows indexed lookup");
+        let previous = NominalIndex::<NominalPosition>::key(&before, self.limits, self.left)?;
+        let canonical = NominalIndex::<NominalPosition>::key(&row.ty, self.limits, self.left)?;
+        index.insert(previous, position, self.left)?;
+        if previous != canonical {
+            index.insert(canonical, position, self.left)?;
+        }
+        self.fee(1)?;
+        staged.push((before, row));
+        Ok(())
+    }
+
     fn deferred_result(&mut self, result: R<()>, blocked: &mut BTreeSet<ClosureId>) -> R<()> {
         let dependency = self.pending_header.take();
         match result {
@@ -88,76 +248,13 @@ impl Eval<'_, '_, '_> {
                 // Selection still checks the original declaration, all mixed
                 // actuals and their complete domains through the ordinary reader;
                 // finish separately proves every original field and where clause.
-                let module = self.module;
-                self.fee(module.life_instances.len())?;
-                let mut existing = false;
-                for row in module.life_instances {
-                    inference::charge_type_snapshot(
-                        &row.ty,
-                        Span::default(),
-                        self.limits,
-                        self.left,
-                        1,
-                    )?;
-                    inference::charge_type_snapshot(
-                        hint,
-                        Span::default(),
-                        self.limits,
-                        self.left,
-                        1,
-                    )?;
-                    if &row.ty == hint {
-                        if existing || row.declaration != *declaration {
-                            return Err(bad(
-                                "existing actual nominal has ambiguous original identity",
-                            ));
-                        }
-                        existing = true;
-                    }
-                }
-                let staged = module.nominal_proposals.borrow();
-                self.fee(staged.len())?;
-                for (before, row) in staged.iter() {
-                    inference::charge_type_snapshot(
-                        before,
-                        Span::default(),
-                        self.limits,
-                        self.left,
-                        1,
-                    )?;
-                    inference::charge_type_snapshot(
-                        &row.ty,
-                        Span::default(),
-                        self.limits,
-                        self.left,
-                        1,
-                    )?;
-                    inference::charge_type_snapshot(
-                        hint,
-                        Span::default(),
-                        self.limits,
-                        self.left,
-                        1,
-                    )?;
-                    if before == hint || &row.ty == hint {
-                        if existing || row.declaration != *declaration {
-                            return Err(bad(
-                                "actual nominal repeats or changes its original declaration",
-                            ));
-                        }
-                        existing = true;
-                    }
-                }
-                drop(staged);
-                if existing {
-                    self.nominal_application(scope, *definition, arguments, Some(hint), depth + 1)?;
+                if let Some(position) = self.existing_deferred_nominal(hint, *declaration)? {
+                    self.check_nominal_application(scope, *definition, arguments, position, depth + 1)?;
                     return Ok(());
                 }
                 let row = self.qualified_nominal(scope, *definition, arguments, hint, depth + 1)?;
-                self.fee(1)?;
                 let before = self.physical(hint)?;
-                module.nominal_proposals.borrow_mut().push((before, row));
-                Ok(())
+                self.propose_deferred_nominal(before, row)
             }
             (SemanticTypeRecipe::Qualified { storage, .. }, _) => {
                 self.deferred_physical_nominal(scope, storage, hint, depth + 1)
@@ -511,4 +608,83 @@ fn charge_row(row: &LifeNominalInstance, limits: &Limits, left: &mut usize) -> R
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deferred_nominals_require_complete_types_and_the_actual_declaration() {
+        let limits = Limits::default();
+        let mut left = limits.max_analysis_steps;
+        let declaration = LifeDeclarationId {
+            module: zil_base::ModuleId(0),
+            declaration: zil_base::NodeId(1),
+            compiler: false,
+        };
+        let record = |leaf| Type::Record {
+            name: "Same".into(),
+            fields: vec![("item".into(), leaf)],
+        };
+        let row = |ty| LifeNominalInstance {
+            declaration,
+            ty,
+            arguments: Vec::new(),
+        };
+        let committed = [row(record(Type::I32))];
+        let directory = ActualDirectory::building(
+            Vec::new(),
+            Vec::new(),
+            &committed,
+            &[],
+            &[],
+            BTreeMap::new(),
+            &limits,
+            &mut left,
+        )
+        .unwrap();
+        let program = SemanticModule {
+            definitions: Vec::new(),
+            instances: Vec::new(),
+            sites: Vec::new(),
+            dyn_scopes: Vec::new(),
+        };
+        let ledger = Ledger::default();
+        let hint = record(Type::Bool);
+        let key = NominalIndex::<NominalPosition>::key(&hint, &limits, &mut left).unwrap();
+        let mut index = NominalIndex::default();
+        index
+            .insert(key, NominalPosition::Committed(0), &mut left)
+            .unwrap();
+        // Deliberately place another complete Type in the same bucket.
+        *directory.deferred_nominals.borrow_mut() = Some(index);
+        let mut eval = Eval {
+            input: &program,
+            module: &directory,
+            ledger: &ledger,
+            limits: &limits,
+            left: &mut left,
+            active: BTreeSet::new(),
+            invocation_probe: None,
+            pending_header: None,
+        };
+        assert!(eval.existing_deferred_nominal(&hint, declaration).unwrap().is_none());
+        let formed = Type::BorrowedStorage {
+            storage: Box::new(hint.clone()),
+            life: empty(),
+        };
+        eval.propose_deferred_nominal(hint.clone(), row(formed.clone()))
+            .unwrap();
+        assert!(eval.existing_deferred_nominal(&hint, declaration).unwrap().is_some());
+        assert!(eval.existing_deferred_nominal(&formed, declaration).unwrap().is_some());
+        let other = LifeDeclarationId {
+            declaration: zil_base::NodeId(2),
+            ..declaration
+        };
+        assert!(eval.existing_deferred_nominal(&formed, other).is_err());
+        eval.propose_deferred_nominal(hint.clone(), row(formed))
+            .unwrap();
+        assert!(eval.existing_deferred_nominal(&hint, declaration).is_err());
+    }
 }

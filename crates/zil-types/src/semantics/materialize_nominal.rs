@@ -1,6 +1,12 @@
 //! Exact actual nominal selection and complete intrinsic class transport. Class
 //! images are derived from original actual recipes, not physical slot order.
 use super::*;
+
+#[derive(Clone, Copy)]
+enum NominalUse<'a> {
+    Materialize(Option<&'a Type>),
+    Check(super::deferred::NominalPosition),
+}
 impl Eval<'_, '_, '_> {
     fn nominal_arguments_match(
         &mut self,
@@ -276,6 +282,31 @@ impl Eval<'_, '_, '_> {
         hint: Option<&Type>,
         depth: usize,
     ) -> R<SemanticTypeValue> {
+        Ok(self.nominal_application_for(
+            scope, definition, args, NominalUse::Materialize(hint), depth,
+        )?.expect("nominal materialization requested a value"))
+    }
+
+    pub(super) fn check_nominal_application(
+        &mut self,
+        scope: SemanticInstanceId,
+        definition: SemanticDefinitionId,
+        args: &[SemanticActualRecipe],
+        position: super::deferred::NominalPosition,
+        depth: usize,
+    ) -> R<()> {
+        self.nominal_application_for(scope, definition, args, NominalUse::Check(position), depth)?;
+        Ok(())
+    }
+
+    fn nominal_application_for(
+        &mut self,
+        scope: SemanticInstanceId,
+        definition: SemanticDefinitionId,
+        args: &[SemanticActualRecipe],
+        use_: NominalUse<'_>,
+        depth: usize,
+    ) -> R<Option<SemanticTypeValue>> {
         self.node(depth)?;
         let original = self.definition(definition)?;
         let SemanticDefinitionBody::Nominal {
@@ -304,60 +335,76 @@ impl Eval<'_, '_, '_> {
             expected.push(value);
         }
         let module = self.module;
-        let positions = module.nominal_positions(*declaration, self.left)?;
-        let indexed = positions
-            .into_iter()
-            .flatten()
-            .map(|offset| &module.life_instances[*offset]);
-        let unindexed = module.life_instances.iter().take(if positions.is_some() {
-            0
-        } else {
-            module.life_instances.len()
-        });
         let staged = module.nominal_proposals.borrow();
-        self.fee(staged.len())?;
-        let staged = staged.iter().map(|(before, row)| (row, Some(before)));
-        let committed = indexed.chain(unindexed).map(|row| (row, None));
-        let mut found = None;
-        for (instance, physical_occurrence) in committed.chain(staged) {
-            self.fee(1)?;
-            if instance.declaration != *declaration {
-                continue;
+        let (found, hint) = match use_ {
+            NominalUse::Check(position) => {
+                use super::deferred::NominalPosition;
+                self.fee(1)?;
+                let row = match position {
+                    NominalPosition::Committed(index) => &module.life_instances[index],
+                    NominalPosition::Proposed(index) => &staged[index].1,
+                };
+                let matches = row.declaration == *declaration
+                    && self.nominal_arguments_match(&expected, &row.arguments)?;
+                (matches.then_some(row), None)
             }
-            if !self.nominal_arguments_match(&expected, &instance.arguments)? {
-                continue;
-            }
-            inference::charge_type_snapshot(
-                &instance.ty,
-                Span::default(),
-                self.limits,
-                self.left,
-                1,
-            )?;
-            if let Some(hint) = hint {
-                inference::charge_type_snapshot(hint, Span::default(), self.limits, self.left, 1)?;
-                if &instance.ty != hint {
-                    let Some(physical_occurrence) = physical_occurrence else {
+            NominalUse::Materialize(hint) => {
+                let positions = module.nominal_positions(*declaration, self.left)?;
+                let indexed = positions
+                    .into_iter()
+                    .flatten()
+                    .map(|offset| &module.life_instances[*offset]);
+                let unindexed = module.life_instances.iter().take(if positions.is_some() {
+                    0
+                } else {
+                    module.life_instances.len()
+                });
+                self.fee(staged.len())?;
+                let staged = staged.iter().map(|(before, row)| (row, Some(before)));
+                let committed = indexed.chain(unindexed).map(|row| (row, None));
+                let mut found = None;
+                for (instance, physical_occurrence) in committed.chain(staged) {
+                    self.fee(1)?;
+                    if instance.declaration != *declaration {
                         continue;
-                    };
+                    }
+                    if !self.nominal_arguments_match(&expected, &instance.arguments)? {
+                        continue;
+                    }
                     inference::charge_type_snapshot(
-                        physical_occurrence,
+                        &instance.ty,
                         Span::default(),
                         self.limits,
                         self.left,
                         1,
                     )?;
-                    if physical_occurrence != hint {
-                        continue;
+                    if let Some(hint) = hint {
+                        inference::charge_type_snapshot(hint, Span::default(), self.limits, self.left, 1)?;
+                        if &instance.ty != hint {
+                            let Some(physical_occurrence) = physical_occurrence else {
+                                continue;
+                            };
+                            inference::charge_type_snapshot(
+                                physical_occurrence,
+                                Span::default(),
+                                self.limits,
+                                self.left,
+                                1,
+                            )?;
+                            if physical_occurrence != hint {
+                                continue;
+                            }
+                        }
+                    }
+                    if found.replace(instance).is_some() {
+                        return Err(bad(
+                            "nominal full actuals select ambiguous complete actual types",
+                        ));
                     }
                 }
+                (found, hint)
             }
-            if found.replace(instance).is_some() {
-                return Err(bad(
-                    "nominal full actuals select ambiguous complete actual types",
-                ));
-            }
-        }
+        };
         let instance = found.ok_or_else(|| {
             let hint_kind = match hint {
                 None => "none", Some(Type::Managed(_)) => "Managed", Some(Type::Desc(_)) => "Desc",
@@ -384,11 +431,14 @@ impl Eval<'_, '_, '_> {
             ));
         }
         let classes = self.nominal_images(*declaration, &expected, instance)?;
+        if matches!(use_, NominalUse::Check(_)) {
+            return Ok(None);
+        }
         let life = match actual_life(&instance.ty) {
             Some(life) => self.copy_shape(life)?,
             None => empty(),
         };
-        Ok(resolved(self.physical(&instance.ty)?, life, classes))
+        Ok(Some(resolved(self.physical(&instance.ty)?, life, classes)))
     }
 }
 fn actual_life(ty: &Type) -> Option<&StorageLifeShape> {

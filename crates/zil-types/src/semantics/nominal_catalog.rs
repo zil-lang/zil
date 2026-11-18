@@ -2,6 +2,11 @@
 //! variant recipes, including unused applications. Physical equality and class
 //! equations are separate: equal concrete callers do not add original premises.
 use crate::*;
+use super::materialize::NominalIndex;
+use std::rc::Rc;
+
+type RequestKey = (SemanticDefinitionId, usize, SemanticInstanceId);
+type RequestValue = (zil_base::Fingerprint, Rc<SemanticTypeValue>);
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-NOMINAL", Span::default(), message)
 }
@@ -18,6 +23,9 @@ struct Check<'a, 'b> {
         SemanticDefinitionId,
         std::rc::Rc<Vec<super::original::NominalRequest>>,
     >,
+    instance_index: Option<NominalIndex<&'a LifeNominalInstance>>,
+    scopes: BTreeMap<SemanticDefinitionId, Rc<Vec<&'a SemanticInstance>>>,
+    unhinted_requests: BTreeMap<RequestKey, Option<RequestValue>>,
     limits: &'b Limits,
     left: &'b mut usize,
     active: Vec<usize>,
@@ -93,10 +101,36 @@ impl<'a> Check<'a, '_> {
         Ok(found)
     }
     fn instance(&mut self, ty: &Type) -> R<&'a LifeNominalInstance> {
-        self.pay(self.module.life_instances.len())?;
+        if self.instance_index.is_none() {
+            self.pay(self.module.life_instances.len())?;
+            let mut index = NominalIndex::default();
+            for row in &self.module.life_instances {
+                let key = NominalIndex::<&LifeNominalInstance>::key(
+                    &row.ty, self.limits, self.left,
+                )?;
+                index.insert(key, row, self.left)?;
+            }
+            self.instance_index = Some(index);
+        }
+        let key = NominalIndex::<&LifeNominalInstance>::key(ty, self.limits, self.left)?;
+        // Keep only a local borrow of the immutable bucket so the rest of the
+        // catalogue check can independently validate duplicate mixed actuals.
+        let index = self.instance_index.take().expect("initialized nominal index");
+        let result = match index.get(&key, self.left) {
+            Ok(candidates) => self.instance_candidates(ty, candidates),
+            Err(diagnostic) => Err(diagnostic),
+        };
+        self.instance_index = Some(index);
+        result
+    }
+    fn instance_candidates(
+        &mut self, ty: &Type, candidates: &[&'a LifeNominalInstance],
+    ) -> R<&'a LifeNominalInstance> {
+        self.pay(candidates.len())?;
         let mut found: Option<&LifeNominalInstance> = None;
-        for row in &self.module.life_instances {
+        for &row in candidates {
             inference::charge_type_snapshot(&row.ty, Span::default(), self.limits, self.left, 1)?;
+            inference::charge_type_snapshot(ty, Span::default(), self.limits, self.left, 1)?;
             if &row.ty != ty {
                 continue;
             }
@@ -1165,36 +1199,29 @@ impl<'a> Check<'a, '_> {
             .ok_or_else(|| bad("nominal source request index disappeared"))?;
         let result = (|| {
             let mut matched = false;
-            for request in requests.iter() {
+            let expected_key = NominalIndex::<()>::key(&owner.ty, self.limits, self.left)?;
+            for (index, request) in requests.iter().enumerate() {
                 let SemanticTypeRecipe::Nominal { arguments, .. } = &request.recipe else {
                     return Err(bad("nominal original request lost its declared kind"));
                 };
-                for scope in &self.program.instances {
+                self.pay(self.scopes.len().saturating_add(1).ilog2() as usize + 1)?;
+                let Some(scopes) = self.scopes.get(&request.caller).cloned() else {
+                    continue;
+                };
+                let mut proved = false;
+                for scope in scopes.iter() {
                     self.node(depth)?;
-                    if scope.definition != request.caller {
+                    let key = (definition.id, index, scope.id);
+                    let Some(proposed) = self.request_value(
+                        key, &request.recipe, &owner.ty, expected_key,
+                    )? else {
                         continue;
-                    }
-                    let proposed = match super::materialize::type_in_view(
-                        self.program,
-                        &self.view,
-                        self.ledger,
-                        scope.id,
-                        &request.recipe,
-                        Some(&owner.ty),
-                        self.limits,
-                        self.left,
-                    ) {
-                        Ok(value) => value,
-                        Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => {
-                            return Err(error);
-                        }
-                        Err(_) => continue,
                     };
-                    let SemanticTypeValue::Resolved { ty, classes, .. } = proposed else {
+                    let SemanticTypeValue::Resolved { ty, classes, .. } = proposed.as_ref() else {
                         continue;
                     };
                     inference::charge_type_snapshot(
-                        &ty,
+                        ty,
                         Span::default(),
                         self.limits,
                         self.left,
@@ -1207,7 +1234,7 @@ impl<'a> Check<'a, '_> {
                         self.left,
                         1,
                     )?;
-                    if ty != owner.ty || arguments.len() != owner.arguments.len() {
+                    if ty != &owner.ty || arguments.len() != owner.arguments.len() {
                         continue;
                     }
                     let mut same = true;
@@ -1222,15 +1249,18 @@ impl<'a> Check<'a, '_> {
                             self.left,
                         )?;
                         same &=
-                            self.actual_argument(owner, &classes, ordinal, actual, depth + 1)?;
+                            self.actual_argument(owner, classes, ordinal, actual, depth + 1)?;
                     }
                     if !same {
                         continue;
                     }
-                    self.pay(256)?;
-                    self.where_session.prove(request.caller, &request.recipe, self.limits, self.left).map_err(|mut error| {
-                        error.notes.push(format!("original nominal where caller {:?}, actual scope {:?}, declaration {:?}", request.caller, scope.id, definition.id)); error
-                    })?;
+                    if !proved {
+                        self.pay(256)?;
+                        self.where_session.prove(request.caller, &request.recipe, self.limits, self.left).map_err(|mut error| {
+                            error.notes.push(format!("original nominal where caller {:?}, actual scope {:?}, declaration {:?}", request.caller, scope.id, definition.id)); error
+                        })?;
+                        proved = true;
+                    }
                     matched = true;
                 }
             }
@@ -1257,6 +1287,60 @@ impl<'a> Check<'a, '_> {
         })();
         self.requests.insert(definition.id, requests);
         result
+    }
+
+    // Each use has one immutable original recipe and actual holder. Cache
+    // only a result determined without selecting a physical catalogue hint.
+    // A use that needs more context still runs the exact hinted checker.
+    fn request_value(
+        &mut self,
+        key: RequestKey,
+        recipe: &SemanticTypeRecipe,
+        hint: &Type,
+        hint_key: zil_base::Fingerprint,
+    ) -> R<Option<Rc<SemanticTypeValue>>> {
+        let search = self.unhinted_requests.len().saturating_add(1).ilog2() as usize + 1;
+        self.pay(search)?;
+        let unhinted = if let Some(prior) = self.unhinted_requests.get(&key) {
+            prior.clone()
+        } else {
+            let result = super::materialize::type_in_view(
+                self.program, &self.view, self.ledger, key.2, recipe, None,
+                self.limits, self.left,
+            );
+            let unhinted = match result {
+                Ok(value @ SemanticTypeValue::Resolved { .. }) => {
+                    let SemanticTypeValue::Resolved { ty, .. } = &value else { unreachable!() };
+                    let fingerprint = NominalIndex::<()>::key(ty, self.limits, self.left)?;
+                    Some((fingerprint, Rc::new(value)))
+                }
+                Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => {
+                    return Err(error);
+                }
+                _ => None,
+            };
+            if self.unhinted_requests.len() == self.limits.max_nodes {
+                return Err(Diagnostic::limit(
+                    Phase::Types, "nominal original application cache exceeds node limit", None,
+                ));
+            }
+            self.pay(search.saturating_add(
+                std::mem::size_of::<(RequestKey, Option<RequestValue>)>(),
+            ))?;
+            self.unhinted_requests.insert(key, unhinted.clone());
+            unhinted
+        };
+        if let Some((key, value)) = unhinted {
+            return Ok((key == hint_key).then_some(value));
+        }
+        match super::materialize::type_in_view(
+            self.program, &self.view, self.ledger, key.2, recipe, Some(hint),
+            self.limits, self.left,
+        ) {
+            Ok(value) => Ok(Some(Rc::new(value))),
+            Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => Err(error),
+            Err(_) => Ok(None),
+        }
     }
     fn row(&mut self, instance: &'a LifeNominalInstance, depth: usize) -> R<()> {
         self.node(depth)?;
@@ -1396,10 +1480,27 @@ pub(super) fn program<'a>(
         .original
         .context()
         .ok_or_else(|| bad("nominal where requires the request's immutable original context"))?;
+    let mut scopes = BTreeMap::<_, std::rc::Rc<Vec<&SemanticInstance>>>::new();
+    for instance in &program.instances {
+        let cost = scopes.len().saturating_add(1).ilog2() as usize
+            + std::mem::size_of::<(SemanticDefinitionId, &SemanticInstance)>();
+        *left = left.checked_sub(cost).ok_or_else(|| {
+            Diagnostic::limit(Phase::Types, "nominal original source scope index exceeded", None)
+        })?;
+        let entry = scopes.entry(instance.definition).or_default();
+        std::rc::Rc::get_mut(entry)
+            .expect("scope directory is private while building")
+            .push(instance);
+    }
     let mut check = Check {
+        instance_index: None,
+        scopes,
+        unhinted_requests: BTreeMap::new(),
         program,
         module,
-        view: super::materialize::ActualDirectory::from_module_at(module, "nominal_catalog"),
+        view: super::materialize::ActualDirectory::indexed(
+            module, program, context, "nominal_catalog", limits, left,
+        )?,
         ledger,
         where_session: super::original::NominalWhere::new(&context.semantic, &context.original),
         requests: std::collections::BTreeMap::new(),

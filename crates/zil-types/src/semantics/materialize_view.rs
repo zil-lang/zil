@@ -12,6 +12,7 @@ type ParentSolution = (SemanticInstanceId, std::rc::Rc<Vec<SemanticActualRecipe>
 struct SourceDirectory<'a> {
     program: &'a SemanticModule,
     context: std::rc::Rc<super::super::original_context::OriginalContext>,
+    definitions: BTreeMap<SemanticDefinitionId, usize>,
     positions: BTreeMap<SemanticInstanceId, usize>,
     functions: BTreeMap<FunctionId, usize>,
     nominals: BTreeMap<LifeDeclarationId, Vec<usize>>,
@@ -26,6 +27,8 @@ pub(in crate::semantics) struct ActualDirectory<'a> {
     // Private, complete child proposals for a single deferred nominal pass.
     // The raw physical occurrence accompanies the row until canonical rewrite.
     pub(super) nominal_proposals: std::cell::RefCell<Vec<(Type, LifeNominalInstance)>>,
+    pub(super) deferred_nominals:
+        std::cell::RefCell<Option<deferred::NominalIndex<deferred::NominalPosition>>>,
     pub(in crate::semantics) life_instances: &'a [LifeNominalInstance],
     pub(in crate::semantics) dyn_declarations: &'a [DynDeclaration],
     pub(in crate::semantics) dyn_interfaces: &'a [DynInterface],
@@ -52,6 +55,7 @@ impl<'a> ActualDirectory<'a> {
             closures: Cow::Borrowed(&module.closures),
             life_instances: &module.life_instances,
             nominal_proposals: Default::default(),
+            deferred_nominals: Default::default(),
             dyn_declarations: &module.dyn_declarations,
             dyn_interfaces: &module.dyn_interfaces,
             instances: BTreeMap::new(),
@@ -77,6 +81,7 @@ impl<'a> ActualDirectory<'a> {
         let count = program
             .instances
             .len()
+            .saturating_add(program.definitions.len())
             .saturating_add(module.functions.len())
             .saturating_add(module.life_instances.len());
         if count > limits.max_nodes {
@@ -92,6 +97,12 @@ impl<'a> ActualDirectory<'a> {
                 .saturating_mul(count.saturating_add(1).ilog2() as usize + 2)
                 .saturating_add(1),
         )?;
+        let mut definitions = BTreeMap::new();
+        for (offset, row) in program.definitions.iter().enumerate() {
+            if definitions.insert(row.id, offset).is_some() {
+                return Err(bad("immutable materialization directory repeats a definition"));
+            }
+        }
         let mut positions = BTreeMap::new();
         for (offset, row) in program.instances.iter().enumerate() {
             if positions.insert(row.id, offset).is_some() {
@@ -116,6 +127,7 @@ impl<'a> ActualDirectory<'a> {
         directory.source = Some(SourceDirectory {
             program,
             context: context.clone(),
+            definitions,
             positions,
             functions,
             nominals,
@@ -153,6 +165,22 @@ impl<'a> ActualDirectory<'a> {
             .positions
             .get(&id)
             .and_then(|offset| program.instances.get(*offset)))
+    }
+    pub(super) fn indexed_definition<'p>(
+        &self,
+        program: &'p SemanticModule,
+        id: SemanticDefinitionId,
+        left: &mut usize,
+    ) -> R<Option<Option<&'p SemanticDefinition>>> {
+        let Some(source) = self.source.as_ref().filter(|source| std::ptr::eq(source.program, program))
+        else {
+            return Ok(None);
+        };
+        Self::source_fee(
+            left,
+            source.definitions.len().saturating_add(1).ilog2() as usize + 1,
+        )?;
+        Ok(Some(source.definitions.get(&id).map(|offset| &program.definitions[*offset])))
     }
     // Candidate offsets only: the consumer must still compare complete mixed
     // actuals, physical hint and class domain, and reject all ambiguity.
@@ -353,6 +381,7 @@ impl<'a> ActualDirectory<'a> {
             closures: Cow::Owned(closures),
             life_instances,
             nominal_proposals: Default::default(),
+            deferred_nominals: Default::default(),
             dyn_declarations,
             dyn_interfaces,
             instances,

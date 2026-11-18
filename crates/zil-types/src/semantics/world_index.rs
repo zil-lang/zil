@@ -16,6 +16,9 @@ pub(super) struct Index {
     pub sites: BTreeMap<SemanticInstanceId, Vec<usize>>,
     pub recipes: BTreeMap<(SemanticDefinitionId, SemanticSiteId), OriginalSite>,
     pub expressions: BTreeMap<(FunctionId, ValueId), Vec<zil_base::NodeId>>,
+    pub requested_calls: BTreeMap<(SemanticInstanceId, SemanticSiteId, FunctionId), Vec<usize>>,
+    pub ordinary_calls: BTreeMap<FunctionId, Vec<usize>>,
+    pub source_call_occurrences: BTreeMap<(SemanticInstanceId, SemanticSiteId), usize>,
 }
 pub(super) fn search(n: usize) -> usize {
     n.saturating_add(1).ilog2() as usize + 1
@@ -58,9 +61,27 @@ impl Index {
                 return Err(bad("actual world repeats an original definition identity"));
             }
         }
-        for (offset, row) in program.instances.iter().enumerate() {
-            if index.instances.insert(row.id, offset).is_some() {
-                return Err(bad("actual world repeats an original instance identity"));
+        {
+            let requests = ledger.instance_requests.borrow();
+            for (offset, row) in program.instances.iter().enumerate() {
+                if index.instances.insert(row.id, offset).is_some() {
+                    return Err(bad("actual world repeats an original instance identity"));
+                }
+                let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(target)) =
+                    row.target
+                else {
+                    continue;
+                };
+                pay(left, search(requests.len()))?;
+                if let Some(request) = requests.get(&row.id) {
+                    if request.2 == target {
+                        pay(left, search(index.requested_calls.len()).saturating_add(1))?;
+                        index.requested_calls.entry(*request).or_default().push(offset);
+                    }
+                } else {
+                    pay(left, search(index.ordinary_calls.len()).saturating_add(1))?;
+                    index.ordinary_calls.entry(target).or_default().push(offset);
+                }
             }
         }
         for (offset, row) in module.functions.iter().enumerate() {
@@ -69,6 +90,14 @@ impl Index {
             }
         }
         for (offset, row) in program.sites.iter().enumerate() {
+            if matches!(
+                row.action,
+                SemanticSiteAction::Call { .. } | SemanticSiteAction::BodyCall { .. }
+            ) {
+                pay(left, search(index.source_call_occurrences.len()).saturating_add(1))?;
+                let count = index.source_call_occurrences.entry((row.instance, row.recipe)).or_default();
+                *count = count.saturating_add(1);
+            }
             let sites = index.sites.entry(row.instance).or_default();
             let ordinal = sites.len();
             sites.push(offset);

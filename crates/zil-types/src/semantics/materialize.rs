@@ -197,6 +197,7 @@ pub(super) mod dynamic;
 #[path = "materialize_nominal.rs"]
 mod nominal;
 pub(super) use deferred::populate as populate_deferred_nominals;
+pub(super) use deferred::NominalIndex;
 #[path = "materialize_opaque.rs"]
 mod opaque;
 pub(super) use opaque::call_result_at;
@@ -305,6 +306,29 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
             }
         }
         Err(bad("materialized operand lost its original declaration"))
+    }
+    fn input_definition(
+        &mut self,
+        id: SemanticDefinitionId,
+    ) -> R<Option<&'a SemanticDefinition>> {
+        if let Some(indexed) = self.module.indexed_definition(self.input, id, self.left)? {
+            return Ok(indexed);
+        }
+        self.fee(self.input.definitions.len())?;
+        Ok(self.input.definitions.iter().find(|row| row.id == id))
+    }
+    fn actual_source_definition(
+        &mut self,
+        id: SemanticDefinitionId,
+    ) -> R<Option<&'a SemanticDefinition>> {
+        if let Some(row) = self.input_definition(id)? {
+            return Ok(Some(row));
+        }
+        if let Some(source) = self.ledger.frozen.as_deref() {
+            self.fee(source.semantic.definitions.len())?;
+            return Ok(source.semantic.definitions.iter().find(|row| row.id == id));
+        }
+        Ok(None)
     }
     fn ancestor(
         &mut self,
@@ -678,11 +702,11 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
         let holder = holder
             .map(|id| self.instance(id).map(|row| row.definition))
             .transpose()?;
-        self.fee(self.input.definitions.len().saturating_add(2))?;
-        if let Some(source) = self.ledger.frozen.as_deref() {
-            self.fee(source.semantic.definitions.len().saturating_mul(2))?;
-        }
-        let proof = self.ledger.original.borrow();
+        let ledger = self.ledger;
+        let proof = ledger.original.borrow();
+        self.fee(proof.as_ref().map_or(1, |proof| {
+            proof.complete.len().saturating_add(1).ilog2() as usize + 1
+        }))?;
         let proof = if let Some(proof) = proof
             .as_ref()
             .filter(|proof| proof.complete.contains(&owner))
@@ -706,8 +730,12 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
         // its trait member. Their own mixed frames correspond only through
         // the independently checked complete provider theorem; neither is the
         // other's lexical parent Scope.
+        self.fee(proof.providers.len().saturating_add(1).ilog2() as usize + 1)?;
         let provider = proof.providers.get(&holder) == Some(&target);
         if target == holder || provider {
+            if provider {
+                self.fee(proof.complete.len().saturating_add(1).ilog2() as usize + 1)?;
+            }
             if provider && !proof.complete.contains(&holder) {
                 return Err(bad(
                     "inferred provider holder lacks its complete original method proof",
@@ -716,34 +744,10 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
             return proof.call_actual_view(owner, call, formal, self.limits, self.left);
         }
         let target = self
-            .input
-            .definitions
-            .iter()
-            .find(|row| row.id == target)
-            .or_else(|| {
-                self.ledger.frozen.as_deref().and_then(|source| {
-                    source
-                        .semantic
-                        .definitions
-                        .iter()
-                        .find(|row| row.id == target)
-                })
-            })
+            .actual_source_definition(target)?
             .ok_or_else(|| bad("inferred method lost its original target"))?;
         let parent = self
-            .input
-            .definitions
-            .iter()
-            .find(|row| row.id == holder)
-            .or_else(|| {
-                self.ledger.frozen.as_deref().and_then(|source| {
-                    source
-                        .semantic
-                        .definitions
-                        .iter()
-                        .find(|row| row.id == holder)
-                })
-            })
+            .actual_source_definition(holder)?
             .ok_or_else(|| bad("inferred parent scope lost its original definition"))?;
         if target.parent != Some(holder)
             || !matches!(parent.body, SemanticDefinitionBody::Scope(_))

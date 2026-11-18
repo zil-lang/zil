@@ -23,37 +23,16 @@ pub(super) fn callee<'a>(
     }
     let occurrence =
         occurrence.ok_or_else(|| bad("actual call has no original source occurrence"))?;
-    let ledger = world.ledger;
-    let requests = ledger.instance_requests.borrow();
-    world.pay(world.program.instances.len().saturating_add(requests.len()))?;
-    let mut requested = None;
-    let mut ordinary = None;
-    let mut ordinary_ambiguous = false;
-    for instance in &world.program.instances {
-        if !matches!(instance.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id == target)
-        {
-            continue;
-        }
-        world.pay(1)?;
-        if let Some(request) = requests.get(&instance.id) {
-            if *request == (caller.id, occurrence, target) {
-                if requested.replace(instance).is_some() {
-                    return Err(bad(
-                        "actual call has multiple worlds for its exact source request",
-                    ));
-                }
-            }
-        } else {
-            ordinary_ambiguous |= ordinary.replace(instance).is_some();
-        }
+    world.pay(index::search(world.index.requested_calls.len()).saturating_add(1))?;
+    if let Some(positions) = world.index.requested_calls.get(&(caller.id, occurrence, target)) {
+        let [position] = positions.as_slice() else {
+            return Err(bad("actual call has multiple worlds for its exact source request"));
+        };
+        return Ok(&world.program.instances[*position]);
     }
-    if let Some(instance) = requested {
-        return Ok(instance);
-    }
-    if !ordinary_ambiguous {
-        if let Some(instance) = ordinary {
-            return Ok(instance);
-        }
+    world.pay(index::search(world.index.ordinary_calls.len()).saturating_add(1))?;
+    if let Some([position]) = world.index.ordinary_calls.get(&target).map(Vec::as_slice) {
+        return Ok(&world.program.instances[*position]);
     }
     let mut diagnostic = bad("actual call has no unique world for its exact original request");
     diagnostic.notes.push(format!(
@@ -101,9 +80,9 @@ pub(super) fn shared(
     }
     let ledger = world.ledger;
     let requests = ledger.instance_requests.borrow();
-    world.pay(requests.len().saturating_add(2))?;
     let mut located = false;
     for instance in [first, other] {
+        world.pay(index::search(requests.len()).saturating_add(1))?;
         let Some((caller, site, actual)) = requests.get(&instance.id) else {
             continue;
         };
@@ -112,14 +91,8 @@ pub(super) fn shared(
                 "source world request changes its actual function target",
             ));
         }
-        let mut occurrences = world.instance_sites(*caller)?.into_iter().filter(|row| {
-            row.recipe == *site
-                && matches!(
-                    row.action,
-                    SemanticSiteAction::Call { .. } | SemanticSiteAction::BodyCall { .. }
-                )
-        });
-        if occurrences.next().is_none() || occurrences.next().is_some() {
+        world.pay(index::search(world.index.source_call_occurrences.len()).saturating_add(1))?;
+        if world.index.source_call_occurrences.get(&(*caller, *site)) != Some(&1) {
             return Err(bad(
                 "shared actual world has no unique original call occurrence",
             ));

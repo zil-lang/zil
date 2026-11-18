@@ -788,9 +788,12 @@ impl Eval<'_, '_, '_> {
         let holder = holder
             .map(|id| self.instance(id).map(|row| row.definition))
             .transpose()?;
-        self.fee(self.input.definitions.len())?;
         let boundaries = {
-            let proof = self.ledger.original.borrow();
+            let ledger = self.ledger;
+            let proof = ledger.original.borrow();
+            self.fee(proof.as_ref().map_or(1, |proof| {
+                proof.complete.len().saturating_add(1).ilog2() as usize + 1
+            }))?;
             let proof = proof
                 .as_ref()
                 .filter(|proof| proof.complete.contains(&owner))
@@ -802,7 +805,7 @@ impl Eval<'_, '_, '_> {
                     return Ok(None);
                 }
             }
-            let program = if self.input.definitions.iter().any(|row| row.id == owner) {
+            let program = if self.input_definition(owner)?.is_some() {
                 self.input
             } else {
                 &self
