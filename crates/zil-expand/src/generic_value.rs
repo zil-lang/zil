@@ -80,7 +80,11 @@ impl Index<'_> {
             );
         }
         let sync = matches!(capability, Bound::SyncDrop);
-        let accepts = |b: &Bound| b == capability || matches!(b, Bound::Copy | Bound::StoreElement);
+        let accepts = |b: &Bound| {
+            b == capability
+                || matches!(b, Bound::Copy | Bound::StoreElement)
+                || !sync && *b == Bound::SyncDrop
+        };
         let symbolic = plain(ty).filter(|name| variables.contains(*name));
         let projected = associated::parts(ty).is_some();
         if symbolic.is_some() || projected {
@@ -105,6 +109,23 @@ impl Index<'_> {
                     "ordinary inline fields require a declared Value bound"
                 },
             ));
+        }
+        if let Some((interface, context)) = dynamic::owned_parts(ty)? {
+            // Interface inventory and the independent executable cleanup
+            // proof remain responsible for the actual dynamic owner.
+            budget.ty(interface)?;
+            if let Some(context) = context {
+                self.value_shape(
+                    context,
+                    &Bound::Value,
+                    available,
+                    variables,
+                    budget,
+                    active,
+                    depth + 1,
+                )?;
+            }
+            return Ok(());
         }
         match &grouped(ty).kind {
             // Dropping an address does not drop its owner. Its full source and

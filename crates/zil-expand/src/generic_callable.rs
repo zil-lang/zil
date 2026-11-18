@@ -282,6 +282,30 @@ fn state_union_result(
     })
 }
 
+/// An explicit give formal transfers the original by-value callable place.
+pub(super) fn give_once(function: &Function, input: &Param) -> bool {
+    input.give
+        && function.generics.iter().any(|parameter| {
+            parameter_mode(&input.ty, &parameter.name) == Some(None)
+                && matches!(&parameter.kind, GenericParamKind::Type(bounds)
+                if bounds.iter().any(|bound| matches!(&bound_inner(bound).kind,
+                    TypeKind::Named { path, .. } if path.as_slice() == ["FnOnce"])))
+        })
+}
+
+pub(super) fn give_operand(mut expression: &Expr) -> Option<&Expr> {
+    while let ExprKind::Group(inner) = &expression.kind {
+        expression = inner;
+    }
+    match &expression.kind {
+        ExprKind::Unary {
+            op: UnaryOp::Give,
+            operand,
+        } => Some(operand),
+        _ => None,
+    }
+}
+
 pub(crate) fn parameter_mode(ty: &TypeRef, name: &str) -> Option<Option<bool>> {
     let ty = grouped(ty);
     if matches!(&ty.kind, TypeKind::Named { path, args } if path.as_slice() == [name] && args.is_empty())
@@ -380,17 +404,7 @@ pub(crate) fn template(
     budget: &mut Budget<'_>,
 ) -> R<Option<CallableTemplates>> {
     let mut limits = budget.remaining_limits();
-    let result = template_with_state(
-        function,
-        &mut limits.max_analysis_steps,
-        |ty, name, dual| {
-            if dual {
-                dual_state_type(ty, name)
-            } else {
-                state_type(ty, name)
-            }
-        },
-    );
+    let result = template_with_state(function, &mut limits.max_analysis_steps, source_state_type);
     budget.adopt_remaining(&limits);
     result
 }
@@ -398,9 +412,131 @@ pub(crate) fn template(
 /// The generic engine has already replaced State<F> applications with nominal
 /// declarations. Read their actual Package fields to recover the symbolic F
 /// occurrence; a generated name alone grants no field or callable capability.
+fn source_state_type(ty: &TypeRef, name: &str, dual: bool, work: &mut usize) -> R<bool> {
+    if dual {
+        return Ok(dual_state_type(ty, name));
+    }
+    if state_type(ty, name) {
+        return Ok(true);
+    }
+    if let TypeKind::Tuple(fields) = &grouped(ty).kind {
+        hrtb::pay(work, fields.len(), ty.span)?;
+        for field in fields {
+            if parameter_mode(field, name) == Some(None)
+                || source_state_type(field, name, false, work)?
+            {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
+}
+
+struct ExpandedState<'a> {
+    aggregates: &'a BTreeMap<String, &'a Aggregate>,
+    modules: &'a [&'a Module],
+}
+
+impl ExpandedState<'_> {
+    fn contains(
+        &self,
+        ty: &TypeRef,
+        name: &str,
+        active: &mut BTreeSet<String>,
+        budget: &mut Budget<'_>,
+        depth: usize,
+    ) -> R<bool> {
+        budget.node(ty.span, depth)?;
+        if parameter_mode(ty, name) == Some(None) {
+            return Ok(true);
+        }
+        match &grouped(ty).kind {
+            TypeKind::Tuple(fields) | TypeKind::Union(fields) => {
+                for field in fields {
+                    if self.contains(field, name, active, budget, depth + 1)? {
+                        return Ok(true);
+                    }
+                }
+            }
+            TypeKind::Error { error, result } => {
+                return Ok(self.contains(error, name, active, budget, depth + 1)?
+                    || self.contains(result, name, active, budget, depth + 1)?);
+            }
+            TypeKind::Named { path, args }
+                if matches!(path.as_slice(), [nominal] if nominal.starts_with("$generic_"))
+                    && args.is_empty() =>
+            {
+                let nominal = &path[0];
+                budget.text(nominal, ty.span)?;
+                if !active.insert(nominal.clone()) {
+                    return Ok(false);
+                }
+                let mut found = false;
+                if let Some(aggregate) = self.aggregates.get(nominal) {
+                    if aggregate.kind == AggregateKind::Package {
+                        for field in &aggregate.fields {
+                            found |= !field.manages
+                                && self.contains(&field.ty, name, active, budget, depth + 1)?;
+                        }
+                    }
+                } else {
+                    'modules: for module in self.modules {
+                        for item in &module.items {
+                            budget.node(item.span, depth)?;
+                            if let ItemKind::Enum(declaration) = &item.kind {
+                                budget.text(&declaration.name, item.span)?;
+                                if &declaration.name != nominal {
+                                    continue;
+                                }
+                                for variant in &declaration.variants {
+                                    budget.node(variant.span, depth)?;
+                                    match &variant.fields {
+                                        VariantFields::Unit => {}
+                                        VariantFields::Tuple(fields) => {
+                                            for field in fields {
+                                                found |= !field.manages
+                                                    && self.contains(
+                                                        &field.ty,
+                                                        name,
+                                                        active,
+                                                        budget,
+                                                        depth + 1,
+                                                    )?;
+                                            }
+                                        }
+                                        VariantFields::Record(fields) => {
+                                            for field in fields {
+                                                found |= !field.manages
+                                                    && self.contains(
+                                                        &field.ty,
+                                                        name,
+                                                        active,
+                                                        budget,
+                                                        depth + 1,
+                                                    )?;
+                                            }
+                                        }
+                                    }
+                                }
+                                break 'modules;
+                            }
+                        }
+                    }
+                }
+                active.remove(nominal);
+                return Ok(found);
+            }
+            _ => {}
+        }
+        Ok(false)
+    }
+}
+
 pub(crate) fn expanded_template(
     function: &Function,
     declarations: &BTreeMap<String, &Aggregate>,
+    modules: &[&Module],
+    depth_limit: usize,
     remaining: &mut usize,
 ) -> R<Option<CallableTemplates>> {
     // The classifier is queried for input discovery, result admission and
@@ -430,27 +566,53 @@ pub(crate) fn expanded_template(
             })?;
         }
     }
-    let mut classified = template_with_state(function, remaining, |ty, name, dual| {
-        if if dual {
-            dual_state_type(ty, name)
-        } else {
-            state_type(ty, name)
-        } {
-            return true;
+    let mut classified = template_with_state(function, remaining, |ty, name, dual, work| {
+        if source_state_type(ty, name, dual, work)? {
+            return Ok(true);
         }
-        let TypeKind::Named { path, args } = &grouped(ty).kind else {
-            return false;
-        };
-        if path.len() != 1 || !args.is_empty() || !path[0].starts_with("$generic_") {
-            return false;
-        }
-        declarations.get(&path[0]).is_some_and(|aggregate| {
-            aggregate.kind == AggregateKind::Package
-                && aggregate.fields.iter().any(|field| {
-                    matches!(&grouped(&field.ty).kind,
-                    TypeKind::Named { path, args } if path.as_slice()==[name] && args.is_empty())
+        let direct = match &grouped(ty).kind {
+            TypeKind::Named { path, args }
+                if path.len() == 1 && args.is_empty() && path[0].starts_with("$generic_") =>
+            {
+                declarations.get(&path[0]).is_some_and(|aggregate| {
+                    aggregate.kind == AggregateKind::Package
+                        && aggregate
+                            .fields
+                            .iter()
+                            .any(|field| parameter_mode(&field.ty, name) == Some(None))
                 })
-        })
+            }
+            _ => false,
+        };
+        if direct
+            || dual
+            || parameter_mode(ty, name).is_some()
+            || !matches!(
+                grouped(ty).kind,
+                TypeKind::Named { .. } | TypeKind::Tuple(_)
+            )
+        {
+            return Ok(direct);
+        }
+        if let TypeKind::Named { ref path, .. } = grouped(ty).kind
+            && !matches!(path.as_slice(), [name] if name.starts_with("$generic_"))
+        {
+            return Ok(false);
+        }
+        let limits = Limits {
+            max_analysis_steps: *work,
+            max_nodes: *work,
+            max_call_depth: depth_limit,
+            ..Limits::default()
+        };
+        let mut budget = Budget::new(&limits);
+        let result = ExpandedState {
+            aggregates: declarations,
+            modules,
+        }
+        .contains(ty, name, &mut BTreeSet::new(), &mut budget, 0);
+        *work = budget.remaining_limits().max_analysis_steps;
+        result
     })?;
     if let Some(bounds) = classified.as_mut()
         && let Some(profile) = bounds.state_replacement
@@ -607,7 +769,7 @@ pub(crate) fn expanded_template(
 fn template_with_state(
     function: &Function,
     remaining: &mut usize,
-    is_state: impl Fn(&TypeRef, &str, bool) -> bool,
+    is_state: impl Fn(&TypeRef, &str, bool, &mut usize) -> R<bool>,
 ) -> R<Option<CallableTemplates>> {
     // Larger inventories pay their complete declaration classification before
     // the temporary vector is allocated; the two-declaration path is retained.
@@ -767,14 +929,17 @@ fn template_with_state(
             ));
         }
         let life = hrtb::relation(callable_bound, remaining)?;
-        let returns_state = function
-            .return_type
-            .as_ref()
-            .is_some_and(|t| is_state(t, &parameter.name, dual));
-        let takes_state = function
-            .params
-            .iter()
-            .any(|p| is_state(&p.ty, &parameter.name, dual));
+        let returns_state = match &function.return_type {
+            Some(ty) => is_state(ty, &parameter.name, dual, remaining)?,
+            None => false,
+        };
+        let mut takes_state = false;
+        for input in &function.params {
+            if is_state(&input.ty, &parameter.name, dual, remaining)? {
+                takes_state = true;
+                break;
+            }
+        }
         let owning = returns_state || takes_state;
         if (closed_environment || thread_callable) && owning {
             return Err(unsupported(
@@ -803,7 +968,8 @@ fn template_with_state(
         let mut state_owner = None;
         let mut direct_owner = None;
         for (index, input) in function.params.iter().enumerate() {
-            if !refers(&input.ty, &parameter.name) && !is_state(&input.ty, &parameter.name, dual) {
+            let input_state = is_state(&input.ty, &parameter.name, dual, remaining)?;
+            if !refers(&input.ty, &parameter.name) && !input_state {
                 continue;
             }
             let owned_registration_input =
@@ -835,8 +1001,11 @@ fn template_with_state(
                     "owning callable factories require exactly one direct by-value F input",
                 ));
             }
-            let state_input = mode.is_none() && is_state(&input.ty, &parameter.name, dual);
-            if (mode.is_none() && !state_input) || (input.give && !owned_registration_input) {
+            let state_input = mode.is_none() && input_state;
+            let give_once = kind == CallableKind::FnOnce && mode == Some(None);
+            if (mode.is_none() && !state_input)
+                || (input.give && !owned_registration_input && !give_once)
+            {
                 return Err(unsupported(
                     input.span,
                     "callable parameter must be F, &F, &mut F or a single owning State",
@@ -952,13 +1121,17 @@ fn template_with_state(
         }
         if function.return_type.as_ref().is_some_and(|t| {
             refers(t, &parameter.name)
-                && !is_state(t, &parameter.name, dual)
+                && !returns_state
                 && !(retained_registration
                     && registration_environment(t).is_some_and(|environment| {
                         parameter_mode(environment, &parameter.name) == Some(None)
                     }))
                 && !(forwarded && parameter_mode(t, &parameter.name) == Some(None))
-                && !(dual && takes_state && state_union_result(t, &parameter.name, &is_state))
+                && !(dual
+                    && takes_state
+                    && state_union_result(t, &parameter.name, &|ty, name, _| {
+                        dual_state_type(ty, name)
+                    }))
         }) {
             return Err(unsupported(
                 function.span,

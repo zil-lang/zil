@@ -194,7 +194,20 @@ pub(super) fn validate(
                 budget,
                 callable::StoreCallbacks::None,
             )?;
-            copy::require(ty, nominals, &conditional, &variables, budget)?;
+            if let Err(diagnostic) = copy::require(ty, nominals, &conditional, &variables, budget) {
+                if diagnostic.category == zil_base::ResultCategory::ResourceLimit {
+                    return Err(diagnostic);
+                }
+                // Layout is conditional on the actual type slots. An owning
+                // payload still needs its actual complete Value at instantiation.
+                let mut layout = trait_bounds::Bounds::new();
+                for name in &variables {
+                    budget.text(name, span)?;
+                    budget.node(span, 0)?;
+                    layout.insert(name.clone(), vec![trait_bounds::Bound::Value]);
+                }
+                traits.value_bound(ty, &trait_bounds::Bound::Value, &layout, &variables, budget)?;
+            }
         }
     }
     Ok(())

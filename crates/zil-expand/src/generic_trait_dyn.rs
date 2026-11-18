@@ -78,6 +78,27 @@ fn pay_key(key: &trait_instances::Key, budget: &mut Budget<'_>, span: Span) -> R
 pub(in crate::generics) fn is_interface(ty: &TypeRef) -> bool {
     matches!(grouped(ty).kind, TypeKind::Dyn { .. })
 }
+/// An erased owner has an inline pair. The interface and optional context
+/// are formation operands, never inline children of the enum layout.
+pub(in crate::generics) fn owned_parts(ty: &TypeRef) -> R<Option<(&TypeRef, Option<&TypeRef>)>> {
+    let TypeKind::Named { path, args } = &grouped(ty).kind else {
+        return Ok(None);
+    };
+    if path.as_slice() != ["OwnedDyn"] {
+        return Ok(None);
+    }
+    match args.as_slice() {
+        [GenericArg::Type(interface)] if is_interface(interface) => Ok(Some((interface, None))),
+        [GenericArg::Type(interface), GenericArg::Type(context)] if is_interface(interface) => {
+            Ok(Some((interface, Some(context))))
+        }
+        _ => Err(error(
+            ty.span,
+            "OwnedDyn requires a dyn interface and an optional complete Context type",
+        )),
+    }
+}
+
 impl Catalog {
     pub(crate) fn has_generated_provider(
         &self,
@@ -314,29 +335,39 @@ impl Catalog {
         let ordinal = self
             .find(&reference, budget, span)?
             .ok_or_else(|| error(span, "dyn method interface was not inventoried"))?;
-        let mut selected = None;
-        for slot in &self.interfaces[ordinal].slots {
-            budget.node(span, 0)?;
-            budget.text(name, span)?;
-            budget.text(&slot.signature.name, span)?;
-            if name == slot.signature.name {
-                if selected.is_some() {
-                    return Err(error(
-                        span,
-                        "dyn inherited method needs an exact qualification",
-                    ));
-                }
-                selected = Some(&slot.signature);
-            }
-        }
-        selected
-            .map(|signature| {
-                budget.const_function(signature)?;
-                Ok(signature.clone())
-            })
-            .transpose()
+        method_slot(&self.interfaces[ordinal], name, budget, span)
     }
 }
+
+fn method_slot(
+    interface: &Interface,
+    name: &str,
+    budget: &mut Budget<'_>,
+    span: Span,
+) -> R<Option<Function>> {
+    let mut selected = None;
+    for slot in &interface.slots {
+        budget.node(span, 0)?;
+        budget.text(name, span)?;
+        budget.text(&slot.signature.name, span)?;
+        if name == slot.signature.name {
+            if selected.is_some() {
+                return Err(error(
+                    span,
+                    "dyn inherited method needs an exact qualification",
+                ));
+            }
+            selected = Some(&slot.signature);
+        }
+    }
+    selected
+        .map(|signature| {
+            budget.const_function(signature)?;
+            Ok(signature.clone())
+        })
+        .transpose()
+}
+
 pub(in crate::generics) fn copy_reference(
     reference: &trait_instances::Reference,
     budget: &mut Budget<'_>,
@@ -394,6 +425,18 @@ impl Index<'_> {
         };
         self.reference(&application, budget)
     }
+    pub(in crate::generics) fn definition_dyn_method(
+        &self,
+        interface: &TypeRef,
+        name: &str,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<Function> {
+        let interface = self.dynamic_interface(interface, budget)?;
+        method_slot(&interface, name, budget, span)?
+            .ok_or_else(|| error(span, "dyn interface has no such runtime slot"))
+    }
+
     fn dynamic_interface(&self, ty: &TypeRef, budget: &mut Budget<'_>) -> R<Interface> {
         let reference = self.dynamic_reference(ty, budget)?;
         let (owner, _) = self.declaration_item(&reference);

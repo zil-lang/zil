@@ -257,23 +257,44 @@ impl Check<'_, '_, '_> {
         candidates: &mut BTreeSet<Span>,
     ) -> R<()> {
         self.tick(expression.span)?;
-        if let ExprKind::Call {
-            callee, arguments, ..
-        } = &expression.kind
-            && super::super::super::foreign::bare_name(callee) == Some("c_with_callback")
-            && let Some(body) = arguments.get(3)
-        {
-            self.tick(body.span)?;
-            let source = match &body.value.kind {
-                ExprKind::Closure { .. } => Some(body.value.span),
+        let ExprKind::Call { callee, arguments } = &expression.kind else {
+            return Ok(());
+        };
+        let Some(target) = super::super::super::foreign::bare_name(callee) else {
+            return Ok(());
+        };
+        let mut record = |source: &Expr| -> R<()> {
+            self.budget.node(source.span, 0)?;
+            let mut source = source;
+            while let ExprKind::Group(inner) = &source.kind {
+                self.budget.node(source.span, 0)?;
+                source = inner;
+            }
+            let origin = match &source.kind {
+                ExprKind::Closure { .. } => Some(source.span),
                 ExprKind::Name(name) => {
-                    self.budget.text(name, body.span)?;
+                    self.budget.text(name, source.span)?;
                     bindings.get(name).copied()
                 }
                 _ => None,
             };
-            if let Some(source) = source {
-                candidates.insert(source);
+            if let Some(origin) = origin {
+                candidates.insert(origin);
+            }
+            Ok(())
+        };
+        if target == "c_with_callback" {
+            if let Some(body) = arguments.get(3) {
+                record(&body.value)?;
+            }
+        } else if let Some(function) = self.signatures.get(target) {
+            for (parameter, argument) in function.params.iter().zip(arguments) {
+                if parameter.give
+                    && callable::give_once(function, parameter)
+                    && let Some(source) = callable::give_operand(&argument.value)
+                {
+                    record(source)?;
+                }
             }
         }
         Ok(())

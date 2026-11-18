@@ -40,9 +40,14 @@ impl Engine<'_> {
             }
             if let Some(actual) = hint {
                 let actual = self.original_type(&actual)?;
+                let host = projection_shape(&actual);
+                let interface = match dynamic::owned_parts(host)? {
+                    Some((interface, None)) => interface,
+                    _ => host,
+                };
                 trait_signature = self.products.dynamic.method(
                     &self.traits,
-                    projection_shape(&actual),
+                    interface,
                     member,
                     &mut self.budget,
                     callee.span,
@@ -66,7 +71,7 @@ impl Engine<'_> {
                 }
                 if trait_signature.is_none()
                     && !self.traits.recipes.is_empty()
-                    && !dynamic::is_interface(projection_shape(&actual))
+                    && !dynamic::is_interface(interface)
                     && let Some((target, signature, witness)) = self.traits.recipe_method(
                         projection_shape(&actual),
                         member,
@@ -957,7 +962,7 @@ impl Engine<'_> {
             ..
         } = state;
         let source_scope = hints.as_ref().and_then(|hints| hints.source_scope.as_ref());
-        let ExprKind::Call { callee, .. } = &mut e.kind else {
+        let ExprKind::Call { callee, arguments } = &mut e.kind else {
             unreachable!("call dispatch")
         };
         let result = {
@@ -1030,6 +1035,23 @@ impl Engine<'_> {
                         return Err(error(e.span, "aggregate template is not a callable"));
                     };
                     if let Some(callable) = callable::template(function, &mut self.budget)? {
+                        for role in callable.bindings() {
+                            let parameter = &function.params[role.index];
+                            if parameter.give
+                                && role.kind == zil_ir::CallableKind::FnOnce
+                                && callable::parameter_mode(&parameter.ty, &role.generic_name)
+                                    == Some(None)
+                                && let Some(argument) = arguments.get(role.index)
+                            {
+                                self.budget.node(argument.span, depth)?;
+                                if callable::give_operand(&argument.value).is_none() {
+                                    return Err(error(
+                                        argument.span,
+                                        "callable give parameter requires an explicit give value",
+                                    ));
+                                }
+                            }
+                        }
                         if explicit.is_some() {
                             return Err(unsupported(
                                 e.span,

@@ -504,6 +504,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
             }
             state.store_results.insert(id);
         } else if parameter.give
+            && !callable::give_once(function, parameter)
             && !check.concrete_helper_resource(&parameter.ty)
             && !stores::explicit_task_result(&parameter.ty)
         {
@@ -2066,9 +2067,8 @@ impl Check<'_, '_, '_> {
         );
         Ok(())
     }
-    // Tuple destructuring transfers each owning Task Value exactly once.
-    // Other leaves retain the existing Copy obligation; this is not a generic
-    // permission to discard affine values or to upgrade Task descriptions.
+    // Tuple destructuring transfers each complete field Value to its
+    // binding. A discarded field still needs its own cleanup proof.
     fn tuple_binding_value(&mut self, ty: &TypeRef, depth: usize) -> R<()> {
         self.budget.node(ty.span, depth)?;
         if let TypeKind::Tuple(fields) = &group(ty).kind {
@@ -2086,7 +2086,25 @@ impl Check<'_, '_, '_> {
                 self.budget,
             );
         }
-        copy::require(ty, self.nominals, &self.bounds, &self.variables, self.budget)
+        match copy::require(
+            ty,
+            self.nominals,
+            &self.bounds,
+            &self.variables,
+            self.budget,
+        ) {
+            Ok(()) => Ok(()),
+            Err(diagnostic) if diagnostic.category == zil_base::ResultCategory::ResourceLimit => {
+                Err(diagnostic)
+            }
+            Err(_) => self.traits.value_bound(
+                ty,
+                &trait_bounds::Bound::Value,
+                &self.bounds,
+                &self.variables,
+                self.budget,
+            ),
+        }
     }
 
     fn tuple_binding_pattern(
@@ -4631,6 +4649,24 @@ impl Check<'_, '_, '_> {
                 op: UnaryOp::Give,
                 operand,
             } => {
+                let mut source = operand.as_ref();
+                while let ExprKind::Group(inner) = &source.kind {
+                    source = inner;
+                }
+                if let ExprKind::Name(name) = &source.kind
+                    && let Some(local) = state.locals.get(name)
+                    && (callable::opaque_signature(&local.ty).is_some()
+                        || self.callable.as_ref().is_some_and(|bounds| {
+                            bounds.bindings().any(|bound| {
+                                callable::parameter_mode(&local.ty, &bound.generic_name)
+                                    == Some(None)
+                            })
+                        }))
+                {
+                    // Ordinary affine ownership uses the original place and
+                    // its use-after-move, capture and loan checks.
+                    return self.expr(operand, state, expected, false);
+                }
                 // A checked give supplies the owning value, while a bare Task
                 // annotation describes its resource header. Only this actual
                 // transfer may fill an explicit Managed<Task<...>> context.
@@ -5065,6 +5101,58 @@ impl Check<'_, '_, '_> {
                 }
             }
             let ty = self.expr(object, state, None, true)?;
+            let host = match &group(&ty).kind {
+                TypeKind::Reference { inner, .. } => inner.as_ref(),
+                _ => &ty,
+            };
+            if let Some((interface, context)) = dynamic::owned_parts(host)? {
+                if context.is_some() || method_explicit.is_some() {
+                    return Err(unsupported(
+                        e.span,
+                        "contextual or generic dynamic slot requires its full invocation relation",
+                    ));
+                }
+                let slot =
+                    self.traits
+                        .definition_dyn_method(interface, name, self.budget, e.span)?;
+                let [receiver, parameters @ ..] = slot.params.as_slice() else {
+                    return Err(error(e.span, "dynamic slot needs an actual receiver"));
+                };
+                let TypeKind::Reference { mutable, .. } = &group(&receiver.ty).kind else {
+                    return Err(unsupported(
+                        e.span,
+                        "owned dynamic slot needs a borrowed receiver",
+                    ));
+                };
+                if arguments.len() != parameters.len() || arguments.iter().any(|arg| arg.spread) {
+                    return Err(error(e.span, "dynamic slot argument count differs"));
+                }
+                if *mutable && !self.place(object, state)?.1 {
+                    return Err(error(
+                        object.span,
+                        "exclusive dynamic slot requires a writable owner",
+                    ));
+                }
+                self.alias_borrow(object, state, *mutable)?;
+                self.alias_hold_result(state, *mutable, object.span, Some(0))?;
+                for (index, (argument, parameter)) in arguments.iter().zip(parameters).enumerate() {
+                    let actual = self.argument(
+                        &argument.value,
+                        state,
+                        &parameter.ty,
+                        Some(&parameter.ty),
+                        index + 1,
+                    )?;
+                    role_check::same(
+                        &actual,
+                        &parameter.ty,
+                        argument.span,
+                        self.class_scope,
+                        self.budget,
+                    )?;
+                }
+                return Ok(Some(slot.return_type.unwrap_or_else(|| unit(e.span))));
+            }
             if name == "len"
                 && matches!(&group(&ty).kind, TypeKind::Reference { inner, .. } if matches!(group(inner).kind, TypeKind::Array { length: None, .. }))
             {
@@ -5630,6 +5718,18 @@ impl Check<'_, '_, '_> {
                 variables,
                 found,
             )?;
+            if parameter.give {
+                self.budget
+                    .identity_work(function.generics.len(), parameter.span)?;
+                if callable::give_once(function, parameter)
+                    && callable::give_operand(&argument.value).is_none()
+                {
+                    return Err(error(
+                        argument.span,
+                        "callable give parameter requires an explicit give value",
+                    ));
+                }
+            }
             if parameter.give
                 && stores::carrier(&hint).is_some()
                 && !self.owning_store_expression(&argument.value, state)
@@ -6123,7 +6223,9 @@ impl Check<'_, '_, '_> {
                 let value_child = !field.manages
                     && aggregate.kind == AggregateKind::Package
                     && match &group(&ty).kind {
-                        TypeKind::Named { path, .. } if path.as_slice() == ["Managed"] => true,
+                        TypeKind::Named { path, .. } if matches!(path.as_slice(), [name] if name == "Managed" || name == "OwnedDyn") => {
+                            true
+                        }
                         TypeKind::Named { path, args }
                             if path.len() == 1
                                 && args.is_empty()

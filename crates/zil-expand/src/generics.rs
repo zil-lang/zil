@@ -1900,7 +1900,7 @@ impl<'a> Engine<'a> {
                                     continue;
                                 }
                             }
-                            copy::concrete_storage(&field.ty, &self.nominals, &mut self.budget)?;
+                            self.enum_value_storage(&field.ty)?;
                         }
                     }
                 } else if let VariantFields::Record(fields) = &mut variant.fields {
@@ -1935,7 +1935,7 @@ impl<'a> Engine<'a> {
                                     continue;
                                 }
                             }
-                            copy::concrete_storage(&field.ty, &self.nominals, &mut self.budget)?;
+                            self.enum_value_storage(&field.ty)?;
                         }
                     }
                 }
@@ -1983,6 +1983,62 @@ impl<'a> Engine<'a> {
             .expect("just enqueued")
             .runtime_calls = Some(runtime_calls);
         Ok(store_templates::Instantiation::Eager(generated))
+    }
+    fn enum_value_storage(&mut self, ty: &TypeRef) -> R<()> {
+        match copy::concrete_storage(ty, &self.nominals, &mut self.budget) {
+            Ok(_) => return Ok(()),
+            Err(diagnostic) if diagnostic.category == zil_base::ResultCategory::ResourceLimit => {
+                return Err(diagnostic);
+            }
+            Err(_) => {}
+        }
+        let mut available = trait_bounds::Bounds::new();
+        let mut variables = BTreeSet::new();
+        for name in self
+            .callable_name
+            .iter()
+            .chain(self.callable_pair.iter().flatten())
+        {
+            self.budget.node(ty.span, 0)?;
+            self.budget.text(name, ty.span)?;
+            self.budget.text(name, ty.span)?;
+            // The already retained callable binder has an ordinary environment
+            // value. Its Copy and SyncDrop obligations remain independent.
+            available.insert(name.clone(), vec![trait_bounds::Bound::Value]);
+            variables.insert(name.clone());
+        }
+        if let (Some(program), Some(owner)) = (self.products.semantic.as_ref(), self.nominal_owner)
+        {
+            for binding in program.nominal_owner_names(owner, &mut self.budget, ty.span)? {
+                self.budget.node(ty.span, 0)?;
+                if let [name] = binding.path.as_slice()
+                    && matches!(
+                        &binding.value,
+                        zil_ir::SemanticOriginalNameValue::Recipe(
+                            zil_ir::SemanticActualRecipe::Type(zil_ir::SemanticTypeRecipe::Formal(
+                                _
+                            ))
+                        )
+                    )
+                    && !variables.contains(name)
+                {
+                    // Deferred nominal children are processed in their exact
+                    // generation owner, after its position has been enqueued.
+                    // This is conditional layout only.
+                    self.budget.text(name, ty.span)?;
+                    self.budget.text(name, ty.span)?;
+                    available.insert(name.clone(), vec![trait_bounds::Bound::Value]);
+                    variables.insert(name.clone());
+                }
+            }
+        }
+        self.traits.value_bound(
+            ty,
+            &trait_bounds::Bound::Value,
+            &available,
+            &variables,
+            &mut self.budget,
+        )
     }
     fn ty(&mut self, ty: &mut TypeRef, depth: usize) -> R<()> {
         self.tick(ty.span, depth)?;

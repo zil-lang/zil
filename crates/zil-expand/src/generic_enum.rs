@@ -417,6 +417,9 @@ fn scoped_shape(
     depth: usize,
 ) -> R<()> {
     budget.node(ty.span, depth)?;
+    if dynamic::owned_parts(ty)?.is_some() {
+        return budget.ty_depth(ty, depth);
+    }
     match &ty.kind {
         TypeKind::Reference {
             mutable: false,
@@ -565,6 +568,9 @@ fn shape(
     if trait_bounds::associated::parts(ty).is_some() {
         return copy::require(ty, nominals, bounds, variables, budget);
     }
+    if dynamic::owned_parts(ty)?.is_some() {
+        return budget.ty_depth(ty, depth);
+    }
     match &ty.kind {
         TypeKind::Named { path, args } if path.len() == 1 => {
             let name = &path[0];
@@ -643,6 +649,9 @@ fn layout(
     budget.node(ty.span, depth)?;
     if trait_bounds::associated::parts(ty).is_some() {
         return copy::require(ty, nominals, bounds, variables, budget);
+    }
+    if dynamic::owned_parts(ty)?.is_some() {
+        return budget.ty_depth(ty, depth);
     }
     match &ty.kind {
         TypeKind::Named { path, args } if path.len() == 1 => {

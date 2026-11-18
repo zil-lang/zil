@@ -25,7 +25,7 @@ impl Expander<'_> {
                 s::VariantFields::Tuple(fields) => fields
                     .iter()
                     .map(|field| {
-                        let ty = type_ref(&field.ty);
+                        let ty = self.dyn_type_ref(&field.ty);
                         if field.manages {
                             Type::Managed(Box::new(ty))
                         } else {
@@ -45,7 +45,10 @@ impl Expander<'_> {
                         self.diagnostics.push(error);
                         Vec::new()
                     } else {
-                        fields.iter().map(|field| type_ref(&field.ty)).collect()
+                        fields
+                            .iter()
+                            .map(|field| self.dyn_type_ref(&field.ty))
+                            .collect()
                     }
                 }
             };
