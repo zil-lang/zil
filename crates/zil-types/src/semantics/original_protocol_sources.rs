@@ -186,6 +186,24 @@ impl Engine<'_, '_> {
                 self.pay(name.len(), depth)?;
                 if wanted != name { return Ok(None); } fields.get(*index)
             }
+            (Step::Variant(name, index), Value::Cleanup { owner, ty, source }) => {
+                // An owning enum input may have an unknown active tag.
+                // Its checked nominal scheme supplies this possible payload;
+                // only a known, different tag can eliminate the projection.
+                let fields = cleanup::variant(
+                    self.program, self.proof, *owner, ty, name, self.limits, self.left,
+                )?.ok_or_else(|| pending(
+                    "callable cleanup variant lacks its complete actual owning input scheme",
+                ))?;
+                let field = fields.get(*index).ok_or_else(|| failure(
+                    "callable cleanup variant changes its original field ordinal",
+                ))?;
+                let mut value = self.typed(*owner, field, Value::Plain, depth + 1)?;
+                if let Some(source) = source {
+                    self.variant_input_sources(&mut value, *source, name, *index, depth + 1)?;
+                }
+                return self.projected_input(&value, rest, depth + 1);
+            }
             (Step::Boxed, Value::Boxed(value)) => Some(value.as_ref()),
             _ => None,
         }.ok_or_else(|| pending("callable cleanup lacks its complete actual owning input projection"))?;

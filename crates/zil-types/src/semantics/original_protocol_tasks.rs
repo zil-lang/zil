@@ -323,6 +323,14 @@ pub(super) struct Exit {
     pub phases: BTreeMap<Root, u8>,
     pub synchronous: BTreeMap<Root, BTreeSet<Requirement>>,
 }
+
+struct ReturnInputs<'a> {
+    target: SemanticDefinitionId,
+    arguments: &'a [Value],
+    captures: Option<&'a BTreeMap<String, Value>>,
+    ordinary_call: Option<(SemanticDefinitionId, SemanticSiteId)>,
+}
+
 impl Engine<'_, '_> {
     pub(super) fn record_graph_call(
         &mut self,
@@ -1095,13 +1103,18 @@ impl Engine<'_, '_> {
         let mut transported = reusable || exits.iter().any(|exit| !exit.phases.is_empty());
         for exit in &exits { transported |= self.has_return_facts(&exit.value, depth + 1)?; }
         if !transported { return Ok(None); }
+        self.pay(lookup_work(self.proof.call_targets.len()), depth)?;
+        let ordinary_call = self.site(owner, node, depth + 1)?
+            .map(|site| (owner, site))
+            .filter(|key| self.proof.call_targets.get(key) == Some(&target));
+        let inputs = ReturnInputs { target, arguments, captures, ordinary_call };
         // A generic body may return different input projections from different
         // arms. A concrete argument rules out only arms whose original input
         // tag is absent. Filter before merging their generation/cleanup effects.
         self.pay(exits.len(), depth)?;
         let mut applicable = Vec::with_capacity(exits.len());
         for mut exit in exits {
-            if self.retain_return_sources(&mut exit.value, target, arguments, captures, depth + 1)? {
+            if self.retain_return_sources(&mut exit.value, &inputs, depth + 1)? {
                 applicable.push(exit);
             }
         }
@@ -1195,7 +1208,7 @@ impl Engine<'_, '_> {
         }
         let mut values = Vec::with_capacity(exits.len());
         for exit in exits {
-            values.push(self.task_rehome(exit.value, &roots, target, arguments, captures, depth + 1)?)
+            values.push(self.task_rehome(exit.value, &roots, &inputs, depth + 1)?)
         }
         self.choice(values, depth + 1).map(Some)
     }
@@ -1204,21 +1217,19 @@ impl Engine<'_, '_> {
     fn retain_return_sources(
         &mut self,
         value: &mut Value,
-        target: SemanticDefinitionId,
-        arguments: &[Value],
-        captures: Option<&BTreeMap<String, Value>>,
+        inputs: &ReturnInputs<'_>,
         depth: usize,
     ) -> R<bool> {
         self.pay(1, depth)?;
         match value {
             Value::Cleanup { source: Some(source), .. } => Ok(self
-                .original_input(*source, target, arguments, captures, depth + 1)?
+                .original_input(*source, inputs.target, inputs.arguments, inputs.captures, depth + 1)?
                 .is_some()),
             Value::Choice(values) => {
                 self.pay(values.len(), depth)?;
                 let mut active = Vec::with_capacity(values.len());
                 for mut branch in std::mem::take(values) {
-                    if self.retain_return_sources(&mut branch, target, arguments, captures, depth + 1)? {
+                    if self.retain_return_sources(&mut branch, inputs, depth + 1)? {
                         active.push(branch);
                     }
                 }
@@ -1226,11 +1237,11 @@ impl Engine<'_, '_> {
                 Ok(!values.is_empty())
             }
             Value::Boxed(inner) | Value::Error { payload: inner, .. } => {
-                self.retain_return_sources(inner, target, arguments, captures, depth + 1)
+                self.retain_return_sources(inner, inputs, depth + 1)
             }
             Value::Tuple(fields) | Value::Variant { fields, .. } => {
                 for field in fields {
-                    if !self.retain_return_sources(field, target, arguments, captures, depth + 1)? {
+                    if !self.retain_return_sources(field, inputs, depth + 1)? {
                         return Ok(false);
                     }
                 }
@@ -1238,7 +1249,7 @@ impl Engine<'_, '_> {
             }
             Value::Fields(fields) | Value::Closure { captures: fields, .. } => {
                 for field in fields.values_mut() {
-                    if !self.retain_return_sources(field, target, arguments, captures, depth + 1)? {
+                    if !self.retain_return_sources(field, inputs, depth + 1)? {
                         return Ok(false);
                     }
                 }
@@ -1252,16 +1263,24 @@ impl Engine<'_, '_> {
         &mut self,
         value: Value,
         roots: &BTreeMap<Root, Root>,
-        target: SemanticDefinitionId,
-        arguments: &[Value],
-        captures: Option<&BTreeMap<String, Value>>,
+        inputs: &ReturnInputs<'_>,
         depth: usize,
     ) -> R<Value> {
         self.pay(1, depth)?;
         Ok(match value {
             Value::Cleanup { source: Some(source), .. } => {
-                self.original_input(source, target, arguments, captures, depth + 1)?
+                self.original_input(source, inputs.target, inputs.arguments, inputs.captures, depth + 1)?
                     .ok_or_else(|| pending("returned callable source is in an inactive original input alternative"))?
+            }
+            Value::Cleanup { owner, ty, source: None } if owner == inputs.target => {
+                if let Some(call) = inputs.ordinary_call {
+                    let actual = cleanup::instantiate_call_type(
+                        self.program, self.proof, call, owner, &ty, self.limits, self.left,
+                    )?;
+                    self.typed(call.0, &actual, Value::Plain, depth + 1)?
+                } else {
+                    Value::Cleanup { owner, ty, source: None }
+                }
             }
             Value::Root(root, live, owning, prior) => Value::Root(
                 *roots.get(&root).ok_or_else(|| {
@@ -1273,34 +1292,34 @@ impl Engine<'_, '_> {
             ),
             Value::Error { is_error, payload } => Value::Error {
                 is_error,
-                payload: Box::new(self.task_rehome(*payload, roots, target, arguments, captures, depth + 1)?),
+                payload: Box::new(self.task_rehome(*payload, roots, inputs, depth + 1)?),
             },
             Value::Boxed(value) => {
-                Value::Boxed(Box::new(self.task_rehome(*value, roots, target, arguments, captures, depth + 1)?))
+                Value::Boxed(Box::new(self.task_rehome(*value, roots, inputs, depth + 1)?))
             }
             Value::Tuple(values) => Value::Tuple(
                 values
                     .into_iter()
-                    .map(|value| self.task_rehome(value, roots, target, arguments, captures, depth + 1))
+                    .map(|value| self.task_rehome(value, roots, inputs, depth + 1))
                     .collect::<R<_>>()?,
             ),
             Value::Choice(values) => Value::Choice(
                 values
                     .into_iter()
-                    .map(|value| self.task_rehome(value, roots, target, arguments, captures, depth + 1))
+                    .map(|value| self.task_rehome(value, roots, inputs, depth + 1))
                     .collect::<R<_>>()?,
             ),
             Value::Variant { name, fields } => Value::Variant {
                 name,
                 fields: fields
                     .into_iter()
-                    .map(|value| self.task_rehome(value, roots, target, arguments, captures, depth + 1))
+                    .map(|value| self.task_rehome(value, roots, inputs, depth + 1))
                     .collect::<R<_>>()?,
             },
             Value::Fields(values) => Value::Fields(
                 values
                     .into_iter()
-                    .map(|(name, value)| Ok((name, self.task_rehome(value, roots, target, arguments, captures, depth + 1)?)))
+                    .map(|(name, value)| Ok((name, self.task_rehome(value, roots, inputs, depth + 1)?)))
                     .collect::<R<_>>()?,
             ),
             Value::Closure {
@@ -1310,7 +1329,7 @@ impl Engine<'_, '_> {
                 definition,
                 captures: environment
                     .into_iter()
-                    .map(|(name, value)| Ok((name, self.task_rehome(value, roots, target, arguments, captures, depth + 1)?)))
+                    .map(|(name, value)| Ok((name, self.task_rehome(value, roots, inputs, depth + 1)?)))
                     .collect::<R<_>>()?,
             },
             Value::Poll { fresh, outcomes } => {

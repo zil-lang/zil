@@ -196,6 +196,49 @@ pub(super) fn error_arms(
         }
     })
 }
+
+/// Interpret a returned cleanup leaf in the checked actual call's Gamma.
+/// This maps the type of the obligation. Occurrence identity and permission
+/// still come from the ordinary value and cleanup checks respectively.
+pub(super) fn instantiate_call_type(
+    program: &SemanticModule,
+    proof: &mut Proof,
+    call: (SemanticDefinitionId, SemanticSiteId),
+    target: SemanticDefinitionId,
+    ty: &SemanticTypeRecipe,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticTypeRecipe> {
+    with_check(program, proof, target, limits, left, |check| {
+        let lookup = |len: usize| len.saturating_add(1).ilog2() as usize + 1;
+        check.pay(
+            lookup(check.proof.call_targets.len())
+                .saturating_add(lookup(check.proof.calls.len()))
+                .saturating_add(lookup(check.proof.method_calls.len())),
+            0,
+        )?;
+        if check.proof.call_targets.get(&call) != Some(&target) {
+            return Err(bad("original cleanup call changes its checked target"));
+        }
+        let resolved = check.observation_type(target, ty, 0)?;
+        let arguments = check.proof.calls.get(&call)
+            .ok_or_else(|| bad("original cleanup call lacks its complete mixed actuals"))?;
+        super::super::instantiate::ty(
+            check.program,
+            &check.proof,
+            &resolved,
+            super::super::instantiate::DomainMapping {
+                source: target,
+                use_definition: call.0,
+                arguments,
+                parent_call: check.proof.method_calls.contains_key(&call).then_some(call.1),
+            },
+            check.limits,
+            check.left,
+        )
+    })
+}
+
 pub(super) fn task_head(
     program: &SemanticModule,
     proof: &mut Proof,
