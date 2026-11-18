@@ -1120,7 +1120,7 @@ fn local_value(
         && matches!(result.as_ref(),Type::Managed(task) if matches!(task.as_ref(),Type::Task{..}))
         && matches!(error.as_ref(),Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Record{name,..} if name.starts_with("@std.task:v1:TaskCreateFailure:")))
     {
-        super::stored_flow::physical(error, budget)?;
+        super::stored_flow::physical(module, error, budget)?;
         return legacy_value(result, span, module).map(|_| false);
     }
     if budget.sum_type(ty)? {

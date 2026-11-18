@@ -532,7 +532,7 @@ fn type_zero_at(
                     purpose,
                 )
             } else {
-                physical(ty, b)?;
+                physical(module, ty, b)?;
                 type_zero_at(module, storage, limits, b, active, depth + 1, purpose)
             }
         }

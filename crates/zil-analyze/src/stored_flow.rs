@@ -1726,7 +1726,7 @@ pub(super) fn qualification(
 ) -> CompileResult<()> {
     shape_work(ty, limits, b)?;
     shape_work(ty, limits, b)?;
-    physical(ty, b)?;
+    physical(module, ty, b)?;
     let (storage, _) = carrier(ty).ok_or_else(|| failure("expected a qualified carrier"))?;
     if matches!(
         storage,
@@ -1762,7 +1762,7 @@ pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> Comp
     if !retained::pure(ty, b)? {
         return Ok(false);
     }
-    physical(ty, b)?;
+    physical(module, ty, b)?;
     let mut count = 0usize;
     for instance in &module.life_instances {
         b.type_work(
@@ -1798,7 +1798,7 @@ pub(super) fn shared_compound(
         && matches!(storage.as_ref(), Type::Tuple(_))
     {
         b.type_work(ty, true, "anonymous shared compound complete type")?;
-        physical(ty, b)?;
+        physical(module, ty, b)?;
         fee(b, life.slots.len())?;
         return Ok(!resources::sums::owned(storage)
             && life
@@ -1829,7 +1829,7 @@ pub(super) fn shared_compound(
                 if !matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. }) {
                     return Ok(false);
                 }
-                physical(ty, b)?;
+                physical(module, ty, b)?;
                 fee(b, life.slots.len())?;
                 if life
                     .slots
@@ -1873,7 +1873,7 @@ pub(super) fn affine_compound(
         && matches!(storage.as_ref(), Type::Tuple(_))
     {
         b.type_work(ty, true, "anonymous affine compound complete type")?;
-        physical(ty, b)?;
+        physical(module, ty, b)?;
         fee(b, life.slots.len())?;
         return Ok(resources::sums::owned(storage)
             || life
@@ -1910,7 +1910,7 @@ pub(super) fn affine_compound(
                 ) {
                     return Ok(None);
                 }
-                physical(ty, b)?;
+                physical(module, ty, b)?;
                 let mut count = 0;
                 for actual in &module.life_instances {
                     b.type_work(&actual.ty, false, "affine compound candidate identity")?;
@@ -2249,7 +2249,7 @@ pub(super) fn pure_inline(module: &TypedModule, ty: &Type, b: &mut Budget) -> Co
         fee(b, 1)?;
         match current {
             Type::BorrowedStorage { storage, .. } => {
-                physical(current, b)?;
+                physical(module, current, b)?;
                 let mut count = 0usize;
                 for instance in &module.life_instances {
                     b.type_work(&instance.ty, false, "pure inline nominal identity")?;
@@ -2385,7 +2385,27 @@ pub(super) fn inventory(
             ty @ (Type::Record { .. } | Type::Package { .. } | Type::Enum { .. }) => ty,
             _ => return Err(failure("nominal instance has no complete nominal type")),
         };
-        physical(&instance.ty, b)?;
+        physical(module, &instance.ty, b)?;
+        if carrier(&instance.ty).is_some() {
+            if let Type::Package { fields, .. } = storage {
+                for (_, field) in fields {
+                    fee(b, 1)?;
+                    if let Type::Closure(id) = field
+                        && !crate::callable_fields::environment(module, *id, b)?
+                    {
+                        return Err(failure("stored callable field has no independently checked environment"));
+                    }
+                }
+            }
+            for argument in &instance.arguments {
+                fee(b, 1)?;
+                if let LifeNominalActual::QualifiedType { ty: Type::Closure(id), .. } = argument
+                    && !crate::callable_fields::environment(module, *id, b)?
+                {
+                    return Err(failure("stored callable Type actual has no independently checked environment"));
+                }
+            }
+        }
         b.stored_packages |=
             carrier(&instance.ty).is_some() && matches!(storage, Type::Package { .. });
         fee(b, module.life_declarations.len())?;
@@ -3178,7 +3198,7 @@ fn returns(
 
 /// This first executable slice admits finite physical shared leaves. Other
 /// common retained carriers remain closed instead of acquiring guessed roots.
-pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+pub(super) fn physical(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     let Some((storage, life)) = carrier(ty) else {
         return Ok(false);
     };
@@ -3206,6 +3226,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     }
     let mut actual = Vec::new();
     fn walk(
+        module: &TypedModule,
         ty: &Type,
         path: &mut Path,
         out: &mut Vec<ActualStoredSlot>,
@@ -3247,7 +3268,13 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                     }
                     fee(b, 1)?;
                     path.push(PlaceProjection::Field(i as u32));
-                    walk(t, path, out, b, owning)?;
+                    if let Type::Closure(id) = t
+                        && owning && matches!(ty, Type::Package { .. })
+                    {
+                        retained::closure_domain(module, *id, b)?;
+                    } else {
+                        walk(module, t, path, out, b, owning)?;
+                    }
                     path.pop();
                 }
             }
@@ -3255,7 +3282,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                 for (i, t) in fields.iter().enumerate() {
                     fee(b, 1)?;
                     path.push(PlaceProjection::Field(i as u32));
-                    walk(t, path, out, b, owning)?;
+                    walk(module, t, path, out, b, owning)?;
                     path.pop();
                 }
             }
@@ -3282,7 +3309,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                             variant: variant as u32,
                             index: index as u32,
                         }));
-                        walk(field, path, out, b, owning)?;
+                        walk(module, field, path, out, b, owning)?;
                         path.pop();
                     }
                 }
@@ -3295,7 +3322,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                     )?;
                     for index in 0..*length {
                         path.push(PlaceProjection::Field(index));
-                        walk(element, path, out, b, owning)?;
+                        walk(module, element, path, out, b, owning)?;
                         path.pop();
                     }
                     return Ok(());
@@ -3305,7 +3332,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                         "stored Array contains an address or ownership leaf",
                     ));
                 }
-                walk(element, path, out, b, owning)?;
+                walk(module, element, path, out, b, owning)?;
             }
             Type::BorrowedStorage { storage, life } => {
                 if !owning
@@ -3317,10 +3344,11 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                     }
                     return Ok(());
                 }
-                physical(ty, b)?;
+                physical(module, ty, b)?;
                 let start = out.len();
                 let prefix = path.len();
                 walk(
+                    module,
                     storage,
                     path,
                     out,
@@ -3369,6 +3397,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         Ok(())
     }
     walk(
+        module,
         storage,
         &mut Vec::new(),
         &mut actual,
@@ -3447,8 +3476,24 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                 .ok_or_else(|| failure("binder overflow"))?;
         }
     }
-    let actual_retained = retained::expected(storage, b)?;
+    let mut actual_retained = retained::expected(module, storage, b)?;
     fee(b, life.retained.len())?;
+    if life.retained.iter().any(|row|
+        matches!(row.path.first(), Some(LifeTypeProjection::TypeArgument(_))))
+    {
+        let mut selected = None;
+        for instance in &module.life_instances {
+            b.type_work(&instance.ty, false, "retained callable nominal instance")?;
+            b.type_work(ty, false, "retained callable nominal use")?;
+            if instance.ty == *ty && selected.replace(instance).is_some() {
+                return Err(failure("retained callable shape has competing nominal instances"));
+            }
+        }
+        let instance = selected.ok_or_else(|| failure("retained callable shape has no actual nominal instance"))?;
+        let arguments = nominal::closure_argument_rows(module, instance, b)?;
+        fee(b, arguments.len())?;
+        actual_retained.extend(arguments);
+    }
     if actual_retained.len() != life.retained.len() {
         return Err(failure("physical retained class coverage differs"));
     }
@@ -9990,8 +10035,8 @@ fn actual_instructions(
                         && !pure_inline(module, child, b)?
                         && !(matches!(child, Type::BorrowedStorage { storage, .. }
                             if matches!(storage.as_ref(), Type::Package { .. }))
-                            && physical(child, b)?)
-                        && !(shared_record_child(child, b)? && physical(child, b)?)
+                            && physical(module, child, b)?)
+                        && !(shared_record_child(child, b)? && physical(module, child, b)?)
                         && !shared_array_shape(child, b)?
                         && !matches!(child, Type::Managed(payload)
                             if module.resources.iter().any(|definition| definition.payload == **payload))

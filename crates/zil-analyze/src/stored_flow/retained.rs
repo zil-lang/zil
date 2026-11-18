@@ -1,19 +1,44 @@
-//! Physical retained boundaries: pure values only; no target roots.
+//! Complete physical retained boundaries. Target roots remain CFG obligations.
 use super::*;
 
+pub(super) fn closure_domain(module: &TypedModule, id: ClosureId, b: &mut Budget) -> CompileResult<u32> {
+    fee(b, 1)?;
+    if module.semantic.is_none() {
+        return Err(failure("stored callable shape has no independent original context"));
+    }
+    let definition = module.closures.get(id.0 as usize).filter(|row| row.id == id)
+        .ok_or_else(|| failure("stored callable shape has no exact actual definition"))?;
+    let entry = module.functions.get(definition.function.0 as usize).filter(|row|
+        row.id == definition.function && row.environment == Some(id))
+        .ok_or_else(|| failure("stored callable shape has no exact actual entry"))?;
+    let header = definition.storage_life.as_ref()
+        .ok_or_else(|| failure("stored callable shape has no complete Fixed domain"))?;
+    let actual = entry.storage_life.as_ref()
+        .ok_or_else(|| failure("stored callable entry has no complete Fixed domain"))?;
+    crate::signature_life::charge(header, b)?;
+    crate::signature_life::charge(actual, b)?;
+    if actual != header {
+        return Err(failure("stored callable shape and entry have different complete domains"));
+    }
+    Ok(header.fixed_binder_count)
+}
+
 pub(super) fn expected(
+    module: &TypedModule,
     ty: &Type,
     b: &mut Budget,
 ) -> CompileResult<Vec<(Vec<LifeTypeProjection>, u32)>> {
     let mut out = Vec::new();
-    scan(ty, &mut Vec::new(), 0, b, &mut out)?;
+    scan(module, ty, &mut Vec::new(), 0, false, b, &mut out)?;
     Ok(out)
 }
 
 fn scan(
+    module: &TypedModule,
     ty: &Type,
     path: &mut Vec<LifeTypeProjection>,
     depth: usize,
+    owning_field: bool,
     b: &mut Budget,
     out: &mut Vec<(Vec<LifeTypeProjection>, u32)>,
 ) -> CompileResult<()> {
@@ -31,9 +56,16 @@ fn scan(
                     "retained physical boundary has an address or ownership leaf",
                 ));
             }
-            physical(ty, b)?;
+            physical(module, ty, b)?;
             fee(b, life.binder_count as usize)?;
             for class in 0..life.binder_count {
+                fee(b, path.len().saturating_add(1))?;
+                out.push((path.clone(), class));
+            }
+        }
+        Type::Closure(id) if owning_field => {
+            let count = closure_domain(module, *id, b)?;
+            for class in 0..count {
                 fee(b, path.len().saturating_add(1))?;
                 out.push((path.clone(), class));
             }
@@ -42,7 +74,7 @@ fn scan(
             for (i, (_, child)) in fields.iter().enumerate() {
                 fee(b, 1)?;
                 path.push(LifeTypeProjection::Place(PlaceProjection::Field(i as u32)));
-                scan(child, path, depth + 1, b, out)?;
+                scan(module, child, path, depth + 1, matches!(ty, Type::Package { .. }), b, out)?;
                 path.pop();
             }
         }
@@ -50,7 +82,7 @@ fn scan(
             for (i, child) in fields.iter().enumerate() {
                 fee(b, 1)?;
                 path.push(LifeTypeProjection::Place(PlaceProjection::Field(i as u32)));
-                scan(child, path, depth + 1, b, out)?;
+                scan(module, child, path, depth + 1, false, b, out)?;
                 path.pop();
             }
         }
@@ -65,14 +97,14 @@ fn scan(
                             index: index as u32,
                         },
                     )));
-                    scan(child, path, depth + 1, b, out)?;
+                    scan(module, child, path, depth + 1, false, b, out)?;
                     path.pop();
                 }
             }
         }
         Type::Array { element, .. } => {
             path.push(LifeTypeProjection::Element);
-            scan(element, path, depth + 1, b, out)?;
+            scan(module, element, path, depth + 1, false, b, out)?;
             path.pop();
         }
         _ => {}

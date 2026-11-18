@@ -80,7 +80,7 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
             || matches!(ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Tuple(_)));
         if matches!(ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Tuple(_)))
         {
-            crate::stored_flow::physical(ty, budget)?;
+            crate::stored_flow::physical(module, ty, budget)?;
         }
         if !ty.is_copy_value()
             && (super::super::stored_flow::pure_inline(module, ty, budget)?

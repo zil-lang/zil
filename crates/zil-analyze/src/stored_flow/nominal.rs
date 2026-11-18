@@ -10,6 +10,39 @@ pub(super) fn rows(
     walk(module, instance, limits, b, &mut Vec::new()).map(|_| ())
 }
 
+fn qualified_closure_count(
+    module: &TypedModule, id: ClosureId, life: &StorageLifeShape, b: &mut Budget,
+) -> CompileResult<u32> {
+    crate::dyn_metadata::shape(life, b)?;
+    let count = retained::closure_domain(module, id, b)?;
+    if count == 0 || life.binder_count != count || !life.slots.is_empty()
+        || !life.retained.is_empty() || !life.nominal_arguments.is_empty()
+    {
+        return Err(failure("qualified callable Type actual changes its complete intrinsic domain"));
+    }
+    Ok(count)
+}
+
+pub(super) fn closure_argument_rows(
+    module: &TypedModule, instance: &LifeNominalInstance, b: &mut Budget,
+) -> CompileResult<Vec<(Vec<LifeTypeProjection>, u32)>> {
+    let mut rows = Vec::new();
+    for (ordinal, actual) in instance.arguments.iter().enumerate() {
+        fee(b, 1)?;
+        let LifeNominalActual::QualifiedType { ty: Type::Closure(id), life } = actual else {
+            continue;
+        };
+        let ordinal = u32::try_from(ordinal)
+            .map_err(|_| failure("callable Type actual ordinal overflows"))?;
+        let count = qualified_closure_count(module, *id, life, b)?;
+        fee(b, (count as usize).saturating_mul(2))?;
+        for class in 0..count {
+            rows.push((vec![LifeTypeProjection::TypeArgument(ordinal)], class));
+        }
+    }
+    Ok(rows)
+}
+
 fn walk(
     module: &TypedModule,
     instance: &LifeNominalInstance,
@@ -31,7 +64,7 @@ fn walk(
     }
     fee(b, 1)?;
     active.push(identity);
-    physical(&instance.ty, b)?;
+    physical(module, &instance.ty, b)?;
     let Type::BorrowedStorage { storage, life } = &instance.ty else {
         return Err(failure("nominal metadata has no qualified type"));
     };
@@ -112,6 +145,20 @@ fn walk(
                 });
             }
             (LifeParameterKind::Type, LifeNominalActual::Type(_)) => {}
+            (LifeParameterKind::Type,
+                LifeNominalActual::QualifiedType { ty: Type::Closure(id), life: actual_life },
+            ) => {
+                let count = qualified_closure_count(module, *id, actual_life, b)?;
+                for class in 0..count {
+                    fee(b, life.retained.len())?;
+                    if life.retained.iter().filter(|row|
+                        row.path.as_slice() == [LifeTypeProjection::TypeArgument(ordinal as u32)]
+                        && row.class == class && row.binder < life.binder_count
+                    ).count() != 1 {
+                        return Err(failure("nominal callable Type argument omits a complete intrinsic class"));
+                    }
+                }
+            }
             (
                 LifeParameterKind::Type,
                 actual @ LifeNominalActual::QualifiedType {
