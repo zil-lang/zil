@@ -1694,6 +1694,42 @@ pub(super) struct Graph {
     ordinary_parameter: Option<(String, CoreTypeBound)>,
     source_callback_parameters: Vec<String>,
 }
+
+/// Preserve the declaration identities involved in an aggregate constraint.
+/// In particular, a relay may first discover an incompatible error union while
+/// unifying its body with the signature from its call site.
+fn aggregate_mismatch(left: &Type, right: &Type, span: Span) -> Diagnostic {
+    fn nominal(ty: &Type) -> Option<&str> {
+        match stored::physical(ty) {
+            Type::Enum { name, .. } | Type::Record { name, .. } | Type::Package { name, .. } => {
+                Some(name)
+            }
+            _ => None,
+        }
+    }
+    let mut diagnostic = error(
+        "E-TYPE-MISMATCH",
+        span,
+        "different concrete aggregate types",
+    );
+    let (left, right) = match (stored::physical(left), stored::physical(right)) {
+        (Type::ErrorUnion { error: left, .. }, Type::ErrorUnion { error: right, .. }) => {
+            (left.as_ref(), right.as_ref())
+        }
+        _ => (left, right),
+    };
+    if let (Some(left), Some(right)) = (nominal(left), nominal(right)) {
+        if left != right {
+            diagnostic
+                .notes
+                .push(format!("first constrained declaration = {left}"));
+            diagnostic
+                .notes
+                .push(format!("second constrained declaration = {right}"));
+        }
+    }
+    diagnostic
+}
 impl Graph {
     pub(super) fn new(limits: &Limits) -> Self {
         Self {
@@ -2186,16 +2222,12 @@ impl Graph {
         self.constrain(variable, domain, span)?;
         if domain == AGGREGATE {
             let root = self.root(variable);
-            if self.nodes[root]
+            if let Some(known) = self.nodes[root]
                 .concrete
                 .as_ref()
-                .is_some_and(|known| known != ty)
+                .filter(|known| *known != ty)
             {
-                return Err(error(
-                    "E-TYPE-MISMATCH",
-                    span,
-                    "different concrete aggregate types",
-                ));
+                return Err(aggregate_mismatch(known, ty, span));
             }
             let shape = self.clone_shape(&self.nodes[root].shape, span)?;
             match (shape, ty) {
@@ -2337,12 +2369,10 @@ impl Graph {
         }
         let a_concrete = self.clone_type(&self.nodes[a].concrete, span)?;
         let b_concrete = self.clone_type(&self.nodes[b].concrete, span)?;
-        if a_concrete.is_some() && b_concrete.is_some() && a_concrete != b_concrete {
-            return Err(error(
-                "E-TYPE-MISMATCH",
-                span,
-                "different concrete aggregate types",
-            ));
+        if let (Some(left), Some(right)) = (&a_concrete, &b_concrete) {
+            if left != right {
+                return Err(aggregate_mismatch(left, right, span));
+            }
         }
         let mut a_shape = self.clone_shape(&self.nodes[a].shape, span)?;
         let b_shape = self.clone_shape(&self.nodes[b].shape, span)?;

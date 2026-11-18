@@ -8,7 +8,6 @@ pub const PROPERTY: &str = "callable.receiver-result-and-cleanup";
 const RULE_REFERENCE: &str = "spec/semantic-scopes.md#可调用值与失败出口的组合";
 pub const MAX_PROGRAMS: usize = 32;
 const SHAPES: [&str; 7] = ["", "h", "p", "hh", "hp", "ph", "pp"];
-const PUBLISHED_SHAPES: [&str; 5] = ["", "h", "p", "hh", "ph"];
 const EXITS: [&str; 4] = ["early", "ok", "decode", "replace"];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -49,21 +48,29 @@ impl<'a> Program<'a> {
 pub fn validate(program: &Value) -> Result<(), String> {
     Program::parse(program).map(|_| ())
 }
-pub fn expected(program: &Value) -> Result<Value, String> {
+/// The model describes ownership immediately after invocation. The move into
+/// the closure creates A; the outer scope drops whichever token remains live.
+fn contract(program: &Value) -> Result<Value, String> {
     let p = Program::parse(program)?;
     if p.premise != Premise::Complete {
-        return Ok(json!({"kind":"safe-reject","premise":program["premise"]}));
+        return Ok(json!({"observation":{"kind":"safe-reject","premise":program["premise"]}}));
     }
-    // Trace one initially-owned 'A' resource. Successful replacement drops A
-    // and installs B. The failing initializer leaves A in the original slot.
-    let (stdout, exit) = match p.input {
-        0 => ("AA", 0),
-        1 => ("ABB", 0),
-        2 => ("DA", 2),
-        3 => ("PA", 3),
+    let (result, survivor, replaced, emitted, exit) = match p.input {
+        0 => (json!({"ok":65}), 'A', None, 'A', 0),
+        1 => (json!({"ok":66}), 'B', Some('A'), 'B', 0),
+        2 => (json!({"err":"Fault.Decode"}), 'A', None, 'D', 2),
+        3 => (json!({"err":"Fault.Prepare"}), 'A', None, 'P', 3),
         _ => unreachable!(),
     };
-    Ok(json!({"kind":"lifecycle","stdout":stdout,"stderr":"","exit":exit}))
+    let stdout: String = replaced.into_iter().chain([emitted, survivor]).collect();
+    let cleanup: Vec<_> = replaced.into_iter().chain([survivor]).collect();
+    Ok(
+        json!({"return":result, "tokenLiveAtReturn":survivor, "cleanupOrder":cleanup,
+        "observation":{"kind":"lifecycle","stdout":stdout,"stderr":"","exit":exit}}),
+    )
+}
+pub fn expected(program: &Value) -> Result<Value, String> {
+    Ok(contract(program)?["observation"].take())
 }
 
 fn slot_type(depth: usize) -> String {
@@ -262,10 +269,23 @@ pub fn observed(expected: &Value, observation: Value, compile: &Value) -> Value 
             )
         ),
         Some("nominal-error") => {
+            let declarations: Vec<_> = first["notes"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|note| note.as_str()?.split_once(" constrained declaration = "))
+                .filter(|(ordinal, _)| matches!(*ordinal, "first" | "second"))
+                .map(|(_, name)| name)
+                .collect();
             (code == "E-ERROR-INJECTION"
                 && message.contains("_OtherFault")
                 && message.contains("_Fault"))
-                || (code == "E-TYPE-MISMATCH" && message == "different concrete aggregate types")
+                || (code == "E-TYPE-MISMATCH"
+                    && message == "different concrete aggregate types"
+                    && declarations.iter().any(|name| name.ends_with("_Fault"))
+                    && declarations
+                        .iter()
+                        .any(|name| name.ends_with("_OtherFault")))
         }
         _ => false,
     };
@@ -384,6 +404,17 @@ pub fn campaign(root: &Path, commit: &str, jobs: usize) -> Result<Value, String>
     let snapshot = host::freeze(&exe, &root.join("snapshots"), commit)?;
     let toolchain = crate::native::identity()?;
     let cases = fixed();
+    let plan = cases
+        .iter()
+        .map(|(label, case)| {
+            let program = &case["steps"][0]["program"];
+            Ok(
+                json!({"label":label,"program":program,"property":property(program),
+            "reference":RULE_REFERENCE,"contract":contract(program)?}),
+            )
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    host::durable(&root.join("expectations.json"), &json!(plan))?;
     let mut results = std::thread::scope(|scope| {
         let snapshot = &snapshot;
         let toolchain = &toolchain;
@@ -415,37 +446,27 @@ pub fn campaign(root: &Path, commit: &str, jobs: usize) -> Result<Value, String>
         Ok::<Vec<_>, String>(rows.into_iter().map(|(_, row)| row).collect())
     })?;
     let passed = |row: &Value| row["status"] == "pass" && row["steps"] == 1;
-    let mut positive_selected = 0;
-    let mut negative_selected = 0;
+    let positive_selected = SHAPES.len() * EXITS.len();
+    let negative_selected = SHAPES.len() * 2;
     let mut positive_passed = 0;
     let mut negative_passed = 0;
-    let mut boundary_observations = 0;
-    let mut target_positive_passed = 0;
-    let mut target_negative_passed = 0;
-    for family in results.chunks_exact_mut(6) {
-        let shape = family[0]["shape"].as_str().expect("generated shape");
-        let in_published_scope = PUBLISHED_SHAPES.contains(&shape);
+    for family in results.chunks_exact_mut(EXITS.len() + 2) {
         for row in family.iter_mut() {
-            row["publishedScope"] = json!(in_published_scope);
+            row["publishedScope"] = json!(true);
         }
-        let positive_matches = family[..4].iter().filter(|row| passed(row)).count();
-        let mut negative_matches = 0;
+        positive_passed += family[..EXITS.len()]
+            .iter()
+            .filter(|row| passed(row))
+            .count();
         let baseline = passed(&family[0]);
-        for negative in &mut family[4..] {
+        for negative in &mut family[EXITS.len()..] {
             negative["positiveControlPassed"] = json!(baseline);
-            negative_matches += usize::from(baseline && passed(negative));
-        }
-        target_positive_passed += positive_matches;
-        target_negative_passed += negative_matches;
-        if in_published_scope {
-            positive_selected += 4;
-            negative_selected += 2;
-            positive_passed += positive_matches;
-            negative_passed += negative_matches;
-        } else {
-            boundary_observations += family.len();
+            negative_passed += usize::from(baseline && passed(negative));
         }
     }
+    let complete = results.len() == positive_selected + negative_selected
+        && positive_passed == positive_selected
+        && negative_passed == negative_selected;
     let mut failures = BTreeMap::new();
     for row in &results {
         if let Some(phase) = row["firstFailure"]["phase"].as_str() {
@@ -473,18 +494,14 @@ pub fn campaign(root: &Path, commit: &str, jobs: usize) -> Result<Value, String>
     let report = json!({
         "contract":CONTRACT, "candidate":commit, "roamSha256":host::digest(&exe)?,
         "bound":{"maximumDepth":2,"operations":["generic helper","field projection"],"exits":EXITS,
-            "boundaryReason":"Deep mutable projection and mutable borrowing an entire Package containing a closure lack published admission in §8.1–8.1.2.1"},
-        "status": if positive_selected == positive_passed && negative_selected == negative_passed
-            && boundary_observations == 12
-            && results.iter().all(|row| row["steps"] == 1)
-            {"pass"} else {"fail"},
+            "shapes":SHAPES, "rule":"§8.1.2.2"},
+        "status":if complete {"pass"} else {"fail"},
         "positive":{"selected":positive_selected,"passed":positive_passed},
         "negative":{"selected":negative_selected,"passed":negative_passed},
-        "targetSpace":{"selection":"exhaustive", "sampling":0,
-            "positive":{"selected":SHAPES.len()*EXITS.len(),"passed":target_positive_passed},
-            "negative":{"selected":SHAPES.len()*2,"passed":target_negative_passed},
-            "complete":target_positive_passed==SHAPES.len()*EXITS.len() && target_negative_passed==SHAPES.len()*2},
-        "boundary":{"selected":boundary_observations},
+        "targetSpace":{"selection":"exhaustive","sampling":0,
+            "positive":{"selected":positive_selected,"passed":positive_passed},
+            "negative":{"selected":negative_selected,"passed":negative_passed},"complete":complete},
+        "boundary":{"selected":0},
         "failureGroups":failure_groups,
         "cases":results
     });
@@ -510,6 +527,20 @@ mod tests {
         ] {
             let compile = json!({"status":"SafeReject","diagnostics":diagnostics});
             assert_eq!(&observed(&expected, observation.clone(), &compile), want);
+        }
+    }
+
+    #[test]
+    fn nominal_rejection_requires_both_original_declarations() {
+        let expected = expected(&program("hh", "early", "nominal-error")).unwrap();
+        let unknown = json!({"kind":"compile-failure"});
+        for (other, want) in [("OtherFault", &expected), ("OtherResource", &unknown)] {
+            let compile = json!({"status":"SafeReject","diagnostics":[{
+                "code":"E-TYPE-MISMATCH","message":"different concrete aggregate types",
+                "notes":["first constrained declaration = @module0:$module0_Fault",
+                    format!("second constrained declaration = @module0:$module0_{other}")]
+            }]});
+            assert_eq!(&observed(&expected, unknown.clone(), &compile), want);
         }
     }
 
