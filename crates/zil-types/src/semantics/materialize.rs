@@ -1905,15 +1905,22 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                             }
                         })
                         .collect();
-                    return Err(unknown(&format!(
-                        "whole closure type is missing an actual Fixed image: closure {:?}, child {:?}, definition {:?}, missing {:?}, embeddings {:?}, type-use subjects {:?}",
-                        closure.id,
-                        child.id,
-                        child.definition,
-                        missing,
-                        child.header_embedding,
-                        observations
-                    )));
+                    self.pending_header = Some(*id);
+                    return Err(Diagnostic::new(
+                        Phase::Types,
+                        zil_base::ResultCategory::Unsupported,
+                        PENDING_HEADER,
+                        format!(
+                            "whole closure type is missing an actual Fixed image: closure {:?}, child {:?}, definition {:?}, missing {:?}, embeddings {:?}, type-use subjects {:?}",
+                            closure.id,
+                            child.id,
+                            child.definition,
+                            missing,
+                            child.header_embedding,
+                            observations
+                        ),
+                        None,
+                    ));
                 }
                 let images = images
                     .into_iter()

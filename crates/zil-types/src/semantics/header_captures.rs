@@ -25,12 +25,25 @@ pub(in crate::semantics) fn populate(
     left: &mut usize,
     complete: &mut BTreeSet<SemanticInstanceId>,
 ) -> R<()> {
+    populate_capture_domains(program, module, ledger, limits, left, complete, true)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn populate_capture_domains(
+    program: &mut SemanticModule,
+    module: &TypedModule,
+    ledger: &super::super::emission::Ledger,
+    limits: &Limits,
+    left: &mut usize,
+    complete: &mut BTreeSet<SemanticInstanceId>,
+    require_ready: bool,
+) -> R<()> {
     let view = super::super::materialize::ActualDirectory::from_module(module);
     loop {
         let mut changes = Vec::new();
         let mut blocked = false;
         pay(left, program.instances.len())?;
-        for instance in &program.instances {
+        'instances: for instance in &program.instances {
             if complete.contains(&instance.id) {
                 continue;
             }
@@ -100,7 +113,13 @@ pub(in crate::semantics) fn populate(
                     limits, left,
                 )? {
                     Formation::Complete(value) => value,
-                    Formation::NotReady { .. } => return Err(bad("capture domain reads an unsealed actual child header")),
+                    Formation::NotReady { .. } if !require_ready => {
+                        blocked = true;
+                        continue 'instances;
+                    }
+                    Formation::NotReady { .. } => {
+                        return Err(bad("capture domain reads an unsealed actual child header"));
+                    }
                 };
                 capture_coordinates(&value, &mut domains, left)?;
                 let mut bindings = Vec::new();
@@ -254,6 +273,9 @@ pub(in crate::semantics) fn populate(
             return Ok(());
         }
         if !progress {
+            if !require_ready {
+                return Ok(());
+            }
             return Err(Diagnostic::unsupported(
                 Phase::Types,
                 "captured closure graph has an unresolved complete Fixed dependency",
@@ -297,10 +319,9 @@ fn capture_dependencies_ready(
                 .iter()
                 .find(|row| row.id == *id)
                 .ok_or_else(|| bad("capture dependency has no actual closure"))?;
-            let header = child
-                .storage_life
-                .as_ref()
-                .ok_or_else(|| bad("capture dependency has no complete actual domain"))?;
+            let Some(header) = &child.storage_life else {
+                return Ok(false);
+            };
             let mut instances = program.instances.iter().filter(|row| {
                 row.target
                     == SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(
@@ -1025,6 +1046,10 @@ pub(in crate::semantics) fn complete_emitted_headers(
     let formation_stats = ledger.ordinary_stats.clone();
     let mut complete = BTreeSet::new();
     loop {
+    // Existing physical proposals still need their exact original Fixed
+    // images before a deferred application can interpret a whole closure.
+    let mut captures = super::program(program, module, left)?;
+    populate_capture_domains(program, module, ledger, limits, left, &mut captures, false)?;
     // Deferred nominal applications and closure headers share this existing
     // finite formation loop. A Type actual may need a child header, while a
     // different header may need an already formed nominal application. Publish
