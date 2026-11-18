@@ -258,7 +258,7 @@ impl Check<'_, '_> {
             Some(Class::Role(context.id, ordinal))
         } else { None };
         if receiver.is_some() {
-            self.original.receiver_sources(actual_instance.definition, self.inventory, b)?
+            self.original.receiver_sources(declaration.id, self.inventory, b)?
                 .ok_or_else(|| fail("callable Receiver role has no complete original captured returns"))?;
         }
         let result = self.signature_value(
