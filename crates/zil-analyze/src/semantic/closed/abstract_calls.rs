@@ -259,9 +259,7 @@ impl Check<'_, '_> {
                     self.consuming_receiver_place(instance, function, (block, index), callee, source, b)?;
                 } else {
                     let callee = callee.ok_or_else(|| fail("abstract borrowed receiver loses its actual SSA"))?;
-                    self.checked_borrow_place(
-                        instance, function, callee, source, false, false, b, 0,
-                    )?;
+                    self.borrowed_invocation_place(instance, function, instruction, source, b)?;
                     let Some(Type::Address { mutable, inner }) =
                         function.values.get(callee.0 as usize)
                     else {
@@ -522,6 +520,31 @@ impl Check<'_, '_> {
         }
     }
 
+    pub(super) fn borrowed_invocation_place(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        invocation: &Instruction,
+        source: &original::borrow_places::Source,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let InstructionKind::CallClosureBorrowed { callee, kind, .. } = invocation.kind else {
+            return Err(fail("borrowed receiver lacks its actual invocation"));
+        };
+        let (_, _, producer) = self.defining(function, callee, b)?;
+        // Calling through an existing &F reads its original pointer. The
+        // invocation creates the access window; that earlier Load does not
+        // manufacture a second borrow of the variable holding the pointer.
+        let from_pointer = source.indirect && source.path.is_empty()
+            && source.index.is_none() && source.slice.is_none()
+            && matches!(producer.kind, InstructionKind::Load(_) | InstructionKind::TakeLocal { .. })
+            && matches!(&source.root.ty, Type::Address { inner, mutable }
+                if matches!(inner.as_ref(), Type::Closure(_))
+                    && matches!(kind, CallableKind::Fn | CallableKind::FnMut)
+                    && (kind != CallableKind::FnMut || *mutable));
+        self.checked_borrow_place(instance, function, callee, source, false, from_pointer, b, 0)
+    }
+
     pub(super) fn known_receiver_place(
         &self, instance: &SemanticInstance, function: &TypedFunction,
         at: (BlockId, usize), instruction: &Instruction,
@@ -532,7 +555,7 @@ impl Check<'_, '_> {
             | InstructionKind::CallClosureMut { callee, .. } => callee,
             InstructionKind::CallClosureBorrowed { callee, .. } => {
                 if source.expression.is_none() {
-                    return self.checked_borrow_place(instance, function, callee, source, false, false, b, 0);
+                    return self.borrowed_invocation_place(instance, function, instruction, source, b);
                 }
                 self.receiver_local(function, callee, b, 0)?
             }

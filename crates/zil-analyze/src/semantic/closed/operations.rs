@@ -1252,8 +1252,7 @@ impl Check<'_, '_> {
                             }
                             let original = self.original.borrowed_closure_receiver(instance, site.recipe,
                                 self.program, self.inventory, b)?;
-                            self.checked_borrow_place(instance, point.function, callee, &original,
-                                false, false, b, 0)?;
+                            self.borrowed_invocation_place(instance, point.function, instruction, &original, b)?;
                             let whole = self.ssa_value(instance, point.function, callee, b, 0)?;
                             if !self.pointee(&whole, b)?.equal_paid(&original.inner, b)? {
                                 return Err(fail("borrowed known closure changes its complete original environment value"));
