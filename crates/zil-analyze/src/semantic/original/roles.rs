@@ -365,24 +365,13 @@ impl Solver<'_, '_> {
             if mutable != actual_mutable {
                 return Err(fail("original callable role changes its reference mode"));
             }
-            let actual_term = self.root(actual_life, b)?;
-            let actual_life = match self.state.arena[actual_term] {
-                Kind::Life(life) => life,
-                _ => return Err(unknown("actual original callable lifetime is unresolved")),
-            };
-            let expected_term = self.root(life, b)?;
-            b.lookup(self.call_variables.len(), WORK)?;
-            if outer && matches!(self.state.arena[expected_term], Kind::LifeVariable(None))
-                && matches!(self.call_variables.get(&expected_term), Some(call_regions::Role::Life(_)))
-                && matches!(actual_life, Life::Formal(..))
-            {
-                // A call's omitted named actual can be grounded by this
-                // complete callable's fixed input signature.
-                self.unify(expected_term, actual_term, depth + 1, b)?;
-            }
-            let expected_life = match self.state.arena[self.root(expected_term, b)?] {
+            let expected_life = match self.state.arena[self.root(life, b)?] {
                 Kind::Life(life) => life,
                 _ => return Err(unknown("original callable role has an unresolved lifetime")),
+            };
+            let actual_life = match self.state.arena[self.root(actual_life, b)?] {
+                Kind::Life(life) => life,
+                _ => return Err(unknown("actual original callable lifetime is unresolved")),
             };
             if expected_life != actual_life {
                 if !outer || !input_lives.contains(&actual_life) {
@@ -432,6 +421,34 @@ impl Solver<'_, '_> {
             ));
         }
         self.unify(expected, actual, depth + 1, b)
+    }
+
+    /// A call's omitted named actual can be grounded by the complete
+    /// original closure's Fixed parameter before checking the role.
+    fn infer_fixed_callable_input(
+        &mut self,
+        expected: Term,
+        actual: Term,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let (Kind::Address { mutable: expected_mode, life: expected, .. },
+             Kind::Address { mutable: actual_mode, life: actual, .. }) = (
+            &self.state.arena[self.root(expected, b)?],
+            &self.state.arena[self.root(actual, b)?],
+        ) else { return Ok(()); };
+        if expected_mode != actual_mode {
+            return Ok(());
+        }
+        let expected = self.root(*expected, b)?;
+        let actual = self.root(*actual, b)?;
+        b.lookup(self.call_variables.len(), WORK)?;
+        if matches!(self.state.arena[expected], Kind::LifeVariable(None))
+            && matches!(self.call_variables.get(&expected), Some(call_regions::Role::Life(_)))
+            && matches!(self.state.arena[actual], Kind::Life(Life::Formal(..)))
+        {
+            self.unify(expected, actual, 0, b)?;
+        }
+        Ok(())
     }
 
     pub(super) fn check_roles(&mut self, b: &mut Budget) -> CompileResult<()> {
@@ -568,6 +585,7 @@ impl Solver<'_, '_> {
                 let mut forward = BTreeMap::new();
                 let mut backward = BTreeMap::new();
                 for (actual, expected) in parameters.into_iter().zip(need.parameters) {
+                    self.infer_fixed_callable_input(expected, actual, b)?;
                     self.role_match(
                         expected,
                         actual,
