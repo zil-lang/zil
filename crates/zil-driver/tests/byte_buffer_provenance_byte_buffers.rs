@@ -222,6 +222,22 @@ fn create_give_and_description_parameter_window_returns_compose() {
 }
 
 #[test]
+fn inferred_descriptor_and_written_slice_follow_actual_parameter_order() {
+    let report = checked(r#"
+        fn first(buffer:ByteBuffer, bytes:&[u8])->i64 { return bytes_len(buffer)+bytes.len() }
+        fn last(bytes:&[u8], buffer:ByteBuffer)->i64 { return bytes.len()+bytes_len(buffer) }
+        fn result()->i64 {
+            let b=bytes_new()
+            if !bytes_reserve(b,1) || !bytes_push(b,77u8) { return -1 }
+            let a=[12u8,34u8]
+            return first(b,&a[..])+last(&a[..],b)
+        }
+    "#);
+    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
 fn byte_descriptions_and_borrowed_windows_preserve_actual_roots() {
     let module = typed(
         "fn window(b:ByteBuffer)->&[u8]{return bytes_view(b);}fn result()->i64{let b=bytes_new();return bytes_view(b).len();}",

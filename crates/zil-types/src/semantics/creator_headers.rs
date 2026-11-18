@@ -90,6 +90,7 @@ fn choose(
 fn canonical_invocations(
     header: &mut StorageLifeContract,
     embedding: &mut Vec<SemanticHeaderBinding>,
+    source_order: &[SemanticClassExpr],
     limits: &Limits,
     left: &mut usize,
 ) -> R<()> {
@@ -97,7 +98,6 @@ fn canonical_invocations(
         return Ok(());
     }
     let mut canonical: Vec<SemanticHeaderBinding> = Vec::new();
-    let mut remap = std::collections::BTreeMap::new();
     let mut count = 0u32;
     pay(
         left,
@@ -105,6 +105,7 @@ fn canonical_invocations(
             .len()
             .saturating_add(header.invocation_binder_count as usize),
     )?;
+    let mut remap = vec![None; header.invocation_binder_count as usize];
     for row in embedding
         .iter()
         .filter(|row| matches!(row.header, StorageBinder::Fixed(_)))
@@ -112,47 +113,42 @@ fn canonical_invocations(
         crate::dyn_metadata::semantic_operand_snapshot(&row.actual, limits, left, 1)?;
         canonical.push(row.clone());
     }
-    for old in 0..header.invocation_binder_count {
-        pay(left, embedding.len().saturating_add(canonical.len()))?;
-        let mut rows = embedding
-            .iter()
-            .filter(|row| row.header == StorageBinder::Invocation(old));
-        let row = rows
-            .next()
-            .ok_or_else(|| bad("original invocation header has no complete source image"))?;
-        if rows.next().is_some() {
-            return Err(bad(
-                "original invocation header repeats its complete source image",
-            ));
-        }
+    // A descriptor inferred from an owning parameter can precede a written
+    // address in source. Allocate class numbers at their first P/R occurrence
+    // after both have been formed, preserving equalities in the original scope.
+    for image in source_order {
+        pay(left, embedding.len().saturating_add(1))?;
         let mut selected = None;
-        for candidate in &canonical {
-            let StorageBinder::Invocation(ordinal) = candidate.header else {
-                continue;
-            };
-            crate::dyn_metadata::semantic_operand_snapshot(&candidate.actual, limits, left, 1)?;
+        for row in embedding.iter() {
+            let StorageBinder::Invocation(old) = row.header else { continue; };
+            crate::dyn_metadata::semantic_operand_snapshot(image, limits, left, 1)?;
             crate::dyn_metadata::semantic_operand_snapshot(&row.actual, limits, left, 1)?;
-            if candidate.actual == row.actual {
+            if &row.actual != image { continue; }
+            let slot = remap.get_mut(old as usize)
+                .ok_or_else(|| bad("original invocation header leaves its declared domain"))?;
+            if let Some(ordinal) = *slot {
                 selected = Some(ordinal);
-                break;
+                continue;
             }
+            let ordinal = match selected {
+                Some(ordinal) => ordinal,
+                None => {
+                    let ordinal = count;
+                    count = count.checked_add(1)
+                        .ok_or_else(|| bad("canonical invocation header overflows"))?;
+                    crate::dyn_metadata::semantic_operand_snapshot(image, limits, left, 1)?;
+                    canonical.push(SemanticHeaderBinding {
+                        header: StorageBinder::Invocation(ordinal), actual: image.clone(),
+                    });
+                    selected = Some(ordinal);
+                    ordinal
+                }
+            };
+            *slot = Some(ordinal);
         }
-        let ordinal = if let Some(ordinal) = selected {
-            ordinal
-        } else {
-            let ordinal = count;
-            count = count
-                .checked_add(1)
-                .ok_or_else(|| bad("canonical invocation header overflows"))?;
-            crate::dyn_metadata::semantic_operand_snapshot(&row.actual, limits, left, 1)?;
-            canonical.push(SemanticHeaderBinding {
-                header: StorageBinder::Invocation(ordinal),
-                actual: row.actual.clone(),
-            });
-            ordinal
-        };
-        pay(left, remap.len().saturating_add(1).ilog2() as usize + 1)?;
-        remap.insert(old, ordinal);
+    }
+    if remap.contains(&None) {
+        return Err(bad("invocation class lacks an occurrence in the original complete signature"));
     }
     pay(
         left,
@@ -165,9 +161,8 @@ fn canonical_invocations(
         .chain(header.classes.iter_mut().map(|row| &mut row.binder))
     {
         if let StorageBinder::Invocation(old) = binder {
-            pay(left, remap.len().saturating_add(1).ilog2() as usize + 1)?;
-            *old = *remap
-                .get(old)
+            pay(left, 1)?;
+            *old = remap.get(*old as usize).copied().flatten()
                 .ok_or_else(|| bad("invocation header row leaves its original full directory"))?;
         }
     }
@@ -262,6 +257,7 @@ fn populate_proposals(
         if function.parameters.len() != signature.parameters.len() {
             return Err(bad("ordinary header changes original parameter arity"));
         }
+        let mut source_order = Vec::new();
         let mut bindings = Vec::new();
         let mut classes = Vec::new();
         let mut statics = Vec::new();
@@ -302,6 +298,10 @@ fn populate_proposals(
                 limits,
                 left,
             )?;
+            if let SemanticTypeValue::Resolved { classes, .. } = value {
+                pay(left, classes.len())?;
+                source_order.extend(classes);
+            }
         }
         let recipe = SemanticTypeRecipe::OriginalType {
             scope: SemanticScopeRef::Ancestor(0),
@@ -333,6 +333,10 @@ fn populate_proposals(
             limits,
             left,
         )?;
+        if let SemanticTypeValue::Resolved { classes, .. } = value {
+            pay(left, classes.len())?;
+            source_order.extend(classes);
+        }
         let mut mapping = std::collections::BTreeMap::new();
         let mut proposed = StorageLifeContract {
             fixed_binder_count: function
@@ -488,7 +492,7 @@ fn populate_proposals(
                 ));
             }
         }
-        canonical_invocations(&mut proposed, &mut embedding, limits, left)?;
+        canonical_invocations(&mut proposed, &mut embedding, &source_order, limits, left)?;
         if requested.is_none()
             || function.storage_life.as_ref() != Some(&proposed)
             || instance.header_embedding != embedding
