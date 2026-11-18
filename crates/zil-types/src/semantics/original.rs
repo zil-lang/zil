@@ -3354,6 +3354,15 @@ impl<'a> Check<'a, '_> {
                         "original body reads a value after its affine whole-type transfer",
                     ));
                 }
+                if let SemanticTypeRecipe::OriginalType {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    source: SemanticOriginalTypeSource::Parameter(ordinal),
+                } = value.ty
+                    && value.origin_owner == owner
+                    && value.origin == Query::Parameter(ordinal)
+                {
+                    value.ty = self.closure_scalar_input(owner, ordinal, wanted, depth + 1)?;
+                }
                 value.observed = true;
                 let observed = self.observation_type(owner, &value.ty, depth + 1)?;
                 let result = if let SemanticTypeRecipe::Managed(inner) = &observed {
@@ -6005,20 +6014,42 @@ impl<'a> Check<'a, '_> {
                 "original parameter identity table differs from signature",
             ));
         }
+        let mut deferred_parameters = Vec::new();
         for (index, (binder, parameter)) in parameters.iter().zip(&signature.parameters).enumerate()
         {
-            let ty = self.resolve(definition.id, &parameter.ty, 0)?;
+            let query = Query::Parameter(index as u32);
+            let unannotated_closure_input = definition.kind == SemanticDefinitionKind::Closure
+                && binder.ty.is_none()
+                && parameter.mode == PassingMode::Infer
+                && matches!(&parameter.ty, SemanticTypeRecipe::OriginalType {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    source: SemanticOriginalTypeSource::Parameter(ordinal),
+                } if *ordinal as usize == index);
+            let deferred = if unannotated_closure_input {
+                self.pay(self.proof.types.len().saturating_add(1).ilog2() as usize + 2, 0)?;
+                !self.proof.types.contains_key(&(definition.id, query.clone()))
+            } else {
+                false
+            };
+            let ty = if deferred {
+                deferred_parameters.push(query.clone());
+                copy_recipe(&parameter.ty, self.limits, self.left)?
+            } else {
+                self.resolve(definition.id, &parameter.ty, 0)?
+            };
             let ty = self.mode_type(definition.id, parameter.mode, ty, 0)?;
             if let Some(annotation) = &binder.ty {
                 let annotation = self.resolve(definition.id, annotation, 0)?;
                 let annotation = self.mode_type(definition.id, binder.mode, annotation, 0)?;
                 self.same(&ty, &annotation)?;
             }
-            let copy = copy_recipe(&ty, self.limits, self.left)?;
-            self.proof
-                .proof_mut()?
-                .types
-                .insert((definition.id, Query::Parameter(index as u32)), copy);
+            if !deferred {
+                let copy = copy_recipe(&ty, self.limits, self.left)?;
+                self.proof
+                    .proof_mut()?
+                    .types
+                    .insert((definition.id, query.clone()), copy);
+            }
             variables.insert(
                 binder.name.clone(),
                 Binding {
@@ -6028,7 +6059,7 @@ impl<'a> Check<'a, '_> {
                     observed: false,
                     capture: false,
                     borrowed: false,
-                    origin: Query::Parameter(index as u32),
+                    origin: query,
                     origin_owner: definition.id,
                     initialized: true,
                     written: false,
@@ -6073,6 +6104,12 @@ impl<'a> Check<'a, '_> {
         self.stage_depth = outer_stage;
         self.cleanup_depth = outer_cleanup;
         body_result?;
+        for query in deferred_parameters {
+            self.pay(self.proof.types.len().saturating_add(1).ilog2() as usize + 1, 0)?;
+            if !self.proof.types.contains_key(&(definition.id, query)) {
+                return Err(pending("original closure parameter has no complete source type context"));
+            }
+        }
         self.pay(variables.len(), 0)?;
         let names_work = self
             .proof

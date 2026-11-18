@@ -1901,6 +1901,34 @@ impl Check<'_, '_> {
         }
         Ok(())
     }
+
+    /// A checked scalar context in the original body can determine an
+    /// unannotated parameter. Record the exact child parameter equation so
+    /// every later use, including calls of the closure, checks the same type.
+    pub(super) fn closure_scalar_input(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ordinal: u32,
+        wanted: Option<&SemanticTypeRecipe>,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        self.pay(self.proof.types.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+        let key = (owner, Query::Parameter(ordinal));
+        if let Some(ty) = self.proof.types.get(&key) {
+            return copy_recipe(ty, self.limits, self.left);
+        }
+        let ty = wanted
+            .filter(|ty| matches!(ty, SemanticTypeRecipe::Atom(scalar)
+                if scalar.is_integer() || scalar.is_float() || *scalar == Type::Bool))
+            .ok_or_else(|| pending(
+                "original closure parameter requires a complete scalar source context",
+            ))?;
+        let equation = copy_recipe(ty, self.limits, self.left)?;
+        self.pay(1, depth)?;
+        self.proof.proof_mut()?.types.insert(key, equation);
+        copy_recipe(ty, self.limits, self.left)
+    }
+
     pub(super) fn callable_call(
         &mut self,
         owner: SemanticDefinitionId,
