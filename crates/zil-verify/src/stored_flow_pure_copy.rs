@@ -252,6 +252,7 @@ pub(super) fn ordinary_copy_field_borrow(
 }
 
 pub(super) fn ordinary_package_borrow(
+    module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
     b: &mut Budget,
@@ -262,39 +263,27 @@ pub(super) fn ordinary_package_borrow(
     let InstructionKind::BorrowPackageField {
         local,
         index,
-        mutable,
+        mutable: false,
     } = i.kind
     else {
         return Ok(false);
     };
-    if !b.store_option_results {
-        return Ok(false);
-    }
     let Some(Type::Package { fields, .. }) = f.locals.get(local.0 as usize).map(|l| &l.ty) else {
         return Ok(false);
     };
     let Some((_, field)) = fields.get(index as usize) else {
         return Ok(false);
     };
-    let Type::Package {
-        fields: children, ..
-    } = field
-    else {
-        return Ok(false);
-    };
-    super::type_work(field, &b.limits.clone(), b)?;
-    b.spend(children.len())?;
-    if !children.iter().all(|(_, child)| {
-        child.is_copy_value()
-            || matches!(child, Type::Managed(inner) if inner.as_ref() == &Type::ByteBuffer)
-    }) {
+    if !matches!(field, Type::Package { .. }) {
         return Ok(false);
     }
+    super::type_work(field, &b.limits.clone(), b)?;
     if !matches!(vt(f, i.result.ok_or_else(|| err("Package field borrow lacks result"))?)?,
-        Type::Address { mutable: actual, inner } if *actual == mutable && inner.as_ref() == field)
+        Type::Address { mutable: false, inner } if inner.as_ref() == field)
     {
         return Err(err("ordinary Package field borrow result differs"));
     }
+    crate::packages::check_shared_product_type(module, field, Some(i.span), b)?;
     Ok(true)
 }
 

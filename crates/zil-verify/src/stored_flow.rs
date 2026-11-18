@@ -2093,7 +2093,7 @@ pub(super) fn qualifications(
                     && !callable_cells::operation(module, f, i, b)?
                     && !pure_copy::ordinary_copy_field_borrow(f, i, b)?
                     && !finite_fields::operation(module, f, i, b)?
-                    && !pure_copy::ordinary_package_borrow(f, i, b)?
+                    && !pure_copy::ordinary_package_borrow(module, f, i, b)?
                     && !pure_copy::ordinary_package_read(f, i, b)?
                     && !pure_copy::qualified_package_description(f, i, b)?
                     && !ordinary_error_borrow(module, f, i, b)?
@@ -5068,7 +5068,8 @@ static_dependency: StaticProvenance::NotStatic,
             out = finite_fields::transfer(module, f, i, state, b)?;
         }
         InstructionKind::BorrowPackageField { local, index, .. }
-            if pure_copy::ordinary_copy_field_borrow(f, i, b)? =>
+            if pure_copy::ordinary_copy_field_borrow(f, i, b)?
+                || pure_copy::ordinary_package_borrow(module, f, i, b)? =>
         {
             b.spend(2)?;
             out.address.sources.push(Source {
@@ -5080,8 +5081,8 @@ static_dependency: StaticProvenance::NotStatic,
                 heap_parents: Vec::new(),
                 heap_element: None,
             });
+            require_filled(state, &out.address, &[], b)?;
         }
-        _ if pure_copy::ordinary_package_borrow(f, i, b)? => {}
         _ if pure_copy::ordinary_package_read(f, i, b)? => {}
         _ if task_transfer.is_some() => {
             out = task_transfer.clone().unwrap();
@@ -6697,7 +6698,9 @@ fn windows(
                         local,
                         index,
                         mutable,
-                    } if pure_copy::ordinary_copy_field_borrow(f, i, b)? || finite_fields::operation(module, f, i, b)? => {
+                    } if pure_copy::ordinary_copy_field_borrow(f, i, b)?
+                        || finite_fields::operation(module, f, i, b)?
+                        || pure_copy::ordinary_package_borrow(module, f, i, b)? => {
                         b.spend(2)?;
                         let actual = Permission {
                             sources: vec![Source {
