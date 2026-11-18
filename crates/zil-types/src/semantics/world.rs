@@ -1827,12 +1827,14 @@ impl World<'_, '_> {
             }
             recipes.clone()
         };
-        for (recipe, actual) in recipes.iter().zip(actuals) {
-            let expected = super::materialize::actual_in_view(
+        for (ordinal, (recipe, actual)) in recipes.iter().zip(actuals).enumerate() {
+            let expected = super::materialize::call_actual_in_view(
                 self.program,
                 &self.view,
                 self.ledger,
                 instance.id,
+                site.recipe,
+                ordinal as u32,
                 recipe,
                 self.limits,
                 self.left,
@@ -1877,17 +1879,19 @@ impl World<'_, '_> {
             .where_work
             .saturating_add(before.saturating_sub(*self.left));
         let recipes = recipes?;
-        match (recipes.as_ref(), actuals) {
-            (Some(recipes), Some(actuals)) => {
+        match (recipes.as_ref(), actuals, source) {
+            (Some(recipes), Some(actuals), Some(site)) => {
                 if recipes.len() != actuals.len() {
                     return Err(bad("actual where boundary changes full mixed arity"));
                 }
-                for (recipe, actual) in recipes.iter().zip(actuals) {
-                    let expected = super::materialize::actual_in_view(
+                for (ordinal, (recipe, actual)) in recipes.iter().zip(actuals).enumerate() {
+                    let expected = super::materialize::call_actual_in_view(
                         self.program,
                         &self.view,
                         self.ledger,
                         instance.id,
+                        site,
+                        ordinal as u32,
                         recipe,
                         self.limits,
                         self.left,
@@ -1911,7 +1915,7 @@ impl World<'_, '_> {
                     }
                 }
             }
-            (None, None) => {}
+            (None, None, None) => {}
             _ => {
                 return Err(bad(
                     "actual where boundary omits its exact original call site or arguments",

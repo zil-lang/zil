@@ -622,6 +622,10 @@ impl Proof {
 }
 
 impl Proof {
+    pub(in crate::semantics) fn has_inferred_pointee_environments(&self) -> bool {
+        !self.inferred_pointee_environments.is_empty()
+    }
+
     pub(in crate::semantics) fn inferred_pointee_environments(
         &self,
         owner: SemanticDefinitionId,

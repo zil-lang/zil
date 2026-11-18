@@ -404,7 +404,16 @@ impl Eval<'_, '_, '_> {
                     .locals
                     .get(function.parameters[index].0 as usize)
                     .ok_or_else(|| bad("opaque result input has no actual local"))?;
-                let input = self.ty(caller, &parameter.ty, Some(&local.ty), depth + 1)?;
+                let input = match self.captured_call_type(
+                    caller,
+                    boundary.call,
+                    &parameter.ty,
+                    &local.ty,
+                    depth + 1,
+                )? {
+                    Some(value) => value,
+                    None => self.ty(caller, &parameter.ty, Some(&local.ty), depth + 1)?,
+                };
                 super::super::creator_headers::rows::append(
                     &input,
                     StorageBase::Parameter(index as u32),
@@ -1001,8 +1010,15 @@ impl Eval<'_, '_, '_> {
         let hint = Some(actual_result);
         let mut actuals = Vec::new();
         self.fee(boundary.actuals.len())?;
-        for recipe in &boundary.actuals {
-            actuals.push(self.recipe_actual(caller, recipe, depth + 1)?);
+        for (ordinal, recipe) in boundary.actuals.iter().enumerate() {
+            actuals.push(self.call_recipe_actual(
+                caller,
+                boundary.call,
+                ordinal as u32,
+                None,
+                recipe,
+                depth + 1,
+            )?);
         }
         self.fee(self.input.instances.len())?;
         let mut result: Option<(SemanticTypeValue, Option<ClosedContext>)> = None;

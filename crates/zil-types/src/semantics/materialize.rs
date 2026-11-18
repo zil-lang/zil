@@ -777,12 +777,24 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
             return Ok(actual);
         }
         let recipe = self.inferred_recipe(scope, call, formal, holder)?;
-        if matches!(&*recipe, SemanticActualRecipe::Type(SemanticTypeRecipe::Opaque { .. }))
+        self.call_recipe_actual(scope, call, formal, holder, &recipe, depth + 1)
+    }
+
+    fn call_recipe_actual(
+        &mut self,
+        scope: SemanticInstanceId,
+        call: SemanticSiteId,
+        formal: u32,
+        holder: Option<SemanticInstanceId>,
+        recipe: &SemanticActualRecipe,
+        depth: usize,
+    ) -> R<SemanticActual> {
+        if matches!(recipe, SemanticActualRecipe::Type(SemanticTypeRecipe::Opaque { .. }))
             && let Some(value) = self.inferred_capture_pointee(scope, call, formal, holder, depth + 1)?
         {
             return Ok(SemanticActual::Type(value));
         }
-        self.recipe_actual(scope, &recipe, depth + 1)
+        self.recipe_actual(scope, recipe, depth)
     }
 
     fn inferred_capture_pointee(
@@ -2720,6 +2732,164 @@ pub(super) fn actual_in_view(
         pending_header: None,
     }
     .recipe_actual(scope, recipe, 0)
+}
+
+pub(super) fn call_actual_in_view(
+    program: &SemanticModule,
+    module: &ActualDirectory<'_>,
+    ledger: &Ledger,
+    scope: SemanticInstanceId,
+    call: SemanticSiteId,
+    formal: u32,
+    recipe: &SemanticActualRecipe,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticActual> {
+    Eval {
+        input: program,
+        module,
+        ledger,
+        limits,
+        left,
+        active: BTreeSet::new(),
+        invocation_probe: None,
+        pending_header: None,
+    }
+    .call_recipe_actual(scope, call, formal, None, recipe, 0)
+}
+
+/// Interpret the solved signature at the exact original call. Open opaque
+/// Type actuals taken through a sealed address use that address's original
+/// pointee domain in each substituted occurrence of the full mixed formal.
+pub(super) fn captured_call_type_in_view(
+    program: &SemanticModule,
+    module: &ActualDirectory<'_>,
+    ledger: &Ledger,
+    scope: SemanticInstanceId,
+    call: SemanticSiteId,
+    recipe: &SemanticTypeRecipe,
+    hint: &Type,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<Option<SemanticTypeValue>> {
+    Eval {
+        input: program,
+        module,
+        ledger,
+        limits,
+        left,
+        active: BTreeSet::new(),
+        invocation_probe: None,
+        pending_header: None,
+    }
+    .captured_call_type(scope, call, recipe, hint, 0)
+}
+
+impl Eval<'_, '_, '_> {
+    fn captured_call_type(
+        &mut self,
+        scope: SemanticInstanceId,
+        call: SemanticSiteId,
+        recipe: &SemanticTypeRecipe,
+        hint: &Type,
+        depth: usize,
+    ) -> R<Option<SemanticTypeValue>> {
+        use super::original::substitute::{DelayedType, replace_delayed};
+        let eval = self;
+        let ledger = eval.ledger;
+        let actuals = {
+            let proof = ledger.original.borrow();
+            let proof = proof
+                .as_ref()
+                .ok_or_else(|| bad("actual call lacks its original proof"))?;
+            if !proof.has_inferred_pointee_environments() {
+                return Ok(None);
+            }
+            eval.node(depth)?;
+            let owner = eval.instance(scope)?.definition;
+            eval.fee(proof.calls.len().saturating_add(1).ilog2() as usize + 1)?;
+            let Some(actuals) = proof.calls.get(&(owner, call)) else {
+                return Ok(None);
+            };
+            eval.fee(actuals.len())?;
+            let mut selected = Vec::new();
+            for (ordinal, actual) in actuals.iter().enumerate() {
+                let SemanticActualRecipe::Type(ty @ SemanticTypeRecipe::Opaque { .. }) = actual else {
+                    continue;
+                };
+                if proof
+                    .inferred_pointee_environments(
+                        owner, call, ordinal as u32, None, eval.limits, eval.left,
+                    )?
+                    .is_some()
+                {
+                    crate::dyn_metadata::semantic_operand_snapshot(ty, eval.limits, eval.left, 1)?;
+                    selected.push((ordinal as u32, ty.clone()));
+                }
+            }
+            selected
+        };
+        let mut equations = Vec::<(DelayedType, SemanticTypeRecipe)>::new();
+        for (ordinal, original) in actuals {
+            let Some(SemanticTypeValue::Resolved { ty, life, classes }) =
+                eval.inferred_capture_pointee(scope, call, ordinal, None, depth + 1)?
+            else {
+                return Err(bad("solved call loses its original capture pointee Type"));
+            };
+            let mut images = Vec::new();
+            eval.fee(classes.len())?;
+            for image in classes {
+                let SemanticClassExpr::IntrinsicClass {
+                    operand: SemanticOperand::Environment(ordinal),
+                    path,
+                    class,
+                } = image
+                else {
+                    return Err(bad("sealed call Type has an unrelated class occurrence"));
+                };
+                images.push(SemanticLifeRecipe::IntrinsicClass {
+                    operand: SemanticRecipeOperand::Environment {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        ordinal,
+                    },
+                    path,
+                    class,
+                });
+            }
+            let exact = SemanticTypeRecipe::Exact(Box::new(SemanticExactTypeRecipe {
+                ty,
+                life,
+                classes: images,
+            }));
+            for (prior, prior_exact) in &equations {
+                crate::dyn_metadata::semantic_operand_snapshot(&prior.ty, eval.limits, eval.left, 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(&original, eval.limits, eval.left, 1)?;
+                if prior.ty == original {
+                    crate::dyn_metadata::semantic_operand_snapshot(prior_exact, eval.limits, eval.left, 1)?;
+                    crate::dyn_metadata::semantic_operand_snapshot(&exact, eval.limits, eval.left, 1)?;
+                    if prior_exact != &exact {
+                        return Err(unknown(
+                            "solved call Type has distinct sealed capture domains",
+                        ));
+                    }
+                }
+            }
+            equations.push((
+                DelayedType { ty: original, bound_depth: 0, invocation_depth: 0 },
+                exact,
+            ));
+        }
+        if equations.is_empty() {
+            return Ok(None);
+        }
+        let rewritten = replace_delayed(recipe, &equations, eval.limits, eval.left)?;
+        crate::dyn_metadata::semantic_operand_snapshot(recipe, eval.limits, eval.left, 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(&rewritten, eval.limits, eval.left, 1)?;
+        if &rewritten == recipe {
+            return Ok(None);
+        }
+        eval.ty(scope, &rewritten, Some(hint), depth + 1).map(Some)
+    }
 }
 
 pub(super) fn parent_actuals_in_view(

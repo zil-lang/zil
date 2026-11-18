@@ -35,6 +35,9 @@ fn call_result(
     recipe: &SemanticTypeRecipe,
     hint: &Type,
 ) -> R<SharedType> {
+    if let Some(value) = captured_call_type(world, instance, site, recipe, hint)? {
+        return Ok(value);
+    }
     if matches!(recipe, SemanticTypeRecipe::Opaque { .. }) {
         super::super::materialize::call_result_at(
             world.program,
@@ -50,6 +53,20 @@ fn call_result(
     } else {
         world.physical_type(instance.id, recipe, hint)
     }
+}
+
+fn captured_call_type(
+    world: &mut World<'_, '_>,
+    instance: &SemanticInstance,
+    site: &SemanticSite,
+    recipe: &SemanticTypeRecipe,
+    hint: &Type,
+) -> R<Option<SharedType>> {
+    super::super::materialize::captured_call_type_in_view(
+        world.program, &world.view, world.ledger, instance.id, site.recipe,
+        recipe, hint, world.limits, world.left,
+    )
+    .map(|value| value.map(Rc::new))
 }
 fn parent_class(
     world: &mut World<'_, '_>,
@@ -1281,7 +1298,10 @@ pub(super) fn direct(
                 .get(local.0 as usize)
                 .ok_or_else(|| bad("direct entry parameter local is absent"))?
                 .ty;
-            let expected = world.physical_type(instance.id, &parameter.ty, ty)?;
+            let expected = match captured_call_type(world, instance, site, &parameter.ty, ty)? {
+                Some(value) => value,
+                None => world.physical_type(instance.id, &parameter.ty, ty)?,
+            };
             let actual = world.get(values, *argument)?;
             arguments::satisfy(
                 world,
