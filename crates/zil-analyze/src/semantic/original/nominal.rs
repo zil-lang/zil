@@ -688,7 +688,7 @@ impl Solver<'_, '_> {
         depth: usize,
     ) -> CompileResult<()> {
         self.step(depth, b)?;
-        let term = self.root(term, b)?;
+        let term = self.type_root(term, b)?;
         let Kind::Nominal {
             definition, fields, ..
         } = &self.state.arena[term]
