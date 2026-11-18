@@ -73,6 +73,10 @@ fn check_toolchain(toolchain: &Value) -> Result<(), String> {
     Ok(())
 }
 
+pub(crate) const CLANG_TIMEOUT_MS: u64 = 5_000;
+pub(crate) const PROGRAM_TIMEOUT_MS: u64 = 3_000;
+pub(crate) const CALLABLE_ANALYSIS_STEPS: usize = 64_000_000;
+
 /// File capture bounds memory throughout execution, and a live size/deadline
 /// check terminates the direct child. The owning host subsequently kills any
 /// surviving member of its worker process group, including linker descendants.
@@ -222,7 +226,7 @@ pub fn clang_proxy(args: &[String]) -> Result<u8, String> {
     };
     let mut command = Command::new(&clang);
     command.args(&actual_args).current_dir(&dir);
-    let run = capture(&mut command, &dir, "clang", 5_000);
+    let run = capture(&mut command, &dir, "clang", CLANG_TIMEOUT_MS);
     let mut recorded = json!({"argv":std::iter::once(clang.to_string_lossy().into_owned()).chain(actual_args).collect::<Vec<_>>(),"clangSha256":pinned["sha256"]});
     if let Some((path, config)) = observer_pin {
         if host::digest(&path)? != config["sha256"] {
@@ -378,9 +382,15 @@ fn observe(
     };
     if rule_composition {
         // Same effective limit as CLI alpha-64m-v2.
-        options.limits.max_analysis_steps = 64_000_000;
+        options.limits.max_analysis_steps = CALLABLE_ANALYSIS_STEPS;
     }
     let report = zil_driver::compile_source(&input, &options);
+    if rule_composition {
+        host::durable(
+            &root.join("compiler-returned.json"),
+            &json!({"phase":report.phase.as_str(),"status":report.status.as_str()}),
+        )?;
+    }
     let compile: Value = serde_json::from_str(&report.to_json()).map_err(|e| e.to_string())?;
     let mut detail = json!({"source":source,"sourceSha256":Fingerprint::of(source.as_bytes()).to_hex(),"compile":compile});
     if root.join("clang-process.json").exists() {
@@ -437,7 +447,7 @@ fn observe(
     // supervisor enforces the real deadline even if compiler/native code hangs.
     let mut command = Command::new(executable);
     command.current_dir(root);
-    let run = capture(&mut command, root, "runtime", 3_000)?;
+    let run = capture(&mut command, root, "runtime", PROGRAM_TIMEOUT_MS)?;
     #[cfg(unix)]
     let signal = {
         use std::os::unix::process::ExitStatusExt;
@@ -447,6 +457,12 @@ fn observe(
     let signal: Option<i32> = None;
     let stdout = String::from_utf8_lossy(&run.stdout).to_string();
     let stderr = String::from_utf8_lossy(&run.stderr).to_string();
+    if rule_composition {
+        host::durable(
+            &root.join("runtime-returned.json"),
+            &json!({"exit":run.status.code(),"signal":signal}),
+        )?;
+    }
     detail["run"] = json!({"argv":[executable],"exit":run.status.code(),"signal":signal,"stdout":stdout,"stderr":stderr});
     if root.join("byte-observer.json").exists()
         && run.status.code() == Some(95)
@@ -888,9 +904,12 @@ pub fn execute(
             };
             result = protocol::failure(rule, steps, i as i64, expected, observed);
             if composition_model {
-                let mismatch = callable_composition::first_compile_failure(evidence.last().unwrap())
-                    .map(callable_composition::compile_location)
-                    .unwrap_or_else(|| json!({"phase":"runtime","code":"observation-mismatch"}));
+                let mismatch =
+                    callable_composition::first_compile_failure(evidence.last().unwrap())
+                        .map(callable_composition::compile_location)
+                        .unwrap_or_else(
+                            || json!({"phase":"runtime","code":"observation-mismatch"}),
+                        );
                 result["failure"]["firstMismatch"] = mismatch;
             }
             break;
@@ -932,6 +951,33 @@ pub fn execute(
     result
 }
 
+/// Last observable boundary of this one-step ordered campaign. A supervisor
+/// timeout alone cannot identify a compiler stage. Retain the actual evidence
+/// available after the process group has been reaped, before scratch cleanup.
+pub(crate) fn last_callable_boundary(root: &Path) -> Option<Value> {
+    let step = root.join("step-0000");
+    let (config, dir) = ["llvm-O2", "llvm-O0", "zil-O2", "zil-O0"]
+        .iter()
+        .find_map(|label| {
+            let dir = step.join(label);
+            dir.is_dir().then_some((Some(*label), dir))
+        })
+        .unwrap_or((None, step));
+    for (file, phase) in [
+        ("runtime-returned.json", "program-returned"),
+        ("runtime.stdout", "program-invocation"),
+        ("compiler-returned.json", "compiler-returned"),
+        ("clang-process.json", "external-compiler-returned"),
+        ("clang.stdout", "external-compiler-invocation"),
+        ("clang-identity.json", "compiler-preparation"),
+        ("pending.json", "step-started"),
+    ] {
+        if dir.join(file).is_file() {
+            return Some(json!({"configuration":config, "lastObserved":phase}));
+        }
+    }
+    None
+}
 /// Recover bounded source/expected records when the worker died mid-action.
 pub(crate) fn pending(root: &Path) -> Vec<Value> {
     (0..scalar::MAX_PROGRAMS)

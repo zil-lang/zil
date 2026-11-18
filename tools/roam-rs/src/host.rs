@@ -93,7 +93,10 @@ fn digest_reader(reader: impl Read, length: u64, limit: usize) -> Result<String,
             .stderr(Stdio::null())
             .spawn()
     {
-        let copied = io::copy(&mut input, &mut child.stdin.take().ok_or("missing hash input")?);
+        let copied = io::copy(
+            &mut input,
+            &mut child.stdin.take().ok_or("missing hash input")?,
+        );
         let output = child.wait_with_output().map_err(|e| e.to_string())?;
         if copied.map_err(|e| e.to_string())? == cap {
             return Err("input byte quota exceeded".into());
@@ -592,6 +595,12 @@ pub fn supervise(trace: &Value, options: HostOptions<'_>) -> Result<Supervised, 
         })
     };
     if native_root.exists() {
+        if result["status"] != "pass" && trace["contract"] == crate::callable_composition::CONTRACT
+        {
+            if let Some(boundary) = native::last_callable_boundary(&native_root) {
+                result["lastNativeBoundary"] = boundary;
+            }
+        }
         let pending = native::pending(&native_root);
         if !pending.is_empty() {
             result["nativePending"] = json!(pending);

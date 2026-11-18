@@ -7,6 +7,8 @@ pub const CONTRACT: &str = "zil-callable-composition-native/1";
 pub const PROPERTY: &str = "callable.receiver-result-and-cleanup";
 const RULE_REFERENCE: &str = "spec/semantic-scopes.md#可调用值与失败出口的组合";
 pub const MAX_PROGRAMS: usize = 32;
+const WORKER_BUDGET_MS: u64 = 22_000;
+const HOST_TIMEOUT_MS: u64 = 24_000;
 const SHAPES: [&str; 7] = ["", "h", "p", "hh", "hp", "ph", "pp"];
 const EXITS: [&str; 4] = ["early", "ok", "decode", "replace"];
 
@@ -372,15 +374,15 @@ fn run_case(
         &case,
         host::HostOptions {
             command: &snapshot.join("roam"),
-            args: vec!["worker".into(), "--budget-ms=22000".into()],
-            timeout_ms: 24_000,
+            args: vec!["worker".into(), format!("--budget-ms={WORKER_BUDGET_MS}")],
+            timeout_ms: HOST_TIMEOUT_MS,
             max_output: protocol::MAX_FRAME,
             attempt: &attempt,
         },
     );
-    let evidence = match run {
-        Ok(run) => run.result,
-        Err(error) => json!({"status":"error","reason":error}),
+    let (evidence, elapsed_ms) = match run {
+        Ok(run) => (run.result, Some(run.elapsed_ms)),
+        Err(error) => (json!({"status":"error","reason":error}), None),
     };
     fs::create_dir_all(&attempt).map_err(|e| e.to_string())?;
     let proof = json!({"label":label,"expected":expected,"result":evidence});
@@ -394,6 +396,7 @@ fn run_case(
         "steps":evidence["steps"],"reason":evidence.get("reason"),
         "shape":program["shape"],"property":property(program),"reference":RULE_REFERENCE,
         "outcome":outcome(&evidence),"exit":program["exit"],"premise":program["premise"],
+        "elapsedMs":elapsed_ms,"lastNativeBoundary":evidence.get("lastNativeBoundary"),
         "firstFailure":first_failure,"failure":evidence.get("failure")}),
     )
 }
@@ -497,6 +500,9 @@ pub fn campaign(root: &Path, commit: &str, jobs: usize) -> Result<Value, String>
         .collect();
     let report = json!({
         "contract":CONTRACT, "candidate":commit, "roamSha256":worker_sha,
+        "execution":{"jobs":jobs,"workerBudgetMs":WORKER_BUDGET_MS,"hostTimeoutMs":HOST_TIMEOUT_MS,
+            "clangTimeoutMs":crate::native::CLANG_TIMEOUT_MS,"programTimeoutMs":crate::native::PROGRAM_TIMEOUT_MS,
+            "maxOutputBytes":protocol::MAX_FRAME,"workProfile":"alpha","maxAnalysisSteps":crate::native::CALLABLE_ANALYSIS_STEPS},
         "bound":{"maximumDepth":2,"operations":["generic helper","field projection"],"exits":EXITS,
             "shapes":SHAPES, "rule":"§8.1.2.2"},
         "status":if complete {"pass"} else {"fail"},
@@ -519,10 +525,14 @@ mod tests {
 
     #[test]
     fn budget_after_a_partial_native_step_stays_incomplete() {
-        assert_eq!(outcome(&json!({"status":"incomplete", "steps":1, "reason":"time-budget"})),
-            "budget-exhausted");
-        assert_eq!(outcome(&json!({"status":"error", "steps":0, "reason":"timeout"})),
-            "host-timeout");
+        assert_eq!(
+            outcome(&json!({"status":"incomplete", "steps":1, "reason":"time-budget"})),
+            "budget-exhausted"
+        );
+        assert_eq!(
+            outcome(&json!({"status":"error", "steps":0, "reason":"timeout"})),
+            "host-timeout"
+        );
     }
 
     #[test]

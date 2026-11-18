@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import time
 
 
 def read(path):
@@ -22,10 +23,12 @@ def run(cli, source, directory, profile):
     if profile:
         env['ZIL_VERIFY_PROFILE_SCANS'] = '1'
     with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as errors:
+        start = time.monotonic_ns()
         with subprocess.Popen([cli, 'check', source, '--json', '--work-profile', 'standard'],
                               cwd=directory, env=env, stdout=output, stderr=errors) as process:
             _, status, usage = os.wait4(process.pid, 0)
             process.returncode = os.waitstatus_to_exitcode(status)
+            elapsed_ns = time.monotonic_ns() - start
         output.seek(0)
         errors.seek(0)
         result = json.load(output)
@@ -33,7 +36,7 @@ def run(cli, source, directory, profile):
         if process.returncode or result['status'] != 'Success' or result['verification_runs'] != 1:
             raise ValueError(f'{source.name}: {result.get("diagnostics")}\n{logs}')
     if not profile:
-        return usage.ru_maxrss
+        return {'peak_rss_kib': usage.ru_maxrss, 'elapsed_ns': elapsed_ns}
     pattern = (r'^verify-original-body completed=true walks=(\d+) revisits=(\d+) '
                r'statement_and_expression_visits=(\d+) cfg_block_visits=(\d+)$')
     rows = [dict(zip(('walks', 'revisits', 'statement_and_expression_visits', 'cfg_block_visits'),
@@ -67,9 +70,11 @@ def main():
             source = Path(directory) / 'case.zil'
             source.write_bytes(data)
             scans = run(cli, source, directory, True)
+            runs = [run(cli, source, directory, False) for _ in range(3)]
             samples.append({'shape': shape, 'depth': len(shape), 'source_sha256': hashlib.sha256(data).hexdigest(),
                             'verify_invocations': scans,
-                            'peak_compiler_rss_kib': [run(cli, source, directory, False) for _ in range(3)]})
+                            'peak_compiler_rss_kib': [r['peak_rss_kib'] for r in runs],
+                            'compiler_elapsed_ns': [r['elapsed_ns'] for r in runs]})
     with args.out.open('x', encoding='utf-8') as output:
         json.dump({'candidate': matrix['candidate'], 'cli_sha256': receipt['cli_sha256'],
                    'work_profile': 'standard', 'cases': samples}, output, indent=2)
