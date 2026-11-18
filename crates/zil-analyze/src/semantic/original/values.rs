@@ -528,9 +528,7 @@ impl Checked {
         child: &SemanticInstance,
         captures: &[Value],
         count: u32,
-        inventory: &Inventory<'_>,
         b: &mut Budget,
-        depth: usize,
     ) -> CompileResult<Option<Vec<Class>>> {
         b.spend(child.header_embedding.len(), WORK)?;
         let fixed = child.header_embedding.iter().filter(|row| matches!(row.header, StorageBinder::Fixed(_)));
@@ -550,13 +548,11 @@ impl Checked {
                 = &row.actual else { unreachable!() };
             let original = captures.get(*ordinal as usize).and_then(|v| v.classes.get(*class as usize))
                 .ok_or_else(|| fail("closure Fixed header leaves its original capture domain"))?;
-            let sealed = value::class(child, &row.actual, inventory, b, depth + 1)?;
-            if &sealed != original {
-                return Err(fail("closure Fixed header changes its original capture class"));
-            }
+            // The header selects an occurrence. Its image belongs to the
+            // current original instantiation, which can be a caller world.
             let slot = images.get_mut(index as usize)
                 .ok_or_else(|| fail("closure Fixed header ordinal is out of range"))?;
-            if slot.replace(sealed).is_some() {
+            if slot.replace(original.clone()).is_some() {
                 return Err(fail("closure Fixed header ordinal is repeated"));
             }
             b.lookup(covered.len(), WORK)?;
@@ -848,19 +844,38 @@ impl Checked {
                     }
                     Solver::push(&mut captures, value, b)?;
                 }
-                if count > 0 {
-                    let mut candidates = program.instances.iter().filter(|instance|
+                // Only additional ABI occurrences need a projection. The normal
+                // original domain already carries its rigid class order.
+                if classes.len() < count as usize {
+                    let candidates = program.instances.iter().filter(|instance|
                         instance.definition == *definition && instance.environment.as_ref().is_some_and(
                             |environment| environment.closure == SemanticClosureTarget::Typed(id)));
                     b.spend(program.instances.len(), WORK)?;
-                    let child = candidates.next()
-                        .ok_or_else(|| fail("original closure scope has no exact actual child"))?;
-                    if candidates.next().is_some() {
-                        return Err(fail("original closure scope has competing actual children"));
+                    let mut scoped = None;
+                    let mut all = candidates.clone();
+                    let first = all.next().ok_or_else(|| fail("original closure scope has no exact actual child"))?;
+                    if all.next().is_some() {
+                        let mut world = Some(context);
+                        while let Some(current) = world {
+                            b.spend(program.instances.len(), WORK)?;
+                            let mut local = candidates.clone().filter(|candidate| candidate.id == current.id || candidate.parent == Some(current.id));
+                            if let Some(child) = local.next() {
+                                if local.next().is_some() {
+                                    return Err(fail("closure scope has competing child instances at its creator"));
+                                }
+                                scoped = Some(child);
+                                break;
+                            }
+                            world = current.parent.map(|parent| inventory.instance(parent, b)).transpose()?;
+                        }
+                        if scoped.is_none() {
+                            return Err(fail("closure scope has no unique actual child at its lexical creator"));
+                        }
                     }
-                    if let Some(images) = Self::intrinsic_capture_images(child, &captures, count, inventory, b, depth)? {
+                    let child = scoped.unwrap_or(first);
+                    if let Some(images) = Self::intrinsic_capture_images(child, &captures, count, b)? {
                         classes = images;
-                    } else if classes.len() < count as usize {
+                    } else {
                     let source = inventory.definition(child.definition, b)?;
                     for binding in &child.header_embedding {
                         if matches!(binding.header, StorageBinder::Fixed(_)) {
