@@ -1533,10 +1533,30 @@ impl Solver<'_, '_> {
     ) -> CompileResult<(Vec<Term>, Vec<Term>, Term)> {
         self.step(depth, b)?;
         let definition = self.inventory.definition(target, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body else {
+        let SemanticDefinitionBody::FunctionWithBody {
+            signature, receiver_parameter, ..
+        } = &definition.body else {
             return Err(fail("original callee has no complete declared scheme"));
         };
-        if definition.parent.is_some()
+        let needs_parent_actuals = if let Some(parent) = definition.parent {
+            let scope = self.inventory.definition(parent, b)?;
+            // The qualified name already selected this exact authored
+            // method. A concrete inherent Self supplies no parent actuals;
+            // trait/receiver calls still use their complete call scheme.
+            definition.kind != SemanticDefinitionKind::Method
+                || receiver_parameter.is_some()
+                || !matches!(
+                    scope.body,
+                    SemanticDefinitionBody::Scope(SemanticScopeRecipe::InherentImpl { .. })
+                )
+                || !scope.parameters.is_empty()
+                || !scope.requirements.is_empty()
+                || !scope.environment.is_empty()
+                || !scope.implicit_lifetimes.is_empty()
+        } else {
+            false
+        };
+        if needs_parent_actuals
             || !definition.environment.is_empty()
             || signature.bound_lifetimes != 0
         {
