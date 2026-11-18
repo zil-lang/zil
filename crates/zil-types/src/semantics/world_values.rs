@@ -176,7 +176,7 @@ pub(super) fn indirect(
     callee: ValueId,
     arguments: &[ValueId],
     ty: &Type,
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<SharedType> {

@@ -12,7 +12,7 @@ pub(super) fn evaluate(
     index: usize,
     instruction: &InstructionKind,
     ty: Option<&Type>,
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<SharedType>> {
@@ -424,7 +424,7 @@ fn temporary_manager_operand(
     source: zil_base::NodeId,
     descriptor: ValueId,
     expected: &SemanticTypeRecipe,
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
 ) -> R<()> {
     let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) = instance.target else {
         return Err(bad("prepared ByteBuffer has no actual function"));

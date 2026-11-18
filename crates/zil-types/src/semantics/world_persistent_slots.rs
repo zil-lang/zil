@@ -10,7 +10,7 @@ pub(super) fn array(world: &mut World<'_, '_>, element: &SemanticTypeValue) -> R
 
 pub(super) fn constructor(
     world: &mut World<'_, '_>, function: &TypedFunction, block: BlockId, instruction: usize,
-    fields: &[ValueId], values: &[Option<SharedType>],
+    fields: &[ValueId], values: &ssa::Values,
 ) -> R<Option<SharedType>> {
     let Some(slot) = world.ledger.closure_slot_constructor(
         function, super::super::emission::Point { block, instruction }, world.limits, world.left,

@@ -11,7 +11,7 @@ pub(super) struct State {
     pub schema: FunctionId,
     pub instance: SemanticInstanceId,
     pub locals: Vec<Option<SharedType>>,
-    pub values: Vec<Option<SharedType>>,
+    pub values: ssa::Values,
     pub declared: BTreeMap<LocalId, SharedType>,
     pub implicit: BTreeMap<u32, SemanticClassExpr>,
     pub vacant_captures: BTreeSet<(SemanticInstanceId, u32)>,
@@ -34,7 +34,7 @@ impl State {
         world.pay(
             self.locals
                 .len()
-                .saturating_add(self.values.len())
+                .saturating_add(self.values.pages.len())
                 .saturating_add(self.declared.len())
                 .saturating_add(self.implicit.len())
                 .saturating_add(self.stale_values.len())
@@ -59,10 +59,7 @@ impl State {
         for value in &self.locals {
             locals.push(value.clone());
         }
-        let mut values = Vec::with_capacity(self.values.len());
-        for value in &self.values {
-            values.push(value.clone());
-        }
+        let values = self.values.clone();
         let mut declared = BTreeMap::new();
         for (local, value) in &self.declared {
             declared.insert(*local, value.clone());
@@ -218,7 +215,6 @@ impl State {
             .locals
             .iter()
             .zip(&other.locals)
-            .chain(self.values.iter().zip(&other.values))
         {
             world.pay(1)?;
             match (left, right) {
@@ -234,6 +230,26 @@ impl State {
                         charge_value_domain(world, right)?;
                         if !same_value_domain(left, right)? {
                             return Ok(false);
+                        }
+                    }
+                }
+                _ => return Ok(false),
+            }
+        }
+        for (left, right) in self.values.pages.iter().zip(&other.values.pages) {
+            world.pay(1)?;
+            match (left, right) {
+                (None, None) => {}
+                (Some(left), Some(right)) if Rc::ptr_eq(left, right) => {}
+                (Some(left), Some(right)) if left.present == right.present => {
+                    for ((_, left), (_, right)) in left.entries().zip(right.entries()) {
+                        world.pay(1)?;
+                        if !Rc::ptr_eq(left, right) {
+                            charge_value_domain(world, left)?;
+                            charge_value_domain(world, right)?;
+                            if !same_value_domain(left, right)? {
+                                return Ok(false);
+                            }
                         }
                     }
                 }
@@ -476,16 +492,15 @@ impl State {
             ..LiveMetadata::default()
         };
         world.pay(
-            self.values
+            self.values.pages
                 .len()
                 .saturating_add(self.locals.len())
                 .saturating_add(self.declared.len()),
         )?;
-        for (ordinal, value) in self.values.iter().enumerate() {
-            if let Some(value) = value {
-                live.value_id(world, ValueId(ordinal as u32))?;
-                live.value(world, value)?;
-            }
+        for (ordinal, value) in self.values.iter() {
+            world.pay(1)?;
+            live.value_id(world, ValueId(ordinal as u32))?;
+            live.value(world, value)?;
         }
         for value in self.locals.iter().flatten().chain(self.declared.values()) {
             live.value(world, value)?;
@@ -674,15 +689,20 @@ impl State {
             hash_domain(&mut digest, world, domains, &reservation.parent)?;
             hash_domain(&mut digest, world, domains, &reservation.expected)?;
         }
-        for cells in [&self.locals, &self.values] {
-            world.pay(cells.len())?;
-            hash_binary(&mut digest, world.left, &cells.len())?;
-            for (ordinal, value) in cells.iter().enumerate() {
-                if let Some(value) = value {
-                    hash_binary(&mut digest, world.left, &ordinal)?;
-                    hash_domain(&mut digest, world, domains, value)?;
-                }
+        world.pay(self.locals.len())?;
+        hash_binary(&mut digest, world.left, &self.locals.len())?;
+        for (ordinal, value) in self.locals.iter().enumerate() {
+            if let Some(value) = value {
+                hash_binary(&mut digest, world.left, &ordinal)?;
+                hash_domain(&mut digest, world, domains, value)?;
             }
+        }
+        world.pay(self.values.pages.len())?;
+        hash_binary(&mut digest, world.left, &self.values.len())?;
+        for (ordinal, value) in self.values.iter() {
+            world.pay(1)?;
+            hash_binary(&mut digest, world.left, &ordinal)?;
+            hash_domain(&mut digest, world, domains, value)?;
         }
         world.pay(self.declared.len())?;
         hash_binary(&mut digest, world.left, &self.declared.len())?;
@@ -974,6 +994,7 @@ pub(super) struct Shape {
     dominators: Vec<BlockSet>,
     reachable_from: Vec<BlockSet>,
     predecessors: Vec<Vec<usize>>,
+    pub(super) protocol_relevance: std::cell::Cell<Option<bool>>,
 }
 impl Shape {
     pub(super) fn producer<'a>(
@@ -1187,6 +1208,7 @@ impl Cfg {
         }
         Ok(Shape {
             predecessors,
+            protocol_relevance: Default::default(),
             source: function as *const TypedFunction as usize,
             schema,
             blocks,
@@ -1420,7 +1442,7 @@ impl Cfg {
                 "class CFG state belongs to another immutable type or instance directory",
             ));
         }
-        world.pay(state.values.len().saturating_add(1))?;
+        world.pay(index::search(self.blocks.len()).saturating_add(1))?;
         let index = *self
             .blocks
             .get(&target)
@@ -1441,8 +1463,10 @@ impl Cfg {
                     state.stale_locals.insert(LocalId(ordinal as u32));
                 }
             }
-            for (ordinal, value) in state.values.iter().enumerate() {
-                if self.loop_occurrence(world, index, value.as_ref(), &state.implicit, false)? {
+            world.pay(state.values.pages.len())?;
+            for (ordinal, value) in state.values.iter() {
+                world.pay(1)?;
+                if self.loop_occurrence(world, index, Some(value), &state.implicit, false)? {
                     state.stale_values.insert(ValueId(ordinal as u32));
                 }
             }
@@ -1471,14 +1495,17 @@ impl Cfg {
         // Only definitions strictly dominating entry to this block survive.
         // In particular a previous loop iteration cannot initialize this
         // iteration's SSA, and a sibling branch cannot donate a same-numbered value.
-        for (value, (definition, _)) in state.values.iter_mut().zip(&self.definitions) {
-            if *definition == index || !self.dominators[index].contains(*definition) {
-                *value = None;
-            }
-        }
+        state.values.retain(world, |ordinal| {
+            let (definition, _) = self.definitions[ordinal];
+            definition != index && self.dominators[index].contains(definition)
+        })?;
+        world.pay(state.stale_values.len()
+            .saturating_add(state.stale_locals.len())
+            .saturating_add(state.role_sources.len())
+            .saturating_add(state.value_role_sources.len()))?;
         state
             .stale_values
-            .retain(|id| state.values[id.0 as usize].is_some());
+            .retain(|id| state.values.get(id.0 as usize).is_some());
         state
             .stale_locals
             .retain(|id| state.locals[id.0 as usize].is_some());
@@ -1487,7 +1514,7 @@ impl Cfg {
             .retain(|id, _| state.locals[id.0 as usize].is_some());
         state
             .value_role_sources
-            .retain(|id, _| state.values[id.0 as usize].is_some());
+            .retain(|id, _| state.values.get(id.0 as usize).is_some());
         let before = *world.left;
         let canonical = state.canonicalize(world);
         world.canonical_work = world

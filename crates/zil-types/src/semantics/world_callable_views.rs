@@ -10,7 +10,7 @@ pub(super) fn check(
     call: &SemanticSite,
     node: zil_base::NodeId,
     raw: &SemanticTypeValue,
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
 ) -> R<()> {
     let address = occurrences::prepared_callee(world, caller, original, call, node)?
         .ok_or_else(|| bad("borrowed whole callee lacks its exact prepared place receipt"))?;

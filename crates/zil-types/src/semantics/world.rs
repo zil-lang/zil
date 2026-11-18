@@ -21,6 +21,8 @@ mod ct_data;
 mod dynamic;
 #[path = "world_flow.rs"]
 mod flow;
+#[path = "world_ssa.rs"]
+mod ssa;
 #[path = "world_values.rs"]
 mod function_values;
 #[path = "world_index.rs"]
@@ -100,6 +102,7 @@ pub(super) struct World<'a, 'b> {
     receiver_adaptations: Vec<receiver::Adaptation>,
     index: index::Index,
     types: types::Table,
+    zero_scalars: [Option<SharedType>; 14],
     cfg_shapes: BTreeMap<FunctionId, Rc<flow::Shape>>,
     view: super::materialize::ActualDirectory<'a>,
     snapshots: usize,
@@ -113,7 +116,7 @@ pub(super) struct World<'a, 'b> {
     same_calls: usize,
     same_work: usize,
     direct_work: BTreeMap<(&'static str, u32), (usize, usize)>,
-    last_point: Option<((SemanticInstanceId, BlockId, usize), Vec<usize>)>,
+    last_point_block: Option<((SemanticInstanceId, BlockId), Option<Rc<index::BlockPoints>>)>,
     current_point: Option<(
         SemanticInstanceId,
         FunctionId,
@@ -319,7 +322,31 @@ impl<'a> World<'a, '_> {
         }))
     }
     fn zero(&mut self, ty: &Type) -> R<SharedType> {
-        self.zero_at(ty, 0)
+        let slot = match ty {
+            Type::Unit => 0,
+            Type::Bool => 1,
+            Type::I8 => 2,
+            Type::I16 => 3,
+            Type::I32 => 4,
+            Type::I64 => 5,
+            Type::Isize => 6,
+            Type::U8 => 7,
+            Type::U16 => 8,
+            Type::U32 => 9,
+            Type::U64 => 10,
+            Type::Usize => 11,
+            Type::F32 => 12,
+            Type::F64 => 13,
+            _ => return self.zero_at(ty, 0),
+        };
+        self.pay(1)?;
+        if let Some(value) = &self.zero_scalars[slot] {
+            return Ok(value.clone());
+        }
+        let value = self.zero_at(ty, 0)?;
+        self.pay(1)?;
+        self.zero_scalars[slot] = Some(value.clone());
+        Ok(value)
     }
     fn zero_at(&mut self, ty: &Type, depth: usize) -> R<SharedType> {
         let shape = self.zero_shape_at(ty, depth)?;
@@ -451,37 +478,7 @@ impl<'a> World<'a, '_> {
             let Some(end) = expression.end else {
                 continue;
             };
-            self.pay(index::search(self.index.points.len()))?;
-            let positions = match self
-                .index
-                .points
-                .get(&(instance.id, end.block, end.instruction))
-            {
-                Some(positions) => {
-                    index::pay(self.left, positions.len())?;
-                    positions.clone()
-                }
-                None => continue,
-            };
-            self.pay(index::search(self.index.sites.len()))?;
-            let sites = self
-                .index
-                .sites
-                .get(&instance.id)
-                .ok_or_else(|| bad("actual expression index lost its instance sites"))?;
-            let offsets = positions
-                .into_iter()
-                .map(|position| {
-                    sites.get(position).copied().ok_or_else(|| {
-                        bad("actual expression point index leaves its instance sites")
-                    })
-                })
-                .collect::<R<Vec<_>>>()?;
-            self.pay(offsets.len())?;
-            for offset in offsets {
-                let site = self.program.sites.get(offset).ok_or_else(|| {
-                    bad("actual expression site index leaves its complete directory")
-                })?;
+            for site in self.point_rows(instance.id, end.block, end.instruction)? {
                 if site.instance != instance.id
                     || !matches!(site.at, SemanticSiteAddress::Typed {
                     block: actual_block, instruction, edge: SemanticSiteEdge::Before,
@@ -595,7 +592,7 @@ impl<'a> World<'a, '_> {
             _ => Err(bad("Core type survives world materialization")),
         }
     }
-    fn get(&mut self, values: &[Option<SharedType>], id: ValueId) -> R<SharedType> {
+    fn get(&mut self, values: &ssa::Values, id: ValueId) -> R<SharedType> {
         if self.stale_values.contains(&id) {
             return Err(bad(
                 "loop-carried whole value requires a distinct live occurrence correspondence",
@@ -603,7 +600,6 @@ impl<'a> World<'a, '_> {
         }
         let value = values
             .get(id.0 as usize)
-            .and_then(|v| v.as_ref())
             .ok_or_else(|| bad("SSA has no reaching whole-type equation"))?;
         self.share(value)
     }
@@ -1074,7 +1070,7 @@ impl<'a> World<'a, '_> {
     }
 }
 
-impl World<'_, '_> {
+impl<'p> World<'p, '_> {
     fn class(
         &mut self,
         scope: SemanticInstanceId,
@@ -1219,12 +1215,15 @@ impl World<'_, '_> {
             else {
                 return Err(bad("Core value survives normalization"));
             };
+            self.pay(1)?;
+            if a_classes.is_empty() && std::ptr::eq(a, b) {
+                return Ok(());
+            }
             // Rebuild only the class images in this exact live world. The
             // physical type and complete intrinsic domain are immutable and
             // borrowed; an equation never needs two cloned whole values.
             let (a_images, _) = self.normalized_images(scope, a_classes, implicit)?;
             let (b_images, _) = self.normalized_images(scope, b_classes, implicit)?;
-            self.pay(1)?;
             if std::ptr::eq(a, b) {
                 return Ok(());
             }
@@ -1268,47 +1267,36 @@ impl World<'_, '_> {
         }
         Ok(recipe)
     }
-    fn point_sites<'a>(
+    fn point_sites(
         &mut self,
-        sites: &'a [&'a SemanticSite],
+        sites: &[&SemanticSite],
         block: BlockId,
         instruction: usize,
-    ) -> R<Vec<&'a SemanticSite>> {
+    ) -> R<index::PointRows<'p>> {
         let Some(first) = sites.first() else {
-            return Ok(Vec::new());
+            return Ok(index::PointRows::new(&self.program.sites, None));
         };
-        let key = (first.instance, block, instruction);
+        self.point_rows(first.instance, block, instruction)
+    }
+    fn point_rows(
+        &mut self,
+        instance: SemanticInstanceId,
+        block: BlockId,
+        instruction: usize,
+    ) -> R<index::PointRows<'p>> {
+        let key = (instance, block);
         self.pay(1)?;
-        if !self
-            .last_point
-            .as_ref()
-            .is_some_and(|(point, _)| *point == key)
-        {
-            self.pay(index::search(self.index.points.len()))?;
-            let positions = self.index.points.get(&key);
-            index::pay(self.left, positions.map_or(0, Vec::len))?;
-            self.last_point = Some((key, positions.cloned().unwrap_or_default()));
+        if !self.last_point_block.as_ref().is_some_and(|(block, _)| *block == key) {
+            self.pay(index::search(self.index.points.len()).saturating_add(1))?;
+            self.last_point_block = Some((key, self.index.points.get(&key).cloned()));
         }
-        let (_, positions) = self
-            .last_point
-            .as_ref()
-            .ok_or_else(|| bad("actual point cache lost its selected directory"))?;
-        index::pay(self.left, positions.len())?;
-        let mut result = Vec::with_capacity(positions.len());
-        for position in positions {
-            let row = sites
-                .get(*position)
-                .ok_or_else(|| bad("actual point index has another instance site directory"))?;
-            if row.instance != first.instance
-                || !matches!(row.at, SemanticSiteAddress::Typed { block: b, instruction: i, .. } if b == block && i as usize == instruction)
-            {
-                return Err(bad(
-                    "actual point index changes its exact instance or instruction",
-                ));
-            }
-            result.push(*row);
-        }
-        Ok(result)
+        let Some((_, Some(points))) = &self.last_point_block else {
+            return Ok(index::PointRows::new(&self.program.sites, None));
+        };
+        index::pay(self.left, index::search(points.len()))?;
+        let offsets = points.get(&instruction).cloned();
+        index::pay(self.left, offsets.as_ref().map_or(0, |rows| rows.len().saturating_add(1)))?;
+        Ok(index::PointRows::new(&self.program.sites, offsets))
     }
     fn constraints(
         &mut self,
@@ -1319,7 +1307,7 @@ impl World<'_, '_> {
         block: BlockId,
         instruction: usize,
         edge: SemanticSiteEdge,
-        values: &mut [Option<SharedType>],
+        values: &mut ssa::Values,
         locals: &[Option<SharedType>],
         declared: &mut BTreeMap<LocalId, SharedType>,
         implicit: &mut BTreeMap<u32, SemanticClassExpr>,
@@ -1337,9 +1325,7 @@ impl World<'_, '_> {
                     if let Some((operand, value, source)) = borrow_roles::call_result(
                         self, instance, original, function, site, values, locals, implicit,
                     )? {
-                        *values.get_mut(operand.0 as usize).ok_or_else(|| {
-                            bad("call loan result leaves its actual SSA directory")
-                        })? = Some(value);
+                        values.set(self, operand.0 as usize, value)?;
                         let source = roles::incoming(self, operand, source)?;
                         self.value_role_sources.insert(operand, source);
                     }
@@ -1409,10 +1395,8 @@ impl World<'_, '_> {
                             implicit,
                         )?
                     {
-                        *values
-                            .get_mut(operand.0 as usize)
-                            .ok_or_else(|| bad("shared view has no actual SSA cell"))? =
-                            Some(adapted.clone());
+                        let retained = self.share(&adapted)?;
+                        values.set(self, operand.0 as usize, retained)?;
                         let source = roles::incoming(self, *operand, source)?;
                         self.value_role_sources.insert(*operand, source);
                         value = adapted;
@@ -1432,10 +1416,8 @@ impl World<'_, '_> {
                             implicit,
                         )?
                     {
-                        *values
-                            .get_mut(operand.0 as usize)
-                            .ok_or_else(|| bad("projected borrow role has no actual SSA cell"))? =
-                            Some(self.share(&adapted)?);
+                        let retained = self.share(&adapted)?;
+                        values.set(self, operand.0 as usize, retained)?;
                         let source = roles::incoming(self, *operand, source)?;
                         self.value_role_sources.insert(*operand, source);
                         value = adapted;
@@ -1595,7 +1577,7 @@ impl World<'_, '_> {
         variant: Option<u32>,
         fields: &[ValueId],
         ct_constructor: Option<&SharedType>,
-        values: &[Option<SharedType>],
+        values: &ssa::Values,
         locals: &[Option<SharedType>],
         implicit: &BTreeMap<u32, SemanticClassExpr>,
     ) -> R<SharedType> {
@@ -1818,7 +1800,7 @@ impl World<'_, '_> {
         index: usize,
         result: ValueId,
         fields: &[ValueId],
-        values: &[Option<SharedType>],
+        values: &ssa::Values,
         locals: &[Option<SharedType>],
         implicit: &BTreeMap<u32, SemanticClassExpr>,
     ) -> R<Option<SharedType>> {
@@ -2187,7 +2169,7 @@ impl World<'_, '_> {
         value: &SemanticTypeValue,
         requested: CallableKind,
         arguments: &[ValueId],
-        values: &[Option<SharedType>],
+        values: &ssa::Values,
         locals: &[Option<SharedType>],
         implicit: &BTreeMap<u32, SemanticClassExpr>,
     ) -> R<SharedType> {
@@ -2317,7 +2299,7 @@ impl World<'_, '_> {
         &mut self, instance: &SemanticInstance, original: &SemanticDefinition,
         sites: &[&SemanticSite], block: BlockId, index: usize,
         operand: &SemanticOperand, raw_value: &SharedType, value: &SharedType,
-        requested: CallableKind, arguments: &[ValueId], values: &[Option<SharedType>],
+        requested: CallableKind, arguments: &[ValueId], values: &ssa::Values,
         locals: &[Option<SharedType>], implicit: &BTreeMap<u32, SemanticClassExpr>,
         d: &ClosureDefinition, child: &SemanticInstance,
     ) -> R<SharedType> {
@@ -2439,9 +2421,9 @@ impl World<'_, '_> {
         protocol::header(self, original, f)?;
         self.requirements(instance, original, None, None, &BTreeMap::new())?;
         let sites = self.instance_sites(instance.id)?;
-        self.pay(f.locals.len().saturating_add(f.values.len()))?;
+        self.pay(f.locals.len())?;
         let mut locals = vec![None; f.locals.len()];
-        let values = vec![None; f.values.len()];
+        let values = ssa::Values::new(self, f.values.len())?;
         let mut declared = BTreeMap::new();
         let implicit = BTreeMap::new();
         for (ordinal, (parameter, _recipe)) in
@@ -4806,9 +4788,7 @@ impl World<'_, '_> {
                     if let Some(source) = propagated_role {
                         self.value_role_sources.insert(result, source);
                     }
-                    *values
-                        .get_mut(result.0 as usize)
-                        .ok_or_else(|| bad("SSA class result is absent"))? = Some(value);
+                    values.set(self, result.0 as usize, value)?;
                 } else if let Some(value) = produced {
                     if Self::type_of(&value)? != &Type::Unit {
                         return Err(bad("class-producing operation has no actual SSA result"));
@@ -4950,7 +4930,7 @@ impl World<'_, '_> {
                 )?;
             }
         }
-        protocol_flow::check(self, instance, f)?;
+        protocol_flow::check(self, &cfg, instance, f)?;
         Ok(())
     }
 }
@@ -5013,6 +4993,7 @@ fn program_at(
         receiver_adaptations: Vec::new(),
         index,
         types: types::Table::default(),
+        zero_scalars: Default::default(),
         cfg_shapes: BTreeMap::new(),
         view,
         snapshots: 0,
@@ -5026,7 +5007,7 @@ fn program_at(
         same_calls: 0,
         same_work: 0,
         direct_work: BTreeMap::new(),
-        last_point: None,
+        last_point_block: None,
         current_point: None,
     };
     world.pay(

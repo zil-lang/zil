@@ -964,33 +964,29 @@ fn returned(
 }
 pub(super) fn check(
     world: &mut World<'_, '_>,
+    cfg: &flow::Cfg,
     caller: &SemanticInstance,
     f: &TypedFunction,
 ) -> R<()> {
     if f.foreign.is_some() {
         return Ok(());
     }
-    world.pay(
-        f.values
-            .len()
-            .saturating_add(f.locals.len())
-            .saturating_add(f.blocks.len()),
-    )?;
-    let mut relevant = !f.protocol_contracts.is_empty();
-    for ty in f.values.iter().chain(f.locals.iter().map(|l| &l.ty)) {
-        relevant |= async_head(world, ty)?;
-    }
+    world.pay(1)?;
+    let relevant = if let Some(relevant) = cfg.protocol_relevance.get() {
+        relevant
+    } else {
+        world.pay(f.values.len().saturating_add(f.locals.len()))?;
+        let mut relevant = !f.protocol_contracts.is_empty();
+        for ty in f.values.iter().chain(f.locals.iter().map(|local| &local.ty)) {
+            relevant |= async_head(world, ty)?;
+        }
+        cfg.protocol_relevance.set(Some(relevant));
+        relevant
+    };
     if !relevant {
         return Ok(());
     }
-    world.pay(world.program.sites.len())?;
-    let sites: Vec<_> = world
-        .program
-        .sites
-        .iter()
-        .filter(|site| site.instance == caller.id)
-        .collect();
-    let cfg = flow::Cfg::new(world, caller, f)?;
+    let sites = world.instance_sites(caller.id)?;
     let mut cases = vec![BTreeMap::new()];
     for contract in &f.protocol_contracts {
         let mut next = Vec::new();
@@ -1040,7 +1036,7 @@ pub(super) fn check(
         }
         let mut seen: Vec<Vec<State>> = (0..f.blocks.len()).map(|_| Vec::new()).collect();
         let mut queue = std::collections::VecDeque::new();
-        offer(world, &cfg, f.entry, state, &mut seen, &mut queue)?;
+        offer(world, cfg, f.entry, state, &mut seen, &mut queue)?;
         while let Some((index, mut state)) = queue.pop_front() {
             world.pay(1)?;
             let block = &f.blocks[index];
@@ -1051,7 +1047,7 @@ pub(super) fn check(
                 Terminator::Return(result) => returned(world, &state, f, result, &inputs)?,
                 Terminator::Trap => {}
                 Terminator::Jump(target) => {
-                    offer(world, &cfg, target, state, &mut seen, &mut queue)?
+                    offer(world, cfg, target, state, &mut seen, &mut queue)?
                 }
                 Terminator::Branch {
                     condition,
@@ -1081,15 +1077,15 @@ pub(super) fn check(
                                         }
                                     }
                                     if branch.phases.values().all(|m| *m != 0) {
-                                        offer(world, &cfg, target, branch, &mut seen, &mut queue)?;
+                                        offer(world, cfg, target, branch, &mut seen, &mut queue)?;
                                     }
                                 }
                             }
                         }
                         Value::Predicate { fresh: false, .. } => {
                             let other = state.copy(world)?;
-                            offer(world, &cfg, then_block, state, &mut seen, &mut queue)?;
-                            offer(world, &cfg, else_block, other, &mut seen, &mut queue)?;
+                            offer(world, cfg, then_block, state, &mut seen, &mut queue)?;
+                            offer(world, cfg, else_block, other, &mut seen, &mut queue)?;
                         }
                         Value::Integer(value) => offer(
                             world,
@@ -1101,8 +1097,8 @@ pub(super) fn check(
                         )?,
                         _ => {
                             let other = state.copy(world)?;
-                            offer(world, &cfg, then_block, state, &mut seen, &mut queue)?;
-                            offer(world, &cfg, else_block, other, &mut seen, &mut queue)?;
+                            offer(world, cfg, then_block, state, &mut seen, &mut queue)?;
+                            offer(world, cfg, else_block, other, &mut seen, &mut queue)?;
                         }
                     }
                 }

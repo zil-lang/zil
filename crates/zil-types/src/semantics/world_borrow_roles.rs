@@ -23,7 +23,7 @@ pub(super) fn producer<'f>(
 fn transparent(
     world: &mut World<'_, '_>,
     function: &TypedFunction,
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     mut cursor: Cursor,
 ) -> R<Cursor> {
     let mut seen = std::collections::BTreeSet::new();
@@ -565,7 +565,7 @@ fn checked_call_source(
 fn whole_receiver_source(
     world: &mut World<'_, '_>, instance: &SemanticInstance, original: &SemanticDefinition,
     function: &TypedFunction, source: NodeId, site: SemanticSiteId,
-    at: (BlockId, usize), receiver: Cursor, values: &[Option<SharedType>],
+    at: (BlockId, usize), receiver: Cursor, values: &ssa::Values,
     locals: &[Option<SharedType>], implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<()> {
     if let Cursor::Value(address) = receiver {
@@ -608,7 +608,7 @@ fn trace(
     function: &TypedFunction,
     role: &BorrowRole,
     operand: ValueId,
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
     return_boundary: bool,
@@ -621,7 +621,7 @@ fn trace_steps(
     world: &mut World<'_, '_>, instance: &SemanticInstance,
     original: &SemanticDefinition, function: &TypedFunction,
     root: ViewBorrowRoot, steps: &[crate::semantics::original::ViewBorrowStep],
-    mut cursor: Cursor, values: &[Option<SharedType>], locals: &[Option<SharedType>],
+    mut cursor: Cursor, values: &ssa::Values, locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>, return_boundary: bool, depth: usize,
 ) -> R<()> {
     if depth > world.limits.max_call_depth {
@@ -1234,7 +1234,7 @@ pub(super) fn capture_write(
     world: &mut World<'_, '_>, instance: &SemanticInstance,
     original: &SemanticDefinition, function: &TypedFunction,
     capture: u32, operand: ValueId, actual: &SharedType, expected: &SharedType,
-    values: &[Option<SharedType>], locals: &[Option<SharedType>],
+    values: &ssa::Values, locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<bool> {
     let ledger = world.ledger;
@@ -1291,7 +1291,7 @@ pub(super) fn call_result(
     original: &SemanticDefinition,
     function: &TypedFunction,
     site: &SemanticSite,
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<(ValueId, SharedType, roles::Source)>> {
@@ -1351,7 +1351,7 @@ pub(super) fn apply(
     operand: ValueId,
     actual: &SharedType,
     expected: &SharedType,
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<(SharedType, roles::Source)>> {
@@ -1470,7 +1470,7 @@ fn apply_role(
     operand: ValueId,
     actual: &SharedType,
     expected: &SharedType,
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
     return_boundary: bool,
@@ -1568,7 +1568,7 @@ fn apply_role(
 pub(super) fn payload_view(
     world: &mut World<'_, '_>, instance: &SemanticInstance, original: &SemanticDefinition,
     site: &SemanticSite, position: usize, operand: ValueId, actual: &SharedType, expected: &SharedType,
-    values: &[Option<SharedType>], locals: &[Option<SharedType>],
+    values: &ssa::Values, locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<bool> {
     if !matches!(World::type_of(actual)?, Type::Address { mutable: false, .. }) {
@@ -1605,7 +1605,7 @@ pub(super) fn return_view(
     operand: ValueId,
     actual: &SharedType,
     expected: &SharedType,
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<bool> {
@@ -1720,7 +1720,7 @@ fn shared_view_value(
     operand: ValueId,
     actual: &SharedType,
     expected: &SharedType,
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<(SharedType, roles::Source)>> {
@@ -1842,7 +1842,7 @@ pub(super) fn shared_expression_view(
     operand: ValueId,
     actual: &SharedType,
     expected: &SharedType,
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<(SharedType, roles::Source)>> {
@@ -1900,7 +1900,7 @@ pub(super) fn shared_binding_view(
     local: LocalId,
     operand: ValueId,
     actual: &SharedType,
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<(SharedType, roles::Source)>> {
@@ -2036,7 +2036,7 @@ fn original_read_value(
 pub(super) fn record_source(
     world: &mut World<'_, '_>, instance: &SemanticInstance,
     original: &SemanticDefinition, function: &TypedFunction, site: &SemanticSite,
-    values: &[Option<SharedType>], locals: &[Option<SharedType>],
+    values: &ssa::Values, locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<()> {
     let Some(node) = occurrences::node(world, original, site)? else { return Ok(()); };
@@ -2234,7 +2234,7 @@ fn read_transport(
     function: &TypedFunction,
     value: ValueId,
     original_read: ValueId,
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     implicit: &BTreeMap<u32, SemanticClassExpr>,
     active: &mut std::collections::BTreeSet<ValueId>,
     depth: usize,
@@ -2317,7 +2317,7 @@ pub(super) fn call_region_argument(
     parameter: usize,
     operand: ValueId,
     expected: &SemanticTypeValue,
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<bool> {

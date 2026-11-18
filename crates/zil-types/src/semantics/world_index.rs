@@ -5,6 +5,26 @@ pub(super) struct OriginalSite {
     pub offset: usize,
     pub node: Option<SemanticOriginalNode>,
 }
+pub(super) type BlockPoints = BTreeMap<usize, Rc<Vec<usize>>>;
+pub(super) struct PointRows<'a> {
+    sites: &'a [SemanticSite],
+    offsets: Option<Rc<Vec<usize>>>,
+    next: usize,
+}
+impl<'a> PointRows<'a> {
+    pub(super) fn new(sites: &'a [SemanticSite], offsets: Option<Rc<Vec<usize>>>) -> Self {
+        Self { sites, offsets, next: 0 }
+    }
+}
+impl<'a> Iterator for PointRows<'a> {
+    type Item = &'a SemanticSite;
+    fn next(&mut self) -> Option<Self::Item> {
+        let offset = *self.offsets.as_ref()?.get(self.next)?;
+        self.next += 1;
+        Some(&self.sites[offset])
+    }
+}
+
 #[derive(Default)]
 pub(super) struct Index {
     pub definitions: BTreeMap<SemanticDefinitionId, usize>,
@@ -12,7 +32,7 @@ pub(super) struct Index {
     pub functions: BTreeMap<FunctionId, usize>,
     pub frozen_definitions: BTreeMap<SemanticDefinitionId, usize>,
     pub frozen_instances: BTreeMap<SemanticInstanceId, usize>,
-    pub points: BTreeMap<(SemanticInstanceId, BlockId, usize), Vec<usize>>,
+    pub points: BTreeMap<(SemanticInstanceId, BlockId), Rc<BlockPoints>>,
     pub sites: BTreeMap<SemanticInstanceId, Vec<usize>>,
     pub recipes: BTreeMap<(SemanticDefinitionId, SemanticSiteId), OriginalSite>,
     pub expressions: BTreeMap<(FunctionId, ValueId), Vec<zil_base::NodeId>>,
@@ -98,18 +118,14 @@ impl Index {
                 let count = index.source_call_occurrences.entry((row.instance, row.recipe)).or_default();
                 *count = count.saturating_add(1);
             }
-            let sites = index.sites.entry(row.instance).or_default();
-            let ordinal = sites.len();
-            sites.push(offset);
-            if let SemanticSiteAddress::Typed {
-                block, instruction, ..
-            } = row.at
-            {
-                index
-                    .points
-                    .entry((row.instance, block, instruction as usize))
-                    .or_default()
-                    .push(ordinal);
+            index.sites.entry(row.instance).or_default().push(offset);
+            if let SemanticSiteAddress::Typed { block, instruction, .. } = row.at {
+                pay(left, search(index.points.len()))?;
+                let points = index.points.entry((row.instance, block)).or_default();
+                let points = Rc::get_mut(points).expect("actual point directory is private while indexing");
+                pay(left, search(points.len()).saturating_add(1))?;
+                let offsets = points.entry(instruction as usize).or_default();
+                Rc::get_mut(offsets).expect("actual point array is private while indexing").push(offset);
             }
         }
         if let Some(source) = &ledger.frozen {

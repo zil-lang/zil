@@ -89,7 +89,7 @@ pub(super) fn tuple_field(
     scope: SemanticInstanceId,
     operand: ValueId,
     expected: &SemanticTypeValue,
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<()> {
     let actual = world.get(values, operand)?;
@@ -135,7 +135,7 @@ pub(super) fn satisfy(
     operand: ValueId,
     actual: &SemanticTypeValue,
     expected: &SemanticTypeValue,
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<()> {
@@ -149,7 +149,7 @@ pub(super) fn capture(
     world: &mut World<'_, '_>, caller: &SemanticInstance, child: &SemanticInstance,
     site: &SemanticSite, ordinal: u32, operand: ValueId,
     actual: &SemanticTypeValue, expected: &SemanticTypeValue,
-    values: &[Option<SharedType>], locals: &[Option<SharedType>],
+    values: &ssa::Values, locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<()> {
     if child.parent != Some(caller.id) || site.instance != caller.id {
@@ -161,7 +161,7 @@ fn satisfy_boundary(
     world: &mut World<'_, '_>, caller: &SemanticInstance, callee: Option<&SemanticInstance>,
     site: &SemanticSite, boundary: Boundary, operand: ValueId,
     actual: &SemanticTypeValue, expected: &SemanticTypeValue,
-    values: &[Option<SharedType>], locals: &[Option<SharedType>],
+    values: &ssa::Values, locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<()> {
     let parameter = match boundary { Boundary::Parameter(ordinal) | Boundary::Capture(ordinal) => ordinal as usize };

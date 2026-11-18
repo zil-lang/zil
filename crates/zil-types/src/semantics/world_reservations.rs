@@ -81,7 +81,7 @@ fn target(
     function: &TypedFunction,
     target: &Target,
     path: &[PlaceProjection],
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     locals: &[Option<SharedType>],
 ) -> R<(SharedType, SharedType, BTreeSet<arguments::Root>)> {
     match target {
@@ -131,7 +131,7 @@ pub(super) fn reserve(
     id: ReservationId,
     root: Target,
     path: &[PlaceProjection],
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     locals: &[Option<SharedType>],
 ) -> R<()> {
     world.pay(index::search(world.reservations.len()))?;
@@ -164,7 +164,7 @@ pub(super) fn commit(
     function: &TypedFunction,
     id: ReservationId,
     value: ValueId,
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<()> {

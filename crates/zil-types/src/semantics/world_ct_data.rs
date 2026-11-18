@@ -287,7 +287,7 @@ pub(super) fn check_operands(
     root: &SharedType,
     variant: Option<u32>,
     fields: &[ValueId],
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<()> {
     match (World::type_of(root)?, variant) {
@@ -319,7 +319,7 @@ fn check_fields<'a>(
     instance: SemanticInstanceId,
     fields: &[ValueId],
     types: impl ExactSizeIterator<Item = &'a Type>,
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<()> {
     if fields.len() != types.len() {

@@ -44,7 +44,7 @@ pub(super) fn seal(
     site: &SemanticSite,
     method: &MethodCall,
     arguments: &[ValueId],
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     locals: &[Option<SharedType>],
     implicit: &mut BTreeMap<u32, SemanticClassExpr>,
 ) -> R<()> {

@@ -218,7 +218,7 @@ pub(super) fn evaluate(
     block: BlockId,
     index: usize,
     arguments: &[ValueId],
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     locals: &[Option<SharedType>],
     implicit: &mut BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<SharedType>> {
@@ -751,7 +751,7 @@ pub(super) fn callable(
     requested: CallableKind,
     actuals: &[SemanticActual],
     arguments: &[ValueId],
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<SharedType>> {
@@ -1021,7 +1021,7 @@ fn receiver_result(
     operand: &SemanticOperand, raw: &SemanticTypeValue,
     definition: &ClosureDefinition, child: &SemanticInstance, requested: CallableKind,
     header: &StorageLifeContract, target: &SemanticTypeValue, expected: &SemanticTypeValue,
-    values: &[Option<SharedType>], locals: &[Option<SharedType>],
+    values: &ssa::Values, locals: &[Option<SharedType>],
     mapping: &mut invocation::Inputs, implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<ValueId>> {
     if !matches!(requested, CallableKind::Fn | CallableKind::FnMut)
@@ -1237,7 +1237,7 @@ pub(super) fn direct(
     block: BlockId,
     index: usize,
     arguments: &[ValueId],
-    values: &[Option<SharedType>],
+    values: &ssa::Values,
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<SharedType>> {

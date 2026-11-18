@@ -98,7 +98,7 @@ pub(super) fn invalidate_roots(
     Ok(())
 }
 pub(super) fn invalidate_address(
-    world: &mut World<'_, '_>, address: ValueId, values: &[Option<SharedType>],
+    world: &mut World<'_, '_>, address: ValueId, values: &ssa::Values,
 ) -> R<()> {
     let value = world.get(values, address)?;
     let roots = arguments::roots(world, address, &value)?;
@@ -107,7 +107,7 @@ pub(super) fn invalidate_address(
 /// Actual argument shapes identify writable inputs; unknown environment/body
 /// execution retires local source facts instead of pretending it is pure.
 pub(super) fn invalidate_operation(
-    world: &mut World<'_, '_>, operation: &InstructionKind, values: &[Option<SharedType>],
+    world: &mut World<'_, '_>, operation: &InstructionKind, values: &ssa::Values,
 ) -> R<()> {
     match operation {
         InstructionKind::WriteAddress { address, .. } => invalidate_address(world, *address, values),
