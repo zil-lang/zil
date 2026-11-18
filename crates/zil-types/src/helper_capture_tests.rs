@@ -127,6 +127,18 @@ fn fixture(
     (function, bounds)
 }
 
+fn raw_helper_origins(
+    function: &TypedFunction,
+    bounds: &[CoreCallableParameter],
+    state: &mut closures::State,
+) -> R<(Vec<Origin>, Vec<Origin>)> {
+    // Every raw fixture carries two distinct callable roles. The aggregate
+    // ownership profile requires one original by-value formal.
+    assert_eq!(bounds.len(), 2);
+    Ok(environment_origins(function, bounds, false, state, span())?
+        .expect("two raw helper roles must retain their invocation contract"))
+}
+
 fn check(
     scoped: bool,
     captured: u32,
@@ -143,7 +155,7 @@ fn check(
         // A checked public Parameter return preserves the actual role origin.
         state.forward_results.insert(FunctionId(9), 0);
     }
-    environment_origins(&function, &bounds, &mut state, span())
+    raw_helper_origins(&function, &bounds, &mut state)
 }
 
 #[test]
@@ -207,7 +219,7 @@ fn same_identity_fresh_and_supplied_values_cannot_mix_inside_a_capture() {
         };
         *captures = vec![ValueId(4)];
         let mut state = closures::State::new(0, &Limits::default());
-        let diagnostic = environment_origins(&function, &bounds, &mut state, span()).unwrap_err();
+        let diagnostic = raw_helper_origins(&function, &bounds, &mut state).unwrap_err();
         assert_eq!(
             diagnostic.message,
             "local concrete callable cannot capture a supplied callable role"
@@ -356,7 +368,7 @@ fn ordinary_aggregates_cannot_launder_a_supplied_role_into_a_local_body() {
                     ..Limits::default()
                 };
                 let mut state = closures::State::new(0, &limits);
-                let result = environment_origins(&function, &bounds, &mut state, span());
+                let result = raw_helper_origins(&function, &bounds, &mut state);
                 (result, state.accounting()[4])
             };
             let (result, work) = run(10_000);
@@ -403,7 +415,7 @@ fn a_single_element_parameter_bridge_does_not_authorize_an_aggregate_call() {
     };
     captures.clear();
     let mut state = closures::State::new(0, &Limits::default());
-    let (_, origins) = environment_origins(&function, &bounds, &mut state, span()).unwrap();
+    let (_, origins) = raw_helper_origins(&function, &bounds, &mut state).unwrap();
     assert_eq!(origins[1], Origin::supplied(1, false));
     let call = Instruction {
         result: None,
@@ -450,7 +462,7 @@ fn reading_a_role_address_preserves_its_actual_capture_origin() {
         };
         *captures = vec![ValueId(1)];
         let mut state = closures::State::new(0, &Limits::default());
-        let diagnostic = environment_origins(&function, &bounds, &mut state, span()).unwrap_err();
+        let diagnostic = raw_helper_origins(&function, &bounds, &mut state).unwrap_err();
         assert_eq!(
             diagnostic.message,
             "local concrete callable cannot capture a supplied callable role"
