@@ -293,6 +293,8 @@ fn dynamic_multimodule_byte_consumer_matches_rust_on_binary_inputs() {
 
 #[test]
 fn mutable_window_returns_preserve_the_owner_through_wrapper_composition() {
+    // An independent query in the module must not change a window's
+    // signature, source or permissions.
     let program = r#"
 fn window(owner:ByteBuffer)->&mut[u8] {return bytes_view_mut(owner);}
 fn relay(owner:ByteBuffer)->&mut[u8] {return window(owner);}
@@ -313,6 +315,7 @@ fn value()->i32 {
     second[0]=second[0]+3u8;
     return i32(bytes_view(owner)[0])-15;
 }
+fn buffer_size(other:ByteBuffer)->i32 {return i32(bytes_len(other));}
 "#;
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
         for level in [Optimization::O0, Optimization::O2] {
