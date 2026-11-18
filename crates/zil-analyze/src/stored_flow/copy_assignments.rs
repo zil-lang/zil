@@ -6,7 +6,11 @@ pub(crate) fn scalar_assignment_value(ty: &Type) -> bool {
     ty.is_integer() || ty.is_float() || matches!(ty, Type::Bool | Type::Unit)
 }
 
-pub(super) fn reservations(f: &TypedFunction, b: &mut Budget) -> CompileResult<Vec<bool>> {
+pub(super) fn reservations(
+    module: &TypedModule,
+    f: &TypedFunction,
+    b: &mut Budget,
+) -> CompileResult<Vec<bool>> {
     b.lookup(
         b.semantic_copy_writes.len(),
         "original Copy assignment index",
@@ -105,7 +109,14 @@ pub(super) fn reservations(f: &TypedFunction, b: &mut Budget) -> CompileResult<V
             // proof still checks every read and the eventual exclusive write.
             let interval = &block.instructions[start + 1..write];
             fee(b, interval.len())?;
-            if interval.iter().all(|operation| observes(&operation.kind)) {
+            let mut stable = true;
+            for operation in interval {
+                if !preserves_destination(module, f, operation, b)? {
+                    stable = false;
+                    break;
+                }
+            }
+            if stable {
                 for value in chain {
                     fee(b, 1)?;
                     reserved[value.0 as usize] = true;
@@ -116,9 +127,59 @@ pub(super) fn reservations(f: &TypedFunction, b: &mut Budget) -> CompileResult<V
     Ok(reserved)
 }
 
-fn observes(kind: &InstructionKind) -> bool {
-    matches!(
-        kind,
+fn preserves_destination(
+    module: &TypedModule,
+    f: &TypedFunction,
+    operation: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    // A synchronous call with only scalar ports cannot reach storage in
+    // this activation through its inputs or result. The ordinary transfer
+    // still checks the actual call and each operand's stored permissions.
+    match &operation.kind {
+        InstructionKind::CallIndirect { callee, .. } => {
+            let Type::FunctionPointer { parameters, result } = value_type(f, *callee)? else {
+                return Ok(false);
+            };
+            fee(b, parameters.len())?;
+            if !scalar_assignment_value(result) || !parameters.iter().all(scalar_assignment_value) {
+                return Ok(false);
+            }
+            crate::class_flow::thin::types(module, f, operation, b)?;
+            return Ok(true);
+        }
+        InstructionKind::Call {
+            function,
+            arguments,
+        } => {
+            let callee = module
+                .functions
+                .get(function.0 as usize)
+                .filter(|entry| entry.id == *function)
+                .ok_or_else(|| failure("assignment call has no actual target function"))?;
+            fee(b, arguments.len())?;
+            return Ok(callee.foreign.is_none()
+                && callee.environment.is_none()
+                && callee.call_kind == CallKind::Direct
+                && callee.protocol_contracts.is_empty()
+                && callee.callable_contract.is_none()
+                && callee.callable_return_contract.is_none()
+                && scalar_assignment_value(&callee.return_type)
+                && arguments.len() == callee.parameters.len()
+                && callee
+                    .parameters
+                    .iter()
+                    .zip(arguments)
+                    .all(|(parameter, argument)| {
+                        let formal = callee.locals.get(parameter.0 as usize).map(|row| &row.ty);
+                        formal.is_some_and(scalar_assignment_value)
+                            && formal == f.values.get(argument.0 as usize)
+                    }));
+        }
+        _ => {}
+    }
+    Ok(matches!(
+        operation.kind,
         InstructionKind::Constant(_)
             | InstructionKind::Load(_)
             | InstructionKind::Unary { .. }
@@ -138,7 +199,7 @@ fn observes(kind: &InstructionKind) -> bool {
             | InstructionKind::DescribeAddress { .. }
             | InstructionKind::DescribeLocal { .. }
             | InstructionKind::DescribePackageField { .. }
-    )
+    ))
 }
 
 pub(super) fn deferred(instruction: &Instruction, reservations: &[bool]) -> bool {

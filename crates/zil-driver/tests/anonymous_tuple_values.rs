@@ -9,6 +9,8 @@ const SHARED: &str =
 const OWNED: &str = include_str!("../../../tests/fixtures/qualified-values/owning-anonymous.zil");
 const EXCLUSIVE: &str =
     include_str!("../../../tests/fixtures/qualified-values/exclusive-anonymous.zil");
+const SCALAR_ASSIGNMENT: &str =
+    include_str!("../../../tests/fixtures/qualified-values/scalar-callback-assignment.zil");
 const BUFFER: &str = include_str!("../../../tests/fixtures/qualified-values/buffer-anonymous.zil");
 const NESTED: &str = include_str!("../../../tests/fixtures/qualified-values/nested-anonymous.zil");
 const NESTED_EXCLUSIVE: &str =
@@ -149,11 +151,22 @@ fn reject_swapped_tuple_bindings(mut module: TypedModule, mut candidate: Candida
 }
 
 #[test]
+fn tuple_assignment_reads_its_original_input_before_the_scalar_call_commits() {
+    for source in [SCALAR_ASSIGNMENT.to_owned(), SCALAR_ASSIGNMENT.replace(
+        "*left=f(*left+*right)", "*left=plus(*left+*right)",
+    )] {
+        let (module, plan) = prepare_with_original(&source, true);
+        verify(module, plan);
+    }
+}
+
+#[test]
 fn anonymous_tuple_values_run_both_backends_with_real_cleanup() {
     for (name, text, stdout) in [
         ("shared", SHARED, b"".as_slice()),
         ("owned", OWNED, b"A".as_slice()),
         ("exclusive", EXCLUSIVE, b"".as_slice()),
+        ("scalar-assignment", SCALAR_ASSIGNMENT, b"".as_slice()),
         ("buffer", BUFFER, b"".as_slice()),
         ("nested", NESTED, b"".as_slice()),
         ("nested-exclusive", NESTED_EXCLUSIVE, b"".as_slice()),

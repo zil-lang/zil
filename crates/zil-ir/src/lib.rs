@@ -2386,6 +2386,11 @@ pub enum InstructionKind {
     ReadAddress {
         address: ValueId,
     },
+    /// Commit a value to the live writable place denoted by `address` (§15.2).
+    /// A scalar assignment evaluates its destination and RHS once. Preparing
+    /// a single-use destination may precede RHS reads of the same place.
+    /// At commit the root, projection, owner generation and exclusive access
+    /// must still hold. An exit during RHS evaluation leaves the old value live.
     WriteAddress {
         address: ValueId,
         value: ValueId,

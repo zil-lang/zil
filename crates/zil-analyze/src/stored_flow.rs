@@ -8268,7 +8268,7 @@ fn derive_cfg(
             }
             let f = &module.functions[index];
             let (preds, reachable) = &graphs[index];
-            let reservations = copy_assignments::reservations(f, b)?;
+            let reservations = copy_assignments::reservations(module, f, b)?;
             // This solve builds a new function-local arena. Record mutable
             // loans at its existing paid creation/binding sites, including
             // constructor sites whose loans are not currently live.
