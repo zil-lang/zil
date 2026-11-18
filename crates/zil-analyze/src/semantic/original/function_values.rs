@@ -300,24 +300,34 @@ impl Solver<'_, '_> {
                 b,
             )?;
         }
-        let CoreExprKind::Name(name) = &head.kind else {
-            return Err(unknown(
-                "original indirect code call needs its exact lexical value anchor",
-            ));
-        };
-        let mut anchor = None;
-        for local in frame.locals.iter().rev() {
-            b.spend(local.name.len().saturating_add(name.len() + 1), WORK)?;
-            if local.name == *name {
-                anchor = local.anchor;
-                break;
+        let anchor = match &head.kind {
+            CoreExprKind::Name(name) => {
+                let mut anchor = None;
+                for local in frame.locals.iter().rev() {
+                    b.spend(local.name.len().saturating_add(name.len() + 1), WORK)?;
+                    if local.name == *name {
+                        anchor = local.anchor;
+                        break;
+                    }
+                }
+                let anchor = anchor.ok_or_else(|| {
+                    unknown("original indirect code call has no exact parameter or local binding")
+                })?;
+                let callee = self.expression(frame, head, b, depth + 1)?;
+                self.unify(callee, root, depth + 1, b)?;
+                CodeCallAnchor::Local(anchor)
             }
-        }
-        let anchor = anchor.ok_or_else(|| {
-            unknown("original indirect code call has no exact parameter or local binding")
-        })?;
-        let callee = self.expression(frame, head, b, depth + 1)?;
-        self.unify(callee, root, depth + 1, b)?;
+            CoreExprKind::Call { .. }
+                if matches!(self.state.arena[self.root(term, b)?],
+                    Kind::CallResult { caller, node, .. }
+                        if caller == frame.definition && node == head.id) =>
+            {
+                // The enclosing expression already checked this exact Call.
+                // Rechecking it would duplicate its original call identity.
+                CodeCallAnchor::CallResult(head.id)
+            }
+            _ => return Err(unknown("original indirect code call needs its exact value anchor")),
+        };
         b.lookup(self.state.code_calls.len(), WORK)?;
         if self
             .state
@@ -339,7 +349,7 @@ impl Checked {
         program: &SemanticModule,
         inventory: &Inventory<'_>,
         b: &mut Budget,
-    ) -> CompileResult<Option<(LocalAnchor, crate::semantic::value::Value)>> {
+    ) -> CompileResult<Option<(CodeCallAnchor, crate::semantic::value::Value)>> {
         let definition = inventory.definition(context.definition, b)?;
         let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
             return Err(fail("original code operation has no body inventory"));

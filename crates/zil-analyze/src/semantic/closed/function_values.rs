@@ -199,14 +199,49 @@ impl Check<'_, '_> {
                 "original indirect call is replaced by another actual opcode",
             ));
         };
-        let local = self.anchored_local(instance, function, anchor, b)?;
         operations::available_before(
             function,
             (block, index, SemanticSiteEdge::Before),
             *callee,
             b,
         )?;
-        if self.receiver_local(function, *callee, b, 0)? != local
+        let anchored = match anchor {
+            original::CodeCallAnchor::Local(anchor) => {
+                let local = self.anchored_local(instance, function, anchor, b)?;
+                self.receiver_local(function, *callee, b, 0)? == local
+            }
+            original::CodeCallAnchor::CallResult(node) => {
+                let recipe = self.inventory.call_anchor(instance.definition, node, b)?;
+                let source = self.inventory.emitted_site(self.program, instance.id, recipe, b)?;
+                let SemanticSiteAddress::Typed {
+                    block: producer_block,
+                    instruction: producer_index,
+                    edge: SemanticSiteEdge::After,
+                } = source.at else {
+                    return Err(fail("original code result has no actual call completion"));
+                };
+                if !matches!(source.action, SemanticSiteAction::BodyCall { .. }
+                    | SemanticSiteAction::Call { .. })
+                {
+                    return Err(fail("original code result changes its call recipe"));
+                }
+                let producer = function.blocks.get(producer_block.0 as usize)
+                    .filter(|actual| actual.id == producer_block)
+                    .and_then(|block| block.instructions.get(producer_index as usize))
+                    .ok_or_else(|| fail("original code result has no actual call instruction"))?;
+                if !matches!(producer.kind, InstructionKind::Call { .. }) {
+                    return Err(fail("original code result changes its actual call family"));
+                }
+                let result = producer.result
+                    .ok_or_else(|| fail("original code producer omits its actual result"))?;
+                operations::available_before(
+                    function, (block, index, SemanticSiteEdge::Before), result, b,
+                )?;
+                function.values.get(result.0 as usize) == Some(&code.ty)
+                    && self.operation_operand_matches(function, *callee, result, b)?
+            }
+        };
+        if !anchored
             || function.values.get(callee.0 as usize) != Some(&code.ty)
             || parameters.len() != arguments.len()
         {

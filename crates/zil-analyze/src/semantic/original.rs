@@ -246,9 +246,14 @@ struct Call {
     parameters: Vec<Term>,
     receiver: Option<Borrow>,
 }
+#[derive(Clone, Copy)]
+pub(super) enum CodeCallAnchor {
+    Local(LocalAnchor),
+    CallResult(NodeId),
+}
 struct CodeCall {
     code: Term,
-    anchor: LocalAnchor,
+    anchor: CodeCallAnchor,
 }
 struct ReceivingPlace {
     parameter: u32,
