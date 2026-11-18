@@ -22,7 +22,12 @@ impl CheckedOriginal {
                         let numeric = self.injection_literal_context(expression,error,result,b)?;
                         let payload=self.expression(module,context,expression,env,bindings,numeric.as_ref(),active,b)?;
                         if self.same(&payload,&sum,b)?{return Ok(payload);}
-                        if matches!(error.as_ref(),Ty::Infer(_)) || matches!(result.as_ref(),Ty::Infer(_)) {
+                        // The payload can be an untyped integer binding, even
+                        // when the enclosing sum already has two rigid arms.
+                        // Settle it with the other original return equations.
+                        if matches!(payload, Ty::Infer(_))
+                            || matches!(error.as_ref(),Ty::Infer(_))
+                            || matches!(result.as_ref(),Ty::Infer(_)) {
                             b.spend(1)?;
                             self.pending_injections.entry(id).or_default().push((expression.id,payload,sum.clone()));
                             self.expressions.insert((id,expression.id),sum.clone());
