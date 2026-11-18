@@ -51,6 +51,7 @@ mod trait_calls;
 mod trait_methods;
 mod usage;
 pub(in crate::semantic) use trait_calls::{MethodActualRecipe, TraitCallRecipes};
+mod integer_inference;
 pub(super) mod intrinsics;
 mod opaque;
 mod raw_schemes;
@@ -121,6 +122,8 @@ pub(super) struct CheckedOriginal {
     thin_invocations: BTreeMap<SemanticDefinitionId, Vec<Life>>,
     prototypes: BTreeMap<SemanticDefinitionId, Prototype>,
     substitutions: BTreeMap<u64, Ty>,
+    integer_variables: BTreeSet<u64>,
+    integer_literals: Vec<(Ty, String, bool)>,
     life_substitutions: BTreeMap<u64, Life>,
     outer_inferences: BTreeMap<u64, Vec<Life>>,
     call_regions: BTreeMap<u64, (SemanticDefinitionId, NodeId, Vec<u32>, Vec<Life>)>,
@@ -253,6 +256,7 @@ impl CheckedOriginal {
             }
             result.definition(module, context, definition.id, active, b)?;
         }
+        result.finish_integer_literals(module, b)?;
         result.check_outer_flows(b)?;
         b.diagnostic_stage("original body obligations");
         let obligations = std::mem::take(&mut result.copy_obligations);
@@ -585,6 +589,13 @@ impl CheckedOriginal {
                     return Err(bad("infinite original type inference"));
                 }
                 b.spend(1)?;
+                if self.integer_variables.contains(id) {
+                    match ty {
+                        Ty::Infer(other) => { self.integer_variables.insert(*other); }
+                        Ty::Atom(atom) if atom.is_integer() => {}
+                        _ => return Err(bad("original integer literal requires an integer carrier")),
+                    }
+                }
                 self.substitutions.insert(*id, ty.clone());
                 Ok(())
             }

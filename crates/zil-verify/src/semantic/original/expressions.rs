@@ -48,14 +48,14 @@ impl CheckedOriginal {
                 CoreExprKind::Unit=>Ty::Atom(Type::Unit),
                 CoreExprKind::Bool(_)=>Ty::Atom(Type::Bool),
                 CoreExprKind::Literal(value)=>Ty::Atom(value.ty()),
-                CoreExprKind::Integer(text)|CoreExprKind::Float(text)=>self.literal_original(module,text,matches!(expression.kind,CoreExprKind::Float(_)),expected,b)?,
+                CoreExprKind::Integer(text)|CoreExprKind::Float(text)=>self.expression_literal(module,text,matches!(expression.kind,CoreExprKind::Float(_)),false,expected,b)?,
                 CoreExprKind::String(_)=>Ty::Address{mutable:false,life:Life::Static,inner:Box::new(Ty::Slice(Box::new(Ty::Atom(Type::U8))))},
                 CoreExprKind::Name(name)=>match bindings.get(name){Some(binding)=>{self.value_bindings.insert((id,expression.id),binding.identity.clone());let place=Place{binder:binding.identity.clone(),fields:vec![]};self.read_original(module,context,&place,&binding.ty,env,true,active,b)?;binding.identity.charge_clone(b)?;self.value_places.insert((id,expression.id),place);binding.ty.clone()},None=>match self.bound_name(module,context,name,env,active,b)?{Arg::Type(ty)=>ty,Arg::Const(value)=>*value.carrier,Arg::Life(_)=>return Err(bad("original value expression selects a lifetime name"))}},
                 CoreExprKind::Group(value)=>self.expression_mode(module,context,value,env,bindings,expected,observe_bound_fields,active,b)?,
                 CoreExprKind::CompileTime(value)=>self.expression(module,context,value,env,bindings,expected,active,b)?,
                 CoreExprKind::Ascribed{ty,value}=>{let expected=self.ty(module,context,ty,env,active,b)?;let actual=self.expression(module,context,value,env,bindings,Some(&expected),active,b)?;self.relate_value(&actual,&expected,b)?;expected},
-                CoreExprKind::NumericConvert{value,target}|CoreExprKind::IntegerConvert{value,target}=>{let source=self.expression(module,context,value,env,bindings,None,active,b)?;let target=self.ty(module,context,target,env,active,b)?;if !matches!(self.resolved(&source,b)?,Ty::Atom(ref ty)if ty.is_integer()||ty.is_float())||!matches!(self.resolved(&target,b)?,Ty::Atom(ref ty)if ty.is_integer()||ty.is_float()){return Err(bad("original numeric conversion has nonnumeric endpoint"));}target},
-                CoreExprKind::Unary{op:UnaryOp::Negate,operand}if matches!(operand.kind,CoreExprKind::Integer(_))=>{let CoreExprKind::Integer(text)=&operand.kind else{unreachable!()};let ty=self.literal_original_sign(module,text,false,true,expected,b)?;self.expressions.insert((id,operand.id),ty.clone());ty},
+                CoreExprKind::NumericConvert{value,target}|CoreExprKind::IntegerConvert{value,target}=>{let source=self.expression(module,context,value,env,bindings,None,active,b)?;let target=self.ty(module,context,target,env,active,b)?;let source=self.resolved(&source,b)?;if !(self.integer_carrier(&source)||matches!(source,Ty::Atom(ref ty)if ty.is_float()))||!matches!(self.resolved(&target,b)?,Ty::Atom(ref ty)if ty.is_integer()||ty.is_float()){return Err(bad("original numeric conversion has nonnumeric endpoint"));}target},
+                CoreExprKind::Unary{op:UnaryOp::Negate,operand}if matches!(operand.kind,CoreExprKind::Integer(_))=>{let CoreExprKind::Integer(text)=&operand.kind else{unreachable!()};let ty=self.expression_literal(module,text,false,true,expected,b)?;self.expressions.insert((id,operand.id),ty.clone());ty},
                 CoreExprKind::Unary{op:UnaryOp::Borrow|UnaryOp::BorrowMut,operand}=>{
                     let mutable=matches!(expression.kind,CoreExprKind::Unary{op:UnaryOp::BorrowMut,..});
                     let(child,place)=self.place(module,context,operand,env,bindings,active,b)?;
@@ -94,7 +94,7 @@ impl CheckedOriginal {
                     match op{
                         UnaryOp::Give=>{if !matches!(self.resolved(&child,b)?,Ty::Managed(_)|Ty::Store(_)){return Err(bad("original give has no actual owning resource type"));}child},
                         UnaryOp::Not=>{self.unify(&child,&Ty::Atom(Type::Bool),b)?;Ty::Atom(Type::Bool)},
-                        UnaryOp::Negate|UnaryOp::BitNot=>{if !matches!(self.resolved(&child,b)?,Ty::Atom(ref ty)if ty.is_integer()||(*op==UnaryOp::Negate&&ty.is_float())){return Err(bad("original unary scalar operation is not proved"));}child},
+                        UnaryOp::Negate|UnaryOp::BitNot=>{let resolved=self.resolved(&child,b)?;if !(self.integer_carrier(&resolved)||matches!(resolved,Ty::Atom(ref ty)if *op==UnaryOp::Negate&&ty.is_float())){return Err(bad("original unary scalar operation is not proved"));}child},
                         _=>unreachable!(),
                     }
                 },
@@ -173,7 +173,7 @@ impl CheckedOriginal {
     pub(super) fn literal_original(&self,module:&TypedModule,text:&str,floating:bool,expected:Option<&Ty>,b:&mut Budget)->Check<Ty>{
         self.literal_original_sign(module,text,floating,false,expected,b)
     }
-    fn literal_original_sign(&self,module:&TypedModule,text:&str,floating:bool,negate:bool,expected:Option<&Ty>,b:&mut Budget)->Check<Ty>{
+    pub(super) fn literal_original_sign(&self,module:&TypedModule,text:&str,floating:bool,negate:bool,expected:Option<&Ty>,b:&mut Budget)->Check<Ty>{
         // Integer patterns can carry their original leading minus; ordinary
         // expressions retain UnaryNeg. Feed both to the existing exact-width
         // unary evaluator, never a signed string to the magnitude parser.

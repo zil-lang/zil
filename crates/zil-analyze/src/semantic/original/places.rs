@@ -264,7 +264,7 @@ impl Solver<'_, '_> {
         }
         Ok(Some(field))
     }
-    fn pending_numeric_copy(&self, term: Term, b: &mut Budget, depth: usize) -> CompileResult<bool> {
+    pub(super) fn pending_numeric_copy(&self, term: Term, b: &mut Budget, depth: usize) -> CompileResult<bool> {
         self.step(depth, b)?;
         let root = self.type_root(term, b)?;
         match &self.state.arena[root] {

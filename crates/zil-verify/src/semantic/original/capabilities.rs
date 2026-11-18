@@ -73,7 +73,8 @@ impl CheckedOriginal {
                     // remains pending in the independent memory kernel.
                     match *inner{Ty::Slice(element)=>self.closed_value(module,context,&element,env,active,b)?,inner=>self.closed_value(module,context,&inner,env,active,b)?}
                 },
-                Ty::Address{..}|Ty::Desc{..}|Ty::Slice(_)|Ty::Variable(..)|Ty::SelfType(_)|Ty::Projection{..}|Ty::Infer(_)=>false,
+                Ty::Infer(id)=>self.integer_variables.contains(&id),
+                Ty::Address{..}|Ty::Desc{..}|Ty::Slice(_)|Ty::Variable(..)|Ty::SelfType(_)|Ty::Projection{..}=>false,
                 Ty::Opaque(owner,arguments)=>{
                     for argument in &arguments{match argument{Arg::Life(_)=>return Ok(false),Arg::Type(ty)=>if !self.closed_value(module,context,ty,env,active,b)?{return Ok(false);},Arg::Const(_)=>{}}}
                     let hidden=self.opaque_hidden(module,context,owner,&arguments,active,b)?;

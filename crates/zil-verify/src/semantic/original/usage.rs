@@ -313,7 +313,7 @@ impl CheckedOriginal {
                         }
                         self.is_copy(module, context, &hidden, env, active, b)?
                     }
-                    Ty::Infer(_) => false,
+                    Ty::Infer(id) => self.integer_variables.contains(id),
                     _ => false,
                 })
             },

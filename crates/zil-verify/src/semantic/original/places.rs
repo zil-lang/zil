@@ -148,7 +148,7 @@ impl CheckedOriginal {
                     if let Some(place)=&place{self.read_original(module,context,place,&parent,env,false,active,b)?;}
                     let storage=match self.resolved(&parent,b)?{Ty::Address{inner,..}=>self.resolved(&inner,b)?,ty=>ty};
                     let element=match storage{Ty::Array(element,_)|Ty::Slice(element)=>element,_=>return Err(bad("original slice projection has no complete Array/Slice parent"))};
-                    for bound in [start.as_deref(),end.as_deref()].into_iter().flatten(){let ty=self.expression(module,context,bound,env,bindings,None,active,b)?;if !matches!(self.resolved(&ty,b)?,Ty::Atom(ref ty)if ty.is_integer()){return Err(bad("original slice endpoint lacks an actual integer carrier"));}}
+                    for bound in [start.as_deref(),end.as_deref()].into_iter().flatten(){let ty=self.expression(module,context,bound,env,bindings,None,active,b)?;if !self.integer_carrier(&self.resolved(&ty,b)?){return Err(bad("original slice endpoint lacks an actual integer carrier"));}}
                     // The projection observes the original whole parent root;
                     // range checks and the actual slice loan remain separate.
                     self.observe_projection_parent(object.id,&parent,expression.id,env,b)?;
@@ -163,7 +163,7 @@ impl CheckedOriginal {
                     // An existing u32/i16 index is not implicitly a usize, and
                     // an unsuffixed value keeps normal original inference.
                     let index_ty=self.expression(module,context,index,env,bindings,None,active,b)?;
-                    if !matches!(self.resolved(&index_ty,b)?,Ty::Atom(ref ty)if ty.is_integer()){return Err(bad("original index is not integer"));}
+                    if !self.integer_carrier(&self.resolved(&index_ty,b)?){return Err(bad("original index is not integer"));}
                     // An index expression may execute a call. Recheck the
                     // already selected parent after it, without replaying it.
                     if let Some(parent)=&parent{self.read_original_parent(module,context,parent,&object,env,active,b)?;}

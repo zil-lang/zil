@@ -254,7 +254,14 @@ impl Solver<'_, '_> {
                         fail("original callable consumption omits an inherited occurrence")
                     })?
                     .ty;
-                once |= !self.satisfies(term, Predicate::Copy, b, 0)?;
+                // The source numeric equation already requires a scalar
+                // Copy leaf. Keep its pending carrier open to the rest of
+                // the original body, then check the complete Copy term.
+                if self.pending_numeric_copy(term, b, 0)? {
+                    Self::push(&mut self.needs, Need { term, predicate: Predicate::Copy }, b)?;
+                } else {
+                    once |= !self.satisfies(term, Predicate::Copy, b, 0)?;
+                }
             }
         }
         if let Some(exits) = self.capture_state.exits.get(&definition) {

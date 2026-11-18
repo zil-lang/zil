@@ -104,7 +104,10 @@ impl CheckedOriginal {
                 b.spend(1)?;self.remember_names(env,SemanticOriginalNode::Statement(statement.id),bindings,b)?;
                 let completed=match &statement.kind {
                     CoreStatementKind::Binding{name,mutable,ty,initializer}=>{
-                        let expected=match ty{Some(recipe)=>Some(self.ty(module,context,recipe,env,active,b)?),None=>None};
+                        let expected=match ty{Some(recipe)=>Some(self.ty(module,context,recipe,env,active,b)?),None=>match initializer {
+                            Some(value) if Self::untyped_numeric_tree(value,true,b)? => Some(self.fresh_integer(b)?),
+                            _ => None,
+                        }};
                         let family=expected.as_ref().map(|ty|self.raw_binding_family(module,context,ty,b)).transpose()?.unwrap_or(false);
                         if family {
                             let initializer=initializer.as_ref().ok_or_else(||bad("raw resource binding requires its actual category-determining initializer"))?;
@@ -189,7 +192,7 @@ impl CheckedOriginal {
     }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn condition_original(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {let ty=self.expression(module,context,expression,env,bindings,Some(&Ty::Atom(Type::Bool)),active,b)?;self.unify(&ty,&Ty::Atom(Type::Bool),b)}
-    pub(super) fn numeric_binary_original(&mut self,op:BinaryOp,left:&Ty,right:&Ty,b:&mut Budget)->Check<Ty>{self.unify(left,right,b)?;let ty=self.resolved(left,b)?;let Ty::Atom(ref atom)=ty else{return Err(unsupported("original arithmetic needs a proved scalar operator contract",None));};let valid=match op{BinaryOp::And|BinaryOp::Or=>*atom==Type::Bool,BinaryOp::Equal|BinaryOp::NotEqual=>atom.is_integer()||atom.is_float()||matches!(atom,Type::Bool|Type::ForeignHandle),BinaryOp::Less|BinaryOp::LessEqual|BinaryOp::Greater|BinaryOp::GreaterEqual=>atom.is_integer()||atom.is_float(),BinaryOp::Add|BinaryOp::Subtract|BinaryOp::Multiply|BinaryOp::Divide|BinaryOp::Remainder=>atom.is_integer()||atom.is_float(),_=>atom.is_integer()};if !valid{return Err(bad("original binary operator is invalid for its complete scalar carrier"));}Ok(if matches!(op,BinaryOp::And|BinaryOp::Or|BinaryOp::Equal|BinaryOp::NotEqual|BinaryOp::Less|BinaryOp::LessEqual|BinaryOp::Greater|BinaryOp::GreaterEqual){Ty::Atom(Type::Bool)}else{ty})}
+    pub(super) fn numeric_binary_original(&mut self,op:BinaryOp,left:&Ty,right:&Ty,b:&mut Budget)->Check<Ty>{self.unify(left,right,b)?;let ty=self.resolved(left,b)?;let valid=if self.integer_variable(&ty){!matches!(op,BinaryOp::And|BinaryOp::Or)}else{let Ty::Atom(ref atom)=ty else{return Err(unsupported("original arithmetic needs a proved scalar operator contract",None));};match op{BinaryOp::And|BinaryOp::Or=>*atom==Type::Bool,BinaryOp::Equal|BinaryOp::NotEqual=>atom.is_integer()||atom.is_float()||matches!(atom,Type::Bool|Type::ForeignHandle),BinaryOp::Less|BinaryOp::LessEqual|BinaryOp::Greater|BinaryOp::GreaterEqual=>atom.is_integer()||atom.is_float(),BinaryOp::Add|BinaryOp::Subtract|BinaryOp::Multiply|BinaryOp::Divide|BinaryOp::Remainder=>atom.is_integer()||atom.is_float(),_=>atom.is_integer()}};if !valid{return Err(bad("original binary operator is invalid for its complete scalar carrier"));}Ok(if matches!(op,BinaryOp::And|BinaryOp::Or|BinaryOp::Equal|BinaryOp::NotEqual|BinaryOp::Less|BinaryOp::LessEqual|BinaryOp::Greater|BinaryOp::GreaterEqual){Ty::Atom(Type::Bool)}else{ty})}
 }
 
 impl CheckedOriginal {
@@ -198,7 +201,7 @@ impl CheckedOriginal {
         let(left,right)=if Self::contextual_numeric_literal(start,b)?{
             let right=self.expression(module,context,end,env,bindings,None,active,b)?;let left=self.expression(module,context,start,env,bindings,Some(&right),active,b)?;(left,right)
         }else{let left=self.expression(module,context,start,env,bindings,None,active,b)?;let right=self.expression(module,context,end,env,bindings,Some(&left),active,b)?;(left,right)};
-        self.unify(&left,&right,b)?;let ty=self.resolved(&left,b)?;if !matches!(&ty,Ty::Atom(ty)if ty.is_integer()){return Err(bad("original range endpoints are not one complete integer carrier"));}Ok(ty)
+        self.unify(&left,&right,b)?;let ty=self.resolved(&left,b)?;if !self.integer_carrier(&ty){return Err(bad("original range endpoints are not one complete integer carrier"));}Ok(ty)
     }
     fn constant_true(mut expression:&SemanticOriginalExpr,b:&mut Budget)->Check<bool>{
         loop {
@@ -232,13 +235,17 @@ impl CheckedOriginal {
         Ok(false)
     }
     pub(super) fn contextual_numeric_literal(expression:&SemanticOriginalExpr,b:&mut Budget)->Check<bool>{
+        Self::untyped_numeric_tree(expression,false,b)
+    }
+    fn untyped_numeric_tree(expression:&SemanticOriginalExpr,integers_only:bool,b:&mut Budget)->Check<bool>{
         let mut pending=vec![expression];
         while let Some(expression)=pending.pop(){
             b.spend(1)?;
             match &expression.kind{
+                CoreExprKind::Float(_) if integers_only=>return Ok(false),
                 CoreExprKind::Integer(text)|CoreExprKind::Float(text)=>{
                     b.spend(text.len().saturating_add(12))?;
-                    if ["isize","usize","i64","i32","i16","i8","u64","u32","u16","u8","f64","f32"].iter().any(|suffix|text.ends_with(*suffix)){return Ok(false);}
+                    if Self::numeric_suffix(text){return Ok(false);}
                 },
                 CoreExprKind::Group(inner)|CoreExprKind::CompileTime(inner)|CoreExprKind::Unary{op:UnaryOp::Negate|UnaryOp::BitNot,operand:inner}=>pending.push(inner),
                 CoreExprKind::Sequence{bindings,value}if bindings.is_empty()=>pending.push(value),
