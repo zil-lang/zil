@@ -796,7 +796,8 @@ impl Flow {
             exits: (0..f.blocks.len()).map(|_| Point::default()).collect(),
         };
         // In a DAG every predecessor is final before its successor runs.
-        if let Some(order) = super::acyclic_order(graph, b)? {
+        let (order, cyclic) = super::execution_order(graph, f.entry.0 as usize, b)?;
+        if !cyclic {
             for block in order {
                 let mut point = flow.input(f, block, graph, b)?;
                 b.spend(f.blocks[block].instructions.len())?;
