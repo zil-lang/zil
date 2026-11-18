@@ -1047,7 +1047,13 @@ pub(super) fn validate_after_target(
     };
     let projected = if let [PlaceProjection::Field(capture)] = target_leaf {
         if !through||!matches!(base,HoldRoot::Parameter(_)){return Err(err("after-state projected root is not an actual persistent input"));}
-        let Type::Closure(id)=original else{return Err(err("after-state projected root is not an owning closure"));};
+        let environment = match original {
+            Type::Address { mutable: true, inner } => inner.as_ref(),
+            other => other,
+        };
+        let Type::Closure(id) = environment else {
+            return Err(err("after-state projected root has no actual mutable or owned closure"));
+        };
         let definition=crate::closures::definition(module,*id,Some(f.span))?;
         let capture_ty=definition.captures.get(*capture as usize).ok_or_else(||err("after-state actual captured pointer is absent"))?;
         let Type::Address{mutable:true,inner}=capture_ty else{return Err(err("after-state projected root is not a mutable address"));};

@@ -154,6 +154,17 @@ fn zero(
     }
 }
 
+// Only the pointee is class-free. The capture address still needs its own
+// fixed binder and the ordinary access and ownership checks.
+pub(super) fn package_capture(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    let Type::Address { inner, .. } = ty else { return Ok(false); };
+    if !matches!(inner.as_ref(), Type::Package { .. })
+        || !zero(module, inner, &mut Vec::new(), 0, b)? {
+        return Ok(false);
+    }
+    Ok(crate::dynamic_witness::intrinsic_domain(module, inner, b)?.0 == 0)
+}
+
 // A mutex description/guard has a real lifetime class but no stored data
 // pointer when its complete payload is Known0. The ordinary borrow/resource
 // kernels own its actual manager root, guard epoch and scoped-thread accesses.

@@ -389,7 +389,8 @@ fn closure_resource_inputs<P:InputType>(module:&TypedModule,parameters:&[P],capt
                 roots.push(KnownZeroRoot{base,whole_type:ty,statics});continue;
             }
         }
-        if zero_resource_occurrence(module,ty,span,b)?{crate::stored_flow::type_bounds(ty,&b.limits.clone(),b)?;roots.push(KnownZeroRoot{base,whole_type:ty,statics:vec![]});}
+        if matches!(base, StorageBase::Capture(_)) && crate::ordinary_heads::package_capture(module, ty, b)?
+            || zero_resource_occurrence(module,ty,span,b)?{crate::stored_flow::type_bounds(ty,&b.limits.clone(),b)?;roots.push(KnownZeroRoot{base,whole_type:ty,statics:vec![]});}
     }
     relation_inputs(parameters,result,c,span,true,Some(captures),Some(module),false,Some(kind),&[],&roots)
 }

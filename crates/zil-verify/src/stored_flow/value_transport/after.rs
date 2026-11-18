@@ -37,19 +37,30 @@ pub(in crate::stored_flow) fn projected_inputs(
     if f.callable_contract.is_none(){return Ok(rows);}
     b.spend(f.parameters.len())?;
     for (index,local) in f.parameters.iter().enumerate(){
-        let Some(Type::Closure(id))=f.locals.get(local.0 as usize).map(|local|&local.ty) else{continue;};
-        let definition=crate::closures::definition(module,*id,Some(f.span))?;
+        let Some(input) = f.locals.get(local.0 as usize).map(|local| &local.ty) else { continue; };
+        let code = |ty: &Type| match ty {
+            Type::Closure(id) => Some(*id),
+            Type::Address { mutable: true, inner } => match inner.as_ref() {
+                Type::Closure(id) => Some(*id),
+                _ => None,
+            },
+            _ => None,
+        };
+        let Some(id) = code(input) else { continue; };
+        let definition = crate::closures::definition(module, id, Some(f.span))?;
         // Only actual invocation or transfer to another concrete callback
-        // argument can affect this owned input's captured pointee memory.
+        // argument can affect this environment's captured pointee memory.
         let mut invokes=false;
         for block in &f.blocks {
             b.spend(block.instructions.len())?;
             for op in &block.instructions {
-                invokes|=matches!(&op.kind,InstructionKind::CallClosureOnce{callee,..}
-                    if f.values.get(callee.0 as usize)==Some(&Type::Closure(*id)));
+                invokes |= matches!(&op.kind, InstructionKind::CallClosureOnce { callee, .. }
+                    | InstructionKind::CallClosureBorrowed { callee, .. }
+                    if f.values.get(callee.0 as usize).and_then(code) == Some(id));
                 if let InstructionKind::Call{arguments,..}=&op.kind {
                     b.spend(arguments.len())?;
-                    invokes|=arguments.iter().any(|value|f.values.get(value.0 as usize)==Some(&Type::Closure(*id)));
+                    invokes |= arguments.iter().any(|value|
+                        f.values.get(value.0 as usize).and_then(code) == Some(id));
                 }
             }
         }

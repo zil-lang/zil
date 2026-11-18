@@ -638,6 +638,7 @@ pub(super) fn captured_profile(
         };
         b.task_retained_environments |= matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{retained_life,..} if !retained_life.ports.is_empty()));
         if !(borrowed_capture_input(ty)
+            || super::ordinary_heads::package_capture(module, ty, b)?
             || super::stored_flow::shared_tuple_value(module, ty, None, b)?
             || complete_value_input(module, ty, b)?
             || matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}) && matches!(d.kind,CallableKind::FnOnce | CallableKind::FnMut))
