@@ -685,13 +685,24 @@ impl Sites {
         if self.ids.is_empty() {
             return Ok(());
         }
-        let direct_call = if let InstructionKind::Call { function, .. } = i.kind {
-            fee(b, 1)?;
-            module.functions.get(function.0 as usize).is_some_and(|callee|
-                callee.id == function && callee.call_kind == CallKind::Direct
-                    && callee.environment.is_none() && callee.foreign.is_none())
-        } else {
-            false
+        let synchronous_call = match i.kind {
+            InstructionKind::Call { function, .. } => {
+                fee(b, 1)?;
+                module.functions.get(function.0 as usize).is_some_and(|callee|
+                    callee.id == function && callee.call_kind == CallKind::Direct
+                        && callee.environment.is_none() && callee.foreign.is_none())
+            }
+            InstructionKind::ForeignCall { function, .. } => {
+                fee(b, 1)?;
+                let callee = module.functions.get(function.0 as usize)
+                    .filter(|callee| callee.id == function)
+                    .ok_or_else(|| failure("byte-view call has no actual foreign declaration"))?;
+                // The C contract covers each actual pointer port with noescape.
+                // The stored access check still checks its mode and every pair
+                // of actual arguments against this live view.
+                crate::stored_callables::scalar_foreign(callee, b)?
+            }
+            _ => false,
         };
         // A callee may mutate a captured/explicit Desc without receiving the
         // view itself. Ordinary direct calls have a complete actual head
@@ -712,7 +723,7 @@ impl Sites {
                 | InstructionKind::WithForeignCallback { .. }
                 | InstructionKind::WithScopedThread { .. }
                 | InstructionKind::WithSyncCell { .. }
-        ) && !direct_call && self.active(active, b)?
+        ) && !synchronous_call && self.active(active, b)?
             && !self.disjoint_closure(module, f, i, state, values, active, loans, apart, b)?
         {
             return Err(closed(i.span));
@@ -811,7 +822,7 @@ impl Sites {
                 || matches!(i.kind, InstructionKind::Store { local, .. }
                     if matches!(&f.locals[local.0 as usize].ty, Type::Address { inner, .. }
                         if inner.as_ref() == &Type::U8 || matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8)))
-                || direct_call;
+                || synchronous_call;
             if !allowed {
                 return Err(closed(i.span));
             }
