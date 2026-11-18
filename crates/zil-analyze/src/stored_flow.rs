@@ -3060,17 +3060,15 @@ fn returns(
                         "environment result escapes local or explicit input storage",
                     ));
                 };
-                if !source.place.is_empty()
-                    || !source.stored.is_empty()
-                    || !d
-                        .captures
-                        .get(index as usize)
-                        .is_some_and(super::stored_callables::scalar)
+                let capture = d.captures.get(index as usize)
+                    .ok_or_else(|| failure("lending source names an absent capture"))?;
+                if !source.stored.is_empty() || source.retained_port.is_some()
+                    || source.heap_element.is_some() || !source.heap_parents.is_empty()
+                    || !(super::stored_callables::scalar(capture) || retained::closed_copy(capture, b)?)
                 {
-                    return Err(failure(
-                        "lending source is not an actual inline scalar capture",
-                    ));
+                    return Err(failure("lending source leaves its actual inline capture"));
                 }
+                slot(capture, &source.place, b)?;
                 ordered(b, actual.len(), 0)?;
                 actual.insert(index);
             }
@@ -5500,22 +5498,8 @@ fn transfer(
             out.pointer.targets.insert(Target{base:HoldRoot::Capture(*index),stored:vec![],place:vec![],retained_port:None,heap_element:None,heap_parents:vec![]});
             out.pointer.loans.insert(state.receiver_loan.ok_or_else(||failure("owned capture borrow lacks its actual receiver invocation"))?);
         }
-        InstructionKind::BorrowCapture {
-            index,
-            mutable: false,
-        } => {
-            let d = f
-                .environment
-                .and_then(|id| module.closures.get(id.0 as usize))
-                .filter(|d| super::stored_callables::lending(d))
-                .ok_or_else(|| failure("inline capture loan has no lending environment"))?;
-            if !d
-                .captures
-                .get(*index as usize)
-                .is_some_and(super::stored_callables::scalar)
-            {
-                return Err(failure("inline capture loan requires a real scalar field"));
-            }
+        InstructionKind::BorrowCapture { index, mutable } => {
+            inline_capture_loan(module, f, i, *index, *mutable, b)?;
             fee(b, 1)?;
             out.pointer.targets.insert(Target {
                 retained_port: None,
@@ -9317,6 +9301,31 @@ pub(super) fn infer(
     Ok(result)
 }
 
+/// Validate the place being borrowed in this invocation. A field or slice
+/// projection retains this capture as its root and carries its own suffix.
+pub(super) fn inline_capture_loan(
+    module: &TypedModule,
+    f: &TypedFunction,
+    instruction: &Instruction,
+    index: u32,
+    mutable: bool,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let definition = f.environment
+        .and_then(|id| module.closures.get(id.0 as usize))
+        .filter(|d| d.function == f.id && super::stored_callables::lending(d))
+        .ok_or_else(|| failure("capture borrow has no actual lending entry"))?;
+    if mutable && definition.kind != CallableKind::FnMut {
+        return Err(failure("exclusive capture borrow needs an exclusive receiver"));
+    }
+    let ty = definition.captures.get(index as usize)
+        .ok_or_else(|| failure("capture borrow names an absent environment field"))?;
+    if !super::stored_callables::scalar(ty) && !retained::closed_copy(ty, b)? {
+        return Err(failure("capture borrow needs a closed inline data field"));
+    }
+    address_result(f, instruction, mutable, ty, b)
+}
+
 fn address_result(
     f: &TypedFunction,
     i: &Instruction,
@@ -9826,23 +9835,8 @@ fn actual_instructions(
                         [*index as usize];
                     address_result(f, i, *mutable, ty, b)?;
                 }
-                InstructionKind::BorrowCapture {
-                    index,
-                    mutable: false,
-                } => {
-                    let d = f
-                        .environment
-                        .and_then(|id| module.closures.get(id.0 as usize))
-                        .filter(|d| super::stored_callables::lending(d))
-                        .ok_or_else(|| failure("capture borrow outside real lending entry"))?;
-                    let ty = d
-                        .captures
-                        .get(*index as usize)
-                        .filter(|ty| super::stored_callables::scalar(ty))
-                        .ok_or_else(|| {
-                            failure("capture borrow lacks actual inline scalar field")
-                        })?;
-                    address_result(f, i, false, ty, b)?;
+                InstructionKind::BorrowCapture { index, mutable } => {
+                    inline_capture_loan(module, f, i, *index, *mutable, b)?;
                 }
                 InstructionKind::ExtractField { .. } => {}
                 InstructionKind::ConvertInteger { value, target }
