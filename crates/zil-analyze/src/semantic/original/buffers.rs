@@ -40,6 +40,16 @@ impl Solver<'_, '_> {
         if !new {
             let manager = &arguments[0];
             if let Some(place) = self.place(frame, manager, true, b, depth + 1)? {
+                if exclusive
+                    && matches!(
+                        self.state.arena[self.type_root(place.root, b)?],
+                        Kind::Address { mutable: false, .. }
+                    )
+                {
+                    return Err(fail(
+                        "original ByteBuffer mutation cannot use a shared projected manager",
+                    ));
+                }
                 let anchor = place.anchor.ok_or_else(|| {
                     unknown("original ByteBuffer operation needs its exact binding/projection identity")
                 })?;
@@ -173,14 +183,25 @@ impl Solver<'_, '_> {
             })?;
             let element = self.atom(Type::U8, b)?;
             let inner = self.term(Kind::Slice(element), b)?;
-            self.term(
-                Kind::Address {
-                    mutable,
-                    life,
-                    inner,
-                },
-                b,
-            )
+            let wanted = if let Some(receiving) = self.receiving_for(frame, node, b)? {
+                match self.state.arena[self.type_root(receiving, b)?] {
+                    Kind::Address {
+                        mutable: mode,
+                        life: wanted,
+                        inner: expected,
+                    } if mode == mutable => {
+                        self.unify(inner, expected, depth + 1, b)?;
+                        Some(wanted)
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            };
+            // The weak argument keeps its own occurrence. Only this view
+            // can receive the target after checking the real manager upper.
+            let life = self.select_view_life(frame, life, Some(life), wanted, None, b, depth + 1)?;
+            self.term(Kind::Address { mutable, life, inner }, b)
         } else {
             self.atom(if writing { Type::Bool } else { Type::I64 }, b)
         }

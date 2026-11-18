@@ -105,6 +105,7 @@ pub(super) struct CheckedOriginal {
     results: BTreeMap<SemanticDefinitionId, Ty>,
     calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), Vec<Arg>>,
     intrinsic_type_sources: BTreeMap<(SemanticDefinitionId, SemanticSiteId, u32), NodeId>,
+    byte_view_receivings: BTreeMap<(SemanticDefinitionId, SemanticSiteId), Life>,
     call_type_sources: BTreeMap<(SemanticDefinitionId, SemanticSiteId, u32), Vec<(NodeId, bool)>>,
     call_targets: BTreeMap<(SemanticDefinitionId, SemanticSiteId), SemanticDefinitionId>,
     trait_calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), trait_calls::TraitCall>,

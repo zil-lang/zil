@@ -215,6 +215,104 @@ fn byte_view_operations_keep_the_original_mode_and_exact_manager() {
 }
 
 #[test]
+fn returned_package_byte_view_keeps_the_actual_parameter_and_field() {
+    let source = input(
+        "package Buffers { manages first:ByteBuffer; manages second:ByteBuffer }
+         fn view<life a,life b>(left:&'a Buffers,right:&'b Buffers)->&'a [u8] {
+             return bytes_view(left.first)
+         }
+         fn main()->i32 {
+             let left=Buffers{first:bytes_new(),second:bytes_new()}
+             let right=Buffers{first:bytes_new(),second:bytes_new()}
+             return i32(view(&left,&right).len())
+         }",
+    );
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let syntax = zil_syntax::parse(&source).into_result().unwrap();
+    let expanded = zil_expand::expand_with_map_semantics(
+        &source,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &BTreeMap::new(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap();
+    let module = zil_types::check(&expanded.core, &target, &limits).unwrap();
+    let candidate = zil_analyze::analyze(&module, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+    for (replace_parameter, analyze_message, verify_message) in [
+        (
+            false,
+            "changes its original field path",
+            "actual field index differs",
+        ),
+        (
+            true,
+            "selects another original parent place",
+            "another original parameter",
+        ),
+    ] {
+        let mut changed = module.clone();
+        let function = changed
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "view")
+            .unwrap();
+        let [first, second] = function.parameters.as_slice() else {
+            panic!("expected the two original parameter slots");
+        };
+        let mut instructions = function
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.instructions);
+        if replace_parameter {
+            let row = instructions
+                .find(|row| row.kind == InstructionKind::Load(*first))
+                .unwrap();
+            row.kind = InstructionKind::Load(*second);
+        } else {
+            let row = instructions
+                .find(|row| matches!(row.kind, InstructionKind::AddressField { index: 0, .. }))
+                .unwrap();
+            let InstructionKind::AddressField { index, .. } = &mut row.kind else {
+                unreachable!();
+            };
+            *index = 1;
+        }
+        let diagnostics = zil_analyze::analyze(&changed, &limits).unwrap_err();
+        assert!(
+            diagnostics.iter().any(|d| {
+                d.category == ResultCategory::SafeReject && d.message.contains(analyze_message)
+            }),
+            "{diagnostics:?}"
+        );
+
+        let mut forged = candidate.clone();
+        forged.module_fingerprint = changed.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&changed, &forged, &limits).unwrap();
+        for diagnostics in [
+            zil_verify::verify_module(changed, forged, &target, &limits).unwrap_err(),
+            zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err(),
+        ] {
+            assert!(
+                diagnostics.iter().any(|d| {
+                    d.category == ResultCategory::SafeReject && d.message.contains(verify_message)
+                }),
+                "{diagnostics:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn create_give_and_description_parameter_window_returns_compose() {
     passes(
         "fn fresh()->ByteBuffer contract{result(create);}{return bytes_new();}fn relay(give b:ByteBuffer)->ByteBuffer contract{result(give);}{return give b;}fn fill(b:ByteBuffer)->bool{return bytes_reserve(b,3)&&bytes_push(b,8u8);}fn view(b:ByteBuffer)->&[u8]{return bytes_view(b);}fn consume(give b:ByteBuffer)->i32{return i32(bytes_len(b));}fn main()->i32{let a=fresh();let b=relay(give a);if !fill(b){return 5;}let s=view(b);let value=i32(s[0]);return value+consume(give b);}",

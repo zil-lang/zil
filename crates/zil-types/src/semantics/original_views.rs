@@ -800,6 +800,50 @@ impl Check<'_, '_> {
             }],
         }))
     }
+    /// A resource view carries the loan from the selected manager. Preserve
+    /// the intrinsic's original result and prove each contextual shortening
+    /// against the input place before recording its use at this occurrence.
+    pub(super) fn contextual_resource_view(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        manager: &SemanticOriginalExpr,
+        variables: &BTreeMap<String, Binding>,
+        result: SemanticTypeRecipe,
+        wanted: Option<&SemanticTypeRecipe>,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        let Some(wanted) = wanted else { return Ok(result); };
+        if let (
+            SemanticTypeRecipe::Address { mutable, lifetime: source, inner },
+            SemanticTypeRecipe::Address { mutable: requested, lifetime: target, inner: expected },
+        ) = (&result, wanted) {
+            self.same(inner, expected)?;
+            if mutable != requested {
+                return Err(bad("resource view changes the requested access mode"));
+            }
+            if matches!(target, SemanticOuterLifeRecipe::Class(
+                SemanticLifeRecipe::Implicit { scope: SemanticScopeRef::Ancestor(u32::MAX), .. }
+                | SemanticLifeRecipe::Environment { scope: SemanticScopeRef::Ancestor(u32::MAX), .. }
+            )) {
+                return Ok(result);
+            }
+            if source != target {
+                self.place_borrow_bound(owner, manager, variables, depth + 1)?;
+                self.view_bound(owner, expression, variables, depth + 1)?;
+                let lifetime = self.contextual_borrow_role(
+                    owner, expression, expression, variables, inner, source, target, depth + 1,
+                )?;
+                return Ok(SemanticTypeRecipe::Address {
+                    mutable: *mutable,
+                    lifetime,
+                    inner: Box::new(copy_recipe(inner, self.limits, self.left)?),
+                });
+            }
+        }
+        self.same(&result, wanted)?;
+        Ok(result)
+    }
     fn call_view_bound(
         &mut self, owner: SemanticDefinitionId, expression: &SemanticOriginalExpr,
         variables: &BTreeMap<String, Binding>, depth: usize,
@@ -807,14 +851,6 @@ impl Check<'_, '_> {
         let CoreExprKind::Call { callee, arguments } = &expression.kind else { return Ok(None); };
         let Some(site) = self.site(owner, SemanticOriginalNode::Expression(expression.id))? else { return Ok(None); };
         let site = site.id;
-        let Some(ty) = self.proof.types.get(&(owner, Query::Expression(expression.id))) else { return Ok(None); };
-        let lifetime = match ty {
-            SemanticTypeRecipe::Address { lifetime, .. } | SemanticTypeRecipe::Desc { lifetime, .. } => {
-                crate::dyn_metadata::semantic_operand_snapshot(lifetime, self.limits, self.left, 1)?;
-                lifetime.clone()
-            }
-            _ => return Ok(None),
-        };
         self.pay(self.proof.intrinsics.len().saturating_add(1).ilog2() as usize + 1, depth)?;
         if let Some(IntrinsicCall { kind: IntrinsicKind::BytesBorrow { mutable }, .. }) =
             self.proof.intrinsics.get(&(owner, site))
@@ -829,6 +865,14 @@ impl Check<'_, '_> {
                 kind: ViewBorrowStepKind::BytesBorrow { site, mutable } });
             return Ok(Some(bound));
         }
+        let Some(ty) = self.proof.types.get(&(owner, Query::Expression(expression.id))) else { return Ok(None); };
+        let lifetime = match ty {
+            SemanticTypeRecipe::Address { lifetime, .. } | SemanticTypeRecipe::Desc { lifetime, .. } => {
+                crate::dyn_metadata::semantic_operand_snapshot(lifetime, self.limits, self.left, 1)?;
+                lifetime.clone()
+            }
+            _ => return Ok(None),
+        };
         self.pay(self.proof.callable_calls.len().saturating_add(1).ilog2() as usize + 1, depth)?;
         if let Some(call) = self.proof.callable_calls.get(&(owner, site))
             && matches!(&call.signature.result, SemanticTypeRecipe::Address { lifetime, .. } if is_receiver_upper(lifetime))

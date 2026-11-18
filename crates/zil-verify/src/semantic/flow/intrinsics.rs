@@ -140,6 +140,7 @@ impl CheckedContext {
                     caller,
                     f,
                     instruction,
+                    site.recipe,
                     use_,
                     values,
                     environment,

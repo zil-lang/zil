@@ -534,7 +534,14 @@ impl Check<'_, '_> {
             | IntrinsicKind::StoreCapacity
             | IntrinsicKind::StoreBorrow { .. } => unreachable!(),
         };
-        self.record_intrinsic(owner, site, kind, parameters, &result, wanted, depth + 1)?;
+        let borrowed = matches!(kind, IntrinsicKind::BytesBorrow { .. });
+        self.record_intrinsic(owner, site, kind, parameters, &result,
+            if borrowed { None } else { wanted }, depth + 1)?;
+        if borrowed {
+            return self.contextual_resource_view(
+                owner, expression, &arguments[0], variables, result, wanted, depth,
+            ).map(Some);
+        }
         if temporary_manager.is_some() {
             self.proof.proof_mut()?.intrinsics.get_mut(&(owner, site))
                 .ok_or_else(|| bad("original temporary manager lost its sealed call"))?

@@ -11,6 +11,7 @@ impl CheckedContext {
         caller: &SemanticInstance,
         f: &TypedFunction,
         instruction: &Instruction,
+        site: SemanticSiteId,
         use_: Use,
         values: &[Option<CheckedType>],
         environment: &EvalEnv,
@@ -142,11 +143,64 @@ impl CheckedContext {
             if slots.next().is_some() {
                 return Err(bad("owned-region parent head is ambiguous"));
             }
-            let key = head
+            let mut key = head
                 .classes
                 .get(row.binder as usize)
                 .cloned()
                 .ok_or_else(|| bad("owned-region head class is absent"))?;
+            if let InstructionKind::ByteBufferBorrow { buffer, mutable } = instruction.kind {
+                let recipe = self
+                    .original
+                    .borrow()
+                    .as_ref()
+                    .ok_or_else(|| bad("byte view lacks its original operation proof"))?
+                    .byte_view_receiving(module, caller.definition, site, environment, b)?;
+                if let Some(recipe) = recipe {
+                    // Path and owner were checked above. The actual address
+                    // supplies the upper for this fresh description occurrence.
+                    let selected = self.life(module, &recipe, environment, b)?;
+                    let (_, _, descriptor) = self.site_index.producers.get(f, buffer, b)?;
+                    let InstructionKind::DescribeAddress { address } = descriptor.kind else {
+                        return Err(bad("received byte view has no actual borrowed manager head"));
+                    };
+                    let lender = value_at(values, address)?;
+                    let Type::Address {
+                        mutable: writable,
+                        inner,
+                    } = &lender.ty
+                    else {
+                        return Err(bad("received byte view manager is not an actual resource address"));
+                    };
+                    if (mutable && !*writable)
+                        || !matches!(
+                            inner.as_ref(),
+                            Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer
+                        )
+                    {
+                        return Err(bad("received byte view changes its actual manager family or access mode"));
+                    }
+                    let mode = if *writable {
+                        StoredBorrowMode::ExclusiveAddress
+                    } else {
+                        StoredBorrowMode::SharedAddress
+                    };
+                    b.spend(lender.life.slots.len())?;
+                    let mut heads = lender
+                        .life
+                        .slots
+                        .iter()
+                        .filter(|slot| slot.path.is_empty() && slot.mode == mode);
+                    let head = heads.next().ok_or_else(|| bad("received byte view lacks its exact manager lifetime occurrence"))?;
+                    let class = lender
+                        .classes
+                        .get(head.binder as usize)
+                        .ok_or_else(|| bad("received byte view manager lifetime is absent"))?;
+                    if heads.next().is_some() || !self.outlives(environment, class, &selected, b)? {
+                        return Err(bad("received byte view exceeds its actual manager lifetime upper"));
+                    }
+                    key = selected;
+                }
+            }
             let child = self.closed_pointee(module, inner, b)?;
             return dynamic_witness::semantic_external::construct(
                 self,

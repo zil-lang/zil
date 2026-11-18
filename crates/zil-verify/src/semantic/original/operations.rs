@@ -182,10 +182,42 @@ impl CheckedOriginal {
                     return Err(bad("byte view has another actual resource payload"));
                 }
                 self.record_owned_receiver_view(module, env.current()?, &life, b)?;
+                let mutable = kind == Intrinsic::BytesViewMut;
+                let inner = Box::new(Ty::Slice(Box::new(Ty::Atom(Type::U8))));
+                let receiving = expected.map(|ty| self.resolved(ty, b)).transpose()?;
+                let life = if let Some(Ty::Address {
+                    mutable: requested,
+                    life: target,
+                    inner: expected,
+                }) = receiving
+                    && mutable == requested
+                    && matches!(
+                        target,
+                        Life::Formal(..)
+                            | Life::Implicit(..)
+                            | Life::Bound(..)
+                            | Life::Invocation(..)
+                            | Life::Head(..)
+                    )
+                    && !self.same_life(&life, &target, b)?
+                {
+                    self.unify(&inner, &expected, b)?;
+                    if !self.outer_outlives(&life, &target, &mut BTreeSet::new(), b)? {
+                        return Err(bad(
+                            "original byte view exceeds its actual manager lifetime upper",
+                        ));
+                    }
+                    b.spend(1)?;
+                    self.byte_view_receivings
+                        .insert((env.current()?, site), target.clone());
+                    target
+                } else {
+                    life
+                };
                 Ty::Address {
-                    mutable: kind == Intrinsic::BytesViewMut,
+                    mutable,
                     life,
-                    inner: Box::new(Ty::Slice(Box::new(Ty::Atom(Type::U8)))),
+                    inner,
                 }
             }
             Intrinsic::MutexCreate => {
@@ -618,6 +650,26 @@ impl CheckedOriginal {
             }
         }
     }
+    pub(in crate::semantic) fn byte_view_receiving(
+        &self,
+        module: &TypedModule,
+        owner: SemanticDefinitionId,
+        site: SemanticSiteId,
+        env: &EvalEnv,
+        b: &mut Budget,
+    ) -> Check<Option<SemanticLifeRecipe>> {
+        b.spend(
+            self.byte_view_receivings
+                .len()
+                .checked_ilog2()
+                .map_or(1, |depth| depth as usize + 2),
+        )?;
+        self.byte_view_receivings
+            .get(&(owner, site))
+            .map(|life| self.reify_life(module, life, env, b))
+            .transpose()
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn operation_observe(
         &mut self,
