@@ -161,6 +161,7 @@ pub(super) fn protect_alias_nominals<'a>(
     // lexical visitor as project normalization preserves local shadowing.
     let mut output = module.clone();
     let mut visitor = Visitor {
+        ct_operand: false,
         default_nominal: None,
         const_scope: Names::new(),
         mode: Mode::Normalize(&index),
@@ -222,6 +223,7 @@ pub(super) fn protect_alias_binders<'a>(
     }
     let mut output = module.clone();
     let mut visitor = Visitor {
+        ct_operand: false,
         default_nominal: None,
         const_scope: Names::new(),
         mode: Mode::Binders {
@@ -496,6 +498,7 @@ fn normalize<'a>(
             return Ok(());
         }
         let mut visitor = Visitor {
+            ct_operand: false,
             default_nominal: None,
             const_scope: Names::new(),
             mode: Mode::Normalize(&index),
@@ -856,6 +859,7 @@ fn normalize<'a>(
             }
         }
         let mut visitor = Visitor {
+            ct_operand: false,
             default_nominal: None,
             const_scope: Names::new(),
             mode: Mode::Restore {
@@ -975,6 +979,7 @@ impl crate::runtime_ct::RuntimeCt for NormalizedRuntimeCt<'_> {
                 .map_err(|mut errors| errors.remove(0))?;
             let mut expected = input.clone();
             let mut visitor = Visitor {
+                ct_operand: false,
                 default_nominal: None,
                 const_scope: Names::new(),
                 mode: Mode::Normalize(self.index),
@@ -1019,6 +1024,7 @@ impl crate::runtime_ct::RuntimeCt for NormalizedRuntimeCt<'_> {
             .instantiated(instance, ledger, template, output, remaining)?;
         let mut budget = Budget::new(remaining);
         let mut visitor = Visitor {
+            ct_operand: false,
             default_nominal: None,
             const_scope: Names::new(),
             mode: Mode::Normalize(self.index),
@@ -1042,6 +1048,7 @@ pub(super) fn bind_default_self(
     budget.text(nominal, body.span)?;
     budget.lineage_bytes(nominal.len(), body.span)?;
     let mut visitor = Visitor {
+        ct_operand: false,
         default_nominal: Some(nominal.to_owned()),
         const_scope: Names::new(),
         mode: Mode::DefaultScope,
@@ -1065,6 +1072,7 @@ enum Mode<'a> {
     DefaultScope,
 }
 struct Visitor<'a, 'b, 'l> {
+    ct_operand: bool,
     default_nominal: Option<String>,
     const_scope: Names,
     mode: Mode<'a>,
@@ -1079,6 +1087,13 @@ impl Visitor<'_, '_, '_> {
         }
         Ok(input.clone())
     }
+    fn ct_operand<T>(&mut self, visit: impl FnOnce(&mut Self) -> R<T>) -> R<T> {
+        let previous = std::mem::replace(&mut self.ct_operand, true);
+        let result = visit(self);
+        self.ct_operand = previous;
+        result
+    }
+
     fn symbol<S: AsRef<str>>(
         &mut self,
         path: &[S],
@@ -1133,9 +1148,9 @@ impl Visitor<'_, '_, '_> {
             return Ok(None);
         };
         if external && !symbol.public {
-            // Ordinary function calls retain the established CT/types diagnostic
-            // path. A private template or type cannot enter specialization.
-            if symbol.function && !symbol.generic && !type_position {
+            // CT resolves ordinary function calls in its own module directory
+            // when evaluating this operand. Runtime resolution is complete here.
+            if self.ct_operand && symbol.function && !symbol.generic && !type_position {
                 return Ok(None);
             }
             return Err(error(
@@ -1271,9 +1286,9 @@ impl Visitor<'_, '_, '_> {
                 self.ty(result, types, depth + 1)?;
             }
             TypeKind::MetaEval(e) | TypeKind::MetaSplice(e) => {
-                self.expr(e, types, &Names::new(), depth + 1)?
+                self.ct_operand(|v| v.expr(e, types, &Names::new(), depth + 1))?
             }
-            TypeKind::MetaBlock(b) => self.block(b, types, &Names::new(), depth + 1)?,
+            TypeKind::MetaBlock(b) => self.ct_operand(|v| v.block(b, types, &Names::new(), depth + 1))?,
         }
         Ok(())
     }
@@ -1876,7 +1891,6 @@ impl Visitor<'_, '_, '_> {
             ExprKind::Ascribed { .. } => self.expr_ascribed(e, types, values, depth),
             ExprKind::Group(x)
             | ExprKind::Try(x)
-            | ExprKind::MetaEval(x)
             | ExprKind::Unary { operand: x, .. } => self.expr(x, types, values, depth + 1),
             ExprKind::Tuple(xs) | ExprKind::Array(xs) => {
                 self.expr_list(xs, types, values, depth + 1)
@@ -1897,7 +1911,8 @@ impl Visitor<'_, '_, '_> {
             ExprKind::Record { .. } => self.expr_record(e, types, values, depth),
             ExprKind::Closure { .. } => self.expr_closure(e, types, values, depth),
             ExprKind::If { .. } => self.expr_if(e, types, values, depth),
-            ExprKind::MetaBlock(b) => self.block(b, types, values, depth + 1),
+            ExprKind::MetaEval(x) => self.ct_operand(|v| v.expr(x, types, values, depth + 1)),
+            ExprKind::MetaBlock(b) => self.ct_operand(|v| v.block(b, types, values, depth + 1)),
             _ => Ok(()),
         }
     }
