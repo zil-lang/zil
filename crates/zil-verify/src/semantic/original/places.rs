@@ -53,7 +53,7 @@ impl CheckedOriginal {
         definition: SemanticDefinitionId,
         node: NodeId,
         b: &mut Budget,
-    ) -> Check<(NodeId, bool)> {
+    ) -> Check<(NodeId, bool, bool)> {
         if !self.checked.contains(&definition) {
             return Err(bad("assignment value source has no complete original body proof"));
         }
@@ -61,19 +61,24 @@ impl CheckedOriginal {
             .ok_or_else(|| bad("assignment value owner has no checked original grammar"))?
             .place_syntax(definition, b)?;
         let mut current = node;
+        let mut gives = false;
         loop {
             let expression = syntax.expression(current, b)?;
             b.spend(1)?;
             self.original_type(definition, &SemanticOriginalTypeSource::Expression(current), b)?;
             match expression.operation {
-                index::PlaceOperation::Group(value) | index::PlaceOperation::Ascribed(value) | index::PlaceOperation::Give(value) => {
+                index::PlaceOperation::Group(value) | index::PlaceOperation::Ascribed(value) => {
+                    current = value;
+                }
+                index::PlaceOperation::Give(value) => {
+                    gives = true;
                     current = value;
                 }
                 _ => break,
             }
         }
         b.spend(self.value_places.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
-        Ok((current, self.value_places.contains_key(&(definition, current))))
+        Ok((current, self.value_places.contains_key(&(definition, current)), gives))
     }
     pub(in crate::semantic) fn bound_value_name(&self,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<bool>{
         b.spend(self.value_bindings.len().checked_ilog2().map_or(1,|depth|depth as usize+1))?;

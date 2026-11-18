@@ -14,6 +14,9 @@ mod capture_mirrors;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PatternStart { Value(ValueId), Unpack { local: LocalId, at: (BlockId, usize) } }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PlaceUse { Address, Observe, Give }
+
 // The activation is one exact Store or atomic unpack immediately following
 // its ordered declaration bundle, never another local with an equal class.
 fn pattern_initial_transfer(module: &TypedModule, f: &TypedFunction, local: LocalId, span: Span, b: &mut Budget) -> Check<PatternStart> {
@@ -144,7 +147,8 @@ impl CheckedContext{
         if definition!=caller.definition{return Err(bad("indirect borrow selects another original lexical owner"));}
         let(root,projections)=self.original.borrow().as_ref().ok_or_else(||bad("indirect borrow lacks its complete original body proof"))?.address_place(module,definition,node,b)?;
         let skip=if let Some((ty,path))=prefix{consume_reserved_fields(ty,path,&projections,b)?}else{0};
-        self.original_projection_path(module,caller,f,value,definition,root,&projections[skip..],read_value,b)
+        let use_ = if read_value { PlaceUse::Observe } else { PlaceUse::Address };
+        self.original_projection_path(module,caller,f,value,definition,root,&projections[skip..],use_,b)
     }
     pub(in crate::semantic::flow) fn copy_assignment_target(
         &self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,parent:ValueId,read:&InstructionKind,node:NodeId,b:&mut Budget,
@@ -162,13 +166,14 @@ impl CheckedContext{
                 self.exact_expression_value(module,caller,f,*index,*node,b)?,
             _=>return Err(bad("Copy update changes its original destination projection")),
         }
-        self.original_projection_path(module,caller,f,parent,caller.definition,root,ancestors,true,b)
+        self.original_projection_path(module,caller,f,parent,caller.definition,root,ancestors,PlaceUse::Observe,b)
     }
     #[allow(clippy::too_many_arguments)]
     fn original_projection_path(
         &self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,definition:SemanticDefinitionId,
-        root:AddressRoot,projections:&[AddressProjection],read_value:bool,b:&mut Budget,
+        root:AddressRoot,projections:&[AddressProjection],use_:PlaceUse,b:&mut Budget,
     )->Check<()> {
+        let read_value = use_ != PlaceUse::Address;
         let mut seen=BTreeSet::new();
         let mut fused=None;
         // An implicit scalar capture read can have an empty original field
@@ -206,6 +211,13 @@ impl CheckedContext{
                     },
                     (AddressProjection::Field(name),InstructionKind::ReadPackageField{local,index})if read_value&&ordinal+1==projections.len()=>{
                         let ty=&f.locals.get(local.0 as usize).ok_or_else(||bad("observed Package field has no complete actual parent"))?.ty;let mut field=vec![name.clone()];consume_field(ty,*index,&mut field,b)?;fused=Some(*local);
+                    },
+                    (AddressProjection::Field(name), InstructionKind::TakePackageField { local, index })
+                        if use_ == PlaceUse::Give && ordinal == 0 && projections.len() == 1 =>
+                    {
+                        let ty = local_type(f, *local, Some(instruction.span))?;
+                        consume_field(ty, *index, &mut vec![name.clone()], b)?;
+                        fused = Some(*local);
                     },
                     (AddressProjection::Field(name),InstructionKind::ExtractField{aggregate,index})if read_value=>{
                         let ty=f.values.get(aggregate.0 as usize).ok_or_else(||bad("observed field aggregate is absent"))?;let mut field=vec![name.clone()];consume_field(ty,*index,&mut field,b)?;value=*aggregate;
@@ -263,9 +275,13 @@ impl CheckedContext{
         }
     }
     pub(in crate::semantic::flow) fn assignment_value_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,node:NodeId,b:&mut Budget)->Check<()>{
-        let(operand,place)=self.original.borrow().as_ref().ok_or_else(||bad("assignment RHS lacks its complete original occurrence proof"))?.assignment_value_source(module,caller.definition,node,b)?;
+        let(operand,place,gives)=self.original.borrow().as_ref().ok_or_else(||bad("assignment RHS lacks its complete original occurrence proof"))?.assignment_value_source(module,caller.definition,node,b)?;
         let result=if place{
-            self.original_projection_source(module,caller,f,value,caller.definition,operand,true,b)
+            let (root, projections) = self.original.borrow().as_ref()
+                .ok_or_else(|| bad("assignment place lacks its complete original body proof"))?
+                .address_place(module, caller.definition, operand, b)?;
+            let use_ = if gives { PlaceUse::Give } else { PlaceUse::Observe };
+            self.original_projection_path(module, caller, f, value, caller.definition, root, &projections, use_, b)
         }else{
             self.exact_expression_value(module,caller,f,value,operand,b)
         };
