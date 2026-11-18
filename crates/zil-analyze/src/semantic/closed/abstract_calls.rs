@@ -81,6 +81,75 @@ impl Check<'_, '_> {
         Ok(())
     }
 
+    /// A lending call through a borrowed parameter produces a fresh view.
+    /// Returning it under that parameter's bound keeps the real call loan
+    /// (including its data parents) alive in the memory proof.
+    pub(super) fn forwarded_receiver_return(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        exit: BlockId,
+        returned: ValueId,
+        actual: &Value,
+        expected: &Value,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        let (block, index, operation) = self.defining(function, returned, b)?;
+        let InstructionKind::CallClosureBorrowed { callee, kind, .. } = operation.kind else {
+            return Ok(false);
+        };
+        let Some(Type::Address { inner, .. }) = function.values.get(callee.0 as usize) else {
+            return Ok(false);
+        };
+        let Type::Closure(closure) = inner.as_ref() else { return Ok(false) };
+        b.lookup(b.semantic_receiver_views.len(), WORK)?;
+        if b.semantic_receiver_views.get(&(function.id, returned, *closure)) != Some(&(block, index))
+            || !matches!(expected.ty, Type::Address { mutable: false, .. })
+            || !geometry::same_type(&actual.ty, &expected.ty, b)?
+            || !self.capture_values_equal(&self.pointee(actual, b)?, &self.pointee(expected, b)?, b)?
+        {
+            return Ok(false);
+        }
+        let Some(header) = &function.storage_life else { return Ok(false) };
+        b.spend(header.bindings.len(), WORK)?;
+        let Some(result @ StorageBinder::Invocation(_)) =
+            crate::signature_life::outer(header, StorageBase::Result) else { return Ok(false) };
+        let [slot] = expected.life.slots.as_slice() else { return Ok(false) };
+        if !slot.path.is_empty() || slot.mode != StoredBorrowMode::SharedAddress
+            || expected.classes.get(slot.binder as usize) != Some(&self.header_class(instance, result, b)?)
+        {
+            return Ok(false);
+        }
+
+        for site in self.inventory.sites_at(self.program, instance.id, block, index, SemanticSiteEdge::After, b)? {
+            if !matches!(site.action, SemanticSiteAction::BodyCall { .. }) { continue; }
+            let Some(call) = self.original.abstract_boundary(instance, site.recipe, self.program, self.inventory, b)? else {
+                continue;
+            };
+            if call.place.is_some() || kind != call.kind || !original::receiver_result(&call.signature, kind)
+                || !self.capture_values_equal(actual, &call.result, b)?
+                || !self.anchored_value(instance, function, original::LocalAnchor::Parameter(call.parameter), callee, b, 0)?
+            {
+                continue;
+            }
+            b.spend(header.bindings.len(), WORK)?;
+            if crate::signature_life::outer(header, StorageBase::Parameter(call.parameter)) != Some(result) {
+                return Ok(false);
+            }
+            // The same borrowed receiver and argument roles have already been
+            // established by abstract_operation for this exact invocation.
+            let directory = self.inventory.original_index(instance.definition, b)?;
+            for expression in directory.active_returns(b)?.into_iter().flatten() {
+                if self.original_subject_value(instance, function, expression.id, b)? == Some(returned) {
+                    b.lookup(b.semantic_receiving_returns.len(), WORK)?;
+                    b.semantic_receiving_returns.insert((function.id, exit, returned, result));
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
+
     pub(super) fn abstract_operation(
         &self,
         instance: &SemanticInstance,

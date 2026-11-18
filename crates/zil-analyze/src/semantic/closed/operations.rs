@@ -1951,7 +1951,8 @@ impl Check<'_, '_> {
                         if !self.capture_values_equal(&actual, &expected, b)?
                             && !self.outer_role(instance, function, &actual, &expected, b, 0)?
                             && !self.receiver_return_role(instance, function, block.id, value, &actual, &expected, b)?
-                            && !self.receiving_field_return(instance, function, block.id, value, &actual, &expected, b)? {
+                            && !self.receiving_field_return(instance, function, block.id, value, &actual, &expected, b)?
+                            && !self.forwarded_receiver_return(instance, function, block.id, value, &actual, &expected, b)? {
                             return Err(fail(
                                 "actual Return changes its complete original result class/source role",
                             ));
