@@ -239,20 +239,25 @@ impl Builder<'_, '_, '_, '_> {
         self.ty(result, path, depth + 1, false)
     }
 
-    pub(super) fn self_scope(&mut self, span: Span) -> R<SemanticScopeRef> {
+    fn self_type(&mut self, span: Span, depth: usize) -> R<SemanticTypeRecipe> {
         let mut row = Some(self.owner);
         let mut distance = self.lexical_offset;
         while let Some(index) = row {
             self.budget.node(span, 0)?;
             let source = &self.inventory.declarations[index];
-            if matches!(
-                source.item.kind,
-                s::ItemKind::Aggregate(_)
-                    | s::ItemKind::Enum(_)
-                    | s::ItemKind::Trait(_)
-                    | s::ItemKind::Impl(_)
-            ) {
-                return Ok(SemanticScopeRef::Ancestor(distance));
+            let scope = SemanticScopeRef::Ancestor(distance);
+            match &source.item.kind {
+                s::ItemKind::Aggregate(_) | s::ItemKind::Enum(_) => {
+                    let arguments = self.identity_arguments(index, distance, span, depth + 1)?;
+                    return Ok(SemanticTypeRecipe::Nominal {
+                        definition: self.id(index),
+                        arguments,
+                    });
+                }
+                s::ItemKind::Trait(_) | s::ItemKind::Impl(_) => {
+                    return Ok(SemanticTypeRecipe::SelfType { scope });
+                }
+                _ => {}
             }
             row = source.parent;
             distance = distance
@@ -261,6 +266,51 @@ impl Builder<'_, '_, '_, '_> {
         }
         Err(error(span, "Self has no original nominal/trait/impl owner"))
     }
+    fn identity_arguments(
+        &mut self,
+        declaration: usize,
+        distance: u32,
+        span: Span,
+        depth: usize,
+    ) -> R<Vec<SemanticActualRecipe>> {
+        let mut arguments = Vec::new();
+        for (ordinal, formal) in self.inventory.declarations[declaration]
+            .parameters()
+            .iter()
+            .enumerate()
+        {
+            let ordinal = u32::try_from(ordinal)
+                .map_err(|_| error(span, "original formal ordinal overflow"))?;
+            let reference = SemanticFormalRef {
+                scope: SemanticScopeRef::Ancestor(distance),
+                ordinal,
+            };
+            let actual = match &formal.kind {
+                s::GenericParamKind::Lifetime => {
+                    SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(reference))
+                }
+                s::GenericParamKind::Type(_) => {
+                    SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(reference))
+                }
+                s::GenericParamKind::Const(carrier) => {
+                    // Resolve the carrier at its declaration even when a member shadows a formal.
+                    let (owner, offset) = (self.owner, self.lexical_offset);
+                    self.owner = declaration;
+                    self.lexical_offset = distance;
+                    let carrier = self.ty(carrier, &mut vec![0, ordinal], depth + 1, false);
+                    self.owner = owner;
+                    self.lexical_offset = offset;
+                    SemanticActualRecipe::Const {
+                        carrier: carrier?,
+                        value: SemanticConstRecipe::Formal(reference),
+                    }
+                }
+            };
+            self.push(&mut arguments, actual, span)?;
+        }
+        Ok(arguments)
+    }
+
     // Only a declaration-known Resource selects the default description head.
     // Abstract trait Self and a generic impl target keep their symbolic role.
     fn self_is_resource(&mut self, span: Span, depth: usize) -> R<bool> {
@@ -589,43 +639,7 @@ impl Builder<'_, '_, '_, '_> {
                 })?;
                 prepay_recipe(hidden, self.budget, ty.span, depth + 1)?;
                 let hidden = hidden.clone();
-                let mut arguments = Vec::new();
-                for (ordinal, formal) in self.inventory.declarations[self.owner]
-                    .parameters()
-                    .iter()
-                    .enumerate()
-                {
-                    let reference = SemanticFormalRef {
-                        scope: SemanticScopeRef::Ancestor(0),
-                        ordinal: ordinal as u32,
-                    };
-                    let actual = match &formal.kind {
-                        s::GenericParamKind::Lifetime => {
-                            SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(reference))
-                        }
-                        s::GenericParamKind::Type(_) => {
-                            SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(reference))
-                        }
-                        s::GenericParamKind::Const(carrier) => {
-                            // The opaque application is the definition's
-                            // identity substitution, including unused mixed
-                            // formals. Interpret its carrier at the original
-                            // declaration occurrence, never in a caller's
-                            // scope or using an inferred integer default.
-                            let carrier = self.ty(
-                                carrier,
-                                &mut vec![0, reference.ordinal],
-                                depth + 1,
-                                false,
-                            )?;
-                            SemanticActualRecipe::Const {
-                                carrier,
-                                value: SemanticConstRecipe::Formal(reference),
-                            }
-                        }
-                    };
-                    self.push(&mut arguments, actual, ty.span)?;
-                }
+                let arguments = self.identity_arguments(self.owner, 0, ty.span, depth + 1)?;
                 Ok(SemanticTypeRecipe::Opaque {
                     definition: self.id(self.owner),
                     arguments,
@@ -652,9 +666,7 @@ impl Builder<'_, '_, '_, '_> {
                             return Ok(SemanticTypeRecipe::Formal(formal));
                         }
                         if name == "Self" {
-                            let value = SemanticTypeRecipe::SelfType {
-                                scope: self.self_scope(ty.span)?,
-                            };
+                            let value = self.self_type(ty.span, depth + 1)?;
                             return if !payload && self.self_is_resource(ty.span, depth + 1)? {
                                 self.budget.lineage_bytes(
                                     std::mem::size_of::<SemanticTypeRecipe>(),
