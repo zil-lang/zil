@@ -776,6 +776,9 @@ impl Sites {
         };
         let access_effect = if let Some((buffer, write)) = byte_access {
             let permission = actual_permission(module, f, buffer, i.span, values, b)?;
+            if permission.sources.is_empty() {
+                return Err(err("byte operation has no independently grounded head source"));
+            }
             access(&permission, write, live, loans, requirements, b)?;
             Some((permission, write))
         } else {
