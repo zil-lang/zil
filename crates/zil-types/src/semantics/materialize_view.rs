@@ -14,6 +14,7 @@ struct SourceDirectory<'a> {
     context: std::rc::Rc<super::super::original_context::OriginalContext>,
     definitions: BTreeMap<SemanticDefinitionId, usize>,
     positions: BTreeMap<SemanticInstanceId, usize>,
+    last_instance: std::cell::Cell<Option<(SemanticInstanceId, Option<usize>)>>,
     functions: BTreeMap<FunctionId, usize>,
     nominals: BTreeMap<LifeDeclarationId, Vec<usize>>,
     parents: std::cell::RefCell<BTreeMap<ParentKey, ParentSolution>>,
@@ -129,6 +130,7 @@ impl<'a> ActualDirectory<'a> {
             context: context.clone(),
             definitions,
             positions,
+            last_instance: Default::default(),
             functions,
             nominals,
             parents: Default::default(),
@@ -157,30 +159,36 @@ impl<'a> ActualDirectory<'a> {
         if !std::ptr::eq(source.program, program) {
             return Ok(None);
         }
-        Self::source_fee(
-            left,
-            source.positions.len().saturating_add(1).ilog2() as usize + 1,
-        )?;
-        Ok(source
-            .positions
-            .get(&id)
-            .and_then(|offset| program.instances.get(*offset)))
+        Self::source_fee(left, 1)?;
+        let position = match source.last_instance.get() {
+            Some((previous, position)) if previous == id => position,
+            _ => {
+                Self::source_fee(
+                    left,
+                    source.positions.len().saturating_add(1).ilog2() as usize + 2,
+                )?;
+                let position = source.positions.get(&id).copied();
+                source.last_instance.set(Some((id, position)));
+                position
+            }
+        };
+        Ok(position.map(|offset| &program.instances[offset]))
     }
-    pub(super) fn indexed_definition<'p>(
+    pub(super) fn find_source_definition<'p>(
         &self,
         program: &'p SemanticModule,
         id: SemanticDefinitionId,
         left: &mut usize,
-    ) -> R<Option<Option<&'p SemanticDefinition>>> {
-        let Some(source) = self.source.as_ref().filter(|source| std::ptr::eq(source.program, program))
-        else {
-            return Ok(None);
-        };
-        Self::source_fee(
-            left,
-            source.definitions.len().saturating_add(1).ilog2() as usize + 1,
-        )?;
-        Ok(Some(source.definitions.get(&id).map(|offset| &program.definitions[*offset])))
+    ) -> R<Option<&'p SemanticDefinition>> {
+        if let Some(source) = self.source.as_ref().filter(|source| std::ptr::eq(source.program, program)) {
+            Self::source_fee(
+                left,
+                source.definitions.len().saturating_add(1).ilog2() as usize + 1,
+            )?;
+            return Ok(source.definitions.get(&id).map(|offset| &program.definitions[*offset]));
+        }
+        Self::source_fee(left, program.definitions.len())?;
+        Ok(program.definitions.iter().find(|row| row.id == id))
     }
     // Candidate offsets only: the consumer must still compare complete mixed
     // actuals, physical hint and class domain, and reject all ambiguity.

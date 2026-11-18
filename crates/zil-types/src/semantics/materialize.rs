@@ -307,21 +307,11 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
         }
         Err(bad("materialized operand lost its original declaration"))
     }
-    fn input_definition(
-        &mut self,
-        id: SemanticDefinitionId,
-    ) -> R<Option<&'a SemanticDefinition>> {
-        if let Some(indexed) = self.module.indexed_definition(self.input, id, self.left)? {
-            return Ok(indexed);
-        }
-        self.fee(self.input.definitions.len())?;
-        Ok(self.input.definitions.iter().find(|row| row.id == id))
-    }
     fn actual_source_definition(
         &mut self,
         id: SemanticDefinitionId,
     ) -> R<Option<&'a SemanticDefinition>> {
-        if let Some(row) = self.input_definition(id)? {
+        if let Some(row) = self.module.find_source_definition(self.input, id, self.left)? {
             return Ok(Some(row));
         }
         if let Some(source) = self.ledger.frozen.as_deref() {
@@ -609,7 +599,11 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
     ) -> R<std::borrow::Cow<'a, SemanticTypeRecipe>> {
         let owner = self.ancestor(scope, selector, depth + 1)?;
         let current = self.instance(scope)?.definition;
-        let owner = self.instance(owner)?.definition;
+        let owner = if owner == scope {
+            current
+        } else {
+            self.instance(owner)?.definition
+        };
         let proof = self.ledger.original.borrow();
         if let Some(proof) = proof
             .as_ref()
@@ -693,39 +687,16 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
     }
     fn inferred_recipe(
         &mut self,
-        scope: SemanticInstanceId,
+        proof: &'a super::original::Proof,
+        owner: SemanticDefinitionId,
         call: SemanticSiteId,
         formal: u32,
-        holder: Option<SemanticInstanceId>,
+        holder: Option<(SemanticDefinitionId, Option<SemanticDefinitionId>)>,
     ) -> R<std::borrow::Cow<'a, SemanticActualRecipe>> {
-        let owner = self.instance(scope)?.definition;
-        let holder = holder
-            .map(|id| self.instance(id).map(|row| row.definition))
-            .transpose()?;
-        let ledger = self.ledger;
-        let proof = ledger.original.borrow();
-        self.fee(proof.as_ref().map_or(1, |proof| {
-            proof.complete.len().saturating_add(1).ilog2() as usize + 1
-        }))?;
-        let proof = if let Some(proof) = proof
-            .as_ref()
-            .filter(|proof| proof.complete.contains(&owner))
-        {
-            proof
-        } else {
-            &self
-                .ledger
-                .frozen
-                .as_deref()
-                .ok_or_else(|| bad("original call inference was not completed"))?
-                .original
-        };
-        let Some(holder) = holder else {
+        let Some((holder, target)) = holder else {
             return proof.call_actual_view(owner, call, formal, self.limits, self.left);
         };
-        let target = proof
-            .inferred_call_target(owner, call, self.limits, self.left)?
-            .ok_or_else(|| bad("inferred holder has no original resolved call target"))?;
+        let target = target.ok_or_else(|| bad("inferred holder has no original resolved call target"))?;
         // A selected implementation method has a distinct declaration from
         // its trait member. Their own mixed frames correspond only through
         // the independently checked complete provider theorem; neither is the
@@ -775,12 +746,30 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
         if let Some(actual) = self.inferred_parent_actual(scope, call, formal, holder, depth + 1)? {
             return Ok(actual);
         }
-        if let Some(actual) =
-            self.multiple_inferred_actual(scope, call, formal, holder, depth + 1)?
+        self.node(depth + 1)?;
+        let owner = self.instance(scope)?.definition;
+        let holder_definition = holder
+            .map(|id| self.instance(id).map(|row| row.definition))
+            .transpose()?;
+        let ledger = self.ledger;
+        let proof = ledger.original.borrow();
+        self.fee(proof.as_ref().map_or(1, |proof| {
+            proof.complete.len().saturating_add(1).ilog2() as usize + 1
+        }))?;
+        let proof = proof.as_ref()
+            .filter(|proof| proof.complete.contains(&owner))
+            .or_else(|| ledger.frozen.as_deref().map(|source| &source.original))
+            .ok_or_else(|| bad("inferred opaque origins lack their complete original proof"))?;
+        let holder_request = holder_definition
+            .map(|id| proof.inferred_call_target(owner, call, self.limits, self.left)
+                .map(|target| (id, target)))
+            .transpose()?;
+        if holder_request.is_none_or(|(id, target)| target == Some(id))
+            && let Some(actual) = self.multiple_inferred_actual(proof, scope, owner, call, formal, depth + 1)?
         {
             return Ok(actual);
         }
-        let recipe = self.inferred_recipe(scope, call, formal, holder)?;
+        let recipe = self.inferred_recipe(proof, owner, call, formal, holder_request)?;
         self.call_recipe_actual(scope, call, formal, holder, &recipe, depth + 1)
     }
 

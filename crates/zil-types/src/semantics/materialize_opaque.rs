@@ -777,48 +777,27 @@ impl Eval<'_, '_, '_> {
 
     pub(super) fn multiple_inferred_actual(
         &mut self,
+        proof: &super::super::original::Proof,
         caller: SemanticInstanceId,
+        owner: SemanticDefinitionId,
         call: SemanticSiteId,
         formal: u32,
-        holder: Option<SemanticInstanceId>,
         depth: usize,
     ) -> R<Option<SemanticActual>> {
-        self.node(depth)?;
-        let owner = self.instance(caller)?.definition;
-        let holder = holder
-            .map(|id| self.instance(id).map(|row| row.definition))
-            .transpose()?;
-        let boundaries = {
-            let ledger = self.ledger;
-            let proof = ledger.original.borrow();
-            self.fee(proof.as_ref().map_or(1, |proof| {
-                proof.complete.len().saturating_add(1).ilog2() as usize + 1
-            }))?;
-            let proof = proof
-                .as_ref()
-                .filter(|proof| proof.complete.contains(&owner))
-                .or_else(|| self.ledger.frozen.as_deref().map(|source| &source.original))
-                .ok_or_else(|| bad("inferred opaque origins lack their complete original proof"))?;
-            if let Some(holder) = holder {
-                if proof.inferred_call_target(owner, call, self.limits, self.left)? != Some(holder) {
-                    // Parent Scope actuals have a separate, checked receiver solution.
-                    return Ok(None);
+        let input = self.input;
+        let directory = self.module;
+        let frozen = self.ledger.frozen.as_deref();
+        let boundaries = proof.call_actual_boundaries(
+            owner, call, formal, self.limits, self.left,
+            |left| {
+                if directory.find_source_definition(input, owner, left)?.is_some() {
+                    return Ok(input);
                 }
-            }
-            let program = if self.input_definition(owner)?.is_some() {
-                self.input
-            } else {
-                &self
-                    .ledger
-                    .frozen
-                    .as_deref()
-                    .ok_or_else(|| {
-                        bad("inferred opaque origins lost their original definition forest")
-                    })?
-                    .semantic
-            };
-            proof.call_actual_boundaries(program, owner, call, formal, self.limits, self.left)?
-        };
+                frozen.map(|source| &source.semantic).ok_or_else(|| {
+                    bad("inferred opaque origins lost their original definition forest")
+                })
+            },
+        )?;
         let Some(boundaries) = boundaries else {
             return Ok(None);
         };

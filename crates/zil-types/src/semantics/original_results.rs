@@ -793,14 +793,14 @@ impl Proof {
         Ok(Some(boundaries))
     }
 
-    pub(in crate::semantics) fn call_actual_boundaries(
+    pub(in crate::semantics) fn call_actual_boundaries<'a>(
         &self,
-        program: &SemanticModule,
         caller: SemanticDefinitionId,
         call: SemanticSiteId,
         formal: u32,
         limits: &Limits,
         left: &mut usize,
+        program: impl FnOnce(&mut usize) -> R<&'a SemanticModule>,
     ) -> R<Option<Vec<CalleeResultBoundary>>> {
         let Some(callee) = self.call_callees.get(&(caller, call)) else {
             return Ok(None);
@@ -811,7 +811,7 @@ impl Proof {
         if origins.len() < 2 {
             return Ok(None);
         }
-        common_closed_sources(program, self, caller, origins, limits, left)?;
+        common_closed_sources(program(left)?, self, caller, origins, limits, left)?;
         let mut boundaries = Vec::new();
         for (node, _, _) in origins {
             let boundary = self

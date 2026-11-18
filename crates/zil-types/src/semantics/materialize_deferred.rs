@@ -197,6 +197,12 @@ impl Eval<'_, '_, '_> {
         depth: usize,
     ) -> R<()> {
         self.node(depth)?;
+        // The formation pass can add only a complete nominal physically
+        // present at this use. Scalar source equations are interpreted later
+        // by full materialization and checked against the reaching SSA.
+        if hint.is_b0_scalar() {
+            return Ok(());
+        }
         match (recipe, hint) {
             (
                 SemanticTypeRecipe::OriginalType {
@@ -401,6 +407,9 @@ pub(crate) fn populate(
                     eval.limits,
                     eval.left,
                 )?;
+                if hint.ty.is_b0_scalar() {
+                    continue;
+                }
                 let owner = eval.instance(site.instance)?.definition;
                 let original = eval.definition(owner)?;
                 let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body
@@ -481,6 +490,9 @@ pub(crate) fn populate(
                 ),
                 _ => continue,
             };
+            if hint.ty.is_b0_scalar() {
+                continue;
+            }
             if let SemanticTypeValue::Core { scope, source } = value {
                 match source {
                     SemanticCoreTypeSource::OriginalRecipe(recipe)
