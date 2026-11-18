@@ -85,6 +85,27 @@ impl CheckedContext {
             classes.push(key.clone());origins.push(origin.clone());
         }
         let mut child=self.checked_value(module,ty,&life,classes,b)?;
+        if matches!(ty,Type::Closure(_)) && physical.is_some() {
+            for (index,origin) in origins.iter_mut().enumerate(){
+                let IntrinsicOrigin::Nominal{source,class}=origin else{continue;};
+                b.spend(source.domain.retained.len().saturating_mul(path.len().saturating_add(1)))?;
+                let mut physical_rows=source.domain.retained.iter().filter(|row|
+                    row.path==path&&row.class as usize==index&&row.binder==*class);
+                if physical_rows.next().is_none()||physical_rows.next().is_some(){
+                    return Err(bad("nominal callback projection changes its exact physical child class occurrence")
+                        .with_note(format!("field path {path:?}, callback class {index}, nominal class {class}")));
+                }
+                let projected=source.class_sources.get(*class as usize).ok_or_else(||bad("physical callback projection lacks its nominal source class"))?;
+                let sealed=child.origins.get(index).ok_or_else(||bad("physical callback lacks its complete sealed child domain"))?;
+                charge_intrinsic_origin(projected,b)?;
+                charge_intrinsic_origin(sealed,b)?;
+                if projected!=sealed{
+                    return Err(bad("physical callback projection substitutes another original child origin")
+                        .with_note(format!("field path {path:?}, callback class {index}, nominal class {class}")));
+                }
+                *origin=projected.clone();
+            }
+        }
         child.origins=origins;child.statics=statics;Ok(child)
     }
 }

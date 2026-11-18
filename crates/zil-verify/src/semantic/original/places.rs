@@ -189,9 +189,33 @@ impl CheckedOriginal {
     }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn argument(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,expected:&Ty,mode:PassingMode,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
+        self.argument_at_call(module,context,expression,expected,mode,None,env,bindings,active,b)
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn argument_at_call(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,expected:&Ty,mode:PassingMode,call:Option<(NodeId,usize)>,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
         if let Ty::Desc{life:expected_life,inner:payload}=self.resolved(expected,b)?{if matches!(mode,PassingMode::Infer|PassingMode::Describe){
-            let(actual,place)=self.place(module,context,expression,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&actual,env,false,active,b)?;}
-            let effective=match self.resolved(&actual,b)?{Ty::Managed(inner)=>{self.unify(&inner,&payload,b)?;let life=Life::Local(env.current()?,expression.id);self.relate_outer(&life,&expected_life,b)?;Ty::Desc{life,inner}},Ty::Desc{life,inner}=>{self.unify(&inner,&payload,b)?;self.relate_outer(&life,&expected_life,b)?;Ty::Desc{life,inner}},_=>return Err(bad("original description argument has no actual owner or description"))};
+            let(actual,place)=self.place(module,context,expression,env,bindings,active,b)?;
+            if let Some(place)=&place{self.read_original(module,context,place,&actual,env,false,active,b)?;}
+            let effective=match self.resolved(&actual,b)?{
+                Ty::Managed(inner)=>{
+                    self.unify(&inner,&payload,b)?;
+                    let owner=env.current()?;
+                    if let Some((call,ordinal))=call && place.is_none()
+                        && self.temporary_description_producer(expression,b)?.is_some()
+                    {
+                        let life=self.declare_temporary_description(owner,call,ordinal,b)?;
+                        self.relate_outer(&life,&expected_life,b)?;
+                        // Keep the initializer's original owning type. Only
+                        // this argument occurrence has the call-only description.
+                        return Ok(Ty::Desc{life,inner});
+                    }
+                    let life=Life::Local(owner,expression.id);
+                    self.relate_outer(&life,&expected_life,b)?;
+                    Ty::Desc{life,inner}
+                },
+                Ty::Desc{life,inner}=>{self.unify(&inner,&payload,b)?;self.relate_outer(&life,&expected_life,b)?;Ty::Desc{life,inner}},
+                _=>return Err(bad("original description argument has no actual owner or description"))
+            };
             // Only this actual argument occurrence is a description. The
             // lexical binding and parameter declaration retain their owning
             // category, source identity and complete intrinsic domain.

@@ -37,7 +37,7 @@ tools/roam-rs/target/debug/roam callable-combinations --commit="$(git rev-parse 
 - worker 发 `before`；host 逐条写 journal 并 `sync_all` 后才排入 ACK；有界独立 writer 写 stdin，主监督循环继续计时，超时先终止并回收 worker，再收口 writer/stdout/stderr 三个线程；真实动作结束才发 `after`。模型检查失败仍保留已完成动作计数。错误 ACK 阻止该动作执行。
 - 六态为 `pass / fail / invalid / error / unsupported / incomplete`。未知动作、过期契约、非空 schedule、配额耗尽、缺失结果、重复终态、错帧、超时都不能成为 pass。非空 schedule 无论是否有同名能力声明都拒绝。
 - 每次冷检查禁用磁盘缓存并使用独立取消令牌；Verify 到达时必须实际执行，不可从缓存复用。每步结束检查活动查询归零。
-- case 1 MiB、单帧和总输出 4 MiB、默认 256 步、worker 10 秒、host 10 秒；case/manifest 文件先按限额加一字节有界读取，再解析，不能先整文件分配后拒绝。API 构造的 case 同样检查编码大小；JSON 库还保留自身深度界限。可执行摘要使用独立 128 MiB 文件上限，该限额与 JSON 配额分别计算。负零、非有限数和非安全整数 seed 拒绝。Rust JSON 字符串必须是 Unicode 标量序列，不能表示 JavaScript 孤立 UTF-16 surrogate；超出该互操作子集安全拒绝。
+- case 1 MiB、单帧和总输出 4 MiB、默认 256 步、worker 10 秒、host 10 秒；case/manifest 文件先按限额加一字节有界读取，再解析，不能先整文件分配后拒绝。API 构造的 case 同样检查编码大小；JSON 库还保留自身深度界限。可执行摘要使用独立 128 MiB 文件上限，启用 LLVM API 时为 192 MiB，该限额与 JSON 配额分别计算。负零、非有限数和非安全整数 seed 拒绝。Rust JSON 字符串必须是 Unicode 标量序列，不能表示 JavaScript 孤立 UTF-16 surrogate；超出该互操作子集安全拒绝。
 - 显式默认 `initial` 以对象结构和值比较，JSON 属性排列不是状态语义。原 TS 会话适配器的 `JSON.stringify(initial)` 比较对键序敏感；本工具不继承该偶然限制，不宣称任意 JS 对象级行为逐字节等价。
 - 正常退出尝试清理会话临时目录。清理失败会把 pass 改为 error；原 property failure 保留。强制终止的 worker 可能留下带本进程标识的临时目录，主机不能把这种路径当成已清理成功。
 - `session` worker 不启动 clang；`scalar-native` worker 会启动 clang、链接器及生成程序。Linux host 只为自己启动的 worker 建立独立进程组，native 正常结束、错误、超时与协议失败均终止残留组成员并回收直接子进程；不向 case 或队列提供的 PID 发信号。这是受信开发工具的进程生命周期管理，不是任意外部程序的安全沙箱。

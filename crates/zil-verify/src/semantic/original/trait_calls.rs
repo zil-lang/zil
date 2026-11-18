@@ -52,7 +52,7 @@ impl CheckedOriginal {
         self.relate_value(&actual_receiver,&prototype.parameters[0],b)?;
         self.require_input_address_wf(module,context,&actual_receiver,&prototype.parameters[0],active,b)?;
         b.spend(prototype.parameters.len())?;let mut region_parameters=Vec::with_capacity(prototype.parameters.len());region_parameters.push(self.resolved(&prototype.parameters[0],b)?);
-        for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters[1..]).zip(&prototype.modes[1..]){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument(module,context,argument,&parameter,*mode,env,bindings,active,b)?;self.relate_value(&actual,&parameter,b)?;region_parameters.push(parameter);}
+        for(ordinal,((argument,parameter),mode))in arguments.iter().zip(&prototype.parameters[1..]).zip(&prototype.modes[1..]).enumerate(){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument_at_call(module,context,argument,&parameter,*mode,Some((call.id,ordinal+1)),env,bindings,active,b)?;self.relate_value(&actual,&parameter,b)?;region_parameters.push(parameter);}
         self.finish_call_heads(&outer_heads,call.id,b)?;
         self.remember_call_region_parameters(&region_parameters,call.id,env,b)?;
         for requirement in &original.requirements{self.obligation(module,context,requirement,&selected,env,active,b)?;}

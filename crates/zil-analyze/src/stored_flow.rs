@@ -7454,26 +7454,20 @@ fn windows(
                     }
                     InstructionKind::ReadCapture { index }
                         if capture_type(module, f, *index)
-                            .is_some_and(|ty| matches!(ty, Type::Address { .. })) =>
+                            .is_some_and(super::stored_callables::exclusive_capture) =>
                     {
-                        let cell = Permission {
-                            targets: BTreeSet::from([capture_cell(module, f, *index, b)?]),
-                            loans: Loans::new(),
-                        };
-                        access.check(&cell, false, apart, b)?;
-                        if capture_type(module, f, *index)
-                            .is_some_and(super::stored_callables::exclusive_capture)
-                        {
-                            // The raw operation also reborrows the current
-                            // pointee of an exclusive captured address.
-                            let actual = state.captures.get(index)
-                                .ok_or_else(|| failure("capture reborrow has no actual capability"))?;
-                            let mutable = matches!(
-                                i.result.and_then(|v| f.values.get(v.0 as usize)),
-                                Some(Type::Address { mutable: true, .. })
-                            );
-                            access.check(&actual.pointer, mutable, apart, b)?;
-                        }
+                        // Address capture cells cannot themselves be borrowed
+                        // by the admitted producers. This read reborrows the
+                        // exclusive pointee, whose live loans still matter.
+                        let actual = state
+                            .captures
+                            .get(index)
+                            .ok_or_else(|| failure("capture reborrow has no actual capability"))?;
+                        let mutable = matches!(
+                            i.result.and_then(|v| f.values.get(v.0 as usize)),
+                            Some(Type::Address { mutable: true, .. })
+                        );
+                        access.check(&actual.pointer, mutable, apart, b)?;
                     }
                     InstructionKind::TakeCapture { index }
                     | InstructionKind::WriteCapture { index, .. }
@@ -9478,7 +9472,9 @@ pub(super) fn inline_capture_loan(
         .captures
         .get(index as usize)
         .ok_or_else(|| failure("capture borrow names an absent environment field"))?;
-    if !super::stored_callables::scalar(ty) && !retained::closed_copy(ty, b)? {
+    if matches!(ty, Type::Address { .. })
+        || !super::stored_callables::scalar(ty) && !retained::closed_copy(ty, b)?
+    {
         return Err(failure("capture borrow needs a closed inline data field"));
     }
     address_result(f, instruction, mutable, ty, b)

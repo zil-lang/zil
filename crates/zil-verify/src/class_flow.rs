@@ -2035,7 +2035,7 @@ fn check_with(
                         }
                     }
                     InstructionKind::BorrowPackageField { .. }
-                        if super::stored_flow::qualified_package_borrow(f, i, b)? =>
+                        if super::stored_flow::managed_package_field_borrow(f, i, b)? =>
                     {
                         if let Some(out) = out {
                             e.ground_address(out.outer, b)?;

@@ -22,20 +22,21 @@ impl CheckedOriginal {
         // A method's implicit receiver has its own independently checked
         // ReceiverRole and exact selected member. It is not an AST value arg.
         if receiver{recipes.push(None);}
-        for argument in arguments{
+        for (ordinal,argument) in arguments.iter().enumerate(){
             let ty=self.original_type(definition,&SemanticOriginalTypeSource::Expression(argument.id),b)?;
             let mut expression=argument;
             while let CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=&expression.kind{b.spend(1)?;expression=inner;}
             let ty=self.resolved(&ty,b)?;
-            let source=if matches!(ty,Ty::Address{..}|Ty::Desc{..}){
+            let source=if self.temporary_description_region(definition,call.id,ordinal+usize::from(receiver),b)?.is_some(){
+                let node=self.temporary_description_producer(argument,b)?.ok_or_else(||bad("temporary description argument has no exact original owning producer"))?;
+                if !matches!(ty,Ty::Managed(_)){
+                    return Err(bad("temporary description argument no longer carries its exact original owner"));
+                }
+                Some(intrinsics::BufferSource::TemporaryOwner{definition,node})
+            }else if matches!(ty,Ty::Address{..}|Ty::Desc{..}){
                 if let Some(source)=self.original_address_source(module,definition,&SemanticOriginalTypeSource::Expression(argument.id),b)?{Some(source)}
                 else if self.value_places.contains_key(&(definition,expression.id)){Some(intrinsics::BufferSource::Place{definition,node:expression.id})}
-                else if matches!(ty,Ty::Desc{..})
-                    && matches!(expression.kind,CoreExprKind::Call{..}|CoreExprKind::Record{..}|CoreExprKind::RecordConstructor{..})
-                    && self.place_types.get(&(definition,argument.id)).is_some_and(|ty|matches!(ty,Ty::Managed(_)))
-                {
-                    Some(intrinsics::BufferSource::TemporaryOwner{definition,node:expression.id})
-                }else{None}
+                else{None}
             }else if matches!(ty,Ty::Code{kind:SemanticCodeKind::FunctionPointer,..})
                 && self.value_places.contains_key(&(definition,expression.id))
             {
@@ -44,6 +45,35 @@ impl CheckedOriginal {
             recipes.push(Some((expression.id,SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Expression(argument.id)},source)));
         }
         Ok(recipes)
+    }
+    pub(super) fn temporary_description_producer(&self,mut expression:&SemanticOriginalExpr,b:&mut Budget)->Check<Option<NodeId>>{
+        while let CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=&expression.kind{
+            b.spend(1)?;
+            expression=inner;
+        }
+        Ok(matches!(expression.kind,CoreExprKind::Call{..}|CoreExprKind::Record{..}|CoreExprKind::RecordConstructor{..}).then_some(expression.id))
+    }
+    pub(super) fn declare_temporary_description(&mut self,owner:SemanticDefinitionId,call:NodeId,ordinal:usize,b:&mut Budget)->Check<Life>{
+        self.original_call_site(owner,call,b)?;
+        if let Some(existing)=self.temporary_description_region(owner,call,ordinal,b)?{return Ok(existing);}
+        let ordinal=u32::try_from(ordinal).map_err(|_|limit("temporary description argument exceeds its full ordinal domain"))?;
+        let Life::Infer(id)=self.fresh_life(b)? else{unreachable!()};
+        b.spend(4)?;
+        self.call_regions.insert(id,(owner,call,vec![5,ordinal],vec![]));
+        Ok(Life::CallRegion(id))
+    }
+    fn temporary_description_region(&self,owner:SemanticDefinitionId,call:NodeId,ordinal:usize,b:&mut Budget)->Check<Option<Life>>{
+        let ordinal=u32::try_from(ordinal).map_err(|_|limit("temporary description argument exceeds its full ordinal domain"))?;
+        let mut selected=None;
+        for (id,(definition,node,role,_)) in &self.call_regions{
+            b.spend(1)?;
+            if *definition==owner&&*node==call&&role.as_slice()==[5,ordinal]
+                && selected.replace(Life::CallRegion(*id)).is_some()
+            {
+                return Err(bad("temporary description repeats its original full-ordinal call role"));
+            }
+        }
+        Ok(selected)
     }
     pub(in crate::semantic) fn temporary_call_description(
         &self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,ordinal:usize,
@@ -54,23 +84,13 @@ impl CheckedOriginal {
         let Some(index::Node::Expression(call))=function.nodes.get(&site).copied()else{
             return Err(bad("temporary description has no exact original Call occurrence"));
         };
-        let (position,identity)=self.original_call_site(definition,call.id,b)?;
-        let SemanticDefinitionBody::FunctionWithBody{sites,..}=&function.definition.body else{unreachable!()};
-        let anchor=sites.get(position).filter(|row|row.id==identity&&row.id==site).ok_or_else(||bad("temporary description selects another original call"))?;
-        let ordinal=u32::try_from(ordinal).map_err(|_|limit("temporary description argument exceeds the full ordinal domain"))?;
-        b.spend(anchor.occurrence_path.len().saturating_add(3))?;
-        let mut path=anchor.occurrence_path.clone();
-        path.extend([u32::MAX,5,ordinal]);
-        let mut matched=None;
-        for row in &function.definition.implicit_lifetimes{
-            b.spend(row.occurrence_path.len().saturating_add(1))?;
-            if row.occurrence_path==path && matched.replace(row.ordinal).is_some(){
-                return Err(bad("temporary description has multiple exact original call-only lifetime roles"));
-            }
+        if self.original_call_site(definition,call.id,b)?.1!=site{
+            return Err(bad("temporary description operand selects another original operation"));
         }
-        let lifetime=matched.ok_or_else(||bad("temporary description lacks its exact original call-only lifetime role")
-            .with_note(format!("original call {site:?}, argument {ordinal}, producer expression {node:?}")))?;
-        Ok(SemanticLifeRecipe::Implicit{scope:self.scope(definition,environment,b)?,ordinal:lifetime})
+        let life=self.temporary_description_region(definition,call.id,ordinal,b)?
+            .ok_or_else(||bad("temporary description lacks its exact original call-only lifetime role")
+                .with_note(format!("original call {site:?}, argument {ordinal}, producer expression {node:?}")))?;
+        self.reify_life(module,&life,environment,b)
     }
     // Select a proved original call by its lexical node or its inferred local
     // binding. Explicit type ascriptions remain separate invariant obligations.

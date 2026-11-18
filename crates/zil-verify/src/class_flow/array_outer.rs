@@ -594,7 +594,7 @@ impl Flow {
                         consumer = Consumer::Copy;
                     }
                     InstructionKind::BorrowPackageField { .. }
-                        if super::super::stored_flow::qualified_package_borrow(f, i, b)? =>
+                        if super::super::stored_flow::managed_package_field_borrow(f, i, b)? =>
                     {
                         if let Some(outer) = out.and_then(|p| p.outer) {
                             flow.seed(outer, b)?;

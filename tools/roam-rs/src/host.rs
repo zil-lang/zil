@@ -12,7 +12,13 @@ use std::{
 };
 use zil_base::Fingerprint;
 
-const MAX_BINARY_BYTES: usize = 128 * 1024 * 1024;
+// The optional native backend links a second code generator. Its worker
+// snapshots and digest reads still have an explicit, finite byte limit.
+const MAX_BINARY_BYTES: usize = if cfg!(feature = "llvm-api") {
+    192 * 1024 * 1024
+} else {
+    128 * 1024 * 1024
+};
 
 pub fn durable(path: &Path, value: &Value) -> Result<(), String> {
     let mut file = OpenOptions::new()

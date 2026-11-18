@@ -2017,18 +2017,20 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                             let value = source.ok_or_else(|| {
                                 bad("closure implicit class has no actual creator operand")
                             })?;
-                            let mode = match closure.captures.get(capture as usize) {
-                                Some(Type::Address { mutable: false, .. }) => {
-                                    StoredBorrowMode::SharedAddress
-                                }
-                                Some(Type::Address { mutable: true, .. }) => {
-                                    StoredBorrowMode::ExclusiveAddress
-                                }
-                                _ => {
-                                    return Err(bad(
-                                        "implicit capture head is not an address occurrence",
-                                    ));
-                                }
+                            let capture_ty = closure.captures.get(capture as usize)
+                                .ok_or_else(|| bad("implicit capture head is absent"))?;
+                            let actual_ty = creator.values.get(value.0 as usize)
+                                .ok_or_else(|| bad("implicit capture head has no actual creator operand type"))?;
+                            inference::charge_type_snapshot(capture_ty, creator.span, self.limits, self.left, 1)?;
+                            inference::charge_type_snapshot(actual_ty, creator.span, self.limits, self.left, 1)?;
+                            if actual_ty != capture_ty {
+                                return Err(bad("implicit capture head changes its actual creator operand type"));
+                            }
+                            let mode = match capture_ty {
+                                Type::Address { mutable: false, .. } => StoredBorrowMode::SharedAddress,
+                                Type::Address { mutable: true, .. } => StoredBorrowMode::ExclusiveAddress,
+                                Type::Desc(_) => StoredBorrowMode::WritableDescription,
+                                _ => return Err(bad("implicit capture head has no original borrow occurrence")),
                             };
                             SemanticClassExpr::OuterOccurrence {
                                 operand: SemanticOperand::Value(value),

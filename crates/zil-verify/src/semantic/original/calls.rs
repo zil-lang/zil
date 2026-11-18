@@ -346,15 +346,17 @@ impl CheckedOriginal {
                 }
                 b.spend(prototype.parameters.len())?;
                 let mut region_parameters = Vec::with_capacity(prototype.parameters.len());
-                for ((argument, parameter), mode) in arguments
+                for (ordinal, ((argument, parameter), mode)) in arguments
                     .iter()
                     .zip(&prototype.parameters)
                     .zip(&prototype.modes)
+                    .enumerate()
                 {
                     let parameter =
                         self.normalize_original_type(module, context, parameter, env, active, b)?;
-                    let actual = self.argument(
-                        module, context, argument, &parameter, *mode, env, bindings, active, b,
+                    let actual = self.argument_at_call(
+                        module, context, argument, &parameter, *mode, Some((call.id, ordinal)),
+                        env, bindings, active, b,
                     )?;
                     self.relate_value(&actual, &parameter, b)?;
                     region_parameters.push(parameter);
@@ -706,13 +708,15 @@ impl CheckedOriginal {
         if prototype.parameters.len() != arguments.len() {
             return Err(bad("original Callable arity differs"));
         }
-        for ((argument, expected), mode) in arguments
+        for (ordinal, ((argument, expected), mode)) in arguments
             .iter()
             .zip(&prototype.parameters)
             .zip(&prototype.modes)
+            .enumerate()
         {
-            let actual = self.argument(
-                module, context, argument, expected, *mode, env, bindings, active, b,
+            let actual = self.argument_at_call(
+                module, context, argument, expected, *mode, Some((node, ordinal)),
+                env, bindings, active, b,
             )?;
             self.relate_value(&actual, expected, b)?;
         }
@@ -1126,6 +1130,32 @@ mod quantified_goal_tests {
             callable_kind: Some(CallableKind::FnMut),
         }
     }
+    #[test]
+    fn callable_consumers_share_only_the_width_of_the_original_literal() {
+        let mut original = CheckedOriginal::default();
+        let mut b = Budget::new(&Limits::default());
+        let literal = original.fresh_integer(&mut b).unwrap();
+        let expected = Ty::Atom(Type::I64);
+        let shape = |ty: Ty| Ty::ErrorUnion(
+            Box::new(Ty::Atom(Type::Bool)),
+            Box::new(Ty::Tuple(vec![ty.clone(), ty])),
+        );
+        let flexible = BTreeSet::new();
+        original.callable_goal_type(&shape(literal.clone()), &shape(expected.clone()), &flexible, &mut b).unwrap();
+        original.callable_goal_type(&literal, &expected, &flexible, &mut b).unwrap();
+        assert!(original.callable_goal_type(&literal, &Ty::Atom(Type::I32), &flexible, &mut b).is_err());
+
+        let unconstrained = original.fresh(&mut b).unwrap();
+        assert!(original.callable_goal_type(&unconstrained, &expected, &flexible, &mut b).is_err());
+        assert_eq!(original.resolved(&unconstrained, &mut b).unwrap(), unconstrained);
+
+        let literal = original.fresh_integer(&mut b).unwrap();
+        let owner = SemanticDefinitionId { module: zil_base::ModuleId(0), index: 7 };
+        let source = address(Life::Local(owner, NodeId(1)), literal);
+        let other = address(Life::Local(owner, NodeId(2)), expected);
+        assert!(original.callable_goal_type(&source, &other, &flexible, &mut b).is_err());
+    }
+
     #[test]
     fn callable_elision_eliminates_its_own_role_into_the_introduced_goal_frame() {
         let mut checked = CheckedOriginal::default();
@@ -1594,7 +1624,12 @@ impl CheckedOriginal {
             0,
             b,
         )?;
-        if sources.len() != goals.len() || !self.same(&source_shape, &goal_shape, b)? {
+        let mut same_shape = self.same(&source_shape, &goal_shape, b)?;
+        if !same_shape && sources.len() == goals.len() && !self.integer_variables.is_empty() {
+            self.constrain_callable_integers(&source_shape, &goal_shape, b)?;
+            same_shape = self.same(&source_shape, &goal_shape, b)?;
+        }
+        if sources.len() != goals.len() || !same_shape {
             return Err(bad(
                 "original Callable requirement changes its complete rigid Type/Const structure",
             ));

@@ -51,6 +51,146 @@ impl CheckedOriginal {
         Ok(())
     }
 
+    // The requirement can select a width for an original literal. Every other
+    // type variable, const value, nominal identity and signature role is rigid
+    // here. The complete comparison runs again after these scalar equations.
+    pub(super) fn constrain_callable_integers(
+        &mut self,
+        left: &Ty,
+        right: &Ty,
+        b: &mut Budget,
+    ) -> Check<()> {
+        fn arguments<'a>(
+            left: &'a [Arg],
+            right: &'a [Arg],
+            pending: &mut Vec<(&'a Ty, &'a Ty)>,
+            b: &mut Budget,
+        ) -> Check<()> {
+            b.spend(left.len().saturating_add(right.len()))?;
+            if left.len() == right.len() {
+                for (left, right) in left.iter().zip(right) {
+                    match (left, right) {
+                        (Arg::Type(left), Arg::Type(right)) => pending.push((left, right)),
+                        (Arg::Const(left), Arg::Const(right)) if left.value == right.value => {
+                            pending.push((&left.carrier, &right.carrier))
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Ok(())
+        }
+        let mut pending = vec![(left, right)];
+        while let Some((left, right)) = pending.pop() {
+            b.spend(1)?;
+            if (self.integer_variable(left) && self.integer_carrier(right))
+                || (self.integer_variable(right) && self.integer_carrier(left))
+            {
+                self.unify(left, right, b)?;
+                continue;
+            }
+            match (left, right) {
+                (Ty::Tuple(a), Ty::Tuple(z)) if a.len() == z.len() => {
+                    b.spend(a.len())?;
+                    pending.extend(a.iter().zip(z));
+                }
+                (
+                    Ty::Address {
+                        mutable: a,
+                        inner: x,
+                        ..
+                    },
+                    Ty::Address {
+                        mutable: z,
+                        inner: y,
+                        ..
+                    },
+                ) if a == z => pending.push((x, y)),
+                (Ty::Desc { inner: x, .. }, Ty::Desc { inner: y, .. })
+                | (Ty::Managed(x), Ty::Managed(y))
+                | (Ty::Store(x), Ty::Store(y))
+                | (Ty::Slice(x), Ty::Slice(y)) => pending.push((x, y)),
+                (Ty::Array(x, n), Ty::Array(y, m)) if n.value == m.value => {
+                    pending.push((x, y));
+                    pending.push((&n.carrier, &m.carrier));
+                }
+                (Ty::ErrorUnion(e, x), Ty::ErrorUnion(f, y)) => {
+                    pending.push((e, f));
+                    pending.push((x, y));
+                }
+                (Ty::Nominal(a, x), Ty::Nominal(z, y)) | (Ty::Opaque(a, x), Ty::Opaque(z, y))
+                    if a == z =>
+                {
+                    arguments(x, y, &mut pending, b)?
+                }
+                (Ty::Closure(a, x, xe), Ty::Closure(z, y, ye)) if a == z => {
+                    arguments(x, y, &mut pending, b)?;
+                    arguments(xe, ye, &mut pending, b)?;
+                }
+                (
+                    Ty::Projection {
+                        receiver: ar,
+                        declaration: a,
+                        arguments: x,
+                        member: i,
+                    },
+                    Ty::Projection {
+                        receiver: zr,
+                        declaration: z,
+                        arguments: y,
+                        member: j,
+                    },
+                ) if a == z && i == j => {
+                    pending.push((ar, zr));
+                    arguments(x, y, &mut pending, b)?;
+                }
+                (
+                    Ty::Code {
+                        kind: a,
+                        parameters: x,
+                        result: ar,
+                        modes: am,
+                        result_mode: arm,
+                        call_kind: ac,
+                        bound_lifetimes: ab,
+                        invocation_lifetimes: ai,
+                    },
+                    Ty::Code {
+                        kind: z,
+                        parameters: y,
+                        result: zr,
+                        modes: zm,
+                        result_mode: zrm,
+                        call_kind: zc,
+                        bound_lifetimes: zb,
+                        invocation_lifetimes: zi,
+                    },
+                ) if a == z
+                    && ac == zc
+                    && am == zm
+                    && arm == zrm
+                    && ab == zb
+                    && ai == zi
+                    && x.len() == y.len() =>
+                {
+                    b.spend(x.len())?;
+                    pending.extend(x.iter().zip(y));
+                    pending.push((ar, zr));
+                }
+                (
+                    Ty::Carrier {
+                        kind: a, child: x, ..
+                    },
+                    Ty::Carrier {
+                        kind: z, child: y, ..
+                    },
+                ) if a == z => pending.push((x, y)),
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn numeric_suffix(text: &str) -> bool {
         ["isize", "usize", "i64", "i32", "i16", "i8", "u64", "u32", "u16", "u8", "f64", "f32"]
             .iter().any(|suffix| text.ends_with(suffix))

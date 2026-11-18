@@ -20,11 +20,23 @@ pub(super) fn check_self_contained_sources(
     limits: &Limits,
     budget: &mut Budget,
 ) -> Check<()> {
+    check_self_contained_sources_for(module, None, limits, budget)
+}
+
+pub(super) fn check_self_contained_sources_for(
+    module: &TypedModule,
+    selected: Option<ClosureId>,
+    limits: &Limits,
+    budget: &mut Budget,
+) -> Check<()> {
     budget.spend(module.functions.len())?;
     for f in &module.functions {
         let Type::Closure(id) = f.return_type else {
             continue;
         };
+        if selected.is_some_and(|expected| expected != id) {
+            continue;
+        }
         let Some(contract) = &f.callable_return_contract else {
             continue;
         };

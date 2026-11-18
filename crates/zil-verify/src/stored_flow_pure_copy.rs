@@ -256,7 +256,7 @@ pub(super) fn ordinary_package_borrow(
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
-    if qualified_package_borrow(f, i, b)? {
+    if managed_package_field_borrow(f, i, b)? {
         return Ok(true);
     }
     let InstructionKind::BorrowPackageField {
@@ -974,7 +974,7 @@ pub(super) fn qualified_package_description(
     Ok(true)
 }
 
-pub(super) fn qualified_package_borrow(
+pub(super) fn managed_package_field_borrow(
     f: &TypedFunction,
     i: &Instruction,
     b: &mut Budget,
@@ -992,10 +992,11 @@ pub(super) fn qualified_package_borrow(
         .get(local.0 as usize)
         .ok_or_else(|| err("owning field view local absent"))?
         .ty;
-    let Type::BorrowedStorage { storage, .. } = parent else {
-        return Ok(false);
+    let physical = match parent {
+        Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+        ty => ty,
     };
-    let Type::Package { fields, .. } = storage.as_ref() else {
+    let Type::Package { fields, .. } = physical else {
         return Ok(false);
     };
     let (_, field) = fields
@@ -1004,6 +1005,11 @@ pub(super) fn qualified_package_borrow(
     let Type::Managed(payload) = field else {
         return Ok(false);
     };
+    if !matches!(parent,Type::BorrowedStorage{..})
+        && !matches!(payload.as_ref(),Type::Record{..})
+    {
+        return Ok(false);
+    }
     ordinary(payload, b, 0)?;
     let out = vt(
         f,

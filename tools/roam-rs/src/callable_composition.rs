@@ -1,7 +1,7 @@
 //! Independent oracle for scoped FnMut calls returning a tagged union.
 use crate::{host, protocol, search};
 use serde_json::{Value, json};
-use std::{fs, path::Path};
+use std::{collections::BTreeMap, fs, path::Path};
 
 pub const CONTRACT: &str = "zil-callable-composition-native/1";
 pub const PROPERTY: &str = "callable.receiver-result-and-cleanup";
@@ -265,6 +265,40 @@ pub fn observed(expected: &Value, observation: Value, compile: &Value) -> Value 
     }
 }
 
+fn failure_location(result: &Value) -> Option<(&str, &str)> {
+    if result["status"] == "pass" {
+        return None;
+    }
+    let evidence = &result["nativeEvidence"][0];
+    fn first_compile_failure(compile: &Value) -> Option<(&str, &str)> {
+        if compile["status"].is_null() || compile["status"] == "Success" {
+            return None;
+        }
+        Some((
+            compile["phase"].as_str().unwrap_or("compile"),
+            compile["diagnostics"][0]["code"]
+                .as_str()
+                .unwrap_or("unspecified"),
+        ))
+    }
+    first_compile_failure(&evidence["compile"])
+        .or_else(|| {
+            evidence["variants"]
+                .as_object()?
+                .values()
+                .find_map(|variant| first_compile_failure(&variant["compile"]))
+        })
+        .or_else(|| {
+            let issue = &result["issues"][0];
+            Some((
+                issue["phase"].as_str()?,
+                issue["name"].as_str().unwrap_or("unspecified"),
+            ))
+        })
+        .or_else(|| (result["status"] == "fail").then_some(("runtime", "observation-mismatch")))
+        .or_else(|| result["status"].as_str().map(|status| ("harness", status)))
+}
+
 fn run_case(
     root: &Path,
     snapshot: &Path,
@@ -294,10 +328,14 @@ fn run_case(
     let proof = json!({"label":label,"expected":expected,"result":evidence});
     host::durable(&attempt.join("rule-result.json"), &proof)?;
     // Per-case evidence retains the complete diagnostic and codegen receipts.
+    let program = &case["steps"][0]["program"];
+    let first_failure =
+        failure_location(&evidence).map(|(phase, code)| json!({"phase":phase,"code":code}));
     Ok(
         json!({"label":label,"expected":expected,"status":evidence["status"],
         "steps":evidence["steps"],"reason":evidence.get("reason"),
-        "failure":evidence.get("failure")}),
+        "shape":program["shape"],"property":property(program),
+        "firstFailure":first_failure,"failure":evidence.get("failure")}),
     )
 }
 
@@ -362,6 +400,30 @@ pub fn campaign(root: &Path, commit: &str, jobs: usize) -> Result<Value, String>
             negative_passed += usize::from(baseline && passed(negative));
         }
     }
+    let mut failures = BTreeMap::new();
+    for row in &results {
+        if let Some(phase) = row["firstFailure"]["phase"].as_str() {
+            let key = (
+                row["property"].as_str().expect("generated property"),
+                phase,
+                row["firstFailure"]["code"]
+                    .as_str()
+                    .expect("diagnostic code"),
+                row["publishedScope"].as_bool().expect("classified path"),
+            );
+            let (count, _) = failures.entry(key).or_insert((0, &row["label"]));
+            *count += 1;
+        }
+    }
+    let failure_groups: Vec<_> = failures
+        .into_iter()
+        .map(
+            |((property, phase, code, published_scope), (count, case))| {
+                json!({"property":property,"phase":phase,"code":code,
+                "publishedScope":published_scope,"count":count,"firstCase":case})
+            },
+        )
+        .collect();
     let report = json!({
         "contract":CONTRACT, "candidate":commit, "roamSha256":host::digest(&exe)?,
         "bound":{"maximumDepth":2,"operations":["generic helper","field projection"],"exits":EXITS,
@@ -373,6 +435,7 @@ pub fn campaign(root: &Path, commit: &str, jobs: usize) -> Result<Value, String>
         "positive":{"selected":positive_selected,"passed":positive_passed},
         "negative":{"selected":negative_selected,"passed":negative_passed},
         "boundary":{"selected":boundary_observations},
+        "failureGroups":failure_groups,
         "cases":results
     });
     host::durable(&root.join("report.json"), &report)?;

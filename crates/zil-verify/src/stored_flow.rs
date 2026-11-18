@@ -100,12 +100,12 @@ mod loan_union_tests;
 mod pure_copy;
 
 // Class grounding may recognize only this independently authenticated origin.
-pub(super) fn qualified_package_borrow(
+pub(super) fn managed_package_field_borrow(
     f: &TypedFunction,
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
-    pure_copy::qualified_package_borrow(f, i, b)
+    pure_copy::managed_package_field_borrow(f, i, b)
 }
 
 pub(super) fn ordinary_error_borrow(
@@ -2409,6 +2409,19 @@ fn relation(
 pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<()> {
     header_inner(module, f, b).map_err(|mut diagnostic| {
         if diagnostic.code == "E-VERIFY-SIGNATURE-CLASS" {
+            // A false self-contained result envelope is a distinct source
+            // failure. Missing header rows in that same environment must
+            // not hide the already selected physical capture dependency.
+            if let Some(id) = f.environment
+                && module.closures.get(id.0 as usize).is_some_and(|closure|
+                    closure.id == id && closure.function == f.id)
+                && let Err(source) = super::retained::check_self_contained_sources_for(
+                    module, Some(id), &b.limits.clone(), b,
+                )
+                && source.code == "E-VERIFY-CALLABLE-SOURCE"
+            {
+                return source;
+            }
             let location = zil_base::DiagnosticIrLocation {
                 function: f.id.0,
                 block: None,
@@ -4229,7 +4242,7 @@ static_dependency: StaticProvenance::NotStatic,
             dyn_ports::vacate_owner(module, f, *l, state, b)?;
         }
         InstructionKind::BorrowPackageField { local, index, mutable: false }
-            if pure_copy::qualified_package_borrow(f, i, b)? => {
+            if pure_copy::managed_package_field_borrow(f, i, b)? => {
                 b.spend(2)?;
                 out.address.sources.push(Source {
 static_dependency: StaticProvenance::NotStatic, retained_port: None,
@@ -5492,6 +5505,7 @@ fn reverse(
         }
         InstructionKind::BorrowPackageField { local, .. }
             if pure_copy::ordinary_copy_field_borrow(f, i, b)?
+                || pure_copy::managed_package_field_borrow(f, i, b)?
                 || finite_fields::operation(module, f, i, b)? =>
         {
             live.assign(f.values.len() + local.0 as usize, true)?;
@@ -5575,6 +5589,7 @@ fn reverse_bool(
         }
         InstructionKind::BorrowPackageField { local, .. }
             if pure_copy::ordinary_copy_field_borrow(f, i, b)?
+                || pure_copy::managed_package_field_borrow(f, i, b)?
                 || finite_fields::operation(module, f, i, b)? =>
         {
             live[f.values.len() + local.0 as usize] = true;
@@ -6540,7 +6555,7 @@ fn windows(
                         local,
                         index,
                         mutable: false,
-                    } if pure_copy::qualified_package_borrow(f, i, b)? => {
+                    } if pure_copy::managed_package_field_borrow(f, i, b)? => {
                         b.spend(2)?;
                         let actual = Permission {
                             sources: vec![Source {
