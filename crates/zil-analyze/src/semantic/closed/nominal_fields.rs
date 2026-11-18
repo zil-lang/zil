@@ -224,6 +224,55 @@ impl Check<'_, '_> {
         self.nominal_mixed_actuals(owner, args, scope, &application.arguments, b, depth + 1)
     }
 
+    fn nominal_closed_dynamic_owner(
+        &self,
+        recipe: &SemanticDynInterfaceRecipe,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Value> {
+        if !matches!(recipe.context, SemanticDynContextRecipe::Closed)
+            || !recipe.application.arguments.is_empty()
+            || !recipe.associated.is_empty()
+        {
+            return Err(unknown(
+                "nominal dynamic field needs its complete scoped Context, trait and associated substitution",
+            ));
+        }
+        let mut selected = None;
+        for row in &self.module.dyn_interfaces {
+            b.spend(1, WORK)?;
+            if row.application.declaration != recipe.application.declaration
+                || !row.application.actuals.is_empty()
+                || row.context.is_some()
+                || !row.inherited.is_empty()
+                || !row.associated_types.is_empty()
+                || !row.associated_constants.is_empty()
+            {
+                continue;
+            }
+            if selected.replace(row.id).is_some() {
+                return Err(fail(
+                    "nominal dynamic field has ambiguous complete interface keys",
+                ));
+            }
+        }
+        let interface = selected.ok_or_else(|| {
+            fail("nominal dynamic field has no exact actual interface for its original trait")
+        })?;
+        // The ordinary Dyn value reader checks the actual declaration, complete
+        // interface and intrinsic domain. The nominal-graph proof checks this
+        // value against the real projected field, including its whole type.
+        let value = self
+            .dyn_value_domain(&Type::OwnedDyn { interface }, b, depth + 1)?
+            .ok_or_else(|| fail("nominal dynamic field has no actual owning domain"))?;
+        if !empty(&value.life) || !value.classes.is_empty() {
+            return Err(fail(
+                "closed nominal dynamic field changes its intrinsic class domain",
+            ));
+        }
+        Ok(value)
+    }
+
     pub(super) fn nominal_field_value(
         &self,
         owner: SemanticDefinitionId,
@@ -265,6 +314,9 @@ impl Check<'_, '_> {
                     return Err(fail("nominal field omits its full original Type actual"));
                 };
                 value.copy(b)
+            }
+            SemanticTypeRecipe::Dyn { owned: true, interface } => {
+                self.nominal_closed_dynamic_owner(interface, b, depth + 1)
             }
             SemanticTypeRecipe::AssociatedType {
                 receiver,
