@@ -1847,18 +1847,19 @@ impl Check<'_, '_> {
         }
         Ok(candidates)
     }
-    /// Contextual inputs are typing goals from this exact factory declaration,
+    /// Contextual parameters and results are typing goals from this exact factory declaration,
     /// not a conclusion about the returned closure or its invocation effect.
-    pub(super) fn contextual_closure_inputs(
+    pub(super) fn contextual_closure_signature(
         &mut self, owner: SemanticDefinitionId, child: &SemanticDefinition,
         wanted: Option<&SemanticTypeRecipe>, depth: usize,
-    ) -> R<()> {
-        let Some(SemanticTypeRecipe::Opaque { definition, .. }) = wanted else { return Ok(()); };
-        if *definition != owner || child.parent != Some(owner) { return Ok(()); }
+    ) -> R<Option<SemanticTypeRecipe>> {
+        let Some(SemanticTypeRecipe::Opaque { definition, .. }) = wanted else { return Ok(None); };
+        if *definition != owner || child.parent != Some(owner) { return Ok(None); }
         let SemanticDefinitionBody::FunctionWithBody { signature: child_signature, .. } = &child.body
         else { return Err(bad("contextual closure inputs have no immutable child signature")); };
         let declaration = self.definition(owner)?;
         self.pay(1, depth)?;
+        let mut result_goal = None;
         let mut pending = vec![declaration.requirements.as_slice()];
         while let Some(requirements) = pending.pop() {
             for requirement in requirements {
@@ -1873,6 +1874,19 @@ impl Check<'_, '_> {
                     }, signature, .. } if signature.bound_lifetimes == 0 && signature.invocation_lifetimes == 0 => {
                         if signature.parameters.len() != child_signature.parameters.len() {
                             return Err(bad("contextual closure changes its declared input arity"));
+                        }
+                        if matches!(child_signature.result, SemanticTypeRecipe::OriginalType {
+                            scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result,
+                        }) {
+                            let goal = self.rehome(owner, child, &signature.result, depth + 1)?;
+                            if let Some(previous) = &result_goal {
+                                self.contexts.push(child.id);
+                                let equal = self.same(previous, &goal);
+                                self.contexts.pop();
+                                equal?;
+                            } else {
+                                result_goal = Some(goal);
+                            }
                         }
                         for (ordinal, (input, parameter)) in signature.parameters.iter()
                             .zip(&child_signature.parameters).enumerate()
@@ -1899,7 +1913,7 @@ impl Check<'_, '_> {
                 }
             }
         }
-        Ok(())
+        Ok(result_goal)
     }
 
     /// A checked scalar context in the original body can determine an

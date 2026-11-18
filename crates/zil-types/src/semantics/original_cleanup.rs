@@ -30,6 +30,7 @@ fn with_check<T>(
         loops: Vec::new(),
         trait_active: Vec::new(),
         contexts: vec![owner],
+        closure_result_goal: None,
         predicate_active: Vec::new(),
         stage_depth: 0,
         cleanup_depth: 0,

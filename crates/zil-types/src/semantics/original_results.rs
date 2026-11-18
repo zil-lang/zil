@@ -1057,6 +1057,7 @@ fn zero_opaque_application(
                 program, limits, left: &mut *left, proof: ProofAccess::Borrowed(proof),
                 active: BTreeSet::new(), captures: BTreeMap::new(), loops: Vec::new(),
                 trait_active: Vec::new(), contexts: gamma.contexts.to_vec(),
+                closure_result_goal: None,
                 predicate_active: Vec::new(), stage_depth: 0, cleanup_depth: 0,
                 requested_snapshot: None, snapshot_sources: None, escape_active: Vec::new(),
             }

@@ -12,15 +12,15 @@ pub(crate) struct FunctionValue {
 impl Check<'_, '_> {
     /// A thin function context supplies types to the child's own binders.
     /// Captures and the checked result are validated after its body runs.
-    pub(super) fn contextual_code_inputs(
+    pub(super) fn contextual_code_signature(
         &mut self,
         owner: SemanticDefinitionId,
         child: &SemanticDefinition,
         wanted: Option<&SemanticTypeRecipe>,
         depth: usize,
-    ) -> R<()> {
+    ) -> R<Option<SemanticTypeRecipe>> {
         let Some(SemanticTypeRecipe::Code { kind: SemanticCodeKind::FunctionPointer, signature }) = wanted else {
-            return Ok(());
+            return Ok(None);
         };
         let SemanticDefinitionBody::FunctionWithBody { signature: declared, .. } = &child.body else {
             return Err(bad("thin closure has no original body signature"));
@@ -47,9 +47,9 @@ impl Check<'_, '_> {
             scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result,
         }) {
             let expected = self.rehome(owner, child, &signature.result, depth + 1)?;
-            self.contextual_code_equation(child.id, Query::Result, expected, depth + 1)?;
+            return Ok(Some(expected));
         }
-        Ok(())
+        Ok(None)
     }
 
     fn contextual_code_equation(&mut self, child: SemanticDefinitionId, query: Query,

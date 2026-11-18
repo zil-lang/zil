@@ -338,6 +338,9 @@ struct Check<'a, 'b> {
     loops: Vec<LoopFrame>,
     trait_active: Vec<(SemanticTypeRecipe, SemanticTraitRecipe)>,
     contexts: Vec<SemanticDefinitionId>,
+    // Only the active literal can use its contextual result as a typing goal.
+    // Completed body facts remain in Proof::types and carry the checked exits.
+    closure_result_goal: Option<(SemanticDefinitionId, SemanticTypeRecipe)>,
     predicate_active: Vec<(SemanticDefinitionId, u8, SemanticTypeRecipe)>,
     stage_depth: usize,
     cleanup_depth: usize,
@@ -3496,7 +3499,8 @@ impl<'a> Check<'a, '_> {
                 else {
                     unreachable!()
                 };
-                let function_result = self.resolve(owner, &signature.result, depth + 1)?;
+                let declared = self.body_result_recipe(owner, &signature.result)?;
+                let function_result = self.resolve(owner, &declared, depth + 1)?;
                 let SemanticTypeRecipe::ErrorUnion {
                     error: expected, ..
                 } = function_result
@@ -3965,9 +3969,16 @@ impl<'a> Check<'a, '_> {
                     };
                     captured.insert(name.clone(), value);
                 }
-                self.contextual_closure_inputs(owner, child, wanted, depth + 1)?;
-                self.contextual_code_inputs(owner, child, wanted, depth + 1)?;
-                self.function(child, Some(captured))?;
+                let result_goal = match wanted {
+                    Some(SemanticTypeRecipe::Code { .. }) =>
+                        self.contextual_code_signature(owner, child, wanted, depth + 1)?,
+                    _ => self.contextual_closure_signature(owner, child, wanted, depth + 1)?,
+                };
+                let parent_goal = std::mem::replace(&mut self.closure_result_goal,
+                    result_goal.map(|ty| (child.id, ty)));
+                let checked = self.function(child, Some(captured));
+                self.closure_result_goal = parent_goal;
+                checked?;
                 if !*move_capture {
                     let cost = self
                         .captures
@@ -5932,6 +5943,14 @@ impl<'a> Check<'a, '_> {
         )?;
         Ok(())
     }
+    fn body_result_recipe(&mut self, owner: SemanticDefinitionId, declared: &SemanticTypeRecipe)
+        -> R<SemanticTypeRecipe>
+    {
+        let goal = self.closure_result_goal.as_ref()
+            .filter(|(child, _)| *child == owner)
+            .map_or(declared, |(_, ty)| ty);
+        copy_recipe(goal, self.limits, self.left)
+    }
     fn function(
         &mut self,
         definition: &'a SemanticDefinition,
@@ -6066,7 +6085,7 @@ impl<'a> Check<'a, '_> {
                 },
             );
         }
-        let result = copy_recipe(&signature.result, self.limits, self.left)?;
+        let result = self.body_result_recipe(definition.id, &signature.result)?;
         let result = self.mode_type(definition.id, signature.result_mode, result, 0)?;
         let outer_loops = std::mem::take(&mut self.loops);
         let outer_stage = std::mem::replace(&mut self.stage_depth, 0);
@@ -6299,6 +6318,7 @@ fn check_requested(
         loops: Vec::new(),
         trait_active: Vec::new(),
         contexts: Vec::new(),
+        closure_result_goal: None,
         predicate_active: Vec::new(),
         stage_depth: 0,
         cleanup_depth: 0,
