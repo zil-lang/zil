@@ -188,7 +188,7 @@ impl Solver<'_, '_> {
         operand: &SemanticOriginalExpr,
         b: &mut Budget,
         depth: usize,
-    ) -> CompileResult<Term> {
+    ) -> CompileResult<Place> {
         let place = self.place(frame, operand, true, b, depth + 1)?
             .ok_or_else(|| fail("original give has no exact owning Package place"))?;
         let selected = self.type_root(place.selected, b)?;
@@ -210,7 +210,7 @@ impl Solver<'_, '_> {
         if frame.alive {
             self.retire_lexical_place(frame, place.anchor, &place.path, b)?;
         }
-        Ok(place.selected)
+        Ok(place)
     }
 
     pub(super) fn observe_member(

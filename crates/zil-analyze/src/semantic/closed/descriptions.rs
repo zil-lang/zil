@@ -212,6 +212,11 @@ impl Check<'_, '_> {
                 }
                 let original_value = self.original_subject_value(instance, function, original.producer, b)?
                     .ok_or_else(|| fail("temporary description lacks its exact original owning producer"))?;
+                if let Some(transfer) = self.original.prepared_owner_transfer(
+                    instance, original.producer, self.program, self.inventory, b, depth + 1,
+                )? {
+                    self.checked_owned_place(instance, function, original_value, &transfer, b)?;
+                }
                 operations::available_before(function, (block, index, SemanticSiteEdge::Before), original_value, b)?;
                 operations::initialized_local_before(function, (block, index), local, b)?;
                 self.original_producer_local(function, local, (block, index), original_value, b)?;

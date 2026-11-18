@@ -218,6 +218,22 @@ impl Solver<'_, '_> {
 }
 
 impl Checked {
+    pub(in crate::semantic) fn prepared_owner_transfer(
+        &self, context: &SemanticInstance, source: NodeId, program: &SemanticModule,
+        inventory: &Inventory<'_>, b: &mut Budget, depth: usize,
+    ) -> CompileResult<Option<borrow_places::Source>> {
+        b.lookup(self.owner_transfers.len(), WORK)?;
+        let Some(place) = self.owner_transfers.get(&(context.definition, source)) else {
+            return Ok(None);
+        };
+        b.spend(place.path.len().saturating_add(1), WORK)?;
+        Ok(Some(borrow_places::Source {
+            role: None, anchor: place.anchor, expression: None, index: None,
+            root: self.value(place.root, context, program, inventory, b, depth + 1)?,
+            path: place.path.clone(), indirect: false, slice: None,
+            inner: self.value(place.selected, context, program, inventory, b, depth + 1)?,
+        }))
+    }
     pub(in crate::semantic) fn captured_description(
         &self, context: &SemanticInstance, ordinal: u32, program: &SemanticModule,
         inventory: &Inventory<'_>, b: &mut Budget, depth: usize,

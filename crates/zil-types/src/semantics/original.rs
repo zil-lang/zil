@@ -3701,10 +3701,20 @@ impl<'a> Check<'a, '_> {
                         return Err(bad("original sequence repeats or exposes a generated temporary"));
                     }
                     let ty = self.expr(owner, initializer, variables, None, depth + 1)?;
+                    let mut source = initializer;
+                    if matches!(self.observation_type(owner, &ty, depth + 1)?, SemanticTypeRecipe::Managed(_)) {
+                        while let CoreExprKind::Group(inner)
+                            | CoreExprKind::Ascribed { value: inner, .. }
+                            | CoreExprKind::Sequence { value: inner, .. } = &source.kind
+                        {
+                            self.pay(1, depth)?;
+                            source = inner;
+                        }
+                    }
                     self.pay(name.len().saturating_add(1), depth)?;
                     self.insert_binding(variables, name.clone(), Binding {
                         ty, mutable: false, used: false, observed: false, capture: false,
-                        borrowed: false, origin: Query::Expression(initializer.id), origin_owner: owner,
+                        borrowed: false, origin: Query::Expression(source.id), origin_owner: owner,
                         initialized: true, written: false, resource_root: None,
                         taken_fields: BTreeSet::new(), shadowed: None,
                     }, depth)?;

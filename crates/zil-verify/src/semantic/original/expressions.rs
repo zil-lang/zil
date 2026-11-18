@@ -159,7 +159,9 @@ impl CheckedOriginal {
                         if matches!(self.resolved(&binding.ty, b)?, Ty::Managed(_)) {
                             binding.identity.charge_clone(b)?;
                             b.spend(1)?;
-                            self.prepared_locals.insert(binding.identity.clone(), initializer.id);
+                            let producer = self.temporary_description_producer(initializer, b)?
+                                .unwrap_or(initializer.id);
+                            self.prepared_locals.insert(binding.identity.clone(), producer);
                         }
                         self.declare(env,&binding,b)?;
                         locals.insert(name.clone(),binding);

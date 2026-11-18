@@ -344,13 +344,26 @@ impl CheckedContext {
         let mut matches = 0;
         for site in &program.sites {
             b.spend(1)?;
-            if site.instance != caller.id
-                || !matches!(site.at, SemanticSiteAddress::Typed { block, instruction, .. } if block == producer_block && instruction == producer_at)
-                || !(matches!(site.action, SemanticSiteAction::Call { .. } | SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::CallableCall { .. })
-                    || matches!(site.action, SemanticSiteAction::Construct {
-                        result: SemanticOperand::Value(result), ..
-                    } if result == initializer))
-            {
+            let SemanticSiteAddress::Typed { block, instruction, edge } = site.at else {
+                continue;
+            };
+            if site.instance != caller.id || block != producer_block {
+                continue;
+            }
+            let produces_owner = match site.action {
+                SemanticSiteAction::Call { .. } | SemanticSiteAction::BodyCall { .. }
+                    | SemanticSiteAction::CallableCall { .. } =>
+                    instruction == producer_at && edge == SemanticSiteEdge::After,
+                SemanticSiteAction::Construct { result: SemanticOperand::Value(result), .. } =>
+                    result == initializer && instruction == producer_at && edge == SemanticSiteEdge::After,
+                SemanticSiteAction::TypeUse { subject: SemanticOperand::Value(result), .. } =>
+                    result == initializer && producer_at.checked_add(1) == Some(instruction)
+                        && edge == SemanticSiteEdge::Before && matches!(producer.kind,
+                            InstructionKind::TakeLocal { .. } | InstructionKind::TakeCapture { .. }
+                            | InstructionKind::TakePackageField { .. }),
+                _ => false,
+            };
+            if !produces_owner {
                 continue;
             }
             b.spend(site_nodes.len())?;
@@ -367,6 +380,16 @@ impl CheckedContext {
                 function: f.id.0, block: Some(producer_block.0), instruction: Some(producer_at),
             }), format!("actual producer of initializer {:?}", initializer));
             return Err(error);
+        }
+        if matches!(producer.kind,
+            InstructionKind::TakeLocal { .. } | InstructionKind::TakeCapture { .. }
+            | InstructionKind::TakePackageField { .. })
+        {
+            let operand = self.original.borrow().as_ref()
+                .ok_or_else(|| bad("prepared transfer lacks its original body"))?
+                .prepared_move_operand(module, definition, node, b)?
+                .ok_or_else(|| bad("prepared transfer is not the actual original Give"))?;
+            self.original_projection_source(module, caller, f, initializer, definition, operand, true, b)?;
         }
         crate::check_instruction(module, f, producer, b)?;
         Ok(())

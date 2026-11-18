@@ -296,6 +296,7 @@ pub(super) struct Checked {
     borrows: BTreeMap<(SemanticDefinitionId, NodeId), Borrow>,
     descriptions: BTreeMap<(SemanticDefinitionId, NodeId), descriptions::Description>,
     temporary_descriptions: BTreeMap<(SemanticDefinitionId, NodeId, usize), descriptions::Temporary>,
+    owner_transfers: BTreeMap<(SemanticDefinitionId, NodeId), places::Place>,
     inferred_owner_captures: BTreeMap<SemanticDefinitionId, BTreeSet<String>>,
     captured_descriptions: BTreeMap<(SemanticDefinitionId, u32), Term>,
     enum_constructors: BTreeMap<(SemanticDefinitionId, NodeId), enums::Constructor>,
@@ -1974,7 +1975,15 @@ impl Solver<'_, '_> {
                         }
                         let ty = self.expression(frame, initializer, b, depth + 1)?;
                         self.bind(frame, name, ty, false, b)?;
-                        frame.locals.last_mut().expect("prepared local").prepared_at = Some(initializer.id);
+                        let mut source = initializer;
+                        while let CoreExprKind::Group(inner)
+                            | CoreExprKind::Ascribed { value: inner, .. }
+                            | CoreExprKind::Sequence { value: inner, .. } = &source.kind
+                        {
+                            self.step(depth, b)?;
+                            source = inner;
+                        }
+                        frame.locals.last_mut().expect("prepared local").prepared_at = Some(source.id);
                     }
                     let result = match self.receiving_for(frame, value.id, b)? {
                         Some(expected) => self.expression_expected(frame, result, expected, b, depth + 1)?,
@@ -2189,11 +2198,20 @@ impl Solver<'_, '_> {
                     if matches!(&inner.kind, CoreExprKind::Member { object, .. }
                         if matches!(object.kind, CoreExprKind::Name(_)))
                     {
-                        self.give_package_field(frame, operand, b, depth + 1)?
+                        let place = self.give_package_field(frame, operand, b, depth + 1)?;
+                        let selected = place.selected;
+                        b.lookup(self.state.owner_transfers.len(), WORK)?;
+                        self.state.owner_transfers.insert((frame.definition, value.id), place);
+                        selected
                     } else {
                         let value = if manager {
                             let place = self.borrow_place(frame, operand, b, depth + 1)?;
                             self.consume_place(frame, &place, b)?;
+                            b.lookup(self.state.owner_transfers.len(), WORK)?;
+                            self.state.owner_transfers.insert((frame.definition, value.id), places::Place {
+                                anchor: place.anchor, root: place.root, path: place.path,
+                                selected: place.inner,
+                            });
                             place.inner
                         } else {
                             self.expression(frame, operand, b, depth + 1)?
@@ -4488,6 +4506,7 @@ pub(super) fn check(
             borrows: BTreeMap::new(),
             descriptions: BTreeMap::new(),
             temporary_descriptions: BTreeMap::new(),
+            owner_transfers: BTreeMap::new(),
             captured_descriptions: BTreeMap::new(),
             inferred_owner_captures: BTreeMap::new(),
             enum_constructors: BTreeMap::new(),

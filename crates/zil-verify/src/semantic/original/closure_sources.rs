@@ -2,6 +2,24 @@
 //! and equal outside lifetime images never choose the captured value.
 use super::*;
 impl CheckedOriginal {
+    pub(in crate::semantic) fn prepared_move_operand(
+        &self, module: &TypedModule, definition: SemanticDefinitionId, node: NodeId, b: &mut Budget,
+    ) -> Check<Option<NodeId>> {
+        let index = self.source_index(module, &[definition], b)?;
+        let definition = index.definitions.get(&definition)
+            .ok_or_else(||bad("prepared transfer has no checked original body"))?;
+        b.spend(definition.expressions.len().saturating_add(1).ilog2() as usize + 1)?;
+        let Some(source) = definition.expressions.get(&node) else { return Ok(None); };
+        let CoreExprKind::Unary { op: UnaryOp::Give, operand } = &source.kind else {
+            return Ok(None);
+        };
+        let mut operand = operand.as_ref();
+        while let CoreExprKind::Group(inner) = &operand.kind {
+            b.spend(1)?;
+            operand = inner;
+        }
+        Ok(Some(operand.id))
+    }
     pub(in crate::semantic) fn call_input_recipes(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,b:&mut Budget)->Check<Vec<Option<(NodeId,SemanticTypeRecipe,Option<intrinsics::BufferSource>)>>>{
         let index=self.source_index(module,&[definition],b)?;
         let function=index.definitions.get(&definition).ok_or_else(||bad("Call inputs have no checked original function"))?;
@@ -53,11 +71,12 @@ impl CheckedOriginal {
         Ok(recipes)
     }
     pub(super) fn temporary_description_producer(&self,mut expression:&SemanticOriginalExpr,b:&mut Budget)->Check<Option<NodeId>>{
-        while let CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=&expression.kind{
+        while let CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}|CoreExprKind::Sequence{value:inner,..}=&expression.kind{
             b.spend(1)?;
             expression=inner;
         }
-        Ok(matches!(expression.kind,CoreExprKind::Call{..}|CoreExprKind::Record{..}|CoreExprKind::RecordConstructor{..}).then_some(expression.id))
+        Ok(matches!(expression.kind,CoreExprKind::Call{..}|CoreExprKind::Record{..}|CoreExprKind::RecordConstructor{..}
+            |CoreExprKind::Unary{op:UnaryOp::Give,..}).then_some(expression.id))
     }
     pub(super) fn declare_temporary_description(&mut self,owner:SemanticDefinitionId,call:NodeId,ordinal:usize,b:&mut Budget)->Check<Life>{
         self.original_call_site(owner,call,b)?;

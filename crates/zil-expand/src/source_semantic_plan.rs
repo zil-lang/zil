@@ -262,23 +262,23 @@ fn observation_operand(
     path: &[u32],
     budget: &mut Budget<'_>,
     span: Span,
-) -> R<bool> {
+) -> R<(bool, bool)> {
     let mut length = path.len();
     while length > 0 {
         let child = path[length - 1];
         let Some(parent) = body.locate(&path[..length - 1], budget, span)? else {
-            return Ok(true);
+            return Ok((true, false));
         };
         let body_nodes::Node::Expression(parent) = parent.node else {
-            return Ok(true);
+            return Ok((true, false));
         };
         match &parent.kind {
             s::ExprKind::Group(_) if child == 0 => length -= 1,
             s::ExprKind::TypeApply { .. } if child == 0 => length -= 1,
-            s::ExprKind::Call { .. } if child == 0 => return Ok(false),
-            s::ExprKind::Pipeline { .. } if child == 1 => return Ok(false),
+            s::ExprKind::Call { .. } if child == 0 => return Ok((false, false)),
+            s::ExprKind::Pipeline { .. } => return Ok((child == 0, child == 0)),
             s::ExprKind::Call { .. } if child > 0 => {
-                return Ok(!static_code_selector(
+                return Ok((!static_code_selector(
                     program,
                     definition,
                     parent,
@@ -287,16 +287,16 @@ fn observation_operand(
                     nodes,
                     value_names,
                     budget,
-                )?);
+                )?, false));
             }
             s::ExprKind::Unary {
                 op: s::UnaryOp::Give,
                 ..
-            } if child == 0 => return Ok(false),
-            _ => return Ok(true),
+            } if child == 0 => return Ok((false, false)),
+            _ => return Ok((true, false)),
         }
     }
-    Ok(true)
+    Ok((true, false))
 }
 // Some call operands name declarations carried by the operation itself. Only
 // ordinary runtime operands have an independent value emission at this site.
@@ -761,7 +761,7 @@ fn operations(
     value_names.sort_unstable();
     let nodes = directory.nodes;
     for original in &nodes {
-        let observation = observation_operand(
+        let (observation, prepared) = observation_operand(
             program,
             definition,
             &nodes,
@@ -1001,6 +1001,18 @@ fn operations(
                                 SemanticSiteRecipeKind::TypeUse {
                                     expected: expected.clone(),
                                 },
+                                Action::TypeUse(expected),
+                                SemanticEmissionRole::Ascription,
+                            ))
+                        }
+                        s::ExprKind::Unary { op: s::UnaryOp::Give, .. } if prepared => {
+                            let expected = SemanticTypeRecipe::OriginalType {
+                                scope: SemanticScopeRef::Ancestor(0),
+                                source: SemanticOriginalTypeSource::Expression(original.id),
+                            };
+                            prepay_recipe(&expected, budget, expression.span, 0)?;
+                            Some((
+                                SemanticSiteRecipeKind::TypeUse { expected: expected.clone() },
                                 Action::TypeUse(expected),
                                 SemanticEmissionRole::Ascription,
                             ))
