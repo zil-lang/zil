@@ -1151,6 +1151,7 @@ pub(super) fn check(
     checker.sites(b)?;
     inventory.profile_stage("constructor class sources", b);
     checker.constructor_class_sources(b)?;
+    checker.call_class_sources(b)?;
     inventory.profile_stage("original cleanup occurrences", b);
     checker.cleanup_occurrences(b)?;
     inventory.profile_stage("completed world publication", b);

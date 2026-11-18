@@ -2954,7 +2954,7 @@ fn check_with(
     )?;
     let forwarded_environment = deferred_helpers
         .iter()
-        .any(|(_, _, output, _)| output.is_some_and(|id| values[id.0 as usize].environment));
+        .any(|(_, _, output, _)| output.is_some_and(|id| !values[id.0 as usize].classes.is_empty()));
     if retained_environment {
         b.spend(values.len(), "retained environment inventory")?;
         for p in &values {
