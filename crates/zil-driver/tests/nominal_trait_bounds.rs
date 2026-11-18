@@ -4561,6 +4561,37 @@ fn verify_original_method_candidate(
     raw
 }
 
+fn remove_method_effect(
+    module: &mut zil_ir::TypedModule,
+    plan: &mut zil_ir::CandidatePlan,
+    member: u32,
+    excluded: zil_ir::DynEffectRecipe,
+) {
+    let mut changed = 0;
+    for declaration in &mut module.dyn_declarations {
+        let schemes = declaration
+            .method_signatures
+            .iter_mut()
+            .flatten()
+            .filter(|row| row.member == member)
+            .map(|row| &mut row.signature);
+        let bodies = declaration
+            .method_definitions
+            .iter_mut()
+            .flatten()
+            .filter(|row| row.member == member)
+            .map(|row| &mut row.signature);
+        for signature in schemes.chain(bodies) {
+            let effects = signature.contract.effects.as_mut().unwrap();
+            let index = effects.iter().position(|e| *e == excluded).unwrap();
+            effects.remove(index);
+            changed += 1;
+        }
+    }
+    assert_eq!(changed, 2);
+    plan.module_fingerprint = module.fingerprint();
+}
+
 #[test]
 fn recursive_method_effects_include_calls_to_other_members_of_the_cycle() {
     let unit = source(
@@ -4588,38 +4619,114 @@ fn main()->i32 {
 
     // Only inner performs checked arithmetic. Forbid panic on outer while
     // preserving both bodies, the original method identities, and all calls.
-    let mut changed = 0;
-    for declaration in &mut module.dyn_declarations {
-        let schemes = declaration
-            .method_signatures
-            .iter_mut()
-            .flatten()
-            .filter(|row| row.member == 0)
-            .map(|row| &mut row.signature);
-        let bodies = declaration
-            .method_definitions
-            .iter_mut()
-            .flatten()
-            .filter(|row| row.member == 0)
-            .map(|row| &mut row.signature);
-        for signature in schemes.chain(bodies) {
-            let effects = signature.contract.effects.as_mut().unwrap();
-            let index = effects
-                .iter()
-                .position(|e| *e == zil_ir::DynEffectRecipe::Panic)
-                .unwrap();
-            effects.remove(index);
-            changed += 1;
-        }
-    }
-    assert_eq!(changed, 2);
-    plan.module_fingerprint = module.fingerprint();
+    remove_method_effect(&mut module, &mut plan, 0, zil_ir::DynEffectRecipe::Panic);
     let errors = verify_original_method_candidate(module, plan).unwrap_err();
     assert_eq!(errors[0].code, "E-VERIFY-DYN-CONTRACT");
     assert_eq!(
         errors[0].message,
         "actual reachable method/helper effect exceeds an original trait or implementation upper"
     );
+}
+
+#[test]
+fn method_contracts_follow_all_grounded_scalar_function_pointer_targets() {
+    use zil_ir::DynEffectRecipe::Panic;
+    // enter owns the tested upper. Its body and the method cycle contribute no
+    // effects. Only execution of plus can add Panic to that upper.
+    let methods = r#"
+trait Cycle {
+    fn enter(self:&Self,n:i32)->i32 {return self.outer(true,n)}
+    fn outer(self:&Self,again:bool,n:i32)->i32 {if again{return self.inner(false,n)}return n}
+    fn inner(self:&Self,again:bool,n:i32)->i32 {if again{return self.outer(false,n)}return leaf(n,again)}
+}
+struct Counter{} impl Cycle for Counter{}
+fn main()->i32{let v=Counter{};return v.enter(6)}
+"#;
+    let items = "fn id(n:i32)->i32{return n} fn plus(n:i32)->i32{return n+1}";
+    let fixed = "fn leaf(n:i32,sel:bool)->i32{let f:fn(i32)->i32=plus;return f(n)}";
+    let mixed = "fn leaf(n:i32,sel:bool)->i32{var f:fn(i32)->i32=id;if sel{f=plus}return f(n)}";
+    let opaque = "fn apply(f:fn(i32)->i32,n:i32)->i32{return f(n)}
+                  fn leaf(n:i32,sel:bool)->i32{return apply(plus,n)}";
+    let aliased = "fn leaf(n:i32,sel:bool)->i32{var f:fn(i32)->i32=id;
+                   if sel{let dest=&mut f;*dest=plus}return f(n)}";
+
+    let acyclic = methods.replace("return self.outer(false,n)", "return n");
+    let pure = fixed.replace("=plus", "=id");
+    let backedge = items.replace("return n+1", "if false{return leaf(n,false)}return n+1");
+    for (label, items, leaf, methods, complete, panic) in [
+        ("acyclic", items, fixed, acyclic.as_str(), true, true),
+        ("method cycle", items, fixed, methods, true, true),
+        (
+            "indirect cycle edge",
+            backedge.as_str(),
+            fixed,
+            methods,
+            true,
+            true,
+        ),
+        ("two actual targets", items, mixed, methods, true, true),
+        (
+            "unselected effectful sibling",
+            items,
+            pure.as_str(),
+            methods,
+            true,
+            false,
+        ),
+        (
+            "unresolved code input",
+            items,
+            opaque,
+            methods,
+            false,
+            false,
+        ),
+        (
+            "address taken code local",
+            items,
+            aliased,
+            methods,
+            false,
+            false,
+        ),
+    ] {
+        let (mut module, mut plan) =
+            original_method_candidate(&source(&format!("{items} {leaf} {methods}")));
+        assert!(
+            module
+                .functions
+                .iter()
+                .flat_map(|f| &f.blocks)
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.kind, zil_ir::InstructionKind::CallIndirect { .. })),
+            "{label}"
+        );
+        let full = verify_original_method_candidate(module.clone(), plan.clone());
+        if !complete {
+            let errors = full.expect_err(label);
+            assert_eq!(errors[0].code, "E-VERIFY-DYN-CONTRACT", "{label}");
+            assert_eq!(
+                errors[0].message,
+                "original executable contract lacks a complete actual CFG memory/effect summary",
+                "{label}"
+            );
+            continue;
+        }
+        full.expect(label);
+        remove_method_effect(&mut module, &mut plan, 0, Panic);
+        let narrow = verify_original_method_candidate(module, plan);
+        if panic {
+            let errors = narrow.expect_err(label);
+            assert_eq!(errors[0].code, "E-VERIFY-DYN-CONTRACT", "{label}");
+            assert_eq!(
+                errors[0].message,
+                "actual reachable method/helper effect exceeds an original trait or implementation upper",
+                "{label}"
+            );
+        } else {
+            narrow.expect(label);
+        }
+    }
 }
 
 #[test]

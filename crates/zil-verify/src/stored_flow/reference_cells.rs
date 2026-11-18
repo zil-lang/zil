@@ -1042,6 +1042,27 @@ pub(super) fn prepare_call(
     })
 }
 
+/// Scalar code carries neither a borrowed environment nor a caller memory port.
+/// Recover every executable alternative, preserving unknown provenance as unknown.
+pub(super) fn scalar_code_targets(
+    f: &TypedFunction,
+    callee: ValueId,
+    b: &mut Budget,
+) -> Check<Option<Vec<FunctionId>>> {
+    let Type::FunctionPointer { parameters, result } = vt(f, callee)? else {
+        return Ok(None);
+    };
+    b.spend(parameters.len().saturating_add(1))?;
+    if !stored_callables::scalar(result) || !parameters.iter().all(stored_callables::scalar) {
+        return Ok(None);
+    }
+    match code_targets(f, callee, b) {
+        Ok(targets) => Ok(Some(targets)),
+        Err(error) if error.category == zil_base::ResultCategory::Unsupported => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
 /// Actual code provenance, conservatively including every Store alternative.
 /// Unknown input code never selects a same-signature function as a substitute.
 pub(super) fn code_targets(
@@ -1089,15 +1110,32 @@ pub(super) fn code_targets(
                 for block in &f.blocks {
                     b.spend(block.instructions.len())?;
                     for instruction in &block.instructions {
-                        if let InstructionKind::Store {
-                            local: target,
-                            value,
-                        } = &instruction.kind
-                            && target == local
-                        {
-                            b.spend(1)?;
-                            pending.push(*value);
-                            stored = true;
+                        match &instruction.kind {
+                            InstructionKind::Store {
+                                local: target,
+                                value,
+                            } if target == local => {
+                                b.spend(1)?;
+                                pending.push(*value);
+                                stored = true;
+                            }
+                            InstructionKind::Load(_)
+                            | InstructionKind::TakeLocal { .. }
+                            | InstructionKind::StorageLive(_)
+                            | InstructionKind::StorageDead(_) => {}
+                            kind => {
+                                // An address or an implicit local destination can replace
+                                // this code value without an explicit Store to the local.
+                                for operand in kind.local_operands() {
+                                    b.spend(1)?;
+                                    if operand == *local {
+                                        return Err(unsupported(
+                                            "indirect call code local has an untracked address or write",
+                                            Some(instruction.span),
+                                        ));
+                                    }
+                                }
+                            }
                         }
                     }
                 }

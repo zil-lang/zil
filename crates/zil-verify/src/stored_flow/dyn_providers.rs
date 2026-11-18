@@ -479,6 +479,15 @@ fn effect(summary: &mut Summary, effect: &DynEffect, b: &mut Budget) -> Check<()
     summary.dyn_effects.insert(position, effect.clone());
     Ok(())
 }
+fn include_call_effects(summary: &mut Summary, actual: &Summary, b: &mut Budget) -> Check<()> {
+    summary.dyn_operations |= actual.dyn_operations;
+    summary.dyn_effects_known &= actual.dyn_effects_known;
+    for e in &actual.dyn_effects {
+        effect(summary, e, b)?;
+    }
+    Ok(())
+}
+
 pub(super) fn effects(
     module: &TypedModule,
     f: &TypedFunction,
@@ -517,10 +526,18 @@ pub(super) fn effects(
                     let actual = summaries
                         .get(function.0 as usize)
                         .ok_or_else(|| bad("provider reachable helper summary is absent"))?;
-                    summary.dyn_operations |= actual.dyn_operations;
-                    summary.dyn_effects_known &= actual.dyn_effects_known;
-                    for e in &actual.dyn_effects {
-                        effect(summary, e, b)?;
+                    include_call_effects(summary, actual, b)?;
+                }
+                InstructionKind::CallIndirect { callee, .. } => {
+                    if let Some(targets) = reference_cells::scalar_code_targets(f, *callee, b)? {
+                        for target in targets {
+                            let actual = summaries
+                                .get(target.0 as usize)
+                                .ok_or_else(|| bad("indirect provider helper summary is absent"))?;
+                            include_call_effects(summary, actual, b)?;
+                        }
+                    } else {
+                        summary.dyn_effects_known = false;
                     }
                 }
                 InstructionKind::CallDynSlot {
@@ -598,11 +615,7 @@ pub(super) fn effects(
                     let actual = summaries
                         .get(definition.function.0 as usize)
                         .ok_or_else(|| bad("reachable Context callable summary is absent"))?;
-                    summary.dyn_operations |= actual.dyn_operations;
-                    summary.dyn_effects_known &= actual.dyn_effects_known;
-                    for e in &actual.dyn_effects {
-                        effect(summary, e, b)?;
-                    }
+                    include_call_effects(summary, actual, b)?;
                 }
                 InstructionKind::Binary { .. }
                 | InstructionKind::Unary { .. }
@@ -634,6 +647,7 @@ pub(super) fn effects(
                 | InstructionKind::VariantTag { .. }
                 | InstructionKind::PlaceTagLocal { .. }
                 | InstructionKind::StaticUtf8 { .. }
+                | InstructionKind::FunctionRef { .. }
                 | InstructionKind::SliceLength { .. }
                 | InstructionKind::Constant(_)
                 | InstructionKind::Load(_)

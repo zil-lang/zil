@@ -8401,9 +8401,28 @@ fn solve_check(
             }
             if b.raw_reference_cells || b.stored_slot_updates || b.dyn_contexts || b.replacements {
                 b.spend(f.blocks.len())?;
-                for block in &f.blocks {
+                for (block, reachable) in f.blocks.iter().zip(&graphs[index].reachable) {
                     b.spend(block.instructions.len())?;
                     for instruction in &block.instructions {
+                        if b.dyn_contexts
+                            && *reachable
+                            && let InstructionKind::CallIndirect { callee, .. } = instruction.kind
+                        {
+                            if let Some(targets) = reference_cells::scalar_code_targets(f, callee, b)? {
+                                for target in targets {
+                                    let id = target.0 as usize;
+                                    let prior = summaries.get(id)
+                                        .ok_or_else(|| err("indirect stored call summary is absent"))?;
+                                    let read_only_cycle = recursion.as_ref().is_some_and(|inventory| {
+                                        inventory.internal(index, id, &recursive_assumptions)
+                                    });
+                                    if !prior.complete && !read_only_cycle {
+                                        summary.complete = false;
+                                    }
+                                }
+                            }
+                            continue;
+                        }
                         let function = match &instruction.kind {
                             InstructionKind::Call { function, .. }
                             | InstructionKind::SuspendCall { function, .. } => *function,

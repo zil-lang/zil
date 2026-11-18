@@ -84,29 +84,40 @@ impl Inventory {
                 }
                 b.spend(block.instructions.len())?;
                 for instruction in &block.instructions {
-                    let target = match instruction.kind {
-                        InstructionKind::Call { function, .. }
-                        | InstructionKind::SuspendCall { function, .. } => function.0 as usize,
-                        _ => {
-                            let Some((definition, _)) =
-                                stored_callables::called(module, function, &instruction.kind)
-                            else {
-                                continue;
-                            };
-                            if static_borrows::stateless_result(module, definition, b)? {
-                                continue;
-                            }
-                            definition.function.0 as usize
+                    let mut add = |target: usize, b: &mut Budget| -> Check<()> {
+                        if target >= count {
+                            return Err(err("recursive helper target is absent"));
                         }
+                        b.spend(dependencies[index].len().saturating_add(1))?;
+                        dependencies[index].push(target);
+                        if allowed[target] {
+                            b.spend(reverse[target].len().saturating_add(1))?;
+                            reverse[target].push(index);
+                        }
+                        Ok(())
                     };
-                    if target >= count {
-                        return Err(err("recursive helper target is absent"));
-                    }
-                    b.spend(dependencies[index].len().saturating_add(1))?;
-                    dependencies[index].push(target);
-                    if allowed[target] {
-                        b.spend(reverse[target].len().saturating_add(1))?;
-                        reverse[target].push(index);
+                    match instruction.kind {
+                        InstructionKind::Call { function, .. }
+                        | InstructionKind::SuspendCall { function, .. } => {
+                            add(function.0 as usize, b)?
+                        }
+                        InstructionKind::CallIndirect { callee, .. } => {
+                            if let Some(targets) =
+                                reference_cells::scalar_code_targets(function, callee, b)?
+                            {
+                                for target in targets {
+                                    add(target.0 as usize, b)?;
+                                }
+                            }
+                        }
+                        _ => {
+                            if let Some((definition, _)) =
+                                stored_callables::called(module, function, &instruction.kind)
+                                && !static_borrows::stateless_result(module, definition, b)?
+                            {
+                                add(definition.function.0 as usize, b)?;
+                            }
+                        }
                     }
                 }
             }
