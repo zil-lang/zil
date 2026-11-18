@@ -1915,7 +1915,7 @@ pub(super) fn qualifications(
             continue;
         }
         for block in &f.blocks {
-            for i in &block.instructions {
+            for (ordinal, i) in block.instructions.iter().enumerate() {
                 b.spend(1)?;
                 // Type/mode authentication is independent of dispatch flags.
                 anonymous_tuple::operation(f, i, b)?;
@@ -2102,7 +2102,7 @@ pub(super) fn qualifications(
                     return Err(unsupported(
                         "instruction is outside the checked stored profile, including unreachable blocks",
                         Some(i.span),
-                    ));
+                    ).with_note(format!("actual function {:?}, block {:?}, instruction {ordinal}", f.id, block.id)));
                 }
                 if super::class_flow::pointer_instruction(f, i) {
                     super::class_flow::pointer_types(module, f, i, b)?;
