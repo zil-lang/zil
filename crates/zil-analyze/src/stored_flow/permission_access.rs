@@ -57,15 +57,24 @@ impl<'step> Access<'step> {
     }
 }
 
-type Site = (BlockId, usize, Option<zil_base::Span>);
+type Site = (BlockId, Option<u32>, Option<zil_base::Span>);
 
 fn site(block: BlockId, position: usize, instruction: &Instruction) -> Site {
     use zil_base::Span;
     let Span { start, end, .. } = instruction.span;
-    (block, position, (start < end).then_some(instruction.span))
+    (
+        block,
+        u32::try_from(position).ok(),
+        (start < end).then_some(instruction.span),
+    )
 }
 
-fn origin(f: &TypedFunction, loan: usize, ids: &SlotLoanIds, b: &mut Budget) -> CompileResult<Option<Site>> {
+fn origin(
+    f: &TypedFunction,
+    loan: usize,
+    ids: &SlotLoanIds,
+    b: &mut Budget,
+) -> CompileResult<Option<Site>> {
     let mut address = None;
     if loan >= f.values.len() {
         for (&(instruction, _, _), &(id, _)) in &ids.physical {
@@ -89,7 +98,8 @@ fn origin(f: &TypedFunction, loan: usize, ids: &SlotLoanIds, b: &mut Budget) -> 
                 fee(b, 1)?;
                 if id == loan {
                     address = Some(match *key {
-                        raw_references::WriteSite::Write(site) | raw_references::WriteSite::Call { site, .. } => site,
+                        raw_references::WriteSite::Write(site)
+                        | raw_references::WriteSite::Call { site, .. } => site,
                     });
                     break;
                 }
@@ -104,7 +114,9 @@ fn origin(f: &TypedFunction, loan: usize, ids: &SlotLoanIds, b: &mut Budget) -> 
             fee(b, 1)?;
             let matches = match address {
                 Some(address) => std::ptr::from_ref(instruction) as usize == address,
-                None => instruction.result.is_some_and(|value| value.0 as usize == loan),
+                None => instruction
+                    .result
+                    .is_some_and(|value| value.0 as usize == loan),
             };
             if matches {
                 return Ok(Some(site(block.id, position, instruction)));
@@ -158,7 +170,11 @@ fn later_use(
         if !visited.insert((block, start, index)) {
             continue;
         }
-        let Some(block) = f.blocks.get(block.0 as usize).filter(|found| found.id == block) else {
+        let Some(block) = f
+            .blocks
+            .get(block.0 as usize)
+            .filter(|found| found.id == block)
+        else {
             continue;
         };
         let mut survives = true;
@@ -181,13 +197,18 @@ fn later_use(
             continue;
         }
         match block.terminator {
-            Terminator::Return(Some(value)) | Terminator::Branch { condition: value, .. }
-                if value.0 as usize == index =>
-            {
-                return Ok(Some((block.id, block.instructions.len(), None)));
+            Terminator::Return(Some(value))
+            | Terminator::Branch {
+                condition: value, ..
+            } if value.0 as usize == index => {
+                return Ok(Some((block.id, None, None)));
             }
             Terminator::Jump(target) => pending.push_back((target, 0, index)),
-            Terminator::Branch { then_block, else_block, .. } => {
+            Terminator::Branch {
+                then_block,
+                else_block,
+                ..
+            } => {
                 pending.push_back((then_block, 0, index));
                 pending.push_back((else_block, 0, index));
             }
@@ -221,20 +242,43 @@ pub(super) fn explain_conflict(
             Some(DiagnosticIrLocation {
                 function: f.id.0,
                 block: Some(block.0),
-                instruction: u32::try_from(position).ok(),
+                instruction: position,
             }),
             message,
         );
     };
     if let Some(loan) = loan {
         if let Ok(Some(created)) = origin(f, loan, ids, b) {
-            relate(DiagnosticRole::BorrowCreated, created, "The borrow is created here.");
+            relate(
+                DiagnosticRole::BorrowCreated,
+                created,
+                "The borrow is created here.",
+            );
         }
     }
-    relate(DiagnosticRole::ConflictingAccess, current, "This access conflicts with the live borrow.");
+    relate(
+        DiagnosticRole::ConflictingAccess,
+        current,
+        "This access conflicts with the live borrow.",
+    );
     if let Some(loan) = loan {
-        if let Ok(Some(later)) = later_use(module, f, conflict, instruction, loan, live, state, values, loans, b) {
-            relate(DiagnosticRole::LaterUse, later, "This use keeps the borrow live.");
+        if let Ok(Some(later)) = later_use(
+            module,
+            f,
+            conflict,
+            instruction,
+            loan,
+            live,
+            state,
+            values,
+            loans,
+            b,
+        ) {
+            relate(
+                DiagnosticRole::LaterUse,
+                later,
+                "This use keeps the borrow live.",
+            );
         }
     }
 }
