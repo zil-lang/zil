@@ -240,12 +240,13 @@ fn projection_value(
                 | s::ExprKind::TypeApply { .. }
                 | s::ExprKind::Member { .. }
                 | s::ExprKind::Index { .. }
+                | s::ExprKind::Slice { .. }
                 | s::ExprKind::Unary {
                     op: s::UnaryOp::Borrow | s::UnaryOp::BorrowMut,
                     ..
                 } if child == 0 => return Ok(false),
-                // The index expression is still evaluated as a value even
-                // when the indexed object is a borrowed or assigned place.
+                // Indexes and range endpoints are evaluated as values.
+                // Only the object selects the backing storage.
                 _ => return Ok(true),
             },
             body_nodes::Node::NonRuntime => return Ok(false),
@@ -1487,6 +1488,33 @@ fn main(){let text=feedback("xyz",true);let other=feedback("uvw",false)}"#,
         // Neither grouped borrow places nor the assignment destination do.
         assert_eq!(observed_fields, ["index", "n"]);
         assert!(observed_names > 0);
+    }
+    #[test]
+    fn range_borrow_observes_its_endpoint_and_the_field_address() {
+        let (mut syntax, program) = prepare(
+            "struct Buffer{bytes:[u8;4];limit:i64}fn share(b:&Buffer){let view=&b.bytes[..b.limit];return ()}",
+        );
+        let definition = program.modules[0].1.definitions.iter().find(|row| row.id.index == 1).unwrap();
+        let SemanticDefinitionBody::FunctionWithBody { sites, .. } = &definition.body else { panic!() };
+        let s::ItemKind::Function(function) = &mut syntax[0].items[1].kind else { panic!() };
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let mut body = SourceBody::Function(&mut function.body);
+        let mut fields = Vec::new();
+        let mut borrows = 0;
+        for site in sites {
+            if !matches!(site.kind, SemanticSiteRecipeKind::TypeUse { .. }) { continue; }
+            let located = body.locate(&site.occurrence_path[1..], &mut budget, function.span).unwrap().unwrap();
+            if let body_nodes::Node::Expression(expr) = located.node {
+                match &expr.kind {
+                    s::ExprKind::Member { member: s::MemberName::Name(name), .. } => fields.push(name.clone()),
+                    s::ExprKind::Unary { op: s::UnaryOp::Borrow, .. } => borrows += 1,
+                    _ => {}
+                }
+            }
+        }
+        assert_eq!(fields, ["limit"]);
+        assert_eq!(borrows, 1);
     }
     #[test]
     fn static_worker_selection_has_no_runtime_read_but_ordinary_values_keep_theirs() {
