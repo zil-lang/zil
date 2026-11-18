@@ -760,7 +760,10 @@ fn expand_program_with_limits_target_impl(
     // Defaults execute in their declaration's module. The generated function
     // name cannot be spelled by source syntax, but it remains an ordinary
     // exported function subjected to Types, Analyze and independent Verify.
-    for (module, _) in &specialized {
+    // Source-backed defaults are already ordinary executable declarations
+    // linked to their authored field. The Core-only path still needs the
+    // exported fallback helpers because it has no original operation ledger.
+    for (module, _) in specialized.iter().filter(|_| products.semantic.is_none()) {
         for item in &module.items {
             let s::ItemKind::Aggregate(a) = &item.kind else {
                 continue;
