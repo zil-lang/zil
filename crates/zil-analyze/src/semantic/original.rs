@@ -5554,30 +5554,7 @@ impl Checked {
             Kind::Nominal { .. } => Ok(self
                 .value(term, context, program, inventory, b, depth + 1)?
                 .into_type(b)?),
-            Kind::Closure { definition, .. } => {
-                let mut selected = None;
-                for instance in &program.instances {
-                    b.spend(1, WORK)?;
-                    if instance.definition != *definition {
-                        continue;
-                    }
-                    let Some(environment) = &instance.environment else {
-                        continue;
-                    };
-                    let SemanticClosureTarget::Typed(id) = environment.closure else {
-                        return Err(fail("original closure type retains a Core target"));
-                    };
-                    if selected.is_some_and(|previous| previous != id) {
-                        return Err(fail(
-                            "original closure Type has multiple actual entry identities",
-                        ));
-                    }
-                    selected = Some(id);
-                }
-                selected.map(Type::Closure).ok_or_else(|| {
-                    fail("original closure Type has no exact actual creator instance")
-                })
-            }
+            Kind::Closure { .. } => self.value(term, context, program, inventory, b, depth + 1)?.into_type(b),
             Kind::Infer(_) => Err(unknown(
                 "original Type remains unresolved independently of actual caller headers",
             )),

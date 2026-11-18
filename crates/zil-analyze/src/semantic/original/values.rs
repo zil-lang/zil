@@ -819,106 +819,126 @@ impl Checked {
                 }
                 value::tuple(types, b)
             }
-            Kind::Closure {
-                definition,
-                environment,
-                ..
-            } => {
-                let ty = self.materialize(term, context, program, inventory, b, depth + 1)?;
-                let Type::Closure(id) = ty else {
-                    return Err(fail("original closure materialization has another type"));
-                };
-                let entry = inventory
-                    .module
-                    .closures
-                    .get(id.0 as usize)
-                    .filter(|entry| entry.id == id)
-                    .ok_or_else(|| fail("original closure has no actual inventory"))?;
-                let count = entry
-                    .storage_life
-                    .as_ref()
-                    .ok_or_else(|| unknown("original closure has no complete intrinsic scope"))?
-                    .fixed_binder_count;
-                let mut captures = Vec::new();
-                let mut classes = Vec::new();
-                for capture in environment {
-                    let value = self.value(*capture, context, program, inventory, b, depth + 1)?;
-                    for class in &value.classes {
-                        value::intern(&mut classes, class.clone(), b)?;
-                    }
-                    Solver::push(&mut captures, value, b)?;
-                }
-                // Only additional ABI occurrences need a projection. The normal
-                // original domain already carries its rigid class order.
-                if classes.len() < count as usize {
-                    let candidates = program.instances.iter().filter(|instance|
-                        instance.definition == *definition && instance.environment.as_ref().is_some_and(
-                            |environment| environment.closure == SemanticClosureTarget::Typed(id)));
-                    b.spend(program.instances.len(), WORK)?;
-                    let mut scoped = None;
-                    let mut all = candidates.clone();
-                    let first = all.next().ok_or_else(|| fail("original closure scope has no exact actual child"))?;
-                    if all.next().is_some() {
-                        let mut world = Some(context);
-                        while let Some(current) = world {
-                            b.spend(program.instances.len(), WORK)?;
-                            let mut local = candidates.clone().filter(|candidate| candidate.id == current.id || candidate.parent == Some(current.id));
-                            if let Some(child) = local.next() {
-                                if local.next().is_some() {
-                                    return Err(fail("closure scope has competing child instances at its creator"));
-                                }
-                                scoped = Some(child);
-                                break;
-                            }
-                            world = current.parent.map(|parent| inventory.instance(parent, b)).transpose()?;
-                        }
-                        if scoped.is_none() {
-                            return Err(fail("closure scope has no unique actual child at its lexical creator"));
-                        }
-                    }
-                    let child = scoped.unwrap_or(first);
-                    if let Some(images) = Self::intrinsic_capture_images(child, &captures, count, b)? {
-                        classes = images;
-                    } else {
-                    let source = inventory.definition(child.definition, b)?;
-                    for binding in &child.header_embedding {
-                        if matches!(binding.header, StorageBinder::Fixed(_)) {
-                            if let SemanticClassExpr::Implicit {
-                                scope: SemanticScopeRef::Ancestor(0),
-                                ordinal,
-                            } = binding.actual
-                            {
-                                if !source
-                                    .implicit_lifetimes
-                                    .iter()
-                                    .any(|row| row.ordinal == ordinal)
-                                {
-                                    return Err(fail(
-                                        "closure head class has no original occurrence",
-                                    ));
-                                }
-                                value::intern(&mut classes, Class::Implicit(child.id, ordinal), b)?;
-                            }
-                        }
-                    }
-                }
-                }
-                if count as usize != classes.len() {
-                    return Err(fail(
-                        "actual closure scope omits original environment or phantom classes",
-                    ));
-                }
-                Ok(Value::new(Type::Closure(id), StorageLifeShape {
-                        binder_count: count,
-                        slots: Vec::new(),
-                        retained: Vec::new(),
-                        nominal_arguments: Vec::new(),
-                    }, classes))
-            }
+            Kind::Closure { .. } => self.closure_value(
+                term, context, context, None, program, inventory, b, depth + 1,
+            ),
             _ => Err(unknown(
                 "original complete type remains unresolved independently of executable images",
             )),
         }
+    }
+}
+
+impl Checked {
+    #[allow(clippy::too_many_arguments)]
+    fn closure_value(
+        &self,
+        term: Term,
+        context: &SemanticInstance,
+        identity_context: &SemanticInstance,
+        returned_entry: Option<ClosureId>,
+        program: &SemanticModule,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Value> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(resource("original closure value exceeds its finite depth"));
+        }
+        let Kind::Closure { definition, environment, .. } = &self.arena[self.root(term, b)?] else {
+            return Err(fail("original closure value has another symbolic type"));
+        };
+        let source = inventory.definition(*definition, b)?;
+        let lexical_parent = source.parent.ok_or_else(|| fail("original closure has no lexical creator"))?;
+        let mut owner = None;
+        let mut current = Some(identity_context);
+        for _ in 0..=b.partial_depth {
+            let Some(world) = current else { break; };
+            b.spend(1, WORK)?;
+            if world.definition == *definition {
+                owner = Some((true, world.id));
+                break;
+            }
+            if world.definition == lexical_parent {
+                owner = Some((false, world.id));
+                break;
+            }
+            current = world.parent.map(|id| inventory.instance(id, b)).transpose()?;
+        }
+        if current.is_some() && owner.is_none() {
+            return Err(resource("original closure creator exceeds its finite lexical depth"));
+        }
+        let mut selected = None;
+        let mut unique_child = None;
+        let mut ambiguous_child = false;
+        for child in &program.instances {
+            b.spend(1, WORK)?;
+            if child.definition != *definition || owner.is_some_and(|(exact, id)| {
+                if exact { child.id != id } else { child.parent != Some(id) }
+            }) {
+                continue;
+            }
+            let Some(environment) = &child.environment else { continue; };
+            let SemanticClosureTarget::Typed(id) = environment.closure else {
+                return Err(fail("original closure type retains a Core target"));
+            };
+            if returned_entry.is_some_and(|returned| returned != id) {
+                if owner.is_some() { return Err(fail("original closure return changes its exact lexical creator entry")); }
+                continue;
+            }
+            if selected.replace(id).is_some_and(|previous| previous != id) {
+                return Err(fail("original closure Type has multiple actual entry identities in its creator domain"));
+            }
+            ambiguous_child |= unique_child.replace(child).is_some();
+        }
+        let id = selected.ok_or_else(|| fail("original closure Type has no exact actual creator instance"))?;
+        let entry = inventory.module.closures.get(id.0 as usize).filter(|entry| entry.id == id)
+            .ok_or_else(|| fail("original closure has no actual inventory"))?;
+        let count = entry.storage_life.as_ref()
+            .ok_or_else(|| unknown("original closure has no complete intrinsic scope"))?.fixed_binder_count;
+        let mut captures = Vec::new();
+        let mut classes = Vec::new();
+        for capture in environment {
+            let value = self.value(*capture, context, program, inventory, b, depth + 1)?;
+            for class in &value.classes {
+                value::intern(&mut classes, class.clone(), b)?;
+            }
+            Solver::push(&mut captures, value, b)?;
+        }
+        // Extra ABI classes must be read from the exact selected creator.
+        // Capture values themselves are transported in the caller domain.
+        if classes.len() < count as usize {
+            let child = unique_child.filter(|_| !ambiguous_child)
+                .ok_or_else(|| fail("closure scope has no unique actual child at its lexical creator"))?;
+            if let Some(images) = Self::intrinsic_capture_images(child, &captures, count, b)? {
+                classes = images;
+            } else {
+                for binding in &child.header_embedding {
+                    b.spend(1, WORK)?;
+                    if matches!(binding.header, StorageBinder::Fixed(_))
+                        && let SemanticClassExpr::Implicit {
+                            scope: SemanticScopeRef::Ancestor(0), ordinal,
+                        } = binding.actual
+                    {
+                        b.spend(source.implicit_lifetimes.len(), WORK)?;
+                        if !source.implicit_lifetimes.iter().any(|row| row.ordinal == ordinal) {
+                            return Err(fail("closure head class has no original occurrence"));
+                        }
+                        value::intern(&mut classes, Class::Implicit(child.id, ordinal), b)?;
+                    }
+                }
+            }
+        }
+        if count as usize != classes.len() {
+            return Err(fail("actual closure scope omits original environment or phantom classes"));
+        }
+        Ok(Value::new(Type::Closure(id), StorageLifeShape {
+            binder_count: count,
+            slots: Vec::new(),
+            retained: Vec::new(),
+            nominal_arguments: Vec::new(),
+        }, classes))
     }
 }
 
@@ -1013,6 +1033,7 @@ impl Checked {
             .and_then(|block| block.instructions.get(instruction as usize))
             .ok_or_else(|| fail("original call role has no actual instruction"))?;
         let action = &site.action;
+        let mut closure_result: Option<Value> = None;
         if let InstructionKind::Call {
             function: target, ..
         }
@@ -1023,12 +1044,34 @@ impl Checked {
             function: target, ..
         } = instruction.kind
         {
+            let returns_closure = matches!(self.arena[self.root(hidden, b)?], Kind::Closure { .. });
             let mut worlds = 0usize;
             for instance in inventory.worlds(program, target, b)? {
                 if instance.definition != call.target {
                     return Err(fail("original result role selects another actual callee"));
                 }
                 worlds = worlds.saturating_add(1);
+                if returns_closure {
+                    // Derive the entry inside the exact actual callee's original
+                    // result scope. A forwarding body can resolve another
+                    // original call there. The outer capture types and class
+                    // substitution still belong to this caller's scheme.
+                    b.lookup(self.frames.len(), WORK)?;
+                    let frame = self.frames.get(&instance.definition)
+                        .ok_or_else(|| fail("opaque call result has no checked declaration frame"))?;
+                    let origin = self.value(frame.result, instance, program, inventory, b, depth + 1)?;
+                    let Type::Closure(entry) = origin.ty else {
+                        return Err(fail("opaque call result has no original closure creator"));
+                    };
+                    let value = self.closure_value(hidden, context, instance, Some(entry), program, inventory, b, depth + 1)?;
+                    if let Some(previous) = &closure_result {
+                        if !previous.equal_paid(&value, b)? {
+                            return Err(fail("actual callee worlds disagree on their original returned closure"));
+                        }
+                    } else {
+                        closure_result = Some(value);
+                    }
+                }
             }
             if worlds == 0 {
                 return Err(fail("original result role has no actual callee world"));
@@ -1068,7 +1111,10 @@ impl Checked {
         {
             return Err(fail("original result role changed its actual call family"));
         }
-        let result = self.value(hidden, context, program, inventory, b, depth + 1)?;
+        let result = match closure_result {
+            Some(value) => value,
+            None => self.value(hidden, context, program, inventory, b, depth + 1)?,
+        };
         let Some(value) = instruction.result else {
             if result.ty == Type::Unit && result.classes.is_empty() {
                 return Ok(result);
