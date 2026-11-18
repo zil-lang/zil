@@ -21,8 +21,26 @@ mod dyn_leases;
 mod dyn_ports;
 mod dyn_providers;
 mod dyn_returns;
+mod finite_fields;
 mod foreign_calls;
 mod value_transport;
+
+pub(crate) fn finite_field_borrow(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
+    finite_fields::operation(module, f, i, b)
+}
+pub(crate) fn finite_field_classes(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> Check<Vec<u32>> {
+    finite_fields::classes(module, f, i, b)
+}
 
 pub(crate) fn logical_dyn_capture_leaf(
     module: &TypedModule,
@@ -1992,6 +2010,7 @@ pub(super) fn qualifications(
                     && !pure_copy::ordinary_owned_tuple(module, f, i, b)?
                     && !callable_cells::operation(module, f, i, b)?
                     && !pure_copy::ordinary_copy_field_borrow(f, i, b)?
+                    && !finite_fields::operation(module, f, i, b)?
                     && !pure_copy::ordinary_package_borrow(f, i, b)?
                     && !pure_copy::ordinary_package_read(f, i, b)?
                     && !pure_copy::qualified_package_description(f, i, b)?
@@ -4387,15 +4406,8 @@ static_dependency: StaticProvenance::NotStatic,
             mutable: false,
         } => {
             let definition = captured_definition(module, f, b)
-                .filter(|d| super::stored_callables::lending(d))
                 .ok_or_else(|| err("capture loan has no qualified lender entry"))?;
-            if !definition
-                .captures
-                .get(*index as usize)
-                .is_some_and(super::stored_callables::scalar)
-            {
-                return Err(err("capture loan does not address an inline scalar field"));
-            }
+            super::closures::inline_lending_capture(definition, *index, b)?;
             b.spend(1)?;
             out.address.sources.push(Source {
 static_dependency: StaticProvenance::NotStatic,
@@ -4883,6 +4895,9 @@ static_dependency: StaticProvenance::NotStatic,
         }
         InstructionKind::DropEnum{local}|InstructionKind::DropErrorUnion{local}if pure_copy::ordinary_owned_union(module,f,i,b)?=>{state.locals[local.0 as usize]=Payload::default();clear_local_holes(state,*local,b)?;},
         _ if pure_copy::ordinary_owned_union(module,f, i, b)? => {}
+        _ if finite_fields::operation(module, f, i, b)? => {
+            out = finite_fields::transfer(module, f, i, state, b)?;
+        }
         InstructionKind::BorrowPackageField { local, index, .. }
             if pure_copy::ordinary_copy_field_borrow(f, i, b)? =>
         {
@@ -5067,6 +5082,7 @@ static_dependency: StaticProvenance::NotStatic,
             }
             || ordinary_error_borrow(module, f, i, b)?
             || pure_copy::ordinary_copy_field_borrow(f, i, b)?
+            || finite_fields::operation(module, f, i, b)?
             || owned_byte_views::instruction(module, f, i, b)?)
         && matches!(vt(f, id)?, Type::Address { .. })
         && !deferred_projection
@@ -5396,7 +5412,8 @@ fn reverse(
             live.assign(f.values.len() + local.0 as usize, true)?
         }
         InstructionKind::BorrowPackageField { local, .. }
-            if pure_copy::ordinary_copy_field_borrow(f, i, b)? =>
+            if pure_copy::ordinary_copy_field_borrow(f, i, b)?
+                || finite_fields::operation(module, f, i, b)? =>
         {
             live.assign(f.values.len() + local.0 as usize, true)?;
         }
@@ -5469,7 +5486,8 @@ fn reverse_bool(
             live[f.values.len() + local.0 as usize] = true
         }
         InstructionKind::BorrowPackageField { local, .. }
-            if pure_copy::ordinary_copy_field_borrow(f, i, b)? =>
+            if pure_copy::ordinary_copy_field_borrow(f, i, b)?
+                || finite_fields::operation(module, f, i, b)? =>
         {
             live[f.values.len() + local.0 as usize] = true;
         }
@@ -6433,7 +6451,7 @@ fn windows(
                         local,
                         index,
                         mutable,
-                    } if pure_copy::ordinary_copy_field_borrow(f, i, b)? => {
+                    } if pure_copy::ordinary_copy_field_borrow(f, i, b)? || finite_fields::operation(module, f, i, b)? => {
                         b.spend(2)?;
                         let actual = Permission {
                             sources: vec![Source {

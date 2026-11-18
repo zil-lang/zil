@@ -384,6 +384,11 @@ mod tests {
     // complete Source/raw/Wire path is exercised in generic_regressions.
     fn model() -> TypedModule {
         let mut m = crate::resource_closure_tests::fixture(CallableKind::FnOnce, false, 1);
+        let tag_declaration = LifeDeclarationId {
+            module: m.module_id,
+            declaration: zil_base::NodeId(20_001),
+            compiler: false,
+        };
         let tag = Type::Address {
             mutable: false,
             inner: Box::new(Type::BorrowedStorage {
@@ -405,10 +410,37 @@ mod tests {
                         mode: StoredBorrowMode::SharedAddress,
                     }],
                     retained: vec![],
-                    nominal_arguments: vec![],
+                    nominal_arguments: vec![NominalLifeArgument {
+                        path: vec![],
+                        declaration: tag_declaration,
+                        argument: 0,
+                        binder: 0,
+                    }],
                 },
             }),
         };
+        m.life_declarations.push(LifeNominalDeclaration {
+            id: tag_declaration,
+            identity: LifeDeclarationIdentity {
+                package: "test".into(),
+                module_path: vec![],
+                declaration_path: vec!["Tag".into()],
+                generation_path: vec![],
+            },
+            kind: LifeNominalKind::Record,
+            parameters: vec![LifeParameterKind::Lifetime],
+        });
+        let Type::Address {
+            inner: tag_storage, ..
+        } = &tag
+        else {
+            unreachable!()
+        };
+        m.life_instances.push(LifeNominalInstance {
+            declaration: tag_declaration,
+            ty: tag_storage.as_ref().clone(),
+            arguments: vec![LifeNominalActual::Lifetime(0)],
+        });
         let relation = StorageLifeContract {
             static_bindings: Vec::new(),
             fixed_binder_count: 0,

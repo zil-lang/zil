@@ -34,48 +34,138 @@ pub(super) fn scalar(t: &Type) -> bool {
 /// readonly Static declaration. This is eligibility/occurrence metadata only:
 /// it creates no source, loan, class or proof of the all-constructor invariant.
 /// The same query is used by signature, capture, scope and frame consumers.
-pub(super) fn constant_value_positions(module:&TypedModule,ty:&Type,base:StorageBase,header:&StorageLifeContract,b:&mut Budget)->Check<Option<Vec<StoragePosition>>>{
-    fn pointee(module:&TypedModule,ty:&Type,depth:usize,b:&mut Budget)->Check<bool>{
-        b.spend(1)?;if depth>=b.limits.max_call_depth.min(128){return Err(limit("Static pointee eligibility depth exceeded"));}
-        Ok(match ty{
-            Type::Slice{element}|Type::Array{element,..}=>pointee(module,element,depth+1,b)?,
-            Type::Tuple(fields)=>{for field in fields{if !pointee(module,field,depth+1,b)?{return Ok(false);}}true},
-            Type::Record{fields,..}|Type::Package{fields,..}=>{
-                for(_,field)in fields{if !pointee(module,field,depth+1,b)?{return Ok(false);}}
+pub(super) fn constant_value_positions(
+    module: &TypedModule,
+    ty: &Type,
+    base: StorageBase,
+    header: &StorageLifeContract,
+    b: &mut Budget,
+) -> Check<Option<Vec<StoragePosition>>> {
+    fn pointee(module: &TypedModule, ty: &Type, depth: usize, b: &mut Budget) -> Check<bool> {
+        b.spend(1)?;
+        if depth >= b.limits.max_call_depth.min(128) {
+            return Err(limit("Static pointee eligibility depth exceeded"));
+        }
+        Ok(match ty {
+            Type::Slice { element } | Type::Array { element, .. } => {
+                pointee(module, element, depth + 1, b)?
+            }
+            Type::Tuple(fields) => {
+                for field in fields {
+                    if !pointee(module, field, depth + 1, b)? {
+                        return Ok(false);
+                    }
+                }
+                true
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                for (_, field) in fields {
+                    if !pointee(module, field, depth + 1, b)? {
+                        return Ok(false);
+                    }
+                }
                 // Scalar physical fields do not erase a nominal phantom κ.
-                crate::dynamic_witness::intrinsic_domain(module,ty,b)?.0==0
-            },
-            _=>scalar(ty),
+                crate::dynamic_witness::intrinsic_domain(module, ty, b)?.0 == 0
+            }
+            _ => scalar(ty),
         })
     }
-    let mut pending=vec![(ty,vec![],0usize)];let mut rows=Vec::new();
-    while let Some((ty,path,depth))=pending.pop(){
-        b.spend(path.len().saturating_add(1))?;if depth>=b.limits.max_call_depth.min(128){return Err(limit("Static capture eligibility depth exceeded"));}
-        match ty{
-            Type::Address{mutable:false,inner}=>{
-                if !pointee(module,inner,depth+1,b)?{return Ok(None);}
-                let position=StoragePosition{base,path};
-                b.spend(header.static_bindings.len().saturating_add(header.bindings.len()))?;
-                if header.static_bindings.iter().filter(|row|**row==position).count()!=1||header.bindings.iter().any(|row|row.position==position){return Ok(None);}
+    let mut pending = vec![(ty, vec![], 0usize)];
+    let mut rows = Vec::new();
+    while let Some((ty, path, depth)) = pending.pop() {
+        b.spend(path.len().saturating_add(1))?;
+        if depth >= b.limits.max_call_depth.min(128) {
+            return Err(limit("Static capture eligibility depth exceeded"));
+        }
+        match ty {
+            Type::Address {
+                mutable: false,
+                inner,
+            } => {
+                if !pointee(module, inner, depth + 1, b)? {
+                    return Ok(None);
+                }
+                let position = StoragePosition { base, path };
+                b.spend(
+                    header
+                        .static_bindings
+                        .len()
+                        .saturating_add(header.bindings.len()),
+                )?;
+                if header
+                    .static_bindings
+                    .iter()
+                    .filter(|row| **row == position)
+                    .count()
+                    != 1
+                    || header.bindings.iter().any(|row| row.position == position)
+                {
+                    return Ok(None);
+                }
                 rows.push(position);
-            },
-            Type::Tuple(fields)=>{b.spend(fields.len().saturating_mul(path.len().saturating_add(2)))?;for(index,field)in fields.iter().enumerate().rev(){let mut child=path.clone();child.push(ContractProjection::Place(PlaceProjection::Field(index as u32)));pending.push((field,child,depth+1));}},
-            Type::Array{element,length}=>{if *length as usize>b.limits.max_nodes{return Err(limit("Static capture array occurrence inventory exceeded"));}b.spend((*length as usize).saturating_mul(path.len().saturating_add(2)))?;for index in (0..*length).rev(){let mut child=path.clone();child.push(ContractProjection::Place(PlaceProjection::Field(index as u32)));pending.push((element,child,depth+1));}},
-            other if scalar(other)=>{},
+            }
+            Type::Tuple(fields) => {
+                b.spend(fields.len().saturating_mul(path.len().saturating_add(2)))?;
+                for (index, field) in fields.iter().enumerate().rev() {
+                    let mut child = path.clone();
+                    child.push(ContractProjection::Place(PlaceProjection::Field(
+                        index as u32,
+                    )));
+                    pending.push((field, child, depth + 1));
+                }
+            }
+            Type::Array { element, length } => {
+                if *length as usize > b.limits.max_nodes {
+                    return Err(limit("Static capture array occurrence inventory exceeded"));
+                }
+                b.spend((*length as usize).saturating_mul(path.len().saturating_add(2)))?;
+                for index in (0..*length).rev() {
+                    let mut child = path.clone();
+                    child.push(ContractProjection::Place(PlaceProjection::Field(
+                        index as u32,
+                    )));
+                    pending.push((element, child, depth + 1));
+                }
+            }
+            other if scalar(other) => {}
             // An opaque or qualified boundary owns a separate full domain.
             // Neither a layout match nor N0 supplies its child occurrences.
-            _=>return Ok(None),
+            _ => return Ok(None),
         }
     }
-    b.spend(header.static_bindings.len().saturating_mul(rows.len().saturating_add(1)))?;
-    if rows.is_empty()||header.static_bindings.iter().any(|row|row.base==base&&!rows.contains(row)){return Ok(None);}
+    b.spend(
+        header
+            .static_bindings
+            .len()
+            .saturating_mul(rows.len().saturating_add(1)),
+    )?;
+    if rows.is_empty()
+        || header
+            .static_bindings
+            .iter()
+            .any(|row| row.base == base && !rows.contains(row))
+    {
+        return Ok(None);
+    }
     Ok(Some(rows))
 }
 
-pub(super) fn constant_capture_slot(module:&TypedModule,definition:&ClosureDefinition,index:u32,b:&mut Budget)->Check<bool>{
-    let Some(header)=&definition.storage_life else{return Ok(false);};
-    let Some(ty)=definition.captures.get(index as usize)else{return Err(bad("Static capture qualification selects an absent actual field"));};
-    Ok(b.static_borrow_occurrences&&constant_value_positions(module,ty,StorageBase::Capture(index),header,b)?.is_some())
+pub(super) fn constant_capture_slot(
+    module: &TypedModule,
+    definition: &ClosureDefinition,
+    index: u32,
+    b: &mut Budget,
+) -> Check<bool> {
+    let Some(header) = &definition.storage_life else {
+        return Ok(false);
+    };
+    let Some(ty) = definition.captures.get(index as usize) else {
+        return Err(bad(
+            "Static capture qualification selects an absent actual field",
+        ));
+    };
+    Ok(b.static_borrow_occurrences
+        && constant_value_positions(module, ty, StorageBase::Capture(index), header, b)?.is_some())
 }
 
 pub(super) fn scalar_foreign(f: &TypedFunction, b: &mut Budget) -> Check<bool> {
@@ -321,7 +411,8 @@ fn captured_value_candidate(d: &ClosureDefinition) -> bool {
 }
 pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
     module.closures.get(id.0 as usize).is_some_and(|d| {
-        (d.lending_captures.is_empty() && (scalar(&d.result) || super::tasks::is_close_poll(&d.result)))
+        (d.lending_captures.is_empty()
+            && (scalar(&d.result) || super::tasks::is_close_poll(&d.result)))
             || lending(d)
             || borrowed_owned_candidate(d)
             || task_result(d)
@@ -421,24 +512,49 @@ pub(super) fn inline_qualified_capture(
 // An actual description head is checked by the complete closure relation.
 // Only the exact sealed manager definition can supply its Known0 pointee;
 // no missing capture row or equal physical shape substitutes for that proof.
-fn described_mutex_capture(module:&TypedModule,ty:&Type,b:&mut Budget)->Check<bool>{
-    let Type::Desc(manager)=ty else{return Ok(false);};
-    if !matches!(manager.as_ref(),Type::Mutex{..}){return Ok(false);}
+fn described_mutex_capture(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    let Type::Desc(manager) = ty else {
+        return Ok(false);
+    };
+    if !matches!(manager.as_ref(), Type::Mutex { .. }) {
+        return Ok(false);
+    }
     b.spend(module.resources.len())?;
-    let mut rows=module.resources.iter().filter(|row|row.payload==**manager);
-    let resource=rows.next().ok_or_else(||reject("E-VERIFY-CLOSURE",None,"captured mutex description has no exact sealed manager"))?;
-    if rows.next().is_some(){return Err(reject("E-VERIFY-CLOSURE",None,"captured mutex description has duplicate sealed managers"));}
-    super::generic_mutex::definition(module,resource,b)?;
-    Ok(super::dynamic_witness::intrinsic_domain(module,manager,b)?.0==0)
+    let mut rows = module
+        .resources
+        .iter()
+        .filter(|row| row.payload == **manager);
+    let resource = rows.next().ok_or_else(|| {
+        reject(
+            "E-VERIFY-CLOSURE",
+            None,
+            "captured mutex description has no exact sealed manager",
+        )
+    })?;
+    if rows.next().is_some() {
+        return Err(reject(
+            "E-VERIFY-CLOSURE",
+            None,
+            "captured mutex description has duplicate sealed managers",
+        ));
+    }
+    super::generic_mutex::definition(module, resource, b)?;
+    Ok(super::dynamic_witness::intrinsic_domain(module, manager, b)?.0 == 0)
 }
-pub(super) fn complete_value_input(module:&TypedModule,ty:&Type,b:&mut Budget)->Check<bool>{
-    let (value,borrowed)=if let Type::Address{inner,..}=ty{(inner.as_ref(),true)}else{(ty,false)};
-    if matches!(value,Type::Address{..}|Type::Desc(_)){return Ok(false);}
+pub(super) fn complete_value_input(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    let (value, borrowed) = if let Type::Address { inner, .. } = ty {
+        (inner.as_ref(), true)
+    } else {
+        (ty, false)
+    };
+    if matches!(value, Type::Address { .. } | Type::Desc(_)) {
+        return Ok(false);
+    }
     // This is complete-value qualification, not Copy, SyncDrop or a source
     // theorem. Preserve every opaque/phantom class in its actual directory.
-    let _=borrowed;
-    super::dynamic_witness::intrinsic_domain(module,value,b)?;
-    super::dynamic_witness::structural_actual(module,value,DynStructuralBound::Value,b)?;
+    let _ = borrowed;
+    super::dynamic_witness::intrinsic_domain(module, value, b)?;
+    super::dynamic_witness::structural_actual(module, value, DynStructuralBound::Value, b)?;
     Ok(true)
 }
 pub(super) fn captured_profile(
@@ -446,20 +562,31 @@ pub(super) fn captured_profile(
     d: &ClosureDefinition,
     b: &mut Budget,
 ) -> Check<()> {
-    for ty in d.captures.iter().chain(&d.parameters).chain(std::iter::once(&d.result)){
-        if super::stored_flow::shared_tuple_value(module,ty,None,b)? && d.storage_life.is_none(){
-            return Err(unsupported("shared pointer Tuple callback requires its complete actual environment relation",None));
+    for ty in d
+        .captures
+        .iter()
+        .chain(&d.parameters)
+        .chain(std::iter::once(&d.result))
+    {
+        if super::stored_flow::shared_tuple_value(module, ty, None, b)? && d.storage_life.is_none()
+        {
+            return Err(unsupported(
+                "shared pointer Tuple callback requires its complete actual environment relation",
+                None,
+            ));
         }
     }
     // Retaining an owner is a Task environment composition even when its
     // complete lifetime directory is Known0. It still carries real cleanup
     // debt and needs the ordinary Task carrier/source consumers.
-    for capture in &d.captures{
+    for capture in &d.captures {
         b.spend(1)?;
-        if let Type::Managed(task)=capture && matches!(task.as_ref(),Type::Task{..}){
-            super::tasks::require_closed_context(task,None)?;
-            super::dynamic_witness::intrinsic_domain(module,task,b)?;
-            b.task_retained_environments=true;
+        if let Type::Managed(task) = capture
+            && matches!(task.as_ref(), Type::Task { .. })
+        {
+            super::tasks::require_closed_context(task, None)?;
+            super::dynamic_witness::intrinsic_domain(module, task, b)?;
+            b.task_retained_environments = true;
         }
     }
     if let Some(entry) = module.functions.get(d.function.0 as usize)
@@ -471,8 +598,8 @@ pub(super) fn captured_profile(
     for ty in &d.parameters {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
         if !borrowed_capture_input(ty)
-            && !super::stored_flow::shared_tuple_value(module,ty,None,b)?
-            && !complete_value_input(module,ty,b)?
+            && !super::stored_flow::shared_tuple_value(module, ty, None, b)?
+            && !complete_value_input(module, ty, b)?
             && !super::stored_flow::context_capture_type(module, ty, b)?
             && !inline_qualified_capture(module, ty, b)?
         {
@@ -482,7 +609,7 @@ pub(super) fn captured_profile(
             ));
         }
     }
-    for(index,ty)in d.captures.iter().enumerate(){
+    for (index, ty) in d.captures.iter().enumerate() {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
         let closed_owner = if let Type::OwnedDyn { interface } = ty {
             if super::dynamic_ports::interface(module, *interface, b)?
@@ -502,41 +629,43 @@ pub(super) fn captured_profile(
         };
         b.task_retained_environments |= matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{retained_life,..} if !retained_life.ports.is_empty()));
         if !(borrowed_capture_input(ty)
-            || super::stored_flow::shared_tuple_value(module,ty,None,b)?
-            || complete_value_input(module,ty,b)?
+            || super::stored_flow::shared_tuple_value(module, ty, None, b)?
+            || complete_value_input(module, ty, b)?
             || matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}) && matches!(d.kind,CallableKind::FnOnce | CallableKind::FnMut))
             || super::stored_owned::owner(ty)
-            || super::stored_owned::ordinary_byte_value(ty,b)?
-            || super::stored_owned::ordinary_store_value(module,ty,b)?
+            || super::stored_owned::ordinary_byte_value(ty, b)?
+            || super::stored_owned::ordinary_store_value(module, ty, b)?
             || packages::capture_owner(ty)
-            || described_mutex_capture(module,ty,b)?
+            || described_mutex_capture(module, ty, b)?
             || closed_owner
             || super::stored_flow::context_capture_type(module, ty, b)?
             || matches!(ty, Type::BorrowedStorage { .. }) && packages::capture_owner(ty)
             || matches!(ty, Type::Closure(child) if finite(module, *child))
             || inline_qualified_capture(module, ty, b)?
-            || constant_capture_slot(module,d,index as u32,b)?)
+            || constant_capture_slot(module, d, index as u32, b)?)
         {
             // Prove the real Fresh empty-source obligation before returning
             // a profile limitation. This includes borrowed leaves hidden in
             // nested child environments; it grants no capture admission.
-            super::retained::check_self_contained_sources(module,&b.limits.clone(),b)?;
+            super::retained::check_self_contained_sources(module, &b.limits.clone(), b)?;
             return Err(unsupported(
                 "captured Fixed requires shared/scalar captures or a finite class-free genuine Once owner",
                 None,
             ));
         }
     }
-    let shared_result=super::stored_flow::shared_tuple_value(module,&d.result,None,b)?;
+    let shared_result = super::stored_flow::shared_tuple_value(module, &d.result, None, b)?;
     let value_result = captured_value_candidate(d) && !task_result(d) && !shared_result;
     if value_result {
         super::stored_flow::type_work(&d.result, &b.limits.clone(), b)?;
-        super::dynamic_witness::intrinsic_domain(module,&d.result,b)?;
-        super::dynamic_witness::structural_actual(module,&d.result,DynStructuralBound::Value,b)?;
+        super::dynamic_witness::intrinsic_domain(module, &d.result, b)?;
+        super::dynamic_witness::structural_actual(module, &d.result, DynStructuralBound::Value, b)?;
         super::owned_callbacks::signature(module, d, b)?;
     }
-    if !(value_result || shared_result
-        || (d.lending_captures.is_empty() && (scalar(&d.result) || super::tasks::is_close_poll(&d.result)))
+    if !(value_result
+        || shared_result
+        || (d.lending_captures.is_empty()
+            && (scalar(&d.result) || super::tasks::is_close_poll(&d.result)))
         || lending(d)
         || task_result(d)
         || d.storage_life.as_ref().is_some_and(|life| {
@@ -608,7 +737,13 @@ pub(super) fn definitions(
             }
         }
         if let Some(c) = &d.storage_life {
-            if signature_life::outer(c,StorageBase::Receiver).is_some()&&f.call_kind!=CallKind::Direct{return Err(bad("a suspension contract cannot introduce a closure Receiver access head"));}
+            if signature_life::outer(c, StorageBase::Receiver).is_some()
+                && f.call_kind != CallKind::Direct
+            {
+                return Err(bad(
+                    "a suspension contract cannot introduce a closure Receiver access head",
+                ));
+            }
             captured_profile(module, d, b)?;
             super::signature_life::charge(c, b)?;
             super::borrowed_fp::signature_work(&d.captures, &Type::Unit, b)?;
@@ -723,10 +858,23 @@ pub(super) fn instruction(module: &TypedModule, f: &TypedFunction, i: &Instructi
             .locals
             .get(local.0 as usize)
             .is_some_and(|l| value(module, &l.ty)),
-        InstructionKind::BorrowCapture { mutable: false, .. } => f
+        InstructionKind::BorrowCapture {
+            index,
+            mutable: false,
+        } => f
             .environment
             .and_then(|id| module.closures.get(id.0 as usize))
-            .is_some_and(lending),
+            .is_some_and(|d| {
+                lending(d)
+                    || (super::closures::inline_capture_lending_candidate(d)
+                        && d.captures.get(*index as usize).is_some_and(|ty| {
+                            scalar(ty)
+                                || matches!(
+                                    ty,
+                                    Type::Array { .. } | Type::Record { .. } | Type::Tuple(_)
+                                )
+                        }))
+            }),
         _ => called(module, f, &i.kind).is_some(),
     }
 }
@@ -763,15 +911,8 @@ pub(super) fn types(
             let d = f
                 .environment
                 .and_then(|id| module.closures.get(id.0 as usize))
-                .filter(|d| lending(d))
                 .ok_or_else(|| bad("capture address lacks a real lending environment"))?;
-            let payload = d
-                .captures
-                .get(*index as usize)
-                .filter(|ty| scalar(ty))
-                .ok_or_else(|| {
-                    bad("capture address must name an inline scalar environment field")
-                })?;
+            let payload = super::closures::inline_lending_capture(d, *index, b)?;
             super::stored_flow::type_work(payload, &b.limits.clone(), b)?;
             let result = i.result.and_then(|id| f.values.get(id.0 as usize));
             if !matches!(result,Some(Type::Address {mutable:false,inner}) if inner.as_ref()==payload)
@@ -792,7 +933,7 @@ pub(super) fn types(
                 .get(*index as usize)
                 .ok_or_else(|| bad("qualified capture access lacks actual field"))?;
             if let InstructionKind::WriteCapture { value, .. } = &i.kind {
-                let constant_slot = constant_capture_slot(module,d, *index, b)?;
+                let constant_slot = constant_capture_slot(module, d, *index, b)?;
                 // Shape admission does not establish the incoming source.
                 // The whole-module invariant checks every actual write,
                 // including writes in entries which are never called.
@@ -848,16 +989,27 @@ pub(super) fn types(
     if d.storage_life.is_some()
         && matches!(i.kind, InstructionKind::CallClosureOnce { .. })
         && d.kind != zil_ir::CallableKind::FnOnce
-        && (!matches!(
+    {
+        if !matches!(
             d.kind,
             zil_ir::CallableKind::Fn | zil_ir::CallableKind::FnMut
-        ) || !(scalar(&d.result) || super::tasks::is_close_poll(&d.result) || captured_value_candidate(d))
-            || !d.lending_captures.is_empty())
-    {
-        return Err(unsupported(
-            "captured Fixed Once adaptation requires an actual nonlending scalar entry",
-            Some(i.span),
-        ));
+        ) || !d.lending_captures.is_empty()
+        {
+            return Err(unsupported(
+                "captured Fixed Once adaptation requires its actual nonlending entry",
+                Some(i.span),
+            ));
+        }
+        // Adaptation uses the same complete result qualification as the
+        // actual entry. It does not promise that a returned address survives
+        // retirement: actual sources/parents and the consuming resource
+        // operation discharge that separate obligation below the profile.
+        if !(scalar(&d.result)
+            || super::tasks::is_close_poll(&d.result)
+            || captured_value_candidate(d))
+        {
+            captured_profile(module, d, b)?;
+        }
     }
     b.spend(args.len())?;
     if args.len() != d.parameters.len() {

@@ -2041,6 +2041,28 @@ fn check_with(
                             e.ground_address(out.outer, b)?;
                         }
                     }
+                    InstructionKind::BorrowPackageField { local, .. }
+                        if super::stored_flow::finite_field_borrow(module, f, i, b)? =>
+                    {
+                        if let Some(out) = out {
+                            e.ground_address(out.outer, b)?;
+                            let mapping =
+                                super::stored_flow::finite_field_classes(module, f, i, b)?;
+                            let parent = locals
+                                .get(local.0 as usize)
+                                .ok_or_else(|| bad("finite field class parent is absent"))?;
+                            b.spend(mapping.len().saturating_add(out.classes.len()))?;
+                            if mapping.len() != out.classes.len() {
+                                return Err(bad(
+                                    "finite field borrow changes complete child class arity",
+                                ));
+                            }
+                            for (actual, source) in out.classes.iter().zip(mapping) {
+                                let source = parent.classes.get(source as usize).ok_or_else(|| bad("finite field class is outside its actual parent domain"))?;
+                                e.equal(*actual, *source, b)?;
+                            }
+                        }
+                    }
                     InstructionKind::BorrowPlaceLocal { .. }
                         if super::stored_flow::ordinary_error_borrow(module, f, i, b)? =>
                     {

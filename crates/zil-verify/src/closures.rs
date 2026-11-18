@@ -8,6 +8,49 @@ pub(super) fn lending_result(ty: &Type) -> bool {
             || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value()))
 }
 
+pub(super) fn inline_capture_lending_candidate(closure: &ClosureDefinition) -> bool {
+    closure.storage_life.is_some()
+        && !closure.lending_captures.is_empty()
+        && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
+        && matches!(closure.result, Type::Address { mutable: false, .. })
+}
+
+pub(super) fn inline_lending_capture<'a>(
+    closure: &'a ClosureDefinition,
+    index: u32,
+    budget: &mut Budget,
+) -> Check<&'a Type> {
+    let invalid = || {
+        reject(
+            "E-VERIFY-LENDING",
+            None,
+            "capture borrow requires an actual inline Copy field and lending entry",
+        )
+    };
+    if !inline_capture_lending_candidate(closure) {
+        return Err(invalid());
+    }
+    let payload = closure.captures.get(index as usize).ok_or_else(invalid)?;
+    if stored_callables::lending(closure) && stored_callables::scalar(payload) {
+        return Ok(payload);
+    }
+    let relation = closure.storage_life.as_ref().ok_or_else(invalid)?;
+    budget.spend(relation.bindings.len())?;
+    if !matches!(
+        signature_life::outer(relation, StorageBase::Receiver),
+        Some(StorageBinder::Invocation(_))
+    ) {
+        return Err(invalid());
+    }
+    // The stored solver must retain the actual invocation loan as well as
+    // the capture target through every projection, call, and return.
+    stored_flow::type_bounds(payload, &budget.limits.clone(), budget)?;
+    if !payload.is_copy_value() {
+        return Err(invalid());
+    }
+    Ok(payload)
+}
+
 pub(super) fn definition(
     module: &TypedModule,
     id: ClosureId,
@@ -332,8 +375,13 @@ pub(super) fn check_definitions(
         // Capture fields include independently checked finite owning Packages.
         // Hold, view binding and authority are reconstructed from the raw CFG.
         for ty in &closure.captures {
-            if stored_flow::shared_tuple_value(module,ty,None,budget)? && closure.storage_life.is_none(){
-                return Err(unsupported("shared pointer Tuple capture requires its complete actual environment relation",None));
+            if stored_flow::shared_tuple_value(module, ty, None, budget)?
+                && closure.storage_life.is_none()
+            {
+                return Err(unsupported(
+                    "shared pointer Tuple capture requires its complete actual environment relation",
+                    None,
+                ));
             }
             budget.task_retained_environments |= closure.kind == CallableKind::FnMut
                 && matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }));
@@ -511,8 +559,13 @@ pub(super) fn check_definitions(
                 check_local_type(ty, None, module, budget)?;
             }
         }
-        if stored_flow::shared_tuple_value(module,&closure.result,None,budget)? && closure.storage_life.is_none(){
-            return Err(unsupported("shared pointer Tuple result requires its complete actual environment relation",None));
+        if stored_flow::shared_tuple_value(module, &closure.result, None, budget)?
+            && closure.storage_life.is_none()
+        {
+            return Err(unsupported(
+                "shared pointer Tuple result requires its complete actual environment relation",
+                None,
+            ));
         }
         let owning_signature = owned_callbacks::signature(module, closure, budget)?;
         if owning_signature {
@@ -563,8 +616,13 @@ pub(super) fn check_definitions(
                     // Raw type preflight already bounded this tree. Verify the
                     // actual finite element shape, not a producer signature bit.
                     slices::check_pointee(inner, None)?;
-                } else if stored_flow::shared_tuple_value(module,ty,None,budget)? {
-                    if closure.storage_life.is_none(){return Err(unsupported("shared pointer Tuple parameter requires its complete actual environment relation",None));}
+                } else if stored_flow::shared_tuple_value(module, ty, None, budget)? {
+                    if closure.storage_life.is_none() {
+                        return Err(unsupported(
+                            "shared pointer Tuple parameter requires its complete actual environment relation",
+                            None,
+                        ));
+                    }
                     // Actual source/loan checks remain with the stored ledger.
                 } else {
                     check_type(ty, None).map_err(|error| {
@@ -576,7 +634,7 @@ pub(super) fn check_definitions(
                 || invocation
                 || explicit_result_relation
                 || stored_callables::task_result(closure)
-                || stored_flow::shared_tuple_value(module,&closure.result,None,budget)?
+                || stored_flow::shared_tuple_value(module, &closure.result, None, budget)?
             {
                 check_local_type(&closure.result, None, module, budget).map_err(|error| {
                     error.with_note("while checking the actual related closure result")

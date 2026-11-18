@@ -218,6 +218,37 @@ fn owning_callback_argument_is_consumed_once_raw_and_wire() {
     raw.reject("consumes a callback role more than once");
 }
 
+fn add_complete_plain_nominals(module: &mut TypedModule, roots: &[Type]) {
+    for ty in roots {
+        let (name, kind) = match ty {
+            Type::Package { name, .. } => (name, LifeNominalKind::Package),
+            Type::Record { name, .. } => (name, LifeNominalKind::Resource),
+            _ => unreachable!("the negative nominal fixture names complete product types"),
+        };
+        let declaration = LifeDeclarationId {
+            module: module.module_id,
+            declaration: zil_base::NodeId(30_000 + module.life_declarations.len() as u32),
+            compiler: false,
+        };
+        module.life_declarations.push(LifeNominalDeclaration {
+            id: declaration,
+            identity: LifeDeclarationIdentity {
+                package: "test".into(),
+                module_path: vec![],
+                declaration_path: vec![name.clone()],
+                generation_path: vec![],
+            },
+            kind,
+            parameters: vec![],
+        });
+        module.life_instances.push(LifeNominalInstance {
+            declaration,
+            ty: ty.clone(),
+            arguments: vec![],
+        });
+    }
+}
+
 #[test]
 fn unused_owned_signature_cannot_hide_callback_in_store_element_raw_and_wire() {
     let closed = StorageLifeContract {
@@ -264,6 +295,19 @@ fn unused_owned_signature_cannot_hide_callback_in_store_element_raw_and_wire() {
     }];
     unused.entry = BlockId(0);
     recursive.module.functions.push(unused);
+    let Type::Package { fields, .. } = &input else {
+        unreachable!()
+    };
+    let Type::Managed(store) = &fields[0].1 else {
+        unreachable!()
+    };
+    let Type::OwnedStore { element: item } = store.as_ref() else {
+        unreachable!()
+    };
+    add_complete_plain_nominals(
+        &mut recursive.module,
+        &[input.clone(), item.as_ref().clone()],
+    );
     recursive.module.closures.push(ClosureDefinition {
         id: ClosureId(1),
         function: FunctionId(3),
@@ -305,6 +349,10 @@ fn unused_owned_signature_cannot_hide_callback_in_store_element_raw_and_wire() {
         name: "BadReply".into(),
         fields: vec![("callbacks".into(), Type::Managed(Box::new(store.clone())))],
     };
+    add_complete_plain_nominals(
+        &mut raw.module,
+        &[payload(), element.clone(), result.clone()],
+    );
     let mut unused = raw.module.functions[1].clone();
     unused.id = FunctionId(3);
     unused.environment = Some(ClosureId(1));
