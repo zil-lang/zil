@@ -2,7 +2,7 @@
 //! The resulting relation is local to this role: it never enters nominal
 //! equality or changes the concrete closure's complete persistent domain.
 use super::*;
-use crate::semantic::value::{self, Class, Value};
+use crate::semantic::value::{self, Argument, Class, Value};
 use std::collections::BTreeMap;
 
 impl Check<'_, '_> {
@@ -98,9 +98,78 @@ impl Check<'_, '_> {
         }
     }
 
+    /// Relate a named life and the class of a rigid Type argument only at
+    /// their real incoming calls. The declaration retains both coordinates.
+    fn persistent_role_image(
+        &self,
+        context: &SemanticInstance,
+        expected: &Class,
+        actual: &Class,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        if self.capture_class_image(actual.clone(), b)?
+            == self.capture_class_image(expected.clone(), b)?
+        {
+            return Ok(true);
+        }
+        let (Class::Formal(life_scope, life_ordinal), Class::TypeArgument(type_scope, type_ordinal, class))
+            = (expected, actual) else { return Ok(false); };
+        if *life_scope != context.id || *type_scope != context.id || context.parent.is_some() {
+            return Ok(false);
+        }
+        let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(entry)) = context.target
+        else { return Ok(false); };
+        let mut proved = false;
+        for site in &self.program.sites {
+            b.spend(1, WORK)?;
+            if !matches!(site.action, SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::Call { .. }) {
+                continue;
+            }
+            let SemanticSiteAddress::Typed { block, instruction, edge: SemanticSiteEdge::After }
+                = site.at else { continue; };
+            let caller = self.inventory.instance(site.instance, b)?;
+            let SemanticInstanceTarget::Function(target) = &caller.target else {
+                return Err(fail("callable persistent role receipt has no actual caller"));
+            };
+            let function = self.inventory.function(target, b)?;
+            let operation = function.blocks.get(block.0 as usize)
+                .filter(|row| row.id == block)
+                .and_then(|row| row.instructions.get(instruction as usize))
+                .ok_or_else(|| fail("callable persistent role receipt leaves the actual CFG"))?;
+            if !matches!(operation.kind,
+                InstructionKind::Call { function: target, .. }
+                | InstructionKind::SuspendCall { function: target, .. } if target == entry)
+            {
+                continue;
+            }
+            let (target, arguments) = self.original.call_arguments(
+                caller, site.recipe, self.program, self.inventory, b,
+            )?;
+            if target != context.definition {
+                return Err(fail("callable persistent role changes its original callee"));
+            }
+            self.operation_mixed_arguments(context, &arguments, b)?;
+            let (Some(Argument::Life(life)), Some(Argument::Type(value))) = (
+                arguments.get(*life_ordinal as usize), arguments.get(*type_ordinal as usize),
+            ) else {
+                return Err(fail("callable persistent role changes a full mixed argument kind"));
+            };
+            let actual = value.classes.get(*class as usize)
+                .ok_or_else(|| fail("callable persistent role omits its actual intrinsic argument class"))?;
+            if self.capture_class_image(actual.clone(), b)?
+                != self.capture_class_image(life.clone(), b)?
+            {
+                return Ok(false);
+            }
+            proved = true;
+        }
+        Ok(proved)
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn role_occurrence(
         &self,
+        context: &SemanticInstance,
         expected: &Class,
         actual: StorageBinder,
         subject: &Value,
@@ -115,13 +184,28 @@ impl Check<'_, '_> {
             StorageBinder::Fixed(index) => {
                 // A role cannot freshen or rename the closure's retained
                 // class. Its complete subject supplies this exact image.
+                let actual = subject.classes.get(index as usize)
+                    .ok_or_else(|| fail("callable role leaves its complete Fixed domain"))?;
                 if matches!(expected, Class::Role(..))
-                    || subject.classes.get(index as usize) != Some(expected)
+                    || !self.persistent_role_image(context, expected, actual, b)?
                 {
-                    return Err(unknown(
-                        "callable role does not establish this persistent outer occurrence",
-                    ));
+                    b.spend(128, WORK)?;
+                    let mut errors = unknown("callable role does not establish this persistent outer occurrence");
+                    errors[0].notes.push(format!("original expected class {expected:?}, Fixed({index}) image {actual:?}"));
+                    return Err(errors);
                 }
+                let binder = StorageBinder::Fixed(index);
+                if matches!(relation.get(expected), Some(StorageBinder::Invocation(_)))
+                    || reverse.get(&binder).is_some_and(|prior| prior != expected)
+                {
+                    return Err(fail("callable role changes an independent original lifetime relation"));
+                }
+                // Equal outside images can satisfy distinct Fixed positions.
+                // Record their namespace without using one binder as proof of
+                // another or permitting an Invocation to occupy this role.
+                relation.entry(expected.clone()).or_insert(binder);
+                reverse.insert(binder, expected.clone());
+                return Ok(());
             }
             StorageBinder::Invocation(index) if index < invocations => {
                 if !allow_new_invocation && !relation.contains_key(expected) {
@@ -370,6 +454,7 @@ impl Check<'_, '_> {
                     continue;
                 }
                 self.role_occurrence(
+                    context,
                     class,
                     binding,
                     subject,
@@ -406,7 +491,7 @@ impl Check<'_, '_> {
                     && matches!(kind, CallableKind::Fn | CallableKind::FnMut)
                     && actual.bindings.iter().any(|row| row.position.base == StorageBase::Receiver
                         && row.position.path.is_empty() && row.binder == binder);
-                self.role_occurrence(image, binder, subject, actual.invocation_binder_count,
+                self.role_occurrence(context, image, binder, subject, actual.invocation_binder_count,
                     base != StorageBase::Result || receiver_input, &mut relation, &mut reverse, b)?;
                 used_bindings += 1;
             }
@@ -453,6 +538,7 @@ impl Check<'_, '_> {
                     fail("actual callable omits a complete intrinsic class occurrence")
                 })?;
                 self.role_occurrence(
+                    context,
                     image,
                     binder,
                     subject,
