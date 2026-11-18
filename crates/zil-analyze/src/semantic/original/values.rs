@@ -990,55 +990,14 @@ impl Checked {
                 if actuals.len() != call.actuals.len() {
                     return Err(fail("shared result omits its original full mixed vector"));
                 }
-                // The result is instantiated in the caller's checked original
-                // domain below. Do not select a representative callee world:
-                // every world of this code must independently fit this receipt.
-                for world in &program.instances {
-                    b.spend(1, WORK)?;
-                    if !matches!(world.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id==target)
-                    {
-                        continue;
-                    }
-                    // Each world retains its independently checked lexical
-                    // parent, Self, environment and header. None is selected
-                    // as a representative of the caller's result classes.
-                    // The original result below is instantiated in this exact
-                    // caller's checked scheme, while every callee world must
-                    // satisfy the same complete mixed boundary structurally.
+                // The original scheme supplies this result in the caller's
+                // domain. Each proposed mixed actual may name a real prepared
+                // SSA operand in that domain, so the mandatory closed BodyCall
+                // proof resolves it with its actual boundary and checks every
+                // target world before publishing any result.
+                for world in inventory.worlds(program, target, b)? {
                     if world.actuals.len() != call.actuals.len() {
                         return Err(fail("shared result world changes its full mixed arity"));
-                    }
-                    for (ordinal, ((original, proposed), actual)) in
-                        call.actuals.iter().zip(actuals).zip(&world.actuals).enumerate()
-                    {
-                        let expected =
-                            self.argument(*original, context, program, inventory, b, depth + 1)?;
-                        let proposed =
-                            self.result_world_argument(context, proposed, inventory, b, depth + 1)?;
-                        let actual =
-                            self.result_world_argument(world, actual, inventory, b, depth + 1)?;
-                        if proposed != expected {
-                            return Err(fail("shared result receipt differs from its complete caller-domain original actual"));
-                        }
-                        let valid = match (&expected, &actual) {
-                            (Argument::Life(_), Argument::Life(Class::Formal(owner, index))) =>
-                                *owner == world.id && *index as usize == ordinal,
-                            (Argument::Type(expected), Argument::Type(actual)) => {
-                                // Classes belong to different original worlds.
-                                // Compare full N/shape and physical Type here;
-                                // actual header/input/result class equations
-                                // remain separate boundary obligations.
-                                geometry::same_type(&expected.ty, &actual.ty, b)?
-                                    && expected.life == actual.life
-                                    && expected.classes.len() == actual.classes.len()
-                            }
-                            (Argument::Const { carrier: expected, value }, Argument::Const { carrier: actual, value: actual_value }) =>
-                                geometry::same_type(expected, actual, b)? && value == actual_value,
-                            _ => false,
-                        };
-                        if !valid {
-                            return Err(fail("shared result world changes its independently checked rigid mixed boundary"));
-                        }
                     }
                 }
             }
@@ -1074,40 +1033,6 @@ impl Checked {
         Ok(result)
     }
 
-    /// Resolve a proposed boundary in its own exact original world. Full class
-    /// images are retained; comparing worlds does not identify their classes.
-    fn result_world_argument(
-        &self,
-        context: &SemanticInstance,
-        actual: &SemanticActual,
-        inventory: &Inventory<'_>,
-        b: &mut Budget,
-        depth: usize,
-    ) -> CompileResult<Argument> {
-        crate::dyn_metadata::recipe(actual, b)?;
-        let (input, constant) = match actual {
-            SemanticActual::Type(input) => (input, None),
-            SemanticActual::Const { ty, value } => (ty, Some(value)),
-            SemanticActual::Life(life) => {
-                return Ok(Argument::Life(value::class(context, life, inventory, b, depth + 1)?));
-            }
-            _ => return Err(fail("shared call result contains an unmaterialized actual")),
-        };
-        let value = value::resolved(context, input, inventory, b, depth)?;
-        if let Some(constant) = constant {
-            if constant.ty() != value.ty {
-                return Err(fail(
-                    "shared call result changes its complete constant carrier",
-                ));
-            }
-            Ok(Argument::Const {
-                carrier: value.into_type(b)?,
-                value: constant.clone(),
-            })
-        } else {
-            Ok(Argument::Type(value))
-        }
-    }
 }
 
 impl Checked {
