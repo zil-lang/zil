@@ -360,7 +360,9 @@ impl CheckedContext {
                         let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::Construct{..}));
                         let site=declarations.next();
                         if declarations.next().is_some() {return Err(bad("actual aggregate construction has duplicate semantic claims"));}
-                        let value=if let Some(site)=site{self.site_expected(module,instance,site,&environment,external,active,b)?}else if matches!(instruction.kind,InstructionKind::MakeOwnedArray{..}){self.persistent_constructor(module,instance,f,instruction,&values,b)?}else{self.internal_copy_aggregate(module,f,instruction,fields,&values,b)?};
+                        let value=if let Some(site)=site{self.site_expected(module,instance,site,&environment,external,active,b)?}else if matches!(instruction.kind,InstructionKind::MakeOwnedArray{..}){self.persistent_constructor(module,instance,f,instruction,&values,b)?}
+                        else if matches!(instruction.kind,InstructionKind::MakePackage{..}){self.package_repack(module,instance,f,instruction,fields,&state,b)?}
+                        else{self.internal_copy_aggregate(module,f,instruction,fields,&values,b)?};
                         let mut storage=&value.ty;
                         while let Type::BorrowedStorage{storage:inner,..}|Type::Managed(inner)=storage {storage=inner;}
                         let expected_fields=match storage {

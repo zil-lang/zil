@@ -3,6 +3,77 @@
 //! absence of a source constructor site.
 use super::*;
 impl CheckedContext {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn package_repack(
+        &self, module: &TypedModule, instance: &SemanticInstance, f: &TypedFunction,
+        instruction: &Instruction, fields: &[ValueId], state: &State, b: &mut Budget,
+    ) -> Check<CheckedType> {
+        let result = instruction.result.ok_or_else(|| bad("package repack has no actual result"))?;
+        let (block, ordinal, _) = super::owner_sources::producer(f, result, b)?;
+        let program = module.semantic.as_ref().ok_or_else(|| bad("package repack has no original operation ledger"))?;
+        let definition = self.definition(module, instance.definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
+            return Err(bad("package repack has no complete original body"));
+        };
+        b.spend(program.sites.len().saturating_add(site_nodes.len()))?;
+        let mut sites = program.sites.iter().filter(|site| {
+            site.instance == instance.id
+                && matches!(site.at, SemanticSiteAddress::Typed { block: actual, instruction: at, .. }
+                    if actual == block && at >= ordinal)
+                && matches!(site.action, SemanticSiteAction::TypeUse { subject: SemanticOperand::Value(actual), .. }
+                    if actual == result)
+        });
+        let site = sites.next().ok_or_else(|| bad("package repack lacks its exact original whole-place TypeUse"))?;
+        if sites.next().is_some() {
+            return Err(bad("package repack ambiguously selects several original whole-place occurrences"));
+        }
+        let node = site_nodes.iter().find(|row| row.site == site.recipe).and_then(|row| {
+            if let SemanticOriginalNode::Expression(node) = row.node { Some(node) } else { None }
+        }).ok_or_else(|| bad("package repack TypeUse has no original expression"))?;
+        let (root, path) = self.original.borrow().as_ref()
+            .ok_or_else(|| bad("package repack has no completed original Place proof"))?
+            .buffer_place(instance.definition, node, b)?;
+        if !path.is_empty() {
+            return Err(bad("package repack TypeUse selects a field of the original place"));
+        }
+        let storage = f.values.get(result.0 as usize)
+            .ok_or_else(|| bad("package repack has no actual whole result type"))?;
+        let layout = if let Type::BorrowedStorage { storage, .. } = storage { storage.as_ref() } else { storage };
+        let Type::Package { fields: layout, .. } = layout else {
+            return Err(bad("package repack has no complete actual Package layout"));
+        };
+        let first = (ordinal as usize).checked_sub(fields.len()).ok_or_else(|| bad("package repack omits its actual field preparation"))?;
+        if fields.len() != layout.len() || fields.is_empty() {
+            return Err(bad("package repack does not carry every actual field"));
+        }
+        let mut source = None;
+        for (index, (value, (_, ty))) in fields.iter().zip(layout).enumerate() {
+            b.spend(1)?;
+            let prepared = &f.blocks[block.0 as usize].instructions[first + index];
+            let local = match prepared.kind {
+                InstructionKind::TakePackageField { local, index: actual }
+                    if actual as usize == index && !ty.is_copy_value() => local,
+                InstructionKind::ReadPackageField { local, index: actual }
+                    if actual as usize == index && ty.is_copy_value() => local,
+                _ => return Err(bad("package repack changes a field's exact ordinal or transfer mode")),
+            };
+            if prepared.result != Some(*value) || source.is_some_and(|source| source != local) {
+                return Err(bad("package repack mixes actual source locals or changes a prepared field"));
+            }
+            source = Some(local);
+        }
+        let local = source.ok_or_else(|| bad("package repack has no actual owning source"))?;
+        self.projected_local_root(module, instance, f, local, root, node, b)?;
+        crate::check_instruction(module, f, instruction, b)?;
+        let parent = state.locals.get(local.0 as usize).and_then(Option::as_ref)
+            .ok_or_else(|| bad("package repack source has no complete initialized parent domain"))?;
+        if &parent.ty != storage {
+            return Err(bad("package repack changes its source's complete nominal type"));
+        }
+        parent.charge_clone(b)?;
+        Ok(parent.clone())
+    }
+
     pub(super) fn internal_copy_aggregate(&self,module:&TypedModule,f:&TypedFunction,instruction:&Instruction,fields:&[ValueId],values:&[Option<CheckedType>],b:&mut Budget)->Check<CheckedType>{
         if !matches!(instruction.kind,InstructionKind::MakeAggregate{..}){return Err(bad("owning or nominal construction has no exact original semantic site"));}
         let result=instruction.result.ok_or_else(||bad("internal Copy aggregate has no defining result"))?;
