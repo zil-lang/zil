@@ -48,6 +48,14 @@ fn scan(
             scan(inner, path, depth + 1, limits, b, out)?;
             path.pop();
         }
+        Type::Closure(id) => {
+            if let Some(count) = borrowed_callback_domain(*id, b)? {
+                b.spend((count as usize).saturating_mul(path.len().saturating_add(1)))?;
+                for class in 0..count {
+                    out.push((path.clone(), class));
+                }
+            }
+        }
         Type::Record { fields, .. } | Type::Package { fields, .. } => {
             for (i, (_, child)) in fields.iter().enumerate() {
                 b.spend(1)?;

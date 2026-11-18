@@ -2363,6 +2363,15 @@ pub(super) fn call_region_argument(
             };
             *node
         };
+        world.pay(index::search(proof.temporary_descriptions.len()))?;
+        if let Some(receipt) = proof.temporary_descriptions.get(&(original.id, call, parameter)) {
+            if receipt.argument != node {
+                return Err(bad("call temporary description changes its original argument occurrence"));
+            }
+            return temporary_description(
+                world, caller, original, site, receipt.producer, operand, locals, implicit,
+            ).map(|()| true);
+        }
         world.pay(index::search(proof.borrow_roles.len()))?;
         let Some(role) = proof.borrow_roles.get(&(original.id, node)) else {
             // This input may already have the exact region or a proved Static
@@ -2456,4 +2465,55 @@ pub(super) fn call_region_argument(
         world, caller, original, function, &role, source, values, locals, implicit, false,
     )?;
     Ok(true)
+}
+
+fn temporary_description(
+    world: &mut World<'_, '_>,
+    instance: &SemanticInstance,
+    original: &SemanticDefinition,
+    site: &SemanticSite,
+    producer_node: NodeId,
+    operand: ValueId,
+    locals: &[Option<SharedType>],
+    implicit: &BTreeMap<u32, SemanticClassExpr>,
+) -> R<()> {
+    let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) = instance.target
+    else { return Err(bad("temporary description has no actual caller")); };
+    let function = world.function(function)?;
+    let (operation, block, at) = producer(world, function, operand)?;
+    let InstructionKind::DescribeLocal { local } = operation else {
+        return Err(bad("temporary description needs its actual owner slot"));
+    };
+    let SemanticSiteAddress::Typed {
+        block: call_block, instruction: call_at, edge: SemanticSiteEdge::After,
+    } = site.at else { return Err(bad("temporary description lacks its actual call boundary")); };
+    if call_block != block || at >= call_at as usize {
+        return Err(bad("temporary description escaped its actual call preparation"));
+    }
+    let source = occurrences::owning_expression_value(world, instance, original, producer_node)?
+        .ok_or_else(|| pending("temporary description requires an exact original owning value producer"))?;
+    let (_, source_block, produced_at) = producer(world, function, source)?;
+    let Some(stored_at) = at.checked_sub(1) else {
+        return Err(bad("temporary description has no actual staged owner initialization"));
+    };
+    world.pay(function.blocks.len().saturating_add(1))?;
+    let staged = function.blocks.iter().find(|row| row.id == block)
+        .and_then(|row| row.instructions.get(stored_at))
+        .ok_or_else(|| bad("temporary description has no staged owner instruction"))?;
+    if source_block != block || produced_at >= stored_at
+        || !matches!(staged.kind, InstructionKind::Store { local: target, value } if target == *local && value == source)
+        || reaching_values(world, function, *local, (call_block, call_at as usize))?.as_slice()
+            != [ActivationSource::Value(source)]
+    {
+        return Err(bad("temporary description changes its real reaching owned argument"));
+    }
+    let actual = world.local(locals, *local)?;
+    let expected = world.physical_type(instance.id, &SemanticTypeRecipe::OriginalType {
+        scope: SemanticScopeRef::Ancestor(0),
+        source: SemanticOriginalTypeSource::Expression(producer_node),
+    }, World::type_of(&actual)?)?;
+    if !matches!(World::type_of(&expected)?, Type::Managed(_)) {
+        return Err(bad("temporary description has no original Managed source"));
+    }
+    world.same(instance.id, &actual, &expected, implicit)
 }

@@ -11,6 +11,7 @@ pub(super) enum Role {
     Invocation(u32),
     Bound { depth: u32, index: u32 },
     ConstructorLife(u32),
+    TemporaryDescription(u32),
 }
 impl Role {
     fn suffix(self) -> ([u32; 4], usize) {
@@ -19,6 +20,7 @@ impl Role {
             Self::Implicit(ordinal) => (1, ordinal),
             Self::Head(ordinal) => (2, ordinal),
             Self::Invocation(ordinal) => (3, ordinal),
+            Self::TemporaryDescription(ordinal) => (5, ordinal),
             Self::Bound { depth, index } => return ([u32::MAX, 4, depth, index], 4),
             Self::ConstructorLife(ordinal) => return ([u32::MAX - 1, 0, ordinal, 0], 3),
         };
@@ -215,6 +217,13 @@ impl Check<'_, '_> {
         let ordinal = ordinal.ok_or_else(|| {
             bad("call region lacks its independent full-ordinal Source occurrence")
         })?;
+        if matches!(role, Role::TemporaryDescription(_)) {
+            // This coordinate identifies an actual full-expression place.
+            // It is a source of the call loan and never another call region.
+            return Ok(SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit {
+                scope: SemanticScopeRef::Ancestor(0), ordinal,
+            }));
+        }
         self.pay(1, depth)?;
         if let Some(previous) = self.proof.call_regions.get(&(owner, ordinal)) {
             if previous.call != call || previous.role != role {
@@ -391,6 +400,13 @@ impl Check<'_, '_> {
                 .unwrap_or(&input.expected);
             let source = outer(&input.actual)?;
             if source == target {
+                continue;
+            }
+            self.pay(self.proof.temporary_descriptions.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+            if self.proof.temporary_descriptions.get(&(owner, call.id, input.parameter))
+                .is_some_and(|receipt| receipt.argument == input.expression.id) {
+                // The original temporary source has its own complete argument
+                // receipt. World must prove its actual fresh store and Desc.
                 continue;
             }
             if matches!(source, SemanticOuterLifeRecipe::Static) {

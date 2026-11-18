@@ -92,6 +92,37 @@ pub(super) fn declaration(
     }
     Ok(())
 }
+/// A stored-profile function may use the same fixed foreign window. Its
+/// provider is selected by an actual scoped instruction in this module.
+pub(super) fn provider(
+    module: &TypedModule,
+    candidate: &TypedFunction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let Some(role @ (ScopedCallbackRole::Register | ScopedCallbackRole::Close)) =
+        candidate.foreign.as_ref().and_then(|foreign| foreign.scoped_callback)
+    else { return Ok(false); };
+    b.spend(b.scoped_functions.len(), "actual scoped provider callers")?;
+    let callers = b.scoped_functions.iter().copied().collect::<Vec<_>>();
+    for id in callers {
+        b.spend(1, "actual scoped provider function")?;
+        let function = module.functions.get(id.0 as usize)
+            .filter(|function| function.id == id)
+            .ok_or_else(|| bad("scoped provider inventory has no actual caller"))?;
+        for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
+            b.spend(1, "actual scoped provider instruction")?;
+            if let InstructionKind::WithForeignCallback { register, close, .. } = instruction.kind
+                && (role == ScopedCallbackRole::Register && candidate.id == register
+                    || role == ScopedCallbackRole::Close && candidate.id == close)
+            {
+                declaration(candidate, role, b)?;
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
+}
+
 pub(super) fn check(
     module: &TypedModule,
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],

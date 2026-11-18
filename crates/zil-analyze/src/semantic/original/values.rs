@@ -981,6 +981,26 @@ impl Checked {
             b.spend(1, WORK)?;
             return Ok(value::scalar(ty.clone()));
         }
+        // A frozen original call retains its complete declaration type but
+        // has no runtime Call result to seed. Observe its plain value only
+        // within the original erasure boundary. The outer query's TypeUse
+        // must separately match its actual transcribed producer tree.
+        if inventory.original_index(caller, b)?.erased(node, b)? {
+            let mut hidden = self.root(hidden, b)?;
+            for _ in 0..=b.partial_depth {
+                if let Kind::CallResult { hidden: next, .. } = self.arena[hidden] {
+                    hidden = self.root(next, b)?;
+                    continue;
+                }
+                let value = self.value(hidden, context, program, inventory, b, depth + 1)?;
+                super::super::closed::ct_data::serializable(&value.ty, b, depth + 1)?;
+                if value.life != value::empty() || !value.classes.is_empty() {
+                    return Err(fail("original erased call retains non-serializable classes"));
+                }
+                return Ok(value);
+            }
+            return Err(resource("erased original call result exceeds its bounded depth"));
+        }
         let context = self.context(caller, context, inventory, b)?;
         b.lookup(self.calls.len(), WORK)?;
         let call = self.calls.get(&(caller, node)).ok_or_else(|| fail("original result role has no checked call and actual vector"))?;

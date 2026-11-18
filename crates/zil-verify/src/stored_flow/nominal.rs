@@ -99,7 +99,7 @@ fn walk(
                     binder: *class,
                 });
             }
-            (LifeParameterKind::Type, LifeNominalActual::Type(_)) => {}
+            (LifeParameterKind::Type, LifeNominalActual::Type(_) | LifeNominalActual::QualifiedType { .. }) => {}
             (LifeParameterKind::Const(ty), LifeNominalActual::Const(c))
                 if c.ty() == *ty
                     && matches!(
@@ -123,8 +123,50 @@ fn walk(
             }
         }
     }
+    let mut callback_arguments = life.retained.iter().filter(|row| {
+        matches!(row.path.first(), Some(LifeTypeProjection::TypeArgument(_)))
+    });
     for (ordinal, actual) in instance.arguments.iter().enumerate() {
+        if let LifeNominalActual::QualifiedType { ty: Type::Closure(id), life: child } = actual {
+            let count = borrowed_callback_domain(*id, b)?
+                .ok_or_else(|| err("qualified callback Type argument has no actual Fn class directory"))?;
+            if !matches!(storage.as_ref(), Type::Package { .. })
+                || child.binder_count != count || !child.slots.is_empty()
+                || !child.retained.is_empty() || !child.nominal_arguments.is_empty()
+            {
+                return Err(err("qualified callback Type argument changes its actual Fn class shape"));
+            }
+            let Type::Package { fields, .. } = storage.as_ref() else { unreachable!() };
+            b.spend(fields.len())?;
+            let physical: Vec<_> = fields.iter().enumerate().filter_map(|(position, (_, ty))| {
+                (*ty == Type::Closure(*id)).then_some(position as u32)
+            }).collect();
+            if physical.is_empty() {
+                return Err(err("qualified callback Type argument has no matching actual Package member"));
+            }
+            b.spend(count as usize)?;
+            for class in 0..count {
+                let row = callback_arguments.next().ok_or_else(|| err("Package omits a callback Type argument class"))?;
+                if row.path.as_slice() != [LifeTypeProjection::TypeArgument(ordinal as u32)]
+                    || row.class != class
+                {
+                    return Err(err("Package Type argument row changes the callback Type ordinal or actual class"));
+                }
+                for position in &physical {
+                    b.spend(life.retained.len())?;
+                    if !life.retained.iter().any(|field| field.class == class && field.binder == row.binder
+                        && field.path.as_slice() == [LifeTypeProjection::Place(PlaceProjection::Field(*position))])
+                    {
+                        return Err(err("Package member and its exact callback Type argument disagree on a class image"));
+                    }
+                }
+            }
+            continue;
+        }
         let LifeNominalActual::Type(ty) = actual else {
+            if matches!(actual, LifeNominalActual::QualifiedType { .. }) {
+                return Err(err("qualified Type argument has no physical stored consumer"));
+            }
             continue;
         };
         type_work(ty, limits, b)?;
@@ -206,6 +248,9 @@ fn walk(
                 "Type argument has a fixed class without a complete nominal metadata occurrence",
             ));
         }
+    }
+    if callback_arguments.next().is_some() {
+        return Err(err("Package has a retained Type argument without an actual callback input"));
     }
     if expected.len() != life.nominal_arguments.len() {
         return Err(err(

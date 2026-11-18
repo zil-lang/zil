@@ -22,6 +22,15 @@ cargo run --locked --offline --manifest-path tools/roam-rs/Cargo.toml --bin roam
 
 命令退出 0 表示声明的有限 campaign 全部满足条件；退出 1 为 campaign 未满足条件。独立重放退出 0/1/2 分别表示 pass、同一执行报告中的 property fail、invalid/error/unsupported/incomplete 或宿主错误。不能把“非零”一概当作没有复现。
 
+## 可调用值的组合验收
+
+```sh
+cargo build --locked --offline --manifest-path tools/roam-rs/Cargo.toml --features llvm-api --bin roam
+target/debug/roam callable-combinations --commit="$(git rev-parse HEAD)" --out=out/runs/callable-combinations
+```
+
+当使用 `CARGO_TARGET_DIR` 时从该目录运行 Roam。这个有限 campaign 全选两种组合操作在深度 0 至 2 的七种有序路径。各路径观察提前正常返回、成功替换、解码错误和替换右侧错误，同时配共享接收者与同布局不同名义错误类型两个单项反例。独立模型预测返回状态和析构顺序。正例运行 Clang 与 LLVM API 的 O0 和 O2；反例要求预期的拒绝且对应正例成立。每行保留 `roam/1` case 与实际结果，可单独重放及缩减；随机 `hunt --profile=callable-composition-native` 只算探索样本。
+
 ## 协议与行为
 
 - `steps` 的具体动作是重放权威，seed 只记录生成来源。Mulberry32 与原 TS 动作表顺序一致。

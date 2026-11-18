@@ -184,6 +184,12 @@ pub(super) struct Injection {
     pub is_error: bool,
     pub payload: SemanticTypeRecipe,
 }
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) struct TemporaryDescription {
+    pub argument: NodeId,
+    pub producer: NodeId,
+}
+
 #[derive(Clone, Default)]
 pub(super) struct Proof {
     capture_candidates: BTreeMap<SemanticDefinitionId, std::rc::Rc<capture_candidates::Candidates>>,
@@ -194,6 +200,7 @@ pub(super) struct Proof {
     // Exact original call input for an already-declared contextual outer role.
     // The value's own TypeUse keeps its original sigma; only this call uses it.
     pub(super) call_borrows: BTreeMap<(SemanticDefinitionId, NodeId, u32), NodeId>,
+    pub(super) temporary_descriptions: BTreeMap<(SemanticDefinitionId, NodeId, u32), TemporaryDescription>,
     pub(super) return_borrows: BTreeMap<(SemanticDefinitionId, NodeId), BorrowRole>,
     pub(super) shared_views: BTreeMap<(SemanticDefinitionId, Query), NodeId>,
     pub(super) borrow_bindings:
@@ -2639,7 +2646,10 @@ impl<'a> Check<'a, '_> {
             let authenticates_context = contextual_callee
                 .and_then(|child| self.contextual_code_inputs.get(&child))
                 .is_some_and(|parameters| parameters.contains(&(parameter_ordinal as u32)));
-            let hint = if authenticates_context {
+            let hint = if authenticates_context || matches!(parameter.ty, SemanticTypeRecipe::Desc { .. }) {
+                // Describe receives the existing descriptor or an observation
+                // of a real freshly evaluated owner. An expected Desc cannot
+                // be imposed on the producer's Managed result.
                 None
             } else {
                 complete_parameter.as_ref().or_else(|| {
@@ -2695,6 +2705,31 @@ impl<'a> Check<'a, '_> {
                 SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }) {
                 self.observation_type(owner, &actual, depth + 1)?
             } else { actual };
+            let actual = match (&parameter.ty, actual) {
+                (SemanticTypeRecipe::Desc { .. }, SemanticTypeRecipe::Managed(inner)) => {
+                    let parameter = parameter_offset.checked_add(u32::try_from(parameter_ordinal)
+                        .map_err(|_| bad("temporary description parameter ordinal overflows"))?)
+                        .ok_or_else(|| bad("temporary description parameter coordinate overflows"))?;
+                    let lifetime = self.call_region_life(
+                        owner, call.id, call_regions::Role::TemporaryDescription(parameter), depth + 1,
+                    )?;
+                    let mut producer = *argument;
+                    while let CoreExprKind::Group(value) | CoreExprKind::Ascribed { value, .. } = &producer.kind {
+                        self.pay(1, depth)?;
+                        producer = value;
+                    }
+                    let receipt = TemporaryDescription { argument: argument.id, producer: producer.id };
+                    self.pay(self.proof.temporary_descriptions.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+                    if self.proof.proof_mut()?.temporary_descriptions
+                        .insert((owner, call.id, parameter), receipt)
+                        .is_some_and(|old| old != receipt)
+                    {
+                        return Err(bad("temporary description changes its original owning argument"));
+                    }
+                    SemanticTypeRecipe::Desc { lifetime, inner }
+                }
+                (_, actual) => actual,
+            };
             let roots = match (&parameter.ty, &actual) {
                 (
                     SemanticTypeRecipe::Address {

@@ -12,7 +12,7 @@ enum Target {
     Definition(usize),
     AppliedDefinition { owner: usize, application: usize },
     Kind(CallKind),
-    // Used only by the original occurrence observer, never ABI inference.
+    // Preserve complete signatures for result projection and effect inference.
     Prototype(usize, CallKind),
     PrototypeSequence { index: usize, dimensions: u32, kind: CallKind },
     Alternatives(usize),
@@ -27,7 +27,6 @@ enum Target {
     FallibleTrait(LifeDeclarationId),
     FallibleNominal(usize),
     LengthReceiver,
-    CodeSequence { dimensions: u32, kind: CallKind },
     Unknown,
 }
 // References retain the complete mixed actuals in their original scope. An
@@ -279,6 +278,9 @@ impl<'a> Scan<'a, '_, '_, '_> {
         &mut self, owner: usize, signature: &'a SemanticSignatureRecipe, context: Option<usize>,
         outer_frames: &[u32], depth: usize, span: Span,
     ) -> R<Target> {
+        if self.observations.is_none() {
+            return self.bound_type(owner, &signature.result, context, depth + 1, span);
+        }
         let mut frames = Vec::new();
         for count in outer_frames.iter().copied().chain(std::iter::once(signature.bound_lifetimes)) {
             self.budget.lineage_push(&mut frames, count, span)?;
@@ -290,6 +292,59 @@ impl<'a> Scan<'a, '_, '_, '_> {
         let result = self.bound_type(owner, &signature.result, context, depth + 1, span);
         self.active_quantifiers = previous;
         result
+    }
+    fn invocation_result(&mut self, target: Target, depth: usize, span: Span) -> R<Target> {
+        self.budget.node(span, depth)?;
+        if let Target::Alternatives(index) = target {
+            let (left, right) = self.alternatives[index];
+            let left = self.invocation_result(left, depth + 1, span)?;
+            let right = self.invocation_result(right, depth + 1, span)?;
+            if left == right {
+                return Ok(left);
+            }
+            if left == Target::Unknown || right == Target::Unknown {
+                return Ok(Target::Unknown);
+            }
+            let index = self.alternatives.len();
+            self.budget.lineage_push(self.alternatives, (left, right), span)?;
+            return Ok(Target::Alternatives(index));
+        }
+        let (owner, context) = match target {
+            Target::Definition(owner) => (owner, None),
+            Target::AppliedDefinition { owner, application } => (owner, Some(application)),
+            Target::Prototype(index, _) => {
+                if let Prototype::Code { owner, signature, context, frames, .. } = self.prototypes[index] {
+                    let mut outer = Vec::new();
+                    if let Some(index) = frames {
+                        for count in &self.quantifiers[index] { self.budget.lineage_push(&mut outer, *count, span)?; }
+                    }
+                    let result = self.result_target(owner, signature, context, &outer, depth + 1, span)?;
+                    self.budget.drop_lineage_vec(outer, span)?;
+                    return Ok(result);
+                }
+                let mut signatures = Vec::new();
+                let owner = match self.prototypes[index] {
+                    Prototype::Formal { owner, ordinal } => { self.formal_prototypes(owner, ordinal, &mut signatures, depth + 1, span)?; owner }
+                    Prototype::Premises { owner, ty } => { self.premise_prototypes(owner, ty, &mut signatures, depth + 1, span)?; owner }
+                    Prototype::Code { .. } => unreachable!(),
+                };
+                let result = if let [(signature, frames)] = signatures.as_slice() {
+                    self.result_target(owner, signature, None, frames, depth + 1, span)?
+                } else { Target::Unknown };
+                for (_, frames) in &mut signatures { self.budget.drop_lineage_vec(std::mem::take(frames), span)?; }
+                self.budget.drop_lineage_vec(signatures, span)?;
+                return Ok(result);
+            }
+            _ => return Ok(Target::Unknown),
+        };
+        if let Some(signature) = signature(self.definitions[owner]) {
+            return if self.observations.is_some() {
+                self.result_target(owner, signature, context, &[], depth + 1, span)
+            } else {
+                self.bound_type(owner, &signature.result, context, depth + 1, span)
+            };
+        }
+        Ok(Target::Unknown)
     }
     fn observe_target(&mut self, call: zil_base::NodeId, target: Target, span: Span) -> R<()> {
         if self.observations.is_none() { return Ok(()); }
@@ -404,7 +459,6 @@ impl<'a> Scan<'a, '_, '_, '_> {
             | Target::FallibleTrait(_)
             | Target::FallibleNominal(_)
             | Target::LengthReceiver
-            | Target::CodeSequence { .. }
             | Target::PrototypeSequence { .. }
             | Target::Alternatives(_)
             | Target::Elements { .. } => self.vertex.suspend = true,
@@ -537,11 +591,11 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 Target::Elements { index, tuple: true }
             }
             SemanticTypeRecipe::Code { signature, .. } => {
-                if self.observations.is_some() {
-                    let index = self.prototypes.len();
-                    self.budget.lineage_push(self.prototypes, Prototype::Code { owner, signature, context, frames: self.active_quantifiers, operation: None }, span)?;
-                    Target::Prototype(index, signature.call_kind)
-                } else { Target::Kind(signature.call_kind) }
+                let index = self.prototypes.len();
+                self.budget.lineage_push(self.prototypes, Prototype::Code {
+                    owner, signature, context, frames: self.active_quantifiers, operation: None,
+                }, span)?;
+                Target::Prototype(index, signature.call_kind)
             },
             SemanticTypeRecipe::Managed(inner)
             | SemanticTypeRecipe::Address { inner, .. }
@@ -708,22 +762,15 @@ impl<'a> Scan<'a, '_, '_, '_> {
             }
             SemanticTypeRecipe::Array { .. } | SemanticTypeRecipe::Slice(_) => {
                 let sequence = self.code_sequence(ty, depth + 1, span)?;
-                if self.observations.is_some() && let Some((dimensions, kind)) = sequence {
-                    let mut leaf = ty;
-                    loop {
-                        self.budget.node(span, depth + 1)?;
-                        match leaf {
-                            SemanticTypeRecipe::Array { element, .. } | SemanticTypeRecipe::Slice(element) => leaf = element,
-                            SemanticTypeRecipe::Address { inner, .. } | SemanticTypeRecipe::Qualified { storage: inner, .. } => leaf = inner,
-                            SemanticTypeRecipe::Code { signature, .. } => {
-                                let index = self.prototypes.len();
-                                self.budget.lineage_push(self.prototypes, Prototype::Code { owner, signature, context, frames: self.active_quantifiers, operation: None }, span)?;
-                                break Target::PrototypeSequence { index, dimensions, kind };
-                            }
-                            _ => break Target::LengthReceiver,
-                        }
-                    }
-                } else { sequence.map_or(Target::LengthReceiver, |(dimensions, kind)| Target::CodeSequence { dimensions, kind }) }
+                if let Some((dimensions, signature)) = sequence {
+                    let index = self.prototypes.len();
+                    self.budget.lineage_push(self.prototypes, Prototype::Code {
+                        owner, signature, context, frames: self.active_quantifiers, operation: None,
+                    }, span)?;
+                    Target::PrototypeSequence { index, dimensions, kind: signature.call_kind }
+                } else {
+                    Target::LengthReceiver
+                }
             },
             SemanticTypeRecipe::Dyn { interface, .. } => {
                 Target::TraitReceiver(interface.application.declaration)
@@ -800,25 +847,25 @@ impl<'a> Scan<'a, '_, '_, '_> {
     }
     fn code_sequence(
         &mut self,
-        ty: &SemanticTypeRecipe,
+        ty: &'a SemanticTypeRecipe,
         depth: usize,
         span: Span,
-    ) -> R<Option<(u32, CallKind)>> {
+    ) -> R<Option<(u32, &'a SemanticSignatureRecipe)>> {
         self.budget.node(span, depth)?;
         match ty {
             SemanticTypeRecipe::Code {
                 kind: SemanticCodeKind::FunctionPointer,
                 signature,
-            } => Ok(Some((0, signature.call_kind))),
+            } => Ok(Some((0, signature))),
             SemanticTypeRecipe::Array { element, .. } | SemanticTypeRecipe::Slice(element) => {
-                let Some((count, kind)) = self.code_sequence(element, depth + 1, span)? else {
+                let Some((count, signature)) = self.code_sequence(element, depth + 1, span)? else {
                     return Ok(None);
                 };
                 Ok(Some((
                     count
                         .checked_add(1)
                         .ok_or_else(|| error(span, "effect code sequence depth overflows"))?,
-                    kind,
+                    signature,
                 )))
             }
             SemanticTypeRecipe::Address { inner, .. }
@@ -996,22 +1043,12 @@ impl<'a> Scan<'a, '_, '_, '_> {
                     }
                     Target::PrototypeSequence { index, dimensions: 1, kind } => Target::Prototype(index, kind),
                     Target::PrototypeSequence { index, dimensions, kind } if dimensions > 1 => Target::PrototypeSequence { index, dimensions: dimensions - 1, kind },
-                    Target::CodeSequence {
-                        dimensions: 1,
-                        kind,
-                    } => Target::Kind(kind),
-                    Target::CodeSequence { dimensions, kind } if dimensions > 1 => {
-                        Target::CodeSequence {
-                            dimensions: dimensions - 1,
-                            kind,
-                        }
-                    }
                     _ => Target::Unknown,
                 });
             }
             CoreExprKind::Slice { object, .. } => {
                 return Ok(match self.target(object, depth + 1)? {
-                    target @ (Target::CodeSequence { .. } | Target::PrototypeSequence { .. } | Target::LengthReceiver) => target,
+                    target @ (Target::PrototypeSequence { .. } | Target::LengthReceiver) => target,
                     _ => Target::Unknown,
                 });
             }
@@ -1122,42 +1159,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 if called == Target::OwnedDynFactory {
                     return self.owned_factory_result(callee, depth + 1);
                 }
-                let (owner, context) = match called {
-                    Target::Definition(owner) => (owner, None),
-                    Target::AppliedDefinition { owner, application } => (owner, Some(application)),
-                    Target::Prototype(index, _) => {
-                        if let Prototype::Code { owner, signature, context, frames, .. } = self.prototypes[index] {
-                            let mut outer = Vec::new();
-                            if let Some(index) = frames {
-                                for count in &self.quantifiers[index] { self.budget.lineage_push(&mut outer, *count, expression.span)?; }
-                            }
-                            let result = self.result_target(owner, signature, context, &outer, depth + 1, expression.span)?;
-                            self.budget.drop_lineage_vec(outer, expression.span)?;
-                            return Ok(result);
-                        }
-                        let mut signatures = Vec::new();
-                        let owner = match self.prototypes[index] {
-                            Prototype::Formal { owner, ordinal } => { self.formal_prototypes(owner, ordinal, &mut signatures, depth + 1, expression.span)?; owner }
-                            Prototype::Premises { owner, ty } => { self.premise_prototypes(owner, ty, &mut signatures, depth + 1, expression.span)?; owner }
-                            Prototype::Code { .. } => unreachable!(),
-                        };
-                        let result = if let [(signature, frames)] = signatures.as_slice() {
-                            self.result_target(owner, signature, None, frames, depth + 1, expression.span)?
-                        } else { Target::Unknown };
-                        for (_, frames) in &mut signatures { self.budget.drop_lineage_vec(std::mem::take(frames), expression.span)?; }
-                        self.budget.drop_lineage_vec(signatures, expression.span)?;
-                        return Ok(result);
-                    }
-                    _ => return Ok(Target::Unknown),
-                };
-                if let Some(signature) = signature(self.definitions[owner]) {
-                    return if self.observations.is_some() {
-                        self.result_target(owner, signature, context, &[], depth + 1, expression.span)
-                    } else {
-                        self.bound_type(owner, &signature.result, context, depth + 1, expression.span)
-                    };
-                }
-                return Ok(Target::Unknown);
+                return self.invocation_result(called, depth + 1, expression.span);
             }
             CoreExprKind::Ascribed { ty, .. } => {
                 return self.callable_type(self.owner, ty, depth + 1, expression.span);
@@ -1405,7 +1407,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
     ) -> R<bool> {
         self.budget.node(span, depth)?;
         match target {
-            Target::LengthReceiver | Target::CodeSequence { .. } | Target::PrototypeSequence { .. } if spelling == "len" => {
+            Target::LengthReceiver | Target::PrototypeSequence { .. } if spelling == "len" => {
                 self.edge(Target::Kind(CallKind::Direct), span)?;
                 Ok(true)
             }

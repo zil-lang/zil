@@ -14,6 +14,9 @@ zil-base = { path = "../../crates/zil-base" }
 zil-db = { path = "../../crates/zil-db" }
 zil-driver = { path = "../../crates/zil-driver" }
 
+[features]
+llvm-api = ["zil-driver/llvm-api"]
+
 [lints.rust]
 unsafe_code = "forbid"
 

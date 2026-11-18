@@ -5,6 +5,11 @@ use super::*;
 pub(super) fn is_description(ty: &Type) -> bool {
     matches!(ty, Type::Desc(payload) if payload.as_ref()==&Type::ByteBuffer)
 }
+pub(super) fn weak_capture_path(definition: &ClosureDefinition, path: &[PlaceProjection]) -> bool {
+    matches!(path, [PlaceProjection::Field(index)]
+        if definition.captures.get(*index as usize).is_some_and(is_description))
+}
+
 pub(super) fn query(kind: &InstructionKind) -> Option<ValueId> {
     match kind {
         InstructionKind::ByteBufferLen { buffer }

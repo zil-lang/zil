@@ -216,25 +216,37 @@ pub(super) fn instruction(
     Ok(true)
 }
 
+fn local_head(
+    state: &State,
+    local: LocalId,
+    place: Vec<PlaceProjection>,
+    b: &mut Budget,
+) -> CompileResult<Target> {
+    let target = Target {
+        retained_port: None,
+        base: local_capture_base(state, local, b)?,
+        stored: Vec::new(),
+        place,
+        heap_parents: Vec::new(),
+        heap_element: None,
+    };
+    fee(b, target_width(&target).saturating_add(1))?;
+    Ok(target)
+}
+
 fn permission(
     module: &TypedModule,
     f: &TypedFunction,
     buffer: ValueId,
     span: Span,
+    state: &State,
     values: &[Value],
     b: &mut Budget,
 ) -> CompileResult<Permission> {
     match selection(module, f, buffer, span, b)? {
         Head::Local { local, field } => {
-            let target = Target {
-                retained_port: None,
-                base: HoldRoot::Local(local),
-                stored: Vec::new(),
-                place: field.map_or_else(Vec::new, |index| vec![PlaceProjection::Field(index)]),
-                heap_parents: Vec::new(),
-                heap_element: None,
-            };
-            fee(b, target_width(&target).saturating_add(1))?;
+            let place = field.map_or_else(Vec::new, |index| vec![PlaceProjection::Field(index)]);
+            let target = local_head(state, local, place, b)?;
             Ok(Permission {
                 targets: BTreeSet::from([target]),
                 loans: Loans::new(),
@@ -263,6 +275,7 @@ pub(super) fn transfer(
     module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
+    state: &State,
     values: &[Value],
     b: &mut Budget,
 ) -> CompileResult<Permission> {
@@ -272,13 +285,41 @@ pub(super) fn transfer(
     // An address/heap head retains exactly its actual manager/element route
     // and every parent loan. An unsolved predecessor remains bottom until
     // the final grounded-value check; it never receives a synthetic local.
-    permission(module, f, buffer, i.span, values, b)
+    permission(module, f, buffer, i.span, state, values, b)
+}
+
+pub(super) fn captured_head(
+    module: &TypedModule,
+    f: &TypedFunction,
+    source: &Target,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let HoldRoot::Capture(index) = source.base else {
+        return Ok(false);
+    };
+    if !source.stored.is_empty() || source.heap_element.is_some() || !source.heap_parents.is_empty() {
+        return Ok(false);
+    }
+    let Some(mut ty) = f.environment.and_then(|id| module.closures.get(id.0 as usize))
+        .and_then(|definition| definition.captures.get(index as usize))
+    else {
+        return Ok(false);
+    };
+    fee(b, source.place.len())?;
+    for step in &source.place {
+        let Some(child) = zil_ir::source_projection::physical_child(ty, *step) else {
+            return Ok(false);
+        };
+        ty = child;
+    }
+    Ok(super::super::stored_callables::byte_capture_head(ty))
 }
 
 pub(super) fn seed_description(
     module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
+    state: &State,
     values: &[Value],
     b: &mut Budget,
 ) -> CompileResult<Option<Permission>> {
@@ -296,7 +337,7 @@ pub(super) fn seed_description(
     if !matches!(value_type(f,result)?,Type::Desc(payload) if payload.as_ref()==&Type::ByteBuffer) {
         return Ok(None);
     }
-    Ok(Some(permission(module, f, result, i.span, values, b)?))
+    Ok(Some(permission(module, f, result, i.span, state, values, b)?))
 }
 
 /// Select only the new pure-stored ByteBuffer family. This is scheduling;
@@ -330,12 +371,11 @@ pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> CompileResult<boo
     for closure in &module.closures {
         fee(b, closure.captures.len())?;
         for capture in &closure.captures {
-            // An actual managed byte capture keeps its owning field identity.
-            // DescribeCapture seeds that exact field, and ByteBufferBorrow
-            // joins its invocation loan before a caller can retain the view.
+            // An owning capture can contain the physical byte manager as
+            // a Package field. Qualify the complete original environment;
+            // access still resolves the exact field and its live loan.
             if value(capture, b)?
-                && !(super::super::stored_callables::byte_capture_head(capture)
-                    && super::super::stored_callables::semantic_owned_capture(module, closure, capture, b)?)
+                && !super::super::stored_callables::semantic_owned_capture(module, closure, capture, b)?
             {
                 return Err(closed(Span::default()));
             }
@@ -693,11 +733,10 @@ impl Sites {
             _ => None,
         };
         if let Some((local, path)) = owner && self.active(active, b)? {
-            fee(b, path.len().saturating_add(1))?;
-            let permission = Permission { targets: BTreeSet::from([Target {
-                retained_port: None, base: HoldRoot::Local(local), place: path,
-                stored: Vec::new(), heap_parents: Vec::new(), heap_element: None,
-            }]), loans: Loans::new() };
+            let permission = Permission {
+                targets: BTreeSet::from([local_head(state, local, path, b)?]),
+                loans: Loans::new(),
+            };
             use_permission(&permission, true, active, loans, apart, b)?;
         }
         if let InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } =
@@ -719,7 +758,7 @@ impl Sites {
             _ => None,
         };
         if let Some((buffer, write)) = access {
-            let actual = permission(module, f, buffer, i.span, values, b)?;
+            let actual = permission(module, f, buffer, i.span, state, values, b)?;
             if actual.targets.is_empty() {
                 return Err(failure(
                     "byte view access has no independently grounded actual byte head",
@@ -741,16 +780,8 @@ impl Sites {
             i.kind
             && self.active(active, b)?
         {
-            fee(b, 1)?;
             let actual = Permission {
-                targets: BTreeSet::from([Target {
-                    retained_port: None,
-                    base: HoldRoot::Local(local),
-                    stored: Vec::new(),
-                    place: Vec::new(),
-                    heap_parents: Vec::new(),
-                    heap_element: None,
-                }]),
+                targets: BTreeSet::from([local_head(state, local, Vec::new(), b)?]),
                 loans: Loans::new(),
             };
             use_permission(&actual, true, active, loans, apart, b)?;

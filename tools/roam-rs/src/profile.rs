@@ -1,5 +1,7 @@
 //! Tool-local profile routing. This is not a compiler IR or language extension.
-use crate::{byte_buffer, domain, native, protocol, resource_closure, scalar, search};
+use crate::{
+    byte_buffer, callable_composition, domain, native, protocol, resource_closure, scalar, search,
+};
 use serde_json::Value;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -8,6 +10,7 @@ pub enum Profile {
     Scalar,
     ResourceClosure,
     ByteBuffer,
+    CallableComposition,
 }
 impl Profile {
     pub fn is_native(self) -> bool {
@@ -19,12 +22,14 @@ impl Profile {
             "scalar-native" => Ok(Self::Scalar),
             "resource-closure-native" => Ok(Self::ResourceClosure),
             "byte-buffer-native" => Ok(Self::ByteBuffer),
+            "callable-composition-native" => Ok(Self::CallableComposition),
             _ => Err("unknown quality profile".into()),
         }
     }
     pub fn for_case(trace: &Value) -> Result<Self, String> {
         match trace["contract"].as_str() {
             Some(protocol::CONTRACT) => Ok(Self::Session),
+            Some(callable_composition::CONTRACT) => Ok(Self::CallableComposition),
             Some(scalar::CONTRACT) => Ok(Self::Scalar),
             Some(resource_closure::CONTRACT) => Ok(Self::ResourceClosure),
             Some(byte_buffer::CONTRACT | byte_buffer::owned::CONTRACT) => Ok(Self::ByteBuffer),
@@ -37,13 +42,14 @@ impl Profile {
             Self::Scalar => scalar::CONTRACT,
             Self::ResourceClosure => resource_closure::CONTRACT,
             Self::ByteBuffer => byte_buffer::owned::CONTRACT,
+            Self::CallableComposition => callable_composition::CONTRACT,
         }
     }
     pub fn default_steps(self) -> usize {
         match self {
             Self::Session => 64,
             Self::Scalar | Self::ResourceClosure => 4,
-            Self::ByteBuffer => 2,
+            Self::ByteBuffer | Self::CallableComposition => 2,
         }
     }
     pub fn max_steps(self) -> usize {
@@ -52,6 +58,7 @@ impl Profile {
             Self::Scalar => scalar::MAX_PROGRAMS,
             Self::ResourceClosure => resource_closure::MAX_PROGRAMS,
             Self::ByteBuffer => byte_buffer::MAX_PROGRAMS,
+            Self::CallableComposition => callable_composition::MAX_PROGRAMS,
         }
     }
     pub fn generate(self, seed: i64, steps: usize) -> Value {
@@ -60,6 +67,7 @@ impl Profile {
             Self::Scalar => scalar::generate(seed, steps),
             Self::ResourceClosure => resource_closure::generate(seed, steps),
             Self::ByteBuffer => byte_buffer::owned::generate(seed, steps),
+            Self::CallableComposition => callable_composition::generate(seed, steps),
         }
     }
     pub fn fixed(self) -> Vec<(String, Value)> {
@@ -67,6 +75,7 @@ impl Profile {
             Self::Session => search::fixed(),
             Self::Scalar => scalar::fixed(),
             Self::ResourceClosure => resource_closure::fixed(),
+            Self::CallableComposition => callable_composition::fixed(),
             Self::ByteBuffer => byte_buffer::fixed()
                 .into_iter()
                 .chain(byte_buffer::owned::fixed())
@@ -79,6 +88,7 @@ impl Profile {
             Self::Scalar => "scalar-sub-to-add",
             Self::ResourceClosure => "closure-omit-call",
             Self::ByteBuffer => "bytes-omit-push",
+            Self::CallableComposition => "callable-change-command",
         }
     }
     pub fn fault(self, name: &str) -> Result<bool, String> {
@@ -111,8 +121,9 @@ pub fn execute(
     }
     match profile {
         Profile::Session => domain::execute(trace, options, before, after),
-        Profile::Scalar | Profile::ResourceClosure | Profile::ByteBuffer => {
-            native::execute(trace, options, before, after)
-        }
+        Profile::Scalar
+        | Profile::ResourceClosure
+        | Profile::ByteBuffer
+        | Profile::CallableComposition => native::execute(trace, options, before, after),
     }
 }

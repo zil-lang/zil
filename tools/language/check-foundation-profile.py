@@ -20,6 +20,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, required=True)
     parser.add_argument("--cli", type=Path, required=True)
+    parser.add_argument("--build-receipt", type=Path,
+                        help="Compiler build receipt binding a source commit to the tested CLI SHA-256")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--jobs", type=int, choices=range(1, 5), default=4,
                         help="Independent compiler processes; 1..4 (default: 4)")
@@ -30,7 +32,27 @@ def main():
     output = args.out.resolve()
     output.mkdir(parents=True, exist_ok=True)
     profile_path = repo / "validation/language-foundation-profile.json"
-    profile = json.loads(profile_path.read_text())
+    fixture_revision = subprocess.check_output(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"], text=True).strip()
+    cli_hash = digest(cli)
+    candidate = None
+    policy_path = repo / "validation/language-alpha-resource-profile.json"
+    profile_bytes = profile_path.read_bytes()
+    policy_bytes = policy_path.read_bytes()
+    if args.build_receipt:
+        build = json.loads(args.build_receipt.read_bytes())
+        if build.get("exit_code") != 0 or build.get("cli_sha256") != cli_hash:
+            parser.error("the build receipt must identify a successful build of the tested CLI")
+        candidate = build["source_commit"]
+        if not re.fullmatch(r"[0-9a-f]{40}", candidate):
+            parser.error("the build receipt must specify a full source commit")
+        for path, content in ((profile_path, profile_bytes), (policy_path, policy_bytes)):
+            committed = subprocess.check_output(
+                ["git", "-C", str(repo), "show", f"{candidate}:{path.relative_to(repo)}"])
+            if committed != content:
+                parser.error(f"{path.name} differs from the compiler candidate")
+    profile = json.loads(profile_bytes)
+    expected = json.loads(policy_bytes)["profiles"][args.work_profile]
     def run_case(selected):
         group, case = selected
         directory = output / group / case["family"]
@@ -60,8 +82,6 @@ def main():
             row.update(work_profile=report.get("work_profile"),
                        work_profile_revision=report.get("work_profile_revision"),
                        effective_limits=report.get("effective_limits"))
-            policy = json.loads((repo / "validation/language-alpha-resource-profile.json").read_text())
-            expected = policy["profiles"][args.work_profile]
             row["work_policy_matches"] = (
                 row["work_profile"] == args.work_profile
                 and row["work_profile_revision"] == expected["revision"]
@@ -107,9 +127,11 @@ def main():
     for group in ("positive_cases", "negative_cases"):
         selected = [row for row in rows if row["group"] == group]
         totals[group] = {"passed": sum(row["pass"] for row in selected), "total": len(selected)}
+    if digest(cli) != cli_hash:
+        parser.error("the CLI changed during validation")
     receipt = {
-        "candidate": subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"], text=True).strip(),
-        "cli_sha256": digest(cli), "profile_sha256": digest(profile_path),
+        "candidate": candidate, "fixture_checkout": fixture_revision,
+        "cli_sha256": cli_hash, "profile_sha256": hashlib.sha256(profile_bytes).hexdigest(),
         "work_profile": args.work_profile,
         "scope": "Foundation source/check evidence; not native, C-provider or Alpha acceptance",
         "rows": rows, **totals,

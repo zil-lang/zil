@@ -146,6 +146,27 @@ pub(super) fn expression_value(
     original: &SemanticDefinition,
     source: NodeId,
 ) -> R<Option<ValueId>> {
+    expression_value_with_construction(world, instance, original, source, false)
+}
+
+/// The owner is the construction itself. Explaining a subsequent descriptor
+/// must never turn its original owner's manufacturing SSA into an alias view.
+pub(super) fn owning_expression_value(
+    world: &mut World<'_, '_>,
+    instance: &SemanticInstance,
+    original: &SemanticDefinition,
+    source: NodeId,
+) -> R<Option<ValueId>> {
+    expression_value_with_construction(world, instance, original, source, true)
+}
+
+fn expression_value_with_construction(
+    world: &mut World<'_, '_>,
+    instance: &SemanticInstance,
+    original: &SemanticDefinition,
+    source: NodeId,
+    include_construction: bool,
+) -> R<Option<ValueId>> {
     world.pay(index::search(world.index.sites.len()))?;
     let Some(offsets) = world.index.sites.get(&instance.id) else {
         return Ok(None);
@@ -159,9 +180,16 @@ pub(super) fn expression_value(
         if node(world, original, site)? != Some(source) {
             continue;
         }
-        let Some(value) = site_value(world, instance, original, site)? else {
-            continue;
+        let value = if include_construction
+            && let SemanticSiteAction::Construct { result: SemanticOperand::Value(value), .. } = &site.action
+        {
+            // The normal constructor world has checked the actual After
+            // operation/nominal fields in this same reaching state.
+            Some(*value)
+        } else {
+            site_value(world, instance, original, site)?
         };
+        let Some(value) = value else { continue; };
         if selected.replace(value).is_some_and(|old| old != value) {
             return Err(bad(
                 "one original expression selects different actual SSA mints",

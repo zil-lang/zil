@@ -16,6 +16,7 @@ mod capture_places;
 mod class_origins;
 mod classes;
 mod cleanup;
+pub(super) mod ct_data;
 mod descriptions;
 mod dyn_owners;
 mod dyn_tables;

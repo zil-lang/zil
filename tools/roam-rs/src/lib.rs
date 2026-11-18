@@ -1,4 +1,5 @@
 pub mod byte_buffer;
+pub mod callable_composition;
 pub mod campaign;
 pub mod domain;
 pub mod host;

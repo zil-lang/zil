@@ -284,7 +284,9 @@ fn analyze_budgeted_context(
             }
             stored_holds = Some(stored_flow::infer(module, &hold_graphs, budget)?);
         } else if task_frame_calls || !budget.semantic_cleanup_sites.is_empty() || !budget.semantic_capture_cleanups.is_empty()
-            || !budget.semantic_consuming_operations.is_empty() || receiver_views {
+            || !budget.semantic_consuming_operations.is_empty() || receiver_views
+            || budget.scoped_foreign
+        {
             // A concrete original cleanup is not a structural SyncDrop
             // theorem. Keep the stored source proof and continue through the
             // ordinary Task graph and resource ledger before discharging it.

@@ -1,4 +1,4 @@
-use roam::{campaign, domain, host, profile::Profile, protocol};
+use roam::{callable_composition, campaign, domain, host, profile::Profile, protocol};
 use serde_json::json;
 use std::{path::PathBuf, process::ExitCode};
 
@@ -33,13 +33,14 @@ fn run() -> Result<u8, String> {
     }
     if args.is_empty() {
         return Err(
-            "usage: roam worker|campaign|replay|generate|verify-snapshot|hunt|issue [--key=value]"
+            "usage: roam worker|campaign|callable-combinations|replay|generate|verify-snapshot|hunt|issue [--key=value]"
                 .into(),
         );
     }
     let command = args.remove(0);
     let allowed = match command.as_str() {
         "worker" => &["fault", "max-steps", "budget-ms"][..],
+        "callable-combinations" => &["out", "commit"][..],
         "campaign" => &["out", "commit", "allow-dirty"][..],
         "replay" => &[
             "case",
@@ -67,7 +68,11 @@ fn run() -> Result<u8, String> {
     let fault_name = argument(&args, "fault").unwrap_or_else(|| "none".into());
     let fault = match fault_name.as_str() {
         "none" => false,
-        "stale-after-edit" | "scalar-sub-to-add" | "closure-omit-call" | "bytes-omit-push" => true,
+        "stale-after-edit"
+        | "scalar-sub-to-add"
+        | "closure-omit-call"
+        | "bytes-omit-push"
+        | "callable-change-command" => true,
         _ => return Err("unknown fault".into()),
     };
     match command.as_str() {
@@ -100,7 +105,7 @@ fn run() -> Result<u8, String> {
             println!("{}", profile.generate(seed, steps as usize));
             Ok(0)
         }
-        "campaign" => {
+        "callable-combinations" | "campaign" => {
             let out = PathBuf::from(argument(&args, "out").ok_or("new --out directory required")?);
             let git = |arguments: &[&str]| -> Result<String, String> {
                 let output = std::process::Command::new("git")
@@ -139,6 +144,18 @@ fn run() -> Result<u8, String> {
             };
             if dirty && !allow_dirty {
                 return Err("commit implementation before formal campaign; --allow-dirty=true is development only".into());
+            }
+            if command == "callable-combinations" {
+                if !cfg!(feature = "llvm-api") {
+                    return Err("callable-combinations requires the llvm-api feature".into());
+                }
+                let report = callable_composition::campaign(&out, &commit)?;
+                println!(
+                    "{}",
+                    json!({"status":report["status"],"report":out.join("report.json"),
+                    "positive":report["positive"],"negative":report["negative"]})
+                );
+                return Ok(if report["status"] == "pass" { 0 } else { 1 });
             }
             let report = campaign::run(&out, &commit, dirty)?;
             println!(

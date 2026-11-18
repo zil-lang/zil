@@ -270,6 +270,7 @@ fn clone_proof(
             .saturating_add(source.view_bounds.len())
             .saturating_add(source.borrow_roles.len())
             .saturating_add(source.call_borrows.len().saturating_mul(4))
+            .saturating_add(source.temporary_descriptions.len().saturating_mul(4))
             .saturating_add(source.return_borrows.len())
             .saturating_add(source.shared_views.len())
             .saturating_add(source.field_reborrows.len())

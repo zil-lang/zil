@@ -5844,19 +5844,20 @@ fn transfer(
             out.pointer.loans.extend(&description.loans);
         }
         InstructionKind::ByteBufferBorrow { .. } => {
-            out.pointer = owned_byte_views::transfer(module, f, i, values, b)?;
+            out.pointer = owned_byte_views::transfer(module, f, i, state, values, b)?;
             // The byte kernel's target is the owning manager anchor. When
             // that manager is an actual environment field, its view also
             // depends on this invocation's real environment access window.
             for source in &out.pointer.targets {
                 fee(b, target_width(source).saturating_add(1))?;
-                if let HoldRoot::Capture(index) = source.base
-                    && f.environment.and_then(|id| module.closures.get(id.0 as usize))
-                        .and_then(|d| d.captures.get(index as usize))
-                        .is_some_and(super::stored_callables::byte_capture_head)
-                {
-                    out.pointer.loans.insert(state.receiver_loan
-                        .ok_or_else(|| failure("captured ByteBuffer view has no actual invocation parent"))?);
+                if owned_byte_views::captured_head(module, f, source, b)? {
+                    if let Some(receiver) = state.receiver_loan {
+                        out.pointer.loans.insert(receiver);
+                    } else if !super::stored_callables::scalar(&f.return_type) {
+                        // A scalar result cannot carry this view out of the
+                        // entry. Its local loan still pins the physical head.
+                        return Err(failure("captured ByteBuffer view has no actual invocation parent"));
+                    }
                 }
             }
         }
@@ -6132,7 +6133,7 @@ fn transfer(
                         "Store description differs from its actual managed field",
                     ));
                 }
-                Some((HoldRoot::Local(local), vec![PlaceProjection::Field(index)]))
+                Some((local_capture_base(state, local, b)?, vec![PlaceProjection::Field(index)]))
             }
             InstructionKind::DescribeCapture { index } => {
                 let actual = f
@@ -6181,7 +6182,7 @@ fn transfer(
         }
         out.slots = current;
     }
-    if let Some(permission) = owned_byte_views::seed_description(module, f, i, values, b)? {
+    if let Some(permission) = owned_byte_views::seed_description(module, f, i, state, values, b)? {
         out.store_description = permission;
     }
     dyn_address::propagate(module, f, i, state, values, &mut out, b)?;
@@ -9154,7 +9155,8 @@ pub(super) fn infer(
         }
         if (f.foreign.is_some()
             && !super::stored_callables::scalar_foreign(f, b)?
-            && !crate::tasks::input_scope::provider(module, f, b)?)
+            && !crate::tasks::input_scope::provider(module, f, b)?
+            && !super::foreign_scoped::provider(module, f, b)?)
             || f.call_kind != CallKind::Direct
                 && !(f.call_kind == CallKind::Suspend
                     && (b.task_sources() || task_calls::body(f, b)?))
@@ -9805,6 +9807,7 @@ fn actual_instructions(
                         | InstructionKind::ExtractField { .. }
                         | InstructionKind::Call { .. }
                         | InstructionKind::ForeignCall { .. }
+                        | InstructionKind::WithForeignCallback { .. }
                         | InstructionKind::UnsafeEnter { .. }
                         | InstructionKind::UnsafeExit { .. }
                         | InstructionKind::Unary { .. }

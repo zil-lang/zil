@@ -492,97 +492,101 @@ fn capture_value(
     else {
         return Err(bad("creator capture retains an unresolved original type"));
     };
-    let value = if original_ty == actual_ty {
-        value
-    } else if let Type::Address { mutable, inner } = actual_ty
-        && inner.as_ref() == original_ty
-    {
-        // The default capture's physical borrow has its own original
-        // occurrence. It does not replace the whole sealed child type.
-        let SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
-            source: SemanticOriginalTypeSource::NameAt { name, .. },
-            ..
-        }) = &original
-            .environment
-            .get(ordinal as usize)
-            .ok_or_else(|| bad("capture head has no original environment slot"))?
-            .source
-        else {
-            return Err(bad(
-                "capture head has no exact original lexical name source",
-            ));
-        };
-        let first = first_use::find(original, name, limits, left)?
-            .ok_or_else(|| bad("capture head has no actual original first free use"))?;
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
-            return Err(bad(
-                "capture head requires its complete original lexical body",
-            ));
-        };
-        let mut implicit = None;
-        for occurrence in &original.implicit_lifetimes {
-            pay(left, recipes.len())?;
-            for recipe in recipes
-                .iter()
-                .filter(|recipe| recipe.occurrence_path == occurrence.occurrence_path)
-            {
-                let SemanticSiteRecipeKind::TypeUse { expected: observed } = &recipe.kind else {
-                    continue;
-                };
-                pay(left, site_nodes.len())?;
-                let mut nodes = site_nodes.iter().filter(|node| node.site == recipe.id);
-                let Some(node) = nodes.next() else { continue };
-                if nodes.next().is_some() || node.node != SemanticOriginalNode::Expression(first) {
-                    continue;
-                }
-                let observed = super::super::materialize::symbolic_in_view(
-                    program,
-                    module,
-                    ledger,
-                    instance.id,
-                    observed,
-                    limits,
-                    left,
-                )?;
-                if observed == expected && implicit.replace(occurrence.ordinal).is_some() {
-                    return Err(bad("one capture has ambiguous original borrow occurrences"));
-                }
-            }
-        }
-        let ordinal = implicit
-            .ok_or_else(|| bad("borrowed capture has no exact original borrow occurrence"))?;
-        let recipe = SemanticTypeRecipe::Address {
-            mutable: *mutable,
-            lifetime: SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit {
-                scope: SemanticScopeRef::Ancestor(0),
-                ordinal,
-            }),
-            inner: Box::new(expected),
-        };
-        return super::super::materialize::form_type_in_view(
-            program,
-            module,
-            ledger,
-            instance.id,
-            &recipe,
-            Some(actual_ty),
-            limits,
-            left,
-        );
-    } else if let Type::Managed(inner) = actual_ty
+    if original_ty == actual_ty {
+        return Ok(Formation::Complete(value));
+    }
+    if let Type::Managed(inner) = actual_ty
         && inner.as_ref() == original_ty
     {
         // The exact creator selected an owning carrier of this logical
-        // environment value. Transport its entire child domain; owning the
-        // carrier itself contributes no borrowed outer occurrence.
+        // environment value. Its payload retains the complete child domain.
         let recipe = SemanticTypeRecipe::Managed(Box::new(expected));
         return super::super::materialize::form_type_in_view(program, module, ledger,
             instance.id, &recipe, Some(actual_ty), limits, left);
-    } else {
+    }
+
+    let address = match actual_ty {
+        Type::Address { mutable, inner } if inner.as_ref() == original_ty => Some(*mutable),
+        _ => None,
+    };
+    let resource_description = matches!((original_ty, actual_ty),
+        (Type::Managed(owner), Type::Desc(description)) if owner == description);
+    if address.is_none() && !resource_description {
         return Err(Diagnostic::unsupported(Phase::Types,
             "capture representation has no complete original environment transport", None));
+    }
+
+    // Both borrowed storage and a default resource description have their
+    // own occurrence. The sealed creator environment still says which whole
+    // value was selected, including the original Managed owner in this case.
+    if resource_description {
+        let proof = ledger.original.borrow();
+        let proof = proof.as_ref().ok_or_else(|| bad("captured description has no original body proof"))?;
+        pay(left, proof.closure_move.len().saturating_add(1).ilog2() as usize + 1)?;
+        if proof.closure_move.get(&original.id) != Some(&false) {
+            return Err(bad("captured description lacks its original default capture mode"));
+        }
+    }
+    let SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
+        source: SemanticOriginalTypeSource::NameAt { name, .. },
+        ..
+    }) = &original.environment.get(ordinal as usize)
+        .ok_or_else(|| bad("capture head has no original environment slot"))?.source
+    else {
+        return Err(bad("capture head has no exact original lexical name source"));
     };
-    Ok(Formation::Complete(value))
+    let first = first_use::find(original, name, limits, left)?
+        .ok_or_else(|| bad("capture head has no actual original first free use"))?;
+    let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
+        return Err(bad("capture head requires its complete original lexical body"));
+    };
+    let mut selected = None;
+    for occurrence in &original.implicit_lifetimes {
+        pay(left, recipes.len())?;
+        for recipe in recipes.iter().filter(|recipe| recipe.occurrence_path == occurrence.occurrence_path) {
+            let SemanticSiteRecipeKind::TypeUse { expected: observed } = &recipe.kind else {
+                continue;
+            };
+            pay(left, site_nodes.len())?;
+            let mut nodes = site_nodes.iter().filter(|node| node.site == recipe.id);
+            let Some(node) = nodes.next() else { continue; };
+            if nodes.next().is_some() || node.node != SemanticOriginalNode::Expression(first) {
+                continue;
+            }
+            let observed = super::super::materialize::symbolic_in_view(
+                program, module, ledger, instance.id, observed, limits, left,
+            )?;
+            let lifetime = SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit {
+                scope: SemanticScopeRef::Ancestor(0),
+                ordinal: occurrence.ordinal,
+            });
+            let transport = if resource_description {
+                if matches!(&observed, SemanticTypeRecipe::Desc { lifetime: actual, .. } if actual == &lifetime)
+                {
+                    observed
+                } else {
+                    continue;
+                }
+            } else if observed == expected {
+                crate::dyn_metadata::semantic_operand_snapshot(&expected, limits, left, 1)?;
+                SemanticTypeRecipe::Address {
+                    mutable: address.expect("non-description borrowed storage"),
+                    lifetime,
+                    inner: Box::new(expected.clone()),
+                }
+            } else {
+                continue;
+            };
+            if selected.replace(transport).is_some() {
+                return Err(bad("one capture has ambiguous original borrow occurrences"));
+            }
+        }
+    }
+    let transport = selected
+        .ok_or_else(|| bad("borrowed capture has no exact original borrow occurrence"))?;
+    super::super::materialize::form_type_in_view(
+        program, module, ledger, instance.id, &transport, Some(actual_ty), limits, left,
+    )
 }
 
 /// Select the immutable environment coordinate of one real Typed capture.

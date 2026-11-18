@@ -83,6 +83,10 @@ fn inputs<'a>(
                 if matches!(parameter, SemanticTypeRecipe::Desc { .. }) {
                     let ordinal = u32::try_from(ordinal).map_err(|_| error(span, "Call value parameter ordinal overflows"))?;
                     selector(rows, owner, call, &[u32::MAX, 2, ordinal], budget, span)?;
+                    // Describe parameters can borrow the actual result of a
+                    // fresh owner expression. Its source class is independent
+                    // of the directed call loan and never extends the temporary.
+                    selector(rows, owner, call, &[u32::MAX, 5, ordinal], budget, span)?;
                 }
             }
             _ => {}

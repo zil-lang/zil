@@ -403,6 +403,19 @@ impl Check<'_, '_> {
                     else {
                         return Err(fail("original implicit name has no actual emitted read"));
                     };
+                    if let SemanticSiteRecipeKind::TypeUse { expected } = &recipe.kind
+                        && self.ct_data_recipe(instance, expected, b)?
+                    {
+                        let original = self.recipe_value(instance, expected, b, 0)?;
+                        if super::ct_data::product(&original.ty) {
+                            let SemanticSiteAddress::Typed { block, instruction, edge } = site.at else {
+                                return Err(fail("reified compile-time data has no actual capture-site boundary"));
+                            };
+                            self.ct_data_value(function, (block, instruction as usize, edge), value, &original, b)?;
+                            emitted = true;
+                            continue;
+                        }
+                    }
                     match self.instruction(function, value, b)? {
                         InstructionKind::StaticUtf8 { bytes } => {
                             let original = self.original.string_literal_at(instance, recipe.id, self.inventory, b)?

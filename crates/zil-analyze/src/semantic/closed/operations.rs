@@ -481,6 +481,7 @@ impl Check<'_, '_> {
         site: &SemanticSite,
         recipe: &SemanticSiteRecipe,
         point: &Point<'_>,
+        ct_trees: &mut BTreeMap<(BlockId, usize), usize>,
         b: &mut Budget,
     ) -> CompileResult<()> {
         let instruction = point.block.instructions.get(point.instruction);
@@ -525,6 +526,26 @@ impl Check<'_, '_> {
             ) => {
                 let original_value = self.recipe_value(instance, recipe, b, 0)?;
                 let expected_type = &original_value.ty;
+                if super::ct_data::product(expected_type) && self.ct_data_recipe(instance, recipe, b)? {
+                    let SemanticOperand::Value(value) = subject else {
+                        return Err(fail("reified compile-time data has no actual result value"));
+                    };
+                    let start = self.ct_data_value(
+                        point.function, (point.block.id, point.instruction, point.edge),
+                        *value, &original_value, b,
+                    )?;
+                    let block = point.block.id;
+                    let end = point.instruction;
+                    b.lookup(ct_trees.len(), WORK)?;
+                    b.lookup(ct_trees.len(), WORK)?;
+                    if ct_trees.range((block, start)..(block, end)).next().is_some()
+                        || ct_trees.range(..(block, start)).next_back()
+                            .is_some_and(|(&(owner, _), &prior_end)| owner == block && prior_end > start)
+                    {
+                        return Err(fail("original compile-time results reuse an actual data producer"));
+                    }
+                    ct_trees.insert((block, start), end);
+                }
                 // A logical local use crosses the private shell only through
                 // this original binding's real declaration/initializer witness.
                 let actual_operand = if let SemanticOperand::Local(local) = subject
@@ -1751,6 +1772,7 @@ impl Check<'_, '_> {
             }
             self.inventory.profile_step("original operations", b);
             let mut code_references = BTreeSet::new();
+            let mut ct_trees = BTreeMap::new();
             for site in &self.program.sites {
                 self.inventory.profile_site(site, b);
                 b.spend(1, WORK)?;
@@ -1789,6 +1811,7 @@ impl Check<'_, '_> {
                         edge,
                         initialization: &initialization,
                     },
+                    &mut ct_trees,
                     b,
                 );
                 if let Err(mut errors) = checked {

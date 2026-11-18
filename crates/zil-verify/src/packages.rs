@@ -501,7 +501,9 @@ fn check_package_type(
             }
             closures::definition(module, *id, span)?;
             closures::old_container_signature(module, *id, span, budget)?;
-            closures::self_contained(module, *id, budget)?;
+            if borrowed.is_none() || crate::stored_flow::borrowed_callback_domain(*id, budget)?.is_none() {
+                closures::self_contained(module, *id, budget)?;
+            }
         } else if let Type::Array { element, length } = field
             && matches!(element.as_ref(), Type::Package { .. })
         {
@@ -629,7 +631,11 @@ pub(super) fn check_instruction(
             match &instruction.kind {
                 InstructionKind::BorrowPackageField { mutable, .. } => {
                     if let Type::Closure(id) = ty {
-                        if budget.sums {
+                        if !*mutable && matches!(local_ty, Type::BorrowedStorage { .. })
+                            && crate::stored_flow::borrowed_callback_domain(*id, budget)?.is_some()
+                        {
+                            closures::old_container_signature(module, *id, span, budget)?;
+                        } else if budget.sums {
                             sums::check_type_for(module, ty, span, budget)?;
                         } else {
                             closures::old_container_signature(module, *id, span, budget)?;

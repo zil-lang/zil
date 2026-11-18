@@ -1416,6 +1416,11 @@ fn type_visit(ty: &Type, limits: &Limits, copy_or_compare: bool, b: &mut Budget)
     Ok(())
 }
 
+pub(super) fn borrowed_callback_domain(id: ClosureId, b: &mut Budget) -> Check<Option<u32>> {
+    b.spend(1)?;
+    Ok(b.structural.as_ref().and_then(|directory| directory.borrowed_callback_domain(id)))
+}
+
 pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
     let Some((storage, shape)) = qualified(ty) else {
         return Ok(false);
@@ -1583,6 +1588,14 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
                     ));
                 }
             }
+            Type::Closure(id)
+                if matches!(storage, Type::Package { .. })
+                    && matches!(path.as_slice(), [PlaceProjection::Field(_)])
+                    && borrowed_callback_domain(*id, b)?.is_some() =>
+            {
+                // The physical callback boundary has its own class directory.
+                // Its captured address lives inside that environment.
+            }
             child => {
                 type_bounds(child, limits, b)?;
                 if !child.is_copy_value() {
@@ -1650,7 +1663,13 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
     }
     let actual_retained = retained::expected(storage, limits, b)?;
     b.spend(shape.retained.len())?;
-    if actual_retained.len() != shape.retained.len() {
+    b.spend(shape.retained.len())?;
+    let physical_count = shape.retained.iter().take_while(|row| {
+        !matches!(row.path.first(), Some(LifeTypeProjection::TypeArgument(_)))
+    }).count();
+    if actual_retained.len() != physical_count
+        || physical_count != shape.retained.len() && !matches!(storage, Type::Package { .. })
+    {
         return Err(err("physical retained class coverage differs"));
     }
     for ((path, local), row) in actual_retained.iter().zip(&shape.retained) {
@@ -1659,6 +1678,13 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
             return Err(err(
                 "retained row differs from actual physical boundary/class",
             ));
+        }
+        class(row.binder, b)?;
+    }
+    for row in &shape.retained[physical_count..] {
+        b.spend(row.path.len().saturating_add(1))?;
+        if !matches!(row.path.as_slice(), [LifeTypeProjection::TypeArgument(_)]) {
+            return Err(err("qualified Package Type argument retained row has an invalid projection"));
         }
         class(row.binder, b)?;
     }
@@ -4682,6 +4708,20 @@ static_dependency: StaticProvenance::NotStatic,
                     )?;
                 }
             }
+            if let Some((Type::Package { fields: children, .. }, _)) = qualified(result) {
+                b.spend(children.len())?;
+                for (index, (_, child)) in children.iter().enumerate() {
+                    if let Type::Closure(id) = child
+                        && borrowed_callback_domain(*id, b)?.is_some()
+                    {
+                        let value = *fields.get(index).ok_or_else(|| err("Package constructor omits its actual callback operand"))?;
+                        if vt(f, value)? != child {
+                            return Err(err("Package constructor substitutes another actual callback field type"));
+                        }
+                        value_transport::attach(&mut out, &[PlaceProjection::Field(index as u32)], child, val(value)?, b)?;
+                    }
+                }
+            }
             if let Some((_, shape)) = qualified(vt(
                 f,
                 i.result.ok_or_else(|| err("aggregate lacks result"))?,
@@ -6295,7 +6335,13 @@ fn windows(
                 )?;
                 if replacements::heads(b) {
                     let head = dynamic_store::access(&i.kind)
-                        .or_else(|| byte_buffers::access(&i.kind))
+                         .or_else(|| {
+                            if byte_flow.is_some() && byte_queries::query(&i.kind).is_some() {
+                                None
+                            } else {
+                                byte_buffers::access(&i.kind)
+                            }
+                        })
                         .or(match i.kind {
                             InstructionKind::ReadDesc{desc,..}if !f.values.get(desc.0 as usize).is_some_and(super::stored_owned::description)=>Some((desc,false)),
                             InstructionKind::WriteDesc{desc,..}if !f.values.get(desc.0 as usize).is_some_and(super::stored_owned::description)=>Some((desc,true)),
@@ -6967,6 +7013,9 @@ fn windows(
                             let (definition, _) = stored_callables::called(module, f, &i.kind)
                                 .ok_or_else(|| err("actual captured call lacks its entry"))?;
                             for (path, p) in &receiver.leaves {
+                                if byte_queries::weak_capture_path(definition, path) {
+                                    continue;
+                                }
                                 let current = returned_environment::current_leaf(
                                     definition, receiver, path, p, &state, b,
                                 )?;
@@ -6976,7 +7025,11 @@ fn windows(
                         if let InstructionKind::CallClosureBorrowed { callee, .. } = &i.kind
                             && let Some(id) = returned_environment::closure(vt(f, *callee)?)
                         {
+                            let definition = crate::closures::definition(module, id, Some(i.span))?;
                             for (path, _) in returned_environment::leaves(module, id, b)? {
+                                if byte_queries::weak_capture_path(definition, &path) {
+                                    continue;
+                                }
                                 let permission = select(&state, pointer(*callee)?, &path, b)?;
                                 b.spend(1)?;
                                 all.push((permission, false));

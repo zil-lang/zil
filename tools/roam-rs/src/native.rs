@@ -1,5 +1,5 @@
 //! Real source-to-native observation with independent, tool-local models.
-use crate::{byte_buffer, domain, host, protocol, resource_closure, scalar};
+use crate::{byte_buffer, callable_composition, domain, host, protocol, resource_closure, scalar};
 use serde_json::{Value, json};
 use std::{
     fs::{self, File},
@@ -10,7 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 use zil_base::{FileId, Fingerprint, ModuleId, SourceUnit};
-use zil_driver::{CompileOptions, Optimization, Stage};
+use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage};
 
 static SERIAL: AtomicU64 = AtomicU64::new(0);
 pub const EVIDENCE_LIMIT: usize = 64 * 1024;
@@ -112,20 +112,33 @@ fn capture(
 /// Actual clang output is bounded before the existing backend's output() sees it.
 pub fn clang_proxy(args: &[String]) -> Result<u8, String> {
     use std::io::Write;
-    if std::env::var("ZIL_QC_SUPERVISED").as_deref() != Ok("owned-process-group/1")
-        || args.len() != 7
-        || args[0] != "--target=x86_64-unknown-linux-gnu"
-        || args[1] != "-x"
-        || args[2] != "ir"
-        || !["-O0", "-O2"].contains(&args[3].as_str())
-        || args[5] != "-o"
-    {
+    let (input_index, output_index) = match args {
+        [target, x, ir, level, _, out, _]
+            if target == "--target=x86_64-unknown-linux-gnu"
+                && x == "-x"
+                && ir == "ir"
+                && ["-O0", "-O2"].contains(&level.as_str())
+                && out == "-o" =>
+        {
+            (4, 6)
+        }
+        [target, level, object, out, _]
+            if target == "--target=x86_64-unknown-linux-gnu"
+                && ["-O0", "-O2"].contains(&level.as_str())
+                && out == "-o"
+                && Path::new(object).extension().is_some_and(|ext| ext == "o") =>
+        {
+            (2, 4)
+        }
+        _ => return Err("invalid supervised clang proxy invocation".into()),
+    };
+    if std::env::var("ZIL_QC_SUPERVISED").as_deref() != Ok("owned-process-group/1") {
         return Err("invalid supervised clang proxy invocation".into());
     }
     let root =
         fs::canonicalize(std::env::var_os("ZIL_QC_NATIVE_ROOT").ok_or("missing native root")?)
             .map_err(|e| e.to_string())?;
-    let input = fs::canonicalize(&args[4]).map_err(|e| e.to_string())?;
+    let input = fs::canonicalize(&args[input_index]).map_err(|e| e.to_string())?;
     let relative = input
         .strip_prefix(&root)
         .map_err(|_| "clang input is outside owned root")?;
@@ -134,16 +147,27 @@ pub fn clang_proxy(args: &[String]) -> Result<u8, String> {
     // The byte profile builds each optimization in its own owned subdirectory.
     // Existing scalar/resource paths retain their original single-step layout.
     if let Some(variant) = relative.components().nth(1)
-        && matches!(variant.as_os_str().to_str(), Some("zil-O0" | "zil-O2"))
+        && matches!(
+            variant.as_os_str().to_str(),
+            Some("zil-O0" | "zil-O2" | "llvm-O0" | "llvm-O2")
+        )
     {
         dir.push(variant.as_os_str());
     }
     let output_parent = fs::canonicalize(
-        Path::new(&args[6])
+        Path::new(&args[output_index])
             .parent()
             .ok_or("missing output parent")?,
     )
     .map_err(|e| e.to_string())?;
+    if input_index == 2
+        && !matches!(
+            dir.file_name().and_then(|n| n.to_str()),
+            Some("llvm-O0" | "llvm-O2")
+        )
+    {
+        return Err("object link is outside owned LLVM API variant".into());
+    }
     if !output_parent.starts_with(&dir) {
         return Err("clang output is outside owned step".into());
     }
@@ -318,6 +342,8 @@ fn observe(
     toolchain: &Value,
     resource_model: bool,
     optimization: Optimization,
+    backend: NativeBackend,
+    rule_composition: bool,
 ) -> Result<(Value, Value), String> {
     let input_path = root.join("input.zil");
     fs::write(&input_path, source).map_err(|e| e.to_string())?;
@@ -327,7 +353,8 @@ fn observe(
     }
     host::durable(&root.join("clang-identity.json"), toolchain)?;
     let input = SourceUnit::new(FileId(0), ModuleId(0), input_path.to_string_lossy(), source);
-    let options = CompileOptions {
+    let mut options = CompileOptions {
+        backend,
         stop_after: Stage::Build,
         output: Some(root.join("program")),
         entry: if resource_model {
@@ -339,6 +366,10 @@ fn observe(
         optimization,
         ..CompileOptions::default()
     };
+    if rule_composition {
+        // Same effective limit as CLI alpha-64m-v2.
+        options.limits.max_analysis_steps = 64_000_000;
+    }
     let report = zil_driver::compile_source(&input, &options);
     let compile: Value = serde_json::from_str(&report.to_json()).map_err(|e| e.to_string())?;
     let mut detail = json!({"source":source,"sourceSha256":Fingerprint::of(source.as_bytes()).to_hex(),"compile":compile});
@@ -365,6 +396,13 @@ fn observe(
             json!({"kind":"compile-result","category":status,"phase":compile["phase"],"diagnostics":compile["diagnostics"]})
         };
         return Ok((observed, detail));
+    }
+    if rule_composition
+        && (report.verification_runs != 1
+            || compile["native_codegen"]["backend"] != backend.name()
+            || !compile["native_codegen"]["fallback"].is_null())
+    {
+        return Ok((json!({"kind":"incomplete-verification-or-codegen"}), detail));
     }
     let executable = report
         .artifacts
@@ -504,7 +542,15 @@ fn observe_bytes(
                     details["byteObserverSource"] = json!(source);
                 }
                 let (observation, mut detail) = if language == "zil" {
-                    observe(source, &dir, toolchain, true, level)?
+                    observe(
+                        source,
+                        &dir,
+                        toolchain,
+                        true,
+                        level,
+                        NativeBackend::Clang,
+                        false,
+                    )?
                 } else {
                     observe_c(reference, &dir, toolchain, name)?
                 };
@@ -526,6 +572,50 @@ fn observe_bytes(
     Ok((observations, details))
 }
 
+fn observe_composition(
+    source: &str,
+    root: &Path,
+    toolchain: &Value,
+    expected: &Value,
+) -> Result<(Value, Value), String> {
+    if expected["kind"] == "safe-reject" {
+        let (observation, detail) = observe(
+            source,
+            root,
+            toolchain,
+            true,
+            Optimization::O0,
+            NativeBackend::Clang,
+            true,
+        )?;
+        return Ok((
+            callable_composition::observed(expected, observation, &detail["compile"]),
+            detail,
+        ));
+    }
+    let mut observations = json!({});
+    let mut detail = json!({"source":source,"variants":{}});
+    for (label, backend) in [
+        ("zil", NativeBackend::Clang),
+        ("llvm", NativeBackend::LlvmApi),
+    ] {
+        for (name, level) in [("O0", Optimization::O0), ("O2", Optimization::O2)] {
+            let key = format!("{label}-{name}");
+            let dir = root.join(&key);
+            fs::create_dir(&dir).map_err(|e| e.to_string())?;
+            let (observed, mut variant) =
+                observe(source, &dir, toolchain, true, level, backend, true)?;
+            variant
+                .as_object_mut()
+                .expect("observe returns an object")
+                .remove("source");
+            observations[&key] = observed;
+            detail["variants"][&key] = variant;
+        }
+    }
+    Ok((observations, detail))
+}
+
 pub fn execute(
     trace: &Value,
     options: &domain::Options,
@@ -539,6 +629,7 @@ pub fn execute(
         |n, reason| json!({"status":"incomplete","steps":n,"issues":[],"reason":reason});
     let start = Instant::now();
     let resource_model = trace["contract"] == resource_closure::CONTRACT;
+    let composition_model = trace["contract"] == callable_composition::CONTRACT;
     let owned_byte_model = trace["contract"] == byte_buffer::owned::CONTRACT;
     let byte_model = trace["contract"] == byte_buffer::CONTRACT || owned_byte_model;
     let (validate, expected_program, source_program, property): ModelFunctions = if owned_byte_model
@@ -555,6 +646,13 @@ pub fn execute(
             byte_buffer::expected,
             byte_buffer::source,
             byte_buffer::PROPERTY,
+        )
+    } else if composition_model {
+        (
+            callable_composition::validate,
+            callable_composition::expected,
+            callable_composition::source,
+            callable_composition::PROPERTY,
         )
     } else if resource_model {
         (
@@ -683,8 +781,10 @@ pub fn execute(
         let model = expected_program(&action["program"]).unwrap();
         let expected = if byte_model {
             json!({"zil-O0":model,"zil-O2":model,"c-O0":model,"c-O2":model})
+        } else if composition_model && model["kind"] == "lifecycle" {
+            json!({"zil-O0":model,"zil-O2":model,"llvm-O0":model,"llvm-O2":model})
         } else {
-            model
+            model.clone()
         };
         let source = source_program(&action["program"], options.fault).unwrap();
         if let Err(e) = before(i, action) {
@@ -710,8 +810,18 @@ pub fn execute(
                     &toolchain,
                     owned_byte_model.then_some(&action["program"]),
                 )
+            } else if composition_model {
+                observe_composition(&source, &dir, &toolchain, &model)
             } else {
-                observe(&source, &dir, &toolchain, resource_model, Optimization::O0)
+                observe(
+                    &source,
+                    &dir,
+                    &toolchain,
+                    resource_model,
+                    Optimization::O0,
+                    NativeBackend::Clang,
+                    false,
+                )
             }
         })();
         let (observed, mut detail) = match real {

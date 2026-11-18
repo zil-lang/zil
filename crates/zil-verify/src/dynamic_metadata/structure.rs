@@ -62,12 +62,17 @@ pub(crate) struct Structure{
     owners:BTreeMap<(OwnerKey,SemanticDefinitionId),usize>,
     lexical_scopes:BTreeMap<OwnerKey,Vec<SemanticDefinitionId>>,
     nominal_declarations:BTreeMap<LifeDeclarationId,Vec<usize>>,
+    borrowed_callback_domains:BTreeMap<ClosureId,u32>,
     nominal_instances:BTreeMap<LifeDeclarationId,Vec<usize>>,
     scope_instances:BTreeMap<SemanticDefinitionId,Vec<usize>>,
     shared_types:BTreeMap<usize,std::rc::Rc<crate::semantic::CheckedTypeData>>,
     type_owners:BTreeMap<usize,std::rc::Rc<crate::semantic::CheckedTypeData>>,
 }
 impl Structure{
+    pub(crate) fn borrowed_callback_domain(&self,id:ClosureId)->Option<u32>{
+        self.borrowed_callback_domains.get(&id).copied()
+    }
+
     /// The root checker keeps this exact module immutably borrowed until this
     /// directory is removed. Nested module checks install a separate scope.
     pub(crate) fn register(module:&TypedModule,b:&mut Budget)->Check<Self>{
@@ -77,7 +82,7 @@ impl Structure{
             program:module.semantic.as_ref().map(|program|program as *const SemanticModule as usize),
             declarations:(module.dyn_declarations.as_ptr() as usize,module.dyn_declarations.len()),
             types:BTreeSet::new(),recipes:BTreeSet::new(),declaration_nodes:BTreeSet::new(),
-            type_success:TypeFacts::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),lexical_scopes:BTreeMap::new(),nominal_declarations:BTreeMap::new(),nominal_instances:BTreeMap::new(),scope_instances:BTreeMap::new(),shared_types:BTreeMap::new(),type_owners:BTreeMap::new(),
+            type_success:TypeFacts::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),lexical_scopes:BTreeMap::new(),nominal_declarations:BTreeMap::new(),nominal_instances:BTreeMap::new(),scope_instances:BTreeMap::new(),shared_types:BTreeMap::new(),type_owners:BTreeMap::new(),borrowed_callback_domains:BTreeMap::new(),
         };
         for function in &module.functions{
             result.ty(&function.return_type,b)?;
@@ -85,7 +90,20 @@ impl Structure{
             for ty in &function.values{result.ty(ty,b)?;}
             if let Some(instance)=&function.dyn_instance{result.visit(instance,b)?;}
         }
-        for closure in &module.closures{for ty in closure.captures.iter().chain(&closure.parameters).chain(std::iter::once(&closure.result)){result.ty(ty,b)?;}}
+        for (index,closure) in module.closures.iter().enumerate(){
+            for ty in closure.captures.iter().chain(&closure.parameters).chain(std::iter::once(&closure.result)){result.ty(ty,b)?;}
+            if closure.id.0 as usize==index && closure.kind==CallableKind::Fn
+                && let Some(header)=&closure.storage_life
+                && header.fixed_binder_count>0
+                && module.functions.get(closure.function.0 as usize).is_some_and(|entry|
+                    entry.id==closure.function && entry.environment==Some(closure.id)
+                        && entry.call_kind==CallKind::Direct && entry.storage_life.as_ref().is_some_and(|row|
+                            row.fixed_binder_count==header.fixed_binder_count))
+            {
+                b.spend(lookup(result.borrowed_callback_domains.len()).saturating_add(1))?;
+                result.borrowed_callback_domains.insert(closure.id,header.fixed_binder_count);
+            }
+        }
         for resource in &module.resources{result.ty(&resource.payload,b)?;}
         for(index,declaration)in module.life_declarations.iter().enumerate(){add_index(&mut result.nominal_declarations,declaration.id,index,b)?;}
         for(index,instance)in module.life_instances.iter().enumerate(){
