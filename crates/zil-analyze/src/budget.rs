@@ -273,6 +273,8 @@ pub(super) struct Budget {
     // Current function's actual loan arena, including reserved exclusive sites.
     // Reset for each facts solve; false skips only read/read constructor checks.
     pub(super) stored_exclusive_loans: bool,
+    // Set only while reporting a failed actual stored access.
+    pub(super) stored_conflict_loan: Option<usize>,
     // Empty for the established single-lane profiles. A mixed module has one
     // paid, actual-function partition; neither lane may infer the other lane.
     pub(super) composition_stored: Vec<bool>,
@@ -446,6 +448,7 @@ impl Budget {
             ordinary_input_head_candidates: false,
             stored_slot_updates: false,
             stored_exclusive_loans: false,
+            stored_conflict_loan: None,
             composition_stored: Vec::new(),
             pure_nominal: false,
             capture_relations: false,

@@ -6391,6 +6391,7 @@ fn permission_tail(
                     separate(target, held, apart, b).map_err(|mut errors| {
                         for error in &mut errors {
                             if error.code == "E-BORROW-CONFLICT" {
+                                b.stored_conflict_loan = Some(*id);
                                 error.notes.push(format!(
                                     "actual live loan {id}: mutable={}, receiver_head={}, parents={:?}; access_write={write}, access_loans={:?}, ancestors={ignore:?}",
                                     loan.mutable, loan.receiver_head, loan.parents, permission.loans,
@@ -6446,6 +6447,40 @@ fn active_loans_union(to: &mut Loans, from: &Permission, b: &mut Budget) -> Comp
     }
     Ok(())
 }
+fn active_value(
+    value: &Value,
+    state: &State,
+    direct: &mut Loans,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    active_loans_union(direct, &value.pointer, b)?;
+    let held = environment_memory::held(value, state, b)?;
+    active_loans_union(direct, &held, b)?;
+    if !value.store_description.targets.is_empty()
+        || !value.store_description.loans.is_empty()
+    {
+        active_loans_union(direct, &value.store_description, b)?;
+    }
+    if b.dyn_contexts {
+        for permission in value.dyn_ports.values() {
+            active_loans_union(direct, permission, b)?;
+        }
+    }
+    if b.task_sources() {
+        for permission in value.task_ports.values() {
+            active_loans_union(direct, permission, b)?;
+        }
+    }
+    for leaf in value
+        .slots
+        .values()
+        .chain(value.projections.values().map(|p| &p.store_description))
+    {
+        active_loans_union(direct, leaf, b)?;
+    }
+    Ok(())
+}
+
 fn active(
     values: &[Value],
     state: &State,
@@ -6464,31 +6499,7 @@ fn active(
             state.locals.get(&LocalId((i - values.len()) as u32))
         };
         if let Some(value) = value {
-            active_loans_union(&mut direct, &value.pointer, b)?;
-            let held = environment_memory::held(value, state, b)?;
-            active_loans_union(&mut direct, &held, b)?;
-            if !value.store_description.targets.is_empty()
-                || !value.store_description.loans.is_empty()
-            {
-                active_loans_union(&mut direct, &value.store_description, b)?;
-            }
-            if b.dyn_contexts {
-                for permission in value.dyn_ports.values() {
-                    active_loans_union(&mut direct, permission, b)?;
-                }
-            }
-            if b.task_sources() {
-                for permission in value.task_ports.values() {
-                    active_loans_union(&mut direct, permission, b)?;
-                }
-            }
-            for leaf in value
-                .slots
-                .values()
-                .chain(value.projections.values().map(|p| &p.store_description))
-            {
-                active_loans_union(&mut direct, leaf, b)?;
-            }
+            active_value(value, state, &mut direct, b)?;
         }
     }
     if b.dyn_contexts {
@@ -7041,28 +7052,29 @@ fn windows(
                     .map(|v| &v.pointer)
                     .ok_or_else(|| failure("access operand outside values"))
             };
-            if let Some(flow) = &byte_flow {
-                for permission in flow.reads(
-                    module,
-                    f,
-                    i,
-                    values,
-                    &state,
-                    byte_point.as_ref().unwrap(),
-                    summaries,
-                    b,
-                )? {
-                    query_permission(&permission, &current, loans, apart, b)?;
-                    byte_queries::record(byte_reads, &permission, b)?;
-                }
-            }
-            // Callee reads happen before a new result loan is published. The
-            // ordinary access path still excludes the instruction's result.
-            if let Some(v) = i.result {
-                current.remove(&(v.0 as usize));
-            }
-            owned_byte_sites.check(module, f, i, &state, values, &current, loans, apart, b)?;
+            b.stored_conflict_loan = None;
             let checked = (|| -> CompileResult<()> {
+                if let Some(flow) = &byte_flow {
+                    for permission in flow.reads(
+                        module,
+                        f,
+                        i,
+                        values,
+                        &state,
+                        byte_point.as_ref().unwrap(),
+                        summaries,
+                        b,
+                    )? {
+                        query_permission(&permission, &current, loans, apart, b)?;
+                        byte_queries::record(byte_reads, &permission, b)?;
+                    }
+                }
+                // Callee reads happen before a new result loan is published. The
+                // ordinary access path still excludes the instruction's result.
+                if let Some(v) = i.result {
+                    current.remove(&(v.0 as usize));
+                }
+                owned_byte_sites.check(module, f, i, &state, values, &current, loans, apart, b)?;
                 let mut access = permission_access::Access::new(&current, loans, b)?;
                 if let Some((permission, write)) =
                     callable_arrays::access(module, f, i, &state, values, b)?
@@ -7996,7 +8008,14 @@ fn windows(
                 Ok(())
             })();
             checked.map_err(|mut errors| {
+                let loan = b.stored_conflict_loan.take();
                 for error in &mut errors {
+                    if error.code == "E-BORROW-CONFLICT" {
+                        permission_access::explain_conflict(
+                            error, module, f, (block.id, position), i, loan,
+                            &live, &state, values, loans, slot_ids, b,
+                        );
+                    }
                     error.notes.push(format!(
                         "actual stored access in {} block {bi} instruction {position}: {:?}",
                         f.name, i.kind

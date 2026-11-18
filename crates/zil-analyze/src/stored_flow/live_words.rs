@@ -44,7 +44,6 @@ impl LiveRow {
             })
             .take_while(move |&index| index < self.len())
     }
-    #[cfg(test)]
     pub(super) fn at(&self, index: usize) -> CompileResult<bool> {
         if index >= self.width {
             return Err(failure("liveness use exceeds actual SSA/local width"));
