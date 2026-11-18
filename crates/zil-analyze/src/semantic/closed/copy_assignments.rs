@@ -50,7 +50,7 @@ impl Check<'_, '_> {
                         unreachable!();
                     };
                     if self.assignment_place(world, function, target, address, b, 0)?
-                        && self.assignment_expression(world, function, incoming, value, b, 0)?
+                        && self.copy_expression_source(world, function, incoming, value, b, 0)?
                     {
                         b.lookup(used.len(), WORK)?;
                         if !used.insert(*node) {
@@ -109,7 +109,7 @@ impl Check<'_, '_> {
                 },
             ) => {
                 self.assignment_place(world, function, object, *address, b, depth + 1)?
-                    && self.assignment_expression(
+                    && self.copy_expression_source(
                         world,
                         function,
                         index,
@@ -143,15 +143,15 @@ impl Check<'_, '_> {
                     operand,
                 },
                 _,
-            ) => self.assignment_expression(world, function, operand, actual, b, depth + 1)?,
+            ) => self.copy_expression_source(world, function, operand, actual, b, depth + 1)?,
             (CoreExprKind::Name(_), _) => {
-                self.assignment_expression(world, function, source, actual, b, depth + 1)?
+                self.copy_expression_source(world, function, source, actual, b, depth + 1)?
             }
             _ => false,
         })
     }
 
-    fn assignment_expression(
+    pub(super) fn copy_expression_source(
         &self,
         world: &SemanticInstance,
         function: &TypedFunction,
@@ -163,15 +163,15 @@ impl Check<'_, '_> {
         b.spend(1, WORK)?;
         if depth > b.partial_depth {
             return Err(original::resource(
-                "original Copy assignment expression exceeds its complete operand depth",
+                "original Copy expression exceeds its complete operand depth",
             ));
         }
-        let (_, _, producer) = self.defining(function, actual, b)?;
+        let (block, at, producer) = self.defining(function, actual, b)?;
         Ok(match (&source.kind, &producer.kind) {
             (CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. }, _) => {
-                self.assignment_expression(world, function, inner, actual, b, depth + 1)?
+                self.copy_expression_source(world, function, inner, actual, b, depth + 1)?
             }
-            (CoreExprKind::Name(_), InstructionKind::Load(local)) => {
+            (CoreExprKind::Name(_), InstructionKind::Load(local) | InstructionKind::DescribeLocal { local }) => {
                 let Some(anchor) =
                     self.original
                         .local_read_anchor(world.definition, source.id, b)?
@@ -179,6 +179,28 @@ impl Check<'_, '_> {
                     return Ok(false);
                 };
                 self.anchored_local(world, function, anchor, b)? == *local
+            }
+            (
+                CoreExprKind::Member { object, member, .. },
+                InstructionKind::ReadDesc { desc: parent, index }
+                | InstructionKind::ExtractField { aggregate: parent, index },
+            ) if matches!(producer.kind, InstructionKind::ReadDesc { .. })
+                || matches!(function.values.get(parent.0 as usize), Some(Type::Record { .. })) => {
+                operations::available_before(function, (block, at, SemanticSiteEdge::Before), *parent, b)?;
+                let parent_type = function.values.get(parent.0 as usize)
+                    .ok_or_else(|| fail("actual Copy field has no complete parent type"))?;
+                let record = match (&producer.kind, parent_type) {
+                    (InstructionKind::ReadDesc { .. }, Type::Desc(record)) => record.as_ref(),
+                    (InstructionKind::ExtractField { .. }, record) => record,
+                    _ => return Ok(false),
+                };
+                let Type::Record { fields, .. } = record else { return Ok(false); };
+                let Some((name, field)) = fields.get(*index as usize) else { return Ok(false); };
+                let result = function.values.get(actual.0 as usize)
+                    .ok_or_else(|| fail("actual Copy field has no complete result type"))?;
+                b.spend(name.len().saturating_add(member.len()), WORK)?;
+                name == member && geometry::same_type(field, result, b)?
+                    && self.copy_expression_source(world, function, object, *parent, b, depth + 1)?
             }
             (CoreExprKind::Integer(text), InstructionKind::Constant(value))
                 if value.ty().is_integer() =>
@@ -201,8 +223,8 @@ impl Check<'_, '_> {
                 },
             ) => {
                 op == actual_op
-                    && self.assignment_expression(world, function, left, *a, b, depth + 1)?
-                    && self.assignment_expression(world, function, right, *z, b, depth + 1)?
+                    && self.copy_expression_source(world, function, left, *a, b, depth + 1)?
+                    && self.copy_expression_source(world, function, right, *z, b, depth + 1)?
             }
             (
                 CoreExprKind::Unary { op, operand },
@@ -212,7 +234,7 @@ impl Check<'_, '_> {
                 },
             ) => {
                 op == actual_op
-                    && self.assignment_expression(world, function, operand, *input, b, depth + 1)?
+                    && self.copy_expression_source(world, function, operand, *input, b, depth + 1)?
             }
             (
                 CoreExprKind::Index { .. }

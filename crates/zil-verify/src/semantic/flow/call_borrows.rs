@@ -3,6 +3,35 @@
 //! caller's original lifetime actual/result image.
 use super::*;
 impl CheckedContext {
+    pub(super) fn foreign_projected_arguments(
+        &self, module: &TypedModule, caller: &SemanticInstance, f: &TypedFunction,
+        site: &SemanticSite, arguments: &[ValueId], b: &mut Budget,
+    ) -> Check<()> {
+        b.spend(arguments.len())?;
+        let is_handle = |value: ValueId| f.values.get(value.0 as usize) == Some(&Type::ForeignHandle);
+        if !arguments.iter().copied().any(is_handle) { return Ok(()); }
+        let recipes = self.original.borrow().as_ref()
+            .ok_or_else(|| bad("foreign argument lacks its original Call occurrence"))?
+            .call_input_recipes(module, caller.definition, site.recipe, b)?;
+        if arguments.len() != recipes.len() {
+            return Err(bad("foreign call changes its exact original argument arity"));
+        }
+        for (actual, recipe) in arguments.iter().copied().zip(recipes) {
+            let Some((node, _, Some(source @ original::intrinsics::BufferSource::Place { .. }))) = recipe else { continue; };
+            if !is_handle(actual) { continue; }
+            let mut operand = actual;
+            loop {
+                b.spend(1)?;
+                let (block, at, producer) = self.site_index.producers.get(f, operand, b)?;
+                let InstructionKind::Load(local) = producer.kind else { break; };
+                let Some(source) = intrinsics::owner_sources::scalar_preparations::copy_value_source(module, f, block, at, local, b)? else { break; };
+                operand = source;
+            }
+            self.call_input_source(module, caller, f, operand, node, Some(source), b)?;
+        }
+        Ok(())
+    }
+
     pub(super) fn inferred_call_type(&self,module:&TypedModule,sources:&[(SemanticTypeRecipe,bool)],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>>{
         let mut selected=None;
         for(source,shared_view)in sources{let value=self.evaluate_type(module,source,environment,external,active,b)?;let value=if *shared_view{self.call_shared_view(&value,b)?}else{value};if let Some(expected)=&selected{if !self.same_type(environment,expected,&value,b)?{return Err(bad("repeated inferred Type arguments have different whole intrinsic domains"));}}else{selected=Some(value);}}

@@ -144,6 +144,74 @@ fn buffered_file_roundtrip_and_finite_float_roundtrip() {
         "buffered-float",
     );
 }
+
+#[test]
+fn buffered_float_foreign_resource_handles_use_the_original_field_raw_wire() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_ir::{InstructionKind, Type};
+
+    let source = include_str!("../../../tests/fixtures/buffered-io/float_and_file.zil")
+        .replace("TEST_FILE_PATH", "buffered-float.bin");
+    let module = typed_stdlib(&[
+        ("main", &source),
+        ("float", include_str!("../../../lib/std/float.zil")),
+        ("io", include_str!("../../../lib/std/io.zil")),
+        ("buffered_io", include_str!("../../../lib/std/buffered_io.zil")),
+    ]);
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+
+    let teardown = module.resources.iter().find_map(|resource| {
+        let Type::Record { name, fields } = &resource.payload else { return None; };
+        if name.ends_with("_Locale") && matches!(fields.as_slice(),
+            [(handle, Type::ForeignHandle), (previous, Type::ForeignHandle)]
+                if handle == "handle" && previous == "previous")
+        {
+            resource.teardown
+        } else {
+            None
+        }
+    }).expect("original Locale destructor with two equal-typed handle fields");
+    for change_operand in [false, true] {
+        let mut altered = module.clone();
+        let function = &mut altered.functions[teardown.0 as usize];
+        let operations = &mut function.blocks[0].instructions;
+        let fields = operations.iter().enumerate().filter_map(|(at, instruction)| match instruction.kind {
+            InstructionKind::ReadDesc { index, .. } => Some((at, index, instruction.result.unwrap())),
+            _ => None,
+        }).collect::<Vec<_>>();
+        let [(previous_at, 1, previous), (_, 0, handle)] = fields.as_slice() else {
+            panic!("original Locale cleanup changes its complete ReadDesc fields");
+        };
+        if change_operand {
+            let call = operations.iter_mut().find_map(|instruction| match &mut instruction.kind {
+                InstructionKind::ForeignCall { arguments, .. } if arguments.as_slice() == [*handle] => Some(arguments),
+                _ => None,
+            }).expect("original freelocale handle input");
+            call[0] = *previous;
+        } else {
+            let InstructionKind::ReadDesc { index, .. } = &mut operations[*previous_at].kind else { unreachable!() };
+            *index = 0;
+        }
+        let rejected = zil_analyze::analyze(&altered, &limits).unwrap_err();
+        assert_eq!(rejected[0].category, ResultCategory::SafeReject, "{rejected:?}");
+        assert!(rejected[0].message.contains("foreign handle argument"), "{rejected:?}");
+
+        let mut plan = plan.clone();
+        plan.module_fingerprint = altered.fingerprint();
+        let bytes = zil_ir::wire::encode_module_candidate(&altered, &plan, &limits).unwrap();
+        let raw = zil_verify::verify_module(altered, plan, &target, &limits).unwrap_err();
+        let wire = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
+        assert_eq!(raw, wire);
+        assert_eq!(raw[0].category, ResultCategory::SafeReject, "{raw:?}");
+        assert!(raw[0].message.contains("actual field index differs"), "{raw:?}");
+    }
+}
+
 #[test]
 fn graph_reuses_bounded_metadata_and_rejects_stale_tickets() {
     run(

@@ -3,6 +3,52 @@
 use super::*;
 
 impl Check<'_, '_> {
+    fn foreign_projected_arguments(
+        &self, instance: &SemanticInstance, function: &TypedFunction,
+        site: SemanticSiteId, arguments: &[ValueId], parameters: &[Type], b: &mut Budget,
+    ) -> CompileResult<()> {
+        b.spend(parameters.len(), WORK)?;
+        if !parameters.contains(&Type::ForeignHandle) { return Ok(()); }
+        let original = self.inventory.original_index(instance.definition, b)?;
+        let Some(SemanticOriginalNode::Expression(node)) = original.site_node(site, b)? else {
+            return Err(fail("foreign argument lacks its original Call occurrence"));
+        };
+        let CoreExprKind::Call { arguments: inputs, .. } = &original.get_expr(node, b)?.kind else {
+            return Err(fail("foreign argument selects another original operation"));
+        };
+        if arguments.len() != inputs.len() {
+            return Err(fail("foreign call changes its exact original argument arity"));
+        }
+        for ((source, actual), ty) in inputs.iter().zip(arguments).zip(parameters) {
+            if *ty != Type::ForeignHandle { continue; }
+            if !self.foreign_resource_member(instance, source, b)? { continue; }
+            for origin in self.call_operand_origins(function, *actual, b)? {
+                if !self.copy_expression_source(instance, function, source, origin, b, 0)? {
+                    return Err(fail("foreign handle argument selects another original resource field or parent"));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn foreign_resource_member(
+        &self, instance: &SemanticInstance, mut expression: &SemanticOriginalExpr, b: &mut Budget,
+    ) -> CompileResult<bool> {
+        loop {
+            b.spend(1, WORK)?;
+            expression = match &expression.kind {
+                CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } => inner,
+                CoreExprKind::Member { object, .. } => {
+                    let parent = self.original.source_type(instance, SemanticScopeRef::Ancestor(0),
+                        &SemanticOriginalTypeSource::Expression(object.id), self.program, self.inventory, b)?;
+                    if matches!(parent, Type::Managed(_) | Type::Desc(_)) { return Ok(true); }
+                    object
+                }
+                _ => return Ok(false),
+            };
+        }
+    }
+
     fn resumable_enum_operands(
         &self,
         instance: &SemanticInstance,
@@ -1534,6 +1580,9 @@ impl Check<'_, '_> {
                 }
                 self.arguments(point.function, arguments, &parameters, b)?;
                 self.inputs(arguments, point, b)?;
+                if matches!(instruction.kind, InstructionKind::ForeignCall { .. }) {
+                    self.foreign_projected_arguments(instance, point.function, site.recipe, arguments, &parameters, b)?;
+                }
                 let (input_target, expected_inputs) = self.original.call_inputs(
                     instance,
                     site.recipe,

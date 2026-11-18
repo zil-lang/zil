@@ -413,7 +413,13 @@ impl CheckedContext {
                         let site=declarations.next().ok_or_else(||bad("actual Call has no original semantic specialization site"))?;
                         if declarations.next().is_some() {return Err(bad("actual Call has duplicate semantic specialization claims"));}
                         let result=self.actual_call(module,instance,site,*callee,arguments,&values,&environment,external,active,b)?;
-                        if matches!(instruction.kind,InstructionKind::ForeignCall{..}){let expected=crate::foreign::check_call(module,f,*callee,arguments,Some(instruction.span),b)?;if expected.as_ref()!=result.as_ref().map(|value|&value.ty){return Err(bad("actual foreign result differs from its complete original C signature"));}}
+                        if matches!(instruction.kind, InstructionKind::ForeignCall { .. }) {
+                            let expected = crate::foreign::check_call(module, f, *callee, arguments, Some(instruction.span), b)?;
+                            if expected.as_ref() != result.as_ref().map(|value| &value.ty) {
+                                return Err(bad("actual foreign result differs from its complete original C signature"));
+                            }
+                            self.foreign_projected_arguments(module, instance, f, site, arguments, b)?;
+                        }
                         else if module.functions.get(callee.0 as usize).is_some_and(|row|row.foreign.is_some()){return Err(bad("ordinary Call substitutes for an original foreign execution"));}
                         result
                     },
