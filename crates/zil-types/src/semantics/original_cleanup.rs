@@ -501,34 +501,11 @@ impl Check<'_, '_> {
                 arguments,
                 hidden,
             } => {
-                let callee = self.definition(*definition)?;
-                if !self.proof.complete.contains(definition) {
-                    return Ok(false);
-                }
-                let result = self
-                    .proof
-                    .types
-                    .get(&(*definition, Query::Result))
-                    .ok_or_else(|| {
-                        pending("opaque cleanup lacks the independently checked defining result")
-                    })?;
-                crate::dyn_metadata::semantic_operand_snapshot(result, self.limits, self.left, 1)?;
-                crate::dyn_metadata::semantic_operand_snapshot(
-                    hidden.as_ref(),
-                    self.limits,
-                    self.left,
-                    1,
-                )?;
-                if result != hidden.as_ref() {
-                    return Err(bad(
-                        "opaque cleanup hidden type differs from its original all-return theorem",
-                    ));
-                }
-                self.call_requirements(owner, callee, arguments, depth + 1)?;
+                let result = self.opaque_application_result(owner, *definition, arguments, hidden, depth + 1)?;
                 // A definition-local proof may release captured views without
                 // ever transporting their private lifetime names to the caller.
                 self.contexts.push(*definition);
-                let original = self.cleanup_capability(*definition, hidden, depth + 1);
+                let original = self.cleanup_capability(*definition, &result, depth + 1);
                 self.contexts.pop();
                 if original? {
                     return Ok(true);
@@ -540,7 +517,7 @@ impl Check<'_, '_> {
                 let specialized = super::super::instantiate::ty(
                     self.program,
                     &self.proof,
-                    hidden,
+                    &result,
                     super::super::instantiate::DomainMapping {
                         source: *definition,
                         use_definition: owner,

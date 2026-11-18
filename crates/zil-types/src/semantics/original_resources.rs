@@ -1297,32 +1297,20 @@ impl Check<'_, '_> {
                 {
                     // An opaque capability depends on its complete all-return
                     // equation and caller obligations, not a zero-class domain.
-                    self.call_requirements(owner, source, arguments, depth + 1)?;
-                    let result = self.proof.types.get(&(*definition, Query::Result))
-                        .ok_or_else(|| bad("opaque capability lacks its complete all-return original equation"))?;
-                    let result = copy_recipe(result, self.limits, self.left)?;
+                    let result = self.opaque_application_result(owner, *definition, arguments, hidden, depth + 1)?;
                     self.contexts.push(*definition);
-                    let declared = (|| {
-                        if !matches!(hidden.as_ref(), SemanticTypeRecipe::OriginalType {
-                            scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result,
-                        }) {
-                            let hidden = self.resolve(*definition, hidden, depth + 1)?;
-                            self.same(&hidden, &result)?;
-                        }
-                        self.sealed_capability(*definition, &result, kind, depth + 1)
-                    })();
+                    let declared = self.sealed_capability(*definition, &result, kind, depth + 1);
                     self.contexts.pop();
-                    let declared = declared?;
-                    // Full mixed kinds, Const carriers and lexical domains are
-                    // validated even when the declaration theorem is universal.
-                    let specialized = super::super::instantiate::ty(
-                        self.program, &self.proof, &result,
-                        super::super::instantiate::DomainMapping {
-                            source: *definition, use_definition: owner, arguments, parent_call: None,
-                        }, self.limits, self.left,
-                    )?;
-                    if declared == Some(true) { Some(true) }
-                    else { self.sealed_capability(owner, &specialized, kind, depth + 1)? }
+                    if declared? == Some(true) { Some(true) }
+                    else {
+                        let specialized = super::super::instantiate::ty(
+                            self.program, &self.proof, &result,
+                            super::super::instantiate::DomainMapping {
+                                source: *definition, use_definition: owner, arguments, parent_call: None,
+                            }, self.limits, self.left,
+                        )?;
+                        self.sealed_capability(owner, &specialized, kind, depth + 1)?
+                    }
                 } else {
                     // Other lexical parents still require their exact original
                     // application boundary; no receiver/ancestor is guessed.

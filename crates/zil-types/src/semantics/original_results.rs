@@ -16,6 +16,60 @@ pub(crate) struct CalleeResultBoundary {
 }
 
 impl Check<'_, '_> {
+    /// The hidden equation belongs exclusively to this completed definition.
+    /// It can be read in its original Gamma, never renamed into a caller's
+    /// same-numbered implicit or environment coordinates.
+    pub(super) fn original_opaque_result(
+        &mut self, definition: SemanticDefinitionId, hidden: &SemanticTypeRecipe, depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        let declaration = self.definition(definition)?;
+        self.pay(self.proof.complete.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+        if !self.proof.complete.contains(&definition)
+            || !matches!(&declaration.body, SemanticDefinitionBody::FunctionWithBody {
+                signature: SemanticSignatureRecipe { result: SemanticTypeRecipe::Opaque { definition: declared, .. }, .. },
+                body: SemanticOriginalFunctionBody::Defined(_), ..
+            } if *declared == definition) {
+            return Err(bad("opaque result has no completed original defining body"));
+        }
+        self.pay(self.proof.types.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+        let result = self.proof.types.get(&(definition, Query::Result))
+            .ok_or_else(|| bad("opaque result lacks its complete original all-return equation"))?;
+        let result = copy_recipe(result, self.limits, self.left)?;
+        self.contexts.push(definition);
+        let checked = (|| {
+            let hidden = self.resolve(definition, hidden, depth + 1)?;
+            self.same(&hidden, &result)
+        })();
+        self.contexts.pop();
+        checked?;
+        Ok(result)
+    }
+    /// Validate the full exported opaque application while leaving its hidden
+    /// all-return equation in the defining Gamma. The exported nominal recipe
+    /// consumes every mixed actual and carrier through the ordinary mapping.
+    pub(super) fn opaque_application_result(
+        &mut self, owner: SemanticDefinitionId, definition: SemanticDefinitionId,
+        arguments: &[SemanticActualRecipe], hidden: &SemanticTypeRecipe, depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        let result = self.original_opaque_result(definition, hidden, depth + 1)?;
+        let declaration = self.definition(definition)?;
+        self.call_requirements(owner, declaration, arguments, depth + 1)?;
+        let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &declaration.body else { unreachable!() };
+        let exported = super::super::instantiate::ty(self.program, &self.proof, &signature.result,
+            super::super::instantiate::DomainMapping { source: definition, use_definition: owner,
+                arguments, parent_call: None }, self.limits, self.left)?;
+        let SemanticTypeRecipe::Opaque { definition: selected, arguments: actuals, .. } = &exported else {
+            return Err(bad("opaque application changes its exported nominal constructor"));
+        };
+        self.pay(actuals.len().saturating_add(arguments.len()), depth)?;
+        for actual in actuals.iter().chain(arguments) {
+            crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
+        }
+        if *selected != definition || actuals != arguments {
+            return Err(bad("opaque application changes its full original mixed arguments"));
+        }
+        Ok(result)
+    }
     pub(super) fn seal_inferred_type_sources(
         &mut self,
         owner: SemanticDefinitionId,

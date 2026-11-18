@@ -705,6 +705,18 @@ impl<'a> Check<'a, '_> {
                 }
                 return Ok(());
             }
+            (SemanticTypeRecipe::Opaque { definition: a, arguments: aa, hidden: ah },
+                SemanticTypeRecipe::Opaque { definition: b, arguments: ba, hidden: bh })
+                if a == b && aa.len() == ba.len() => {
+                self.pay(aa.len(), 0)?;
+                if self.definition(*a)?.parameters.len() != aa.len() {
+                    return Err(bad("opaque equality omits full original mixed actuals"));
+                }
+                for (a, b) in aa.iter().zip(ba) { self.same_actual(a, b)?; }
+                self.original_opaque_result(*a, ah, 1)?;
+                self.original_opaque_result(*b, bh, 1)?;
+                return Ok(());
+            }
             (
                 SemanticTypeRecipe::Address {
                     mutable: am,
@@ -973,23 +985,11 @@ impl<'a> Check<'a, '_> {
                         foreign: None, body: SemanticOriginalFunctionBody::Defined(_), ..
                     } if declared == definition)
                 { false } else {
-                    self.call_requirements(owner, declaration, arguments, depth + 1)?;
-                    self.pay(self.proof.types.len().saturating_add(1).ilog2() as usize + 1, depth)?;
-                    let result = self.proof.types.get(&(*definition, Query::Result))
-                        .ok_or_else(|| bad("opaque Copy lacks its complete original all-return equation"))?;
-                    let result = copy_recipe(result, self.limits, self.left)?;
+                    let result = self.opaque_application_result(owner, *definition, arguments, hidden, depth + 1)?;
                     self.contexts.push(*definition);
-                    let defining: R<()> = (|| {
-                        if !matches!(hidden.as_ref(), SemanticTypeRecipe::OriginalType {
-                            scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result,
-                        }) {
-                            let hidden = self.resolve(*definition, hidden, depth + 1)?;
-                            self.same(&hidden, &result)?;
-                        }
-                        Ok(())
-                    })();
+                    let declared = self.copy_type(*definition, &result, depth + 1);
                     self.contexts.pop();
-                    defining?;
+                    if declared? { return Ok(true); }
                     let result = super::instantiate::ty(self.program, &self.proof, &result,
                         super::instantiate::DomainMapping { source: *definition, use_definition: owner,
                             arguments, parent_call: None }, self.limits, self.left)?;
@@ -2318,6 +2318,19 @@ impl<'a> Check<'a, '_> {
                     self.unify_actual(a, b, formals, solutions, implicit, invocation, depth + 1)?;
                 }
             }
+            (SemanticTypeRecipe::Opaque { definition: a, arguments: aa, hidden: ah },
+                SemanticTypeRecipe::Opaque { definition: b, arguments: ba, hidden: bh })
+                if a == b && aa.len() == ba.len() => {
+                self.pay(aa.len(), depth)?;
+                if self.definition(*a)?.parameters.len() != aa.len() {
+                    return Err(bad("opaque inference omits full original mixed actuals"));
+                }
+                for (a, b) in aa.iter().zip(ba) {
+                    self.unify_actual(a, b, formals, solutions, implicit, invocation, depth + 1)?;
+                }
+                self.original_opaque_result(*a, ah, depth + 1)?;
+                self.original_opaque_result(*b, bh, depth + 1)?;
+            }
             (
                 SemanticTypeRecipe::Array {
                     element: a,
@@ -2614,6 +2627,9 @@ impl<'a> Check<'a, '_> {
                 } else {
                     self.expr(owner, argument, variables, hint, depth + 1)?
                 };
+            if parameter.mode == PassingMode::Give {
+                self.check_callable_give_argument(owner, argument, &actual, depth + 1)?;
+            }
             if parameter.mode == PassingMode::Copy && !self.copy_type(owner, &actual, depth + 1)? {
                 return Err(bad(
                     "original Copy parameter lacks its caller whole-Type Copy premise",
