@@ -24,7 +24,36 @@ pub(super) fn closed_scope(
     limit: usize,
     closed: ClosedTypeQuery,
 ) -> R<bool> {
-    scope_work(left, module.dyn_interfaces.len().saturating_add(1), span)?;
+    closed_scope_with(
+        module,
+        id,
+        left,
+        |left| left,
+        span,
+        depth,
+        limit,
+        |left, ty, depth| closed(ty, module, left, span, depth, limit),
+    )
+}
+
+/// Check the interface directory and visit its persistent child occurrences
+/// with the caller's complete type-domain query.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn closed_scope_with<S>(
+    module: &TypedModule,
+    id: DynInterfaceId,
+    state: &mut S,
+    work: fn(&mut S) -> &mut usize,
+    span: Span,
+    depth: usize,
+    limit: usize,
+    mut closed: impl FnMut(&mut S, &Type, usize) -> R<bool>,
+) -> R<bool> {
+    scope_work(
+        work(state),
+        module.dyn_interfaces.len().saturating_add(1),
+        span,
+    )?;
     if depth > limit {
         return Err(Diagnostic::limit(
             Phase::Types,
@@ -47,7 +76,7 @@ pub(super) fn closed_scope(
     }
     let life = &interface.retained_life;
     scope_work(
-        left,
+        work(state),
         interface
             .inherited
             .len()
@@ -78,31 +107,31 @@ pub(super) fn closed_scope(
             max_call_depth: limit,
             ..Limits::default()
         };
-        inference::charge_type_snapshot(context, span, &limits, left, 2)?;
+        inference::charge_type_snapshot(context, span, &limits, work(state), 2)?;
         let mut matches = 0usize;
         for instance in &module.life_instances {
-            inference::charge_type_snapshot(&instance.ty, span, &limits, left, 2)?;
+            inference::charge_type_snapshot(&instance.ty, span, &limits, work(state), 2)?;
             if instance.ty == *context {
                 matches += 1;
             }
         }
-        if matches != 1 || !closed(context, module, left, span, depth + 1, limit)? {
+        if matches != 1 || !closed(state, context, depth + 1)? {
             return Ok(false);
         }
     }
     // A closed Context cannot erase a phantom trait argument or associated
     // result. Method-local Invocation variables are checked in their own scope.
     for application in std::iter::once(&interface.application).chain(&interface.inherited) {
-        scope_work(left, application.actuals.len(), span)?;
+        scope_work(work(state), application.actuals.len(), span)?;
         for actual in &application.actuals {
             match actual {
                 DynGenericActual::Type(ty) => {
-                    if !closed(ty, module, left, span, depth + 1, limit)? {
+                    if !closed(state, ty, depth + 1)? {
                         return Ok(false);
                     }
                 }
                 DynGenericActual::Const(value) => {
-                    if !closed(&value.ty(), module, left, span, depth + 1, limit)? {
+                    if !closed(state, &value.ty(), depth + 1)? {
                         return Ok(false);
                     }
                 }
@@ -116,18 +145,18 @@ pub(super) fn closed_scope(
             || !associated.life.retained.is_empty()
             || !associated.life.nominal_arguments.is_empty()
             || !associated.classes.is_empty()
-            || !closed(&associated.ty, module, left, span, depth + 1, limit)?
+            || !closed(state, &associated.ty, depth + 1)?
         {
             return Ok(false);
         }
     }
     for associated in &interface.associated_constants {
-        if !closed(&associated.ty, module, left, span, depth + 1, limit)? {
+        if !closed(state, &associated.ty, depth + 1)? {
             return Ok(false);
         }
     }
     for slot in &interface.slots {
-        scope_work(left, slot.actuals.len(), span)?;
+        scope_work(work(state), slot.actuals.len(), span)?;
         let Some(scope) = &slot.storage_life else {
             return Ok(false);
         };
@@ -137,12 +166,12 @@ pub(super) fn closed_scope(
         for actual in &slot.actuals {
             match actual {
                 DynGenericActual::Type(ty) => {
-                    if !closed(ty, module, left, span, depth + 1, limit)? {
+                    if !closed(state, ty, depth + 1)? {
                         return Ok(false);
                     }
                 }
                 DynGenericActual::Const(value) => {
-                    if !closed(&value.ty(), module, left, span, depth + 1, limit)? {
+                    if !closed(state, &value.ty(), depth + 1)? {
                         return Ok(false);
                     }
                 }

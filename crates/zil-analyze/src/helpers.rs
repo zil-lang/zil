@@ -156,13 +156,16 @@ fn takes_owned_aggregate_input(
     if module.semantic.is_none() {
         return Ok(false);
     }
-    let (_, values) = origins(module, function, &[parameter], budget)?;
+    let (locals, values) = origins(module, function, &[parameter], budget)?;
+    let owner = Origin::supplied(0, false);
+    let owner_type = Type::Closure(closure);
     budget.spend(
         function.blocks.len().saturating_add(1),
         "owned aggregate callable reachability",
     )?;
     let mut seen = vec![false; function.blocks.len()];
     let mut work = vec![function.entry];
+    let mut transfers_owner = false;
     while let Some(id) = work.pop() {
         if std::mem::replace(&mut seen[id.0 as usize], true) {
             continue;
@@ -173,35 +176,74 @@ fn takes_owned_aggregate_input(
             "owned aggregate callable block",
         )?;
         for (position, instruction) in block.instructions.iter().enumerate() {
-            let Some(result) = instruction.result else {
-                continue;
-            };
-            let ty = &function.values[result.0 as usize];
-            let fields = match (&instruction.kind, ty) {
-                (InstructionKind::MakeVariant { fields, .. }, Type::Enum { .. })
-                | (InstructionKind::MakeAggregate { fields }, Type::Tuple(_)) => fields.as_slice(),
-                (InstructionKind::MakeErrorUnion { value, .. }, Type::ErrorUnion { .. }) => {
-                    std::slice::from_ref(value)
+            let kind = &instruction.kind;
+            for local in kind.local_operands() {
+                budget.spend(1, "owned aggregate callable local operand")?;
+                let origin = locals[local.0 as usize];
+                if !origin.has_role() {
+                    continue;
                 }
-                _ => continue,
-            };
-            budget.spend(fields.len(), "owned aggregate callable operands")?;
-            if fields.iter().any(|value| {
-                values[value.0 as usize] == Origin::supplied(0, false)
-                    && function.values[value.0 as usize] == Type::Closure(closure)
-            }) && budget.sum_type(ty)?
-                && original_owned_input(
+                if origin != owner
+                    || function.locals[local.0 as usize].ty != owner_type
+                    || !matches!(
+                        kind,
+                        InstructionKind::TakeLocal { .. }
+                            | InstructionKind::Store { .. }
+                            | InstructionKind::DropClosure { .. }
+                            | InstructionKind::StorageLive(_)
+                            | InstructionKind::StorageDead(_)
+                    )
+                {
+                    return Ok(false);
+                }
+            }
+            let mut constructor = false;
+            for value in kind.value_operands() {
+                budget.spend(1, "owned aggregate callable value operand")?;
+                let origin = values[value.0 as usize];
+                if !origin.has_role() {
+                    continue;
+                }
+                if origin != owner || function.values[value.0 as usize] != owner_type {
+                    return Ok(false);
+                }
+                if let InstructionKind::Store { local, .. } = kind
+                    && locals[local.0 as usize] == owner
+                    && function.locals[local.0 as usize].ty == owner_type
+                {
+                    continue;
+                }
+                let Some(result) = instruction.result else {
+                    return Ok(false);
+                };
+                let ty = &function.values[result.0 as usize];
+                if !matches!(
+                    (kind, ty),
+                    (InstructionKind::MakeVariant { .. }, Type::Enum { .. })
+                        | (InstructionKind::MakeAggregate { .. }, Type::Tuple(_))
+                        | (
+                            InstructionKind::MakeErrorUnion { .. },
+                            Type::ErrorUnion { .. }
+                        )
+                ) || !budget.sum_type(ty)?
+                {
+                    return Ok(false);
+                }
+                constructor = true;
+            }
+            if constructor {
+                let result = instruction.result.unwrap();
+                if !original_owned_input(
                     module,
                     function,
                     parameter.0,
                     closure,
                     (id, position, result),
                     budget,
-                )?
-            {
-                // The ordinary aggregate and resource passes still conserve
-                // this input and check every field, edge, loan and cleanup.
-                return Ok(true);
+                )? {
+                    return Ok(false);
+                }
+                transfers_owner = true;
             }
         }
         match block.terminator {
@@ -210,17 +252,25 @@ fn takes_owned_aggregate_input(
                 work.push(next);
             }
             Terminator::Branch {
+                condition,
                 then_block,
                 else_block,
-                ..
             } => {
                 budget.spend(2, "owned aggregate callable edges")?;
+                if values[condition.0 as usize].has_role() {
+                    return Ok(false);
+                }
                 work.extend([then_block, else_block]);
+            }
+            Terminator::Return(Some(value)) if values[value.0 as usize].has_role() => {
+                return Ok(false);
             }
             _ => {}
         }
     }
-    Ok(false)
+    // Resource and semantic checks independently conserve the aggregate's
+    // responsibility through every field, edge, loan and cleanup.
+    Ok(transfers_owner)
 }
 
 fn origins(

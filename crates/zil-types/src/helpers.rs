@@ -2142,7 +2142,112 @@ fn environment_origins(
             ));
         }
     }
-    Ok((!transfers_owner).then_some((locals, values)))
+    if transfers_owner {
+        let owner = &function.locals[function.parameters[bounds[0].index as usize].0 as usize].ty;
+        if check_owned_aggregate_uses(function, owner, &locals, &values, state, span)? {
+            return Ok(None);
+        }
+    }
+    Ok(Some((locals, values)))
+}
+
+fn check_owned_aggregate_uses(
+    function: &TypedFunction,
+    owner_type: &Type,
+    locals: &[Origin],
+    values: &[Origin],
+    state: &mut closures::State,
+    span: Span,
+) -> R<bool> {
+    let supplied = Origin::supplied(0, false);
+    state.snapshot(function.blocks.len().saturating_add(1), span)?;
+    let mut seen = vec![false; function.blocks.len()];
+    let mut pending = vec![function.entry];
+    let mut transfers_owner = false;
+    let reject = |span| {
+        unsupported(
+            span,
+            "ordinary aggregate callable input has a mixed or non-owning use",
+        )
+    };
+    while let Some(id) = pending.pop() {
+        if std::mem::replace(&mut seen[id.0 as usize], true) {
+            continue;
+        }
+        let block = &function.blocks[id.0 as usize];
+        state.snapshot(block.instructions.len().saturating_add(1), span)?;
+        for instruction in &block.instructions {
+            let kind = &instruction.kind;
+            for local in kind.local_operands() {
+                state.snapshot(1, instruction.span)?;
+                let origin = locals[local.0 as usize];
+                if origin.has_role()
+                    && (origin != supplied
+                        || &function.locals[local.0 as usize].ty != owner_type
+                        || !matches!(
+                            kind,
+                            InstructionKind::TakeLocal { .. }
+                                | InstructionKind::Store { .. }
+                                | InstructionKind::DropClosure { .. }
+                                | InstructionKind::StorageLive(_)
+                                | InstructionKind::StorageDead(_)
+                        ))
+                {
+                    return Err(reject(instruction.span));
+                }
+            }
+            for value in kind.value_operands() {
+                state.snapshot(1, instruction.span)?;
+                let origin = values[value.0 as usize];
+                if !origin.has_role() {
+                    continue;
+                }
+                if origin != supplied || &function.values[value.0 as usize] != owner_type {
+                    return Err(reject(instruction.span));
+                }
+                let exact_store = matches!(kind, InstructionKind::Store { local, .. }
+                    if locals[local.0 as usize] == supplied
+                        && &function.locals[local.0 as usize].ty == owner_type);
+                let constructor = instruction.result.is_some_and(|result| {
+                    matches!(
+                        (kind, &function.values[result.0 as usize]),
+                        (InstructionKind::MakeVariant { .. }, Type::Enum { .. })
+                            | (InstructionKind::MakeAggregate { .. }, Type::Tuple(_))
+                            | (
+                                InstructionKind::MakeErrorUnion { .. },
+                                Type::ErrorUnion { .. }
+                            )
+                    )
+                });
+                transfers_owner |= constructor;
+                if !exact_store && !constructor {
+                    return Err(reject(instruction.span));
+                }
+            }
+        }
+        match block.terminator {
+            Terminator::Jump(target) => {
+                state.snapshot(1, span)?;
+                pending.push(target);
+            }
+            Terminator::Branch {
+                condition,
+                then_block,
+                else_block,
+            } => {
+                state.snapshot(2, span)?;
+                if values[condition.0 as usize].has_role() {
+                    return Err(reject(span));
+                }
+                pending.extend([then_block, else_block]);
+            }
+            Terminator::Return(Some(value)) if values[value.0 as usize].has_role() => {
+                return Err(reject(span));
+            }
+            _ => {}
+        }
+    }
+    Ok(transfers_owner)
 }
 
 struct Forwarded {

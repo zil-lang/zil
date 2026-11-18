@@ -893,10 +893,39 @@ impl<'a> Check<'a, '_> {
         self.checked_closures.insert(id);
         Ok(())
     }
+    fn dynamic_owner(&mut self, interface: DynInterfaceId, depth: usize) -> R<()> {
+        let Some(module) = self.module else {
+            // Core has only a structural proposal. The mandatory merged pass
+            // has the actual interface and recursively checks its full domain.
+            return Ok(());
+        };
+        let limit = self.limits.max_call_depth;
+        let closed = crate::dyn_context::closed_scope_with(
+            module,
+            interface,
+            self,
+            |check| &mut *check.left,
+            Span::default(),
+            depth,
+            limit,
+            |check, ty, depth| {
+                check.ty(ty, depth)?;
+                Ok(true)
+            },
+        )?;
+        if !closed {
+            return Err(unknown(
+                "ordinary nominal dynamic owner has a nonzero or unknown persistent domain",
+            ));
+        }
+        Ok(())
+    }
+
     fn ty(&mut self, ty: &Type, depth: usize) -> R<()> {
         self.node(depth)?;
         match ty {
             Type::Closure(id) => self.closure(*id, depth + 1),
+            Type::OwnedDyn { interface } => self.dynamic_owner(*interface, depth + 1),
             Type::Opaque { hidden, .. } => {
                 // The actual Type carries its complete hidden representation;
                 // identity is preserved, never replaced by the child Type.

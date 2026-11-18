@@ -8,6 +8,7 @@ use zil_base::{
 };
 
 mod closure_context;
+mod value_operands;
 mod ct_frozen;
 mod semantic_scopes;
 pub use ct_frozen::*;
