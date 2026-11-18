@@ -6,7 +6,7 @@ pub(super) fn failure(
     base: StorageBase,
     message: impl Into<String>,
 ) -> Diagnostic {
-    let message = message.into();
+    let message = format!("signature class relation fails. {}", message.into());
     let role = if base == StorageBase::Result {
         DiagnosticRole::Result
     } else {

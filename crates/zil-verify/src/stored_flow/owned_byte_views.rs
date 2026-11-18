@@ -210,7 +210,7 @@ pub(super) fn instruction(
     Ok(true)
 }
 
-pub(super) fn actual_permission(
+fn actual_permission(
     module: &TypedModule,
     f: &TypedFunction,
     buffer: ValueId,
@@ -725,9 +725,27 @@ impl Sites {
         loans: &[Loan],
         requirements: &mut Vec<(Source, Source)>,
         b: &mut Budget,
-    ) -> Check<()> {
+    ) -> Check<Option<(Permission, bool)>> {
+        let byte_access = if b.shared_byte_borrow {
+            match i.kind {
+                InstructionKind::ByteBufferBorrow { buffer, mutable } => Some((buffer, mutable)),
+                InstructionKind::ByteBufferReserve { buffer, .. }
+                | InstructionKind::ByteBufferPush { buffer, .. }
+                | InstructionKind::ByteBufferTruncate { buffer, .. } => Some((buffer, true)),
+                _ => None,
+            }
+        } else {
+            None
+        };
+        let access_effect = if let Some((buffer, write)) = byte_access {
+            let permission = actual_permission(module, f, buffer, i.span, values, b)?;
+            access(&permission, write, live, loans, requirements, b)?;
+            Some((permission, write))
+        } else {
+            None
+        };
         if self.values.is_empty() {
-            return Ok(());
+            return Ok(access_effect);
         }
         // The ordinary C proof checks the complete ABI, exact noescape vector
         // and scalar result. Its access consumer separately checks each actual
@@ -830,7 +848,7 @@ impl Sites {
                 return Err(unavailable(i.span));
             }
         }
-        Ok(())
+        Ok(access_effect)
     }
 }
 

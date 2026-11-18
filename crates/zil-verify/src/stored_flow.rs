@@ -6261,7 +6261,7 @@ fn windows(
                 b.spend(active.len())?;
                 active.retain(|x| *x != id.0 as usize);
             }
-            owned_byte_sites.check(
+            if let Some((permission, write)) = owned_byte_sites.check(
                 module,
                 f,
                 i,
@@ -6271,7 +6271,11 @@ fn windows(
                 &solution.loans,
                 requirements,
                 b,
-            )?;
+            )? {
+                if write { store_paths::writable(&permission, &solution.loans, b)?; }
+                descriptor_access::record(module, f, head_accesses, description_accesses,
+                    &permission, write, b)?;
+            }
             (|| -> Check<()> {
                 let mut checks = access_candidates::Access::new(&active, &solution.loans, b)?;
                 foreign_calls::accesses(
@@ -6464,19 +6468,6 @@ fn windows(
                             loans: Vec::new(),
                         };
                         checks.check(&actual, true, requirements, b)?;
-                    }
-                    InstructionKind::ByteBufferBorrow { buffer, .. }
-                    | InstructionKind::ByteBufferReserve { buffer, .. }
-                    | InstructionKind::ByteBufferPush { buffer, .. }
-                    | InstructionKind::ByteBufferTruncate { buffer, .. }
-                        if b.shared_byte_borrow => {
-                        let write = !matches!(i.kind, InstructionKind::ByteBufferBorrow { mutable: false, .. });
-                        let permission = owned_byte_views::actual_permission(module, f, *buffer,
-                            i.span, &solution.values, b)?;
-                        if write { store_paths::writable(&permission, &solution.loans, b)?; }
-                        checks.check(&permission, write, requirements, b)?;
-                        descriptor_access::record(module, f, head_accesses, description_accesses,
-                            &permission, write, b)?;
                     }
                     InstructionKind::WriteDesc{..}=>{
                         let(permission,_)=description_access(f,i,&solution.values,b)?.ok_or_else(||err("description write lacks its exact finite scalar access"))?;
