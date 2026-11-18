@@ -268,9 +268,10 @@ fn every_empty_permission_and_empty_outer_frame_visit_consumes_real_fresh_work()
             let projection_work = match mode {
                 0 | 1 => count + 2, // pointer, held and each slot Permission
                 2 => count,         // outer local visit, including empty task ports
-                3 | 4 => count,
+                3 => count * 4, // outer external Value, pointer, held, description
+                4 => count,
                 5 => count * 2, // outer local and retained Permission
-                6 => count + 1,
+                6 => count + 4, // external Value, three root Permissions, slots
                 _ => unreachable!(),
             };
             let declared_work = scan_work + projection_work;

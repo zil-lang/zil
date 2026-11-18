@@ -10792,14 +10792,38 @@ mod tests {
         )
         .unwrap();
         let slot = vec![PlaceProjection::Field(0)];
-        let previous = state.external[&HoldRoot::Parameter(0)].slots[&slot].clone();
-        let current = state.external[&HoldRoot::Parameter(1)].slots[&slot].clone();
-        state
-            .external
-            .get_mut(&HoldRoot::Parameter(0))
-            .unwrap()
-            .slots
-            .insert(slot.clone(), current.clone());
+        let Type::Address { inner, .. } = &f.values[0] else {
+            unreachable!()
+        };
+        let previous_value =
+            pointee_memory::read(&state, &values[0].pointer, Some(inner), true, &mut b).unwrap();
+        let current_value =
+            pointee_memory::read(&state, &values[1].pointer, Some(inner), true, &mut b).unwrap();
+        let previous = previous_value.slots[&slot].clone();
+        let current = current_value.slots[&slot].clone();
+        for (parameter, permission) in [(0, &previous), (1, &current)] {
+            assert_eq!(permission.targets.len(), 1);
+            let target = permission.targets.first().unwrap();
+            assert_eq!(target.base, HoldRoot::Parameter(parameter));
+            assert_eq!(target.stored, slot);
+            assert!(target.place.is_empty());
+            assert!(!permission.loans.is_empty());
+            for &loan in &permission.loans {
+                assert_eq!(loans[loan].targets, permission.targets);
+                assert!(!loans[loan].mutable);
+            }
+        }
+        assert!(previous.loans.is_disjoint(&current.loans));
+        assert!(current.loans.is_disjoint(&values[0].pointer.loans));
+        pointee_memory::write(
+            &mut state,
+            &values[0].pointer,
+            &current_value,
+            inner,
+            true,
+            &mut b,
+        )
+        .unwrap();
         // Keep the original address SSA intact; it carries no stale pointee copy.
         // Admission/class equations are tested separately; this temporal-state
         // oracle checks the real memory selection and every parent loan.
@@ -10821,14 +10845,51 @@ mod tests {
             &mut b,
         )
         .unwrap();
-        let leaf = &out.environment[&vec![PlaceProjection::Field(0), PlaceProjection::Field(0)]];
-        assert_eq!(leaf.targets, current.targets);
-        assert!(leaf.loans.is_superset(&current.loans));
-        assert!(out.held.loans.is_superset(&values[0].pointer.loans));
-        assert!(leaf.loans.is_disjoint(&previous.loans));
+        let full = vec![PlaceProjection::Field(0), PlaceProjection::Field(0)];
+        assert!(!out.environment.contains_key(&full));
+        assert!(
+            out.pointees.is_empty(),
+            "actual F stores a head, not its referent snapshot"
+        );
+        let leaf = environment_memory::select_current(&out, &state, &full, &mut b).unwrap();
+        assert_eq!(leaf, current);
+        let held = environment_memory::held(&out, &state, &mut b).unwrap();
+        assert!(held.loans.is_superset(&current.loans));
+        assert!(held.loans.is_superset(&values[0].pointer.loans));
+        assert!(held.loans.is_disjoint(&previous.loans));
         assert!(
             values[0].slots.is_empty(),
             "pointer value is separate from current pointee facts"
+        );
+        // A later replacement changes the very same saved head's current data.
+        // Neither the old SSA nor the constructed closure can cache a generation.
+        pointee_memory::write(
+            &mut state,
+            &values[0].pointer,
+            &previous_value,
+            inner,
+            true,
+            &mut b,
+        )
+        .unwrap();
+        assert_eq!(
+            environment_memory::select_current(&out, &state, &full, &mut b).unwrap(),
+            previous,
+        );
+        let held = environment_memory::held(&out, &state, &mut b).unwrap();
+        assert!(held.loans.is_superset(&previous.loans));
+        assert!(held.loans.is_superset(&values[0].pointer.loans));
+        assert!(held.loans.is_disjoint(&current.loans));
+        state.external.remove(&HoldRoot::Parameter(0));
+        assert!(
+            pointee_memory::read(&state, &values[0].pointer, Some(inner), true, &mut b,).is_err()
+        );
+        assert!(
+            environment_memory::select_current(&out, &state, &full, &mut b)
+                .unwrap()
+                .targets
+                .is_empty(),
+            "missing current storage cannot reuse an old generation"
         );
     }
 
@@ -11090,27 +11151,72 @@ mod tests {
             let mut loans = vec![Loan::default(); helper.values.len()];
             let entry = seed(&m, helper, &mut loans, &mut b).unwrap();
             let actual = &entry.locals[&LocalId(0)];
+            let head = vec![PlaceProjection::Field(0)];
+            let field = vec![PlaceProjection::Field(0)];
+            let full = vec![PlaceProjection::Field(0), PlaceProjection::Field(0)];
             assert_eq!(
                 actual.environment.len(),
-                2,
-                "outer Address and its distinct physical field target"
+                1,
+                "only the saved head belongs to F"
             );
-            assert_eq!(actual.held.loans.len(), 2);
-            for (path, permission) in &actual.environment {
-                assert!(matches!(
-                    path.as_slice(),
-                    [PlaceProjection::Field(0)]
-                        | [PlaceProjection::Field(0), PlaceProjection::Field(0)]
-                ));
+            assert_eq!(actual.saved_heads, BTreeSet::from([head.clone()]));
+            assert!(
+                actual.pointees.is_empty(),
+                "the SSA holds no mutable referent snapshot"
+            );
+            let memory = &entry.external[&HoldRoot::Parameter(0)];
+            assert_eq!(memory.pointees.len(), 1);
+            let referent = &memory.pointees[&head];
+            assert_eq!(referent.slots.len(), 1);
+            let pointer = &actual.environment[&head];
+            let leaf = &referent.slots[&field];
+            assert_eq!(
+                environment_memory::select_current(actual, &entry, &head, &mut b).unwrap(),
+                *pointer
+            );
+            assert_eq!(
+                environment_memory::select_current(actual, &entry, &full, &mut b).unwrap(),
+                *leaf
+            );
+            for (path, permission) in [(&head, pointer), (&full, leaf)] {
+                assert_eq!(permission.targets.len(), 1);
+                assert_eq!(permission.loans.len(), 1);
                 for target in &permission.targets {
                     assert_eq!(target.base, HoldRoot::Parameter(0));
                     assert_eq!(&target.stored, path);
+                    assert!(target.place.is_empty());
                 }
                 for loan in &permission.loans {
                     assert_eq!(loans[*loan].targets, permission.targets);
                     assert!(!loans[*loan].mutable);
                 }
             }
+            assert!(pointer.loans.is_disjoint(&leaf.loans));
+            assert_eq!(actual.held.loans, pointer.loans);
+            let held = environment_memory::held(actual, &entry, &mut b).unwrap();
+            let expected = pointer.loans.union(&leaf.loans).copied().collect::<Loans>();
+            assert_eq!(
+                held.loans, expected,
+                "the current referent and its parent stay independently live"
+            );
+            // A missing saved-head referent is unknown, even if an old
+            // constructor-shaped row is deliberately left beside the head.
+            let mut missing = entry.clone();
+            missing
+                .external
+                .get_mut(&HoldRoot::Parameter(0))
+                .unwrap()
+                .pointees
+                .remove(&head);
+            let mut stale = actual.clone();
+            stale.environment.insert(full.clone(), leaf.clone());
+            assert!(
+                environment_memory::select_current(&stale, &missing, &full, &mut b)
+                    .unwrap()
+                    .targets
+                    .is_empty()
+            );
+            assert!(pointee_memory::read(&missing, pointer, None, true, &mut b).is_err());
         }
     }
     #[test]
