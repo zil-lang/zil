@@ -648,12 +648,6 @@ pub fn check(
         .install_semantic_functions(core, &signatures)
         .map_err(|e| vec![e])?;
     let dyn_vtables = dyn_dispatch::inventory(core, &signatures, limits).map_err(|e| vec![e])?;
-    if !core.dyn_declarations.is_empty() && core.dyn_interfaces.is_empty() {
-        return Err(vec![unsupported(
-            Span::default(),
-            "dyn declaration has no actual interface",
-        )]);
-    }
     mark_cost(
         "single: signatures and dynamic inventory",
         closure_state.remaining_work(),

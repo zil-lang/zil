@@ -495,6 +495,9 @@ fn inventory_in_modules(
             &mut left,
             1 + declaration.members.len() + declaration.parameters.len(),
         )?;
+        if core.dyn_interfaces.is_empty() && core.dyn_vtables.is_empty() {
+            declarations::original_declaration(core, declaration, limits, &mut left)?;
+        }
         if !declarations.insert(declaration.id) {
             return Err(error(
                 "E-DYN-DECLARATION",
