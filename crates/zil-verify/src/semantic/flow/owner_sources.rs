@@ -359,9 +359,9 @@ impl CheckedContext{
         }
         if !rooted{return Err(bad("captured observation alias has no actual creator root"));}Ok(())
     }
-    fn buffer_capture_use(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,capture:u32,node:NodeId,_block:BlockId,_index:u32,instruction:&Instruction,b:&mut Budget)->Check<()>{
+    fn buffer_capture_use(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,capture:u32,node:NodeId,read_block:BlockId,read_index:u32,read:&Instruction,b:&mut Budget)->Check<()>{
         let environment=f.environment.ok_or_else(||bad("buffer capture observation has no actual closure environment"))?;
-        let definition=crate::closures::definition(module,environment,Some(instruction.span))?;
+        let definition=crate::closures::definition(module,environment,Some(read.span))?;
         let expected=definition.captures.get(capture as usize).ok_or_else(||bad("buffer capture index is outside the actual environment"))?;
         dynamic_metadata::ty(expected,b)?;
         let occurrences=self.occurrences.borrow();let actual=occurrences.get(&(ScopeKey::Instance(caller.id),OperandKey::Capture(capture))).ok_or_else(||bad("buffer capture has no independently sealed actual creator operand"))?;
@@ -382,7 +382,17 @@ impl CheckedContext{
             let InstructionKind::MakeClosure{closure,captures}=&instruction.kind else{return Err(bad("captured buffer boundary is not its actual environment constructor"));};
             if *closure!=environment||boundary.value.ty!=Type::Closure(environment){return Err(bad("captured buffer uses another actual creator environment"));}
             let operand=*captures.get(capture as usize).ok_or_else(||bad("captured buffer creator omits its physical capture operand"))?;
-            if !self.capture_creator_source(module,creator,f,operand,source,b)?{return Err(bad("buffer projection substitutes another same-typed original free binder"));}
+            if !self.capture_creator_source(module,creator,f,operand,source,b)?{
+                use zil_base::{DiagnosticIrLocation, DiagnosticRole};
+                let mut diagnostic=bad("buffer projection substitutes another same-typed original free binder");
+                diagnostic.relate(DiagnosticRole::Input,Some(instruction.span),Some(DiagnosticIrLocation{
+                    function:function.0,block:Some(boundary.at.block.0),instruction:Some(boundary.at.instruction),
+                }),format!("actual capture operand {capture} is SSA {operand:?}"));
+                diagnostic.relate(DiagnosticRole::LaterUse,Some(read.span),Some(DiagnosticIrLocation{
+                    function:definition.function.0,block:Some(read_block.0),instruction:Some(read_index),
+                }),format!("buffer observation requires capture {capture} of original expression {node:?}"));
+                return Err(diagnostic);
+            }
             matched=true;
         }
         if !matched{return Err(bad("buffer capture projection has no exact sealed original creator occurrence"));}Ok(())

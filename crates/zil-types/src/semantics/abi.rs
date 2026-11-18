@@ -87,21 +87,18 @@ pub(crate) fn prepare<'a>(
     } else {
         stored::OrdinaryStats::step(&stats, "abi: universal original body check", left, |left| {
             use super::original_code_context as code_context;
-            let check = |goals, left| super::original::check_with_declarations(
-                &input.semantic,
-                input.declarations.clone(),
-                goals,
-                limits,
-                left,
-            );
-            match check(Default::default(), left) {
-                Err(error) if error.code == code_context::MISSING => {
+            match super::original::check_with_declarations(
+                &input.semantic, input.declarations.clone(), Default::default(), limits, left,
+            ) {
+                Err(code_context::Failure::Missing { demand, diagnostic }) => {
                     let core = inference::original_code_context(cores, limits, left)?;
                     let goals = code_context::bind(&input.semantic, &core, limits, left)?;
-                    if goals.is_empty() { return Err(error); }
-                    check(goals, left)
+                    if !demand.has_candidate(&goals) { return Err(diagnostic); }
+                    super::original::check_with_declarations(
+                        &input.semantic, input.declarations.clone(), goals, limits, left,
+                    ).map_err(code_context::Failure::into_diagnostic)
                 }
-                result => result,
+                result => result.map_err(code_context::Failure::into_diagnostic),
             }
         })?
     };

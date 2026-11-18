@@ -349,6 +349,7 @@ struct Check<'a, 'b> {
     closure_result_goal: Option<(SemanticDefinitionId, SemanticTypeRecipe)>,
     integer_initializers: BTreeMap<SemanticDefinitionId, BTreeMap<NodeId, IntegerInitializer>>,
     contextual_code_goals: code_context::Goals,
+    contextual_code_need: Option<code_context::Demand>,
     contextual_code_inputs: BTreeMap<SemanticDefinitionId, BTreeSet<u32>>,
     contextual_code_calls: BTreeSet<SemanticDefinitionId>,
     predicate_active: Vec<(SemanticDefinitionId, u8, SemanticTypeRecipe)>,
@@ -6369,6 +6370,7 @@ impl<'a> Check<'a, '_> {
 }
 pub(super) fn check(program: &SemanticModule, limits: &Limits, left: &mut usize) -> R<Proof> {
     check_requested(program, std::rc::Rc::default(), None, Default::default(), limits, left)
+        .map_err(code_context::Failure::into_diagnostic)
 }
 pub(super) fn check_with_declarations(
     program: &SemanticModule,
@@ -6376,7 +6378,7 @@ pub(super) fn check_with_declarations(
     goals: code_context::Goals,
     limits: &Limits,
     left: &mut usize,
-) -> R<Proof> {
+) -> Result<Proof, code_context::Failure> {
     check_requested(program, declarations, None, goals, limits, left)
 }
 pub(super) fn check_at(
@@ -6393,7 +6395,7 @@ pub(super) fn check_at(
         Default::default(),
         limits,
         left,
-    )
+    ).map_err(code_context::Failure::into_diagnostic)
 }
 pub(super) fn check_at_with_declarations(
     program: &SemanticModule,
@@ -6403,7 +6405,7 @@ pub(super) fn check_at_with_declarations(
     goals: code_context::Goals,
     limits: &Limits,
     left: &mut usize,
-) -> R<Proof> {
+) -> Result<Proof, code_context::Failure> {
     check_requested(program, declarations, Some((owner, node)), goals, limits, left)
 }
 fn definition_positions(
@@ -6451,7 +6453,7 @@ fn check_requested(
     contextual_code_goals: code_context::Goals,
     limits: &Limits,
     left: &mut usize,
-) -> R<Proof> {
+) -> Result<Proof, code_context::Failure> {
     let definition_positions = definition_positions(program, limits, left)?;
     let mut check = Check {
         program,
@@ -6470,6 +6472,7 @@ fn check_requested(
         closure_result_goal: None,
         integer_initializers: BTreeMap::new(),
         contextual_code_goals,
+        contextual_code_need: None,
         contextual_code_inputs: BTreeMap::new(),
         contextual_code_calls: BTreeSet::new(),
         predicate_active: Vec::new(),
@@ -6479,6 +6482,19 @@ fn check_requested(
         snapshot_sources: None,
         escape_active: Vec::new(),
     };
+    if let Err(diagnostic) = check_complete(&mut check) {
+        if diagnostic.code == code_context::MISSING
+            && let Some(demand) = check.contextual_code_need
+        {
+            return Err(code_context::Failure::Missing { demand, diagnostic });
+        }
+        return Err(code_context::Failure::Permanent(diagnostic));
+    }
+    check.proof.into_owned().map_err(code_context::Failure::Permanent)
+}
+
+fn check_complete(check: &mut Check<'_, '_>) -> R<()> {
+    let program = check.program;
     check.pay(1024, 0)?;
     let phase_start = *check.left;
     check.associated_inventory(0)?;
@@ -6550,7 +6566,7 @@ fn check_requested(
         .stage_costs
         .insert("protocol_cleanup", phase_start.saturating_sub(*check.left));
     check.proof.proof_mut()?.pure_queries_ready = true;
-    check.proof.into_owned()
+    Ok(())
 }
 
 impl Proof {

@@ -1060,6 +1060,7 @@ fn zero_opaque_application(
                 closure_result_goal: None,
                 integer_initializers: BTreeMap::new(),
                 contextual_code_goals: BTreeMap::new(),
+                contextual_code_need: None,
                 contextual_code_inputs: BTreeMap::new(),
                 contextual_code_calls: BTreeSet::new(),
                 predicate_active: Vec::new(), stage_depth: 0, cleanup_depth: 0,

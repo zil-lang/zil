@@ -97,7 +97,7 @@ impl CheckedOriginal {
         self.intrinsic_calls.insert((env.current()?,site),Use{kind:intrinsic,buffer:Some(source),worker:None,providers:None});
         Ok(Ty::Atom(if matches!(intrinsic,Intrinsic::BytesLen|Intrinsic::BytesCapacity){Type::I64}else{Type::Bool}))
     }
-    pub(super) fn temporary_byte_owner(&self,expression:&SemanticOriginalExpr,ty:&Ty,env:&Env,b:&mut Budget)->Check<Option<BufferSource>>{
+    fn temporary_byte_owner(&self,expression:&SemanticOriginalExpr,ty:&Ty,env:&Env,b:&mut Budget)->Check<Option<BufferSource>>{
         if !matches!(self.resolved(ty,b)?,Ty::Managed(inner) if *inner==Ty::Atom(Type::ByteBuffer)){
             return Ok(None);
         }

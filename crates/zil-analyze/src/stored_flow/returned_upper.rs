@@ -45,6 +45,7 @@ fn input(
         let (carrier, port, task) = match port {
             PortOrigin::Dyn { carrier, port } => (carrier, *port, false),
             PortOrigin::Task { carrier, port } => (carrier, *port, true),
+            PortOrigin::CaptureCell => return Err(failure("terminal retained source cannot carry an inline capture cell")),
             PortOrigin::RawReference { .. } => return Err(failure("terminal retained source cannot erase a raw-reference indirection")),
             PortOrigin::MutexPayload { .. } => return Err(failure("terminal source needs its actual Mutex payload relation")),
         };

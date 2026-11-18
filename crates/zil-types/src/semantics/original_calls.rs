@@ -1986,6 +1986,7 @@ impl Check<'_, '_> {
                 && binding.origin == Query::Parameter(*ordinal)
                 && !self.proof.types.contains_key(&(owner, Query::Parameter(*ordinal)))
             {
+                self.contextual_code_need = Some(code_context::Demand { child: owner, parameter: *ordinal });
                 return Err(zil_base::Diagnostic::new(
                     Phase::Types,
                     zil_base::ResultCategory::Unsupported,

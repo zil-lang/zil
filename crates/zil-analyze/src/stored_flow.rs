@@ -584,6 +584,9 @@ fn package_return_candidates(
 /// Port numbers have meaning only within the actual carrier namespace.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum PortOrigin {
+    /// The inline cell of a reference capture. Its ordinary capture root
+    /// identifies the external pointee instead.
+    CaptureCell,
     // Actual raw input pointer cells, distinct from their slot address.
     RawReference {
         depth: u32,
@@ -936,7 +939,7 @@ pub(super) fn target_width(target: &Target) -> usize {
                 | PortOrigin::Task { carrier, .. }
                 | PortOrigin::MutexPayload { carrier },
             ) => carrier.len(),
-            Some(PortOrigin::RawReference { .. }) => 1,
+            Some(PortOrigin::RawReference { .. } | PortOrigin::CaptureCell) => 1,
             _ => 0,
         })
 }
@@ -4265,6 +4268,32 @@ fn seed(
     Ok(state)
 }
 
+fn capture_type<'m>(module: &'m TypedModule, f: &TypedFunction, index: u32) -> Option<&'m Type> {
+    f.environment
+        .and_then(|id| module.closures.get(id.0 as usize))
+        .filter(|entry| entry.function == f.id)
+        .and_then(|entry| entry.captures.get(index as usize))
+}
+
+fn capture_cell(
+    module: &TypedModule,
+    f: &TypedFunction,
+    index: u32,
+    b: &mut Budget,
+) -> CompileResult<Target> {
+    let ty = capture_type(module, f, index)
+        .ok_or_else(|| failure("capture cell has no actual environment field"))?;
+    fee(b, 1)?;
+    Ok(Target {
+        base: HoldRoot::Capture(index),
+        retained_port: matches!(ty, Type::Address { .. }).then_some(PortOrigin::CaptureCell),
+        stored: Vec::new(),
+        place: Vec::new(),
+        heap_parents: Vec::new(),
+        heap_element: None,
+    })
+}
+
 fn local_capture_base(state: &State, local: LocalId, b: &mut Budget) -> CompileResult<HoldRoot> {
     if state.capture_views.is_empty() {
         return Ok(HoldRoot::Local(local));
@@ -4501,6 +4530,9 @@ fn substitute_call_source(
         .ok_or_else(|| failure("call actual is outside values"))?;
     let mut result = if let Some(port) = &source.retained_port {
         match port {
+            PortOrigin::CaptureCell => {
+                return Err(failure("call result cannot retain an inline capture cell"));
+            }
             PortOrigin::RawReference { depth } => {
                 if !source.stored.is_empty() {
                     return Err(failure(
@@ -5559,12 +5591,7 @@ fn transfer(
                 .ok_or_else(||failure("nested captured environment has no actual frame value"))?;
             out = snapshot(actual, b)?;
             if let Some(marker)=state.receiver_loan {fee(b,1)?;out.pointer.loans.insert(marker);}
-            fee(b, 1)?;
-            out.pointer.targets.insert(Target {
-                retained_port: None,
-                base: HoldRoot::Capture(*index),
-                stored: Vec::new(), place: Vec::new(), heap_parents: Vec::new(), heap_element: None,
-            });
+            out.pointer.targets.insert(capture_cell(module, f, *index, b)?);
         }
         InstructionKind::BorrowCapture { index, mutable }
             if f.environment.and_then(|id|module.closures.get(id.0 as usize))
@@ -5573,22 +5600,14 @@ fn transfer(
             if *mutable && d.kind==CallableKind::Fn {return Err(failure("shared environment cannot mutably borrow its owned capture"));}
             let actual=state.captures.get(index).ok_or_else(||failure("owned capture has no initialized actual value"))?;
             out=snapshot(actual,b)?;
-            fee(b,2)?;
-            out.pointer.targets.insert(Target{base:HoldRoot::Capture(*index),stored:vec![],place:vec![],retained_port:None,heap_element:None,heap_parents:vec![]});
+            fee(b, 1)?;
+            out.pointer.targets.insert(capture_cell(module, f, *index, b)?);
             out.pointer.loans.insert(state.receiver_loan.ok_or_else(||failure("owned capture borrow lacks its actual receiver invocation"))?);
         }
         InstructionKind::BorrowCapture { index, mutable }
                     if super::stored_callables::lending_borrow(module, f, *mutable) => {
             inline_capture_loan(module, f, i, *index, *mutable, b)?;
-            fee(b, 1)?;
-            out.pointer.targets.insert(Target {
-                retained_port: None,
-                base: HoldRoot::Capture(*index),
-                stored: vec![],
-                place: vec![],
-                heap_parents: Vec::new(),
-                heap_element: None,
-            });
+            out.pointer.targets.insert(capture_cell(module, f, *index, b)?);
             if let Some(marker)=state.receiver_loan {
                 fee(b,1)?;
                 out.pointer.loans.insert(marker);
@@ -7433,31 +7452,38 @@ fn windows(
                         access.check(&actual, write, apart, b)?;
                     }
                     InstructionKind::ReadCapture { index }
-                        if f.environment
-                            .and_then(|id| module.closures.get(id.0 as usize))
-                            .and_then(|d| d.captures.get(*index as usize))
-                            .is_some_and(super::stored_callables::exclusive_capture) =>
+                        if capture_type(module, f, *index)
+                            .is_some_and(|ty| matches!(ty, Type::Address { .. })) =>
                     {
-                        let actual = state
-                            .captures
-                            .get(index)
-                            .ok_or_else(|| failure("capture reborrow has no actual capability"))?;
-                        access.check(
-                            &actual.pointer,
-                            matches!(
+                        let cell = Permission {
+                            targets: BTreeSet::from([capture_cell(module, f, *index, b)?]),
+                            loans: Loans::new(),
+                        };
+                        access.check(&cell, false, apart, b)?;
+                        if capture_type(module, f, *index)
+                            .is_some_and(super::stored_callables::exclusive_capture)
+                        {
+                            // The raw operation also reborrows the current
+                            // pointee of an exclusive captured address.
+                            let actual = state.captures.get(index)
+                                .ok_or_else(|| failure("capture reborrow has no actual capability"))?;
+                            let mutable = matches!(
                                 i.result.and_then(|v| f.values.get(v.0 as usize)),
                                 Some(Type::Address { mutable: true, .. })
-                            ),
-                            apart,
-                            b,
-                        )?;
+                            );
+                            access.check(&actual.pointer, mutable, apart, b)?;
+                        }
                     }
                     InstructionKind::TakeCapture { index }
                     | InstructionKind::WriteCapture { index, .. }
                         if f.environment
                             .and_then(|id| module.closures.get(id.0 as usize))
                             .and_then(|definition| definition.captures.get(*index as usize))
-                            .is_some_and(|ty| matches!(ty, Type::Closure(_) | Type::Tuple(_) | Type::Record { .. } | Type::Array { .. }))
+                            .is_some_and(|ty| {
+                                matches!(ty, Type::Closure(_) | Type::Tuple(_) | Type::Record { .. } | Type::Array { .. })
+                                    || matches!(i.kind, InstructionKind::TakeCapture { .. })
+                                        && matches!(ty, Type::Address { .. })
+                            })
                             || super::stored_callables::checked_capture_write(f, i, b)? =>
                     {
                         // Moving or replacing a child changes this physical
@@ -7466,32 +7492,16 @@ fn windows(
                         // Its payload transfer never carries a loan of the old
                         // slot to the new position.
                         let actual = Permission {
-                            targets: BTreeSet::from([Target {
-                                retained_port: None,
-                                base: HoldRoot::Capture(*index),
-                                stored: vec![],
-                                place: vec![],
-                                heap_parents: Vec::new(),
-                                heap_element: None,
-                            }]),
+                            targets: BTreeSet::from([capture_cell(module, f, *index, b)?]),
                             loans: Loans::new(),
                         };
-                        fee(b, 1)?;
                         access.check(&actual, true, apart, b)?;
                     }
                     InstructionKind::BorrowCapture { index, mutable } => {
                         let actual = Permission {
-                            targets: BTreeSet::from([Target {
-                                retained_port: None,
-                                base: HoldRoot::Capture(*index),
-                                stored: vec![],
-                                place: vec![],
-                                heap_parents: Vec::new(),
-                                heap_element: None,
-                            }]),
+                            targets: BTreeSet::from([capture_cell(module, f, *index, b)?]),
                             loans: Loans::new(),
                         };
-                        fee(b, 1)?;
                         access.check(&actual, *mutable, apart, b)?;
                     }
                     InstructionKind::ExtractIndex { aggregate, .. }

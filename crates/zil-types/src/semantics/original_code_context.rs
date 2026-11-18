@@ -14,6 +14,38 @@ pub(super) type Goals = BTreeMap<SemanticDefinitionId, BTreeMap<u32, SemanticTyp
 
 pub(super) const MISSING: &str = "E-ORIGINAL-CALLABLE-CONTEXT";
 
+#[derive(Clone, Copy)]
+pub(super) struct Demand {
+    pub child: SemanticDefinitionId,
+    pub parameter: u32,
+}
+
+impl Demand {
+    pub(super) fn has_candidate(self, goals: &Goals) -> bool {
+        goals.get(&self.child).is_some_and(|inputs| inputs.contains_key(&self.parameter))
+    }
+}
+
+pub(super) enum Failure {
+    Missing { demand: Demand, diagnostic: Diagnostic },
+    Permanent(Diagnostic),
+}
+
+impl From<Diagnostic> for Failure {
+    fn from(diagnostic: Diagnostic) -> Self {
+        Self::Permanent(diagnostic)
+    }
+}
+
+impl Failure {
+    pub(super) fn into_diagnostic(self) -> Diagnostic {
+        match self {
+            Self::Missing { diagnostic, .. } | Self::Permanent(diagnostic) => diagnostic,
+        }
+    }
+}
+
+
 fn pay(left: &mut usize, work: usize) -> R<()> {
     *left = left.checked_sub(work).ok_or_else(|| {
         Diagnostic::limit(Phase::Types, "original callable input context work exceeded", None)

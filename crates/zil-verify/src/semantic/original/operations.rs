@@ -631,11 +631,7 @@ impl CheckedOriginal {
         if let Some(place) = place {
             self.read_original(module, context, &place, &value, env, false, active, b)?;
         }
-        let source = if let Some(source) = self.temporary_byte_owner(expression, &value, env, b)? {
-            source
-        } else {
-            self.operation_source(module, expression, env, bindings, b)?
-        };
+        let source = self.operation_source(module, expression, env, bindings, b)?;
         let effective = self.observed_argument(expression, &value, env, b)?;
         Ok((effective, source))
     }

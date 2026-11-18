@@ -989,10 +989,15 @@ fn relation_inputs<P:InputType>(
                         && matches!(ty, Type::Address { .. })
                         && matches!(t, Type::Package { .. })
                     || allow_callback && matches!(t, Type::Closure(_))
-                    || allow_byte_input && !output && !capture
+                    // Captures already established their exact physical Fixed
+                    // row above. Creator and invocation independently ground
+                    // its actual generation; header validation grants no access.
+                    || !output && (capture || allow_byte_input)
                         && matches!(ty,Type::Desc(payload) if payload.as_ref()==&Type::ByteBuffer))
                 {
-                    return Err(invalid());
+                    return Err(occurrences::failure(span, base, format!(
+                        "signature {base:?} has an ineligible physical pointee for {ty:?}",
+                    )));
                 }
             }
             t if (capture || allow_callback && !output) && super::stored_owned::owner(t) => {}
