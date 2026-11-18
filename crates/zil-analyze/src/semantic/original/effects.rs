@@ -110,7 +110,9 @@ impl Walk<'_, '_> {
             Resolution::Intrinsic(id) => {
                 if matches!(
                     id,
-                    sealed::Intrinsic::Register | sealed::Intrinsic::RegisterAsync
+                    sealed::Intrinsic::Register
+                        | sealed::Intrinsic::RegisterAsync
+                        | sealed::Intrinsic::ScopedForeignCallback
                 ) && self.unsafe_depth == 0
                 {
                     return Err(fail(

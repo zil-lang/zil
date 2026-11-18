@@ -3,7 +3,7 @@
 use super::*;
 
 impl Checked {
-    fn intrinsic_node(
+    pub(super) fn intrinsic_node(
         &self,
         context: &SemanticInstance,
         site: SemanticSiteId,

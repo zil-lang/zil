@@ -123,3 +123,62 @@ impl Check<'_, '_> {
         output.into_type(b)
     }
 }
+
+impl Check<'_, '_> {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn scoped_foreign_callback_operation(
+        &self,
+        instance: &SemanticInstance,
+        site: SemanticSiteId,
+        function: &TypedFunction,
+        block: BlockId,
+        index: usize,
+        instruction: &Instruction,
+        actuals: &[SemanticActual],
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let InstructionKind::WithForeignCallback { register, close, callback, body, .. } =
+            instruction.kind
+        else {
+            return Err(fail("actual scoped callback changes the original sealed opcode"));
+        };
+        if !actuals.is_empty() {
+            return Err(fail("actual scoped callback carries unexpected generic actuals"));
+        }
+        let targets = self.original.native_targets(instance, site, self.inventory, b)?;
+        if targets.as_slice() != [self.function_definition(register, b)?, self.function_definition(close, b)?] {
+            return Err(fail("actual scoped callback substitutes an original provider"));
+        }
+        let nodes = self.original.scoped_foreign_operands(instance, site, self.inventory, b)?;
+        let inputs = self.original.intrinsic_inputs(instance, site, self.program, self.inventory, b)?;
+        let [expected_callback, expected_body] = inputs.as_slice() else {
+            return Err(fail("actual scoped callback loses its complete original input scheme"));
+        };
+        for (node, operand, expected) in [
+            (nodes[0], callback, expected_callback),
+            (nodes[1], body, expected_body),
+        ] {
+            operations::available_before(function, (block, index, SemanticSiteEdge::Before), operand, b)?;
+            let actual = self.ssa_value(instance, function, operand, b, 0)?;
+            if !self.capture_values_equal(&actual, expected, b)? {
+                return Err(fail("actual scoped callback changes a complete original operand"));
+            }
+            if let Some(source) = self.original_subject_value(instance, function, node, b)? {
+                self.original_producer_value(function, operand, source, b)?;
+            } else if let Some(anchor) = self.original.local_read_anchor(instance.definition, node, b)? {
+                if !self.anchored_value(instance, function, anchor, operand, b, 0)? {
+                    return Err(fail("actual scoped callback uses a different original lexical binding"));
+                }
+            } else {
+                return Err(fail("actual scoped callback operand has no exact original producer"));
+            }
+        }
+
+        // Source identity and complete values are checked above. The scoped
+        // kernel independently verifies the actual callback/body ABIs, unsafe
+        // region and exclusive live loan during the body.
+        let output = self.original.intrinsic_output(instance, site, self.program, self.inventory, b)?;
+        self.actual_type(&output.ty, b)?;
+        self.result(instruction, function, &output.ty)
+    }
+}

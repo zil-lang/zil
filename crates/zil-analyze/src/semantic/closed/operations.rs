@@ -1034,6 +1034,16 @@ impl Check<'_, '_> {
                             )?;
                             return Ok(());
                         }
+                        original::sealed::Intrinsic::ScopedForeignCallback => {
+                            let instruction = instruction.ok_or_else(|| {
+                                fail("actual scoped callback has no instruction")
+                            })?;
+                            self.scoped_foreign_callback_operation(
+                                instance, site.recipe, point.function, point.block.id,
+                                point.instruction, instruction, actuals, b,
+                            )?;
+                            return Ok(());
+                        }
                         id @ (original::sealed::Intrinsic::Register
                         | original::sealed::Intrinsic::RegisterAsync) => {
                             let output = self.registration_start_operation(
@@ -2032,6 +2042,7 @@ impl Check<'_, '_> {
                         | InstructionKind::MutexLock { .. }
                         | InstructionKind::MutexValue { .. }
                         | InstructionKind::WithScopedThread { .. }
+                        | InstructionKind::WithForeignCallback { .. }
                         | InstructionKind::AsyncRegistrationRequestClose { .. }
                         | InstructionKind::AsyncRegistrationPollClose { .. }
                         | InstructionKind::AsyncRegistrationFinishDestroy { .. }

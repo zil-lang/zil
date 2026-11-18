@@ -124,6 +124,71 @@ impl Solver<'_, '_> {
         Ok(target)
     }
 
+    pub(super) fn scoped_foreign_callback(
+        &mut self,
+        frame: &mut Frame,
+        node: NodeId,
+        written: &[CoreGenericArgument<SemanticTypeRecipe>],
+        arguments: &[SemanticOriginalExpr],
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Term> {
+        self.step(depth, b)?;
+        let [register, close, callback, body] = arguments else {
+            return Err(fail("original scoped callback changes its complete value arity"));
+        };
+        if !written.is_empty() {
+            return Err(fail("original scoped callback has no written type actuals"));
+        }
+        let register = self.provider(frame, register, ScopedCallbackRole::Register, b, depth + 1)?;
+        let close = self.provider(frame, close, ScopedCallbackRole::Close, b, depth + 1)?;
+        let callback_term = self.expression(frame, callback, b, depth + 1)?;
+        self.prepare_call_value(frame.definition, callback.id, callback_term, b)?;
+        let Kind::Address { mutable: true, inner, .. } =
+            self.state.arena[self.type_root(callback_term, b)?]
+        else {
+            return Err(fail("original scoped callback requires an exclusive address"));
+        };
+        let parameter = SemanticParameterRecipe {
+            ty: SemanticTypeRecipe::Atom(Type::I32),
+            mode: PassingMode::Infer,
+        };
+        let signature = SemanticSignatureRecipe {
+            bound_lifetimes: 0,
+            invocation_lifetimes: 0,
+            parameters: vec![parameter],
+            result: SemanticTypeRecipe::Atom(Type::I32),
+            result_mode: PassingMode::Infer,
+            call_kind: CallKind::Direct,
+        };
+        self.callable_need(frame, inner, CallableKind::FnMut, &signature, b, depth + 1)?;
+        Self::push(&mut self.needs, Need {
+            term: inner,
+            predicate: Predicate::Capability(SemanticBuiltinTrait::ClosedEnvironment),
+        }, b)?;
+
+        let body_term = self.expression(frame, body, b, depth + 1)?;
+        self.prepare_call_value(frame.definition, body.id, body_term, b)?;
+        let signature = SemanticSignatureRecipe { parameters: Vec::new(), ..signature };
+        self.callable_need(frame, body_term, CallableKind::FnOnce, &signature, b, depth + 1)?;
+
+        let anchor = (frame.definition, node);
+        b.lookup(self.state.native_targets.len(), WORK)?;
+        b.lookup(self.state.scoped_foreign_operands.len(), WORK)?;
+        b.lookup(self.state.intrinsic_inputs.len(), WORK)?;
+        b.lookup(self.state.intrinsics.len(), WORK)?;
+        if self.state.native_targets.insert(anchor, vec![register, close]).is_some()
+            || self.state.scoped_foreign_operands.insert(anchor, [callback.id, body.id]).is_some()
+            || self.state.intrinsic_inputs.insert(anchor, vec![callback_term, body_term]).is_some()
+            || self.state.intrinsics.insert(anchor, sealed::Intrinsic::ScopedForeignCallback).is_some()
+        {
+            return Err(fail("original scoped callback has competing source schemes"));
+        }
+        let registered = self.term(Kind::Atom(Type::Bool), b)?;
+        let result = self.term(Kind::Atom(Type::I32), b)?;
+        self.term(Kind::Tuple(vec![registered, result]), b)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn registration_start(
         &mut self,
@@ -286,5 +351,22 @@ impl Solver<'_, '_> {
             b,
         )?;
         self.term(Kind::Wrapped(Wrapper::Managed, payload), b)
+    }
+}
+
+impl Checked {
+    pub(in crate::semantic) fn scoped_foreign_operands(
+        &self,
+        instance: &SemanticInstance,
+        site: SemanticSiteId,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<[NodeId; 2]> {
+        let node = self.intrinsic_node(instance, site, inventory, b)?;
+        b.lookup(self.scoped_foreign_operands.len(), WORK)?;
+        self.scoped_foreign_operands
+            .get(&(instance.definition, node))
+            .copied()
+            .ok_or_else(|| fail("actual scoped callback lacks its checked original operands"))
     }
 }

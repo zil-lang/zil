@@ -283,6 +283,7 @@ pub(super) struct Checked {
     intrinsic_inputs: BTreeMap<(SemanticDefinitionId, NodeId), Vec<Term>>,
     intrinsic_anchors: BTreeMap<(SemanticDefinitionId, NodeId), LocalAnchor>,
     native_targets: BTreeMap<(SemanticDefinitionId, NodeId), Vec<SemanticDefinitionId>>,
+    scoped_foreign_operands: BTreeMap<(SemanticDefinitionId, NodeId), [NodeId; 2]>,
     task_worker_actuals: BTreeMap<(SemanticDefinitionId, NodeId), Vec<Term>>,
     native_paths: BTreeMap<(SemanticDefinitionId, NodeId), Vec<u32>>,
     abstract_calls: BTreeMap<(SemanticDefinitionId, NodeId), abstract_calls::AbstractCall>,
@@ -2533,6 +2534,16 @@ impl Solver<'_, '_> {
                                 }
                                 return Ok(result);
                             }
+                            sealed::Resolution::Intrinsic(sealed::Intrinsic::ScopedForeignCallback) => {
+                                let result = self.scoped_foreign_callback(
+                                    frame, value.id, written, arguments, b, depth + 1,
+                                )?;
+                                b.lookup(frame.expressions.len(), WORK)?;
+                                if frame.expressions.insert(value.id, result).is_some() {
+                                    return Err(fail("original scoped foreign callback node is reused"));
+                                }
+                                return Ok(result);
+                            }
                             sealed::Resolution::Intrinsic(
                                 id @ (sealed::Intrinsic::Register
                                 | sealed::Intrinsic::RegisterAsync),
@@ -4386,6 +4397,7 @@ pub(super) fn check(
             intrinsic_inputs: BTreeMap::new(),
             intrinsic_anchors: BTreeMap::new(),
             native_targets: BTreeMap::new(),
+            scoped_foreign_operands: BTreeMap::new(),
             task_worker_actuals: BTreeMap::new(),
             native_paths: BTreeMap::new(),
             abstract_calls: BTreeMap::new(),
