@@ -10,6 +10,10 @@ fn source_core(limits: &Limits, target: &TargetProfile) -> CoreModule {
         "unused-generic-identity.zil",
         include_str!("../../../tests/fixtures/semantic-scopes/unused-generic-identity.zil"),
     );
+    original_core(source, limits, target)
+}
+
+fn original_core(source: SourceUnit, limits: &Limits, target: &TargetProfile) -> CoreModule {
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     let aliases = std::collections::BTreeMap::new();
     let context = zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
@@ -120,4 +124,157 @@ fn unused_generic_copy_is_checked_by_types_analyze_and_verify_raw_and_wire() {
     require_semantic_rejection(
         zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err(),
     );
+}
+
+#[test]
+fn enum_constructor_infers_its_actual_error_union_arm_and_rejects_a_swapped_arm() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "enum-arm.zil",
+        r#"
+        enum Failure<T:Copy> { Unknown, Detail(T) }
+        fn success()->Failure<i32>!Option<i64>{return Option.None}
+        fn failure()->Failure<i32>!Option<i64>{return Failure.Unknown}
+        fn main(){}
+    "#,
+    );
+    let core = original_core(source, &limits, &target);
+    let module = zil_types::check(&core, &target, &limits).unwrap();
+    let claim = zil_analyze::analyze(&module, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &claim, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), claim.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    let mut selected = Vec::new();
+    for (fid, f) in module.functions.iter().enumerate() {
+        for (bid, block) in f.blocks.iter().enumerate() {
+            for (iid, instruction) in block.instructions.iter().enumerate() {
+                if let InstructionKind::MakeErrorUnion { is_error, .. } = instruction.kind {
+                    selected.push((fid, bid, iid, is_error));
+                }
+            }
+        }
+    }
+    assert_eq!(selected.iter().filter(|site| site.3).count(), 1);
+    assert_eq!(selected.len(), 2);
+    for (f, b, i, original_arm) in selected {
+        let mut altered = module.clone();
+        let instruction = &mut altered.functions[f].blocks[b].instructions[i];
+        let span = instruction.span;
+        let InstructionKind::MakeErrorUnion { is_error, .. } = &mut instruction.kind else {
+            unreachable!()
+        };
+        *is_error = !original_arm;
+        let mut re_signed = claim.clone();
+        re_signed.module_fingerprint = altered.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&altered, &re_signed, &limits).unwrap();
+        let raw = zil_verify::verify_module(altered, re_signed, &target, &limits).unwrap_err();
+        let decoded = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+        assert_eq!(raw, decoded);
+        assert!(
+            raw.iter().any(|e| e.code == "E-VERIFY-ERROR"
+                && e.category == ResultCategory::SafeReject
+                && e.span == Some(span)),
+            "{raw:?}"
+        );
+    }
+}
+
+#[test]
+fn saved_store_element_preserves_its_actual_input_through_an_ordinary_view_call() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "store-input.zil",
+        r#"
+        package Entry { manages data:ByteBuffer }
+        fn view(value:&Entry)->&[u8]{return bytes_view(value.data)}
+        fn measure(first:Store<Entry>,second:Store<Entry>)->i64{
+            let saved=store_at(first,0)
+            let bytes=view(saved)
+            return bytes.len()
+        }
+        fn main(){}
+    "#,
+    );
+    let core = original_core(source, &limits, &target);
+    let module = zil_types::check(&core, &target, &limits).unwrap();
+    let claim = zil_analyze::analyze(&module, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &claim, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), claim.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    let function = module
+        .functions
+        .iter()
+        .find(|f| f.parameters.len() == 2)
+        .unwrap();
+    let (first, second) = (function.parameters[0], function.parameters[1]);
+    assert_eq!(
+        function.locals[first.0 as usize].ty,
+        function.locals[second.0 as usize].ty
+    );
+    let owner = module.semantic.as_ref().unwrap().instances.iter().find(|instance|
+        matches!(instance.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id))
+            if id == function.id)).unwrap().id;
+    for change_read in [true, false] {
+        let mut altered = module.clone();
+        if change_read {
+            let read = altered.functions[function.id.0 as usize]
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| matches!(i.kind, InstructionKind::Load(id) if id == first))
+                .unwrap();
+            read.kind = InstructionKind::Load(second);
+        } else {
+            let classes = altered
+                .semantic
+                .as_mut()
+                .unwrap()
+                .sites
+                .iter_mut()
+                .filter(|site| site.instance == owner)
+                .find_map(|site| {
+                    let SemanticSiteAction::DeclareLocal {
+                        expected:
+                            SemanticTypeValue::Resolved {
+                                ty: Type::Address { inner, .. },
+                                classes,
+                                ..
+                            },
+                        ..
+                    } = &mut site.action
+                    else {
+                        return None;
+                    };
+                    matches!(&**inner, Type::Slice { .. }).then_some(classes)
+                })
+                .unwrap();
+            let [SemanticClassExpr::Implicit { ordinal, .. }] = classes.as_mut_slice() else {
+                panic!("the returned byte view must name exactly one source class");
+            };
+            assert_eq!(*ordinal, 0);
+            *ordinal = 1;
+        }
+        let producer = zil_analyze::analyze(&altered, &limits).unwrap_err();
+        assert!(
+            producer
+                .iter()
+                .any(|e| e.code == "E-ANALYZE-IR" && e.category == ResultCategory::SafeReject)
+        );
+        let mut claim = claim.clone();
+        claim.module_fingerprint = altered.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&altered, &claim, &limits).unwrap();
+        let raw = zil_verify::verify_module(altered, claim, &target, &limits).unwrap_err();
+        let decoded = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+        assert_eq!(raw, decoded);
+        assert!(
+            raw.iter()
+                .any(|e| e.code == "E-VERIFY-SEMANTIC" && e.category == ResultCategory::SafeReject)
+        );
+    }
 }

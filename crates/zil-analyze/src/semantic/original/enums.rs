@@ -274,10 +274,25 @@ impl Solver<'_, '_> {
         ) {
             return Ok(None);
         }
-        if let Some(wanted) = self.receiving_for(frame, node, b)?
-            && matches!(self.state.arena[self.type_root(wanted, b)?], Kind::Nominal { definition: target, .. } if target == *definition)
-        {
-            self.unify(value, wanted, depth + 1, b)?;
+        let declaration = *definition;
+        if let Some(wanted) = self.receiving_for(frame, node, b)? {
+            let head = self.type_root(wanted, b)?;
+            let mut matches = |term| -> CompileResult<bool> {
+                Ok(matches!(self.state.arena[self.type_root(term, b)?],
+                    Kind::Nominal { definition, .. } if definition == declaration))
+            };
+            let contextual = match self.state.arena[head] {
+                Kind::Nominal { definition, .. } if definition == declaration => Some(wanted),
+                Kind::ErrorUnion { error, result } => match (matches(error)?, matches(result)?) {
+                    (true, false) => Some(error),
+                    (false, true) => Some(result),
+                    _ => None,
+                },
+                _ => None,
+            };
+            if let Some(contextual) = contextual {
+                self.unify(value, contextual, depth + 1, b)?;
+            }
         }
         let (variant, mut payload) = self.enum_variant(value, member, b)?;
         if payload.len() != arguments.len() {

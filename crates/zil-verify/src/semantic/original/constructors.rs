@@ -44,6 +44,42 @@ impl CheckedOriginal{
         self.constructors.insert((env.current()?,site.id),VariantConstruction{definition:id,variant,actuals:actuals.clone()});
         self.execute_effect(env,CallKind::Direct,b)?;Ok(Some(Ty::Nominal(id,actuals)))
     }
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn enum_injection_arm<'a>(
+        &mut self, module: &TypedModule, context: &CheckedContext, expression: &SemanticOriginalExpr,
+        env: &Env, bindings: &BTreeMap<String, Binding>, error: &'a Ty, result: &'a Ty,
+        active: &mut ActiveQueries, b: &mut Budget,
+    ) -> Check<Option<&'a Ty>> {
+        if !matches!(error, Ty::Nominal(..)) && !matches!(result, Ty::Nominal(..)) {
+            return Ok(None);
+        }
+        let member = match &expression.kind {
+            CoreExprKind::Call { callee, .. } => callee.as_ref(),
+            _ => expression,
+        };
+        let CoreExprKind::Member { object, member, owner: None } = &member.kind else {
+            return Ok(None);
+        };
+        let owner = match &object.kind {
+            CoreExprKind::TypeApply { callee, .. } | CoreExprKind::GenericApply { callee, .. } => callee,
+            _ => object,
+        };
+        let Some((id, _)) = self.constructor_owner(module, context, owner, env, bindings, active, b)? else {
+            return Ok(None);
+        };
+        let definition = context.definition(module, id, b)?;
+        let SemanticDefinitionBody::Nominal {kind:LifeNominalKind::Enum,body:SemanticNominalBody::Enum { variants },..} = &definition.body else {
+            return Ok(None);
+        };
+        b.spend(variants.len().saturating_mul(member.len().saturating_add(1)))?;
+        if !variants.iter().any(|row| row.name == *member) { return Ok(None); }
+        let matches = |arm: &Ty| matches!(arm, Ty::Nominal(actual, _) if *actual == id);
+        Ok(match (matches(error), matches(result)) {
+            (true, false) => Some(error),
+            (false, true) => Some(result),
+            _ => None,
+        })
+    }
     fn constructor_owner(&mut self,module:&TypedModule,context:&CheckedContext,owner:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<(SemanticDefinitionId,Option<Vec<Arg>>)>>{
         let mut node=owner;let mut tail=Vec::new();loop{b.spend(1)?;match &node.kind{
             CoreExprKind::Group(inner)=>node=inner,

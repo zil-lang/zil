@@ -3453,6 +3453,11 @@ impl<'a> Check<'a, '_> {
                     }
                     _ => None,
                 };
+                let raw_wanted = if raw_wanted.is_some() {
+                    raw_wanted
+                } else {
+                    self.enum_injection_context(owner, expression, variables, error, result, depth + 1)?
+                };
                 let actual = self.expr(owner, expression, variables, raw_wanted, depth + 1)?;
                 let equal_union = match self.same(&actual, union) {
                     Ok(()) => true,

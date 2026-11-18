@@ -798,7 +798,67 @@ impl Check<'_, '_> {
     }
 }
 
-impl Check<'_, '_> {
+impl<'a> Check<'a, '_> {
+    fn enum_type_binding(
+        &mut self, owner: SemanticDefinitionId, path: &[String], depth: usize,
+    ) -> R<Option<(SemanticDefinitionId, Option<&'a [SemanticActualRecipe]>)>> {
+        let current = self.definition(owner)?;
+        let SemanticDefinitionBody::FunctionWithBody { names, .. } = &current.body else {
+            return Err(bad(
+                "original constructor has no lexical declaration environment",
+            ));
+        };
+        self.pay(names.len().saturating_add(path.len()), depth)?;
+        let mut selected = None;
+        for name in names {
+            if name.namespace != SemanticOriginalNamespace::Type || name.path != path {
+                continue;
+            }
+            if selected.is_some() {
+                return Err(bad("original enum constructor type binding is ambiguous"));
+            }
+            selected = match &name.value {
+                SemanticOriginalNameValue::Definition(id) => Some((*id, None)),
+                SemanticOriginalNameValue::Recipe(SemanticActualRecipe::Type(
+                    SemanticTypeRecipe::Nominal { definition, arguments },
+                )) => Some((*definition, Some(arguments.as_slice()))),
+                _ => return Ok(None),
+            };
+        }
+        Ok(selected)
+    }
+
+    pub(super) fn enum_injection_context<'b>(
+        &mut self, owner: SemanticDefinitionId, expression: &SemanticOriginalExpr,
+        variables: &BTreeMap<String, Binding>, error: &'b SemanticTypeRecipe,
+        result: &'b SemanticTypeRecipe, depth: usize,
+    ) -> R<Option<&'b SemanticTypeRecipe>> {
+        if !matches!(error, SemanticTypeRecipe::Nominal { .. })
+            && !matches!(result, SemanticTypeRecipe::Nominal { .. })
+        {
+            return Ok(None);
+        }
+        let member = match &expression.kind {
+            CoreExprKind::Call { callee, .. } => callee.as_ref(),
+            _ => expression,
+        };
+        let CoreExprKind::Member { object, member: variant, .. } = &member.kind else { return Ok(None); };
+        let Some(path) = self.declaration_path(object, variables, depth + 1)? else { return Ok(None); };
+        let Some((id, _)) = self.enum_type_binding(owner, &path, depth + 1)? else { return Ok(None); };
+        let SemanticDefinitionBody::Nominal {
+            kind: LifeNominalKind::Enum, body: SemanticNominalBody::Enum { variants }, ..
+        } = &self.definition(id)?.body else { return Ok(None); };
+        self.pay(variants.len(), depth)?;
+        if !variants.iter().any(|item| item.name == *variant) { return Ok(None); }
+        let matches = |arm: &SemanticTypeRecipe|
+            matches!(arm, SemanticTypeRecipe::Nominal { definition, .. } if *definition == id);
+        Ok(match (matches(error), matches(result)) {
+            (true, false) => Some(error),
+            (false, true) => Some(result),
+            _ => None,
+        })
+    }
+
     pub(super) fn enum_constructor(
         &mut self,
         owner: SemanticDefinitionId,
@@ -824,30 +884,7 @@ impl Check<'_, '_> {
         let Some(path) = self.declaration_path(object, variables, depth + 1)? else {
             return Ok(None);
         };
-        let current = self.definition(owner)?;
-        let SemanticDefinitionBody::FunctionWithBody { names, .. } = &current.body else {
-            return Err(bad(
-                "original constructor has no lexical declaration environment",
-            ));
-        };
-        self.pay(names.len().saturating_add(path.len()), depth)?;
-        let mut selected = None;
-        for name in names {
-            if name.namespace != SemanticOriginalNamespace::Type || name.path != path {
-                continue;
-            }
-            if selected.is_some() {
-                return Err(bad("original enum constructor type binding is ambiguous"));
-            }
-            selected = match &name.value {
-                SemanticOriginalNameValue::Definition(id) => Some((*id, None)),
-                SemanticOriginalNameValue::Recipe(SemanticActualRecipe::Type(
-                    SemanticTypeRecipe::Nominal { definition, arguments },
-                )) => Some((*definition, Some(arguments))),
-                _ => return Ok(None),
-            };
-        }
-        let Some((id, alias)) = selected else {
+        let Some((id, alias)) = self.enum_type_binding(owner, &path, depth + 1)? else {
             return Ok(None);
         };
         let definition = self.definition(id)?;
@@ -927,7 +964,7 @@ impl Check<'_, '_> {
             for argument in arguments {
                 crate::dyn_metadata::semantic_operand_snapshot(argument, self.limits, self.left, 1)?;
             }
-            arguments.clone()
+            arguments.to_vec()
         } else {
             self.written(owner, object, &definition.parameters, variables, depth + 1)?
                 .into_iter()

@@ -20,7 +20,10 @@ impl CheckedOriginal {
                         // Elaborating a contextual injection never equates
                         // the payload with the sum or one arm with the other.
                         let numeric = self.injection_literal_context(expression,error,result,b)?;
-                        let payload=self.expression(module,context,expression,env,bindings,numeric.as_ref(),active,b)?;
+                        let arm = if numeric.is_some() { numeric.as_ref() } else {
+                            self.enum_injection_arm(module, context, expression, env, bindings, error, result, active, b)?
+                        };
+                        let payload=self.expression(module,context,expression,env,bindings,arm,active,b)?;
                         if self.same(&payload,&sum,b)?{return Ok(payload);}
                         // A sum-valued argument cannot be an injected payload
                         // when neither declared arm is a sum or an open type.
