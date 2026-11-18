@@ -388,6 +388,13 @@ pub(super) fn evaluate(
             actual_specialization(world, actual, expected)?;
         }
         let (actual_self, application, trait_scope) = match &parent.body {
+            SemanticDefinitionBody::Nominal { .. } => (
+                recipe_type(world, parent_instance.id, &SemanticTypeRecipe::SelfType {
+                    scope: SemanticScopeRef::Ancestor(0),
+                })?,
+                None,
+                None,
+            ),
             SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl {
                 self_type,
                 trait_application,
