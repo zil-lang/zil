@@ -592,8 +592,9 @@ fn identity(
             let Type::Closure(closure) = value else {
                 return Err(bad("thread body is not its actual closure operand"));
             };
-            let (_, child) = world.child(*closure)?;
-            if child.definition != *expected_body {
+            let (_, children) = world.child_worlds(*closure)?;
+            world.pay(children.len())?;
+            if children.iter().any(|child| child.definition != *expected_body) {
                 return Err(bad(
                     "thread operation selects another original body closure",
                 ));

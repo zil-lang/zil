@@ -72,7 +72,7 @@ fn source(
     let SemanticClosureTarget::Typed(closure) = environment.closure else {
         return Err(bad("sealed class retains a Core closure target"));
     };
-    let (_, child) = world.child(closure)?;
+    let (_, child) = world.child_at(closure, scope)?;
     if child.id != scope {
         return Err(bad("sealed class names another actual child environment"));
     }

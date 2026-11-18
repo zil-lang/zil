@@ -450,6 +450,13 @@ pub(super) fn validate_template(
         if old {
             continue;
         }
+        if matches!(p.ty, Type::OwnedDyn { .. })
+            && matches!(p.mode, PassingMode::Infer | PassingMode::Move)
+        {
+            // The ordinary argument path transfers this owner and stages its
+            // dynamic cleanup until the complete call commits its arguments.
+            continue;
+        }
         if function.storage_life.is_some()
             && matches!(&p.ty, Type::Address { mutable: false, inner } if matches!(inner.as_ref(), Type::BorrowedStorage { .. }))
         {
@@ -1066,8 +1073,13 @@ impl Builder<'_, '_> {
                 borrowed_fp::relation(&bound.parameters, &bound.result, life, span)?;
             }
         }
-        if owned_state && bound.source_life.is_none() {
-            self.closures.factory_self_contained(closure, span)?;
+        if owned_state {
+            // P/R source_life describes the declared callable operation, not
+            // its actual environment's complete intrinsic domain. A State may
+            // retain that domain even when no signature life occurs. Formation
+            // transports every real leaf; explicit CE and cleanup requirements
+            // remain independently checked below and at final publication.
+            self.closures.factory_transportable(closure, span)?;
         }
         // A context-bearing State retains the actual full borrowed domain.
         // It acquires no ClosedEnvironment/NoExternal or cleanup permission;

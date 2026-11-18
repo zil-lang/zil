@@ -193,27 +193,80 @@ impl<'a> World<'a, '_> {
             .map(|offset| &self.module.functions[*offset])
             .ok_or_else(|| bad("world has no actual function"))
     }
-    fn child(&mut self, id: ClosureId) -> R<(&'a ClosureDefinition, &'a SemanticInstance)> {
-        self.pay(
-            self.module
-                .closures
-                .len()
-                .saturating_add(self.program.instances.len()),
-        )?;
-        let d = self
-            .module
-            .closures
-            .iter()
-            .find(|d| d.id == id)
-            .ok_or_else(|| bad("actual closure is absent"))?;
-        let mut children = self.program.instances.iter().filter(|i| matches!(i.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(f)) if f == d.function));
-        let child = children
-            .next()
-            .ok_or_else(|| bad("actual closure has no original child world"))?;
-        if children.next().is_some() {
-            return Err(bad("actual closure has ambiguous original child worlds"));
+    fn closure_definition(&mut self, id: ClosureId) -> R<&'a ClosureDefinition> {
+        self.pay(self.module.closures.len())?;
+        let mut rows = self.module.closures.iter().filter(|row| row.id == id);
+        let definition = rows.next().ok_or_else(|| bad("actual closure is absent"))?;
+        if rows.next().is_some() { return Err(bad("actual closure identity repeats")); }
+        if self.function(definition.function)?.environment != Some(id) {
+            return Err(bad("actual closure definition changes its exact entry environment"));
         }
-        Ok((d, child))
+        Ok(definition)
+    }
+    fn child_at(&mut self, id: ClosureId, scope: SemanticInstanceId)
+        -> R<(&'a ClosureDefinition, &'a SemanticInstance)> {
+        let definition = self.closure_definition(id)?;
+        let child = self.instance(scope)?;
+        if child.target != SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(definition.function))
+            || !matches!(&child.environment, Some(environment)
+                if environment.closure == SemanticClosureTarget::Typed(id)) {
+            return Err(bad("actual child world changes its exact environment or entry identity"));
+        }
+        let creator = self.instance(child.parent.ok_or_else(|| bad("actual closure world has no true creator"))?)?;
+        let original = self.definition(child.definition)?;
+        self.pay(1)?;
+        if child.lifetime_instantiation != SemanticLifetimeInstantiation::Rigid
+            || child.actuals.len() != original.parameters.len()
+            || child.environment.as_ref().map_or(0, |environment| environment.actuals.len()) != original.environment.len() {
+            return Err(bad("actual child world omits its complete rigid mixed or environment domain"));
+        }
+        if original.kind != SemanticDefinitionKind::Closure || original.parent != Some(creator.definition) {
+            return Err(bad("actual child world changes its original lexical parent"));
+        }
+        let ledger = self.ledger;
+        self.pay(index::search(ledger.frames.len()))?;
+        let frame = ledger.frames.get(&definition.function)
+            .ok_or_else(|| bad("actual child world lacks its real entry emission receipt"))?;
+        let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(creator_function)) = creator.target else {
+            return Err(bad("actual child world creator is not its emitted function"));
+        };
+        if frame.parent != Some((creator_function, id)) {
+            return Err(bad("actual child world changes its real creator emission"));
+        }
+        let proof = ledger.original.borrow();
+        let proof = proof.as_ref().ok_or_else(|| bad("actual child world lacks complete original Gamma"))?;
+        self.pay(index::search(proof.complete.len()))?;
+        if !proof.complete.contains(&child.definition) {
+            return Err(bad("actual child world lacks its independently proved original body"));
+        }
+        Ok((definition, child))
+    }
+    fn child_worlds(&mut self, id: ClosureId) -> R<(&'a ClosureDefinition, Vec<&'a SemanticInstance>)> {
+        let definition = self.closure_definition(id)?;
+        self.pay(self.program.instances.len().saturating_mul(2))?;
+        let mut children = Vec::new();
+        for row in &self.program.instances {
+            if row.target == SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(definition.function))
+                && matches!(&row.environment, Some(environment)
+                    if environment.closure == SemanticClosureTarget::Typed(id)) {
+                let (_, child) = self.child_at(id, row.id)?;
+                children.push(child);
+            }
+        }
+        if children.is_empty() { return Err(bad("actual closure has no complete original child worlds")); }
+        let original = children[0].definition;
+        if children.iter().any(|child| child.definition != original) {
+            return Err(bad("one actual closure changes its original definition between worlds"));
+        }
+        Ok((definition, children))
+    }
+    fn created_child(&mut self, id: ClosureId, parent: SemanticInstanceId)
+        -> R<(&'a ClosureDefinition, &'a SemanticInstance)> {
+        let (definition, children) = self.child_worlds(id)?;
+        let mut selected = children.into_iter().filter(|child| child.parent == Some(parent));
+        let child = selected.next().ok_or_else(|| bad("actual closure has no child at its exact creator occurrence"))?;
+        if selected.next().is_some() { return Err(bad("actual creator repeats an environment occurrence")); }
+        Ok((definition, child))
     }
     fn copy(&mut self, value: &SemanticTypeValue) -> R<SharedType> {
         crate::dyn_metadata::semantic_operand_snapshot(value, self.limits, self.left, 1)?;
@@ -658,7 +711,7 @@ impl<'a> World<'a, '_> {
         let id = f
             .environment
             .ok_or_else(|| bad("capture has no actual environment"))?;
-        let (d, child) = self.child(id)?;
+        let (d, child) = self.child_at(id, instance.id)?;
         if child.id != instance.id {
             return Err(bad("capture uses another child world"));
         }
@@ -1952,7 +2005,7 @@ impl World<'_, '_> {
             &mut expected_static,
         )?;
         if let Some(closure) = f.environment {
-            let (d, child) = self.child(closure)?;
+            let (d, child) = self.child_at(closure, instance.id)?;
             if child.id != instance.id || d.storage_life != f.storage_life {
                 return Err(bad("entry header differs from its real environment"));
             }
@@ -1981,7 +2034,7 @@ impl World<'_, '_> {
             self.program, self.ledger, instance.definition, self.limits, self.left)?;
         if super::headers::receiver_binding(&mut expected_bindings, receiver_head, self.limits, self.left)? {
             let closure = f.environment.ok_or_else(|| bad("receiver header is outside a real closure entry"))?;
-            let (definition, _) = self.child(closure)?;
+            let definition = self.closure_definition(closure)?;
             if !matches!(definition.kind, CallableKind::Fn | CallableKind::FnMut) {
                 return Err(bad("consuming environment cannot publish a lending receiver head"));
             }
@@ -2073,9 +2126,9 @@ impl World<'_, '_> {
         };
         let caller = self.function(caller_id)?;
         self.pay(caller.blocks.len())?;
-        if let Some(output) = caller.blocks.iter().find(|row| row.id == block)
-            .and_then(|row| row.instructions.get(index)).and_then(|op| op.result)
-        {
+        let output = caller.blocks.iter().find(|row| row.id == block)
+            .and_then(|row| row.instructions.get(index)).and_then(|op| op.result);
+        if let Some(output) = output {
             // A repeated CFG visit must not reuse the previous invocation's
             // receiver occupant. The actual operation may install fresh roots.
             self.value_roots.remove(&output);
@@ -2092,7 +2145,112 @@ impl World<'_, '_> {
                 "borrowed callable needs its complete current pointee world",
             ));
         };
-        let (d, child) = self.child(*id)?;
+        let (definition, children) = self.child_worlds(*id)?;
+        // Code sharing does not share a source world. Every real child is
+        // checked from the same caller prestate, with its own original Gamma,
+        // full header and complete Fixed/P/R mapping. No candidate contributes
+        // a permission or a value fact to the next candidate's proof.
+        let witness_base = self.argument_witnesses.len();
+        let adaptation_base = self.receiver_adaptations.len();
+        let mut witnesses = Vec::new();
+        let mut adaptations: Option<Vec<receiver::Adaptation>> = None;
+        let mut result: Option<SharedType> = None;
+        let mut facts = None;
+        for child in children {
+            self.pay(index::search(self.value_role_sources.len().saturating_add(1))
+                .saturating_add(index::search(self.value_roots.len().saturating_add(1)))
+                .saturating_mul(2).saturating_add(1))?;
+            let checked = self.invoke_world(instance, original, sites, block, index, &operand,
+                &raw_value, &value, requested, arguments, values, locals, implicit, definition, child);
+            if let Err(error) = checked {
+                self.argument_witnesses.truncate(witness_base);
+                self.receiver_adaptations.truncate(adaptation_base);
+                if let Some(output) = output {
+                    self.value_role_sources.remove(&output);
+                    self.value_roots.remove(&output);
+                }
+                return Err(error);
+            }
+            let value = checked?;
+            let current_facts = output.map(|output| (
+                self.value_role_sources.remove(&output), self.value_roots.remove(&output),
+            )).unwrap_or((None, None));
+            let count = self.argument_witnesses.len().saturating_sub(witness_base);
+            self.pay(witnesses.len().saturating_add(count))?;
+            witnesses.extend(self.argument_witnesses.split_off(witness_base));
+            let count = self.receiver_adaptations.len().saturating_sub(adaptation_base);
+            self.pay(count)?;
+            let current_adaptations = self.receiver_adaptations.split_off(adaptation_base);
+            if let Some(previous) = &adaptations {
+                self.same_invocation_adaptations(previous, &current_adaptations)?;
+            } else { adaptations = Some(current_adaptations); }
+            if let Some(previous) = &result {
+                self.same(instance.id, previous, &value, implicit)?;
+            } else { result = Some(value); }
+            if let Some(previous) = &facts {
+                self.same_invocation_facts(previous, &current_facts)?;
+            } else { facts = Some(current_facts); }
+        }
+        let result = result.ok_or_else(|| bad("callable has no fully checked actual child worlds"))?;
+        // Retain every world's independent audit receipt (including child.id).
+        // The caller result and output facts are committed once, after all
+        // mapped worlds satisfy the same complete actual boundary contract.
+        self.pay(self.argument_witnesses.len().saturating_add(witnesses.len()))?;
+        self.argument_witnesses.extend(witnesses);
+        let adaptations = adaptations.ok_or_else(|| bad("callable omits its checked adaptation inventory"))?;
+        self.pay(self.receiver_adaptations.len().saturating_add(adaptations.len()))?;
+        self.receiver_adaptations.extend(adaptations);
+        if let Some(output) = output {
+            let (role, roots) = facts.ok_or_else(|| bad("callable omits its checked output facts"))?;
+            self.pay(index::search(self.value_role_sources.len().saturating_add(1))
+                .saturating_add(index::search(self.value_roots.len().saturating_add(1))))?;
+            if let Some(role) = role { self.value_role_sources.insert(output, role); }
+            if let Some(roots) = roots { self.value_roots.insert(output, roots); }
+        }
+        Ok(result)
+    }
+    fn same_invocation_facts(
+        &mut self,
+        first: &(Option<roles::Incoming>, Option<std::collections::BTreeSet<arguments::Root>>),
+        other: &(Option<roles::Incoming>, Option<std::collections::BTreeSet<arguments::Root>>),
+    ) -> R<()> {
+        for role in [&first.0, &other.0].into_iter().flatten() {
+            roles::snapshot_incoming(role, self.limits, self.left)?;
+            self.pay(role.origin.as_ref().map_or(0, |origin| origin.anchors.len()))?;
+        }
+        for roots in [&first.1, &other.1].into_iter().flatten() {
+            self.pay(roots.len())?;
+            for root in roots { self.pay(root.path.len())?; }
+        }
+        if first != other { return Err(bad("actual callable worlds disagree in their complete output source facts")); }
+        Ok(())
+    }
+    fn same_invocation_adaptations(
+        &mut self, first: &[receiver::Adaptation], other: &[receiver::Adaptation],
+    ) -> R<()> {
+        self.pay(first.len().saturating_add(other.len()))?;
+        if first.len() != other.len() { return Err(bad("actual callable worlds disagree in their directed adaptation inventory")); }
+        for (a, b) in first.iter().zip(other) {
+            roles::snapshot_source(&a.source, self.limits, self.left)?;
+            roles::snapshot_source(&b.source, self.limits, self.left)?;
+            crate::dyn_metadata::semantic_operand_snapshot(&a.target, self.limits, self.left, 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(&b.target, self.limits, self.left, 1)?;
+            if a.caller != b.caller || a.site != b.site || a.operand != b.operand
+                || a.source != b.source || a.target != b.target {
+                return Err(bad("actual callable worlds disagree in an exact directed adaptation"));
+            }
+        }
+        Ok(())
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn invoke_world(
+        &mut self, instance: &SemanticInstance, original: &SemanticDefinition,
+        sites: &[&SemanticSite], block: BlockId, index: usize,
+        operand: &SemanticOperand, raw_value: &SharedType, value: &SharedType,
+        requested: CallableKind, arguments: &[ValueId], values: &[Option<SharedType>],
+        locals: &[Option<SharedType>], implicit: &BTreeMap<u32, SemanticClassExpr>,
+        d: &ClosureDefinition, child: &SemanticInstance,
+    ) -> R<SharedType> {
         let target = self.function(d.function)?;
         let target_original = self.definition(child.definition)?;
         let (SemanticDefinitionBody::Function { signature, .. }
@@ -2109,7 +2267,7 @@ impl World<'_, '_> {
         for site in self.point_sites(sites, block, index)? {
             if let SemanticSiteAction::BodyCall { actuals } = &site.action {
                 if let Some(result) = methods::callable(
-                    self, instance, original, site, &operand, &raw_value, &value, d, child, target,
+                    self, instance, original, site, operand, raw_value, value, d, child, target,
                     requested, actuals, arguments, values, locals, implicit,
                 )? {
                     if selected {
@@ -2132,7 +2290,7 @@ impl World<'_, '_> {
                 continue;
             }
             if let SemanticSiteAction::CallableCall { callee: actual } = &site.action {
-                if actual != &operand || selected {
+                if actual != operand || selected {
                     return Err(bad("callable call changes its actual operand"));
                 }
                 let recipe = self.original_recipe(original, site.recipe)?;
@@ -2163,12 +2321,12 @@ impl World<'_, '_> {
         {
             let expected =
                 self.parameter_value(child.id, ordinal, &target.locals[local.0 as usize].ty)?;
-            let expected = self.map_value(&expected, &[], Some((header, child, &value)))?;
+            let expected = self.map_value(&expected, &[], Some((header, child, value)))?;
             let actual = self.get(values, *argument)?;
             self.same(instance.id, &actual, &expected, implicit)?;
         }
         let result = self.result_value(child.id, &target.return_type)?;
-        self.map_value(&result, &[], Some((header, child, &value)))
+        self.map_value(&result, &[], Some((header, child, value)))
     }
     fn run(&mut self, instance: &SemanticInstance) -> R<()> {
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) = instance.target
@@ -3054,7 +3212,7 @@ impl World<'_, '_> {
                             let closure = f
                                 .environment
                                 .ok_or_else(|| bad("capture write has no active environment"))?;
-                            let (definition, child) = self.child(closure)?;
+                            let (definition, child) = self.child_at(closure, instance.id)?;
                             if child.id != instance.id
                                 || !matches!(
                                     definition.kind,
@@ -3091,7 +3249,7 @@ impl World<'_, '_> {
                             let closure = f
                                 .environment
                                 .ok_or_else(|| bad("capture transfer has no active environment"))?;
-                            let (definition, child) = self.child(closure)?;
+                            let (definition, child) = self.child_at(closure, instance.id)?;
                             if child.id != instance.id
                                 || !matches!(
                                     definition.kind,
@@ -3129,7 +3287,7 @@ impl World<'_, '_> {
                             let closure = f
                                 .environment
                                 .ok_or_else(|| bad("capture borrow has no active environment"))?;
-                            let (definition, child) = self.child(closure)?;
+                            let (definition, child) = self.child_at(closure, instance.id)?;
                             if child.id != instance.id
                                 || *mutable && definition.kind == CallableKind::Fn
                             {
@@ -3309,7 +3467,7 @@ impl World<'_, '_> {
                             }
                         }
                         InstructionKind::MakeClosure { closure, captures } => {
-                            let (d, child) = self.child(*closure)?;
+                            let (d, child) = self.created_child(*closure, instance.id)?;
                             if child.parent != Some(instance.id)
                                 || captures.len() != d.captures.len()
                             {

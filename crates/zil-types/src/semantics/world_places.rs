@@ -15,7 +15,7 @@ pub(super) fn capture_exit(
     function: &TypedFunction,
 ) -> R<()> {
     if let Some(environment) = function.environment {
-        let (definition, child) = world.child(environment)?;
+        let (definition, child) = world.child_at(environment, instance.id)?;
         world.pay(world.vacant_captures.len())?;
         if child.id != instance.id
             || definition.kind == CallableKind::FnMut

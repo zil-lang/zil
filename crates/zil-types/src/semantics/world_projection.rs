@@ -90,7 +90,7 @@ pub(super) fn type_shape_at(
             life.clone()
         }
         Type::Closure(id) => {
-            let (definition, _) = world.child(*id)?;
+            let definition = world.closure_definition(*id)?;
             let header = definition
                 .storage_life
                 .as_ref()

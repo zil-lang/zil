@@ -274,7 +274,7 @@ fn capture_source_value(
             let closure = function
                 .environment
                 .ok_or_else(|| bad("capture transfer alias has no actual environment"))?;
-            let (definition, child) = world.child(closure)?;
+            let (definition, child) = world.child_at(closure, instance.id)?;
             if child.id != instance.id
                 || !matches!(definition.kind, CallableKind::FnMut | CallableKind::FnOnce)
             {
@@ -288,7 +288,7 @@ fn capture_source_value(
             let closure = function
                 .environment
                 .ok_or_else(|| bad("capture borrow alias has no actual environment"))?;
-            let (definition, child) = world.child(closure)?;
+            let (definition, child) = world.child_at(closure, instance.id)?;
             if child.id != instance.id || *mutable && definition.kind == CallableKind::Fn {
                 return Err(bad(
                     "capture borrow alias strengthens the actual receiver mode",
