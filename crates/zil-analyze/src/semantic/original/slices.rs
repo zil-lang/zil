@@ -277,6 +277,11 @@ impl Checked {
         let CoreExprKind::Member { object, .. } = &callee.kind else {
             return Err(fail("original slice length has no receiver expression"));
         };
-        Ok(LengthReceiver::Expression(object.id))
+        let mut expression = object.as_ref();
+        while let CoreExprKind::Group(inner) = &expression.kind {
+            b.spend(1, WORK)?;
+            expression = inner;
+        }
+        Ok(LengthReceiver::Expression(expression.id))
     }
 }

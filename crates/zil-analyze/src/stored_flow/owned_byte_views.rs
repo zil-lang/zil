@@ -106,10 +106,7 @@ impl Heads {
                         }
                         _ => continue,
                     };
-                    fee(b, f.parameters.len().saturating_add(4))?;
-                    if f.parameters.contains(&local) {
-                        continue;
-                    }
+                    fee(b, 4)?;
                     let ty = &f
                         .locals
                         .get(local.0 as usize)
@@ -649,8 +646,17 @@ impl Sites {
         if self.ids.is_empty() {
             return Ok(());
         }
+        let direct_call = if let InstructionKind::Call { function, .. } = i.kind {
+            fee(b, 1)?;
+            module.functions.get(function.0 as usize).is_some_and(|callee|
+                callee.id == function && callee.call_kind == CallKind::Direct
+                    && callee.environment.is_none() && callee.foreign.is_none())
+        } else {
+            false
+        };
         // A callee may mutate a captured/explicit Desc without receiving the
-        // view itself. No public replacement/payload effect is assumed here.
+        // view itself. Ordinary direct calls have a complete actual head
+        // effect and separation summary in the enclosing stored CFG proof.
         if matches!(
             i.kind,
             InstructionKind::Call { .. }
@@ -667,7 +673,7 @@ impl Sites {
                 | InstructionKind::WithForeignCallback { .. }
                 | InstructionKind::WithScopedThread { .. }
                 | InstructionKind::WithSyncCell { .. }
-        ) && self.active(active, b)?
+        ) && !direct_call && self.active(active, b)?
             && !self.disjoint_closure(module, f, i, state, values, active, loans, apart, b)?
         {
             return Err(closed(i.span));
@@ -764,14 +770,18 @@ impl Sites {
                 i.kind,
                 InstructionKind::AddressIndex { .. }
                     | InstructionKind::AddressSlice { .. }
-                    | InstructionKind::ReborrowAddress { mutable: false, .. }
+                    | InstructionKind::ReborrowAddress { .. }
                     | InstructionKind::SliceLength { .. }
             ) || matches!(i.kind, InstructionKind::ReadAddress { address }
-                    if matches!(value_type(f, address)?, Type::Address { mutable: false, inner } if inner.as_ref() == &Type::U8)
+                    if matches!(value_type(f, address)?, Type::Address { inner, .. } if inner.as_ref() == &Type::U8)
                         && i.result.is_some_and(|id| f.values.get(id.0 as usize) == Some(&Type::U8)))
+                || matches!(i.kind, InstructionKind::WriteAddress { address, value }
+                    if matches!(value_type(f, address)?, Type::Address { mutable: true, inner } if inner.as_ref() == &Type::U8)
+                        && value_type(f, value)? == &Type::U8)
                 || matches!(i.kind, InstructionKind::Store { local, .. }
-                    if matches!(&f.locals[local.0 as usize].ty, Type::Address { mutable: false, inner }
-                        if inner.as_ref() == &Type::U8 || matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8)));
+                    if matches!(&f.locals[local.0 as usize].ty, Type::Address { inner, .. }
+                        if inner.as_ref() == &Type::U8 || matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8)))
+                || direct_call;
             if !allowed {
                 return Err(closed(i.span));
             }

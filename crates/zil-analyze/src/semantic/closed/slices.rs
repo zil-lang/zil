@@ -51,7 +51,8 @@ impl Check<'_, '_> {
                 self.receiver_local(function, address, b, 0)? == local
             }
             original::slices::LengthReceiver::Expression(node) => {
-                self.original_subject_value(instance, function, node, b)? == Some(address)
+                let source = self.original_subject_value(instance, function, node, b)?;
+                self.slice_length_operand(function, address, source, b)?
             }
         };
         if !same_source {
@@ -66,5 +67,46 @@ impl Check<'_, '_> {
             ));
         }
         self.result(instruction, function, &Type::I64)
+    }
+
+    fn slice_length_operand(
+        &self,
+        function: &TypedFunction,
+        mut operand: ValueId,
+        source: Option<ValueId>,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        let Some(source) = source else {
+            return Ok(false);
+        };
+        for _ in 0..=b.partial_depth {
+            b.spend(1, WORK)?;
+            if operand == source {
+                return Ok(true);
+            }
+            let (block, index, instruction) = self.defining(function, operand, b)?;
+            let InstructionKind::ReborrowAddress { address, mutable } = instruction.kind else {
+                return Ok(false);
+            };
+            operations::available_before(
+                function,
+                (block, index, SemanticSiteEdge::Before),
+                address,
+                b,
+            )?;
+            let Some(Type::Address { mutable: parent, inner: from }) = function.values.get(address.0 as usize) else {
+                return Ok(false);
+            };
+            let Some(Type::Address { mutable: output, inner: to }) = function.values.get(operand.0 as usize) else {
+                return Ok(false);
+            };
+            if mutable != *output || (mutable && !*parent)
+                || !super::super::geometry::same_type(from, to, b)?
+            {
+                return Ok(false);
+            }
+            operand = address;
+        }
+        Err(unknown("slice length exceeds its finite reborrow chain"))
     }
 }
