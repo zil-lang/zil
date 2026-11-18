@@ -306,3 +306,232 @@ fn independent_verify_still_rejects_environment_entry_as_function_ref() {
     assert_eq!(errors[0].phase, Phase::Verify);
     assert!(errors[0].code.starts_with("E-VERIFY-"), "{errors:?}");
 }
+
+#[test]
+fn named_and_literal_function_addresses_keep_their_original_identity_on_raw_and_wire() {
+    use zil_ir::*;
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let unit = source(
+        "fn other(x:i32)->i32=>x-1 fn main()->i32{let n=7;let named:fn(i32)->i32=other;let literal:fn(i32)->i32=x=>x+1;return literal(named(n))}",
+    );
+    let ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let context = zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+        root: unit.module_id,
+        aliases: &std::collections::BTreeMap::new(),
+        declarations: zil_expand::source_context::DeclarationPlacement::Original,
+    };
+    let core = zil_expand::expand_program_with_semantics(
+        &[unit],
+        &[&ast],
+        &[Vec::new()],
+        &limits,
+        &target,
+        context,
+    )
+    .unwrap()
+    .remove(0)
+    .0
+    .core;
+    let raw = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+    let program = raw.semantic.as_ref().unwrap();
+    let child = program
+        .instances
+        .iter()
+        .find(|i| {
+            program
+                .definitions
+                .iter()
+                .any(|d| d.id == i.definition && d.kind == SemanticDefinitionKind::Closure)
+        })
+        .unwrap();
+    let parent = program
+        .instances
+        .iter()
+        .find(|i| Some(i.id) == child.parent)
+        .unwrap();
+    let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(owner)) = parent.target
+    else {
+        panic!()
+    };
+    let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(literal)) = child.target
+    else {
+        panic!()
+    };
+    let site = program.sites.iter().position(|s| {
+        s.instance == parent.id && program.definitions.iter().find(|d| d.id == parent.definition).is_some_and(|d| {
+            matches!(&d.body, SemanticDefinitionBody::FunctionWithBody { sites, .. } if sites.iter().any(|r| r.id == s.recipe && matches!(r.kind, SemanticSiteRecipeKind::Closure { definition, .. } if definition == child.definition)))
+        })
+    }).unwrap();
+    let uses = &program.sites[site];
+    let SemanticSiteAddress::Typed {
+        block,
+        instruction,
+        edge: SemanticSiteEdge::Before,
+    } = uses.at
+    else {
+        panic!()
+    };
+    let refs = &raw.functions[owner.0 as usize].blocks[block.0 as usize].instructions;
+    assert!(
+        matches!(refs[instruction as usize-1].kind, InstructionKind::FunctionRef{function} if function == literal)
+    );
+    let (named_at, named, named_value) = refs
+        .iter()
+        .enumerate()
+        .find_map(|(i, op)| match op.kind {
+            InstructionKind::FunctionRef { function } if function != literal => {
+                Some((i, function, op.result.unwrap()))
+            }
+            _ => None,
+        })
+        .unwrap();
+
+    fn introduce_capture(body: &mut SemanticOriginalBlock) {
+        let CoreStatementKind::Return(Some(value)) = &mut body.statements[0].kind else {
+            panic!()
+        };
+        let CoreExprKind::Binary { left, .. } = &mut value.kind else {
+            panic!()
+        };
+        assert!(matches!(&left.kind, CoreExprKind::Name(name) if name == "x"));
+        left.kind = CoreExprKind::Name("n".into());
+    }
+    for mutation in [
+        "wrong child",
+        "wrong named target",
+        "SSA",
+        "position",
+        "node",
+        "claim",
+        "parent",
+        "capture",
+    ] {
+        let mut changed = raw.clone();
+        let encoded = changed.semantic.as_mut().unwrap();
+        let ops = &mut changed.functions[owner.0 as usize].blocks[block.0 as usize].instructions;
+        match mutation {
+            "wrong child" => {
+                ops[instruction as usize - 1].kind =
+                    InstructionKind::FunctionRef { function: named }
+            }
+            "wrong named target" => {
+                ops[named_at].kind = InstructionKind::FunctionRef { function: literal }
+            }
+            "SSA" => {
+                let SemanticSiteAction::TypeUse { subject, .. } = &mut encoded.sites[site].action
+                else {
+                    panic!()
+                };
+                *subject = SemanticOperand::Value(named_value);
+            }
+            "position" => {
+                let SemanticSiteAddress::Typed { instruction, .. } = &mut encoded.sites[site].at
+                else {
+                    panic!()
+                };
+                *instruction -= 1;
+            }
+            "node" => {
+                let owner = encoded
+                    .definitions
+                    .iter_mut()
+                    .find(|d| d.id == parent.definition)
+                    .unwrap();
+                let SemanticDefinitionBody::FunctionWithBody {
+                    site_nodes,
+                    body: SemanticOriginalFunctionBody::Defined(body),
+                    ..
+                } = &mut owner.body
+                else {
+                    panic!()
+                };
+                let CoreStatementKind::Binding {
+                    initializer: Some(named),
+                    ..
+                } = &body.statements[1].kind
+                else {
+                    panic!()
+                };
+                let link = site_nodes
+                    .iter_mut()
+                    .find(|r| r.site == uses.recipe)
+                    .unwrap();
+                link.node = SemanticOriginalNode::Expression(named.id);
+            }
+            "claim" => {
+                let SemanticSiteAction::TypeUse {
+                    expected: SemanticTypeValue::Resolved { ty, .. },
+                    ..
+                } = &mut encoded.sites[site].action
+                else {
+                    panic!()
+                };
+                *ty = Type::FunctionPointer {
+                    parameters: vec![Type::Bool],
+                    result: Box::new(Type::I32),
+                };
+            }
+            "parent" => {
+                encoded
+                    .instances
+                    .iter_mut()
+                    .find(|i| i.id == child.id)
+                    .unwrap()
+                    .parent = None
+            }
+            "capture" => {
+                // Change both original copies so structural source correspondence still succeeds.
+                for definition in &mut encoded.definitions {
+                    let SemanticDefinitionBody::FunctionWithBody {
+                        body: SemanticOriginalFunctionBody::Defined(body),
+                        ..
+                    } = &mut definition.body
+                    else {
+                        continue;
+                    };
+                    if definition.id == child.definition {
+                        introduce_capture(body);
+                    }
+                    if definition.id == parent.definition {
+                        let literal = body
+                            .statements
+                            .iter_mut()
+                            .find_map(|s| match &mut s.kind {
+                                CoreStatementKind::Binding {
+                                    initializer: Some(expr),
+                                    ..
+                                } => match &mut expr.kind {
+                                    CoreExprKind::Closure { body, .. } => Some(body),
+                                    _ => None,
+                                },
+                                _ => None,
+                            })
+                            .unwrap();
+                        introduce_capture(literal);
+                    }
+                }
+            }
+            _ => unreachable!(),
+        }
+        let mut claims = plan.clone();
+        claims.module_fingerprint = changed.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&changed, &claims, &limits).unwrap();
+        for errors in [
+            zil_verify::verify_module(changed, claims, &target, &limits).unwrap_err(),
+            zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err(),
+        ] {
+            assert!(
+                errors.iter().any(|e| e.phase == Phase::Verify
+                    && e.category == ResultCategory::SafeReject
+                    && e.code == "E-VERIFY-SEMANTIC"),
+                "{mutation}: {errors:?}"
+            );
+        }
+    }
+}
