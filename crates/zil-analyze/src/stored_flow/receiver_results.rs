@@ -71,7 +71,8 @@ pub(super) fn invoke(
         _ => return Err(failure("returned view invocation has no actual receiver")),
     };
     let mut out = Value::default();
-    let summary = summaries.get(d.function.0 as usize)
+    let summary = summaries
+        .get(d.function.0 as usize)
         .ok_or_else(|| failure("returned address has no actual entry summary"))?;
     if let Some(sources) = summary.returned.get(&Vec::new()) {
         for source in sources {
@@ -80,8 +81,10 @@ pub(super) fn invoke(
                     .captures
                     .get(index as usize)
                     .ok_or_else(|| failure("returned view capture is absent"))?;
-                if source.stored.is_empty() && (inline_capture_data(ty, b)?
-                    || super::super::stored_callables::byte_capture_head(ty)) {
+                if source.stored.is_empty()
+                    && (inline_capture_data(ty, b)?
+                        || super::super::stored_callables::byte_capture_head(ty))
+                {
                     let mut actual = copy_permission(&head, b)?;
                     let mut targets = Targets::new();
                     for root in &actual.targets {
@@ -101,9 +104,11 @@ pub(super) fn invoke(
                 } else {
                     let key = environment_path(index as usize, &source.stored, b)?;
                     let mut actual = Permission::default();
-                    if let Some(leaf) = environment.get(&key) {
-                        union(&mut actual, leaf, b)?;
-                    }
+                    union(
+                        &mut actual,
+                        &environment_memory::select_rows_current(&environment, state, &key, b)?,
+                        b,
+                    )?;
                     let mut targets = Targets::new();
                     for root in &actual.targets {
                         fee(b, target_width(root).saturating_add(source.place.len()))?;
@@ -122,8 +127,13 @@ pub(super) fn invoke(
                 // Input-bounded results retain the complete actual argument
                 // permission. Public opaque source categories travel beside
                 // that permission and grant no target or loan of their own.
-                let category = dyn_address::upper_substitute(&Targets::from([source.clone()]),
-                    arguments, values, state, b)?;
+                let category = dyn_address::upper_substitute(
+                    &Targets::from([source.clone()]),
+                    arguments,
+                    values,
+                    state,
+                    b,
+                )?;
                 dyn_address::upper_union(&mut out.source_upper, &category, b)?;
                 substitute(source, arguments, values, state, b)?
             };
@@ -131,11 +141,21 @@ pub(super) fn invoke(
         }
     }
     if super::super::stored_callables::invocation_result(d) {
-        let upper = dyn_address::upper_substitute(&summary.returned_source_upper, arguments, values, state, b)?;
+        let upper = dyn_address::upper_substitute(
+            &summary.returned_source_upper,
+            arguments,
+            values,
+            state,
+            b,
+        )?;
         dyn_address::upper_union(&mut out.source_upper, &upper, b)?;
     }
     if needs_head {
-        if head.targets.is_empty() { return Err(failure("Receiver short view has no actual current callee parent")); }
+        if head.targets.is_empty() {
+            return Err(failure(
+                "Receiver short view has no actual current callee parent",
+            ));
+        }
         let retained = retain_slot(&head, i, u32::MAX - 2, &Vec::new(), ids, loans, b)?;
         for id in &retained.loans {
             loans[*id].receiver_head = true;
@@ -148,7 +168,11 @@ pub(super) fn invoke(
         let pending = b.semantic_receiver_views.len();
         ordered(b, pending, 0)?;
         if b.semantic_receiver_views.contains_key(&key) {
-            if !needs_head { return Err(failure("original Receiver view omitted its actual parent retention")); }
+            if !needs_head {
+                return Err(failure(
+                    "original Receiver view omitted its actual parent retention",
+                ));
+            }
             let completed = b.semantic_receiver_view_proofs.len();
             ordered(b, completed, 0)?;
             b.semantic_receiver_view_proofs.insert(key);

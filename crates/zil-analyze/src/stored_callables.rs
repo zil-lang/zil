@@ -77,19 +77,31 @@ pub(super) fn life_result(d: &ClosureDefinition) -> &Type {
 pub(super) fn receiver_access_head(d: &ClosureDefinition) -> bool {
     matches!(d.kind, CallableKind::Fn | CallableKind::FnMut)
         && d.storage_life.as_ref().is_some_and(|life| {
-            matches!(super::signature_life::outer(life, StorageBase::Receiver),
-                Some(StorageBinder::Invocation(_)))
+            matches!(
+                super::signature_life::outer(life, StorageBase::Receiver),
+                Some(StorageBinder::Invocation(_))
+            )
         })
 }
 
 pub(super) fn receiver_view(
-    function: &TypedFunction, instruction: &Instruction, d: &ClosureDefinition,
+    function: &TypedFunction,
+    instruction: &Instruction,
+    d: &ClosureDefinition,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    if result_is_receiver(d) { return Ok(true); }
-    let Some(result) = instruction.result else { return Ok(false); };
-    b.lookup(b.semantic_receiver_views.len(), "exact original callable receiver view")?;
-    Ok(b.semantic_receiver_views.contains_key(&(function.id, result, d.id)))
+    if result_is_receiver(d) {
+        return Ok(true);
+    }
+    let Some(result) = instruction.result else {
+        return Ok(false);
+    };
+    b.lookup(
+        b.semantic_receiver_views.len(),
+        "exact original callable receiver view",
+    )?;
+    Ok(b.semantic_receiver_views
+        .contains_key(&(function.id, result, d.id)))
 }
 
 pub(super) fn result_is_receiver(d: &ClosureDefinition) -> bool {
@@ -266,11 +278,21 @@ pub(super) fn capture(t: &Type) -> bool {
             if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_)) && life.retained.is_empty()))
 }
 /// Reborrow the head on every read, preserving its nominal pointee classes.
+pub(super) fn mutable_context_pointee(t: &Type) -> bool {
+    matches!(
+        t,
+        Type::BorrowedStorage { .. }
+            | Type::Record { .. }
+            | Type::Package { .. }
+            | Type::Tuple(_)
+            | Type::Array { .. }
+            | Type::Enum { .. }
+            | Type::ErrorUnion { .. }
+            | Type::Closure(_)
+    )
+}
 pub(super) fn mutable_context_capture(t: &Type) -> bool {
-    matches!(t, Type::Address { mutable: true, inner }
-        if matches!(inner.as_ref(), Type::BorrowedStorage { storage, life }
-            if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
-                && life.retained.is_empty()))
+    matches!(t,Type::Address {mutable:true,inner} if mutable_context_pointee(inner))
 }
 pub(super) fn exclusive_capture(t: &Type) -> bool {
     mutable_context_capture(t)
@@ -342,7 +364,10 @@ pub(super) fn semantic_owned_capture(
         ));
     }
     if let Type::Closure(child) = ty {
-        b.lookup(b.semantic_closures_proven.len(), "completed nested owner environment")?;
+        b.lookup(
+            b.semantic_closures_proven.len(),
+            "completed nested owner environment",
+        )?;
         if !b.semantic_closures_proven.contains(child) || !finite(module, *child) {
             return Ok(false);
         }
@@ -370,21 +395,34 @@ pub(super) fn semantic_copy_capture(
     if !b.semantic_closures_proven.contains(&closure.id) {
         return Ok(false);
     }
-    if matches!(ty, Type::Record { .. } | Type::Array { .. } | Type::Tuple(_) | Type::Enum { .. })
-        && super::stored_flow::inline_capture_data(ty, b)? {
-        if closure.storage_life.is_none() || !module.closures.get(closure.id.0 as usize)
-            .is_some_and(|actual| std::ptr::eq(actual, closure)) {
-            return Err(bad("completed inline capture changes its exact actual environment"));
+    if matches!(
+        ty,
+        Type::Record { .. } | Type::Array { .. } | Type::Tuple(_) | Type::Enum { .. }
+    ) && super::stored_flow::inline_capture_data(ty, b)?
+    {
+        if closure.storage_life.is_none()
+            || !module
+                .closures
+                .get(closure.id.0 as usize)
+                .is_some_and(|actual| std::ptr::eq(actual, closure))
+        {
+            return Err(bad(
+                "completed inline capture changes its exact actual environment",
+            ));
         }
         b.owning_environment_captures = true;
         return Ok(true);
     }
     if matches!(ty, Type::Tuple(_)) && super::stored_flow::shared_compound(module, ty, b)? {
         if closure.storage_life.is_none()
-            || !module.closures.get(closure.id.0 as usize)
+            || !module
+                .closures
+                .get(closure.id.0 as usize)
                 .is_some_and(|actual| std::ptr::eq(actual, closure))
         {
-            return Err(bad("completed shared compound capture has another actual environment"));
+            return Err(bad(
+                "completed shared compound capture has another actual environment",
+            ));
         }
         // Physical shared leaves still carry their actual permissions. The
         // completed original/creator/Static-field proof is mandatory; this
@@ -771,8 +809,11 @@ pub(super) fn types(
         // Constant results use the existing actual Static-source/parent proof;
         // they do not borrow the receiver being consumed by this operation.
         } else if !matches!(d.kind, CallableKind::Fn | CallableKind::FnMut)
-            || !(scalar(&d.result) || super::tasks::is_close_poll(&d.result)
-                || fixed_result(d) || invocation_result(d) || constant_result(d))
+            || !(scalar(&d.result)
+                || super::tasks::is_close_poll(&d.result)
+                || fixed_result(d)
+                || invocation_result(d)
+                || constant_result(d))
             || !d.lending_captures.is_empty() && !fixed_result(d)
         {
             return Err(vec![Diagnostic::unsupported(

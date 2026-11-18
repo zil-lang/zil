@@ -58,7 +58,10 @@ fn loan_only_projection_matches_original_full_scan_and_dynamic_frame_obligations
     );
     state.external.insert(
         HoldRoot::Parameter(0),
-        BTreeMap::from([(vec![], permission(9))]),
+        Value {
+            slots: BTreeMap::from([(vec![], permission(9))]),
+            ..Value::default()
+        },
     );
     let before = (values.clone(), state.clone());
     let mut loans = vec![Loan::default(); 10];
@@ -208,7 +211,7 @@ fn empty_projection_fixture(mode: usize, count: usize) -> (Vec<Value>, State, Ve
             for id in 0..count {
                 state
                     .external
-                    .insert(HoldRoot::Local(LocalId(id as u32)), BTreeMap::new());
+                    .insert(HoldRoot::Local(LocalId(id as u32)), Value::default());
             }
         }
         4 => {
@@ -225,7 +228,13 @@ fn empty_projection_fixture(mode: usize, count: usize) -> (Vec<Value>, State, Ve
                     )
                 })
                 .collect();
-            state.external.insert(HoldRoot::Parameter(0), rows);
+            state.external.insert(
+                HoldRoot::Parameter(0),
+                Value {
+                    slots: rows,
+                    ..Value::default()
+                },
+            );
         }
         _ => unreachable!(),
     }

@@ -52,7 +52,7 @@ fn old_full_scan(
         // An empty inner map still consumes its actual outer frame visit.
         fee(b, state.external.len())?;
         for slots in state.external.values() {
-            for leaf in slots.values() {
+            for leaf in pointee_memory::permissions(slots) {
                 active_loans_union(&mut direct, leaf, b)?;
             }
         }
@@ -117,7 +117,10 @@ fn fixture(ssa: usize, locals: usize, generation: usize) -> (Vec<Value>, State, 
     );
     state.external.insert(
         HoldRoot::Parameter(0),
-        BTreeMap::from([(vec![], permission(&[12]))]),
+        Value {
+            slots: BTreeMap::from([(vec![], permission(&[12]))]),
+            ..Value::default()
+        },
     );
     let mut loans = vec![Loan::default(); 13];
     loans[1]

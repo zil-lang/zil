@@ -15,29 +15,13 @@ pub(super) fn check(
         ));
     }
     for root in &address.targets {
-        if !root.stored.is_empty() {
-            return Err(failure(
-                "whole shared Array snapshot crosses a stored target boundary",
-            ));
-        }
-        let slots = match root.base {
-            HoldRoot::Static => return Err(failure("static text cannot supply an Array snapshot")),
-            HoldRoot::Local(local) => {
-                ordered(b, state.locals.len(), 0)?;
-                &state
-                    .locals
-                    .get(&local)
-                    .ok_or_else(|| failure("Array snapshot actual carrier is absent"))?
-                    .slots
-            }
-            HoldRoot::Parameter(_) | HoldRoot::Capture(_) => {
-                ordered(b, state.external.len(), 0)?;
-                state
-                    .external
-                    .get(&root.base)
-                    .ok_or_else(|| failure("Array snapshot external carrier is absent"))?
-            }
+        fee(b, target_width(root).saturating_add(1))?;
+        let address = Permission {
+            targets: Targets::from([root.clone()]),
+            loans: Loans::new(),
         };
+        let current = pointee_memory::read(state, &address, None, true, b)?;
+        let slots = &current.slots;
         fee(b, length as usize)?;
         for index in 0..length {
             // Copy the complete actual root and append only the checked Array
@@ -51,9 +35,9 @@ pub(super) fn check(
                     return Err(failure("whole shared Array snapshot reads a vacant slot"));
                 }
             }
-            ordered(b, slots.len(), position.place.len())?;
+            ordered(b, slots.len(), 1)?;
             if slots
-                .get(&position.place)
+                .get(&vec![PlaceProjection::Field(index)])
                 .is_none_or(|leaf| leaf.targets.is_empty())
             {
                 return Err(failure(

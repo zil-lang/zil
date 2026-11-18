@@ -23,8 +23,8 @@ mod function_values;
 mod local_reference_roles;
 mod mutex;
 mod nominal_fields;
-mod operations;
 mod operation_transport;
+mod operations;
 mod parameter_classes;
 mod pattern_places;
 mod persistent_slots;
@@ -44,8 +44,12 @@ pub(super) use traits::{original_associated, original_self};
 
 // Retained literal equations consume the same actual SSA availability proof;
 // exposing this narrow check creates no original/source or access authority.
-pub(super) fn source_value_available(function: &TypedFunction, at: (BlockId, usize),
-    value: ValueId, b: &mut Budget) -> CompileResult<()> {
+pub(super) fn source_value_available(
+    function: &TypedFunction,
+    at: (BlockId, usize),
+    value: ValueId,
+    b: &mut Budget,
+) -> CompileResult<()> {
     operations::available_before(function, (at.0, at.1, SemanticSiteEdge::Before), value, b)
 }
 
@@ -68,7 +72,7 @@ struct Check<'a, 'i> {
     inventory: &'i Inventory<'a>,
     original: &'i original::Checked,
     scope_queries: std::cell::RefCell<BTreeSet<ClosureId>>,
-    capture_directories: std::cell::RefCell<BTreeMap<ClosureId,capture_heads::CaptureDirectory>>,
+    capture_directories: std::cell::RefCell<BTreeMap<ClosureId, capture_heads::CaptureDirectory>>,
     value_queries: std::cell::RefCell<BTreeSet<(SemanticInstanceId, ValueId)>>,
     slot_queries: std::cell::RefCell<
         BTreeMap<(SemanticInstanceId, FunctionId, LocalId), Option<value::Value>>,
@@ -1110,9 +1114,9 @@ pub(super) fn check(
     checker.dyn_tables(b)?;
     inventory.profile_stage("instances", b);
     checker.instances(b)?;
-    inventory.profile_stage("complete captured directories",b);
+    inventory.profile_stage("complete captured directories", b);
     for closure in &module.closures {
-        checker.capture_directory(closure.id,b)?;
+        checker.capture_directory(closure.id, b)?;
     }
     inventory.profile_stage("sites", b);
     checker.sites(b)?;
@@ -1228,6 +1232,13 @@ pub(super) fn check(
         for local in checker.reference_local_regions(function, b)? {
             b.lookup(b.semantic_reference_locals.len(), WORK)?;
             b.semantic_reference_locals.insert((function.id, local));
+        }
+    }
+    let environment_binders = checker.environment_parameter_binders(b)?;
+    for (key, binder) in environment_binders {
+        b.lookup(b.semantic_environment_binders.len(), WORK)?;
+        if b.semantic_environment_binders.insert(key, binder).is_some() {
+            return Err(fail("completed environment binder occurrence is repeated"));
         }
     }
     // Actual operation/SSA/cleanup checks still run in the ordinary kernels.

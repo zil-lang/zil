@@ -21,14 +21,10 @@ pub(super) fn has_context(
             if super::super::stored_callables::mutable_context_capture(ty) {
                 return Ok(true);
             }
-            if let Type::Closure(id) = ty {
-                pending.push((
-                    module
-                        .closures
-                        .get(id.0 as usize)
-                        .ok_or_else(|| failure("captured holder inventory child absent"))?,
-                    depth + 1,
-                ));
+            if !matches!(ty, Type::Address { .. }) {
+                for (id, _) in environment_roots(ty, b)? {
+                    pending.push((&module.closures[id.0 as usize], depth + 1));
+                }
             }
         }
     }
@@ -65,13 +61,11 @@ pub(super) fn required(
                 {
                     return Ok(true);
                 }
-                Type::Closure(id) => pending.push((
-                    module
-                        .closures
-                        .get(id.0 as usize)
-                        .ok_or_else(|| failure("mutable child schedule definition absent"))?,
-                    depth + 1,
-                )),
+                ty if !matches!(ty, Type::Address { .. }) => {
+                    for (id, _) in environment_roots(ty, b)? {
+                        pending.push((&module.closures[id.0 as usize], depth + 1));
+                    }
+                }
                 _ => {}
             }
         }
@@ -104,89 +98,70 @@ pub(super) fn leaves(
     d: &ClosureDefinition,
     b: &mut Budget,
 ) -> CompileResult<Vec<(Path, bool)>> {
-    let mut out = Vec::new();
-    let mut pending = vec![(d, Vec::new(), 0usize)];
-    while let Some((d, prefix, depth)) = pending.pop() {
-        if depth > b.partial_depth {
-            return Err(failure("mutable environment shape exceeds finite depth"));
-        }
-        fee(b, d.captures.len().saturating_add(prefix.len()))?;
-        for (index, ty) in d.captures.iter().enumerate() {
-            let mut path = prefix.clone();
-            fee(b, path.len().saturating_add(1))?;
-            path.push(PlaceProjection::Field(index as u32));
-            match ty {
-                Type::Address { mutable, .. } => {
-                    out.push((path.clone(), *mutable));
-                    if let Some((_, shape)) = pointed_carrier(ty) {
-                        for slot in &shape.slots {
-                            let mut nested = path.clone();
-                            fee(b, nested.len().saturating_add(slot.path.len()))?;
-                            nested.extend(&slot.path);
-                            out.push((nested, slot.mode == StoredBorrowMode::ExclusiveAddress));
-                        }
-                    }
-                }
-                Type::BorrowedStorage { life, .. } => {
-                    for slot in &life.slots {
-                        let mut nested = path.clone();
-                        fee(b, nested.len().saturating_add(slot.path.len()))?;
-                        nested.extend(&slot.path);
-                        out.push((nested, slot.mode == StoredBorrowMode::ExclusiveAddress));
-                    }
-                }
-                Type::Closure(id) => pending.push((
-                    module
-                        .closures
-                        .get(id.0 as usize)
-                        .ok_or_else(|| failure("mutable child definition absent"))?,
-                    path,
-                    depth + 1,
-                )),
-                _ => {}
-            }
-        }
-    }
-    Ok(out)
+    effect_leaves(module, d, false, b)
 }
-
-/// A consumed frame publishes the original pointee cells, not a replacement
-/// environment. Captures genuinely taken out need not be refilled.
+/// A retired inline frame publishes external cells, while an F stored behind
+/// a captured address is a persistent external frame and publishes its heads.
 pub(super) fn outputs(
     module: &TypedModule,
     d: &ClosureDefinition,
     b: &mut Budget,
 ) -> CompileResult<Vec<(Path, bool)>> {
-    if d.kind != CallableKind::FnOnce {
-        return leaves(module, d, b);
-    }
+    effect_leaves(module, d, d.kind == CallableKind::FnOnce, b)
+}
+fn effect_leaves(
+    module: &TypedModule,
+    d: &ClosureDefinition,
+    retired: bool,
+    b: &mut Budget,
+) -> CompileResult<Vec<(Path, bool)>> {
     let mut out = Vec::new();
-    let mut pending = vec![(d, Vec::new(), 0usize)];
-    while let Some((d, prefix, depth)) = pending.pop() {
-        fee(b, d.captures.len().saturating_add(prefix.len()))?;
+    let mut pending = vec![(d, Vec::new(), retired, 0usize)];
+    while let Some((d, prefix, retired, depth)) = pending.pop() {
         if depth > b.partial_depth {
-            return Err(failure("consuming context output exceeds finite depth"));
+            return Err(vec![Diagnostic::limit(
+                Phase::Analyze,
+                "environment output inventory exceeds finite typed depth",
+                None,
+            )]);
         }
         for (index, ty) in d.captures.iter().enumerate() {
-            let mut path = prefix.clone();
-            path.push(PlaceProjection::Field(index as u32));
-            if super::super::stored_callables::mutable_context_capture(ty) {
-                let (_, shape) = pointed_carrier(ty).unwrap();
-                for slot in &shape.slots {
-                    fee(b, path.len().saturating_add(slot.path.len()))?;
-                    let mut full = path.clone();
-                    full.extend(&slot.path);
-                    out.push((full, slot.mode == StoredBorrowMode::ExclusiveAddress));
+            fee(b, prefix.len().saturating_add(1))?;
+            let mut head = prefix.clone();
+            head.push(PlaceProjection::Field(index as u32));
+            if let Type::Address { mutable, inner } = ty {
+                if !retired {
+                    out.push((head.clone(), *mutable));
                 }
-            } else if let Type::Closure(id) = ty {
-                pending.push((
-                    module
-                        .closures
-                        .get(id.0 as usize)
-                        .ok_or_else(|| failure("consuming context child absent"))?,
-                    path,
-                    depth + 1,
-                ));
+                if pointee_memory::context(inner) && (!retired || *mutable) {
+                    for (tail, mode) in pointee_memory::rows(inner, b)? {
+                        fee(b, head.len().saturating_add(tail.len()))?;
+                        let mut path = head.clone();
+                        path.extend(tail);
+                        out.push((path, mode == StoredBorrowMode::ExclusiveAddress));
+                    }
+                    for (child, relative) in environment_roots(inner, b)? {
+                        fee(b, head.len().saturating_add(relative.len()))?;
+                        let mut path = head.clone();
+                        path.extend(relative);
+                        pending.push((&module.closures[child.0 as usize], path, false, depth + 1));
+                    }
+                }
+            } else {
+                if !retired {
+                    for (tail, mode) in pointee_memory::rows(ty, b)? {
+                        fee(b, head.len().saturating_add(tail.len()))?;
+                        let mut path = head.clone();
+                        path.extend(tail);
+                        out.push((path, mode == StoredBorrowMode::ExclusiveAddress));
+                    }
+                }
+                for (child, relative) in environment_roots(ty, b)? {
+                    fee(b, head.len().saturating_add(relative.len()))?;
+                    let mut path = head.clone();
+                    path.extend(relative);
+                    pending.push((&module.closures[child.0 as usize], path, retired, depth + 1));
+                }
             }
         }
     }
@@ -211,10 +186,17 @@ pub(super) fn summarize(
     for (index, ty) in definition.captures.iter().enumerate() {
         let index = index as u32;
         let value = state.captures.get(&index);
-        let mut add = |tail: &Path, permission: &Permission| -> CompileResult<()> {
+        let mut auxiliary = None;
+        let mut referent = None;
+        let mut add = |tail: &Path, permission: &Permission, b: &mut Budget| -> CompileResult<()> {
             let path = environment_path(index as usize, tail, b)?;
-            ordered(b, actual.capture_after.len(), path.len())?;
-            let row = actual.capture_after.entry(path).or_default();
+            ordered(b, actual.capture_after.environment.len(), path.len())?;
+            let row = &mut actual
+                .capture_after
+                .environment
+                .entry(path)
+                .or_default()
+                .targets;
             for target in &permission.targets {
                 fee(
                     b,
@@ -245,7 +227,7 @@ pub(super) fn summarize(
                     }
                 }
                 if !row.contains(target) {
-                    row.push(target.clone());
+                    row.insert(target.clone());
                 }
             }
             Ok(())
@@ -253,27 +235,81 @@ pub(super) fn summarize(
         if let Some(value) = value
             && !value.pointer.targets.is_empty()
         {
-            add(&Vec::new(), &value.pointer)?;
+            add(&Vec::new(), &value.pointer, b)?;
         }
         if super::super::stored_callables::mutable_context_capture(ty) {
             let slots = state
                 .external
                 .get(&HoldRoot::Capture(index))
                 .ok_or_else(|| failure("terminal captured holder has no actual slot memory"))?;
-            for (path, p) in slots {
-                add(path, p)?;
+            // The pointer field and its current referent have separate roots.
+            // Only the real saved-head path keys this complete effect Value.
+            referent = Some(pointee_memory::summary(slots, b)?);
+            if let Some(value) = value {
+                auxiliary = Some(pointee_memory::summary(value, b)?);
             }
         } else if let Some(value) = value {
+            let value = state
+                .external
+                .get(&HoldRoot::Capture(index))
+                .filter(|_| !value.saved_heads.is_empty())
+                .unwrap_or(value);
             for (path, p) in value.slots.iter().chain(&value.environment) {
-                add(path, p)?;
+                add(path, p, b)?;
             }
+            auxiliary = Some(pointee_memory::summary(value, b)?);
         } else if matches!(ty, Type::Closure(_))
             && definition.kind == CallableKind::FnOnce
             && let Some(rows) = state.external.get(&HoldRoot::Capture(index))
         {
-            for (path, p) in rows {
-                add(path, p)?;
+            for (path, p) in &rows.environment {
+                add(path, p, b)?;
             }
+            auxiliary = Some(pointee_memory::summary(rows, b)?);
+        }
+        drop(add);
+        if let Some(payload) = referent {
+            for source in pointee_memory::source_targets(&payload) {
+                fee(b, target_width(source).saturating_add(1))?;
+                if !matches!(
+                    source.base,
+                    HoldRoot::Capture(_) | HoldRoot::Parameter(_) | HoldRoot::Static
+                ) {
+                    return Err(failure(
+                        "captured referent retains activation-local storage",
+                    ));
+                }
+            }
+            let head = vec![PlaceProjection::Field(index)];
+            ordered(b, actual.capture_after.pointees.len(), head.len())?;
+            pointee_memory::add_pointee_effect(&mut actual.capture_after, head, payload, b)?;
+        }
+        if let Some(payload) = auxiliary {
+            for source in pointee_memory::source_targets(&payload) {
+                fee(b, target_width(source).saturating_add(1))?;
+                if !matches!(
+                    source.base,
+                    HoldRoot::Capture(_) | HoldRoot::Parameter(_) | HoldRoot::Static
+                ) {
+                    return Err(failure(
+                        "captured pointee summary retains an activation-local auxiliary source",
+                    ));
+                }
+            }
+            let prefix = [PlaceProjection::Field(index)];
+            pointee_memory::graft_capture_aux(
+                &mut actual.capture_after,
+                index,
+                &payload,
+                false,
+                b,
+            )?;
+            actual.capture_after.enum_variants.replace(
+                &prefix,
+                &payload.enum_variants,
+                false,
+                b,
+            )?;
         }
     }
     Ok(())
@@ -307,10 +343,17 @@ pub(super) fn row<'a>(
     }
     if super::super::stored_callables::mutable_context_capture(ty) {
         ordered(b, state.external.len(), tail.len())?;
-        return Ok(state
+        return state
             .external
             .get(&HoldRoot::Capture(*index))
-            .and_then(|rows| rows.get(tail)));
+            .map(|value| effect_row(value, tail, b))
+            .transpose()
+            .map(Option::flatten);
+    }
+    if matches!(ty, Type::Closure(_))
+        && let Some(current) = state.external.get(&HoldRoot::Capture(*index))
+    {
+        return effect_row(current, tail, b);
     }
     if let Some(value) = value {
         ordered(
@@ -324,10 +367,11 @@ pub(super) fn row<'a>(
             .or_else(|| value.environment.get(tail)));
     }
     ordered(b, state.external.len(), tail.len())?;
-    Ok(state
-        .external
-        .get(&HoldRoot::Capture(*index))
-        .and_then(|rows| rows.get(tail)))
+    if let Some(current) = state.external.get(&HoldRoot::Capture(*index)) {
+        effect_row(current, tail, b)
+    } else {
+        Ok(None)
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -356,7 +400,17 @@ pub(super) fn invoke(
                 .locals
                 .get(callee)
                 .ok_or_else(|| failure("mutable receiver actual environment absent"))?;
-            (Some((local_capture_base(state, *callee, b)?, Vec::new())), snapshot(receiver, b)?)
+            (
+                Some(Target {
+                    base: local_capture_base(state, *callee, b)?,
+                    stored: Vec::new(),
+                    place: Vec::new(),
+                    retained_port: None,
+                    heap_element: None,
+                    heap_parents: Vec::new(),
+                }),
+                snapshot(receiver, b)?,
+            )
         }
         InstructionKind::CallClosureBorrowed {
             callee,
@@ -370,20 +424,17 @@ pub(super) fn invoke(
                 .next()
                 .ok_or_else(|| failure("mutable borrowed receiver has no actual head"))?;
             if roots.next().is_some()
-                || !head.stored.is_empty()
-                || head.heap_element.is_some() || !head.heap_parents.is_empty()
+                || head.heap_element.is_some()
+                || !head.heap_parents.is_empty()
                 || head.retained_port.is_some()
             {
                 return Err(failure(
                     "mutable borrowed receiver requires one complete actual environment head",
                 ));
             }
-            let receiver = Value {
-                environment: environment_memory::at(state, head.base, &head.place, b)?,
-                ..Value::default()
-            };
-            fee(b, head.place.len())?;
-            (Some((head.base, head.place.clone())), receiver)
+            let receiver = current_receiver(actual, state, b)?;
+            fee(b, target_width(head))?;
+            (Some(head.clone()), receiver)
         }
         InstructionKind::CallClosureOnce { callee, .. } => {
             (None, snapshot(&values[callee.0 as usize], b)?)
@@ -391,44 +442,33 @@ pub(super) fn invoke(
         _ => return Ok(()),
     };
     let summary = &summaries[d.function.0 as usize];
+    if !summary.complete
+        && summary.capture_after.environment.is_empty()
+        && summary.capture_after.pointees.is_empty()
+    {
+        return Ok(());
+    }
+    let mut after = pointee_memory::transport(&summary.capture_after, b, |target, b| {
+        source(target, &receiver, arguments, values, state, b)
+    })?;
+    pointee_memory::substitute_variants(
+        &mut after,
+        &summary.capture_after,
+        arguments,
+        values,
+        state,
+        Some(&receiver),
+        b,
+    )?;
     let mut rows = BTreeMap::new();
     for (path, mutable) in outputs(module, d, b)? {
         let mut permission = Permission::default();
-        if let Some(sources) = summary.capture_after.get(&path) {
-            for source in sources {
-                let actual = if let HoldRoot::Capture(index) = source.base {
-                    let key = environment_path(index as usize, &source.stored, b)?;
-                    ordered(b, receiver.environment.len(), key.len())?;
-                    let mut p = Permission::default();
-                    if let Some(leaf) = receiver.environment.get(&key) {
-                        union(&mut p, leaf, b)?;
-                    }
-                    let mut targets = Targets::new();
-                    for target in &p.targets {
-                        fee(
-                            b,
-                            target_width(target)
-                                .saturating_add(source.place.len())
-                                .saturating_add(1),
-                        )?;
-                        let mut target = target.clone();
-                        if source.heap_element.is_some() {
-                            return Err(failure(
-                                "nested mutable environment heap source requires explicit element transport",
-                            ));
-                        }
-                        if let Some(heap) = &mut target.heap_element {
-                            heap.extend(&source.place);
-                        } else {
-                            target.place.extend(&source.place);
-                        }
-                        targets.insert(target);
-                    }
-                    p.targets = targets;
-                    p
-                } else {
-                    substitute(source, arguments, values, state, b)?
-                };
+        if !slot_active(&after, &path) {
+            continue;
+        }
+        if let Some(sources) = effect_row(&summary.capture_after, &path, b)? {
+            for source in &sources.targets {
+                let actual = self::source(source, &receiver, arguments, values, state, b)?;
                 union(&mut permission, &actual, b)?;
             }
         }
@@ -438,13 +478,15 @@ pub(super) fn invoke(
             ordered(b, summary.capture_stable.len(), path.len())?;
             if summary.capture_stable.contains(&path) {
                 ordered(b, receiver.environment.len(), path.len())?;
-                let previous = receiver
-                    .environment
-                    .get(&path)
-                    .ok_or_else(|| failure("stable capture effect omits actual previous row"))?;
-                permission_clone_work(previous, b)?;
+                let previous = environment_memory::select_rows_current(
+                    &receiver.environment,
+                    state,
+                    &path,
+                    b,
+                )?;
+                permission_clone_work(&previous, b)?;
                 permission_clone_work(&permission, b)?;
-                if *previous != permission {
+                if previous != permission {
                     return Err(failure(
                         "stable capture effect changed actual targets or loans",
                     ));
@@ -457,9 +499,21 @@ pub(super) fn invoke(
         rows.insert(path, permission);
         b.stored_exclusive_loans |= mutable;
     }
-    publish_contexts(module, d, state, &receiver.environment, &rows, b)?;
-    if let Some((base, path)) = location {
-        environment_memory::publish(state, base, &path, rows, b)?;
+    for (path, p) in rows {
+        set_effect_row(&mut after, &path, p, b)?;
+    }
+    pointee_memory::recompute_held(&mut after, b)?;
+    publish_contexts(module, d, state, &receiver.environment, &after, b)?;
+    if let Some(location) = location {
+        // Publish frame fields through the same complete Target resolver as
+        // all other current memory. Pointer-value metadata is never the cell.
+        after.pointees.clear();
+        after.saved_heads = pointee_memory::frame_heads(module, d, b)?;
+        let address = Permission {
+            targets: Targets::from([location]),
+            loans: Loans::new(),
+        };
+        pointee_memory::write(state, &address, &after, &Type::Closure(d.id), true, b)?;
     }
     Ok(())
 }
@@ -471,9 +525,20 @@ pub(super) fn publish_contexts(
     definition: &ClosureDefinition,
     state: &mut State,
     before: &BTreeMap<Path, Permission>,
-    after: &BTreeMap<Path, Permission>,
+    after: &Value,
     b: &mut Budget,
 ) -> CompileResult<()> {
+    let updates = prepare_contexts(module, definition, state, before, after, b)?;
+    pointee_memory::commit_updates(state, updates, b)
+}
+pub(super) fn prepare_contexts<'a>(
+    module: &'a TypedModule,
+    definition: &'a ClosureDefinition,
+    state: &State,
+    before: &BTreeMap<Path, Permission>,
+    after: &Value,
+    b: &mut Budget,
+) -> CompileResult<Vec<(Permission, Value, &'a Type)>> {
     let mut pending = vec![(definition, Vec::new(), 0usize)];
     let mut updates = Vec::new();
     while let Some((d, prefix, depth)) = pending.pop() {
@@ -485,88 +550,165 @@ pub(super) fn publish_contexts(
             let mut head = prefix.clone();
             fee(b, head.len().saturating_add(1))?;
             head.push(PlaceProjection::Field(index as u32));
-            if let Type::Closure(child) = ty {
-                pending.push((
-                    module
-                        .closures
-                        .get(child.0 as usize)
-                        .ok_or_else(|| failure("captured holder child definition absent"))?,
-                    head,
-                    depth + 1,
-                ));
-                continue;
+            let children = if let Type::Address { inner, .. } = ty {
+                environment_roots(inner, b)?
+            } else {
+                environment_roots(ty, b)?
+            };
+            for (child, relative) in children {
+                fee(b, head.len().saturating_add(relative.len()))?;
+                let mut path = head.clone();
+                path.extend(relative);
+                pending.push((&module.closures[child.0 as usize], path, depth + 1));
             }
             if !super::super::stored_callables::mutable_context_capture(ty) {
                 continue;
             }
-            let (_, shape) = pointed_carrier(ty)
-                .ok_or_else(|| failure("captured holder has no actual qualified pointee"))?;
-            // Empty predecessor/callee facts are bottom during iteration.
-            // The complete actual-environment inventory below derive_cfg
-            // requires every head and slot before any access window runs.
-            let Some(address) = before.get(&head) else {
-                continue;
+            let Type::Address { inner, .. } = ty else {
+                unreachable!()
             };
+            let address = environment_memory::select_rows_current(before, state, &head, b)?;
             if address.targets.is_empty() {
                 continue;
             }
-            let strong = address.targets.len() == 1;
-            for slot in &shape.slots {
-                let mut leaf = head.clone();
-                fee(b, leaf.len().saturating_add(slot.path.len()))?;
-                leaf.extend(&slot.path);
-                let replacement = after
-                    .get(&leaf)
-                    .ok_or_else(|| failure("captured holder publication omits a physical slot"))?;
-                for root in &address.targets {
-                    fee(b, target_width(root).saturating_add(slot.path.len()))?;
-                    if root.heap_element.is_some() || root.retained_port.is_some() {
-                        return Err(failure(
-                            "captured holder publication requires explicit opaque/heap context",
-                        ));
-                    }
-                    let environment = !root.stored.is_empty();
-                    let mut path = if environment {
-                        root.stored.clone()
-                    } else {
-                        Vec::new()
-                    };
-                    path.extend(&root.place);
-                    path.extend(&slot.path);
-                    updates.push((
-                        root.base,
-                        path,
-                        copy_permission(replacement, b)?,
-                        strong,
-                        environment,
-                    ));
+            let Some(value) = after.pointees.get(&head) else {
+                continue;
+            };
+            let value = snapshot(value, b)?;
+            let mut complete = true;
+            for (tail, _) in pointee_memory::rows(inner, b)? {
+                if !value.enum_variants.slot_active(&tail) {
+                    continue;
                 }
+                ordered(b, value.slots.len(), tail.len())?;
+                if value.slots.get(&tail).is_none_or(|p| p.targets.is_empty()) {
+                    complete = false;
+                }
+            }
+            if complete {
+                updates.push((address, value, inner.as_ref()));
             }
         }
     }
-    // All sources are staged before changing a destination (including swaps).
-    for (base, path, replacement, strong, environment) in updates {
-        if environment {
-            let mut rows = copy_permission_rows(environment_memory::rows(state, base, b)?, b)?;
-            let previous = rows.get_mut(&path).ok_or_else(|| {
-                failure("captured holder update has no authenticated context slot")
-            })?;
-            if strong {
-                *previous = replacement;
-            } else {
-                union(previous, &replacement, b)?;
+    Ok(updates)
+}
+
+type CheckedCells = BTreeSet<(Target, usize)>;
+pub(super) fn check_current(
+    module: &TypedModule,
+    d: &ClosureDefinition,
+    receiver: &Value,
+    state: &State,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let mut seen = CheckedCells::new();
+    if receiver.pointer.targets.is_empty() {
+        check_frame(module, d, receiver, state, &mut seen, b)
+    } else {
+        for root in &receiver.pointer.targets {
+            fee(b, target_width(root).saturating_add(1))?;
+            let address = Permission {
+                targets: Targets::from([root.clone()]),
+                loans: Loans::new(),
+            };
+            let frame = pointee_memory::read(state, &address, None, true, b)?;
+            check_frame(module, d, &frame, state, &mut seen, b)?;
+        }
+        Ok(())
+    }
+}
+pub(super) fn check_value(
+    module: &TypedModule,
+    ty: &Type,
+    value: &Value,
+    state: &State,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let mut seen = CheckedCells::new();
+    if let Type::Address { inner, .. } = ty {
+        if pointee_memory::aggregate(inner) || !environment_roots(inner, b)?.is_empty() {
+            check_address(module, inner, &value.pointer, state, &mut seen, b)?;
+        }
+    } else {
+        check_inline(module, ty, value, state, &mut seen, b)?;
+    }
+    Ok(())
+}
+fn check_inline(
+    module: &TypedModule,
+    ty: &Type,
+    value: &Value,
+    state: &State,
+    seen: &mut CheckedCells,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    for (id, path) in environment_roots(ty, b)? {
+        if !value.enum_variants.slot_active(&path) {
+            continue;
+        }
+        let frame = pointee_memory::project(value, &path, None, b)?;
+        check_frame(
+            module,
+            &module.closures[id.0 as usize],
+            &frame,
+            state,
+            seen,
+            b,
+        )?;
+    }
+    Ok(())
+}
+fn check_address(
+    module: &TypedModule,
+    ty: &Type,
+    pointer: &Permission,
+    state: &State,
+    seen: &mut CheckedCells,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    if pointer.targets.is_empty() {
+        return Err(failure(
+            "callable aggregate query has no actual saved pointer",
+        ));
+    }
+    for target in &pointer.targets {
+        fee(b, target_width(target).saturating_add(1))?;
+        let key = (target.clone(), ty as *const Type as usize);
+        ordered(b, seen.len(), target_width(target))?;
+        if !seen.insert(key) {
+            continue;
+        }
+        let address = Permission {
+            targets: Targets::from([target.clone()]),
+            loans: Loans::new(),
+        };
+        let value = pointee_memory::read(state, &address, Some(ty), true, b)?;
+        check_inline(module, ty, &value, state, seen, b)?;
+    }
+    Ok(())
+}
+fn check_frame(
+    module: &TypedModule,
+    d: &ClosureDefinition,
+    value: &Value,
+    state: &State,
+    seen: &mut CheckedCells,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let current = environment_memory::current(value, state, b)?;
+    for (index, ty) in d.captures.iter().enumerate() {
+        fee(b, 1)?;
+        let head = [PlaceProjection::Field(index as u32)];
+        if let Type::Address { inner, .. } = ty {
+            if pointee_memory::aggregate(inner) || !environment_roots(inner, b)?.is_empty() {
+                let pointer = current
+                    .get(head.as_slice())
+                    .ok_or_else(|| failure("captured aggregate omits its actual saved head"))?;
+                check_address(module, inner, pointer, state, seen, b)?;
             }
-            environment_memory::publish(state, base, &[], rows, b)?;
         } else {
-            let rows = actual_slot_rows_mut(state, base, b)?;
-            let previous = rows.get_mut(&path).ok_or_else(|| {
-                failure("captured holder update has no authenticated physical slot")
-            })?;
-            if strong {
-                *previous = replacement;
-            } else {
-                union(previous, &replacement, b)?;
-            }
+            let child = pointee_memory::project(value, &head, None, b)?;
+            check_inline(module, ty, &child, state, seen, b)?;
         }
     }
     Ok(())
@@ -623,12 +765,21 @@ pub(super) fn cleanup_reads_external(
                 payload if super::super::stored_callables::resource_payload(payload, b)? => {}
                 _ => return Ok(true),
             },
-            Type::OwnedDyn{interface}=>{
-                fee(b,module.dyn_interfaces.len())?;
-                let d=module.dyn_interfaces.iter().find(|d|d.id==*interface).ok_or_else(||failure("cleanup dynamic interface absent"))?;
-                super::super::dyn_cleanup::capture_interface(module,*interface,b)?;
-                let cleanup=d.owning_cleanup.as_ref().ok_or_else(||failure("cleanup bound Unknown"))?;
-                if !cleanup.access.reads.is_empty() || !cleanup.access.writes.is_empty(){return Ok(true);}
+            Type::OwnedDyn { interface } => {
+                fee(b, module.dyn_interfaces.len())?;
+                let d = module
+                    .dyn_interfaces
+                    .iter()
+                    .find(|d| d.id == *interface)
+                    .ok_or_else(|| failure("cleanup dynamic interface absent"))?;
+                super::super::dyn_cleanup::capture_interface(module, *interface, b)?;
+                let cleanup = d
+                    .owning_cleanup
+                    .as_ref()
+                    .ok_or_else(|| failure("cleanup bound Unknown"))?;
+                if !cleanup.access.reads.is_empty() || !cleanup.access.writes.is_empty() {
+                    return Ok(true);
+                }
             }
             Type::Address { .. } | Type::Desc(_) => {}
             ty if ty.is_copy_value() => {}
@@ -636,4 +787,206 @@ pub(super) fn cleanup_reads_external(
         }
     }
     Ok(false)
+}
+
+pub(super) fn current_receiver(
+    actual: &Value,
+    state: &State,
+    b: &mut Budget,
+) -> CompileResult<Value> {
+    if actual.pointer.targets.is_empty() {
+        snapshot(actual, b)
+    } else {
+        pointee_memory::read(state, &actual.pointer, None, false, b)
+    }
+}
+fn source(
+    source: &Target,
+    receiver: &Value,
+    arguments: &[ValueId],
+    values: &[Value],
+    state: &State,
+    b: &mut Budget,
+) -> CompileResult<Permission> {
+    let HoldRoot::Capture(index) = source.base else {
+        return substitute(source, arguments, values, state, b);
+    };
+    let key = environment_path(index as usize, &source.stored, b)?;
+    let mut p = environment_memory::select_rows_current(&receiver.environment, state, &key, b)?;
+    let mut targets = Targets::new();
+    for target in &p.targets {
+        fee(
+            b,
+            target_width(target)
+                .saturating_add(source.place.len())
+                .saturating_add(1),
+        )?;
+        let mut target = target.clone();
+        if source.heap_element.is_some() || !source.heap_parents.is_empty() {
+            return Err(failure(
+                "captured heap source requires explicit complete element transport",
+            ));
+        }
+        if let Some(heap) = &mut target.heap_element {
+            heap.extend(&source.place);
+        } else {
+            target.place.extend(&source.place);
+        }
+        targets.insert(target);
+    }
+    p.targets = targets;
+    Ok(p)
+}
+pub(super) fn complete_terminal(
+    module: &TypedModule,
+    d: &ClosureDefinition,
+    state: &State,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let mut complete = true;
+    for (index, ty) in d.captures.iter().enumerate() {
+        fee(b, 1)?;
+        if let Type::Address { inner, .. } = ty
+            && pointee_memory::aggregate(inner)
+        {
+            if let Some(value) = state.external.get(&HoldRoot::Capture(index as u32)) {
+                complete &= pointee_memory::complete(value, inner, b)?;
+            } else {
+                complete = false;
+            }
+        } else if let Type::Closure(id) = ty {
+            if let Some(value) = state.external.get(&HoldRoot::Capture(index as u32)) {
+                complete &= complete_frame(module, &module.closures[id.0 as usize], value, b)?;
+            } else {
+                complete = false;
+            }
+        }
+    }
+    Ok(complete)
+}
+
+/// One namespace transition: exact head identity followed by a physical leaf.
+/// A head's own permission is always its frame environment row.
+fn effect_head<'a>(
+    value: &'a Value,
+    path: &[PlaceProjection],
+    b: &mut Budget,
+) -> CompileResult<Option<&'a Path>> {
+    let mut selected: Option<&Path> = None;
+    for head in value.pointees.keys() {
+        fee(b, head.len().saturating_add(path.len()).saturating_add(1))?;
+        if head.len() < path.len()
+            && path.starts_with(head)
+            && selected.is_none_or(|old| old.len() < head.len())
+        {
+            selected = Some(head);
+        }
+    }
+    Ok(selected)
+}
+pub(super) fn effect_row<'a>(
+    value: &'a Value,
+    path: &[PlaceProjection],
+    b: &mut Budget,
+) -> CompileResult<Option<&'a Permission>> {
+    if let Some(head) = effect_head(value, path, b)? {
+        let cell = &value.pointees[head];
+        let tail = &path[head.len()..];
+        ordered(
+            b,
+            cell.slots.len().saturating_add(cell.environment.len()),
+            tail.len(),
+        )?;
+        return Ok(cell.slots.get(tail).or_else(|| cell.environment.get(tail)));
+    }
+    ordered(
+        b,
+        value.slots.len().saturating_add(value.environment.len()),
+        path.len(),
+    )?;
+    Ok(value
+        .slots
+        .get(path)
+        .or_else(|| value.environment.get(path)))
+}
+fn set_effect_row(
+    value: &mut Value,
+    path: &[PlaceProjection],
+    p: Permission,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    if let Some(head) = effect_head(value, path, b)? {
+        fee(b, head.len())?;
+        let head = head.clone();
+        let cell = value.pointees.get_mut(&head).unwrap();
+        let tail = &path[head.len()..];
+        fee(b, tail.len())?;
+        if cell.environment.contains_key(tail) {
+            cell.environment.insert(tail.to_vec(), p);
+        } else {
+            cell.slots.insert(tail.to_vec(), p);
+        }
+        return Ok(());
+    }
+    fee(b, path.len())?;
+    if value.slots.contains_key(path) {
+        value.slots.insert(path.to_vec(), p);
+    } else {
+        value.environment.insert(path.to_vec(), p);
+    }
+    Ok(())
+}
+pub(super) fn slot_active(value: &Value, path: &[PlaceProjection]) -> bool {
+    let mut previous = 0usize;
+    let mut active = value.enum_variants.slot_active(path);
+    for (head, cell) in &value.pointees {
+        if head.len() < path.len() && path.starts_with(head) && head.len() >= previous {
+            active &= cell.enum_variants.slot_active(&path[head.len()..]);
+            previous = head.len();
+        }
+    }
+    active
+}
+pub(super) fn complete_frame(
+    module: &TypedModule,
+    d: &ClosureDefinition,
+    value: &Value,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    for (path, _) in leaves(module, d, b)? {
+        if !slot_active(value, &path) {
+            continue;
+        }
+        if effect_row(value, &path, b)?.is_none_or(|p| p.targets.is_empty()) {
+            return Ok(false);
+        }
+    }
+    let mut pending = vec![(d, Vec::new(), 0usize)];
+    while let Some((d, prefix, depth)) = pending.pop() {
+        if depth > b.partial_depth {
+            return Err(vec![Diagnostic::limit(
+                Phase::Analyze,
+                "current frame coverage exceeds finite depth",
+                None,
+            )]);
+        }
+        for (index, ty) in d.captures.iter().enumerate() {
+            fee(b, prefix.len().saturating_add(1))?;
+            let mut head = prefix.clone();
+            head.push(PlaceProjection::Field(index as u32));
+            if let Type::Address { inner, .. } = ty
+                && pointee_memory::aggregate(inner)
+            {
+                let Some(referent) = value.pointees.get(&head) else {
+                    return Ok(false);
+                };
+                if !pointee_memory::complete(referent, inner, b)? {
+                    return Ok(false);
+                }
+            } else if let Type::Closure(child) = ty {
+                pending.push((&module.closures[child.0 as usize], head, depth + 1));
+            }
+        }
+    }
+    Ok(true)
 }

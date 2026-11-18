@@ -100,6 +100,11 @@ pub(super) struct Budget {
     // results after all worlds, assignments and escaping source uppers check.
     // This is a class-role fact, never a loan or terminal cleanup proof.
     pub(super) semantic_reference_results: BTreeSet<(FunctionId, u32, zil_ir::StorageBinder)>,
+    // Exact physical environment leaf → original parameter-header binder.
+    // Published only after every original/actual world completes. No roots,
+    // memory, loans or cleanup authority; coordinates are never class images.
+    pub(super) semantic_environment_binders:
+        BTreeMap<(FunctionId, u32, Vec<zil_ir::PlaceProjection>), zil_ir::StorageBinder>,
     pub(super) semantic_reference_locals: BTreeSet<(FunctionId, zil_ir::LocalId)>,
     pub(super) semantic_reborrow_regions: BTreeSet<(FunctionId, zil_ir::ValueId)>,
     // Exact original saved-field receiving views, checked against the actual
@@ -113,11 +118,18 @@ pub(super) struct Budget {
     // Geometry only, reconstructed from the complete original value at a real
     // immutable actual coordinate. No classes, targets, loans or capabilities.
     pub(super) semantic_raw_value_shapes: BTreeMap<(FunctionId, ValueId), zil_ir::StorageLifeShape>,
-    pub(super) semantic_raw_local_shapes: BTreeMap<(FunctionId, zil_ir::LocalId), zil_ir::StorageLifeShape>,
+    pub(super) semantic_raw_local_shapes:
+        BTreeMap<(FunctionId, zil_ir::LocalId), zil_ir::StorageLifeShape>,
     // Original concrete cleanup occurrences, still requiring the
     // actual worker/frame/resource proof after complete raw preflight.
     // Some identifies a Closure; None is an original owning Task binding.
-    pub(super) semantic_cleanup_sites: BTreeSet<(FunctionId, zil_ir::BlockId, usize, LocalId, Option<zil_ir::ClosureId>)>,
+    pub(super) semantic_cleanup_sites: BTreeSet<(
+        FunctionId,
+        zil_ir::BlockId,
+        usize,
+        LocalId,
+        Option<zil_ir::ClosureId>,
+    )>,
     // Exact owning Task DropManaged sites discharged by the complete actual
     // resource fixed point. This is never a structural SyncDrop theorem.
     pub(super) semantic_cleanup_proofs: BTreeSet<(FunctionId, zil_ir::BlockId, usize, LocalId)>,
@@ -125,9 +137,9 @@ pub(super) struct Budget {
     // memory flow must retain this actual callee's parent loan before publish.
     pub(super) semantic_receiver_views:
         BTreeMap<(FunctionId, ValueId, zil_ir::ClosureId), (zil_ir::BlockId, usize)>,
-    pub(super) semantic_receiver_view_proofs:
-        BTreeSet<(FunctionId, ValueId, zil_ir::ClosureId)>,
-    pub(super) semantic_capture_cleanups: BTreeSet<(zil_ir::ClosureId, u32, Vec<u32>, zil_ir::CallKind)>,
+    pub(super) semantic_receiver_view_proofs: BTreeSet<(FunctionId, ValueId, zil_ir::ClosureId)>,
+    pub(super) semantic_capture_cleanups:
+        BTreeSet<(zil_ir::ClosureId, u32, Vec<u32>, zil_ir::CallKind)>,
     // Exact independently checked original consuming-operation upper bounds.
     // These are obligations, not frame/cleanup permission.
     pub(super) semantic_consuming_operations:
@@ -328,6 +340,7 @@ impl Budget {
             semantic_dyn_tables_proven: BTreeSet::new(),
             semantic_dyn_functions_proven: BTreeSet::new(),
             semantic_reference_results: BTreeSet::new(),
+            semantic_environment_binders: BTreeMap::new(),
             semantic_reference_locals: BTreeSet::new(),
             semantic_reborrow_regions: BTreeSet::new(),
             semantic_receiving_returns: BTreeSet::new(),
@@ -659,7 +672,9 @@ impl Budget {
         self.cost_profiling
     }
     pub(super) fn geometry_cost_notes(&self) -> Vec<String> {
-        if !self.cost_profiling { return Vec::new(); }
+        if !self.cost_profiling {
+            return Vec::new();
+        }
         // A fixed small selection exposes cold/hot constructor work even when
         // those categories fall below the generic top-24 diagnostic cutoff.
         [
@@ -671,9 +686,14 @@ impl Budget {
             "semantic geometry constructor record allocation",
             "semantic geometry owned copy",
             "semantic geometry immutable receipt",
-        ].into_iter().filter_map(|name| self.costs.get(name).map(|(calls, work)| {
-            format!("analysis geometry charge {name}: {work} work in {calls} calls")
-        })).collect()
+        ]
+        .into_iter()
+        .filter_map(|name| {
+            self.costs.get(name).map(|(calls, work)| {
+                format!("analysis geometry charge {name}: {work} work in {calls} calls")
+            })
+        })
+        .collect()
     }
 
     #[track_caller]
@@ -931,7 +951,8 @@ pub(super) fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> Compi
         return Ok(());
     }
     if let Type::Address { inner, .. } = ty
-        && matches!(inner.as_ref(), Type::Address { .. }) {
+        && matches!(inner.as_ref(), Type::Address { .. })
+    {
         return legacy_value(inner, span, module);
     }
     if matches!(ty, Type::Address { inner, .. }
@@ -1760,7 +1781,9 @@ pub(super) fn preflight(
         // A compiler-owned failure may return a complete Closure input rather
         // than a direct Managed leaf. Its ErrorUnion, product and input Tuple
         // must all select the same actual Sum responsibility kernel.
-        if store_element.is_none() && capture_owner.is_none() && !resource_head
+        if store_element.is_none()
+            && capture_owner.is_none()
+            && !resource_head
             && super::stored_flow::plain_failure_input_carrier(module, ty, budget)?
         {
             new_sum = true;
@@ -2348,6 +2371,19 @@ pub(super) fn preflight(
         }
         if function.id.0 as usize != function_index {
             return Err(bad("noncanonical function ID"));
+        }
+        for ty in function
+            .locals
+            .iter()
+            .map(|local| &local.ty)
+            .chain(&function.values)
+        {
+            if super::stored_flow::current_pointee_type(ty, budget)? {
+                budget.stored_compound_values = true;
+                if matches!(ty, Type::Address { mutable: true, .. }) {
+                    budget.stored_slot_updates = true;
+                }
+            }
         }
         blocks = count(blocks, function.blocks.len(), limits.max_blocks, "block")?;
         locals = count(locals, function.locals.len(), limits.max_locals, "local")?;

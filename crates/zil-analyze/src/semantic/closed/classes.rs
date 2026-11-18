@@ -753,7 +753,9 @@ impl Check<'_, '_> {
         b.spend(definition.captures.len(), WORK)?;
         // The explicit head/result relation schedules the stronger original
         // all-creators/all-returns theorem below; it supplies no source fact.
-        if crate::stored_callables::receiver_access_head(definition) { return Ok(true); }
+        if crate::stored_callables::receiver_access_head(definition) {
+            return Ok(true);
+        }
         if definition.captures.iter().any(|ty| {
             !ty.is_b0_scalar()
                 && !matches!(ty, Type::Address { mutable: false, inner } if inner.is_b0_scalar())
@@ -837,14 +839,23 @@ impl Check<'_, '_> {
             .as_ref()
             .ok_or_else(|| unknown("ghost capture domain has no complete class contract"))?;
         b.spend(contract.classes.len(), WORK)?;
-        if contract.classes.iter().any(|row| row.position.base == StorageBase::Receiver) {
-            return Err(fail("Receiver cannot contain captured or intrinsic semantic classes"));
+        if contract
+            .classes
+            .iter()
+            .any(|row| row.position.base == StorageBase::Receiver)
+        {
+            return Err(fail(
+                "Receiver cannot contain captured or intrinsic semantic classes",
+            ));
         }
         if function.storage_life.as_ref() != Some(contract)
             || contract.bindings.iter().any(|row| {
                 !matches!(
                     row.position.base,
-                    StorageBase::Parameter(_) | StorageBase::Result | StorageBase::Capture(_) | StorageBase::Receiver
+                    StorageBase::Parameter(_)
+                        | StorageBase::Result
+                        | StorageBase::Capture(_)
+                        | StorageBase::Receiver
                 )
             })
         {
@@ -918,24 +929,32 @@ impl Check<'_, '_> {
             for binding in creator_bindings.values() {
                 b.spend(1, WORK)?;
                 if binding.capture == capture && stored.replace(&binding.stored).is_some() {
-                    return Err(fail("Static capture has competing original creator bindings"));
+                    return Err(fail(
+                        "Static capture has competing original creator bindings",
+                    ));
                 }
             }
-            let stored = stored.ok_or_else(||
-                fail("Static capture lacks its independently proved original creator"))?;
+            let stored = stored.ok_or_else(|| {
+                fail("Static capture lacks its independently proved original creator")
+            })?;
             if closure.captures.get(capture as usize) != Some(&stored.ty)
                 || !self.has_original_static_byte_path(stored, &position.path, b)?
             {
-                return Err(fail("Static capture changes its complete creator-proved physical leaf"));
+                return Err(fail(
+                    "Static capture changes its complete creator-proved physical leaf",
+                ));
             }
         }
         for binding in creator_bindings.values() {
             for path in self.original_static_byte_paths(&binding.stored, b)? {
                 b.lookup(static_captures.len(), WORK)?;
                 if !static_captures.contains(&StoragePosition {
-                    base: StorageBase::Capture(binding.capture), path,
+                    base: StorageBase::Capture(binding.capture),
+                    path,
                 }) {
-                    return Err(fail("literal capture omits a complete physical Static occurrence"));
+                    return Err(fail(
+                        "literal capture omits a complete physical Static occurrence",
+                    ));
                 }
             }
         }
@@ -944,62 +963,123 @@ impl Check<'_, '_> {
             if !matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
                 || function.call_kind != CallKind::Direct
                 || !matches!(&closure.result, Type::Address { mutable: false, .. })
-                || !closure.lending_captures.windows(2).all(|pair| pair[0] < pair[1]) {
-                return Err(fail("Receiver result changes its actual reusable shared return mode"));
+                || !closure
+                    .lending_captures
+                    .windows(2)
+                    .all(|pair| pair[0] < pair[1])
+            {
+                return Err(fail(
+                    "Receiver result changes its actual reusable shared return mode",
+                ));
             }
-            let original = self.original.receiver_sources(instance.definition, self.inventory, b)?
-                .ok_or_else(|| fail("Receiver header has no independent original captured return proof"))?;
+            let original = self
+                .original
+                .receiver_sources(instance.definition, self.inventory, b)?
+                .ok_or_else(|| {
+                    fail("Receiver header has no independent original captured return proof")
+                })?;
             let mut physical = BTreeSet::new();
             for ordinal in original {
                 b.lookup(creator_bindings.len(), WORK)?;
-                let binding = creator_bindings.get(&ordinal)
-                    .ok_or_else(|| fail("Receiver source has no exact creator-to-capture binding"))?;
+                let binding = creator_bindings.get(&ordinal).ok_or_else(|| {
+                    fail("Receiver source has no exact creator-to-capture binding")
+                })?;
                 b.lookup(physical.len(), WORK)?;
                 physical.insert(binding.capture);
             }
-            b.spend(physical.len().saturating_add(closure.lending_captures.len()), WORK)?;
-            if physical.iter().copied().ne(closure.lending_captures.iter().copied()) {
-                return Err(fail("Receiver lending directory changes the complete original capture sources"));
+            b.spend(
+                physical
+                    .len()
+                    .saturating_add(closure.lending_captures.len()),
+                WORK,
+            )?;
+            if physical
+                .iter()
+                .copied()
+                .ne(closure.lending_captures.iter().copied())
+            {
+                return Err(fail(
+                    "Receiver lending directory changes the complete original capture sources",
+                ));
             }
         }
-        let strong_lending = !receiver_result && !closure.lending_captures.is_empty()
-            && matches!(crate::signature_life::outer(contract, StorageBase::Result), Some(StorageBinder::Fixed(_)))
+        let strong_lending = !receiver_result
+            && !closure.lending_captures.is_empty()
+            && matches!(
+                crate::signature_life::outer(contract, StorageBase::Result),
+                Some(StorageBinder::Fixed(_))
+            )
             && matches!(closure.result, Type::Address { mutable: false, .. });
         if strong_lending {
-            let original = self.original.receiver_sources(instance.definition, self.inventory, b)?
-                .ok_or_else(|| fail("Fixed lending header has no complete original captured return proof"))?;
+            let original = self
+                .original
+                .receiver_sources(instance.definition, self.inventory, b)?
+                .ok_or_else(|| {
+                    fail("Fixed lending header has no complete original captured return proof")
+                })?;
             let mut physical = BTreeSet::new();
             for ordinal in original {
                 b.lookup(creator_bindings.len(), WORK)?;
-                let binding = creator_bindings.get(&ordinal)
+                let binding = creator_bindings
+                    .get(&ordinal)
                     .ok_or_else(|| fail("Fixed lending source has no exact creator capture"))?;
                 b.lookup(physical.len(), WORK)?;
                 physical.insert(binding.capture);
             }
-            b.spend(physical.len().saturating_add(closure.lending_captures.len()), WORK)?;
-            if physical.iter().copied().ne(closure.lending_captures.iter().copied()) {
-                return Err(fail("Fixed lending directory changes its original captured return sources"));
+            b.spend(
+                physical
+                    .len()
+                    .saturating_add(closure.lending_captures.len()),
+                WORK,
+            )?;
+            if physical
+                .iter()
+                .copied()
+                .ne(closure.lending_captures.iter().copied())
+            {
+                return Err(fail(
+                    "Fixed lending directory changes its original captured return sources",
+                ));
             }
         }
         if !closure.lending_captures.is_empty() && !receiver_result && !strong_lending {
             if !static_result
-                || !closure.lending_captures.windows(2).all(|pair| pair[0] < pair[1]) {
-                return Err(unknown("consuming Static result needs its whole original capture and return relation"));
+                || !closure
+                    .lending_captures
+                    .windows(2)
+                    .all(|pair| pair[0] < pair[1])
+            {
+                return Err(unknown(
+                    "consuming Static result needs its whole original capture and return relation",
+                ));
             }
             for capture in &closure.lending_captures {
                 b.spend(creator_bindings.len(), WORK)?;
-                let binding = creator_bindings.values().find(|binding| binding.capture == *capture)
-                    .ok_or_else(|| fail("lending capture omits its independently bound original source"))?;
+                let binding = creator_bindings
+                    .values()
+                    .find(|binding| binding.capture == *capture)
+                    .ok_or_else(|| {
+                        fail("lending capture omits its independently bound original source")
+                    })?;
                 let paths = self.original_static_byte_paths(&binding.stored, b)?;
-                if paths.is_empty() || !empty(&binding.stored.life)
-                    || !binding.stored.classes.is_empty() {
-                    return Err(unknown("consuming result retains a non-Static captured head"));
+                if paths.is_empty()
+                    || !empty(&binding.stored.life)
+                    || !binding.stored.classes.is_empty()
+                {
+                    return Err(unknown(
+                        "consuming result retains a non-Static captured head",
+                    ));
                 }
                 for path in paths {
                     b.lookup(static_captures.len(), WORK)?;
                     if !static_captures.contains(&StoragePosition {
-                        base: StorageBase::Capture(*capture), path,
-                    }) { return Err(fail("lending capture omits a proved Static field occurrence")); }
+                        base: StorageBase::Capture(*capture),
+                        path,
+                    }) {
+                        return Err(fail(
+                            "lending capture omits a proved Static field occurrence",
+                        ));
+                    }
                 }
             }
             // Every listed capture is creator-grounded literal storage and
@@ -1369,26 +1449,37 @@ impl Check<'_, '_> {
             .ok_or_else(|| fail("actual header binder has no complete original embedding"))?;
         if matches!(expression, SemanticClassExpr::OuterOccurrence {
             operand: SemanticOperand::Receiver, path, mode: StoredBorrowMode::SharedAddress,
-        } if path.is_empty()) {
+        } if path.is_empty())
+        {
             let SemanticInstanceTarget::Function(target) = &instance.target else {
                 return Err(fail("Receiver header class has no executing function"));
             };
             let function = self.inventory.function(target, b)?;
-            let closure = function.environment.and_then(|id| self.module.closures.get(id.0 as usize))
+            let closure = function
+                .environment
+                .and_then(|id| self.module.closures.get(id.0 as usize))
                 .filter(|row| row.function == function.id)
                 .ok_or_else(|| fail("Receiver header class is outside a real closure entry"))?;
-            let header = function.storage_life.as_ref()
+            let header = function
+                .storage_life
+                .as_ref()
                 .ok_or_else(|| fail("Receiver class omits its actual entry header"))?;
             let StorageBinder::Invocation(index) = binder else {
-                return Err(fail("Receiver class cannot replace a captured Fixed identity"));
+                return Err(fail(
+                    "Receiver class cannot replace a captured Fixed identity",
+                ));
             };
             if function.call_kind != CallKind::Direct
                 || !crate::stored_callables::receiver_access_head(closure)
                 || crate::signature_life::outer(header, StorageBase::Receiver) != Some(binder)
-                || index >= header.invocation_binder_count {
-                return Err(fail("Receiver class changes its explicit actual head/result relation"));
+                || index >= header.invocation_binder_count
+            {
+                return Err(fail(
+                    "Receiver class changes its explicit actual head/result relation",
+                ));
             }
-            self.original.receiver_sources(instance.definition, self.inventory, b)?
+            self.original
+                .receiver_sources(instance.definition, self.inventory, b)?
                 .ok_or_else(|| fail("Receiver class lacks its original captured return proof"))?;
             return Ok(Class::Invocation(instance.id, index));
         }
@@ -1513,7 +1604,15 @@ impl Check<'_, '_> {
         direct: &BTreeMap<u32, u32>,
         b: &mut Budget,
     ) -> CompileResult<()> {
-        let prefix = LifeTypeProjection::Place(selector);
+        let mut storage = &parent.ty;
+        while let Type::BorrowedStorage { storage: inner, .. } = storage {
+            storage = inner;
+        }
+        let prefix = if matches!(storage, Type::Array { .. }) {
+            LifeTypeProjection::Element
+        } else {
+            LifeTypeProjection::Place(selector)
+        };
         let binder = |index: u32, b: &mut Budget| {
             b.lookup(direct.len(), WORK)?;
             direct
@@ -1640,8 +1739,66 @@ impl Check<'_, '_> {
         {
             return self.actual_nominal_field(parent, field, b, 0);
         }
+        if let (Type::Enum { variants, .. }, PlaceProjection::Variant(place)) = (storage, selector)
+        {
+            let expected = variants
+                .get(place.variant as usize)
+                .and_then(|(_, fields)| fields.get(place.index as usize))
+                .ok_or_else(|| {
+                    fail("nominal variant projection selects an absent physical field")
+                })?;
+            let (definition, mut arguments) = self.nominal_inventory_source(&parent.ty, b)?;
+            for argument in &mut arguments {
+                let mut image = |class: &mut Class| -> CompileResult<()> {
+                    b.spend(1, WORK)?;
+                    let Class::Nominal(_, binder) = class else {
+                        return Err(fail("variant field has another original coordinate domain"));
+                    };
+                    *class = parent
+                        .classes
+                        .get(*binder as usize)
+                        .cloned()
+                        .ok_or_else(|| {
+                            fail("variant field leaves its whole original class domain")
+                        })?;
+                    Ok(())
+                };
+                match argument {
+                    Argument::Life(class) => image(class)?,
+                    Argument::Type(value) => {
+                        for class in &mut value.classes {
+                            image(class)?;
+                        }
+                    }
+                    Argument::Const { .. } => {}
+                }
+            }
+            let SemanticDefinitionBody::Nominal {
+                body: SemanticNominalBody::Enum { variants },
+                ..
+            } = &self.inventory.definition(definition, b)?.body
+            else {
+                return Err(fail(
+                    "variant projection has another original declaration kind",
+                ));
+            };
+            let recipe = variants
+                .get(place.variant as usize)
+                .and_then(|variant| variant.fields.get(place.index as usize))
+                .ok_or_else(|| fail("variant projection has no original full field ordinal"))?;
+            let selected = self.nominal_field_value(definition, &arguments, recipe, b, 1)?;
+            if !geometry::same_type(&selected.ty, expected, b)? {
+                return Err(fail(
+                    "variant field changes its complete original substitution",
+                ));
+            }
+            return Ok(selected);
+        }
         let child = match (storage, selector) {
             (Type::Tuple(fields), PlaceProjection::Field(field)) => fields.get(field as usize),
+            (Type::Array { element, length }, PlaceProjection::Field(index)) if index < *length => {
+                Some(element.as_ref())
+            }
             (Type::ErrorUnion { error, result }, PlaceProjection::ErrorArm(is_error)) => {
                 Some(if is_error {
                     error.as_ref()
@@ -1655,12 +1812,18 @@ impl Check<'_, '_> {
             unknown("closure child projection needs its complete original structural source")
         })?;
         if let PlaceProjection::Field(field) = selector
-            && matches!(storage, Type::Tuple(_)) && empty(&parent.life)
-            && parent.classes.is_empty() && !self.physical_byte_paths(child, b)?.is_empty()
+            && matches!(storage, Type::Tuple(_))
+            && empty(&parent.life)
+            && parent.classes.is_empty()
+            && !self.physical_byte_paths(child, b)?.is_empty()
         {
             return parent.empty_tuple_child(field, b);
         }
-        let prefix = LifeTypeProjection::Place(selector);
+        let prefix = if matches!(storage, Type::Array { .. }) {
+            LifeTypeProjection::Element
+        } else {
+            LifeTypeProjection::Place(selector)
+        };
         let template = match child {
             Type::Record { .. } | Type::Package { .. } | Type::BorrowedStorage { .. } => {
                 let (definition, arguments) = self.nominal_inventory_source(child, b)?;
@@ -1695,7 +1858,11 @@ impl Check<'_, '_> {
                 .and_then(|entry| entry.storage_life.as_ref())
                 .map(|scope| scope.fixed_binder_count)
                 .ok_or_else(|| unknown("projected closure lacks its complete Fixed inventory"))?,
-            Type::Tuple(_) => direct
+            Type::Tuple(_)
+            | Type::Address { .. }
+            | Type::Desc(_)
+            | Type::Array { .. }
+            | Type::ErrorUnion { .. } => direct
                 .keys()
                 .next_back()
                 .map(|last| {
@@ -2028,7 +2195,8 @@ impl Check<'_, '_> {
                 local,
                 index: field,
             } if self.contains_nonzero_closure(ty, b, 0)?
-                || !self.physical_byte_paths(ty, b)?.is_empty() => {
+                || !self.physical_byte_paths(ty, b)?.is_empty() =>
+            {
                 let parent =
                     self.local_value(instance, function, *local, (block, index), b, depth + 1)?;
                 let selected =
@@ -2156,13 +2324,21 @@ impl Check<'_, '_> {
             }
             InstructionKind::CallClosure { callee, .. }
             | InstructionKind::CallClosureOnce { callee, .. } => {
-                if let Some(result)=self.abstract_operation(instance,function,block,index,b)? {return Ok(result);}
+                if let Some(result) =
+                    self.abstract_operation(instance, function, block, index, b)?
+                {
+                    return Ok(result);
+                }
                 let receiver = self.ssa_value(instance, function, *callee, b, depth + 1)?;
                 self.concrete_call_output(instance, block, index, &receiver, ty, b)
             }
             InstructionKind::CallClosureShared { callee, .. }
             | InstructionKind::CallClosureMut { callee, .. } => {
-                if let Some(result)=self.abstract_operation(instance,function,block,index,b)? {return Ok(result);}
+                if let Some(result) =
+                    self.abstract_operation(instance, function, block, index, b)?
+                {
+                    return Ok(result);
+                }
                 let receiver =
                     self.local_value(instance, function, *callee, (block, index), b, depth + 1)?;
                 self.concrete_call_output(instance, block, index, &receiver, ty, b)
@@ -2351,14 +2527,22 @@ impl Check<'_, '_> {
                 index: field,
             } => {
                 if !self.physical_byte_paths(ty, b)?.is_empty() {
-                    operations::available_before(function,
-                        (block, index, SemanticSiteEdge::Before), *aggregate, b)?;
+                    operations::available_before(
+                        function,
+                        (block, index, SemanticSiteEdge::Before),
+                        *aggregate,
+                        b,
+                    )?;
                     let parent = self.ssa_value(instance, function, *aggregate, b, depth + 1)?;
-                    if empty(&parent.life) && parent.classes.is_empty()
-                        && matches!(parent.ty, Type::Tuple(_)) {
+                    if empty(&parent.life)
+                        && parent.classes.is_empty()
+                        && matches!(parent.ty, Type::Tuple(_))
+                    {
                         let selected = self.static_structural_child(&parent, *field, b)?;
                         if !geometry::same_type(&selected.ty, ty, b)? {
-                            return Err(fail("Static Tuple extraction changes its exact child type"));
+                            return Err(fail(
+                                "Static Tuple extraction changes its exact child type",
+                            ));
                         }
                         self.check_static_value_sources(&selected, function, id, b)?;
                         return Ok(selected);
@@ -2641,8 +2825,12 @@ impl Check<'_, '_> {
                         if matches!(storage, Type::Tuple(_))
                             && !self.physical_byte_paths(field, b)?.is_empty()
                         {
-                            self.static_structural_child(&expected,
-                                u32::try_from(ordinal).map_err(|_| fail("Static field ordinal overflow"))?, b)?
+                            self.static_structural_child(
+                                &expected,
+                                u32::try_from(ordinal)
+                                    .map_err(|_| fail("Static field ordinal overflow"))?,
+                                b,
+                            )?
                         } else {
                             // Class-bearing structural tuples/arrays require
                             // their own original embedding, never invented rows.
@@ -2688,16 +2876,23 @@ impl Check<'_, '_> {
                 }
                 Ok(expected)
             }
-            InstructionKind::BorrowPackageField { local, index: field, mutable } => {
+            InstructionKind::BorrowPackageField {
+                local,
+                index: field,
+                mutable,
+            } => {
                 if let Some(value) = self.source_borrow(instance, function, id, b, depth + 1)? {
                     return Ok(value);
                 }
                 operations::initialized_local_before(function, (block, index), *local, b)?;
-                let parent = self.local_value(instance, function, *local, (block, index), b, depth + 1)?;
+                let parent =
+                    self.local_value(instance, function, *local, (block, index), b, depth + 1)?;
                 let child = self.closure_child_value(&parent, PlaceProjection::Field(*field), b)?;
                 let output = value::address(*mutable, Class::Reborrow(function.id, id), child, b)?;
                 if !geometry::same_type(&output.ty, ty, b)? {
-                    return Err(fail("borrowed field changes its complete original child type"));
+                    return Err(fail(
+                        "borrowed field changes its complete original child type",
+                    ));
                 }
                 Ok(output)
             }
@@ -2869,7 +3064,9 @@ impl Check<'_, '_> {
                 // Task/ErrorUnion results and lost their child domains.
                 let output = self.original_call_output(instance, block, index, b)?;
                 if !geometry::same_type(&output.ty, ty, b)? {
-                    return Err(fail("call output changes its complete original result Type"));
+                    return Err(fail(
+                        "call output changes its complete original result Type",
+                    ));
                 }
                 let original_output = output;
                 self.call_output_from_entry(
@@ -2955,7 +3152,7 @@ impl Check<'_, '_> {
                     .task_domain(ty, b)?
                     .is_none_or(|life| life.binder_count == 0)
                 && !self.contains_nonzero_closure(ty, b, 0)?
-            && self.physical_byte_paths(ty, b)?.is_empty()
+                && self.physical_byte_paths(ty, b)?.is_empty()
         {
             // A zero-class fact does not depend on which loop iteration last
             // initialized the occupant. Actual initialization and resources
@@ -3131,44 +3328,87 @@ impl Check<'_, '_> {
 
 impl Check<'_, '_> {
     pub(super) fn receiver_return_role(
-        &self, instance: &SemanticInstance, function: &TypedFunction, block: BlockId,
-        value: ValueId, actual: &Value, expected: &Value, b: &mut Budget,
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        block: BlockId,
+        value: ValueId,
+        actual: &Value,
+        expected: &Value,
+        b: &mut Budget,
     ) -> CompileResult<bool> {
-        let Some(closure) = function.environment.and_then(|id| self.module.closures.get(id.0 as usize))
-            .filter(|closure| closure.function == function.id) else { return Ok(false); };
-        if function.call_kind != CallKind::Direct || !crate::stored_callables::result_is_receiver(closure)
+        let Some(closure) = function
+            .environment
+            .and_then(|id| self.module.closures.get(id.0 as usize))
+            .filter(|closure| closure.function == function.id)
+        else {
+            return Ok(false);
+        };
+        if function.call_kind != CallKind::Direct
+            || !crate::stored_callables::result_is_receiver(closure)
             || !matches!(actual.ty, Type::Address { mutable: false, .. })
-            || !geometry::same_type(&actual.ty, &expected.ty, b)? { return Ok(false); }
-        if self.original.receiver_sources(instance.definition, self.inventory, b)?.is_none()
-            || !self.capture_values_equal(&self.pointee(actual, b)?, &self.pointee(expected, b)?, b)? {
+            || !geometry::same_type(&actual.ty, &expected.ty, b)?
+        {
+            return Ok(false);
+        }
+        if self
+            .original
+            .receiver_sources(instance.definition, self.inventory, b)?
+            .is_none()
+            || !self.capture_values_equal(
+                &self.pointee(actual, b)?,
+                &self.pointee(expected, b)?,
+                b,
+            )?
+        {
             return Ok(false);
         }
         let directory = self.inventory.original_index(instance.definition, b)?;
         let returns = directory.active_returns(b)?;
         let mut selected = false;
         for original in returns {
-            let Some(original) = original else { return Ok(false); };
-            if let Some(producer) = self.original_subject_value(instance, function, original.id, b)? {
-                if producer == value { selected = true; }
+            let Some(original) = original else {
+                return Ok(false);
+            };
+            if let Some(producer) =
+                self.original_subject_value(instance, function, original.id, b)?
+            {
+                if producer == value {
+                    selected = true;
+                }
             }
         }
-        if !selected { return Ok(false); }
-        let header = function.storage_life.as_ref()
+        if !selected {
+            return Ok(false);
+        }
+        let header = function
+            .storage_life
+            .as_ref()
             .ok_or_else(|| fail("Receiver actual return omits its entry header"))?;
         let binder = crate::signature_life::outer(header, StorageBase::Receiver)
             .ok_or_else(|| fail("Receiver actual return has no access head"))?;
-        let [outer] = expected.life.slots.as_slice() else { return Ok(false); };
-        if !outer.path.is_empty() || outer.mode != StoredBorrowMode::SharedAddress
-            || expected.classes.get(outer.binder as usize) != Some(&self.header_class(instance, binder, b)?) {
+        let [outer] = expected.life.slots.as_slice() else {
+            return Ok(false);
+        };
+        if !outer.path.is_empty()
+            || outer.mode != StoredBorrowMode::SharedAddress
+            || expected.classes.get(outer.binder as usize)
+                != Some(&self.header_class(instance, binder, b)?)
+        {
             return Ok(false);
         }
-        let actual_block = function.blocks.get(block.0 as usize).filter(|row| row.id == block)
+        let actual_block = function
+            .blocks
+            .get(block.0 as usize)
+            .filter(|row| row.id == block)
             .ok_or_else(|| fail("Receiver return has no actual exit block"))?;
-        if !matches!(actual_block.terminator, Terminator::Return(Some(returned)) if returned == value) {
+        if !matches!(actual_block.terminator, Terminator::Return(Some(returned)) if returned == value)
+        {
             return Err(fail("Receiver result adapter selects another actual exit"));
         }
         b.lookup(b.semantic_receiving_returns.len(), WORK)?;
-        b.semantic_receiving_returns.insert((function.id, block, value, binder));
+        b.semantic_receiving_returns
+            .insert((function.id, block, value, binder));
         // This accepts only the directed outer result view. Every actual
         // source operation, invariant child and final memory ancestry remain
         // separate mandatory checks; no σ/Fixed equality is published.
@@ -3176,92 +3416,192 @@ impl Check<'_, '_> {
     }
 
     fn concrete_call_output(
-        &self,instance:&SemanticInstance,block:BlockId,index:usize,receiver:&Value,
-        ty:&Type,b:&mut Budget,
-    )->CompileResult<Value> {
-        let Type::Closure(id)=receiver.ty else {
-            return Err(fail("concrete invocation has another complete receiver type"));
+        &self,
+        instance: &SemanticInstance,
+        block: BlockId,
+        index: usize,
+        receiver: &Value,
+        ty: &Type,
+        b: &mut Budget,
+    ) -> CompileResult<Value> {
+        let Type::Closure(id) = receiver.ty else {
+            return Err(fail(
+                "concrete invocation has another complete receiver type",
+            ));
         };
-        let closure=self.module.closures.get(id.0 as usize).filter(|row|row.id==id)
-            .ok_or_else(||fail("concrete invocation has no actual closure identity"))?;
-        let SemanticInstanceTarget::Function(target)=&instance.target else {
+        let closure = self
+            .module
+            .closures
+            .get(id.0 as usize)
+            .filter(|row| row.id == id)
+            .ok_or_else(|| fail("concrete invocation has no actual closure identity"))?;
+        let SemanticInstanceTarget::Function(target) = &instance.target else {
             return Err(fail("concrete invocation has no actual caller function"));
         };
-        let function=self.inventory.function(target,b)?;
-        let instruction=function.blocks.get(block.0 as usize).filter(|row|row.id==block)
-            .and_then(|row|row.instructions.get(index))
-            .ok_or_else(||fail("concrete invocation has no actual instruction"))?;
-        let arguments=match &instruction.kind {
-            InstructionKind::CallClosure {arguments,..}|InstructionKind::CallClosureOnce {arguments,..}
-            |InstructionKind::CallClosureShared {arguments,..}|InstructionKind::CallClosureMut {arguments,..}
-            |InstructionKind::CallClosureBorrowed {arguments,..}=>arguments,
-            _=>return Err(fail("concrete invocation changes its actual operation")),
+        let function = self.inventory.function(target, b)?;
+        let instruction = function
+            .blocks
+            .get(block.0 as usize)
+            .filter(|row| row.id == block)
+            .and_then(|row| row.instructions.get(index))
+            .ok_or_else(|| fail("concrete invocation has no actual instruction"))?;
+        let arguments = match &instruction.kind {
+            InstructionKind::CallClosure { arguments, .. }
+            | InstructionKind::CallClosureOnce { arguments, .. }
+            | InstructionKind::CallClosureShared { arguments, .. }
+            | InstructionKind::CallClosureMut { arguments, .. }
+            | InstructionKind::CallClosureBorrowed { arguments, .. } => arguments,
+            _ => return Err(fail("concrete invocation changes its actual operation")),
         };
-        let entry=self.inventory.function(&SemanticFunctionTarget::Typed(closure.function),b)?;
-        let output=self.original_call_output(instance,block,index,b)?;
-        if !geometry::same_type(&output.ty,ty,b)? || !geometry::same_type(&entry.return_type,ty,b)? {
-            return Err(fail("concrete invocation changes its whole original result"));
+        let entry = self
+            .inventory
+            .function(&SemanticFunctionTarget::Typed(closure.function), b)?;
+        let output = self.original_call_output(instance, block, index, b)?;
+        if !geometry::same_type(&output.ty, ty, b)?
+            || !geometry::same_type(&entry.return_type, ty, b)?
+        {
+            return Err(fail(
+                "concrete invocation changes its whole original result",
+            ));
         }
-        let parameters=self.original_call_inputs(instance,function,block,index,entry.id,b)?;
-        let mut receiving=None;
-        let mut subject=None;
-        for site in self.inventory.sites_at(self.program,instance.id,block,index,SemanticSiteEdge::After,b)? {
-            if !matches!(site.action,SemanticSiteAction::BodyCall {..}) {continue;}
-            if subject.replace(site).is_some() {return Err(fail("concrete invocation repeats its original subject"));}
-        }
-        let site=subject.ok_or_else(||fail("concrete invocation lacks its original operation receipt"))?;
-        let source=self.original.borrowed_closure_receiver(instance,site.recipe,self.program,self.inventory,b)?;
-        self.known_call_place(instance,function,(block,index),instruction,&source,b)?;
-        if self.original.call_receiver_view(instance,site.recipe,self.inventory,b)? {
-            if entry.call_kind!=CallKind::Direct || !matches!(closure.kind,CallableKind::Fn|CallableKind::FnMut)
-                || !matches!(output.ty,Type::Address {mutable:false,..}) {
-                return Err(fail("Receiver view changes its original reusable Direct shared mode"));
+        let parameters =
+            self.original_call_inputs(instance, function, block, index, entry.id, b)?;
+        let mut receiving = None;
+        let mut subject = None;
+        for site in self.inventory.sites_at(
+            self.program,
+            instance.id,
+            block,
+            index,
+            SemanticSiteEdge::After,
+            b,
+        )? {
+            if !matches!(site.action, SemanticSiteAction::BodyCall { .. }) {
+                continue;
             }
-            self.original.receiver_sources(self.function_instance(entry.id,b)?.definition,self.inventory,b)?
-                .ok_or_else(||fail("Receiver result has no complete original all-return source proof"))?;
-            self.known_receiver_place(instance,function,(block,index),instruction,&source,b)?;
+            if subject.replace(site).is_some() {
+                return Err(fail("concrete invocation repeats its original subject"));
+            }
+        }
+        let site = subject
+            .ok_or_else(|| fail("concrete invocation lacks its original operation receipt"))?;
+        let source = self.original.borrowed_closure_receiver(
+            instance,
+            site.recipe,
+            self.program,
+            self.inventory,
+            b,
+        )?;
+        self.known_call_place(instance, function, (block, index), instruction, &source, b)?;
+        if self
+            .original
+            .call_receiver_view(instance, site.recipe, self.inventory, b)?
+        {
+            if entry.call_kind != CallKind::Direct
+                || !matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
+                || !matches!(output.ty, Type::Address { mutable: false, .. })
+            {
+                return Err(fail(
+                    "Receiver view changes its original reusable Direct shared mode",
+                ));
+            }
+            self.original
+                .receiver_sources(
+                    self.function_instance(entry.id, b)?.definition,
+                    self.inventory,
+                    b,
+                )?
+                .ok_or_else(|| {
+                    fail("Receiver result has no complete original all-return source proof")
+                })?;
+            self.known_receiver_place(instance, function, (block, index), instruction, &source, b)?;
             if !crate::stored_callables::receiver_access_head(closure) {
                 if !crate::stored_callables::constant_result(closure) {
-                    return Err(fail("Receiver view has no actual access head or independent Static source"));
+                    return Err(fail(
+                        "Receiver view has no actual access head or independent Static source",
+                    ));
                 }
-                self.static_byte_returns(entry,ty,b)?;
+                self.static_byte_returns(entry, ty, b)?;
             }
-            let [outer]=output.life.slots.as_slice() else {
-                return Err(fail("Receiver output loses its exact full shared outer occurrence"));
+            let [outer] = output.life.slots.as_slice() else {
+                return Err(fail(
+                    "Receiver output loses its exact full shared outer occurrence",
+                ));
             };
-            if !outer.path.is_empty() || outer.mode!=StoredBorrowMode::SharedAddress {
-                return Err(fail("Receiver output changes its complete outer projection"));
+            if !outer.path.is_empty() || outer.mode != StoredBorrowMode::SharedAddress {
+                return Err(fail(
+                    "Receiver output changes its complete outer projection",
+                ));
             }
-            self.pointee(&output,b)?;
-            receiving=Some(outer.binder);
-            let result=instruction.result.ok_or_else(||fail("Receiver invocation loses its actual output SSA"))?;
-            let key=(function.id,result,id);
-            b.lookup(b.semantic_receiver_views.len(),WORK)?;
-            if b.semantic_receiver_views.insert(key,(block,index)).is_some_and(|old|old!=(block,index)) {
-                return Err(fail("Receiver result changes its original operation identity"));
+            self.pointee(&output, b)?;
+            receiving = Some(outer.binder);
+            let result = instruction
+                .result
+                .ok_or_else(|| fail("Receiver invocation loses its actual output SSA"))?;
+            let key = (function.id, result, id);
+            b.lookup(b.semantic_receiver_views.len(), WORK)?;
+            if b.semantic_receiver_views
+                .insert(key, (block, index))
+                .is_some_and(|old| old != (block, index))
+            {
+                return Err(fail(
+                    "Receiver result changes its original operation identity",
+                ));
             }
         }
-        self.capture_directory(id,b)?;
-        crate::stored_callables::check_role_relation(self.module, closure,
-            entry.storage_life.as_ref().ok_or_else(|| fail("call entry has no complete role directory"))?, b)?;
-        self.transport_operation_output(instance,function,(block,index),entry,arguments,&parameters,
-            output,Some(&receiver.classes),receiving,None,b,0)
+        self.capture_directory(id, b)?;
+        crate::stored_callables::check_role_relation(
+            self.module,
+            closure,
+            entry
+                .storage_life
+                .as_ref()
+                .ok_or_else(|| fail("call entry has no complete role directory"))?,
+            b,
+        )?;
+        self.transport_operation_output(
+            instance,
+            function,
+            (block, index),
+            entry,
+            arguments,
+            &parameters,
+            output,
+            Some(&receiver.classes),
+            receiving,
+            None,
+            b,
+            0,
+        )
     }
 
     /// Physical byte leaves only: a closure or owning head does not expose its
     /// hidden environment/retained children as fields of this value.
     pub(super) fn physical_byte_paths(
-        &self, ty: &Type, b: &mut Budget,
+        &self,
+        ty: &Type,
+        b: &mut Budget,
     ) -> CompileResult<BTreeSet<Vec<ContractProjection>>> {
-        fn visit(ty: &Type, path: &mut Vec<ContractProjection>,
-            out: &mut BTreeSet<Vec<ContractProjection>>, b: &mut Budget, depth: usize)
-            -> CompileResult<()> {
+        fn visit(
+            ty: &Type,
+            path: &mut Vec<ContractProjection>,
+            out: &mut BTreeSet<Vec<ContractProjection>>,
+            b: &mut Budget,
+            depth: usize,
+        ) -> CompileResult<()> {
             b.spend(path.len().saturating_add(1), WORK)?;
             if depth > b.partial_depth {
-                return Err(unknown("physical Static occurrence traversal exceeds its finite depth"));
+                return Err(unknown(
+                    "physical Static occurrence traversal exceeds its finite depth",
+                ));
             }
             if original::strings::is_byte_type(ty) {
-                b.product(out.len().saturating_add(1), path.len().saturating_add(1), 1, WORK)?;
+                b.product(
+                    out.len().saturating_add(1),
+                    path.len().saturating_add(1),
+                    1,
+                    WORK,
+                )?;
                 b.spend(path.len().saturating_add(1), WORK)?;
                 out.insert(path.clone());
                 return Ok(());
@@ -3271,7 +3611,9 @@ impl Check<'_, '_> {
                     for (index, child) in fields.iter().enumerate() {
                         b.spend(1, WORK)?;
                         path.push(ContractProjection::Place(PlaceProjection::Field(
-                            u32::try_from(index).map_err(|_| fail("Static field ordinal overflow"))?)));
+                            u32::try_from(index)
+                                .map_err(|_| fail("Static field ordinal overflow"))?,
+                        )));
                         visit(child, path, out, b, depth + 1)?;
                         path.pop();
                     }
@@ -3280,7 +3622,9 @@ impl Check<'_, '_> {
                     for (index, (_, child)) in fields.iter().enumerate() {
                         b.spend(1, WORK)?;
                         path.push(ContractProjection::Place(PlaceProjection::Field(
-                            u32::try_from(index).map_err(|_| fail("Static field ordinal overflow"))?)));
+                            u32::try_from(index)
+                                .map_err(|_| fail("Static field ordinal overflow"))?,
+                        )));
                         visit(child, path, out, b, depth + 1)?;
                         path.pop();
                     }
@@ -3299,20 +3643,32 @@ impl Check<'_, '_> {
     /// value. An omitted variable slot selects a Static obligation, never a
     /// literal fact; each actual operand/return still proves that obligation.
     pub(super) fn original_static_byte_paths(
-        &self, value: &Value, b: &mut Budget,
+        &self,
+        value: &Value,
+        b: &mut Budget,
     ) -> CompileResult<BTreeSet<Vec<ContractProjection>>> {
         let mut out = BTreeSet::new();
         for path in self.physical_byte_paths(&value.ty, b)? {
             let mut variable = false;
             for slot in &value.life.slots {
                 b.spend(slot.path.len().saturating_add(path.len() + 1), WORK)?;
-                if slot.path.len() == path.len() && slot.path.iter().zip(&path)
-                    .all(|(selector, actual)| *actual == ContractProjection::Place(*selector)) {
+                if slot.path.len() == path.len()
+                    && slot
+                        .path
+                        .iter()
+                        .zip(&path)
+                        .all(|(selector, actual)| *actual == ContractProjection::Place(*selector))
+                {
                     variable = true;
                 }
             }
             if !variable {
-                b.product(out.len().saturating_add(1), path.len().saturating_add(1), 1, WORK)?;
+                b.product(
+                    out.len().saturating_add(1),
+                    path.len().saturating_add(1),
+                    1,
+                    WORK,
+                )?;
                 out.insert(path);
             }
         }
@@ -3320,15 +3676,27 @@ impl Check<'_, '_> {
     }
 
     pub(super) fn has_original_static_byte_path(
-        &self, value: &Value, path: &[ContractProjection], b: &mut Budget,
+        &self,
+        value: &Value,
+        path: &[ContractProjection],
+        b: &mut Budget,
     ) -> CompileResult<bool> {
         let paths = self.original_static_byte_paths(value, b)?;
-        b.product(paths.len().saturating_add(1), path.len().saturating_add(1), 1, WORK)?;
+        b.product(
+            paths.len().saturating_add(1),
+            path.len().saturating_add(1),
+            1,
+            WORK,
+        )?;
         Ok(paths.contains(path))
     }
 
     pub(super) fn check_static_value_sources(
-        &self, value: &Value, function: &TypedFunction, actual: ValueId, b: &mut Budget,
+        &self,
+        value: &Value,
+        function: &TypedFunction,
+        actual: ValueId,
+        b: &mut Budget,
     ) -> CompileResult<()> {
         for path in self.original_static_byte_paths(value, b)? {
             crate::retained::check_dyn_static_return(self.module, function, actual, &path, b)?;
@@ -3337,7 +3705,10 @@ impl Check<'_, '_> {
     }
 
     fn static_structural_child(
-        &self, parent: &Value, field: u32, b: &mut Budget,
+        &self,
+        parent: &Value,
+        field: u32,
+        b: &mut Budget,
     ) -> CompileResult<Value> {
         parent.empty_tuple_child(field, b)
     }
@@ -3459,14 +3830,20 @@ impl Check<'_, '_> {
                 physical_bytes |= !self.physical_byte_paths(ty, b)?.is_empty();
             }
             if physical_bytes {
-                for binding in self.capture_creator_bindings(instance, closure, b)?.values() {
+                for binding in self
+                    .capture_creator_bindings(instance, closure, b)?
+                    .values()
+                {
                     for path in self.original_static_byte_paths(&binding.stored, b)? {
                         let position = StoragePosition {
-                            base: StorageBase::Capture(binding.capture), path,
+                            base: StorageBase::Capture(binding.capture),
+                            path,
                         };
                         b.lookup(static_positions.len(), WORK)?;
                         if !static_positions.insert(position) {
-                            return Err(fail("Static capture header repeats an original physical creator occurrence"));
+                            return Err(fail(
+                                "Static capture header repeats an original physical creator occurrence",
+                            ));
                         }
                     }
                 }
@@ -3616,13 +3993,24 @@ impl Check<'_, '_> {
                     fail("actual header omits an original outer borrow occurrence")
                 })?;
                 if self.header_class(instance, binder, b)? != *expected {
-                    let receiver_view = base == StorageBase::Result && slot.path.is_empty()
+                    let receiver_view = base == StorageBase::Result
+                        && slot.path.is_empty()
                         && slot.mode == StoredBorrowMode::SharedAddress
-                        && function.environment.and_then(|id| self.module.closures.get(id.0 as usize))
+                        && function
+                            .environment
+                            .and_then(|id| self.module.closures.get(id.0 as usize))
                             .is_some_and(crate::stored_callables::result_is_receiver)
-                        && crate::signature_life::outer(contract, StorageBase::Receiver) == Some(binder);
-                    if !receiver_view || self.original.receiver_sources(instance.definition, self.inventory, b)?.is_none() {
-                        return Err(fail("actual outer header class differs from its original declaration domain"));
+                        && crate::signature_life::outer(contract, StorageBase::Receiver)
+                            == Some(binder);
+                    if !receiver_view
+                        || self
+                            .original
+                            .receiver_sources(instance.definition, self.inventory, b)?
+                            .is_none()
+                    {
+                        return Err(fail(
+                            "actual outer header class differs from its original declaration domain",
+                        ));
                     }
                     // Only this returned view is shortened. Its original
                     // occurrence and retained/inner classes are not equated.
@@ -3737,15 +4125,24 @@ impl Check<'_, '_> {
         }
         for row in &contract.bindings {
             if row.position.base == StorageBase::Receiver {
-                let closure = function.environment.and_then(|id| self.module.closures.get(id.0 as usize))
+                let closure = function
+                    .environment
+                    .and_then(|id| self.module.closures.get(id.0 as usize))
                     .ok_or_else(|| fail("ordinary header invents a callable Receiver"))?;
-                if !row.position.path.is_empty() || !crate::stored_callables::receiver_access_head(closure)
+                if !row.position.path.is_empty()
+                    || !crate::stored_callables::receiver_access_head(closure)
                     || !matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
-                    || !matches!(row.binder, StorageBinder::Invocation(_)) {
-                    return Err(fail("Receiver header has no exact reusable head/result relation"));
+                    || !matches!(row.binder, StorageBinder::Invocation(_))
+                {
+                    return Err(fail(
+                        "Receiver header has no exact reusable head/result relation",
+                    ));
                 }
-                self.original.receiver_sources(instance.definition, self.inventory, b)?
-                    .ok_or_else(|| fail("Receiver header lacks its original captured return theorem"))?;
+                self.original
+                    .receiver_sources(instance.definition, self.inventory, b)?
+                    .ok_or_else(|| {
+                        fail("Receiver header lacks its original captured return theorem")
+                    })?;
                 used_bindings += 1;
             }
             if matches!(row.position.base, StorageBase::Capture(_)) {
@@ -3757,7 +4154,9 @@ impl Check<'_, '_> {
         }
         for row in &contract.classes {
             if row.position.base == StorageBase::Receiver {
-                return Err(fail("Receiver is an invocation access head, not a semantic class directory"));
+                return Err(fail(
+                    "Receiver is an invocation access head, not a semantic class directory",
+                ));
             }
             if matches!(row.position.base, StorageBase::Capture(_)) {
                 if !captures {
@@ -3789,23 +4188,38 @@ impl Check<'_, '_> {
             let mut child = Some(&value.ty);
             for step in &row.path {
                 child = match (child, step) {
-                    (Some(Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner)),
-                        LifeTypeProjection::Pointee) => Some(inner),
-                    (Some(Type::ErrorUnion { error, result }),
-                        LifeTypeProjection::Place(PlaceProjection::ErrorArm(is_error))) =>
-                        Some(if *is_error { error } else { result }),
-                    (Some(Type::Tuple(fields)),
-                        LifeTypeProjection::Place(PlaceProjection::Field(index))) =>
-                        fields.get(*index as usize),
-                    (Some(Type::Record { fields, .. } | Type::Package { fields, .. }),
-                        LifeTypeProjection::Place(PlaceProjection::Field(index))) =>
-                        fields.get(*index as usize).map(|(_, ty)| ty),
-                    (Some(Type::Enum { variants, .. }),
-                        LifeTypeProjection::Place(PlaceProjection::Variant(field))) =>
-                        variants.get(field.variant as usize)
-                            .and_then(|(_, fields)| fields.get(field.index as usize)),
-                    (Some(Type::Array { element, .. } | Type::Slice { element }
-                        | Type::OwnedStore { element }), LifeTypeProjection::Element) => Some(element),
+                    (
+                        Some(
+                            Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner),
+                        ),
+                        LifeTypeProjection::Pointee,
+                    ) => Some(inner),
+                    (
+                        Some(Type::ErrorUnion { error, result }),
+                        LifeTypeProjection::Place(PlaceProjection::ErrorArm(is_error)),
+                    ) => Some(if *is_error { error } else { result }),
+                    (
+                        Some(Type::Tuple(fields)),
+                        LifeTypeProjection::Place(PlaceProjection::Field(index)),
+                    ) => fields.get(*index as usize),
+                    (
+                        Some(Type::Record { fields, .. } | Type::Package { fields, .. }),
+                        LifeTypeProjection::Place(PlaceProjection::Field(index)),
+                    ) => fields.get(*index as usize).map(|(_, ty)| ty),
+                    (
+                        Some(Type::Enum { variants, .. }),
+                        LifeTypeProjection::Place(PlaceProjection::Variant(field)),
+                    ) => variants
+                        .get(field.variant as usize)
+                        .and_then(|(_, fields)| fields.get(field.index as usize)),
+                    (
+                        Some(
+                            Type::Array { element, .. }
+                            | Type::Slice { element }
+                            | Type::OwnedStore { element },
+                        ),
+                        LifeTypeProjection::Element,
+                    ) => Some(element),
                     _ => None,
                 };
             }
@@ -3818,7 +4232,9 @@ impl Check<'_, '_> {
                 continue;
             };
             if row.class >= retained_life.binder_count || row.binder >= value.life.binder_count {
-                return Err(fail("Task wrapper transport leaves its complete class domain"));
+                return Err(fail(
+                    "Task wrapper transport leaves its complete class domain",
+                ));
             }
             let mut actual = None;
             let mut wrapper = false;
@@ -3836,11 +4252,15 @@ impl Check<'_, '_> {
                     && candidate.path.last() == Some(&LifeTypeProjection::Pointee)
                     && actual.replace(candidate.binder).is_some()
                 {
-                    return Err(fail("Task wrapper repeats its complete child class transport"));
+                    return Err(fail(
+                        "Task wrapper repeats its complete child class transport",
+                    ));
                 }
             }
             if actual != Some(row.binder) {
-                return Err(fail("Task wrapper changes its exact child to whole class transport"));
+                return Err(fail(
+                    "Task wrapper changes its exact child to whole class transport",
+                ));
             }
         }
         Ok(selected)
@@ -3927,7 +4347,9 @@ impl Check<'_, '_> {
         Ok(actual)
     }
     pub(super) fn uses_full_value(&self, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
-        if !self.physical_byte_paths(ty, b)?.is_empty() { return Ok(true); }
+        if !self.physical_byte_paths(ty, b)?.is_empty() {
+            return Ok(true);
+        }
         match ty {
             Type::BorrowedStorage { life, .. } => Ok(life.binder_count != 0),
             Type::Address { .. } | Type::Desc(_) => Ok(true),
@@ -3997,5 +4419,304 @@ impl Check<'_, '_> {
             }
         }
         Ok(())
+    }
+}
+
+impl Check<'_, '_> {
+    /// This is a coordinate interpretation of already checked original field
+    /// recipes. Local atoms cannot escape as semantic identities or proofs.
+    pub(super) fn environment_parameter_binders(
+        &self,
+        b: &mut Budget,
+    ) -> CompileResult<BTreeMap<(FunctionId, u32, Vec<PlaceProjection>), StorageBinder>> {
+        let mut completed = BTreeMap::new();
+        for function in &self.module.functions {
+            for (ordinal, local) in function.parameters.iter().enumerate() {
+                let parameter = u32::try_from(ordinal)
+                    .map_err(|_| fail("environment parameter ordinal overflows"))?;
+                let leaves = crate::stored_flow::environment_parameter_leaves(
+                    self.module,
+                    &function.locals[local.0 as usize].ty,
+                    b,
+                )?;
+                if leaves.is_empty() {
+                    continue;
+                }
+                let header = function
+                    .storage_life
+                    .as_ref()
+                    .ok_or_else(|| fail("environment parameter omits its complete header"))?;
+                let worlds = self.function_worlds(function.id, b)?;
+                if worlds.is_empty() {
+                    return Err(fail(
+                        "environment parameter has no independently checked original world",
+                    ));
+                }
+                for world in worlds {
+                    let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
+                        &self.inventory.definition(world.definition, b)?.body
+                    else {
+                        return Err(fail(
+                            "environment parameter has another original definition kind",
+                        ));
+                    };
+                    let recipe = &signature
+                        .parameters
+                        .get(ordinal)
+                        .ok_or_else(|| fail("environment parameter has no original full ordinal"))?
+                        .ty;
+                    let source = self.recipe_value(world, recipe, b, 0)?;
+                    if !geometry::same_type(&source.ty, &function.locals[local.0 as usize].ty, b)? {
+                        return Err(fail(
+                            "environment parameter changes its original whole Type",
+                        ));
+                    }
+                    let mut coordinates = BTreeMap::new();
+                    let mut record = |whole: u32,
+                                      binder: StorageBinder,
+                                      b: &mut Budget|
+                     -> CompileResult<()> {
+                        if whole >= source.life.binder_count {
+                            return Err(fail(
+                                "environment coordinate leaves the complete original domain",
+                            ));
+                        }
+                        b.lookup(coordinates.len(), WORK)?;
+                        if let Some(previous) = coordinates.insert(whole, binder)
+                            && previous != binder
+                        {
+                            return Err(fail(
+                                "environment coordinate selects distinct actual header binders",
+                            ));
+                        }
+                        if source.classes.get(whole as usize)
+                            != Some(&self.header_class(world, binder, b)?)
+                        {
+                            return Err(fail(
+                                "environment header changes its selected original coordinate image",
+                            ));
+                        }
+                        Ok(())
+                    };
+                    for row in &header.classes {
+                        b.spend(row.position.path.len().saturating_add(1), WORK)?;
+                        if row.position.base != StorageBase::Parameter(parameter) {
+                            continue;
+                        }
+                        let whole = if row.position.path.is_empty() {
+                            row.position.class
+                        } else {
+                            let mut selected = None;
+                            for part in &source.life.retained {
+                                b.spend(
+                                    part.path
+                                        .len()
+                                        .saturating_add(row.position.path.len())
+                                        .saturating_add(1),
+                                    WORK,
+                                )?;
+                                if part.path == row.position.path
+                                    && part.class == row.position.class
+                                    && selected.replace(part.binder).is_some()
+                                {
+                                    return Err(fail(
+                                        "environment header repeats an original child coordinate",
+                                    ));
+                                }
+                            }
+                            selected.ok_or_else(|| {
+                                fail("environment header omits its original retained coordinate")
+                            })?
+                        };
+                        record(whole, row.binder, b)?;
+                    }
+                    for row in &header.bindings {
+                        b.spend(row.position.path.len().saturating_add(1), WORK)?;
+                        if row.position.base != StorageBase::Parameter(parameter) {
+                            continue;
+                        }
+                        for part in &source.life.slots {
+                            b.spend(
+                                part.path
+                                    .len()
+                                    .saturating_add(row.position.path.len())
+                                    .saturating_add(1),
+                                WORK,
+                            )?;
+                            if row.position.path.len() == part.path.len()
+                                && row
+                                    .position
+                                    .path
+                                    .iter()
+                                    .zip(&part.path)
+                                    .all(|(a, z)| matches!(a,ContractProjection::Place(a) if a==z))
+                            {
+                                record(part.binder, row.binder, b)?;
+                            }
+                        }
+                    }
+                    drop(record);
+                    let mut atoms = Vec::new();
+                    for class in 0..source.life.binder_count {
+                        self.push_value(&mut atoms, Class::Local(class), b)?;
+                    }
+                    let coordinate_value = source.with_classes(atoms, b)?;
+                    for (prefix, id, leaf) in &leaves {
+                        b.spend(prefix.len().saturating_add(leaf.len()), WORK)?;
+                        let mut path = prefix.clone();
+                        path.extend(leaf);
+                        let root = if matches!(coordinate_value.ty, Type::Address { .. }) {
+                            self.pointee(&coordinate_value, b)?
+                        } else {
+                            coordinate_value.copy(b)?
+                        };
+                        let whole = self.environment_leaf_coordinate(&root, &path, b, 0)?;
+                        b.lookup(coordinates.len(), WORK)?;
+                        let binder = *coordinates.get(&whole).ok_or_else(|| {
+                            fail("environment field omits its selected original header coordinate")
+                        })?;
+                        b.spend(
+                            prefix.len().saturating_add(leaf.len()).saturating_add(1),
+                            WORK,
+                        )?;
+                        let _ = id; // actual ClosureId already selected by the original path walk
+                        let key = (function.id, parameter, path);
+                        b.lookup(completed.len(), WORK)?;
+                        if let Some(previous) = completed.insert(key, binder)
+                            && previous != binder
+                        {
+                            return Err(fail(
+                                "environment binder differs across complete original worlds",
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        Ok(completed)
+    }
+}
+
+impl Check<'_, '_> {
+    fn environment_capture_coordinates(
+        &self,
+        parent: &Value,
+        capture: u32,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Value> {
+        if depth > b.partial_depth {
+            return Err(unknown("environment coordinate path exceeds finite depth"));
+        }
+        let Type::Closure(id) = parent.ty else {
+            return Err(fail("environment capture has no actual Closure identity"));
+        };
+        let definition = &self.module.closures[id.0 as usize];
+        let header = definition
+            .storage_life
+            .as_ref()
+            .ok_or_else(|| fail("environment capture has no complete Fixed header"))?;
+        let function = &self.module.functions[definition.function.0 as usize];
+        let worlds = self.function_worlds(function.id, b)?;
+        if worlds.is_empty() {
+            return Err(fail("environment capture has no original completed world"));
+        }
+        let mut selected: Option<Value> = None;
+        for world in worlds {
+            let source = self.capture_whole_value(world, function, capture, b, 0)?;
+            let mut classes = Vec::new();
+            for class in 0..source.life.binder_count {
+                let rows = self.capture_class_headers(header, capture, &source, class, b)?;
+                let mut coordinate = None;
+                for (_, _, binder) in rows {
+                    let StorageBinder::Fixed(index) = binder else {
+                        return Err(fail(
+                            "environment capture coordinate is not persistent Fixed",
+                        ));
+                    };
+                    if coordinate
+                        .replace(index)
+                        .is_some_and(|previous| previous != index)
+                    {
+                        return Err(fail(
+                            "environment capture repeats one coordinate with distinct Fixed axes",
+                        ));
+                    }
+                }
+                let index = coordinate.ok_or_else(|| {
+                    fail("environment capture omits a complete intrinsic or phantom coordinate")
+                })?;
+                self.push_value(
+                    &mut classes,
+                    parent
+                        .classes
+                        .get(index as usize)
+                        .ok_or_else(|| {
+                            fail("environment capture leaves its actual complete Fixed domain")
+                        })?
+                        .clone(),
+                    b,
+                )?;
+            }
+            let value = source.with_classes(classes, b)?;
+            if let Some(previous) = &selected {
+                if !previous.equal_paid(&value, b)? {
+                    return Err(fail(
+                        "environment coordinate projection differs across original capture worlds",
+                    ));
+                }
+            } else {
+                selected = Some(value);
+            }
+        }
+        selected.ok_or_else(|| fail("environment capture coordinate has no source"))
+    }
+    fn environment_leaf_coordinate(
+        &self,
+        parent: &Value,
+        path: &[PlaceProjection],
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<u32> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(unknown(
+                "environment leaf coordinate exceeds finite path depth",
+            ));
+        }
+        if path.is_empty() {
+            let [head] = parent.life.slots.as_slice() else {
+                return Err(fail(
+                    "environment physical leaf omits its exact outer occurrence",
+                ));
+            };
+            if !head.path.is_empty() {
+                return Err(fail(
+                    "environment physical leaf has a projected outer occurrence",
+                ));
+            }
+            let Some(Class::Local(coordinate)) = parent.classes.get(head.binder as usize) else {
+                return Err(fail(
+                    "environment leaf has no original directory coordinate",
+                ));
+            };
+            return Ok(*coordinate);
+        }
+        if matches!(parent.ty, Type::Address { .. }) {
+            let child = self.pointee(parent, b)?;
+            return self.environment_leaf_coordinate(&child, path, b, depth + 1);
+        }
+        let (step, tail) = path.split_first().unwrap();
+        let child = if matches!(parent.ty, Type::Closure(_)) {
+            let PlaceProjection::Field(capture) = step else {
+                return Err(fail(
+                    "environment capture selector has another physical kind",
+                ));
+            };
+            self.environment_capture_coordinates(parent, *capture, b, depth + 1)?
+        } else {
+            self.closure_child_value(parent, *step, b)?
+        };
+        self.environment_leaf_coordinate(&child, tail, b, depth + 1)
     }
 }

@@ -51,7 +51,9 @@ pub(super) fn arguments(instance: &LifeNominalInstance, b: &mut Budget) -> Compi
     let mut next = 0;
     for (ordinal, actual) in instance.arguments.iter().enumerate() {
         fee(b, 1)?;
-        let Some(ty) = option_address::shared_actual(actual, b)? else { continue; };
+        let Some(ty) = option_address::shared_actual(actual, b)? else {
+            continue;
+        };
         let row = life
             .retained
             .get(next)
@@ -514,14 +516,37 @@ pub(super) fn types<'a>(
     Ok(Some(ty))
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct VariantInput {
+    base: HoldRoot,
+    pointer: Option<Path>,
+    path: Path,
+}
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct Variants {
     domain: u32,
     constructed: BTreeSet<u32>,
-    inputs: BTreeSet<(u32, Path)>,
+    inputs: BTreeSet<VariantInput>,
     nested: BTreeMap<Path, Variants>,
 }
 impl Variants {
+    pub(super) fn constructed(domain: usize, tag: u32, b: &mut Budget) -> CompileResult<Self> {
+        fee(b, 2)?;
+        let domain = u32::try_from(domain).map_err(|_| failure("sum tag domain overflows"))?;
+        if tag >= domain {
+            return Err(failure(
+                "sum constructed tag is outside its complete domain",
+            ));
+        }
+        Ok(Self {
+            domain,
+            constructed: BTreeSet::from([tag]),
+            ..Self::default()
+        })
+    }
+    pub(super) fn value_input(base: HoldRoot, ty: &Type, b: &mut Budget) -> CompileResult<Self> {
+        Self::input(base, None, ty, Vec::new(), b, 0)
+    }
     pub(super) fn runtime_poll(b: &mut Budget) -> CompileResult<Self> {
         fee(b, 7)?;
         Ok(Self {
@@ -539,7 +564,7 @@ impl Variants {
         })
     }
     pub(super) fn present(&self) -> bool {
-        self.domain != 0
+        self.domain != 0 || self.nested.values().any(Self::present)
     }
     pub(super) fn grounded(&self, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         fee(b, 1)?;
@@ -590,8 +615,14 @@ impl Variants {
                     .saturating_add(self.inputs.len())
                     .saturating_add(1),
             )?;
-            for (_, path) in &self.inputs {
-                fee(b, path.len())?;
+            for input in &self.inputs {
+                fee(
+                    b,
+                    input
+                        .path
+                        .len()
+                        .saturating_add(input.pointer.as_ref().map_or(0, Vec::len)),
+                )?;
             }
             for (path, child) in &self.nested {
                 fee(b, path.len().saturating_add(1))?;
@@ -601,40 +632,240 @@ impl Variants {
         Ok(())
     }
     pub(super) fn parameter(index: u32, ty: &Type, b: &mut Budget) -> CompileResult<Self> {
-        Self::input(index, ty, Vec::new(), b)
+        Self::input(HoldRoot::Parameter(index), None, ty, Vec::new(), b, 0)
     }
-    fn input(index: u32, ty: &Type, selector: Path, b: &mut Budget) -> CompileResult<Self> {
-        fee(b, selector.len().saturating_add(2))?;
-        if let Type::ErrorUnion { error, result } = ty {
-            let mut nested = BTreeMap::new();
-            for (arm, child) in [(true, error.as_ref()), (false, result.as_ref())] {
-                if signature(child) {
-                    let mut path = selector.clone();
-                    path.push(PlaceProjection::ErrorArm(arm));
-                    nested.insert(
-                        vec![PlaceProjection::ErrorArm(arm)],
-                        Self::input(index, child, path, b)?,
-                    );
+    pub(super) fn pointee(
+        base: HoldRoot,
+        pointer: Path,
+        ty: &Type,
+        b: &mut Budget,
+    ) -> CompileResult<Self> {
+        Self::input(base, Some(pointer), ty, Vec::new(), b, 0)
+    }
+    fn has_sums(ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<bool> {
+        fee(b, 1)?;
+        if depth > b.partial_depth {
+            return Err(vec![Diagnostic::limit(
+                Phase::Analyze,
+                "sum-state inventory exceeds finite depth",
+                None,
+            )]);
+        }
+        Ok(match ty {
+            Type::Enum { .. } | Type::ErrorUnion { .. } => true,
+            Type::BorrowedStorage { storage, .. }
+            | Type::Array {
+                element: storage, ..
+            } => Self::has_sums(storage, b, depth + 1)?,
+            Type::Tuple(fields) => {
+                let mut found = false;
+                for field in fields {
+                    found |= Self::has_sums(field, b, depth + 1)?;
+                }
+                found
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                let mut found = false;
+                for (_, field) in fields {
+                    found |= Self::has_sums(field, b, depth + 1)?;
+                }
+                found
+            }
+            _ => false,
+        })
+    }
+    fn input(
+        base: HoldRoot,
+        pointer: Option<Path>,
+        ty: &Type,
+        selector: Path,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Self> {
+        if !Self::has_sums(ty, b, depth)? {
+            return Ok(Self::default());
+        }
+        fee(
+            b,
+            selector
+                .len()
+                .saturating_add(pointer.as_ref().map_or(0, Vec::len))
+                .saturating_add(2),
+        )?;
+        if let Type::BorrowedStorage { storage, .. } = ty {
+            return Self::input(base, pointer, storage, selector, b, depth + 1);
+        }
+        let mut out = Self::default();
+        let mut add = |step: PlaceProjection, child: &Type| -> CompileResult<()> {
+            if !Self::has_sums(child, b, depth + 1)? {
+                return Ok(());
+            }
+            fee(
+                b,
+                selector
+                    .len()
+                    .saturating_add(pointer.as_ref().map_or(0, Vec::len))
+                    .saturating_add(2),
+            )?;
+            let mut path = selector.clone();
+            path.push(step);
+            out.nested.insert(
+                vec![step],
+                Self::input(base, pointer.clone(), child, path, b, depth + 1)?,
+            );
+            Ok(())
+        };
+        match ty {
+            Type::Enum { variants, .. } => {
+                for (variant, (_, fields)) in variants.iter().enumerate() {
+                    for (index, child) in fields.iter().enumerate() {
+                        add(
+                            PlaceProjection::Variant(zil_ir::VariantProjection {
+                                variant: variant as u32,
+                                index: index as u32,
+                            }),
+                            child,
+                        )?;
+                    }
+                }
+                out.domain = u32::try_from(variants.len())
+                    .map_err(|_| failure("sum variant count overflows"))?;
+            }
+            Type::ErrorUnion { error, result } => {
+                add(PlaceProjection::ErrorArm(true), error)?;
+                add(PlaceProjection::ErrorArm(false), result)?;
+                out.domain = 2;
+            }
+            Type::Tuple(fields) => {
+                for (index, child) in fields.iter().enumerate() {
+                    add(PlaceProjection::Field(index as u32), child)?;
                 }
             }
-            return Ok(Self {
-                domain: 2,
-                inputs: BTreeSet::from([(index, selector)]),
-                nested,
-                ..Self::default()
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                for (index, (_, child)) in fields.iter().enumerate() {
+                    add(PlaceProjection::Field(index as u32), child)?;
+                }
+            }
+            Type::Array { element, length } => {
+                for index in 0..*length {
+                    add(PlaceProjection::Field(index), element)?;
+                }
+            }
+            _ => {}
+        }
+        if out.domain != 0 {
+            out.inputs.insert(VariantInput {
+                base,
+                pointer,
+                path: selector,
             });
         }
-        let Type::BorrowedStorage { storage, .. } = ty else {
-            return Err(failure("Enum parameter has no qualified boundary"));
-        };
-        let Type::Enum { variants, .. } = storage.as_ref() else {
-            unreachable!()
-        };
-        Ok(Self {
-            domain: variants.len() as u32,
-            inputs: BTreeSet::from([(index, selector)]),
-            ..Self::default()
-        })
+        Ok(out)
+    }
+    pub(super) fn project(&self, path: &[PlaceProjection], b: &mut Budget) -> CompileResult<Self> {
+        let mut current = self;
+        for step in path {
+            fee(b, 1)?;
+            let Some(child) = current.nested.get(&vec![*step]) else {
+                return Ok(Self::default());
+            };
+            current = child;
+        }
+        current.work(b)?;
+        Ok(current.clone())
+    }
+    pub(super) fn replace(
+        &mut self,
+        path: &[PlaceProjection],
+        incoming: &Self,
+        strong: bool,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        fee(b, path.len().saturating_add(1))?;
+        if let Some((first, tail)) = path.split_first() {
+            self.nested
+                .entry(vec![*first])
+                .or_default()
+                .replace(tail, incoming, strong, b)?;
+            self.nested.retain(|_, child| child.present());
+        } else if strong {
+            incoming.work(b)?;
+            *self = incoming.clone();
+        } else {
+            self.join(incoming, b)?;
+        }
+        Ok(())
+    }
+    pub(super) fn complete_tree(&self, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+        if !Self::has_sums(ty, b, 0)? {
+            return Ok(true);
+        }
+        if let Type::BorrowedStorage { storage, .. } = ty {
+            return self.complete_tree(storage, b);
+        }
+        let mut children = Vec::new();
+        match ty {
+            Type::Enum { variants, .. } => {
+                if self.domain as usize != variants.len()
+                    || (self.constructed.is_empty() && self.inputs.is_empty())
+                {
+                    return Ok(false);
+                }
+                for (variant, (_, fields)) in variants.iter().enumerate() {
+                    if self.active(variant as u32) {
+                        for (index, child) in fields.iter().enumerate() {
+                            children.push((
+                                PlaceProjection::Variant(zil_ir::VariantProjection {
+                                    variant: variant as u32,
+                                    index: index as u32,
+                                }),
+                                child,
+                            ));
+                        }
+                    }
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                if self.domain != 2 || (self.constructed.is_empty() && self.inputs.is_empty()) {
+                    return Ok(false);
+                }
+                for (arm, child) in [(true, error.as_ref()), (false, result.as_ref())] {
+                    if self.active(u32::from(arm)) {
+                        children.push((PlaceProjection::ErrorArm(arm), child));
+                    }
+                }
+            }
+            Type::Tuple(fields) => {
+                for (index, child) in fields.iter().enumerate() {
+                    children.push((PlaceProjection::Field(index as u32), child));
+                }
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                for (index, (_, child)) in fields.iter().enumerate() {
+                    children.push((PlaceProjection::Field(index as u32), child));
+                }
+            }
+            Type::Array { element, length } => {
+                fee(b, *length as usize)?;
+                for index in 0..*length {
+                    children.push((PlaceProjection::Field(index), element.as_ref()));
+                }
+            }
+            _ => {}
+        }
+        for (step, ty) in children {
+            fee(b, 1)?;
+            if !Self::has_sums(ty, b, 0)? {
+                continue;
+            }
+            let Some(child) = self.nested.get(&vec![step]) else {
+                return Ok(false);
+            };
+            if !child.complete_tree(ty, b)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
     pub(super) fn join(&mut self, other: &Self, b: &mut Budget) -> CompileResult<bool> {
         if !other.present() {
@@ -652,7 +883,14 @@ impl Variants {
             changed |= self.constructed.insert(*tag);
         }
         for input in &other.inputs {
-            ordered(b, self.inputs.len(), input.1.len())?;
+            ordered(
+                b,
+                self.inputs.len(),
+                input
+                    .path
+                    .len()
+                    .saturating_add(input.pointer.as_ref().map_or(0, Vec::len)),
+            )?;
             changed |= self.inputs.insert(input.clone());
         }
         for (path, child) in &other.nested {
@@ -669,6 +907,32 @@ impl Variants {
         &self,
         arguments: &[ValueId],
         values: &[Value],
+        state: &State,
+        captures: Option<&Value>,
+        b: &mut Budget,
+    ) -> CompileResult<Self> {
+        self.substitute_inner(arguments, values, state, captures, false, b)
+    }
+    /// Bottom is permitted while summaries converge; the final call window
+    /// proves every input occurrence at the exact pre-call state before join.
+    pub(super) fn check_inputs(
+        &self,
+        arguments: &[ValueId],
+        values: &[Value],
+        state: &State,
+        captures: Option<&Value>,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        self.substitute_inner(arguments, values, state, captures, true, b)?;
+        Ok(())
+    }
+    fn substitute_inner(
+        &self,
+        arguments: &[ValueId],
+        values: &[Value],
+        state: &State,
+        captures: Option<&Value>,
+        check: bool,
         b: &mut Budget,
     ) -> CompileResult<Self> {
         if !self.present() {
@@ -680,46 +944,113 @@ impl Variants {
             constructed: self.constructed.clone(),
             ..Self::default()
         };
-        for (input, path) in &self.inputs {
-            let actual = arguments
-                .get(*input as usize)
-                .and_then(|id| values.get(id.0 as usize))
-                .ok_or_else(|| failure("Enum summary actual is absent"))?;
-            let mut selected = &actual.enum_variants;
-            let empty = Self::default();
-            for step in path {
-                selected = selected.nested.get(&vec![*step]).unwrap_or(&empty);
-            }
-            let root = Self {
-                domain: selected.domain,
-                constructed: selected.constructed.clone(),
-                inputs: selected.inputs.clone(),
-                ..Self::default()
+        for input in &self.inputs {
+            let (direct, head) = match input.base {
+                HoldRoot::Parameter(index) => {
+                    let value = arguments
+                        .get(index as usize)
+                        .and_then(|id| values.get(id.0 as usize))
+                        .ok_or_else(|| failure("sum summary has no actual argument"))?;
+                    if let Some(pointer) = &input.pointer {
+                        let head = if pointer.is_empty() {
+                            copy_permission(&value.pointer, b)?
+                        } else {
+                            let rows = environment_memory::current(value, state, b)?;
+                            rows.get(pointer)
+                                .map(|p| copy_permission(p, b))
+                                .transpose()?
+                                .unwrap_or_default()
+                        };
+                        (None, Some(head))
+                    } else {
+                        (Some(snapshot(value, b)?), None)
+                    }
+                }
+                HoldRoot::Capture(index) => {
+                    let receiver = captures
+                        .ok_or_else(|| failure("sum effect loses its actual captured receiver"))?;
+                    let mut path = vec![PlaceProjection::Field(index)];
+                    if let Some(pointer) = &input.pointer {
+                        fee(b, pointer.len().saturating_add(1))?;
+                        path.extend(pointer);
+                        let head = receiver
+                            .environment
+                            .get(&path)
+                            .map(|p| copy_permission(p, b))
+                            .transpose()?
+                            .unwrap_or_default();
+                        (None, Some(head))
+                    } else {
+                        (
+                            Some(pointee_memory::project(receiver, &path, None, b)?),
+                            None,
+                        )
+                    }
+                }
+                _ => return Err(failure("sum effect retains an activation-local source")),
             };
-            out.join(&root, b)?;
+            let mut candidates = Vec::new();
+            if let Some(value) = direct {
+                candidates.push(value);
+            }
+            if let Some(head) = head {
+                if check && head.targets.is_empty() {
+                    return Err(failure("sum input has no actual pointer candidate"));
+                }
+                for target in &head.targets {
+                    fee(b, target_width(target).saturating_add(1))?;
+                    let address = Permission {
+                        targets: Targets::from([target.clone()]),
+                        loans: Loans::new(),
+                    };
+                    candidates.push(pointee_memory::read(state, &address, None, check, b)?);
+                }
+            }
+            for actual in candidates {
+                let selected = actual.enum_variants.project(&input.path, b)?;
+                if check
+                    && (selected.domain != self.domain
+                        || (selected.constructed.is_empty() && selected.inputs.is_empty()))
+                {
+                    return Err(failure(
+                        "sum input candidate omits its exact active domain or occurrence source",
+                    ));
+                }
+                let root = Self {
+                    domain: selected.domain,
+                    constructed: selected.constructed,
+                    inputs: selected.inputs,
+                    ..Self::default()
+                };
+                out.join(&root, b)?;
+            }
         }
         for (path, child) in &self.nested {
-            if matches!(path.as_slice(), [PlaceProjection::ErrorArm(arm)] if !out.active(u32::from(*arm)))
-            {
+            if !out.slot_active(path) {
                 continue;
             }
-            out.nested
-                .insert(path.clone(), child.substitute(arguments, values, b)?);
+            fee(b, path.len().saturating_add(1))?;
+            out.nested.insert(
+                path.clone(),
+                child.substitute_inner(arguments, values, state, captures, check, b)?,
+            );
         }
         Ok(out)
     }
     pub(super) fn slot_active(&self, path: &[PlaceProjection]) -> bool {
-        match path.first() {
-            Some(PlaceProjection::Variant(p)) => self.active(p.variant),
-            Some(PlaceProjection::ErrorArm(arm)) => {
-                self.active(u32::from(*arm))
-                    && self
-                        .nested
-                        .get(&vec![PlaceProjection::ErrorArm(*arm)])
-                        .is_some_and(|child| child.slot_active(&path[1..]))
-            }
-            _ => false,
-        }
+        let Some((step, tail)) = path.split_first() else {
+            return true;
+        };
+        let active = match step {
+            PlaceProjection::Variant(p) => self.active(p.variant),
+            PlaceProjection::ErrorArm(arm) => self.active(u32::from(*arm)),
+            _ => true,
+        };
+        active
+            && self
+                .nested
+                .get(&vec![*step])
+                .is_none_or(|child| child.slot_active(tail))
     }
 }
 
