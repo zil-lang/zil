@@ -4206,7 +4206,13 @@ impl<'a> Check<'a, '_> {
                         }
                         if let Some(path) = self.declaration_path(callee, variables, depth + 1)? {
                             let target = self.declaration_target(owner, &path, depth + 1)?
-                                .ok_or_else(|| pending("original call path lacks its real declaration import binding"))?;
+                                .ok_or_else(|| {
+                                    if path.len() == 1 {
+                                        bad("unbound original direct call name")
+                                    } else {
+                                        pending("original call path lacks its real declaration import binding")
+                                    }
+                                })?;
                             let target_definition = self.definition(target)?;
                             self.pay(target_definition.parameters.len(), depth)?;
                             (
