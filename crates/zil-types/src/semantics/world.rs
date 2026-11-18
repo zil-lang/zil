@@ -3503,8 +3503,9 @@ impl World<'_, '_> {
                                         for (index, field) in fields.iter().enumerate() {
                                             let target =
                                                 self.field_value(&expected, index as u32)?;
-                                            let value = self.get(&values, *field)?;
-                                            self.same(instance.id, &value, &target, &implicit)?;
+                                            arguments::tuple_field(
+                                                self, instance.id, *field, &target, &values, &implicit,
+                                            )?;
                                         }
                                     }
                                     Type::Array { element, length }
