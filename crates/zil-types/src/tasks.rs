@@ -874,12 +874,15 @@ impl Builder<'_, '_> {
             } else {
                 if !parameters.iter().all(|ty| {
                     retained_pointee(ty)
+                        || matches!(ty, Type::Managed(payload)
+                            if matches!(payload.as_ref(), Type::Record { .. })
+                                && resources::supported(ty) && retained_pointee(payload))
                         || matches!(ty, Type::Address { inner, .. } if retained_pointee(inner))
                 }) || !retained_result(&worker_result)
                 {
                     return Err(unsupported(
                         span,
-                        "Task without original preparation context requires complete ordinary scalar input/result types",
+                        "Task without original preparation context requires complete scalar, ordinary managed record or retained address inputs and an ordinary result",
                     ));
                 }
                 call_create_type(

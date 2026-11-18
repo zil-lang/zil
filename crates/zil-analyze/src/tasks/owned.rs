@@ -183,10 +183,10 @@ fn frame_tag_local_instruction(
     let root = local_type(f, *local, Some(instruction.span))?;
     if !path.is_empty()
         || !matches!(root, Type::Enum { .. } | Type::ErrorUnion { .. })
-        || record(root, budget)? || !complete_aggregate(module, root, budget)?
+        || !complete_aggregate(module, root, budget)?
     {
         return Err(vec![Diagnostic::unsupported(Phase::Analyze,
-            "task PlaceTagLocal requires a complete owning Sum local root and empty path", Some(instruction.span))]);
+            "task PlaceTagLocal requires a complete Sum local root and empty path", Some(instruction.span))]);
     }
     // The ordinary Sum/initialization kernel proves the current tag and
     // initialized occupant. Eligibility neither selects nor cleans an arm.
