@@ -733,16 +733,17 @@ impl<'a> Engine<'a> {
                 depth + 1,
             ),
             TypeKind::Named { path: name, args }
-                if name.as_slice() == ["Managed"]
+                if matches!(name.as_slice(), [name]
+                    if name == "Managed" || crate::receivers::internal_resource_carrier(name))
                     && matches!(args.as_slice(), [GenericArg::Type(resource)]
                         if crate::receivers::bare_resource_syntax(resource, &|_| None)) =>
             {
                 let [GenericArg::Type(resource)] = args.as_mut_slice() else {
                     unreachable!("one actual resource selected above")
                 };
-                // Desc<R> and Managed<R> both select R's logical domain at
-                // Pointee. Ownership adds no physical Address or extra port;
-                // keep the resource's exact Context occurrences once.
+                // Resource carriers select the same payload domain. A
+                // normalized reference-owner carrier still needs every
+                // retained port and class in the actual pointee.
                 self.storage_header(
                     resource,
                     base,

@@ -53,7 +53,19 @@ fn task_multiport_result_tracks_the_nonfirst_input() {
     };
     assert_eq!(retained_life.binder_count, 2);
     assert_eq!(retained_life.ports[0].leaf, retained_life.ports[1].leaf);
-    assert_eq!(retained_life.retained[0].binder, 1);
+    use zil_ir::LifeTypeProjection::{Parameter, Result};
+    assert_eq!(
+        retained_life
+            .retained
+            .iter()
+            .map(|row| (row.path.as_slice(), row.class, row.binder))
+            .collect::<Vec<_>>(),
+        [
+            (&[Parameter(1)][..], 0, 0),
+            (&[Parameter(2)][..], 0, 1),
+            (&[Result][..], 0, 1),
+        ],
+    );
     let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
     zil_verify::verify_module(
         module.clone(),
@@ -277,7 +289,7 @@ fn task_multiport_result_rejects_wrong_source_and_forged_relations() {
                     unreachable!()
                 };
                 match mutation {
-                    3 => retained_life.retained[0].binder = 0,
+                    3 => retained_life.retained.last_mut().unwrap().binder = 0,
                     4 => retained_life.retained.clear(),
                     5 => {
                         retained_life.ports[0].binder = 1;
@@ -956,13 +968,15 @@ fn task_borrowed_result_source_preserves_the_result_class_and_worker_relation() 
                     result.as_ref(),
                     Type::Address { mutable: false, .. }
                 ));
-                assert_eq!(retained_life.retained.len(), 1);
+                use zil_ir::LifeTypeProjection::{Parameter, Result};
                 assert_eq!(
-                    retained_life.retained[0].path,
-                    [zil_ir::LifeTypeProjection::Result]
+                    retained_life
+                        .retained
+                        .iter()
+                        .map(|row| (row.path.as_slice(), row.class, row.binder))
+                        .collect::<Vec<_>>(),
+                    [(&[Parameter(0)][..], 0, 0), (&[Result][..], 0, 0)],
                 );
-                assert_eq!(retained_life.retained[0].class, 0);
-                assert_eq!(retained_life.retained[0].binder, 0);
                 count += 1;
             }
         }
@@ -1120,9 +1134,9 @@ fn task_borrowed_result_rejects_erased_or_forged_result_mapping() {
         };
         match mutation {
             0 => retained_life.retained.clear(),
-            1 => retained_life.retained[0].path.clear(),
-            2 => retained_life.retained[0].class = 1,
-            3 => retained_life.retained[0].binder = 1,
+            1 => retained_life.retained.last_mut().unwrap().path.clear(),
+            2 => retained_life.retained.last_mut().unwrap().class = 1,
+            3 => retained_life.retained.last_mut().unwrap().binder = 1,
             4 => retained_life.ports[0].mode = zil_ir::StoredBorrowMode::ExclusiveAddress,
             _ => unreachable!(),
         }

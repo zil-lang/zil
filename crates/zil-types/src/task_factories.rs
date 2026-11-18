@@ -356,7 +356,13 @@ pub(super) fn prepare(
         &function.return_type,
     );
     if let Some(Type::Task { retained_life, .. }) = result_task(&function.return_type) {
-        context.retained = retained_life.retained.clone();
+        context.retained.extend(
+            retained_life
+                .retained
+                .iter()
+                .filter(|row| row.path == [zil_ir::LifeTypeProjection::Result])
+                .cloned(),
+        );
     }
     if context.ports.is_empty() {
         return Ok(resolved);
@@ -443,6 +449,7 @@ pub(super) fn prepare(
                 let next = classes.len() as u32;
                 let binder = *classes.entry(source).or_insert(next);
                 context.ports[port].binder = binder;
+                context.retained[port].binder = binder;
                 port += 1;
             }
             context.binder_count = classes.len() as u32;

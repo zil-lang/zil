@@ -93,6 +93,33 @@ pub(super) fn instance(
     let [actual] = instance.arguments.as_slice() else {
         return Err(err("builtin Option omits its complete Type actual"));
     };
+    let actual_ty = shared_actual(actual, limits, b)?;
+    if actual_ty != &variants[1].1[0] {
+        return Err(err(
+            "Option Type actual differs from the complete Some payload",
+        ));
+    }
+    let Type::Address { inner, .. } = actual_ty else {
+        unreachable!()
+    };
+    let pointee = match inner.as_ref() {
+        Type::Slice { element } => element.as_ref(),
+        other => other,
+    };
+    let (classes, pending) = crate::dynamic_witness::intrinsic_domain(module, pointee, b)?;
+    if classes != 0 || pending {
+        return Err(err(
+            "Option outer borrow cannot erase its pointee's persistent domain",
+        ));
+    }
+    crate::dynamic_witness::structural_actual(module, pointee, DynStructuralBound::Value, b)
+}
+
+pub(super) fn shared_actual<'a>(
+    actual: &'a LifeNominalActual,
+    limits: &Limits,
+    b: &mut Budget,
+) -> Check<&'a Type> {
     let actual_ty = match actual {
         LifeNominalActual::Type(ty) => ty,
         LifeNominalActual::QualifiedType { ty, life } => {
@@ -112,41 +139,22 @@ pub(super) fn instance(
                         && slot.mode == StoredBorrowMode::SharedAddress)
             {
                 return Err(err(
-                    "Option Type actual omits or changes its own outer borrow class",
+                    "shared Address Type actual omits or changes its own outer borrow class",
                 ));
             }
             ty
         }
         _ => {
             return Err(err(
-                "builtin Option changes its full-ordinal Type actual kind",
+                "sealed shared Address argument changes its full-ordinal Type actual kind",
             ));
         }
     };
     type_work(actual_ty, limits, b)?;
-    if actual_ty != &variants[1].1[0] {
-        return Err(err(
-            "Option Type actual differs from the complete Some payload",
-        ));
+    if !matches!(actual_ty, Type::Address { mutable: false, .. }) {
+        return Err(err("Type actual is not a shared outer borrow"));
     }
-    let Type::Address {
-        inner,
-        mutable: false,
-    } = actual_ty
-    else {
-        return Err(err("Option Type actual is not its shared outer borrow"));
-    };
-    let pointee = match inner.as_ref() {
-        Type::Slice { element } => element.as_ref(),
-        other => other,
-    };
-    let (classes, pending) = crate::dynamic_witness::intrinsic_domain(module, pointee, b)?;
-    if classes != 0 || pending {
-        return Err(err(
-            "Option outer borrow cannot erase its pointee's persistent domain",
-        ));
-    }
-    crate::dynamic_witness::structural_actual(module, pointee, DynStructuralBound::Value, b)
+    Ok(actual_ty)
 }
 
 /// Authenticate the complete operation before either preflight or permission flow.

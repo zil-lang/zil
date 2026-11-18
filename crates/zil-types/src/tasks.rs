@@ -19,6 +19,7 @@ pub(super) fn borrowed_context_with_life(
     result: &Type,
 ) -> zil_ir::RetainedLifeShape {
     let mut ports = Vec::new();
+    let mut retained = Vec::new();
     let mut classes = std::collections::BTreeMap::new();
     let mut next_binder = 0u32;
     for (position, parameter) in parameters.iter().enumerate() {
@@ -50,9 +51,13 @@ pub(super) fn borrowed_context_with_life(
                 },
                 binder,
             });
+            retained.push(zil_ir::StorageRetainedBinding {
+                path: vec![zil_ir::LifeTypeProjection::Parameter(position as u32)],
+                class: 0,
+                binder,
+            });
         }
     }
-    let mut retained = Vec::new();
     if matches!(result, Type::Address { mutable: false, .. })
         && let Some(binder) = life
             .and_then(|l| l.result_life)

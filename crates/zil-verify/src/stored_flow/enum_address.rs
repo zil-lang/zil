@@ -1097,13 +1097,13 @@ pub(super) fn poll_instance(instance: &LifeNominalInstance, b: &mut Budget) -> C
     let Type::BorrowedStorage { storage, life } = &instance.ty else {
         return Err(err("Poll omits its qualified type"));
     };
-    let [LifeNominalActual::Type(actual)] = instance.arguments.as_slice() else {
+    let [actual] = instance.arguments.as_slice() else {
         return Err(err("Poll omits its complete Type argument"));
     };
     let Type::Enum { name, variants } = storage.as_ref() else {
         return Err(err("Poll physical type is not Enum"));
     };
-    type_work(actual, &b.limits.clone(), b)?;
+    let actual = option_address::shared_actual(actual, &b.limits.clone(), b)?;
     b.spend(name.len().saturating_add(96))?;
     if name != &format!("@std.task:v1:Poll:{}", actual.fingerprint())
         || variants.len() != 2
@@ -1112,7 +1112,6 @@ pub(super) fn poll_instance(instance: &LifeNominalInstance, b: &mut Budget) -> C
         || variants[1].0 != "Ready"
         || variants[1].1.len() != 1
         || variants[1].1[0] != *actual
-        || !matches!(actual, Type::Address { mutable: false, .. })
         || life.binder_count != 1
         || !life.nominal_arguments.is_empty()
         || life.retained.len() != 1
