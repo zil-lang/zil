@@ -98,21 +98,19 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
     b.diagnostic_stage("actual closure boundaries");
     for boundary in context.closure_boundaries.borrow().iter() {
         b.spend(1)?;
-        if !directory.checked().contains(&boundary.child)||!context.seals.borrow().contains_key(&boundary.child){return Err(bad("actual Closure boundary has no completely checked child entry and creator seal"));}
+        if !directory.checked().contains_key(&boundary.child)||!context.seals.borrow().contains_key(&boundary.child){return Err(bad("actual Closure boundary has no completely checked child entry and creator seal"));}
     }
     for cursor in context.pending_closures.borrow().iter() {
         b.spend(cursor.arguments.len().saturating_add(cursor.sealed.len()).saturating_add(cursor.environment.lexical.len()).saturating_add(cursor.expected.classes.len()))?;
         let instance=context.instance(module,cursor.instance,b)?;
         let definition=context.definition(module,instance.definition,b)?;
-        if !directory.checked().contains(&instance.id)||!context.seals.borrow().contains_key(&instance.id) {return Err(unsupported("pending Closure type cursor has no complete actual creator seal and checked entry",None));}
+        if !directory.checked().contains_key(&instance.id)||!context.seals.borrow().contains_key(&instance.id) {return Err(unsupported("pending Closure type cursor has no complete actual creator seal and checked entry",None));}
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=instance.target else {return Err(bad("pending Closure cursor selects a nonexecutable scope"));};
         let entry=module.functions.get(function.0 as usize).ok_or_else(||bad("pending Closure entry is absent"))?;
         let closure=entry.environment.ok_or_else(||bad("pending Closure entry lacks its environment identity"))?;
         let relation=entry.storage_life.as_ref().ok_or_else(||bad("pending Closure entry complete header is Unknown"))?;
         if cursor.expected.ty!=Type::Closure(closure)||cursor.expected.life.binder_count!=relation.fixed_binder_count||cursor.expected.classes.len()!=relation.fixed_binder_count as usize||cursor.arguments.len()!=definition.parameters.len()||cursor.sealed.len()!=definition.environment.len() {return Err(bad("pending Closure cursor contradicts its fully checked actual entry/domain"));}
-        b.spend(directory.worlds().len())?;
-        let actual=directory.worlds().iter().find(|(id,_)|*id==instance.id).ok_or_else(||bad("pending Closure cursor has no exact completed original world"))?;
-        context.finish_closure_cursor(module,cursor,&actual.1,b)?;
+        context.finish_closure_cursor(module, cursor, directory.environment(instance.id, b)?, b)?;
         // The caller-side cursor may instantiate the generic creator's rigid
         // lifetime into another caller domain. Its original recipe and every
         // actual Call substitution are checked separately; no global union

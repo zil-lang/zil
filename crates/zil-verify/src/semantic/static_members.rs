@@ -101,20 +101,20 @@ impl CheckedContext{
             records.push(StaticMember{origin:StaticOrigin::Definition{world:*id},function:function.id,specialization:specialization.clone(),source,worlds:vec![*id]});
         }Ok(())
     }
-    pub(super) fn complete_static_members(&self,module:&TypedModule,checked:&std::collections::BTreeSet<SemanticInstanceId>,worlds:&[(SemanticInstanceId,EvalEnv)],b:&mut Budget)->Check<()>{
+    pub(super) fn complete_static_members(&self,module:&TypedModule,checked:&std::collections::BTreeMap<SemanticInstanceId,usize>,worlds:&[(SemanticInstanceId,EvalEnv)],b:&mut Budget)->Check<()>{
         for record in self.static_members.borrow().iter(){
             b.spend(record.worlds.len().saturating_add(1))?;
-            if record.worlds.iter().any(|id|!checked.contains(id)){return Err(bad("static member execution has an unchecked actual body world"));}
+            if record.worlds.iter().any(|id|!checked.contains_key(id)){return Err(bad("static member execution has an unchecked actual body world"));}
             match record.origin{
                 StaticOrigin::Call{caller,site}=>{
-                    if !checked.contains(&caller){return Err(bad("static member execution has an unchecked actual caller world"));}
+                    if !checked.contains_key(&caller){return Err(bad("static member execution has an unchecked actual caller world"));}
                     let caller=self.instance(module,caller,b)?;let definition=self.definition(module,caller.definition,b)?;
                     let SemanticDefinitionBody::FunctionWithBody{sites,..}=&definition.body else{return Err(bad("static member caller lacks its original executable body"));};
                     b.spend(sites.len())?;
                     if !sites.iter().any(|row|row.id==site&&matches!(row.kind,SemanticSiteRecipeKind::OriginalCall|SemanticSiteRecipeKind::Call{..})){return Err(bad("static member execution has no exact original call occurrence"));}
                 },
                 StaticOrigin::Definition{world}=>{
-                    if !checked.contains(&world){return Err(bad("static definition has an unchecked actual world"));}
+                    if !checked.contains_key(&world){return Err(bad("static definition has an unchecked actual world"));}
                     let world=self.instance(module,world,b)?;
                     if world.definition!=record.source.body||!matches!(world.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))if function==record.function){return Err(bad("static definition receipt selects another actual body world"));}
                 },

@@ -43,9 +43,9 @@ pub(crate) fn closed_task_input(module:&TypedModule,function:&TypedFunction,posi
     let Some(session)=b.semantic_checked.clone()else{return Ok(false);};
     if session.module!=module as *const TypedModule as usize{return Err(bad("ClosedEnvironment source session belongs to another module"));}
     let mut worlds=0usize;
-    for(id,_)in session.directory.worlds(){
+    for id in session.directory.entry(function.id,b)? {
         let instance=session.context.instance(module,*id,b)?;
-        if instance.target!=SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id)){continue;}
+        if instance.target!=SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id)){return Err(bad("completed world has another actual executable"));}
         if !session.context.closed_input_original(module,instance.definition,ordinal,&position.path,&mut session.active.borrow_mut(),b)?{return Ok(false);}
         worlds+=1;
     }
@@ -82,10 +82,10 @@ pub(crate) fn return_borrow_view(module:&TypedModule,function:&TypedFunction,blo
     let Some(session)=b.semantic_checked.clone()else{return Ok(false);};
     if session.module!=module as *const TypedModule as usize{return Ok(false);}
     let mut worlds=0usize;let mut directed=false;
-    for(id,environment)in session.directory.worlds(){
+    for id in session.directory.entry(function.id,b)? {
         let instance=session.context.instance(module,*id,b)?;
-        if instance.target!=SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id)){continue;}
-        let result=session.directory.result(*id,b)?;
+        if instance.target!=SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id)){return Err(bad("completed world has another actual executable"));}
+        let (environment, result)=session.directory.world(*id,b)?;
         let Some(view)=session.context.return_borrow_view(module,function,instance,block,value,result,environment,b)?else{return Ok(false);};
         directed|=view;worlds+=1;
     }
@@ -100,10 +100,10 @@ pub(crate) fn return_slot_borrow_view(module:&TypedModule,function:&TypedFunctio
     let Some(session)=b.semantic_checked.clone()else{return Ok(false);};
     if session.module!=module as *const TypedModule as usize{return Ok(false);}
     let mut worlds=0usize;
-    for(id,environment)in session.directory.worlds(){
+    for id in session.directory.entry(function.id,b)? {
         let instance=session.context.instance(module,*id,b)?;
-        if instance.target!=SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id)){continue;}
-        let result=session.directory.result(*id,b)?;
+        if instance.target!=SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id)){return Err(bad("completed world has another actual executable"));}
+        let (environment, result)=session.directory.world(*id,b)?;
         if !session.context.return_slot_borrow_view(module,function,instance,parameter,path,result,environment,b)?{return Ok(false);}
         worlds+=1;
     }
@@ -118,10 +118,10 @@ pub(crate) fn checked_result_boundary(module:&TypedModule,function:&TypedFunctio
     let Some(session)=b.semantic_checked.clone()else{return Ok(false);};
     if session.module!=module as *const TypedModule as usize{return Err(bad("result boundary selects another immutable semantic module"));}
     let mut count=0usize;
-    for(id,environment)in session.directory.worlds(){
+    for id in session.directory.entry(function.id,b)? {
         let instance=session.context.instance(module,*id,b)?;
-        if instance.target!=SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id)){continue;}
-        let result=session.directory.result(*id,b)?;
+        if instance.target!=SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id)){return Err(bad("completed world has another actual executable"));}
+        let (environment, result)=session.directory.world(*id,b)?;
         if result.ty!=function.return_type{return Err(bad("completed original result changes its actual full type"));}
         if !session.context.checked_result_returns(module,function,instance,result,environment,b)?{return Ok(false);}
         count+=1;

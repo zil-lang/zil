@@ -9,7 +9,7 @@ pub(crate) struct PendingCallable {
     worlds:Vec<SemanticInstanceId>,
 }
 impl CheckedContext {
-    pub(super) fn defer_callable_shapes(&self,module:&TypedModule,external:&mut dynamic_witness::semantic_external::Proofs,checked:&std::collections::BTreeSet<SemanticInstanceId>,b:&mut Budget)->Check<()> {
+    pub(super) fn defer_callable_shapes(&self,module:&TypedModule,external:&mut dynamic_witness::semantic_external::Proofs,checked:&std::collections::BTreeMap<SemanticInstanceId,usize>,b:&mut Budget)->Check<()> {
         for(_,row)in std::mem::take(&mut external.pending_statics){task_domains::defer_static_occurrence(module,&row,b)?;}
         let program=module.semantic.as_ref().ok_or_else(||bad("Callable entry obligation has no original programme"))?;
         for request in std::mem::take(&mut external.callable_shapes){
@@ -17,7 +17,7 @@ impl CheckedContext {
             if request.actual_header!=*definition.storage_life.as_ref().ok_or_else(||bad("Callable actual complete header is Unknown"))?||request.receiver.ty!=Type::Closure(definition.id)||request.receiver.life.binder_count!=request.actual_header.fixed_binder_count||request.intrinsic_classes.len()!=request.receiver.life.binder_count as usize{return Err(bad("Callable pending entry changes its complete environment domain"));}
             let mut worlds=Vec::new();b.spend(program.instances.len())?;
             for instance in program.instances.iter().filter(|row|matches!(row.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id))if id==request.function)){
-                if !checked.contains(&instance.id)||!self.seals.borrow().contains_key(&instance.id){return Err(unsupported("Callable exact world has no completed actual creator and entry",None));}
+                if !checked.contains_key(&instance.id)||!self.seals.borrow().contains_key(&instance.id){return Err(unsupported("Callable exact world has no completed actual creator and entry",None));}
                 if !instance.environment.as_ref().is_some_and(|row|matches!(row.closure,SemanticClosureTarget::Typed(id)if id==request.closure)){return Err(bad("Callable entry world names another environment"));}
                 if self.definition(module,instance.definition,b)?.kind!=SemanticDefinitionKind::Closure{return Err(bad("Callable entry substitutes another original definition kind"));}
                 let boundaries=self.closure_boundaries.borrow();b.spend(boundaries.len())?;
