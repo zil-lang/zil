@@ -249,7 +249,7 @@ impl Builder<'_, '_> {
             && let Some(local) = self.lookup(name)
             && !self.borrowed_captures.contains_key(&local)
         {
-            if let Some(value) = self.take_sum_slot(local, expected, e.span, false)? {
+            if let Some(value) = self.take_sum_slot(local, expected, e.span)? {
                 return Ok(value);
             }
             if self.closure_slots.contains_key(&local) {

@@ -504,8 +504,146 @@ fn whole_package_replacement_keeps_real_cleanup_and_current_fields() {
     pipeline(&source, "replacement-whole-package", b"ABC");
 }
 
+const OWNED_ERROR_REPLACEMENT: &str = "extern \"C\" fn putchar(n:i32)->i32;\nresource Token{code:i32}\nimpl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}}\npackage Packet{manages owner:Token;n:i32}\nfn make(value:&i32)->impl Fn()->i32{return move()=>*value}\nfn build(code:i32)->Packet!i32{return Packet{owner:Token{code:code},n:42}}\nfn main()->i32{let expected=42;let read=make(&expected);var result=build(65);result=build(66);match result{.err(packet)=>{return packet.n+read()-84},.ok(_)=>{return 1}}}";
+
 #[test]
 fn owning_error_union_replacement_keeps_both_actual_arm_responsibilities() {
-    let source = "extern \"C\" fn putchar(n:i32)->i32;\nresource Token{code:i32}\nimpl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}}\npackage Packet{manages owner:Token;n:i32}\nfn make(value:&i32)->impl Fn()->i32{return move()=>*value}\nfn build(code:i32)->Packet!i32{return Packet{owner:Token{code:code},n:42}}\nfn main()->i32{let expected=42;let read=make(&expected);var result=build(65);result=build(66);match result{.err(packet)=>{return packet.n+read()-84},.ok(_)=>{return 1}}}";
-    pipeline(source, "replacement-owned-union", b"AB");
+    pipeline(OWNED_ERROR_REPLACEMENT, "replacement-owned-union", b"AB");
+}
+
+#[test]
+fn error_union_self_argument_movement_orders_cleanup_on_rhs_failure() {
+    let (head, body) = OWNED_ERROR_REPLACEMENT
+        .split_once("fn main()->i32")
+        .unwrap();
+    for (label, parameters, call, trace) in [
+        (
+            "before-self",
+            "n:i32,q:Packet!i32",
+            "relay(fail()?,result)",
+            b"LA",
+        ),
+        (
+            "after-self",
+            "q:Packet!i32,n:i32",
+            "relay(result,fail()?)",
+            b"AL",
+        ),
+    ] {
+        let work = body.replace(
+            "result=build(66);",
+            &format!("let later=Token{{code:76}};result={call};"),
+        );
+        let source = format!(
+            "{head}fn fail()->void!i32{{return ()}}\nfn relay({parameters})->Packet!i32{{return q}}\nfn run()->void!i32{work}\nfn main()->i32{{match run(){{.err(_)=>{{return 0}},.ok(_)=>{{return 1}}}}}}"
+        );
+        pipeline(&source, label, trace);
+    }
+}
+
+#[test]
+fn error_union_replacement_rejects_retirement_and_capture_substitutions() {
+    use zil_ir::InstructionKind;
+    let source =
+        OWNED_ERROR_REPLACEMENT.replace("let expected=42;", "let expected=42;let other=42;");
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "replacement.zil", source);
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let expanded = zil_expand::expand_with_map_semantics(
+        &unit,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap();
+    let module = zil_types::check(&expanded.core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let clean = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&clean, &target, &limits).unwrap();
+
+    let main = module
+        .functions
+        .iter()
+        .position(|f| f.name == "main")
+        .unwrap();
+    let caller = &module.functions[main];
+    let (site, retired, prepared) = caller.blocks[0]
+        .instructions
+        .windows(2)
+        .enumerate()
+        .find_map(|(index, pair)| match (&pair[0].kind, &pair[1].kind) {
+            (
+                InstructionKind::DropErrorUnion { local: a },
+                InstructionKind::TakeLocal { local: b },
+            ) => Some((index, *a, *b)),
+            _ => None,
+        })
+        .unwrap();
+    assert_ne!(retired, prepared);
+    assert_eq!(
+        caller.locals[retired.0 as usize].ty,
+        caller.locals[prepared.0 as usize].ty
+    );
+    let lookup = |name| caller.locals.iter().find(|l| l.name == name).unwrap().id;
+    let (expected, other) = (lookup("expected"), lookup("other"));
+    assert_eq!(
+        caller.locals[expected.0 as usize].ty,
+        caller.locals[other.0 as usize].ty
+    );
+    let borrow = caller.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::BorrowLocal { local } if local == expected))
+        .unwrap();
+    for (index, changed, analyze_code, verify_cause) in [
+        (
+            site,
+            InstructionKind::DropErrorUnion { local: prepared },
+            "E-UNINITIALIZED",
+            "not initialized",
+        ),
+        (
+            site + 1,
+            InstructionKind::TakeLocal { local: retired },
+            "E-UNINITIALIZED",
+            "not initialized",
+        ),
+        (
+            borrow,
+            InstructionKind::BorrowLocal { local: other },
+            "E-ANALYZE-IR",
+            "another original",
+        ),
+    ] {
+        let mut altered = module.clone();
+        altered.functions[main].blocks[0].instructions[index].kind = changed;
+        let producer = zil_analyze::analyze(&altered, &limits).unwrap_err();
+        assert!(
+            producer
+                .iter()
+                .any(|e| e.category == ResultCategory::SafeReject && e.code == analyze_code),
+            "{producer:?}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = altered.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&altered, &claim, &limits).unwrap();
+        let raw = zil_verify::verify_module(altered, claim, &target, &limits).unwrap_err();
+        assert_eq!(
+            zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err(),
+            raw
+        );
+        assert!(
+            raw.iter().any(|e| e.category == ResultCategory::SafeReject
+                && e.code == "E-VERIFY-SEMANTIC"
+                && e.message.contains(verify_cause)),
+            "{raw:?}"
+        );
+    }
 }

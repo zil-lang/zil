@@ -1,26 +1,11 @@
-//! Mutable sums use ordinary complete Package storage, never an ABI wrapper.
+//! Mutable owning sums keep their actual type and a single lexical owner.
 use super::*;
 impl Builder<'_, '_> {
     pub(super) fn sum_slot(&mut self, name: &str, ty: Type, value: ValueId, span: Span) -> R<()> {
         let work = inference::type_snapshot_work(&ty, span, self.limits)?;
         self.closures
-            .snapshot(work.saturating_mul(3).saturating_add(name.len()), span)?;
-        let package = Type::Package {
-            name: format!(
-                "$sum240${:?}${}",
-                self.function.id,
-                self.function.locals.len()
-            ),
-            fields: vec![("$value240".into(), ty.clone())],
-        };
-        let value = self.value(
-            InstructionKind::MakePackage {
-                fields: vec![value],
-            },
-            package.clone(),
-            span,
-        )?;
-        let local = self.local(name, package, true, span)?;
+            .snapshot(work.saturating_add(name.len()), span)?;
+        let local = self.local(name, ty.clone(), true, span)?;
         self.store(local, value, span)?;
         if dynamic_store::contains_inline_carrier(&ty) {
             self.closures.snapshot(
@@ -37,7 +22,6 @@ impl Builder<'_, '_> {
         local: LocalId,
         expected: Option<&Type>,
         span: Span,
-        replacement: bool,
     ) -> R<Option<(ValueId, Type)>> {
         if self.sum_slots.is_empty() {
             return Ok(None);
@@ -50,32 +34,14 @@ impl Builder<'_, '_> {
             return Ok(None);
         };
         let work = inference::type_snapshot_work(ty, span, self.limits)?;
-        self.closures.snapshot(work.saturating_mul(4), span)?;
+        let copies_and_comparison = 2 + usize::from(expected.is_some());
+        self.closures
+            .snapshot(work.saturating_mul(copies_and_comparison), span)?;
         let ty = ty.clone();
         if let Some(expected) = expected {
             self.same(&ty, expected, span)?;
         }
-        // Outside the proved self argument, move the complete wrapper first.
-        // This prevents a later assignment from reviving an already moved name.
-        let source = if replacement {
-            local
-        } else {
-            let package = self.function.locals[local.0 as usize].ty.clone();
-            let value = self.value(InstructionKind::TakeLocal { local }, package.clone(), span)?;
-            let temporary = self.temp(package, span)?;
-            self.store(temporary, value, span)?;
-            temporary
-        };
-        let value = self
-            .internal_product_field(
-                InstructionKind::TakePackageField {
-                    local: source,
-                    index: 0,
-                },
-                Some(ty.clone()),
-                span,
-            )?
-            .expect("sum field value");
+        let value = self.value(InstructionKind::TakeLocal { local }, ty.clone(), span)?;
         Ok(Some((value, ty)))
     }
     pub(super) fn replace_sum_slot(
@@ -178,26 +144,29 @@ impl Builder<'_, '_> {
             self.replacement_input = Some(local);
         }
         let result = self.transfer_expr(rhs, Some(&ty));
+        let consumed = self.replacement_input.is_none();
         self.replacement_input = previous;
         let (value, actual) = result?;
         self.same(&actual, &ty, rhs.span)?;
+        if references && !consumed {
+            return Err(unsupported(
+                rhs.span,
+                "Sum replacement did not move its declared self argument",
+            ));
+        }
         let prepared = self.temp(ty.clone(), span)?;
         self.store(prepared, value, span)?;
-        self.internal_product_field(
-            InstructionKind::DropPackageField { local, index: 0 },
-            None,
-            span,
-        )?;
+        if !references {
+            // Taking the previously initialized owner preserves rejection of
+            // reassigning a name already moved by an earlier statement.
+            let old = self.value(InstructionKind::TakeLocal { local }, ty.clone(), span)?;
+            let floor = self.resource_temps.len();
+            let retiring = self.temp(ty.clone(), span)?;
+            self.store(retiring, old, span)?;
+            self.finish_resource_temps_from(floor, span)?;
+        }
         let value = self.value(InstructionKind::TakeLocal { local: prepared }, ty, span)?;
-        self.internal_product_field(
-            InstructionKind::StorePackageField {
-                local,
-                index: 0,
-                value,
-            },
-            None,
-            span,
-        )?;
+        self.store(local, value, span)?;
         Ok(true)
     }
 }

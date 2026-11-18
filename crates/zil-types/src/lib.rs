@@ -3765,7 +3765,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         for capture in captures {
             let stored = capture.stored_type();
             let value = if capture.moved && self.inline_store_sum_slots.contains(&capture.source) {
-                self.take_sum_slot(capture.source, Some(&stored), capture.span, false)?
+                self.take_sum_slot(capture.source, Some(&stored), capture.span)?
                     .expect("actual captured Sum slot")
                     .0
             } else if self.closure_slots.contains_key(&capture.source) {

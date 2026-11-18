@@ -72,7 +72,7 @@ impl Builder<'_, '_> {
             return Ok(None);
         }
         self.replacement_input = None;
-        if let Some(value) = self.take_sum_slot(local, expected, expression.span, true)? {
+        if let Some(value) = self.take_sum_slot(local, expected, expression.span)? {
             return Ok(Some(value));
         }
         let ty = &self.function.locals[local.0 as usize].ty;

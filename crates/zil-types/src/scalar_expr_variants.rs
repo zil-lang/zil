@@ -52,7 +52,7 @@ impl Builder<'_, '_> {
                 if self.closure_slots.contains_key(&local) {
                     return self.take_closure_slot(local, e.span);
                 }
-                if let Some(value) = self.take_sum_slot(local, expected, e.span, false)? {
+                if let Some(value) = self.take_sum_slot(local, expected, e.span)? {
                     return Ok(value);
                 }
                 let actual = &self.function.locals[local.0 as usize].ty;
