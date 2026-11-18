@@ -3653,7 +3653,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     let variable = self.expr_expected(initializer, ty.as_ref(), depth + 1)?;
                     let variable = if let Some(ty) = ty {
                         variable.bind_annotation(&mut self.graph, ty, statement.span)?
-                    } else { variable };
+                    } else {
+                        variable
+                    };
                     let (value, permission) = variable.projection_subject(statement.span)?;
                     if self.pattern_needs_mutable(pattern, depth + 1)? {
                         self.mark_address_write(initializer, depth + 1)?;
@@ -3664,11 +3666,20 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     // paths keep their same real capture root.
                     if let Some(ty) = self.graph.ty(value)?
                         && owned_shapes::tuple(&ty)
-                        && tuple_pattern_takes_owner(pattern, &ty, self.work_left, 0, self.limits.max_call_depth)?
+                        && tuple_pattern_takes_owner(
+                            pattern,
+                            &ty,
+                            self.work_left,
+                            0,
+                            self.limits.max_call_depth,
+                        )?
                     {
                         if permission.is_some() {
-                            return Err(error("E-CLOSURE-MODE", initializer.span,
-                                "owning Tuple pattern cannot take a borrowed aggregate child"));
+                            return Err(error(
+                                "E-CLOSURE-MODE",
+                                initializer.span,
+                                "owning Tuple pattern cannot take a borrowed aggregate child",
+                            ));
                         }
                         self.callable_capture_use(initializer, CallableKind::FnOnce)?;
                     }
@@ -3703,7 +3714,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     self.transferred_closure(expression, variable)?;
                     let variable = if let Some(ty) = ty {
                         variable.bind_annotation(&mut self.graph, ty, statement.span)?
-                    } else { variable };
+                    } else {
+                        variable
+                    };
                     if self
                         .scopes
                         .last_mut()
@@ -3720,13 +3733,32 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 }
                 CoreStatementKind::Assign { target, value } => {
                     let target_type = self.place(target, depth + 1)?;
+                    if matches!(target_type, LocalType::Projected(_, false)) {
+                        return Err(error(
+                            "E-ADDRESS-PERMISSION",
+                            target.span,
+                            "a shared aggregate projection is not a writable place",
+                        ));
+                    }
                     let hint = match target_type {
-                        LocalType::Scalar(v) => self.graph.ty(v)?,
+                        LocalType::Scalar(v) | LocalType::Projected(v, true) => self.graph.ty(v)?,
                         _ => None,
                     };
                     let value_type = self.expr_expected(value, hint.as_ref(), depth + 1)?;
                     self.transferred_closure(value, value_type)?;
-                    if let Some(expected @ Type::Address { .. }) = hint.as_ref() {
+                    if matches!(target_type, LocalType::Projected(_, true)) {
+                        // A writable destination view constrains the complete
+                        // replacement; it is not itself an owned RHS value.
+                        // bind still rejects a projected non-Copy RHS and
+                        // preserves every Address mode and inner class.
+                        let expected = hint.as_ref().ok_or_else(|| {
+                            unsupported(
+                                target.span,
+                                "projected assignment awaits its complete destination Type",
+                            )
+                        })?;
+                        value_type.bind(&mut self.graph, expected, value.span)?;
+                    } else if let Some(expected @ Type::Address { .. }) = hint.as_ref() {
                         value_type.bind(&mut self.graph, expected, value.span)?;
                     } else {
                         target_type.unify(value_type, &mut self.graph, value.span)?;
