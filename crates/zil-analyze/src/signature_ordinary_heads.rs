@@ -224,7 +224,7 @@ pub(crate) fn relation(
 }
 
 pub(crate) fn module(module: &TypedModule, limits: &Limits, b: &mut Budget) -> CompileResult<bool> {
-    if !b.ordinary_input_head_candidates || b.capture_relations {
+    if !b.ordinary_input_head_candidates || b.capture_relations && !b.scoped_threads {
         return Ok(false);
     }
     b.spend(module.functions.len(), "ordinary input header inventory")?;
