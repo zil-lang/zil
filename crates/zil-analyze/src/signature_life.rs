@@ -1349,15 +1349,19 @@ fn relation_inner(
     }
     // A declared Address result still needs an actual authority-bearing input;
     // the body proof separately checks the exact returned target.
-    if let Type::Address { mutable, .. } = result
+    if let Type::Address { mutable, inner } = result
         && !c
             .static_bindings
             .iter()
             .any(|position| position.base == StorageBase::Result && position.path.is_empty())
     {
         let out = outer(c, StorageBase::Result);
+        let buffer_window =
+            matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8);
         if !parameters.iter().enumerate().any(|(i, p)| {
-            matches!(p,Type::Address{mutable:m,..}if !mutable||*m)
+            (matches!(p,Type::Address{mutable:m,..}if !mutable||*m)
+                || (buffer_window
+                    && matches!(p, Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)))
                 && outer(c, StorageBase::Parameter(i as u32)) == out
         }) && !c.classes.iter().any(|r| {
             let StorageBase::Parameter(i) = r.position.base else {
