@@ -401,36 +401,7 @@ fn main() -> ExitCode {
             println!("{}", work_profile.report_json(&report, &options.limits));
         } else {
             for diagnostic in &report.diagnostics {
-                if let Some(span) = diagnostic.span {
-                    eprintln!("{}: {diagnostic}", diagnostic_span(&report, span));
-                } else {
-                    eprintln!("{diagnostic}");
-                }
-                for location in &diagnostic.related {
-                    let mut at = Vec::new();
-                    if let Some(span) = location.span {
-                        at.push(diagnostic_span(&report, span));
-                    }
-                    if let Some(ir) = location.ir {
-                        let mut point = format!("function {}", ir.function);
-                        if let Some(block) = ir.block {
-                            point.push_str(&format!(", block {block}"));
-                        }
-                        if let Some(op) = ir.instruction {
-                            point.push_str(&format!(", instruction {op}"));
-                        }
-                        at.push(point);
-                    }
-                    eprintln!(
-                        "  {} [{}]: {}",
-                        location.role.as_str(),
-                        at.join("; "),
-                        location.message
-                    );
-                }
-                for note in &diagnostic.notes {
-                    eprintln!("  note: {note}");
-                }
+                print_diagnostic(&report, diagnostic);
             }
         }
         return ExitCode::from(match report.status {
@@ -453,6 +424,39 @@ fn main() -> ExitCode {
     }
     ExitCode::SUCCESS
 }
+fn print_diagnostic(report: &CompileReport, diagnostic: &Diagnostic) {
+    if let Some(span) = diagnostic.span {
+        eprintln!("{}: {diagnostic}", diagnostic_span(report, span));
+    } else {
+        eprintln!("{diagnostic}");
+    }
+    for location in &diagnostic.related {
+        let mut at = Vec::new();
+        if let Some(span) = location.span {
+            at.push(diagnostic_span(report, span));
+        }
+        if let Some(ir) = location.ir {
+            let mut point = format!("function {}", ir.function);
+            if let Some(block) = ir.block {
+                point.push_str(&format!(", block {block}"));
+            }
+            if let Some(op) = ir.instruction {
+                point.push_str(&format!(", instruction {op}"));
+            }
+            at.push(point);
+        }
+        eprintln!(
+            "  {} [{}]: {}",
+            location.role.as_str(),
+            at.join("; "),
+            location.message
+        );
+    }
+    for note in &diagnostic.notes {
+        eprintln!("  note: {note}");
+    }
+}
+
 fn diagnostic_span(report: &CompileReport, span: zil_base::Span) -> String {
     let path = report
         .source_files
@@ -657,10 +661,8 @@ fn run_tests(
         let outcome = if report.status != ResultCategory::Success {
             if !json {
                 for diagnostic in &report.diagnostics {
-                    eprintln!(
-                        "{source_name}::{name}: {diagnostic}",
-                        source_name = source.display()
-                    );
+                    eprint!("{}::{name}: ", source.display());
+                    print_diagnostic(&report, diagnostic);
                 }
             }
             "compile-failed".to_owned()
