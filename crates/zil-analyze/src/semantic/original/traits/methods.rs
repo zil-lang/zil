@@ -194,6 +194,7 @@ impl Solver<'_, '_> {
         &mut self,
         frame: &Frame,
         receiver: Term,
+        member: &str,
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Vec<(LifeDeclarationId, Vec<Term>)>> {
@@ -206,6 +207,9 @@ impl Solver<'_, '_> {
         let (owner, ordinal) = match self.state.arena[receiver] {
             Kind::Rigid(owner, ordinal) => (owner, Some(ordinal)),
             Kind::SelfType(owner) => (owner, None),
+            Kind::Nominal { .. } | Kind::Atom(_) => {
+                return self.concrete_receiver_traits(frame, receiver, member, b, depth + 1);
+            }
             _ => return Ok(Vec::new()),
         };
         let declaration = self.inventory.definition(owner, b)?;
@@ -445,7 +449,21 @@ impl Solver<'_, '_> {
             let expected = self.recipe(frame, owner, b, depth + 1)?;
             self.unify(receiver, expected, depth + 1, b)?;
         }
-        let applications = self.receiver_traits(frame, receiver, b, depth + 1)?;
+        let applications = self.receiver_traits(frame, receiver, member, b, depth + 1)?;
+        if !applications.is_empty()
+            && let Kind::Nominal { definition, .. } = self.state.arena[self.type_root(receiver, b)?]
+            && let SemanticDefinitionBody::Nominal {
+                body: SemanticNominalBody::Product { fields },
+                ..
+            } = &self.inventory.definition(definition, b)?.body
+        {
+            for field in fields {
+                b.spend(field.name.len().saturating_add(member.len() + 1), WORK)?;
+                if field.name == *member {
+                    return Err(fail("original method name is ambiguous with a concrete receiver field"));
+                }
+            }
+        }
         let mut selected = None;
         for (declaration, actuals) in applications {
             let raw = self.inventory.original_dyn(declaration, b)?;

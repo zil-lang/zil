@@ -702,10 +702,15 @@ impl Check<'_, '_> {
             return Ok(false);
         }
         let (block, index, instruction) = self.defining(function, *value, b)?;
-        // A Dyn-owner borrow is a real fresh head, not a reborrow from an
-        // Address operand. Its call-local shortening requires the exact
-        // original call receipt in outer_call_role, never this ancestry rule.
-        if matches!(instruction.kind, InstructionKind::BorrowDynOwned { .. }) {
+        // These borrow producers introduce a head at an owning place. There
+        // is no parent Address for this ancestry query to follow. The exact
+        // original call receipt can still authorize its invocation role.
+        if matches!(
+            instruction.kind,
+            InstructionKind::BorrowDynOwned { .. }
+                | InstructionKind::BorrowLocal { .. }
+                | InstructionKind::BorrowLocalMut { .. }
+        ) {
             return Ok(false);
         }
         let InstructionKind::ReborrowAddress { address, .. } = instruction.kind else {

@@ -193,6 +193,104 @@ impl Solver<'_, '_> {
         }
     }
 
+    fn provider_self_bindings(
+        &self,
+        scope: &SemanticDefinition,
+        receiver: Term,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Option<Vec<Option<Term>>>> {
+        b.spend(self.trait_state.selves.len(), WORK)?;
+        let self_type = self
+            .trait_state
+            .selves
+            .iter()
+            .find(|(owner, _)| *owner == scope.id)
+            .map(|(_, term)| *term)
+            .ok_or_else(|| fail("original provider lacks its checked Self scope"))?;
+        b.spend(scope.parameters.len(), WORK)?;
+        let mut bindings = vec![None; scope.parameters.len()];
+        if !self.provider_pattern(self_type, receiver, scope.id, &mut bindings, b, depth + 1)? {
+            return Ok(None);
+        }
+        Ok(Some(bindings))
+    }
+
+    pub(super) fn concrete_receiver_traits(
+        &mut self,
+        caller: &Frame,
+        receiver: Term,
+        member: &str,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Vec<(LifeDeclarationId, Vec<Term>)>> {
+        self.step(depth, b)?;
+        let caller_definition = self.inventory.definition(caller.definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { names, .. } = &caller_definition.body else {
+            return Err(fail("original concrete method lacks its lexical member directory"));
+        };
+        let mut applications = Vec::new();
+        for scope in self.inventory.definitions.values() {
+            b.spend(1, WORK)?;
+            let SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl {
+                trait_application,
+                ..
+            }) = &scope.body
+            else {
+                continue;
+            };
+            let declaration = trait_application.declaration;
+            let raw = self.inventory.original_dyn(declaration, b)?;
+            let mut visible = false;
+            for (ordinal, row) in raw.members.iter().enumerate() {
+                b.spend(row.name.len().saturating_add(member.len() + 1), WORK)?;
+                if row.name != member || !matches!(row.kind, DynMemberKind::Method(_)) {
+                    continue;
+                }
+                let method = trait_members::member_scope(
+                    self.program,
+                    declaration,
+                    ordinal as u32,
+                    self.inventory,
+                    b,
+                )?;
+                for name in names {
+                    b.spend(1, WORK)?;
+                    if name.namespace == SemanticOriginalNamespace::Value
+                        && name.value == SemanticOriginalNameValue::Definition(method)
+                    {
+                        visible = true;
+                        break;
+                    }
+                }
+            }
+            if !visible {
+                continue;
+            }
+            let Some(bindings) = self.provider_self_bindings(scope, receiver, b, depth + 1)? else {
+                continue;
+            };
+            b.spend(bindings.len(), WORK)?;
+            let Some(bindings) = bindings.into_iter().collect::<Option<Vec<_>>>() else {
+                // An implicit member cannot select an application containing
+                // an impl formal that its concrete Self does not determine.
+                continue;
+            };
+            let context = trait_frame(scope.id, bindings);
+            Self::push(&mut self.trait_state.selves, (scope.id, receiver), b)?;
+            let arguments = self.trait_arguments(&context, trait_application, b, depth + 1);
+            self.trait_state.selves.pop();
+            let arguments = arguments?;
+            let (provider, _) =
+                self.original_provider(caller, receiver, declaration, &arguments, b, depth + 1)?;
+            if provider != scope.id {
+                return Err(fail("concrete member application changes its original impl scope"));
+            }
+            Self::push(&mut applications, (declaration, arguments), b)?;
+        }
+        Ok(applications)
+    }
+
     pub(in crate::semantic::original) fn original_provider(
         &mut self,
         _caller: &Frame,
@@ -225,18 +323,9 @@ impl Solver<'_, '_> {
             if trait_application.declaration != declaration {
                 continue;
             }
-            let self_type = self
-                .trait_state
-                .selves
-                .iter()
-                .find(|(owner, _)| *owner == scope.id)
-                .map(|(_, term)| *term)
-                .ok_or_else(|| fail("original provider lacks its checked Self scope"))?;
-            b.spend(scope.parameters.len(), WORK)?;
-            let mut bindings = vec![None; scope.parameters.len()];
-            if !self.provider_pattern(self_type, receiver, scope.id, &mut bindings, b, depth + 1)? {
+            let Some(mut bindings) = self.provider_self_bindings(scope, receiver, b, depth + 1)? else {
                 continue;
-            }
+            };
             let original = self
                 .state
                 .frames
