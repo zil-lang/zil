@@ -554,7 +554,7 @@ impl<'a> Engine<'a> {
                 .map_err(|_| error(parameter.span, "parameter ordinal overflow"))?;
             let mut parameter_stored = false;
             if !candidate.source_inputs.is_empty()
-                && super::generic_source_input_life::byte_buffer_description(parameter, &mut self.budget)?
+                && super::source_input_life::byte_buffer_description(parameter, &mut self.budget)?
             {
                 for source in &candidate.source_inputs {
                     self.budget.node(parameter.span, 0)?;

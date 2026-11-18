@@ -337,18 +337,26 @@ impl Engine<'_> {
             .first()
             .filter(|parameter| parameter.name == "self"
                 || parameter.name == trait_instances::LOWERED_RECEIVER_NAME);
-        if receiver_parameter.is_some() && elided_window {
+        let mut description_receiver = None;
+        if elided_window
+            && receiver_parameter
+                .is_some_and(|parameter| !matches!(&grouped(&parameter.ty).kind, TypeKind::Reference { .. }))
+        {
             self.budget.identity_work(candidate.source_inputs.len(), function.span)?;
+            if let Some(name) = candidate.source_inputs
+                .iter()
+                .find(|input| input.parameter == 0 && input.path.is_empty())
+                .and_then(|input| self.life_scope.get(input.binder as usize))
+            {
+                self.budget.text(name, function.span)?;
+                self.budget.lineage_bytes(std::mem::size_of::<String>() + name.len(), function.span)?;
+                description_receiver = Some(name.clone());
+            }
         }
         let receiver = receiver_parameter
             .and_then(|parameter| match &grouped(&parameter.ty).kind {
                 TypeKind::Reference { lifetime, .. } => lifetime.as_deref(),
-                _ if elided_window => candidate.source_inputs
-                    .iter()
-                    .find(|input| input.parameter == 0 && input.path.is_empty())
-                    .and_then(|input| self.life_scope.get(input.binder as usize))
-                    .map(String::as_str),
-                _ => None,
+                _ => description_receiver.as_deref(),
             });
         // A borrowed callable receiver has its own environment domain. A
         // declared callable invocation forwards its ordinary data domain; the
