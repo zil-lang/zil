@@ -1,6 +1,30 @@
 //! The sole publication boundary for a complete Typed semantic program.
 use crate::*;
 
+/// Finish all actual catalogue rows and projected slots for a Core input
+/// whose modules have no original semantic program.
+pub(crate) fn standalone(
+    module: &mut TypedModule,
+    ledger: &super::emission::Ledger,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    if ledger.original.context().is_some() {
+        return Err(error(
+            "E-SEMANTIC-CONTEXT",
+            Span::default(),
+            "checked original Some input was erased before publication",
+        ));
+    }
+    stored::OrdinaryStats::step(
+        &ledger.ordinary_stats,
+        "finish: ordinary inventory",
+        left,
+        |left| stored::ordinary_inventory(module, limits, left),
+    )?;
+    super::creator_headers::rows::complete_standalone(module, limits, left)
+}
+
 /// Copies preserve the original program, including empty Some. Relocation is
 /// necessary but never substitutes for whole-program recipe/W/partition proof.
 pub(crate) fn program(
@@ -12,20 +36,7 @@ pub(crate) fn program(
     left: &mut usize,
 ) -> R<Option<SemanticModule>> {
     if cores.iter().all(|core| core.semantic.is_none()) {
-        if ledger.original.context().is_some() {
-            return Err(error(
-                "E-SEMANTIC-CONTEXT",
-                Span::default(),
-                "checked original Some input was erased before publication",
-            ));
-        }
-        stored::OrdinaryStats::step(
-            &ledger.ordinary_stats,
-            "finish: ordinary inventory",
-            left,
-            |left| stored::ordinary_inventory(module, limits, left),
-        )?;
-        super::creator_headers::rows::complete_standalone(module, limits, left)?;
+        standalone(module, ledger, limits, left)?;
         return Ok(None);
     }
     let context = ledger.original.context().cloned().ok_or_else(|| {

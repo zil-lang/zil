@@ -106,22 +106,30 @@ impl Visitor for Discovery<'_, '_> {
     }
 }
 
+#[derive(Clone, Copy)]
+pub(super) enum Capture<'a> {
+    IfNeeded,
+    Required,
+    CoreRequest(&'a str),
+}
+
 pub(crate) fn capture_original_impl(
     sources: &[SourceUnit],
     modules: &[&Module],
     context: SourceIdentityContext<'_>,
     limits: &Limits,
 ) -> CompileResult<(Option<Vec<ModuleDeclarationOrigins>>, Limits)> {
-    capture_impl(sources, modules, context, limits, false)
+    capture_impl(sources, modules, context, limits, Capture::IfNeeded)
 }
 
-pub(crate) fn capture_required_impl(
+pub(super) fn capture_required_impl(
     sources: &[SourceUnit],
     modules: &[&Module],
     context: SourceIdentityContext<'_>,
     limits: &Limits,
+    capture: Capture<'_>,
 ) -> CompileResult<(Vec<ModuleDeclarationOrigins>, Limits)> {
-    capture_impl(sources, modules, context, limits, true).map(|(rows, remaining)| {
+    capture_impl(sources, modules, context, limits, capture).map(|(rows, remaining)| {
         (
             rows.expect("forced original capture always constructs a namespace"),
             remaining,
@@ -134,10 +142,10 @@ fn capture_impl(
     modules: &[&Module],
     context: SourceIdentityContext<'_>,
     limits: &Limits,
-    required: bool,
+    capture: Capture<'_>,
 ) -> CompileResult<(Option<Vec<ModuleDeclarationOrigins>>, Limits)> {
     let mut budget = Budget::new(limits);
-    if required {
+    if !matches!(capture, Capture::IfNeeded) {
         budget.note_source_identity();
     }
     let result =
@@ -180,7 +188,14 @@ fn capture_impl(
             if !budget.needs_source_identity() && !budget.has_stored_lifetimes() {
                 return Ok(None);
             }
-            let resolved = context.resolve(sources, &mut budget)?;
+            let mut resolved = context.resolve(sources, &mut budget)?;
+            if let Capture::CoreRequest(namespace) = capture {
+                // The caller validated the complete graph and allocated its request hash.
+                // Explicitly supplied package strings always retain their own namespace tag.
+                budget.identity_work(namespace.len(), Span::default())?;
+                resolved.package.clear();
+                resolved.package.push_str(namespace);
+            }
             let mut captured = Vec::new();
             for module in modules {
                 budget.node(module.span, 0)?;

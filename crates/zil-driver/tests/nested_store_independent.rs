@@ -402,28 +402,32 @@ fn saved_some_rejects_actual_manager_mutation_and_retirement_raw_wire() {
             .splice(at + 1..at + 1, injected);
         claim.module_fingerprint = changed.fingerprint();
         let wire = zil_ir::wire::encode_module_candidate(&changed, &claim, &limits).unwrap();
-        for result in [
-            zil_verify::verify_module(changed.clone(), claim, &changed.target, &limits),
-            zil_verify::verify_module_bytes(&wire, &changed.target, &limits),
-        ] {
-            let errors = result.unwrap_err();
-            assert!(
-                errors.iter().all(|error| {
-                    error.code
-                        == if retire {
-                            "E-BORROW-CONFLICT"
-                        } else {
-                            "E-VERIFY-STORED"
-                        }
-                }),
-                "{errors:?}"
-            );
-            assert!(
-                errors
-                    .iter()
-                    .all(|error| error.category == ResultCategory::SafeReject),
-                "{errors:?}"
-            );
+        let raw = zil_verify::verify_module(changed.clone(), claim, &changed.target, &limits)
+            .err().unwrap();
+        let decoded = zil_verify::verify_module_bytes(&wire, &changed.target, &limits)
+            .err().unwrap();
+        assert_eq!(raw, decoded);
+        assert!(raw.iter().all(|error| error.category == ResultCategory::SafeReject
+            && error.code == "E-BORROW-CONFLICT"), "{raw:?}");
+        if !retire {
+            let conflict = raw.iter().flat_map(|error| &error.related)
+                .find(|site| site.role == zil_base::DiagnosticRole::ConflictingAccess)
+                .expect("the attempted Store write identifies its actual instruction");
+            let site = conflict.ir.unwrap();
+            assert_eq!(site.function as usize, function);
+            assert_eq!(site.block.unwrap() as usize, block);
+            assert_eq!(site.instruction.unwrap() as usize, at + 4);
+            let instructions = &changed.functions[function].blocks[block].instructions;
+            let field = &instructions[at + 1];
+            let description = &instructions[at + 2];
+            let reserve = &instructions[at + 4];
+            assert_eq!(conflict.span, Some(reserve.span));
+            assert!(matches!(field.kind, InstructionKind::AddressField { address, index: 0 }
+                if address == argument));
+            assert!(matches!(description.kind, InstructionKind::DescribeAddress { address }
+                if Some(address) == field.result));
+            assert!(matches!(reserve.kind, InstructionKind::OwnedStoreReserve { store, .. }
+                if Some(store) == description.result));
         }
     }
 }

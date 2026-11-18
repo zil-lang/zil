@@ -182,10 +182,13 @@ impl generics::products::Products {
         module: &s::Module,
         expanded: &mut ExpandedModule,
         limits: &Limits,
-        original_declarations: Option<&[zil_ir::LifeNominalDeclaration]>,
+        original_declarations: Option<(
+            &[zil_ir::LifeNominalDeclaration],
+            &[crate::source_context::ModuleDeclarationOrigins],
+        )>,
     ) -> CompileResult<()> {
         let declarations = self.semantic.as_ref().map(|program| program.nominal_declarations.as_slice())
-            .or(original_declarations);
+            .or_else(|| original_declarations.map(|(rows, _)| rows));
         let Some(declarations) = declarations else {
             expanded.semantic_nominal_emissions.clear();
             return Ok(());
@@ -229,8 +232,15 @@ impl generics::products::Products {
                     }
                     generics::options::storage_identity(item, origin, &mut budget)?
                 } else {
-                    let original =
-                        origins.identity(origin.declaration, &mut budget, module.span)?;
+                    let original = if let Some((_, original_modules)) = original_declarations {
+                        budget.identity_work(original_modules.len(), module.span)?;
+                        original_modules.iter().find(|row| row.module == origin.declaration.module)
+                            .and_then(|row| row.items.get(origin.declaration.ordinal as usize))
+                            .ok_or_else(|| Diagnostic::error(Phase::Expand, "E-SOURCE-IDENTITY",
+                                Some(module.span), "nominal mint has no original declaration placement"))?
+                    } else {
+                        origins.identity(origin.declaration, &mut budget, module.span)?
+                    };
                     let id = zil_ir::LifeDeclarationId {
                         module: origin.declaration.module,
                         declaration: original.declaration,

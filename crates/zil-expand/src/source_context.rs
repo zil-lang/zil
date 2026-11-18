@@ -41,7 +41,7 @@ pub fn capture_original_required(
     context: SourceIdentityContext<'_>,
     limits: &zil_base::Limits,
 ) -> zil_base::CompileResult<(Vec<ModuleDeclarationOrigins>, zil_base::Limits)> {
-    lineage::capture_required_impl(sources, modules, context, limits)
+    lineage::capture_required_impl(sources, modules, context, limits, lineage::Capture::Required)
 }
 
 /// One actual output item retains its original source declaration, or an
@@ -298,6 +298,61 @@ fn snapshot(
     budget.identity_work(64 + "closed-snapshot:v1:".len(), span)?;
     Ok(format!("closed-snapshot:v1:{}", hash.digest()))
 }
+/// The context-free Core API receives an ordered module graph without logical
+/// package names or an executable root. Its nominal rows are local to these
+/// exact source bytes and resolved edges, including disconnected modules.
+pub(crate) fn core_nominal_origins(
+    sources: &[SourceUnit],
+    modules: &[&zil_syntax::ast::Module],
+    imports: &[Vec<zil_ir::CoreImport>],
+    context: Option<SourceIdentityContext<'_>>,
+    limits: &zil_base::Limits,
+) -> zil_base::CompileResult<(Vec<ModuleDeclarationOrigins>, zil_base::Limits)> {
+    if let Some(context) = context {
+        return capture_original_required(sources, modules, context, limits);
+    }
+    let (package, paths, available) = core_nominal_namespace(sources, imports, limits)
+        .map_err(|error| vec![error])?;
+    let context = SourceIdentityContext::Explicit {
+        package: &package, modules: &paths, declarations: DeclarationPlacement::Original,
+    };
+    lineage::capture_required_impl(
+        sources, modules, context, &available, lineage::Capture::CoreRequest(&package),
+    )
+}
+
+fn core_nominal_namespace(
+    sources: &[SourceUnit],
+    imports: &[Vec<zil_ir::CoreImport>],
+    limits: &zil_base::Limits,
+) -> R<(String, BTreeMap<ModuleId, Vec<String>>, zil_base::Limits)> {
+    let mut budget = Budget::new(limits);
+    let mut hash = FingerprintBuilder::new();
+    let mut paths = BTreeMap::new();
+    let span = Span::default();
+    for (source, imports) in sources.iter().zip(imports) {
+        bytes(&mut hash, &source.module_id.0.to_le_bytes(), &mut budget, span)?;
+        bytes(&mut hash, source.text.as_bytes(), &mut budget, span)?;
+        bytes(&mut hash, &(imports.len() as u64).to_le_bytes(), &mut budget, span)?;
+        for import in imports {
+            bytes(&mut hash, import.alias.as_bytes(), &mut budget, span)?;
+            bytes(&mut hash, &import.module.0.to_le_bytes(), &mut budget, span)?;
+        }
+        lookup_work(paths.len(), &mut budget, span)?;
+        let component = source.module_id.0.to_string();
+        budget.lineage_bytes(
+            std::mem::size_of::<(ModuleId, Vec<String>)>()
+                .saturating_add(std::mem::size_of::<String>())
+                .saturating_add(component.len()),
+            span,
+        )?;
+        paths.insert(source.module_id, vec![component]);
+    }
+    budget.identity_work(96, span)?;
+    let package = format!("core-request:v1:{}", hash.digest());
+    Ok((package, paths, budget.remaining_limits()))
+}
+
 impl<'a> SourceIdentityContext<'a> {
     pub(crate) fn resolve(
         self,
@@ -415,6 +470,43 @@ mod tests {
     fn source(id: u32, path: &str, text: &str) -> SourceUnit {
         SourceUnit::new(FileId(id), ModuleId(id), path, text)
     }
+    #[test]
+    fn core_inventory_names_distinct_modules_and_resolved_import_edges() {
+        let units = [
+            source(0, "main.zil", "import lib"),
+            source(1, "one.zil", "struct N{}"),
+            source(2, "two.zil", "struct N{}"),
+        ];
+        let edge = |id| zil_ir::CoreImport {
+            alias: "lib".into(), module: ModuleId(id), span: Span::default(),
+        };
+        let limits = Limits::default();
+        let first = [vec![edge(1)], vec![], vec![]];
+        let second = [vec![edge(2)], vec![], vec![]];
+        let (namespace, paths, remaining) = core_nominal_namespace(&units, &first, &limits).unwrap();
+        let spent = limits.max_analysis_steps - remaining.max_analysis_steps;
+        let replay = |steps| core_nominal_namespace(&units, &first, &Limits {
+            max_analysis_steps: steps, ..limits.clone()
+        });
+        assert!(replay(spent).is_ok());
+        assert_eq!(replay(spent - 1).unwrap_err().category, ResultCategory::ResourceLimit);
+        assert_ne!(paths[&ModuleId(1)], paths[&ModuleId(2)]);
+        assert_ne!(namespace, core_nominal_namespace(&units, &second, &limits).unwrap().0);
+        let trees = units.iter().map(|source| zil_syntax::parse(source).into_result().unwrap())
+            .collect::<Vec<_>>();
+        let modules = trees.iter().collect::<Vec<_>>();
+        let (request_rows, _) = core_nominal_origins(&units, &modules, &first, None, &limits).unwrap();
+        let explicit = SourceIdentityContext::Explicit {
+            package: &namespace, modules: &paths, declarations: DeclarationPlacement::Original,
+        };
+        let (explicit_rows, _) = capture_original_required(&units, &modules, explicit, &limits).unwrap();
+        assert_eq!(request_rows[1].items[0].identity.package, namespace);
+        assert_ne!(request_rows[1].items[0].identity.package, explicit_rows[1].items[0].identity.package);
+        let mut relocated = units;
+        relocated[1].path = "other/location.zil".into();
+        assert_eq!(namespace, core_nominal_namespace(&relocated, &first, &limits).unwrap().0);
+    }
+
     fn closed(
         sources: &[SourceUnit],
         root: u32,

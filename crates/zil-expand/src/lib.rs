@@ -401,7 +401,7 @@ fn expand_with_map_limits_target_impl(
         let declarations = semantic_nominal_lower::originals(&inventory, &mut budget)
             .map_err(|error| vec![error])?;
         products.allowance = Some(budget.remaining_limits());
-        products.bind_semantic_nominals(&specialized, &mut expanded, limits, Some(&declarations))?;
+        products.bind_semantic_nominals(&specialized, &mut expanded, limits, Some((&declarations, &origins)))?;
     }
     products.bind_dynamic_targets(&specialized, &expanded, limits)?;
     products.bind_closure_contexts(&specialized, &mut expanded, limits)?;
@@ -757,12 +757,17 @@ fn expand_program_with_limits_target_impl(
     let mut products = generics::products::Products::default();
     products.semantic = semantic;
     products.target_pointer_width = Some(target.pointer_width);
+    let source_syntax = match &syntax {
+        modules::ProjectSyntax::Borrowed(syntax, _) => Some(*syntax),
+        modules::ProjectSyntax::Prepared(_) => None,
+    };
     let specialized =
         modules::specialize_project(sources, syntax, imports, limits, &mut products, context)?;
     let project_modules: Vec<_> = specialized.iter().map(|(module, _)| module).collect();
     let declarations = declaration_index(project_modules.iter().copied());
     let mut result = Vec::new();
     let mut remaining = products.trait_limits(limits);
+    let mut core_nominals = None;
     let mut defaults = ProjectDefaults::new();
     // Defaults execute in their declaration's module. The generated function
     // name cannot be spelled by source syntax, but it remains an ordinary
@@ -900,9 +905,26 @@ fn expand_program_with_limits_target_impl(
             || !expanded.semantic_function_emissions.is_empty()
             || !expanded.semantic_nominal_emissions.is_empty()
         {
+            if core_nominals.is_none() && products.semantic.is_none()
+                && !expanded.semantic_nominal_emissions.is_empty() && !products.storage.instances.is_empty()
+                && let Some(syntax) = source_syntax
+            {
+                let (origins, mut available) = source_context::core_nominal_origins(
+                    sources, syntax, imports, context, &remaining,
+                )?;
+                let inventory = source_declarations::collect_original_declarations_with_budget(
+                    syntax, &origins, &mut available,
+                )?;
+                let mut budget = generics::Budget::new(&available);
+                let declarations = semantic_nominal_lower::originals(&inventory, &mut budget)
+                    .map_err(|error| vec![error])?;
+                remaining = budget.remaining_limits();
+                core_nominals = Some((declarations, origins));
+            }
             products.allowance = Some(remaining);
             products.bind_semantic_functions(module, &mut expanded, limits)?;
-            products.bind_semantic_nominals(module, &mut expanded, limits, None)?;
+            products.bind_semantic_nominals(module, &mut expanded, limits,
+                core_nominals.as_ref().map(|(rows, origins)| (rows.as_slice(), origins.as_slice())))?;
             products.bind_dynamic_targets(module, &expanded, limits)?;
             products.bind_closure_contexts(module, &mut expanded, limits)?;
             products.bind_callable_contexts(module, &mut expanded, limits)?;

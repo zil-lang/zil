@@ -808,7 +808,7 @@ fn normalize<'a>(
             files[&item.span.file].0
         };
         if let Some(origins) = &mut products.origins
-            && !origins.identities.is_empty()
+            && (!origins.identities.is_empty() || !products.storage.instances.is_empty())
         {
             let origin = origins.get(ordinal, item.span)?;
             for _ in 0..origins

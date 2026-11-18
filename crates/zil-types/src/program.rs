@@ -740,9 +740,8 @@ fn check_resolved_program_in_context(
         )
         .map_err(|e| vec![e])?;
     } else {
-        // New plain catalogue rows have the same mandatory complete N0
-        // discharge when no original semantic program was supplied.
-        stored::ordinary_inventory(&module, limits, &mut remaining).map_err(|e| vec![e])?;
+        semantics::finish::standalone(&mut module, &semantic_emission, limits, &mut remaining)
+            .map_err(|e| vec![e])?;
     }
     // Actual headers and materialized CFGs are now complete. No class-free
     // candidate or least-fixed-point bottom may decide Static/lending/CE.
