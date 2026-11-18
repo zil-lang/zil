@@ -1949,6 +1949,15 @@ impl<'a, 'c> Builder<'a, 'c> {
                 });
                 let (v, t) = if let Some(view) = self.shared_input_view(e, wanted)? {
                     view
+                } else if wanted.is_none()
+                    && matches!(&e.kind, CoreExprKind::Name(name)
+                        if self.lookup(name).is_some_and(|local|
+                            matches!(self.function.locals[local.0 as usize].ty, Type::Managed(_))))
+                    && self.scoped_address_domain(e.span)?
+                {
+                    // The original local initializer observes its manager.
+                    // An explicit give still takes the owning value.
+                    self.expr(e, None)?
                 } else {
                     self.transfer_expr(e, wanted)?
                 };
