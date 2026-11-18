@@ -122,6 +122,78 @@ struct DefinitionCursor {
     nodes:BTreeMap<SemanticSiteId,SemanticOriginalNode>,
     closures:BTreeMap<NodeId,SemanticDefinitionId>,
     recipes:BTreeMap<(bool,NodeId,Role),Vec<(usize,SemanticSiteId)>>,
+    places: PlaceSyntax,
+}
+
+/// The original syntax of place projections, indexed by occurrence. These
+/// are syntax edges only; their actual Type, binder and access must still be
+/// established by the consumer of each projection.
+pub(super) struct PlaceSyntax {
+    pub(super) receiver: Option<u32>,
+    expressions: BTreeMap<NodeId, PlaceExpression>,
+}
+
+pub(super) struct PlaceExpression {
+    pub(super) operation: PlaceOperation,
+    pub(super) span: Span,
+}
+
+pub(super) enum PlaceOperation {
+    Transparent(NodeId),
+    Give(NodeId),
+    Dereference(NodeId),
+    Member { object: NodeId, name: String },
+    Index { object: NodeId, index: NodeId },
+    Slice { object: NodeId, start: Option<NodeId>, end: Option<NodeId> },
+    ReceiverMember(String),
+    Other,
+}
+
+impl PlaceSyntax {
+    fn new(function: &Function<'_>, b: &mut Budget) -> Check<Self> {
+        b.spend(2)?;
+        let mut expressions = BTreeMap::new();
+        for (&node, expression) in &function.expressions {
+            b.spend(
+                expressions.len().checked_ilog2().map_or(1, |depth| depth as usize + 2)
+                    .saturating_add(std::mem::size_of::<(NodeId, PlaceExpression)>()),
+            )?;
+            let operation = match &expression.kind {
+                CoreExprKind::Group(value) | CoreExprKind::Ascribed { value, .. } => {
+                    PlaceOperation::Transparent(value.id)
+                }
+                CoreExprKind::Unary { op: UnaryOp::Give, operand } => PlaceOperation::Give(operand.id),
+                CoreExprKind::Unary { op: UnaryOp::Dereference, operand } => {
+                    PlaceOperation::Dereference(operand.id)
+                }
+                CoreExprKind::Member { object, member, .. } => {
+                    b.spend(member.len())?;
+                    PlaceOperation::Member { object: object.id, name: member.clone() }
+                }
+                CoreExprKind::Index { object, index } => PlaceOperation::Index {
+                    object: object.id,
+                    index: index.id,
+                },
+                CoreExprKind::Slice { object, start, end } => PlaceOperation::Slice {
+                    object: object.id,
+                    start: start.as_ref().map(|value| value.id),
+                    end: end.as_ref().map(|value| value.id),
+                },
+                CoreExprKind::ReceiverMember(member) => {
+                    b.spend(member.len())?;
+                    PlaceOperation::ReceiverMember(member.clone())
+                }
+                _ => PlaceOperation::Other,
+            };
+            expressions.insert(node, PlaceExpression { operation, span: expression.span });
+        }
+        Ok(Self { receiver: function.receiver_parameter, expressions })
+    }
+
+    pub(super) fn expression(&self, node: NodeId, b: &mut Budget) -> Check<&PlaceExpression> {
+        b.spend(self.expressions.len().checked_ilog2().map_or(1, |depth| depth as usize + 2))?;
+        self.expressions.get(&node).ok_or_else(|| bad("place syntax has no exact original expression"))
+    }
 }
 #[derive(Clone,Copy,PartialEq,Eq,PartialOrd,Ord)]
 pub(super) enum Role{Construct,Call,CallableCall,OriginalCall,TypeUse,DeclareLocal,Closure}
@@ -133,6 +205,13 @@ impl Role{fn of(recipe:&SemanticSiteRecipeKind)->Self{match recipe{
 }}}
 impl SourceIndex{
     fn bounds(&self,b:&mut Budget)->Check<()>{b.spend(12)?;if self.limits!=b.limits{dynamic_metadata::recipe(self.program.as_ref(),b)?;}Ok(())}
+    pub(super) fn place_syntax(&self, definition: SemanticDefinitionId, b: &mut Budget) -> Check<&PlaceSyntax> {
+        self.bounds(b)?;
+        let rows = &self.directory.definitions;
+        b.spend(rows.len().checked_ilog2().map_or(1, |depth| depth as usize + 2))?;
+        rows.get(&definition).map(|row| &row.places)
+            .ok_or_else(|| bad("place syntax has no independently checked original definition"))
+    }
     pub(super) fn compile_time_uses(&self, definition: SemanticDefinitionId, b: &mut Budget) -> Check<&[(usize, NodeId)]> {
         let uses = &self.directory.compile_time_uses;
         if uses.is_empty() { return Ok(&[]); }
@@ -186,7 +265,8 @@ pub(super) fn snapshot(module:&TypedModule,index:&Index<'_>,b:&mut Budget)->Chec
             b.spend(compile_time_uses.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
             compile_time_uses.insert(definition.id, uses);
         }
-        definitions.insert(definition.id,DefinitionCursor{ordinal,nodes,closures:function.closures.clone(),recipes});
+        let places = PlaceSyntax::new(function, b)?;
+        definitions.insert(definition.id,DefinitionCursor{ordinal,nodes,closures:function.closures.clone(),recipes,places});
     }
     // Prepay the complete immutable snapshot copy, including all unused
     // definitions, annotations and quote payloads. No address/digest/ID key

@@ -50,21 +50,33 @@ impl CheckedOriginal {
     /// These source wrappers emit no value operation. Their full types and
     /// ownership effects have already passed the complete original body check;
     /// actual transport must still prove the selected operand's real origin.
-    pub(in crate::semantic) fn assignment_value_source(&self,module:&TypedModule,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(NodeId,bool)>{
-        if !self.checked.contains(&definition){return Err(bad("assignment value source has no complete original body proof"));}
-        let index=self.source_index(module,&[definition],b)?;
-        let function=index.definitions.get(&definition).ok_or_else(||bad("assignment value owner has no original body"))?;
-        let mut expression=*function.expressions.get(&node).ok_or_else(||bad("assignment value original expression is absent"))?;
-        loop{
+    pub(in crate::semantic) fn assignment_value_source(
+        &self,
+        _module: &TypedModule,
+        definition: SemanticDefinitionId,
+        node: NodeId,
+        b: &mut Budget,
+    ) -> Check<(NodeId, bool)> {
+        if !self.checked.contains(&definition) {
+            return Err(bad("assignment value source has no complete original body proof"));
+        }
+        let syntax = self.source_grammar.as_ref()
+            .ok_or_else(|| bad("assignment value owner has no checked original grammar"))?
+            .place_syntax(definition, b)?;
+        let mut current = node;
+        loop {
+            let expression = syntax.expression(current, b)?;
             b.spend(1)?;
-            self.original_type(definition,&SemanticOriginalTypeSource::Expression(expression.id),b)?;
-            match &expression.kind{
-                CoreExprKind::Group(value)|CoreExprKind::Ascribed{value,..}|CoreExprKind::Unary{op:UnaryOp::Give,operand:value}=>expression=value,
-                _=>break,
+            self.original_type(definition, &SemanticOriginalTypeSource::Expression(current), b)?;
+            match expression.operation {
+                index::PlaceOperation::Transparent(value) | index::PlaceOperation::Give(value) => {
+                    current = value;
+                }
+                _ => break,
             }
         }
-        b.spend(self.value_places.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
-        Ok((expression.id,self.value_places.contains_key(&(definition,expression.id))))
+        b.spend(self.value_places.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
+        Ok((current, self.value_places.contains_key(&(definition, current))))
     }
     pub(in crate::semantic) fn bound_value_name(&self,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<bool>{
         b.spend(self.value_bindings.len().checked_ilog2().map_or(1,|depth|depth as usize+1))?;
@@ -115,25 +127,62 @@ impl CheckedOriginal {
         let expression=*function.expressions.get(&node).ok_or_else(||bad("scalar source input original expression is absent"))?;
         Ok((expression,carrier))
     }
-    pub(in crate::semantic) fn address_place(&self,module:&TypedModule,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(intrinsics::AddressRoot,Vec<intrinsics::AddressProjection>)>{
-        let index=self.source_index(module,&[definition],b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("indirect address has no complete original owner body"))?;
-        let mut expression=*function.expressions.get(&node).ok_or_else(||bad("indirect address original operand is absent"))?;
-        let mut projections=Vec::new();
-        loop{
+    pub(in crate::semantic) fn address_place(
+        &self,
+        _module: &TypedModule,
+        definition: SemanticDefinitionId,
+        node: NodeId,
+        b: &mut Budget,
+    ) -> Check<(intrinsics::AddressRoot, Vec<intrinsics::AddressProjection>)> {
+        use index::PlaceOperation as Operation;
+        use intrinsics::{AddressProjection, AddressRoot};
+        let syntax = self.source_grammar.as_ref()
+            .ok_or_else(|| bad("indirect address has no complete original owner body"))?
+            .place_syntax(definition, b)?;
+        let mut current = node;
+        let mut projections = Vec::new();
+        loop {
+            let expression = syntax.expression(current, b)?;
             b.spend(1)?;
-            if expression.id!=node&&matches!(self.resolved(self.expressions.get(&(definition,expression.id)).ok_or_else(||bad("address parent has no independent original type"))?,b)?,Ty::Address{..}){
-                if self.value_places.contains_key(&(definition,expression.id)){return Ok((intrinsics::AddressRoot::Place(expression.id),projections));}
-                return Ok((intrinsics::AddressRoot::Value(expression.id),projections));
+            if current != node && matches!(self.resolved(
+                self.expressions.get(&(definition, current))
+                    .ok_or_else(|| bad("address parent has no independent original type"))?, b,
+            )?, Ty::Address { .. }) {
+                if self.value_places.contains_key(&(definition, current)) {
+                    return Ok((AddressRoot::Place(current), projections));
+                }
+                return Ok((AddressRoot::Value(current), projections));
             }
-            expression=match &expression.kind{
-                CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=>inner,
-                CoreExprKind::Member{object,member,..}=>{b.spend(member.len())?;projections.push(intrinsics::AddressProjection::Field(member.clone()));object},
-                CoreExprKind::Index{object,index}=>{projections.push(intrinsics::AddressProjection::Index(index.id));object},
-                CoreExprKind::Slice{object,start,end}=>{projections.push(intrinsics::AddressProjection::Slice{start:start.as_ref().map(|value|value.id),end:end.as_ref().map(|value|value.id)});object},
-                CoreExprKind::Unary{op:UnaryOp::Dereference,operand}=>operand,
-                CoreExprKind::ReceiverMember(member)=>{let ordinal=function.receiver_parameter.ok_or_else(||bad("borrowed receiver field lacks its exact original receiver parameter"))?;b.spend(member.len())?;projections.push(intrinsics::AddressProjection::Field(member.clone()));return Ok((intrinsics::AddressRoot::Parameter(ordinal),projections));},
-                _ if self.value_places.contains_key(&(definition,expression.id))=>return Ok((intrinsics::AddressRoot::Place(expression.id),projections)),
-                _=>return Err(unsupported("indirect address has no complete original Place/address-parent projection",Some(expression.span))),
+            current = match &expression.operation {
+                Operation::Transparent(inner) | Operation::Dereference(inner) => *inner,
+                Operation::Member { object, name } => {
+                    b.spend(name.len())?;
+                    projections.push(AddressProjection::Field(name.clone()));
+                    *object
+                }
+                Operation::Index { object, index } => {
+                    projections.push(AddressProjection::Index(*index));
+                    *object
+                }
+                Operation::Slice { object, start, end } => {
+                    projections.push(AddressProjection::Slice { start: *start, end: *end });
+                    *object
+                }
+                Operation::ReceiverMember(name) => {
+                    let ordinal = syntax.receiver.ok_or_else(|| {
+                        bad("borrowed receiver field lacks its exact original receiver parameter")
+                    })?;
+                    b.spend(name.len())?;
+                    projections.push(AddressProjection::Field(name.clone()));
+                    return Ok((AddressRoot::Parameter(ordinal), projections));
+                }
+                _ if self.value_places.contains_key(&(definition, current)) => {
+                    return Ok((AddressRoot::Place(current), projections));
+                }
+                _ => return Err(unsupported(
+                    "indirect address has no complete original Place/address-parent projection",
+                    Some(expression.span),
+                )),
             };
         }
     }
