@@ -10,6 +10,93 @@ pub(crate) struct FunctionValue {
     pub signature: SemanticSignatureRecipe,
 }
 impl Check<'_, '_> {
+    /// A thin function context supplies types to the child's own binders.
+    /// Captures and the checked result are validated after its body runs.
+    pub(super) fn contextual_code_inputs(
+        &mut self,
+        owner: SemanticDefinitionId,
+        child: &SemanticDefinition,
+        wanted: Option<&SemanticTypeRecipe>,
+        depth: usize,
+    ) -> R<()> {
+        let Some(SemanticTypeRecipe::Code { kind: SemanticCodeKind::FunctionPointer, signature }) = wanted else {
+            return Ok(());
+        };
+        let SemanticDefinitionBody::FunctionWithBody { signature: declared, .. } = &child.body else {
+            return Err(bad("thin closure has no original body signature"));
+        };
+        if child.parent != Some(owner) || signature.parameters.len() != declared.parameters.len()
+            || signature.call_kind != CallKind::Direct || signature.bound_lifetimes != 0 || signature.invocation_lifetimes != 0
+        {
+            return Err(bad("thin closure context changes its original arity, calling mode or lifetime domain"));
+        }
+        for (index, (input, parameter)) in signature.parameters.iter().zip(&declared.parameters).enumerate() {
+            let ordinal = u32::try_from(index).map_err(|_| bad("thin closure parameter ordinal overflow"))?;
+            let form = &parameter.ty;
+            if matches!(form, SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Parameter(n),
+            } if *n == ordinal) {
+                let expected = self.rehome(owner, child, &input.ty, depth + 1)?;
+                self.contextual_code_equation(child.id, Query::Parameter(ordinal), expected, depth + 1)?;
+            }
+        }
+        if matches!(declared.result, SemanticTypeRecipe::OriginalType {
+            scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result,
+        }) {
+            let expected = self.rehome(owner, child, &signature.result, depth + 1)?;
+            self.contextual_code_equation(child.id, Query::Result, expected, depth + 1)?;
+        }
+        Ok(())
+    }
+
+    fn contextual_code_equation(&mut self, child: SemanticDefinitionId, query: Query,
+        expected: SemanticTypeRecipe, depth: usize) -> R<()> {
+        self.pay(query.copy_work().saturating_add(self.proof.types.len().saturating_add(1).ilog2() as usize + 1), depth)?;
+        if let Some(old) = self.proof.types.get(&(child, query.clone())) {
+            let old = copy_recipe(old, self.limits, self.left)?;
+            self.contexts.push(child);
+            let equal = self.same(&old, &expected);
+            self.contexts.pop();
+            equal?;
+        } else {
+            self.proof.proof_mut()?.types.insert((child, query), expected);
+        }
+        Ok(())
+    }
+
+    pub(super) fn checked_code_closure(
+        &mut self,
+        owner: SemanticDefinitionId,
+        node: NodeId,
+        child: &SemanticDefinition,
+        expected: &SemanticSignatureRecipe,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        if !self.captures.get(&child.id).is_some_and(|captures| captures.is_empty()) {
+            return Err(bad("function pointer conversion requires a closure with no captures"));
+        }
+        if self.function_value_copy(owner, SemanticCodeKind::FunctionPointer, expected, depth + 1)? != Some(true) {
+            return Err(bad("thin closure requires its complete original Copy signature"));
+        }
+        for (index, value) in expected.parameters.iter().map(|p| &p.ty).chain(std::iter::once(&expected.result)).enumerate() {
+            let query = if index == expected.parameters.len() { Query::Result } else { Query::Parameter(index as u32) };
+            let value = self.rehome(owner, child, value, depth + 1)?;
+            let actual = self.proof.types.get(&(child.id, query))
+                .ok_or_else(|| bad("thin closure omits a checked original parameter or result"))?;
+            let actual = copy_recipe(actual, self.limits, self.left)?;
+            self.contexts.push(child.id);
+            let equal = self.same(&actual, &value);
+            self.contexts.pop();
+            equal?;
+        }
+        crate::dyn_metadata::semantic_operand_snapshot(expected, self.limits, self.left, 1)?;
+        self.pay(1, depth)?;
+        self.proof.proof_mut()?.function_values.insert((owner, node), FunctionValue {
+            target: child.id, actuals: Vec::new(), kind: SemanticCodeKind::FunctionPointer, signature: expected.clone(),
+        });
+        crate::dyn_metadata::semantic_operand_snapshot(expected, self.limits, self.left, 1)?;
+        Ok(SemanticTypeRecipe::Code { kind: SemanticCodeKind::FunctionPointer, signature: Box::new(expected.clone()) })
+    }
     pub(super) fn fn_value(
         &mut self,
         owner: SemanticDefinitionId,

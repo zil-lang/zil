@@ -3959,6 +3959,7 @@ impl<'a> Check<'a, '_> {
                     captured.insert(name.clone(), value);
                 }
                 self.contextual_closure_inputs(owner, child, wanted, depth + 1)?;
+                self.contextual_code_inputs(owner, child, wanted, depth + 1)?;
                 self.function(child, Some(captured))?;
                 if !*move_capture {
                     let cost = self
@@ -4028,19 +4029,33 @@ impl<'a> Check<'a, '_> {
                 for actual in environment {
                     sealed_environment.push(self.resolved_actual(owner, actual, depth + 1)?);
                 }
-                SemanticTypeRecipe::Closure {
-                    definition: *definition,
-                    arguments: Vec::new(),
-                    environment: sealed_environment,
+                if let Some(SemanticTypeRecipe::Code { kind: SemanticCodeKind::FunctionPointer, signature }) = wanted {
+                    self.checked_code_closure(owner, expression.id, child, signature, depth + 1)?
+                } else {
+                    SemanticTypeRecipe::Closure {
+                        definition: *definition,
+                        arguments: Vec::new(),
+                        environment: sealed_environment,
+                    }
                 }
             }
             CoreExprKind::Tuple(fields) if fields.is_empty() => {
                 SemanticTypeRecipe::Atom(Type::Unit)
             }
             CoreExprKind::Tuple(fields) => {
-                let mut types = Vec::new();
-                for field in fields {
-                    types.push(self.expr(owner, field, variables, None, depth + 1)?);
+                self.pay(fields.len(), depth)?;
+                let expected = match wanted {
+                    Some(SemanticTypeRecipe::Tuple(items)) if items.len() == fields.len() => Some(items),
+                    _ => None,
+                };
+                let mut types = Vec::with_capacity(fields.len());
+                for (index, field) in fields.iter().enumerate() {
+                    let wanted = expected.map(|items| &items[index]);
+                    let actual = self.expr(owner, field, variables, wanted, depth + 1)?;
+                    if let Some(wanted) = wanted {
+                        self.same(wanted, &actual)?;
+                    }
+                    types.push(actual);
                 }
                 SemanticTypeRecipe::Tuple(types)
             }
