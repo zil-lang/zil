@@ -23,6 +23,7 @@ fn bad(span: Span, message: &str) -> Diagnostic {
 #[derive(Clone, Default)]
 pub(super) struct Bindings {
     pub ordinary: Option<String>,
+    pub ordinary_bound: Option<CoreTypeBound>,
     pub callable: Vec<(u32, String)>,
 }
 impl Bindings {
@@ -122,6 +123,7 @@ impl Index {
                 store_templates::validate_header(f)?;
                 let mut bindings = Bindings {
                     ordinary: f.type_parameters.first().map(|p| p.name.clone()),
+                    ordinary_bound: f.type_parameters.first().map(|p| p.bound),
                     callable: Vec::new(),
                 };
                 for (index, name) in f

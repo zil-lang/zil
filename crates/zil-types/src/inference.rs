@@ -2328,7 +2328,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         };
         if let Some(parameter) = function.type_parameters.first() {
             this.graph
-                .set_store_parameter(&parameter.name, function.span)?;
+                .set_ordinary_parameter(parameter, function.span)?;
         }
         if let Some(state) = function.state_parameters.first() {
             state_origins::validate_shape(function)?;
@@ -2988,6 +2988,11 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             });
         }
         if matches!(pattern, Type::Package { .. }) && self.budget.products.is_some() {
+            if let Term::Closure(environment) = actual
+                && callable_fields::placeholder_value(pattern, name)
+            {
+                return self.state_term(pattern, name, *environment, span);
+            }
             let actual = self.product_term_type(actual, span)?;
             let products = self.budget.products.clone();
             let limits = self.budget.limits;
@@ -3011,11 +3016,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         depth: usize,
         span: Span,
     ) -> R<Term> {
-        let name = &signature
-            .type_parameter
-            .as_ref()
-            .expect("ordinary template")
-            .name;
+        let formal = signature.type_parameter.as_ref().expect("ordinary template");
+        let name = &formal.name;
         if arguments.len() != signature.parameters.len() {
             return Err(error(
                 "E-CALL-ARITY",
@@ -3042,6 +3044,20 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
         let actual = actual.ok_or_else(|| error("E-TYPE-APPLICATION", span,
             "ordinary template call has no unique complete type constraint from a value argument"))?;
+        if formal.bound == CoreTypeBound::Value {
+            match &actual {
+                Term::Closure(_) | Term::ClosurePackage { .. } | Term::StatePackage { .. } => {}
+                Term::Scalar(variable) => {
+                    let ty = self.graph.injection_type(*variable, span)?;
+                    validate_type(&ty, 0, span, self.budget)?;
+                    if !self.graph.is_value_parameter(&ty) && !owned_shapes::value(stored::physical(&ty)) {
+                        return Err(error("E-TYPE-APPLICATION", span, "inferred type does not satisfy Value"));
+                    }
+                }
+                _ => return Err(error("E-TYPE-APPLICATION", span, "inferred type is not a complete inline Value")),
+            }
+            return self.applied_value_term(&signature.result, name, &actual, span);
+        }
         match &actual {
             Term::StatePackage { .. } | Term::ClosurePackage { .. } => {}
             Term::Scalar(variable) => {
@@ -5887,25 +5903,6 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 ));
             };
             validate_type(actual, 0, callee.span, self.budget)?;
-            dynamic_store::charge_pod(
-                actual,
-                self.budget.limits,
-                callee.span,
-                &mut self.budget.work,
-            )?;
-            if !(self.graph.is_store_parameter(actual)
-                || dynamic_store::supported_element(actual)
-                || dynamic_store::callback_element(
-                    actual,
-                    |ty| matches!(ty, Type::Named(name) if self.helper_environments.contains_key(name)),
-                ))
-            {
-                return Err(error(
-                    "E-STORE-TYPE-ARGUMENT",
-                    callee.span,
-                    "ordinary type applications require the caller's StoreElement binder or a complete finite element type",
-                ));
-            }
             let Term::Function(signature) = self.expr(target, depth + 2, false)? else {
                 return Err(error(
                     "E-TYPE-APPLICATION",
@@ -5918,9 +5915,34 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 error(
                     "E-TYPE-APPLICATION",
                     callee.span,
-                    "type application target is not an ordinary StoreElement template",
+                    "type application target is not an ordinary template",
                 )
             })?;
+            if bound.bound == CoreTypeBound::Value {
+                if !self.graph.is_value_parameter(actual) && !owned_shapes::value(stored::physical(actual)) {
+                    return Err(error("E-TYPE-APPLICATION", callee.span, "type argument does not satisfy Value"));
+                }
+            } else {
+                dynamic_store::charge_pod(
+                    actual,
+                    self.budget.limits,
+                    callee.span,
+                    &mut self.budget.work,
+                )?;
+                if !(self.graph.is_store_parameter(actual)
+                    || dynamic_store::supported_element(actual)
+                    || dynamic_store::callback_element(
+                        actual,
+                        |ty| matches!(ty, Type::Named(name) if self.helper_environments.contains_key(name)),
+                    ))
+                {
+                    return Err(error(
+                        "E-STORE-TYPE-ARGUMENT",
+                        callee.span,
+                        "ordinary type applications require the caller's StoreElement binder or a complete finite element type",
+                    ));
+                }
+            }
             let limits = self.budget.limits;
             let products = self.budget.products.clone();
             for parameter in &mut signature.parameters {

@@ -11,6 +11,32 @@ pub(in crate::semantic) struct Assignment {
 }
 fn nonnegative_index(value:&Constant)->Option<u64>{match value{Constant::I8(value)=>u64::try_from(*value).ok(),Constant::I16(value)=>u64::try_from(*value).ok(),Constant::I32(value)=>u64::try_from(*value).ok(),Constant::I64(value)|Constant::Isize(value)=>u64::try_from(*value).ok(),Constant::U8(value)=>Some(u64::from(*value)),Constant::U16(value)=>Some(u64::from(*value)),Constant::U32(value)=>Some(u64::from(*value)),Constant::U64(value)|Constant::Usize(value)=>Some(*value),_=>None}}
 impl CheckedOriginal {
+    pub(in crate::semantic) fn callable_borrow_operand(
+        &self,
+        module: &TypedModule,
+        definition: SemanticDefinitionId,
+        node: NodeId,
+        b: &mut Budget,
+    ) -> Check<Option<NodeId>> {
+        let index = self.source_index(module, &[definition], b)?;
+        let function = index.definitions.get(&definition)
+            .ok_or_else(|| bad("callable borrow lacks its independently checked original body"))?;
+        let mut expression = *function.expressions.get(&node)
+            .ok_or_else(|| bad("callable borrow has no exact original callee occurrence"))?;
+        loop {
+            b.spend(1)?;
+            match &expression.kind {
+                CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } => {
+                    expression = inner;
+                }
+                CoreExprKind::Unary { op: UnaryOp::Borrow | UnaryOp::BorrowMut, operand } => {
+                    return Ok(Some(operand.id));
+                }
+                _ => return Ok(None),
+            }
+        }
+    }
+
     /// The private callback cell represents this actual mutable source binder,
     /// not an arbitrary one-element array of a coincidentally equal type.
     pub(in crate::semantic) fn persistent_binding(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,b:&mut Budget)->Check<(NodeId,NodeId)>{

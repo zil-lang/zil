@@ -26,7 +26,7 @@ pub(crate) fn parameter(function: &Function) -> Option<&GenericParam> {
     let [bound] = bounds.as_slice() else {
         return None;
     };
-    (stores::is_bound(bound)
+    ((stores::is_bound(bound) || trait_bounds::value::bound(bound) == Some(trait_bounds::Bound::Value))
         && !parameter.name.is_empty()
         && function.where_clause.is_empty()
         && !matches!(function.body, FunctionBody::Declaration)
@@ -35,6 +35,17 @@ pub(crate) fn parameter(function: &Function) -> Option<&GenericParam> {
             .as_ref()
             .is_none_or(|ty| callable::opaque_signature(ty).is_none()))
     .then_some(parameter)
+}
+
+pub(super) fn parameter_bound(parameter: &GenericParam) -> zil_ir::CoreTypeBound {
+    let GenericParamKind::Type(bounds) = &parameter.kind else {
+        unreachable!("validated ordinary type parameter");
+    };
+    if stores::is_bound(&bounds[0]) {
+        zil_ir::CoreTypeBound::StoreElement
+    } else {
+        zil_ir::CoreTypeBound::Value
+    }
 }
 
 pub(crate) fn core_parameters(
@@ -56,7 +67,7 @@ pub(crate) fn core_parameters(
     Ok(vec![zil_ir::CoreTypeParameter {
         index: 0,
         name: parameter.name.clone(),
-        bound: zil_ir::CoreTypeBound::StoreElement,
+        bound: parameter_bound(parameter),
     }])
 }
 
@@ -74,7 +85,8 @@ impl Engine<'_> {
                 "only a direct ordinary call can retain a type binder",
             ));
         };
-        let Some(parameter) = parameter(function) else {
+        let Some(parameter) = parameter(function).filter(|parameter|
+            parameter_bound(parameter) == zil_ir::CoreTypeBound::StoreElement) else {
             return Err(unsupported(
                 span,
                 "deferred ordinary calls require exactly one StoreElement type parameter",
@@ -303,7 +315,7 @@ impl Engine<'_> {
         let parameter = parameter(function).ok_or_else(|| {
             error(
                 span,
-                "value-inferred ordinary call requires one StoreElement binder",
+                "value-inferred ordinary call requires one Value or StoreElement binder",
             )
         })?;
         if actual.len() != function.params.len() {
@@ -361,6 +373,12 @@ impl Engine<'_> {
         self.budget.node(callee.span, 0)?;
         self.budget.text(template, callee.span)?;
         callee.kind = ExprKind::Name(template.to_owned());
+        if parameter_bound(parameter) == zil_ir::CoreTypeBound::Value {
+            // A visible callable bound is only a shape hint. Types selects the
+            // concrete argument from the emitted producer, keeping its complete
+            // declaration, instance and capture domain through the result.
+            return Ok(None);
+        }
         let Some(result) = &function.return_type else {
             return Ok(None);
         };

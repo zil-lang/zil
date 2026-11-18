@@ -5390,6 +5390,9 @@ impl Check<'_, '_, '_> {
             zil_ir::CallableKind::Fn => {}
             zil_ir::CallableKind::FnMut if mode == Some(true) => {}
             zil_ir::CallableKind::FnMut if mode.is_none() && local.is_some_and(|local| local.mutable) => {}
+            zil_ir::CallableKind::FnMut if mode.is_none() => {
+                return Err(error(e.span, "local FnMut call requires a mutable binding"));
+            }
             zil_ir::CallableKind::FnMut => {
                 return Err(error(head.span, "FnMut call requires an exclusive receiver"));
             }

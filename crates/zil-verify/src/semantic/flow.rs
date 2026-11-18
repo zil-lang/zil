@@ -801,6 +801,26 @@ impl CheckedContext {
             InstructionKind::CallIndirect{callee,arguments}|InstructionKind::CallClosure{callee,arguments}|InstructionKind::CallClosureOnce{callee,arguments}|InstructionKind::CallClosureBorrowed{callee,arguments,..}=>(value_at(values,*callee)?,arguments),
             InstructionKind::CallClosureShared{callee,arguments}|InstructionKind::CallClosureMut{callee,arguments}=>(state.locals.get(callee.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual callable local is not initialized"))?,arguments),_=>return Err(bad("actual opcode is not a closure invocation")),
         };
+        if let InstructionKind::CallClosureBorrowed { callee, .. } = opcode
+            && matches!(expected.ty, Type::Address { .. })
+        {
+            let node = self.original_callable_source(module, caller, site, b)?;
+            let operand = self.original.borrow().as_ref()
+                .ok_or_else(|| bad("borrowed callable lacks an independent original receiver"))?
+                .callable_borrow_operand(module, caller.definition, node, b)?;
+            if let Some(operand) = operand {
+                let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) = caller.target else {
+                    return Err(bad("explicit callable borrow has no actual caller entry"));
+                };
+                let function = module.functions.get(id.0 as usize).filter(|entry| entry.id == id)
+                    .ok_or_else(|| bad("explicit callable borrow has no actual caller body"))?;
+                self.original_projection_source(module, caller, function, *callee, caller.definition, operand, false, b)
+                    .map_err(|error| error.with_note(format!(
+                        "original receiver {:?} expression {:?}, borrowed place {:?}, site {:?}; actual callee {:?}",
+                        caller.definition, node, operand, site.at, callee
+                    )))?;
+            }
+        }
         let invocation_borrow;
         let original_value=if matches!(opcode,InstructionKind::CallClosureBorrowed{..})
             &&matches!(expected.ty,Type::Closure(_))&&matches!(actual.ty,Type::Address{..}){

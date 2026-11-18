@@ -13,6 +13,7 @@ struct CallArguments {
     contextual_constraints: bool,
     value_inference_allowed: bool,
     value_inferred: bool,
+    opaque_inputs: Vec<usize>,
 }
 impl Engine<'_> {
     fn expr_call_method(&mut self, e: &mut Expr, env: &mut Env, depth: usize) -> R<CallMethod> {
@@ -774,6 +775,7 @@ impl Engine<'_> {
             contextual_constraints: false,
             value_inference_allowed: false,
             value_inferred: false,
+            opaque_inputs: Vec::new(),
         };
         if let Some(result) = self.expr_call_primitive(e, env, context, depth)? {
             return Ok(result);
@@ -813,7 +815,26 @@ impl Engine<'_> {
         let ExprKind::Call { callee, arguments } = &mut e.kind else {
             unreachable!("call dispatch")
         };
-        state.value_inference_allowed = matches!(&callee.kind, ExprKind::Name(name) if !env.contains_key(name) && self.signatures.get(name).is_some_and(|f|store_templates::parameter(f).is_some()));
+        if let ExprKind::Name(name) = &callee.kind
+            && !env.contains_key(name)
+            && let Some(function) = self.signatures.get(name)
+            && let Some(parameter) = store_templates::parameter(function)
+        {
+            match store_templates::parameter_bound(parameter) {
+                zil_ir::CoreTypeBound::StoreElement => state.value_inference_allowed = true,
+                zil_ir::CoreTypeBound::Value => {
+                    // This late path requires a complete whole-value
+                    // constraint. Other positions remain checked in Types.
+                    for (index, input) in function.params.iter().enumerate() {
+                        self.budget.node(input.span, depth + 1)?;
+                        if callable::parameter_mode(&input.ty, &parameter.name) == Some(None) {
+                            state.opaque_inputs.push(index);
+                        }
+                    }
+                }
+                zil_ir::CoreTypeBound::SyncDrop => unreachable!("ordinary template parameter"),
+            }
+        }
         state.hints = self.call_hints(callee, env, expected)?;
         for index in 0..arguments.len() {
             let hint = self.expr_call_argument_hint(arguments, env, state, index, depth)?;
@@ -914,10 +935,14 @@ impl Engine<'_> {
         } else {
             ty
         };
-        if state.value_inference_allowed
-            && let Some(ty) = &ty
-            && self.inferred_state_value(ty, 0)?
-        {
+        let opaque = state.opaque_inputs.binary_search(&index).is_ok()
+            && ty.as_ref().and_then(callable::opaque_signature).is_some();
+        let retained = if state.value_inference_allowed && let Some(ty) = &ty {
+            self.inferred_state_value(ty, 0)?
+        } else {
+            false
+        };
+        if opaque || retained {
             state.value_inferred = true;
             // Concrete C identities belong to Types. A prior
             // symbolic spelling is not a cross-argument equality

@@ -4,6 +4,7 @@ use super::*;
 
 pub(super) struct Instance {
     pub key: helpers::TemplateKey,
+    pub bound: CoreTypeBound,
     pub actual: Type,
     pub work: usize,
     pub span: Span,
@@ -17,7 +18,7 @@ pub(super) fn validate_header(function: &CoreFunction) -> R<()> {
     if function.type_parameters.len() != 1
         || function.type_parameters[0].index != 0
         || function.type_parameters[0].name.is_empty()
-        || function.type_parameters[0].bound != CoreTypeBound::StoreElement
+        || !matches!(function.type_parameters[0].bound, CoreTypeBound::StoreElement | CoreTypeBound::Value)
         || !function.callable_parameters.is_empty()
         || !function.state_parameters.is_empty()
         || function.callable_return.is_some()
@@ -28,7 +29,7 @@ pub(super) fn validate_header(function: &CoreFunction) -> R<()> {
         return Err(error(
             "E-TYPE-PARAMETERS",
             function.span,
-            "ordinary templates require one index-zero StoreElement parameter and no callable, foreign or receiver interface",
+            "ordinary templates require one index-zero Value or StoreElement parameter and no callable, foreign or receiver interface",
         ));
     }
     Ok(())
@@ -40,6 +41,9 @@ pub(super) fn validate_header(function: &CoreFunction) -> R<()> {
 pub(super) fn symbolic_type(ty: &Type, name: &str) -> bool {
     let parameter = |ty: &Type| matches!(ty, Type::Named(actual) if actual == name);
     parameter(ty)
+        || matches!(ty, Type::Package { fields, .. }
+            if fields.iter().any(|(_, field)| parameter(field))
+                && fields.iter().all(|(_, field)| parameter(field) || owned_shapes::value(field)))
         || matches!(ty, Type::ErrorUnion { error, result }
         if (parameter(error) || error.is_copy_value())
             && (parameter(result) || result.is_copy_value()))
@@ -132,6 +136,7 @@ pub(super) fn infer_argument(
 
 pub(super) fn intern(
     key: helpers::TemplateKey,
+    bound: CoreTypeBound,
     actual: &Type,
     state: &mut closures::State,
     limits: &Limits,
@@ -142,12 +147,19 @@ pub(super) fn intern(
     }
     let work = inference::type_snapshot_work(actual, span, limits)?;
     state.snapshot(work, span)?;
-    if !dynamic_store::supported_element(actual) {
-        return Err(error(
+    match bound {
+        CoreTypeBound::StoreElement if dynamic_store::supported_element(actual) => {}
+        CoreTypeBound::Value if owned_shapes::value(stored::physical(actual)) => {}
+        CoreTypeBound::StoreElement => return Err(error(
             "E-STORE-TYPE-ARGUMENT",
             span,
             "StoreElement requires one complete concrete finite Store element type",
-        ));
+        )),
+        _ => return Err(error(
+            "E-TYPE-APPLICATION",
+            span,
+            "Value requires one complete concrete inline type",
+        )),
     }
     state.snapshot(state.store_instances.len(), span)?;
     for index in 0..state.store_instances.len() {
@@ -177,6 +189,7 @@ pub(super) fn intern(
     })?;
     state.store_instances.push(Instance {
         key,
+        bound,
         actual: actual.clone(),
         work,
         span,
@@ -193,6 +206,9 @@ pub(super) fn bound_elements(state: &mut closures::State) -> R<Vec<(Type, Span)>
     state.snapshot(state.store_instances.len(), Span::default())?;
     for index in 0..state.store_instances.len() {
         let record = &state.store_instances[index];
+        if record.bound != CoreTypeBound::StoreElement {
+            continue;
+        }
         let (work, span) = (record.work, record.span);
         state.snapshot(work, span)?;
         result.push((state.store_instances[index].actual.clone(), span));
@@ -475,7 +491,7 @@ impl Builder<'_, '_> {
                 "ordinary template identity is absent",
             )
         })?;
-        let index = intern(key, actual, self.closures, self.limits, span)?;
+        let index = intern(key, bound.bound, actual, self.closures, self.limits, span)?;
         if self.closures.store_instances[index as usize]
             .function
             .is_none()

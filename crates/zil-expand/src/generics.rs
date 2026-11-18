@@ -797,7 +797,9 @@ impl<'a> Engine<'a> {
                 // The item/header is already prepaid. Only a module with a
                 // real ordinary StoreElement template needs the new single-F
                 // producer facts; old State-only callers keep their cost.
-                engine.has_store_templates |= store_templates::parameter(f).is_some();
+                engine.has_store_templates |= store_templates::parameter(f).is_some_and(
+                    |parameter| store_templates::parameter_bound(parameter) == zil_ir::CoreTypeBound::StoreElement,
+                );
                 engine.signatures.insert(f.name.clone(), Cow::Borrowed(f));
             }
             if let ItemKind::Extern { abi, function } = &item.kind {
@@ -1676,10 +1678,16 @@ impl<'a> Engine<'a> {
             .collect();
         let mut product_bounds = trait_bounds::Bounds::new();
         let mut product_variables = BTreeSet::new();
-        if product && let Some(name) = &self.store_parameter {
+        if product && let Some(scope) = &self.product_owner
+            && let Some(name) = &scope.ordinary
+        {
             self.budget.node(span, 0)?;
             self.budget.text(name, span)?;
-            product_bounds.insert(name.clone(), vec![trait_bounds::Bound::StoreElement]);
+            let bound = match scope.ordinary_bound {
+                Some(zil_ir::CoreTypeBound::Value) => trait_bounds::Bound::Value,
+                _ => trait_bounds::Bound::StoreElement,
+            };
+            product_bounds.insert(name.clone(), vec![bound]);
             product_variables.insert(name.clone());
         }
         let origin = self.template_origin(item)?;
@@ -2217,14 +2225,16 @@ impl<'a> Engine<'a> {
                     self.budget.text(&f.name, f.span)?;
                     self.anonymous_function = Some(f.name.clone());
                 }
-                let store_parameter = store_templates::parameter(f);
-                if let Some(parameter) = store_parameter {
+                let ordinary = store_templates::parameter(f);
+                let ordinary_bound = ordinary.map(store_templates::parameter_bound);
+                if let Some(parameter) = ordinary {
                     self.budget.node(parameter.span, 0)?;
                     self.budget.text(&parameter.name, parameter.span)?;
                 }
                 let saved_store = std::mem::replace(
                     &mut self.store_parameter,
-                    store_parameter.map(|parameter| parameter.name.clone()),
+                    ordinary.filter(|_| ordinary_bound == Some(zil_ir::CoreTypeBound::StoreElement))
+                        .map(|parameter| parameter.name.clone()),
                 );
                 let callable = callable::template(f, &mut self.budget)?;
                 let pair = callable::dual_scope(callable.as_ref(), &mut self.budget, f.span)?;
@@ -2237,15 +2247,15 @@ impl<'a> Engine<'a> {
                 );
                 let saved_product_owner = self.product_owner.take();
                 if !self.products.is_empty()
-                    && (self.store_parameter.is_some()
+                    && (ordinary.is_some()
                         || self.callable_name.is_some()
                         || self.callable_pair.is_some())
                 {
                     self.budget.node(f.span, 0)?;
                     self.budget.text(&f.name, f.span)?;
-                    for name in self
-                        .store_parameter
+                    for name in ordinary
                         .iter()
+                        .map(|parameter| &parameter.name)
                         .chain(self.callable_name.iter())
                         .chain(self.callable_pair.iter().flatten())
                     {
@@ -2254,7 +2264,8 @@ impl<'a> Engine<'a> {
                     self.product_owner = Some(products::Scope {
                         owner: f.name.clone(),
                         span: f.span,
-                        ordinary: self.store_parameter.clone(),
+                        ordinary: ordinary.map(|parameter| parameter.name.clone()),
+                        ordinary_bound,
                         callable: self.callable_name.clone(),
                         pair: self.callable_pair.clone(),
                     });
@@ -2400,7 +2411,9 @@ impl<'a> Engine<'a> {
                     {
                         self.budget.text(name, item.span)?;
                     }
-                    self.store_parameter = scope.ordinary.clone();
+                    self.store_parameter = scope.ordinary.as_ref()
+                        .filter(|_| scope.ordinary_bound == Some(zil_ir::CoreTypeBound::StoreElement))
+                        .cloned();
                     self.callable_name = scope.callable.clone();
                     self.callable_pair = scope.pair.clone();
                     self.product_owner = Some(scope);

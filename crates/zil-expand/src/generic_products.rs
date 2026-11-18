@@ -38,6 +38,7 @@ pub(super) struct Scope {
     pub(super) owner: String,
     pub(super) span: Span,
     pub(super) ordinary: Option<String>,
+    pub(super) ordinary_bound: Option<zil_ir::CoreTypeBound>,
     pub(super) callable: Option<String>,
     pub(super) pair: Option<[String; 2]>,
 }
@@ -142,8 +143,9 @@ impl Engine<'_> {
         for argument in arguments {
             self.budget.ty(argument)?;
             for name in self
-                .store_parameter
+                .product_owner
                 .iter()
+                .filter_map(|scope| scope.ordinary.as_ref())
                 .chain(self.callable_name.iter())
                 .chain(self.callable_pair.iter().flatten())
             {

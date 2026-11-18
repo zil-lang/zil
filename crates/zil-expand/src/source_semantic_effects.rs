@@ -36,6 +36,7 @@ enum Arguments<'a> {
     Semantic(&'a [SemanticActualRecipe]),
     Types(&'a [SemanticTypeRecipe]),
     Written(&'a [CoreGenericArgument<SemanticTypeRecipe>]),
+    InferredTargets(usize),
 }
 #[derive(Clone, Copy)]
 struct Application<'a> {
@@ -524,6 +525,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
             Arguments::Semantic(values) => values.len(),
             Arguments::Types(values) => values.len(),
             Arguments::Written(values) => values.len(),
+            Arguments::InferredTargets(index) => self.elements[index].len(),
         };
         self.budget
             .identity_work(count.saturating_add(parameters.len()), span)?;
@@ -542,6 +544,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
                     matches!(values[ordinal], SemanticActualRecipe::Const { .. })
                 }
                 (SemanticFormal::Type { .. }, Arguments::Types(_)) => true,
+                (SemanticFormal::Type { .. }, Arguments::InferredTargets(_)) => true,
                 (SemanticFormal::Type { .. }, Arguments::Written(values)) => {
                     matches!(values[ordinal], CoreGenericArgument::Type(_))
                 }
@@ -697,6 +700,11 @@ impl<'a> Scan<'a, '_, '_, '_> {
                     let application = self.applications[index];
                     if application.declaration == owner {
                         let actual = match application.arguments {
+                            Arguments::InferredTargets(index) => {
+                                self.budget.identity_work(1, span)?;
+                                return Ok(self.elements[index].get(reference.ordinal as usize)
+                                    .copied().unwrap_or(Target::Unknown));
+                            }
                             Arguments::Semantic(values) => {
                                 match values.get(reference.ordinal as usize) {
                                     Some(SemanticActualRecipe::Type(ty)) => Some(ty),
@@ -1008,6 +1016,50 @@ impl<'a> Scan<'a, '_, '_, '_> {
             target => Ok(target),
         }
     }
+
+    // A whole Type input can carry its source effect target to a returned
+    // Product field. This selects only an ABI upper. The original call and its
+    // complete Type equations remain obligations of the semantic consumers.
+    fn inferred_result_target(
+        &mut self,
+        target: Target,
+        arguments: &'a [SemanticOriginalExpr],
+        depth: usize,
+        span: Span,
+    ) -> R<Target> {
+        let Target::Definition(owner) = target else { return Ok(target); };
+        let definition = self.definitions[owner];
+        let [SemanticFormal::Type { .. }] = definition.parameters.as_slice() else {
+            return Ok(target);
+        };
+        let Some(signature) = signature(definition) else { return Ok(target); };
+        if arguments.len() != signature.parameters.len()
+            || !matches!(signature.result, SemanticTypeRecipe::Nominal { .. })
+        {
+            return Ok(target);
+        }
+        let mut inferred = None;
+        for (parameter, argument) in signature.parameters.iter().zip(arguments) {
+            self.budget.node(span, depth)?;
+            if !matches!(&parameter.ty, SemanticTypeRecipe::Formal(reference)
+                if reference.scope == SemanticScopeRef::Ancestor(0) && reference.ordinal == 0)
+            {
+                continue;
+            }
+            let actual = self.target(argument, depth + 1)?;
+            if actual == Target::Unknown || inferred.is_some_and(|old| old != actual) {
+                return Ok(target);
+            }
+            inferred = Some(actual);
+        }
+        let Some(actual) = inferred else { return Ok(target); };
+        let mut targets = Vec::new();
+        self.budget.lineage_push(&mut targets, actual, span)?;
+        let index = self.elements.len();
+        self.budget.lineage_push(self.elements, targets, span)?;
+        Ok(self.application(owner, self.owner, Arguments::InferredTargets(index), None, span)?
+            .map_or(target, |application| Target::AppliedDefinition { owner, application }))
+    }
     fn target(&mut self, expression: &'a SemanticOriginalExpr, depth: usize) -> R<Target> {
         self.budget.node(expression.span, depth)?;
         match &expression.kind {
@@ -1159,6 +1211,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 if called == Target::OwnedDynFactory {
                     return self.owned_factory_result(callee, depth + 1);
                 }
+                let called = self.inferred_result_target(called, arguments, depth + 1, expression.span)?;
                 return self.invocation_result(called, depth + 1, expression.span);
             }
             CoreExprKind::Ascribed { ty, .. } => {

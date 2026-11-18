@@ -723,6 +723,7 @@ fn resolve_indexed(
         metadata_context: true,
         generic_limits: limits.clone(),
         ordinary_parameter: None,
+        ordinary_bound: None,
         aggregate_parameters: BTreeMap::new(),
         active_callable_parameters: &[],
         active_state_parameters: &[],
@@ -788,6 +789,7 @@ fn resolve_indexed(
                 .iter()
                 .map(|p| (p.name.clone(), p.bound))
                 .collect();
+            resolver.ordinary_bound = Some(CoreTypeBound::StoreElement);
             resolver.ordinary_parameter = template
                 .parameters
                 .first()
@@ -808,6 +810,7 @@ fn resolve_indexed(
                 .map_err(|e| vec![e])?;
         }
         resolver.ordinary_parameter = None;
+        resolver.ordinary_bound = None;
         resolver.aggregate_parameters.clear();
     }
     for d in &core.aggregates {
@@ -875,6 +878,7 @@ fn resolve_indexed(
                     )]
                 })?;
             resolver.ordinary_parameter = Some(parameter.name.clone());
+            resolver.ordinary_bound = Some(parameter.bound);
         }
         for state in &mut f.state_parameters {
             for bound in &mut state.bindings {
@@ -947,6 +951,7 @@ fn resolve_indexed(
         }
         resolver.block(&mut f.body, 0).map_err(|e| vec![e])?;
         resolver.ordinary_parameter = None;
+        resolver.ordinary_bound = None;
         resolver.active_callable_parameters = &[];
         resolver.active_state_parameters = &[];
     }
@@ -967,6 +972,9 @@ fn resolve_indexed(
             .current_owner
             .and_then(|o| resolver.generic.owners.get(&o))
             .and_then(|b| b.ordinary.clone());
+        resolver.ordinary_bound = resolver.current_owner
+            .and_then(|owner| resolver.generic.owners.get(&owner))
+            .and_then(|bindings| bindings.ordinary_bound);
         for field in &mut aggregate.fields {
             field.ty = resolver.field_type(field, 0).map_err(|e| vec![e])?;
         }
@@ -1136,6 +1144,7 @@ struct Resolver<'a> {
     has_originals: bool,
     callable_names: BTreeSet<String>,
     ordinary_parameter: Option<String>,
+    ordinary_bound: Option<CoreTypeBound>,
     aggregate_parameters: BTreeMap<String, CoreTypeBound>,
     active_callable_parameters: &'a [CoreCallableParameter],
     active_state_parameters: &'a [CoreStateParameter],
@@ -1381,7 +1390,8 @@ impl Resolver<'_> {
     }
     fn store_element_shape(&mut self, ty: &Type, depth: usize, span: Span) -> R<bool> {
         if let Type::Named(name) = ty
-            && (self.ordinary_parameter.as_ref() == Some(name)
+            && (self.ordinary_bound == Some(CoreTypeBound::StoreElement)
+                && self.ordinary_parameter.as_ref() == Some(name)
                 || self.aggregate_parameters.get(name) == Some(&CoreTypeBound::StoreElement))
         {
             return Ok(true);
@@ -1396,7 +1406,8 @@ impl Resolver<'_> {
         if let Type::Package { fields, .. } = ty
             && fields.iter().any(|(_, field)| {
                 matches!(field, Type::Named(name)
-                    if self.ordinary_parameter.as_ref() == Some(name)
+                    if self.ordinary_bound == Some(CoreTypeBound::StoreElement)
+                        && self.ordinary_parameter.as_ref() == Some(name)
                         || self.aggregate_parameters.get(name)==Some(&CoreTypeBound::StoreElement))
             })
         {
@@ -4068,6 +4079,7 @@ impl Resolver<'_> {
             span,
         )?;
         let saved_ordinary = self.ordinary_parameter.clone();
+        let saved_bound = self.ordinary_bound;
         if self.metadata_context {
             self.current_owner = owner;
             aggregate_templates::spend(
@@ -4076,6 +4088,7 @@ impl Resolver<'_> {
                 span,
             )?;
             self.ordinary_parameter = bindings.ordinary.clone();
+            self.ordinary_bound = bindings.ordinary_bound;
         }
         let mut args = Vec::new();
         let mut symbolic = false;
@@ -4170,6 +4183,7 @@ impl Resolver<'_> {
         }
         self.current_owner = saved_owner;
         self.ordinary_parameter = saved_ordinary;
+        self.ordinary_bound = saved_bound;
         aggregate_templates::type_work(&ty, &self.generic_limits, &mut self.remaining, span)?;
         self.generic
             .resolved
@@ -4244,7 +4258,7 @@ impl Resolver<'_> {
                 return Err(error(
                     "E-PRODUCT-TEMPLATE",
                     span,
-                    "generic Product actual type does not satisfy its StoreElement declaration",
+                    "generic Product actual type does not satisfy its declared capability",
                 ));
             }
         }
@@ -4329,7 +4343,7 @@ impl Resolver<'_> {
         }
         let ty = Type::Package { name, fields };
         // Product identity remains affine even when an application has only
-        // Copy children. An unresolved StoreElement formal carries one opaque
+        // Copy children. An unresolved ordinary formal carries one opaque
         // Value responsibility until the application is instantiated. Every
         // concrete owning application still proves its actual recursive shape.
         if let Type::Package { fields, .. } = &ty
@@ -4338,7 +4352,18 @@ impl Resolver<'_> {
             })
             && !owned_shapes::zero_debt_package(&ty)
         {
-            packages::product::validate_owned(&ty, &mut self.remaining, self.depth_limit, span)?;
+            if packages::product::owned_supported(&ty) {
+                packages::product::validate_owned(&ty, &mut self.remaining, self.depth_limit, span)?;
+            } else {
+                aggregate_templates::type_work(&ty, &self.generic_limits, &mut self.remaining, span)?;
+                if fields.iter().all(|(_, field)| {
+                    owned_shapes::value(field) || matches!(field, Type::Named(_)) && args.contains(field)
+                }) {
+                    owned_shapes::validate_names(&ty, &mut self.remaining, span)?;
+                } else {
+                    return Err(unsupported(span, "generic Package field requires a complete Value or declared formal"));
+                }
+            }
         }
         self.generic_active.remove(&family);
         Ok(ty)

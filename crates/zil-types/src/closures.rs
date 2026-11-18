@@ -1691,7 +1691,7 @@ pub(super) struct Graph {
     work_left: std::cell::Cell<usize>,
     depth_limit: usize,
     node_limit: usize,
-    store_parameter: Option<String>,
+    ordinary_parameter: Option<(String, CoreTypeBound)>,
     source_callback_parameters: Vec<String>,
 }
 impl Graph {
@@ -1703,7 +1703,7 @@ impl Graph {
             work_left: std::cell::Cell::new(limits.max_analysis_steps),
             depth_limit: limits.max_call_depth,
             node_limit: limits.max_nodes,
-            store_parameter: None,
+            ordinary_parameter: None,
             source_callback_parameters: Vec::new(),
         }
     }
@@ -1741,18 +1741,23 @@ impl Graph {
         result
     }
 
-    pub(super) fn set_store_parameter(&mut self, name: &str, span: Span) -> R<()> {
-        self.spend_count(name.len().saturating_add(1), span)?;
-        self.store_parameter = Some(name.to_owned());
+    pub(super) fn set_ordinary_parameter(&mut self, parameter: &CoreTypeParameter, span: Span) -> R<()> {
+        self.spend_count(parameter.name.len().saturating_add(1), span)?;
+        self.ordinary_parameter = Some((parameter.name.clone(), parameter.bound));
         Ok(())
     }
     pub(super) fn symbolic_store_type(&self, ty: &Type) -> bool {
-        self.store_parameter
+        self.ordinary_parameter
             .as_ref()
-            .is_some_and(|name| store_templates::symbolic_type(ty, name))
+            .is_some_and(|(name, _)| store_templates::symbolic_type(ty, name))
     }
     pub(super) fn is_store_parameter(&self, ty: &Type) -> bool {
-        matches!(ty, Type::Named(name) if self.store_parameter.as_ref() == Some(name))
+        matches!(ty, Type::Named(name) if self.ordinary_parameter.as_ref()
+            .is_some_and(|(formal, bound)| formal == name && *bound == CoreTypeBound::StoreElement))
+    }
+    pub(super) fn is_value_parameter(&self, ty: &Type) -> bool {
+        matches!(ty, Type::Named(name) if self.ordinary_parameter.as_ref()
+            .is_some_and(|(formal, bound)| formal == name && matches!(bound, CoreTypeBound::Value | CoreTypeBound::StoreElement)))
     }
     pub(super) fn source_callback_parameter(&mut self, name: &str, span: Span) -> R<()> {
         self.spend_count(

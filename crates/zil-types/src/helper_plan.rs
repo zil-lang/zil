@@ -663,6 +663,7 @@ impl Walk<'_, '_> {
                     )?;
                     let index = store_templates::intern(
                         signature.template.expect("validated template"),
+                        bound.bound,
                         &actual,
                         self.state,
                         self.limits,
@@ -753,6 +754,7 @@ impl Walk<'_, '_> {
                             "ordinary template call has no unique complete type constraint from a value argument"))?;
                         let index = store_templates::intern(
                             signature.template.expect("ordinary template"),
+                            bound.bound,
                             &actual,
                             self.state,
                             self.limits,
