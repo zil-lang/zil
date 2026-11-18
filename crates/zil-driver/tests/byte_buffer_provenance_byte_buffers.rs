@@ -38,7 +38,7 @@ fn passes(text: &str) {
     );
     assert_eq!(report.phase, Phase::Verify, "{}", report.to_json());
 }
-fn rejects(text: &str, phase: Phase, code: &str) {
+fn rejects(text: &str, phase: Phase, code: &str) -> CompileReport {
     let report = checked(text);
     assert_eq!(
         report.status,
@@ -59,6 +59,7 @@ fn rejects(text: &str, phase: Phase, code: &str) {
     );
     assert!(!report.artifacts.contains_key("llvm"));
     assert!(!report.artifacts.contains_key("executable"));
+    report
 }
 
 fn typed(text: &str) -> zil_ir::TypedModule {
@@ -425,87 +426,276 @@ fn active_windows_block_growth_push_move_and_conflicting_metadata() {
 
 #[test]
 fn local_or_consumed_carriers_cannot_export_unowned_windows() {
-    for (text, phase, code) in [
+    for (text, phase, code, message, occurrence) in [
         (
             "fn bad()->&[u8]{let b=bytes_new();return bytes_view(b);}fn main(){}",
-            Phase::Verify,
-            "E-BORROW-ESCAPE",
+            Phase::Expand,
+            "E-SOURCE-SEMANTICS",
+            "elided function result has no original receiver or unique borrowed input lifetime",
+            Some("&[u8]"),
         ),
         (
             "fn bad(give b:ByteBuffer)->&[u8]{return bytes_view(b);}fn main(){}",
-            Phase::Verify,
-            "E-BORROW-ESCAPE",
+            Phase::Expand,
+            "E-SOURCE-SEMANTICS",
+            "elided function result has no original receiver or unique borrowed input lifetime",
+            Some("&[u8]"),
         ),
         (
             "fn take(give b:ByteBuffer){}fn result()->i64{let b=bytes_new();let a=b;take(give b);return bytes_len(a);}",
             Phase::Analyze,
             "E-ANALYZE-IR",
+            "resource closure: head transition invalidates a description required later",
+            None,
         ),
         (
             "fn take(give b:ByteBuffer){}fn main(){let b=bytes_new();take(give b);take(give b);}",
-            Phase::Analyze,
-            "E-UNINITIALIZED",
+            Phase::Types,
+            "E-SEMANTIC-ORIGINAL",
+            "original give transfers an unavailable or borrowed value",
+            Some("give b"),
         ),
     ] {
-        rejects(text, phase, code);
+        let report = rejects(text, phase, code);
+        let diagnostic = &report.diagnostics[0];
+        assert_eq!(diagnostic.message, message, "{}", report.to_json());
+        if let Some(occurrence) = occurrence {
+            let start = text.rfind(occurrence).unwrap();
+            assert_eq!(
+                diagnostic.span,
+                Some(zil_base::Span::new(FileId(0), start, start + occurrence.len())),
+                "{}",
+                report.to_json(),
+            );
+        }
+        assert_eq!(report.verification_runs, 0);
+    }
+}
+
+#[test]
+fn actual_window_return_cannot_select_a_local_or_consumed_byte_owner() {
+    let text = r#"
+fn release(give owner:ByteBuffer) {}
+fn window(owner:ByteBuffer,give consumed:ByteBuffer)->&[u8] {
+    let local=bytes_new();
+    let before_local_drop=bytes_view(local);
+    let before_consumption=bytes_view(consumed);
+    before_local_drop.len();
+    before_consumption.len();
+    release(give consumed);
+    return bytes_view(owner);
+}
+fn main()->i32 {
+    let owner=bytes_new();
+    let consumed=bytes_new();
+    if !bytes_reserve(owner,1) || !bytes_push(owner,7u8) {return 1;}
+    let result=window(owner,give consumed);
+    return i32(result[0])-7;
+}
+"#;
+    passes(text);
+    let source = input(text);
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let syntax = zil_syntax::parse(&source).into_result().unwrap();
+    let expanded = zil_expand::expand_with_map_semantics(
+        &source,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &BTreeMap::new(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap();
+    let module = zil_types::check(&expanded.core, &target, &limits).unwrap();
+    let candidate = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+    let window = module
+        .functions
+        .iter()
+        .find(|f| f.name == "window")
+        .unwrap();
+    let [owner, consumed] = window.parameters.as_slice() else {
+        panic!("expected a described owner and a consumed owner");
+    };
+    let local = window
+        .locals
+        .iter()
+        .find(|local| local.name == "local")
+        .unwrap()
+        .id;
+    let exit = window
+        .blocks
+        .iter()
+        .find(|block| matches!(block.terminator, zil_ir::Terminator::Return(Some(_))))
+        .unwrap();
+    let windows: Vec<_> = exit
+        .instructions
+        .iter()
+        .filter_map(|instruction| match instruction.kind {
+            InstructionKind::ByteBufferBorrow {
+                buffer,
+                mutable: false,
+            } => Some((buffer, instruction.result.unwrap())),
+            _ => None,
+        })
+        .collect();
+    let [
+        (local_buffer, local_window),
+        (consumed_buffer, consumed_window),
+        (owner_buffer, valid_window),
+    ] = windows.as_slice()
+    else {
+        panic!("expected three actual shared windows");
+    };
+    for (buffer, producer) in [
+        (*local_buffer, InstructionKind::DescribeLocal { local }),
+        (
+            *consumed_buffer,
+            InstructionKind::DescribeLocal { local: *consumed },
+        ),
+        (*owner_buffer, InstructionKind::Load(*owner)),
+    ] {
+        assert!(
+            exit.instructions
+                .iter()
+                .any(|instruction| instruction.result == Some(buffer)
+                    && instruction.kind == producer)
+        );
+    }
+    assert!(
+        exit.instructions
+            .iter()
+            .any(|instruction| instruction.kind == InstructionKind::DropManaged { local })
+    );
+    assert!(
+        exit.instructions
+            .iter()
+            .any(|instruction| instruction.kind == InstructionKind::TakeLocal { local: *consumed })
+    );
+    assert_eq!(
+        exit.terminator,
+        zil_ir::Terminator::Return(Some(*valid_window))
+    );
+    for replacement in [local_window, consumed_window] {
+        assert_eq!(
+            window.values[replacement.0 as usize],
+            window.values[valid_window.0 as usize]
+        );
+        let mut changed = module.clone();
+        let window = changed
+            .functions
+            .iter_mut()
+            .find(|f| f.id == window.id)
+            .unwrap();
+        let exit = window
+            .blocks
+            .iter_mut()
+            .find(|block| block.id == exit.id)
+            .unwrap();
+        exit.terminator = zil_ir::Terminator::Return(Some(*replacement));
+        let analysis = zil_analyze::analyze(&changed, &limits).unwrap_err();
+        assert_eq!(analysis[0].code, "E-ANALYZE-IR");
+        assert_eq!(
+            analysis[0].message,
+            "semantic program: actual Return changes its complete original result class/source role"
+        );
+        let mut claim = candidate.clone();
+        claim.module_fingerprint = changed.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&changed, &claim, &limits).unwrap();
+        let raw = zil_verify::verify_module(changed, claim, &target, &limits).unwrap_err();
+        let serialized = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+        assert_eq!(raw[0].code, "E-VERIFY-SEMANTIC");
+        assert_eq!(
+            raw[0].message,
+            "actual Return violates the original rigid semantic result"
+        );
+        assert_eq!(raw, serialized);
     }
 }
 
 #[test]
 fn storage_heads_and_unsupported_escape_routes_fail_closed() {
-    for (text, phase, code) in [
+    for (text, phase, code, message) in [
         (
             "fn main(){let b=ByteBuffer{};}",
             Phase::Types,
             "E-RECORD-TYPE",
+            "record construction requires a declared product, actual type is ByteBuffer",
         ),
         (
             "fn main(){let b=bytes_new();b.len=2;}",
             Phase::Types,
             "E-FIELD-TYPE",
+            "field len requires a tuple or declared product, actual operand is ByteBuffer",
         ),
         (
             "package P{data:ByteBuffer;}fn main(){}",
             Phase::Types,
             "E-UNSUPPORTED",
+            "ByteBuffer fields require an explicit package manages declaration",
         ),
         (
             "struct P{data:ByteBuffer;}fn main(){}",
             Phase::Types,
             "E-UNSUPPORTED",
+            "ByteBuffer fields require an explicit package manages declaration",
         ),
         (
             "extern \"C\" fn f(b:ByteBuffer);fn main(){}",
             Phase::Types,
             "E-FFI-DECLARATION",
+            "C parameters do not accept source resource passing modes",
         ),
         (
             "fn main(){let n=#(bytes_new());}",
             Phase::Ct,
             "E-CT-FORBIDDEN",
+            "static callback or dynamic byte storage cannot enter a compile-time query",
         ),
         (
             "fn main(){let b=bytes_new();bytes_reserve(b,true);}",
             Phase::Types,
             "E-TYPE-MISMATCH",
+            "bytes_reserve capacity requires i64, found Bool",
         ),
         (
             "fn main(){let b=bytes_new();bytes_push(b,256);}",
             Phase::Types,
             "E-INTEGER-RANGE",
+            "integer does not fit u8",
         ),
         (
             "fn main(){let b=bytes_new();let s=&b;}",
             Phase::Types,
             "E-UNSUPPORTED",
+            "address targets require a complete value/slot domain or actual shared user-resource head; descriptors are not head positions",
         ),
         (
             "fn main(){let bytes_push=2;}",
-            Phase::Types,
+            Phase::Ct,
             "E-BYTE-BUFFER-NAME",
+            "ByteBuffer and bare byte storage primitives cannot be rebound",
         ),
     ] {
-        rejects(text, phase, code);
+        let report = rejects(text, phase, code);
+        assert_eq!(report.diagnostics[0].message, message, "{}", report.to_json());
+        if code == "E-TYPE-MISMATCH" {
+            let argument = text.find("true").unwrap();
+            assert_eq!(
+                report.diagnostics[0].span,
+                Some(zil_base::Span::new(FileId(0), argument, argument + "true".len())),
+                "{}",
+                report.to_json(),
+            );
+        }
+        assert_eq!(report.verification_runs, 0);
     }
 }
 

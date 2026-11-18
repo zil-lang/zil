@@ -551,6 +551,14 @@ impl Check<'_, '_> {
             }
             _ => &ty,
         };
+        if matches!(nominal, SemanticTypeRecipe::Atom(_)) {
+            return Err(Diagnostic::error(
+                Phase::Types,
+                "E-RECORD-TYPE",
+                None,
+                format!("record construction requires a declared product, actual type is {}", type_head(nominal)),
+            ));
+        }
         let SemanticTypeRecipe::Nominal {
             definition,
             arguments,

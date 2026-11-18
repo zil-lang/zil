@@ -467,14 +467,27 @@ impl Check<'_, '_> {
                     _ => return Err(bad("original bytes operation requires a scoped descriptor")),
                 };
                 if parameters.len() == 2 {
-                    self.same(
-                        &parameters[1],
-                        &SemanticTypeRecipe::Atom(if kind == IntrinsicKind::BytesPush {
-                            Type::U8
-                        } else {
-                            Type::I64
-                        }),
-                    )?;
+                    let (operation, role, expected) = match kind {
+                        IntrinsicKind::BytesReserve => ("bytes_reserve", "capacity", Type::I64),
+                        IntrinsicKind::BytesTruncate => ("bytes_truncate", "length", Type::I64),
+                        IntrinsicKind::BytesPush => ("bytes_push", "value", Type::U8),
+                        _ => unreachable!("a binary ByteBuffer intrinsic"),
+                    };
+                    let expected = SemanticTypeRecipe::Atom(expected);
+                    if let Err(mut diagnostic) = self.same(&parameters[1], &expected) {
+                        if diagnostic.category == zil_base::ResultCategory::SafeReject
+                            && matches!(parameters[1], SemanticTypeRecipe::Atom(_))
+                        {
+                            diagnostic.code = "E-TYPE-MISMATCH".into();
+                            diagnostic.message = format!(
+                                "{operation} {role} requires {}, found {}",
+                                type_head(&expected),
+                                type_head(&parameters[1]),
+                            );
+                            diagnostic.span = Some(arguments[1].span);
+                        }
+                        return Err(diagnostic);
+                    }
                 }
                 match &kind {
                     IntrinsicKind::BytesLen | IntrinsicKind::BytesCapacity => {

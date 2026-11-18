@@ -1307,6 +1307,14 @@ impl<'a> Check<'a, '_> {
                 self.left,
             );
         }
+        if matches!(ty, SemanticTypeRecipe::Atom(_)) {
+            return Err(Diagnostic::error(
+                Phase::Types,
+                "E-FIELD-TYPE",
+                None,
+                format!("field {name} requires a tuple or declared product, actual operand is {}", type_head(&ty)),
+            ));
+        }
         let SemanticTypeRecipe::Nominal {
             definition,
             arguments,

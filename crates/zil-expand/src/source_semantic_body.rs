@@ -1206,8 +1206,8 @@ impl Builder<'_, '_, '_, '_> {
                         && names.as_slice() != ["Self"]
                         && (self.builtin_shadow(names, ty.span)?
                             || self.compiler_nominal(names, ty.span)?.is_none())
+                        && let Some(row) = self.nominal_path(names, ty.span, false)?
                     {
-                        let row = self.named(names, ty.span)?;
                         if matches!(
                             self.inventory.declarations[row].item.kind,
                             s::ItemKind::Aggregate(_)
