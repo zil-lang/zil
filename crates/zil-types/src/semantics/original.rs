@@ -4365,6 +4365,41 @@ impl<'a> Check<'a, '_> {
         }
         Ok(())
     }
+    // An exclusive use through a captured address requires exclusive
+    // invocation even when its lexical binding is immutable. Establish the
+    // address permission first, then record the rooted capture effect.
+    fn observe_exclusive_capture(
+        &mut self,
+        owner: SemanticDefinitionId,
+        mut expression: &SemanticOriginalExpr,
+        variables: &mut BTreeMap<String, Binding>,
+        mut depth: usize,
+    ) -> R<()> {
+        loop {
+            self.pay(1, depth)?;
+            expression = match &expression.kind {
+                CoreExprKind::Name(name) => {
+                    self.pay(name.len(), depth)?;
+                    if let Some(value) = variables.get_mut(name).filter(|value| value.capture) {
+                        value.written = true;
+                        value.observed = true;
+                        self.observe_capture(owner, name, value, depth + 1)?;
+                    }
+                    return Ok(());
+                }
+                CoreExprKind::Group(inner)
+                | CoreExprKind::Unary {
+                    op: UnaryOp::Dereference,
+                    operand: inner,
+                } => inner,
+                CoreExprKind::Member { object, .. }
+                | CoreExprKind::Index { object, .. }
+                | CoreExprKind::Slice { object, .. } => object,
+                _ => return Ok(()),
+            };
+            depth += 1;
+        }
+    }
     fn writable(
         &mut self,
         owner: SemanticDefinitionId,
@@ -4405,8 +4440,10 @@ impl<'a> Check<'a, '_> {
                 else {
                     return Err(bad("original write requires an exclusive address"));
                 };
+                self.observe_exclusive_capture(owner, operand, variables, depth + 1)?;
                 Ok(*inner)
             }
+            CoreExprKind::Group(inner) => self.writable(owner, inner, variables, depth + 1),
             CoreExprKind::Member { object, member, .. } => {
                 if let Some(field) =
                     self.package_field(owner, object, member, variables, false, depth + 1)?
@@ -4421,7 +4458,9 @@ impl<'a> Check<'a, '_> {
                 }
                 let object_ty = self.place(owner, object, variables, depth + 1)?;
                 match &object_ty {
-                    SemanticTypeRecipe::Address { mutable: true, .. } => {}
+                    SemanticTypeRecipe::Address { mutable: true, .. } => {
+                        self.observe_exclusive_capture(owner, object, variables, depth + 1)?;
+                    }
                     SemanticTypeRecipe::Address { mutable: false, .. } => {
                         return Err(bad("original field write uses a shared address"));
                     }
@@ -4434,7 +4473,9 @@ impl<'a> Check<'a, '_> {
             CoreExprKind::Slice { object, .. } => {
                 let object_ty = self.place(owner, object, variables, depth + 1)?;
                 match &object_ty {
-                    SemanticTypeRecipe::Address { mutable: true, .. } => {}
+                    SemanticTypeRecipe::Address { mutable: true, .. } => {
+                        self.observe_exclusive_capture(owner, object, variables, depth + 1)?;
+                    }
                     SemanticTypeRecipe::Address { mutable: false, .. } => {
                         return Err(bad("original slice write uses a shared address"));
                     }
@@ -4447,7 +4488,9 @@ impl<'a> Check<'a, '_> {
             CoreExprKind::Index { object, index } => {
                 let object_ty = self.place(owner, object, variables, depth + 1)?;
                 match &object_ty {
-                    SemanticTypeRecipe::Address { mutable: true, .. } => {}
+                    SemanticTypeRecipe::Address { mutable: true, .. } => {
+                        self.observe_exclusive_capture(owner, object, variables, depth + 1)?;
+                    }
                     SemanticTypeRecipe::Address { mutable: false, .. } => {
                         return Err(bad("original index write uses a shared address"));
                     }

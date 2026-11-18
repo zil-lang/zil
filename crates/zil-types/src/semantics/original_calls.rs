@@ -1982,6 +1982,8 @@ impl Check<'_, '_> {
                 }
                 CallableKind::Fn | CallableKind::FunctionPointer => {}
             }
+        } else if kind == CallableKind::FnMut {
+            self.observe_exclusive_capture(owner, base, variables, depth + 1)?;
         }
         self.pay(arguments.len(), depth)?;
         let arguments: Vec<_> = arguments.iter().collect();

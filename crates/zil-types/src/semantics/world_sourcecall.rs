@@ -74,6 +74,31 @@ pub(super) fn shared(
             "one actual function changes its original definition between worlds",
         ));
     }
+    let first_environment = first.environment.as_ref();
+    let other_environment = other.environment.as_ref();
+    if first_environment.is_some() || other_environment.is_some() {
+        let (Some(first_environment), Some(other_environment)) =
+            (first_environment, other_environment)
+        else {
+            return Err(bad("shared closure entry changes its environment identity"));
+        };
+        let SemanticClosureTarget::Typed(closure) = first_environment.closure else {
+            return Err(bad(
+                "shared closure entry lacks its actual environment identity",
+            ));
+        };
+        if other_environment.closure != SemanticClosureTarget::Typed(closure)
+            || first.parent == other.parent
+        {
+            return Err(bad(
+                "shared closure entry changes its environment or repeats its creator world",
+            ));
+        }
+        for child in [first, other] {
+            shared_creator(world, closure, child)?;
+        }
+        return Ok(());
+    }
     let ledger = world.ledger;
     let requests = ledger.instance_requests.borrow();
     world.pay(requests.len().saturating_add(2))?;
@@ -106,6 +131,66 @@ pub(super) fn shared(
     if !located {
         return Err(bad(
             "shared actual function has no authentic source request",
+        ));
+    }
+    Ok(())
+}
+
+fn shared_creator(
+    world: &mut World<'_, '_>,
+    closure: ClosureId,
+    child: &SemanticInstance,
+) -> R<()> {
+    world.child_at(closure, child.id)?;
+    let creator = world.instance(
+        child
+            .parent
+            .ok_or_else(|| bad("shared closure entry omits its original creator world"))?,
+    )?;
+    let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) = creator.target
+    else {
+        return Err(bad("shared closure creator lacks its actual function"));
+    };
+    let body = world.function(function)?;
+    world.pay(world.program.sites.len().saturating_add(body.blocks.len()))?;
+    let mut mints = world.program.sites.iter().filter(|site| {
+        site.instance == creator.id
+            && matches!(&site.action, SemanticSiteAction::Closure {
+                closure: SemanticClosureTarget::Typed(id), ..
+            } if *id == closure)
+    });
+    let mint = mints
+        .next()
+        .ok_or_else(|| bad("shared closure entry lacks its original creator mint"))?;
+    let SemanticSiteAddress::Typed {
+        block,
+        instruction,
+        edge: SemanticSiteEdge::After,
+    } = mint.at
+    else {
+        return Err(bad(
+            "shared closure mint lacks its actual constructor boundary",
+        ));
+    };
+    if mints.next().is_some() {
+        return Err(bad("shared closure repeats its original creator mint"));
+    }
+    let original = world.definition(creator.definition)?;
+    let recipe = world.original_recipe(original, mint.recipe)?;
+    let op = body
+        .blocks
+        .iter()
+        .find(|row| row.id == block)
+        .and_then(|row| row.instructions.get(instruction as usize))
+        .ok_or_else(|| bad("shared closure mint leaves its actual creator function"))?;
+    if !matches!(&recipe.kind, SemanticSiteRecipeKind::Closure { definition, .. }
+        if *definition == child.definition)
+        || !matches!(op.kind, InstructionKind::MakeClosure { closure: id, .. } if id == closure)
+        || !matches!(&mint.action, SemanticSiteAction::Closure { result: SemanticOperand::Value(value), .. }
+            if op.result == Some(*value))
+    {
+        return Err(bad(
+            "shared closure mint does not select its original closure and actual constructor",
         ));
     }
     Ok(())
