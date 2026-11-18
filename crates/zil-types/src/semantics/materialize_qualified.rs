@@ -184,7 +184,11 @@ impl Eval<'_, '_, '_> {
                 if fields.len() != physical.len() {
                     return Err(bad("qualified nominal changes original field arity"));
                 }
-                for (index, (field, (_, ty))) in fields.iter().zip(physical).enumerate() {
+                for (index, (field, (label, ty))) in fields.iter().zip(physical).enumerate() {
+                    self.fee(field.name.len().saturating_add(label.len()))?;
+                    if &field.name != label {
+                        return Err(bad("qualified nominal changes an original field label"));
+                    }
                     self.qualified_field(
                         scope,
                         definition,
@@ -207,9 +211,14 @@ impl Eval<'_, '_, '_> {
                 if variants.len() != physical.len() {
                     return Err(bad("qualified nominal changes original variant arity"));
                 }
-                for (variant, (original, (_, fields))) in variants.iter().zip(physical).enumerate()
+                for (variant, (original, (label, fields))) in
+                    variants.iter().zip(physical).enumerate()
                 {
                     self.fee(original.fields.len().saturating_add(fields.len()))?;
+                    self.fee(original.name.len().saturating_add(label.len()))?;
+                    if &original.name != label {
+                        return Err(bad("qualified nominal changes an original variant label"));
+                    }
                     if original.fields.len() != fields.len() {
                         return Err(bad("qualified nominal changes original payload arity"));
                     }
@@ -363,7 +372,17 @@ impl Eval<'_, '_, '_> {
                 self.left,
             )?
         };
-        let value = self.ty(scope, &recipe, Some(actual), depth + 1)?;
+        // A child's complete original field selection is paired with this
+        // actual physical occurrence. Form its nominal applications before
+        // asking the normal reader to resolve the complete field domain.
+        self.deferred_physical_nominal(scope, &recipe, actual, depth + 1)?;
+        let actual = super::rewrite::canonical_hint(
+            actual,
+            &self.module.nominal_proposals.borrow(),
+            self.limits,
+            self.left,
+        )?;
+        let value = self.ty(scope, &recipe, Some(actual.as_ref()), depth + 1)?;
         let SemanticTypeValue::Resolved { life, classes, .. } = value else {
             return Err(bad("qualified field remained unresolved"));
         };

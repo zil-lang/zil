@@ -232,6 +232,38 @@ impl crate::semantics::rewrite::Context for Rewrite<'_> {
     }
 }
 
+pub(super) fn canonical_hint<'a>(
+    actual: &'a Type,
+    proposals: &[(Type, LifeNominalInstance)],
+    limits: &Limits,
+    left: &mut usize,
+) -> R<std::borrow::Cow<'a, Type>> {
+    let mut replacements = Vec::new();
+    for (before, row) in proposals {
+        inference::charge_type_snapshot(before, Span::default(), limits, left, 1)?;
+        inference::charge_type_snapshot(&row.ty, Span::default(), limits, left, 1)?;
+        if before != &row.ty {
+            replacements.push((before.clone(), row.ty.clone()));
+        }
+    }
+    if replacements.is_empty() {
+        return Ok(std::borrow::Cow::Borrowed(actual));
+    }
+    let mut rewrite = Rewrite {
+        replacements: &replacements,
+        limits,
+        left,
+        changed: false,
+        invalidated: BTreeSet::new(),
+    };
+    let expected = rewrite.ty(actual, 0, Span::default())?;
+    Ok(if rewrite.changed {
+        std::borrow::Cow::Owned(expected)
+    } else {
+        std::borrow::Cow::Borrowed(actual)
+    })
+}
+
 pub(super) fn apply(
     program: &mut SemanticModule,
     module: &mut TypedModule,

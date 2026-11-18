@@ -8,10 +8,6 @@ mod qualified;
 #[path = "materialize_qualified_rewrite.rs"]
 mod rewrite;
 
-struct Pending {
-    rows: Vec<(Type, LifeNominalInstance)>,
-}
-
 impl Eval<'_, '_, '_> {
     fn deferred_result(&mut self, result: R<()>, blocked: &mut BTreeSet<ClosureId>) -> R<()> {
         let dependency = self.pending_header.take();
@@ -30,9 +26,8 @@ impl Eval<'_, '_, '_> {
         recipe: &SemanticTypeRecipe,
         hint: LogicalExpected<'_>,
         depth: usize,
-        pending: &mut Pending,
     ) -> R<()> {
-        hint.materialize(|ty| self.deferred_physical_nominal(scope, recipe, ty, depth, pending))
+        hint.materialize(|ty| self.deferred_physical_nominal(scope, recipe, ty, depth))
     }
     fn deferred_physical_nominal(
         &mut self,
@@ -40,7 +35,6 @@ impl Eval<'_, '_, '_> {
         recipe: &SemanticTypeRecipe,
         hint: &Type,
         depth: usize,
-        pending: &mut Pending,
     ) -> R<()> {
         self.node(depth)?;
         match (recipe, hint) {
@@ -52,7 +46,7 @@ impl Eval<'_, '_, '_> {
                 _,
             ) => {
                 let recipe = self.original_type_view(scope, *selector, source, depth + 1)?;
-                self.deferred_physical_nominal(scope, &recipe, hint, depth + 1, pending)
+                self.deferred_physical_nominal(scope, &recipe, hint, depth + 1)
             }
             (
                 SemanticTypeRecipe::Nominal {
@@ -121,14 +115,52 @@ impl Eval<'_, '_, '_> {
                         existing = true;
                     }
                 }
+                let staged = module.nominal_proposals.borrow();
+                self.fee(staged.len())?;
+                for (before, row) in staged.iter() {
+                    inference::charge_type_snapshot(
+                        before,
+                        Span::default(),
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    inference::charge_type_snapshot(
+                        &row.ty,
+                        Span::default(),
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    inference::charge_type_snapshot(
+                        hint,
+                        Span::default(),
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    if before == hint || &row.ty == hint {
+                        if existing || row.declaration != *declaration {
+                            return Err(bad(
+                                "actual nominal repeats or changes its original declaration",
+                            ));
+                        }
+                        existing = true;
+                    }
+                }
+                drop(staged);
                 if existing {
                     self.nominal_application(scope, *definition, arguments, Some(hint), depth + 1)?;
                     return Ok(());
                 }
                 let row = self.qualified_nominal(scope, *definition, arguments, hint, depth + 1)?;
                 self.fee(1)?;
-                pending.rows.push((self.physical(hint)?, row));
+                let before = self.physical(hint)?;
+                module.nominal_proposals.borrow_mut().push((before, row));
                 Ok(())
+            }
+            (SemanticTypeRecipe::Qualified { storage, .. }, _) => {
+                self.deferred_physical_nominal(scope, storage, hint, depth + 1)
             }
             (SemanticTypeRecipe::Managed(recipe), Type::Managed(actual))
             | (SemanticTypeRecipe::Desc { inner: recipe, .. }, Type::Desc(actual))
@@ -146,14 +178,17 @@ impl Eval<'_, '_, '_> {
                 Type::Array {
                     element: actual, ..
                 },
-            ) => self.deferred_physical_nominal(scope, recipe, actual, depth + 1, pending),
-            (SemanticTypeRecipe::Tuple(recipes), Type::Tuple(actuals)) => {
+            ) => self.deferred_physical_nominal(scope, recipe, actual, depth + 1),
+            (SemanticTypeRecipe::Tuple(recipes), _) => {
+                let Type::Tuple(actuals) = stored::physical(hint) else {
+                    return Ok(());
+                };
                 self.fee(recipes.len().saturating_add(actuals.len()))?;
                 if recipes.len() != actuals.len() {
                     return Err(bad("pending tuple use changes its original arity"));
                 }
                 for (recipe, actual) in recipes.iter().zip(actuals) {
-                    self.deferred_physical_nominal(scope, recipe, actual, depth + 1, pending)?;
+                    self.deferred_physical_nominal(scope, recipe, actual, depth + 1)?;
                 }
                 Ok(())
             }
@@ -164,8 +199,8 @@ impl Eval<'_, '_, '_> {
                     result: actual_result,
                 },
             ) => {
-                self.deferred_physical_nominal(scope, error, actual_error, depth + 1, pending)?;
-                self.deferred_physical_nominal(scope, result, actual_result, depth + 1, pending)
+                self.deferred_physical_nominal(scope, error, actual_error, depth + 1)?;
+                self.deferred_physical_nominal(scope, result, actual_result, depth + 1)
             }
             _ => Ok(()),
         }
@@ -183,11 +218,11 @@ pub(crate) fn populate(
     left: &mut usize,
 ) -> R<(bool, Formation<()>)> {
     let mut blocked = BTreeSet::new();
-    let mut pending = Pending { rows: Vec::new() };
-    {
+    let pending = {
+        let directory = ActualDirectory::from_module_at(module, "deferred nominals");
         let mut eval = Eval {
             input: program,
-            module: &ActualDirectory::from_module_at(module, "deferred nominals"),
+            module: &directory,
             ledger,
             limits,
             left,
@@ -215,8 +250,7 @@ pub(crate) fn populate(
                     scope: SemanticScopeRef::Ancestor(0),
                     source: SemanticOriginalTypeSource::Parameter(index as u32),
                 };
-                let request =
-                    eval.deferred_physical_nominal(instance.id, &recipe, ty, 0, &mut pending);
+                let request = eval.deferred_physical_nominal(instance.id, &recipe, ty, 0);
                 eval.deferred_result(request, &mut blocked)?;
             }
             let recipe = SemanticTypeRecipe::OriginalType {
@@ -228,7 +262,6 @@ pub(crate) fn populate(
                 &recipe,
                 function.result()?,
                 0,
-                &mut pending,
             );
             eval.deferred_result(request, &mut blocked)?;
         }
@@ -286,8 +319,7 @@ pub(crate) fn populate(
                     scope: SemanticScopeRef::Ancestor(0),
                     source: SemanticOriginalTypeSource::Expression(node),
                 };
-                let request =
-                    eval.deferred_logical_nominal(site.instance, &recipe, hint, 0, &mut pending);
+                let request = eval.deferred_logical_nominal(site.instance, &recipe, hint, 0);
                 eval.deferred_result(request, &mut blocked)?;
                 continue;
             }
@@ -350,8 +382,7 @@ pub(crate) fn populate(
                 match source {
                     SemanticCoreTypeSource::OriginalRecipe(recipe)
                     | SemanticCoreTypeSource::Expression { recipe, .. } => {
-                        let request =
-                            eval.deferred_logical_nominal(*scope, recipe, hint, 0, &mut pending);
+                        let request = eval.deferred_logical_nominal(*scope, recipe, hint, 0);
                         eval.deferred_result(request, &mut blocked)?;
                     }
                     SemanticCoreTypeSource::OriginalExpression { source, .. } => {
@@ -361,23 +392,23 @@ pub(crate) fn populate(
                             source,
                             0,
                         )?;
-                        let request =
-                            eval.deferred_logical_nominal(*scope, &recipe, hint, 0, &mut pending);
+                        let request = eval.deferred_logical_nominal(*scope, &recipe, hint, 0);
                         eval.deferred_result(request, &mut blocked)?;
                     }
                 }
             }
         }
-    }
+        directory.nominal_proposals.into_inner()
+    };
     let mut replacements = Vec::new();
     let mut changed = false;
     // All proposals are complete before any actual payload is rewritten.
     // Repeated use sites must select exactly one original full application.
-    for index in 0..pending.rows.len() {
-        let (before, row) = &pending.rows[index];
+    for index in 0..pending.len() {
+        let (before, row) = &pending[index];
         inference::charge_type_snapshot(before, Span::default(), limits, left, 1)?;
         charge_row(row, limits, left)?;
-        for (other_before, other) in &pending.rows[..index] {
+        for (other_before, other) in &pending[..index] {
             inference::charge_type_snapshot(other_before, Span::default(), limits, left, 1)?;
             charge_row(other, limits, left)?;
             if before == other_before && row != other {
@@ -393,7 +424,7 @@ pub(crate) fn populate(
             changed = true;
         }
     }
-    for (before, row) in pending.rows {
+    for (before, row) in pending {
         let mut position = None;
         for (index, prior) in module.life_instances.iter().enumerate() {
             charge_row(prior, limits, left)?;

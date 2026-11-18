@@ -314,8 +314,12 @@ impl Eval<'_, '_, '_> {
         } else {
             module.life_instances.len()
         });
+        let staged = module.nominal_proposals.borrow();
+        self.fee(staged.len())?;
+        let staged = staged.iter().map(|(before, row)| (row, Some(before)));
+        let committed = indexed.chain(unindexed).map(|row| (row, None));
         let mut found = None;
-        for instance in indexed.chain(unindexed) {
+        for (instance, physical_occurrence) in committed.chain(staged) {
             self.fee(1)?;
             if instance.declaration != *declaration {
                 continue;
@@ -333,7 +337,19 @@ impl Eval<'_, '_, '_> {
             if let Some(hint) = hint {
                 inference::charge_type_snapshot(hint, Span::default(), self.limits, self.left, 1)?;
                 if &instance.ty != hint {
-                    continue;
+                    let Some(physical_occurrence) = physical_occurrence else {
+                        continue;
+                    };
+                    inference::charge_type_snapshot(
+                        physical_occurrence,
+                        Span::default(),
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    if physical_occurrence != hint {
+                        continue;
+                    }
                 }
             }
             if found.replace(instance).is_some() {

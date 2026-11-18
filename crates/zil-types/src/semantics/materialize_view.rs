@@ -23,6 +23,9 @@ pub(in crate::semantics) struct ActualDirectory<'a> {
     ordinary: std::cell::RefCell<Option<stored::OrdinaryContext<'a>>>,
     functions: Functions<'a>,
     pub(in crate::semantics) closures: Cow<'a, [ClosureDefinition]>,
+    // Private, complete child proposals for a single deferred nominal pass.
+    // The raw physical occurrence accompanies the row until canonical rewrite.
+    pub(super) nominal_proposals: std::cell::RefCell<Vec<(Type, LifeNominalInstance)>>,
     pub(in crate::semantics) life_instances: &'a [LifeNominalInstance],
     pub(in crate::semantics) dyn_declarations: &'a [DynDeclaration],
     pub(in crate::semantics) dyn_interfaces: &'a [DynInterface],
@@ -48,6 +51,7 @@ impl<'a> ActualDirectory<'a> {
             functions: Functions::Complete(&module.functions),
             closures: Cow::Borrowed(&module.closures),
             life_instances: &module.life_instances,
+            nominal_proposals: Default::default(),
             dyn_declarations: &module.dyn_declarations,
             dyn_interfaces: &module.dyn_interfaces,
             instances: BTreeMap::new(),
@@ -348,6 +352,7 @@ impl<'a> ActualDirectory<'a> {
             functions: Functions::Building(functions),
             closures: Cow::Owned(closures),
             life_instances,
+            nominal_proposals: Default::default(),
             dyn_declarations,
             dyn_interfaces,
             instances,
