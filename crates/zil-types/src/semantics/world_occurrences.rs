@@ -217,8 +217,7 @@ pub(super) fn prepared_callee(
             "prepared callee selects another original callable operand",
         ));
     }
-    world.pay(index::search(proof.call_callees.len()))?;
-    let original_callee = *proof.call_callees.get(&(original.id, call.recipe))
+    let original_callee = proof.call_callee(original.id, call.recipe, world.left)?
         .ok_or_else(|| bad("prepared callee has no exact original Call operand occurrence"))?;
     let function = world.function(id)?;
     world.pay(function.blocks.len())?;

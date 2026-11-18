@@ -6339,6 +6339,15 @@ fn check_requested(
 }
 
 impl Proof {
+    /// Read the immutable raw operand of this exact original Call. This source
+    /// selector grants no type, class, permission or actual prepared address.
+    pub(super) fn call_callee(
+        &self, owner: SemanticDefinitionId, call: SemanticSiteId, left: &mut usize,
+    ) -> R<Option<NodeId>> {
+        *left = left.checked_sub(self.call_callees.len().saturating_add(1).ilog2() as usize + 1)
+            .ok_or_else(|| Diagnostic::limit(Phase::Types, "original call operand lookup exceeded", None))?;
+        Ok(self.call_callees.get(&(owner, call)).copied())
+    }
     /// The producer of an implicit ErrorUnion injection constructs its payload;
     /// later observations of the same expression retain the complete union.
     /// This accessor is used only after matching the actual construction receipt
