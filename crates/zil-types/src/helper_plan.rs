@@ -113,6 +113,7 @@ struct Walk<'a, 'b> {
     full_values: bool,
     restart_full: bool,
     has_forward: bool,
+    uses_bound_enum: bool,
 }
 
 impl Walk<'_, '_> {
@@ -354,9 +355,27 @@ impl Walk<'_, '_> {
                 let copy = self.clone_shape(shape, pattern.span)?;
                 self.bind(name, copy, pattern.span)?;
             }
-            CorePatternKind::Tuple(fields) | CorePatternKind::Variant { fields, .. } => {
-                for field in fields {
-                    self.pattern(field, &Shape::Unknown, depth + 1)?;
+            CorePatternKind::Tuple(fields) | CorePatternKind::Variant { fields, .. }
+            | CorePatternKind::Constructor { fields, .. } => {
+                let projections = if let Shape::Complete { ty, work } = shape {
+                    self.state.snapshot(*work, pattern.span)?;
+                    match (&pattern.kind, stored::physical(ty)) {
+                        (CorePatternKind::Tuple(_), Type::Tuple(types)) => Some(types),
+                        (CorePatternKind::Variant { variant, .. } | CorePatternKind::Constructor { variant, .. },
+                            Type::Enum { variants, .. }) => {
+                            self.state.snapshot(variants.len().saturating_mul(variant.len() + 1), pattern.span)?;
+                            variants.iter().find(|(tag, _)| tag == variant).map(|(_, types)| types)
+                        }
+                        _ => None,
+                    }
+                } else { None };
+                for (ordinal, field) in fields.iter().enumerate() {
+                    let projected = match projections.filter(|types| fields.len() == types.len()) {
+                        Some(types) => self.shape(&types[ordinal], &[], Bindings::default(),
+                            field.span, depth + 1)?,
+                        None => Shape::Unknown,
+                    };
+                    self.pattern(field, &projected, depth + 1)?;
                 }
             }
             CorePatternKind::Record { fields, .. } => {
@@ -395,17 +414,17 @@ impl Walk<'_, '_> {
                     initializer,
                     ..
                 } => {
-                    self.expr(initializer, depth + 1)?;
-                    if let Some(ty) = ty {
+                    let inferred = self.expr(initializer, depth + 1)?;
+                    let shape = if let Some(ty) = ty {
                         self.shape(
                             ty,
                             self.bounds,
                             self.bindings.clone(),
                             statement.span,
                             depth + 1,
-                        )?;
-                    }
-                    self.pattern(pattern, &Shape::Unknown, depth + 1)?;
+                        )?
+                    } else { inferred };
+                    self.pattern(pattern, &shape, depth + 1)?;
                 }
                 CoreStatementKind::Binding {
                     name,
@@ -531,6 +550,26 @@ impl Walk<'_, '_> {
                 let mut shapes = Vec::with_capacity(arguments.len());
                 for argument in arguments {
                     shapes.push(self.expr(argument, depth + 1)?);
+                }
+                if let CoreExprKind::Member { object, member, owner: None } = &callee.kind
+                    && let CoreExprKind::Name(name) = &object.kind
+                    && !self.context.enums.is_empty()
+                    && self.local(name, object.span)?.is_none()
+                {
+                    self.state.snapshot(tree_work(self.context.enums.len())
+                        .saturating_mul(name.len().saturating_add(1)), expression.span)?;
+                    if let Some(ty) = enums::constructor_type(&self.context.enums, name, expression.span)?
+                        && let Type::Enum { variants, .. } = stored::physical(ty)
+                    {
+                        let work = inference::type_snapshot_work(ty, expression.span, self.limits)?;
+                        self.state.snapshot(work.saturating_mul(self.bounds.len().saturating_add(1))
+                            .saturating_add(variants.len().saturating_mul(member.len() + 1)), expression.span)?;
+                        if variants.iter().any(|(tag, fields)| tag == member && fields.len() == arguments.len()) {
+                            self.uses_bound_enum |= self.bounds.iter().any(|bound|
+                                callable_fields::placeholder_value(ty, &bound.generic_name));
+                            return self.shape(ty, self.bounds, self.bindings.clone(), expression.span, depth + 1);
+                        }
+                    }
                 }
                 if self.full_values
                     && let Some(name) = dynamic_store::primitive(callee)
@@ -822,6 +861,19 @@ impl Walk<'_, '_> {
                                     } else {
                                         None
                                     }
+                                } else if let Some(pattern) = signature.parameters.get(bound.index as usize)
+                                    && matches!(pattern, Type::Tuple(_) | Type::Enum { .. })
+                                {
+                                    if !self.full_values {
+                                        self.restart_full = true;
+                                        return Err(unsupported(expression.span,
+                                            "restart finite planning with complete callable aggregate types"));
+                                    }
+                                    if let Shape::Complete { ty, work } = shape {
+                                        let pattern_work = inference::type_snapshot_work(pattern, expression.span, self.limits)?;
+                                        self.state.snapshot(work.saturating_add(pattern_work), expression.span)?;
+                                        Some(callable_fields::environment(pattern, ty, &bound.generic_name, expression.span)?)
+                                    } else { None }
                                 } else {
                                     shape.environment()
                                 };
@@ -954,6 +1006,21 @@ impl Walk<'_, '_> {
                 self.expr(left, depth + 1)?;
                 self.expr(right, depth + 1)?;
                 Shape::Unknown
+            }
+            CoreExprKind::Tuple(fields) if self.full_values => {
+                self.state.snapshot(fields.len(), expression.span)?;
+                let mut values = Vec::with_capacity(fields.len());
+                for field in fields {
+                    if let Shape::Complete { ty, work } = self.expr(field, depth + 1)? {
+                        self.state.snapshot(work, field.span)?;
+                        values.push(ty.as_ref().clone());
+                    }
+                }
+                if values.len() == fields.len() {
+                    let ty = Type::Tuple(values);
+                    let work = inference::type_snapshot_work(&ty, expression.span, self.limits)?;
+                    Shape::Complete { ty: Rc::new(ty), work }
+                } else { Shape::Unknown }
             }
             CoreExprKind::Tuple(fields) | CoreExprKind::Array(fields) => {
                 for field in fields {
@@ -1218,6 +1285,7 @@ fn dependencies(
         full_values: false,
         restart_full: false,
         has_forward: false,
+        uses_bound_enum: false,
     };
     for parameter in &function.parameters {
         let shape = walk.shape(&parameter.ty, bounds, bindings.clone(), parameter.span, 0)?;
@@ -1237,6 +1305,10 @@ fn dependencies(
         walk.block(&function.body, 0)?;
     } else {
         first?;
+    }
+    if walk.uses_bound_enum && let Node::Callable((key, _)) = &instance {
+        walk.state.snapshot(tree_work(walk.state.helper_enum_users.len()) + 1, span)?;
+        walk.state.helper_enum_users.insert(*key);
     }
     if walk.has_forward
         && let Node::Callable(instance) = instance
@@ -1415,6 +1487,7 @@ mod result_shape_tests {
             full_values: false,
             restart_full: false,
             has_forward: false,
+        uses_bound_enum: false,
         };
         let span = Span::default();
         let pattern = CorePattern {
