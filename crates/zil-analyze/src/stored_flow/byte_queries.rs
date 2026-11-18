@@ -343,6 +343,36 @@ pub(super) struct Point {
     values: BTreeMap<ValueId, Vec<Permission>>,
     locals: BTreeMap<LocalId, Vec<Permission>>,
     views: BTreeMap<LocalId, u32>,
+    weak_value_captures: BTreeMap<ValueId, WeakCaptures>,
+    weak_local_captures: BTreeMap<LocalId, WeakCaptures>,
+}
+type WeakCaptures = BTreeMap<u32, Vec<Permission>>;
+
+fn join_weak_captures<K: Copy + Ord>(
+    to: &mut BTreeMap<K, WeakCaptures>,
+    from: &BTreeMap<K, WeakCaptures>,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    fee(b, from.len())?;
+    for (key, fields) in from {
+        ordered(b, to.len(), 1)?;
+        let actual = to.entry(*key).or_default();
+        for (index, row) in fields {
+            ordered(b, actual.len(), 1)?;
+            add(actual.entry(*index).or_default(), row, b)?;
+        }
+    }
+    Ok(())
+}
+fn copy_weak_captures(fields: Option<&WeakCaptures>, b: &mut Budget) -> CompileResult<WeakCaptures> {
+    let mut out = BTreeMap::new();
+    if let Some(fields) = fields {
+        for (index, row) in fields {
+            ordered(b, out.len(), 1)?;
+            out.insert(*index, copy_origins(row, b)?);
+        }
+    }
+    Ok(out)
 }
 fn tracked(ty: &Type) -> bool {
     description(ty) || matches!(ty, Type::Address { .. })
@@ -353,9 +383,13 @@ fn point_work(p: &Point, b: &mut Budget) -> CompileResult<()> {
         p.values
             .len()
             .saturating_add(p.locals.len())
-            .saturating_add(p.views.len()),
+            .saturating_add(p.views.len())
+            .saturating_add(p.weak_value_captures.len())
+            .saturating_add(p.weak_local_captures.len()),
     )?;
-    for row in p.values.values().chain(p.locals.values()) {
+    for row in p.values.values().chain(p.locals.values()).chain(
+        p.weak_value_captures.values().chain(p.weak_local_captures.values()).flat_map(BTreeMap::values),
+    ) {
         fee(b, row.len())?;
         for permission in row {
             permission_work(permission, b)?;
@@ -373,6 +407,8 @@ fn point_join(to: &mut Point, from: &Point, b: &mut Budget) -> CompileResult<()>
         ordered(b, to.locals.len(), 1)?;
         add(to.locals.entry(*key).or_default(), row, b)?;
     }
+    join_weak_captures(&mut to.weak_value_captures, &from.weak_value_captures, b)?;
+    join_weak_captures(&mut to.weak_local_captures, &from.weak_local_captures, b)?;
     for (local, capture) in &from.views {
         ordered(b, to.views.len(), 1)?;
         if to
@@ -398,7 +434,10 @@ impl Point {
     }
     fn revoke(&mut self, id: usize, b: &mut Budget) -> CompileResult<()> {
         point_work(self, b)?;
-        for row in self.values.values_mut().chain(self.locals.values_mut()) {
+        for row in self.values.values_mut().chain(self.locals.values_mut()).chain(
+            self.weak_value_captures.values_mut().chain(self.weak_local_captures.values_mut())
+                .flat_map(BTreeMap::values_mut),
+        ) {
             for p in row.iter_mut() {
                 ordered(b, p.loans.len(), 1)?;
                 p.loans.remove(&id);
@@ -428,6 +467,84 @@ fn retarget(
     }
     Ok(out)
 }
+fn weak_capture_definition<'a>(
+    module: &'a TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<Option<&'a ClosureDefinition>> {
+    let Type::Closure(id) = ty else {
+        return Ok(None);
+    };
+    let closure = module.closures.get(id.0 as usize)
+        .filter(|closure| closure.id == *id)
+        .ok_or_else(closed)?;
+    fee(b, closure.captures.len().saturating_add(1))?;
+    Ok(closure.captures.iter().any(description).then_some(closure))
+}
+
+fn weak_capture_step(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    point: &mut Point,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    match i.kind {
+        InstructionKind::Store { local, value }
+            if weak_capture_definition(module, value_type(f, value)?, b)?.is_some() =>
+        {
+            ordered(b, point.weak_value_captures.len(), 1)?;
+            let captures = copy_weak_captures(point.weak_value_captures.get(&value), b)?;
+            ordered(b, point.weak_local_captures.len(), 1)?;
+            point.weak_local_captures.insert(local, captures);
+        }
+        InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local)
+            if !point.weak_local_captures.is_empty() =>
+        {
+            ordered(b, point.weak_local_captures.len(), 1)?;
+            point.weak_local_captures.remove(&local);
+        }
+        _ => {}
+    }
+    let Some(result) = i.result else {
+        return Ok(());
+    };
+    let Some(definition) = weak_capture_definition(module, value_type(f, result)?, b)? else {
+        return Ok(());
+    };
+    let captures = match &i.kind {
+        InstructionKind::MakeClosure { closure, captures } => {
+            if definition.id != *closure || definition.captures.len() != captures.len() {
+                return Err(closed());
+            }
+            fee(b, captures.len())?;
+            let mut out = WeakCaptures::new();
+            for (index, (ty, value)) in definition.captures.iter().zip(captures).enumerate() {
+                if description(ty) {
+                    if value_type(f, *value)? != ty {
+                        return Err(failure("Byte environment capture changes its complete weak type"));
+                    }
+                    ordered(b, out.len(), 1)?;
+                    out.insert(index as u32, copy_origins(point.value(*value, b)?, b)?);
+                }
+            }
+            out
+        }
+        InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+            ordered(b, point.weak_local_captures.len(), 1)?;
+            let out = copy_weak_captures(point.weak_local_captures.get(local), b)?;
+            if matches!(i.kind, InstructionKind::TakeLocal { .. }) {
+                point.weak_local_captures.remove(local);
+            }
+            out
+        }
+        _ => return Err(closed()),
+    };
+    ordered(b, point.weak_value_captures.len(), 1)?;
+    point.weak_value_captures.insert(result, captures);
+    Ok(())
+}
+
 /// A definition replaces its SSA row. Reexecuting a real strong loan site
 /// revokes the old generation in every saved SSA value and local first.
 fn step(
@@ -452,6 +569,7 @@ fn step(
     if fresh {
         point.revoke(result.unwrap().0 as usize, b)?;
     }
+    weak_capture_step(module, f, i, point, b)?;
     match i.kind {
         InstructionKind::BindPackageCapture { local, index } => {
             ordered(b, point.views.len(), 1)?;
@@ -483,6 +601,16 @@ fn step(
             InstructionKind::DescribeLocal { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(p) if p.as_ref()==&Type::ByteBuffer) =>
             {
                 out.push(new_origin(HoldRoot::Local(*local), Vec::new(), b)?);
+                false
+            }
+            InstructionKind::ReadCapture { index } => {
+                let actual = f.environment.and_then(|id| module.closures.get(id.0 as usize))
+                    .filter(|closure| closure.function == f.id)
+                    .and_then(|closure| closure.captures.get(*index as usize));
+                if !actual.is_some_and(description) {
+                    return Err(closed());
+                }
+                out.push(new_origin(HoldRoot::Capture(*index), Vec::new(), b)?);
                 false
             }
             InstructionKind::DescribeCapture { index } => {
@@ -638,6 +766,9 @@ impl Flow {
         fee(b, f.parameters.len())?;
         for (position, local) in f.parameters.iter().enumerate() {
             let ty = &f.locals[local.0 as usize].ty;
+            if weak_capture_definition(module, ty, b)?.is_some() {
+                return Err(closed());
+            }
             let row = if description(ty) {
                 vec![new_origin(
                     HoldRoot::Parameter(position as u32),
@@ -878,6 +1009,9 @@ fn captured_read(
         };
         ty = &fields.get(*field as usize).ok_or_else(closed)?.1;
     }
+    if description(ty) && source.place.is_empty() {
+        return weak_capture_read(i, point, index, b);
+    }
     if !matches!(ty, Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer) {
         return Err(closed());
     }
@@ -950,6 +1084,55 @@ fn captured_read(
     }
     Ok(heads)
 }
+fn weak_capture_read(
+    i: &Instruction,
+    point: &Point,
+    index: u32,
+    b: &mut Budget,
+) -> CompileResult<Vec<Permission>> {
+    let mut out = Vec::new();
+    let mut read_local = |local, b: &mut Budget| -> CompileResult<()> {
+        ordered(b, point.weak_local_captures.len(), 1)?;
+        let fields = point.weak_local_captures.get(&local).ok_or_else(closed)?;
+        ordered(b, fields.len(), 1)?;
+        add(&mut out, fields.get(&index).ok_or_else(closed)?, b)?;
+        Ok(())
+    };
+    match i.kind {
+        InstructionKind::CallClosureShared { callee, .. }
+        | InstructionKind::CallClosureMut { callee, .. } => read_local(callee, b)?,
+        InstructionKind::CallClosureBorrowed { callee, .. } => {
+            for origin in point.value(callee, b)? {
+                for target in &origin.targets {
+                    fee(b, target_width(target))?;
+                    let HoldRoot::Local(local) = target.base else {
+                        return Err(closed());
+                    };
+                    if target.retained_port.is_some() || !target.place.is_empty()
+                        || !target.stored.is_empty() || !target.heap_parents.is_empty()
+                        || target.heap_element.is_some()
+                    {
+                        return Err(closed());
+                    }
+                    read_local(local, b)?;
+                }
+            }
+        }
+        InstructionKind::CallClosure { callee, .. }
+        | InstructionKind::CallClosureOnce { callee, .. } => {
+            ordered(b, point.weak_value_captures.len(), 1)?;
+            let fields = point.weak_value_captures.get(&callee).ok_or_else(closed)?;
+            ordered(b, fields.len(), 1)?;
+            add(&mut out, fields.get(&index).ok_or_else(closed)?, b)?;
+        }
+        _ => return Err(closed()),
+    }
+    if out.is_empty() {
+        return Err(failure("Byte query captured description has no actual reaching owner"));
+    }
+    Ok(out)
+}
+
 pub(super) fn record(
     reads: &mut Vec<Target>,
     permission: &Permission,
