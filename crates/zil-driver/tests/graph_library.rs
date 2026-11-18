@@ -11,6 +11,30 @@ use zil_ir::InstructionKind;
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
+fn native_configurations() -> impl Iterator<Item = (NativeBackend, Optimization)> {
+    [NativeBackend::Clang, NativeBackend::LlvmApi]
+        .into_iter()
+        .filter(|backend| *backend == NativeBackend::Clang || cfg!(feature = "llvm-api"))
+        .flat_map(|backend| {
+            [Optimization::O0, Optimization::O2]
+                .into_iter()
+                .map(move |optimization| (backend, optimization))
+        })
+}
+
+fn assert_native(report: &zil_driver::CompileReport, backend: NativeBackend) {
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    let codegen = report.native_codegen.as_ref().unwrap();
+    assert_eq!(codegen.backend, backend);
+    assert!(codegen.fallback.is_none());
+}
+
 #[test]
 fn byte_length_through_a_store_window_keeps_its_original_field() {
     let source = SourceUnit::new(
@@ -245,22 +269,26 @@ fn payload_api_runs_with_default_analysis_budget() {
     let source = dir.join("graph_smoke.zil");
     fs::write(&source, PAYLOAD_SMOKE).unwrap();
     let executable = dir.join("graph");
-    let report = compile_path(
-        &source,
-        &CompileOptions {
-            stop_after: Stage::Build,
-            output: Some(executable.clone()),
-            ..CompileOptions::default()
-        },
-    );
-    assert_eq!(
-        report.status,
-        ResultCategory::Success,
-        "{}",
-        report.to_json()
-    );
-    let output = Command::new(&executable).output().unwrap();
-    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    for (backend, optimization) in native_configurations() {
+        let report = compile_path(
+            &source,
+            &CompileOptions {
+                stop_after: Stage::Build,
+                backend,
+                optimization,
+                output: Some(executable.clone()),
+                ..CompileOptions::default()
+            },
+        );
+        assert_native(&report, backend);
+        let output = Command::new(&executable).output().unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{backend:?}/{optimization:?}: {output:?}"
+        );
+        assert!(output.stdout.is_empty() && output.stderr.is_empty());
+    }
     fs::remove_dir_all(dir).unwrap();
 }
 
@@ -292,13 +320,7 @@ fn dynamic_cycle_shared_target_deletion_and_ticket_history_execute() {
                     ..CompileOptions::default()
                 },
             );
-            assert_eq!(
-                report.status,
-                ResultCategory::Success,
-                "{}",
-                report.to_json()
-            );
-            assert_eq!(report.verification_runs, 1);
+            assert_native(&report, backend);
             for input in *b"358" {
                 let mut child = Command::new(&executable)
                     .stdin(Stdio::piped())
@@ -327,7 +349,7 @@ fn allocation_failure_releases_prepared_graph_and_nodes() {
         (2, b"0".as_slice()),
         (13, b"P0".as_slice()),
     ] {
-        for optimization in [Optimization::O0, Optimization::O2] {
+        for (backend, optimization) in native_configurations() {
             let dir = std::env::temp_dir().join(format!(
                 "zil-graph-failure-{}-{}",
                 std::process::id(),
@@ -369,19 +391,14 @@ fn allocation_failure_releases_prepared_graph_and_nodes() {
                 &source,
                 &CompileOptions {
                     stop_after: Stage::Build,
-                    backend: NativeBackend::Clang,
+                    backend,
                     optimization,
                     clang: Some(wrapper),
                     output: Some(executable.clone()),
                     ..CompileOptions::default()
                 },
             );
-            assert_eq!(
-                report.status,
-                ResultCategory::Success,
-                "{}",
-                report.to_json()
-            );
+            assert_native(&report, backend);
             let mut child = Command::new(&executable)
                 .stdin(Stdio::piped())
                 .stdout(Stdio::piped())
@@ -393,7 +410,7 @@ fn allocation_failure_releases_prepared_graph_and_nodes() {
             assert!(output.status.success(), "{output:?}");
             assert_eq!(
                 output.stdout, expected,
-                "failure_size={failure_size} {optimization:?}"
+                "failure_size={failure_size} {backend:?}/{optimization:?}"
             );
             assert!(output.stderr.is_empty());
             fs::remove_dir_all(dir).unwrap();
