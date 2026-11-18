@@ -1,7 +1,7 @@
 //! Resolve every embedded dyn type in the same nominal environment as its
 //! provider headers and life instances. The caller prepays the full snapshot.
 use super::*;
-fn actual(a: &mut DynGenericActual, r: &mut Resolver<'_>) -> R<()> {
+fn actual(a: &mut DynGenericActual, r: &mut impl TypeResolver) -> R<()> {
     match a {
         DynGenericActual::Type(ty) => *ty = r.ty(ty, 0, Span::default())?,
         DynGenericActual::QualifiedType(value) => value.ty = r.ty(&value.ty, 0, Span::default())?,
@@ -12,38 +12,69 @@ fn actual(a: &mut DynGenericActual, r: &mut Resolver<'_>) -> R<()> {
 // A specialization receiver denotes payload Self, rather than an ordinary
 // default resource description. Only its original bare resource declaration
 // selects this category; explicit wrappers and complete Type actuals survive.
-fn receiver_type(value: &Type, r: &mut Resolver<'_>) -> R<Type> {
-    r.charge(0, Span::default())?;
-    let raw_resource = match value {
-        Type::Named(name)
-            if r.ordinary_parameter.as_ref() != Some(name)
-                && !r.aggregate_parameters.contains_key(name) =>
-        {
-            r.declarations
-                .get(name)
-                .is_some_and(|d| d.kind == AggregateKind::Resource)
-                || matches!(name.as_str(), "ByteBuffer" | "TaskI32")
-        }
-        _ => false,
-    };
-    let resolved = r.ty(value, 0, Span::default())?;
-    Ok(if raw_resource {
-        match resolved {
-            Type::Desc(payload) => *payload,
-            other => other,
-        }
-    } else {
-        resolved
-    })
+pub(crate) trait TypeResolver {
+    fn charge(&mut self, depth: usize, span: Span) -> R<()>;
+    fn ty(&mut self, value: &Type, depth: usize, span: Span) -> R<Type>;
+    fn receiver_type(&mut self, value: &Type) -> R<Type>;
+    fn snapshot(&mut self, value: &impl DynRecipeMetadata) -> R<()>;
 }
-fn receiver(value: &mut DynTypeValue, r: &mut Resolver<'_>) -> R<()> {
+impl TypeResolver for Resolver<'_> {
+    fn charge(&mut self, depth: usize, span: Span) -> R<()> {
+        Resolver::charge(self, depth, span)
+    }
+    fn ty(&mut self, value: &Type, depth: usize, span: Span) -> R<Type> {
+        Resolver::ty(self, value, depth, span)
+    }
+    fn snapshot(&mut self, value: &impl DynRecipeMetadata) -> R<()> {
+        crate::dyn_metadata::semantic_operand_snapshot(
+            value,
+            &self.generic_limits,
+            &mut self.remaining,
+            1,
+        )
+    }
+    fn receiver_type(&mut self, value: &Type) -> R<Type> {
+        let r = self;
+
+        r.charge(0, Span::default())?;
+        let raw_resource = match value {
+            Type::Named(name)
+                if r.ordinary_parameter.as_ref() != Some(name)
+                    && !r.aggregate_parameters.contains_key(name) =>
+            {
+                r.declarations
+                    .get(name)
+                    .is_some_and(|d| d.kind == AggregateKind::Resource)
+                    || matches!(name.as_str(), "ByteBuffer" | "TaskI32")
+            }
+            _ => false,
+        };
+        let resolved = r.ty(value, 0, Span::default())?;
+        Ok(if raw_resource {
+            match resolved {
+                Type::Desc(payload) => *payload,
+                other => other,
+            }
+        } else {
+            resolved
+        })
+    }
+}
+fn receiver_type(value: &Type, r: &mut impl TypeResolver) -> R<Type> {
+    r.receiver_type(value)
+}
+
+fn receiver(value: &mut DynTypeValue, r: &mut impl TypeResolver) -> R<()> {
     value.ty = receiver_type(&value.ty, r)?;
     // life/classes are the original complete domain, not data reconstructed
     // from the resolved physical shape. Independent consumers check them.
     Ok(())
 }
-pub(super) fn function_instance(value: &mut DynFunctionInstance, r: &mut Resolver<'_>) -> R<()> {
-    crate::dyn_metadata::semantic_operand_snapshot(value, &r.generic_limits, &mut r.remaining, 1)?;
+pub(crate) fn function_instance(
+    value: &mut DynFunctionInstance,
+    r: &mut impl TypeResolver,
+) -> R<()> {
+    r.snapshot(value)?;
     receiver(&mut value.receiver, r)?;
     for a in value
         .declaration_actuals
@@ -54,7 +85,7 @@ pub(super) fn function_instance(value: &mut DynFunctionInstance, r: &mut Resolve
     }
     Ok(())
 }
-fn witness(value: &mut DynImplementationWitness, r: &mut Resolver<'_>) -> R<()> {
+fn witness(value: &mut DynImplementationWitness, r: &mut impl TypeResolver) -> R<()> {
     receiver(&mut value.receiver, r)?;
     for a in value
         .actuals
@@ -75,7 +106,7 @@ fn witness(value: &mut DynImplementationWitness, r: &mut Resolver<'_>) -> R<()> 
     }
     Ok(())
 }
-fn obligation(value: &mut DynObligation, r: &mut Resolver<'_>, depth: usize) -> R<()> {
+fn obligation(value: &mut DynObligation, r: &mut impl TypeResolver, depth: usize) -> R<()> {
     r.charge(depth, Span::default())?;
     match value {
         DynObligation::Structural { receiver, .. } => type_pattern(receiver, r, depth + 1),
@@ -105,7 +136,11 @@ fn obligation(value: &mut DynObligation, r: &mut Resolver<'_>, depth: usize) -> 
         }
     }
 }
-fn storage_source(value: &mut DynStorageSourceRecipe, r: &mut Resolver<'_>, depth: usize) -> R<()> {
+fn storage_source(
+    value: &mut DynStorageSourceRecipe,
+    r: &mut impl TypeResolver,
+    depth: usize,
+) -> R<()> {
     r.charge(depth, Span::default())?;
     match value {
         DynStorageSourceRecipe::OwnedView { leaf, .. }
@@ -113,7 +148,11 @@ fn storage_source(value: &mut DynStorageSourceRecipe, r: &mut Resolver<'_>, dept
         _ => Ok(()),
     }
 }
-fn recipe_effects(values: &mut [DynEffectRecipe], r: &mut Resolver<'_>, depth: usize) -> R<()> {
+fn recipe_effects(
+    values: &mut [DynEffectRecipe],
+    r: &mut impl TypeResolver,
+    depth: usize,
+) -> R<()> {
     for value in values {
         r.charge(depth, Span::default())?;
         if let DynEffectRecipe::Cleanup(ty) = value {
@@ -122,7 +161,7 @@ fn recipe_effects(values: &mut [DynEffectRecipe], r: &mut Resolver<'_>, depth: u
     }
     Ok(())
 }
-fn signature(value: &mut DynSignatureRecipe, r: &mut Resolver<'_>, depth: usize) -> R<()> {
+fn signature(value: &mut DynSignatureRecipe, r: &mut impl TypeResolver, depth: usize) -> R<()> {
     r.charge(depth, Span::default())?;
     for parameter in &mut value.parameters {
         type_pattern(&mut parameter.ty, r, depth + 1)?;
@@ -159,7 +198,7 @@ fn signature(value: &mut DynSignatureRecipe, r: &mut Resolver<'_>, depth: usize)
     }
     Ok(())
 }
-fn pattern(p: &mut DynSelfPattern, r: &mut Resolver<'_>, depth: usize) -> R<()> {
+fn pattern(p: &mut DynSelfPattern, r: &mut impl TypeResolver, depth: usize) -> R<()> {
     r.charge(depth, Span::default())?;
     for a in &mut p.arguments {
         match a {
@@ -170,7 +209,7 @@ fn pattern(p: &mut DynSelfPattern, r: &mut Resolver<'_>, depth: usize) -> R<()> 
     }
     Ok(())
 }
-fn type_pattern(p: &mut DynTypePattern, r: &mut Resolver<'_>, depth: usize) -> R<()> {
+fn type_pattern(p: &mut DynTypePattern, r: &mut impl TypeResolver, depth: usize) -> R<()> {
     r.charge(depth, Span::default())?;
     match p {
         DynTypePattern::Concrete(t) => *t = r.ty(t, depth + 1, Span::default())?,
@@ -210,7 +249,7 @@ fn type_pattern(p: &mut DynTypePattern, r: &mut Resolver<'_>, depth: usize) -> R
     }
     Ok(())
 }
-fn const_pattern(p: &mut DynConstPattern, r: &mut Resolver<'_>, depth: usize) -> R<()> {
+fn const_pattern(p: &mut DynConstPattern, r: &mut impl TypeResolver, depth: usize) -> R<()> {
     r.charge(depth, Span::default())?;
     match p {
         DynConstPattern::Unary { value, ty, .. } | DynConstPattern::Convert { value, ty } => {
@@ -240,7 +279,7 @@ fn const_pattern(p: &mut DynConstPattern, r: &mut Resolver<'_>, depth: usize) ->
     }
     Ok(())
 }
-fn effects(e: &mut [DynEffect], r: &mut Resolver<'_>) -> R<()> {
+fn effects(e: &mut [DynEffect], r: &mut impl TypeResolver) -> R<()> {
     for e in e {
         r.charge(0, Span::default())?;
         if let DynEffect::Cleanup(t) = e {
@@ -249,19 +288,42 @@ fn effects(e: &mut [DynEffect], r: &mut Resolver<'_>) -> R<()> {
     }
     Ok(())
 }
-fn cleanup(c: &mut DynCleanupContract, r: &mut Resolver<'_>) -> R<()> {
+fn cleanup(c: &mut DynCleanupContract, r: &mut impl TypeResolver) -> R<()> {
     effects(&mut c.effects, r)
 }
-fn contract(c: &mut DynContract, r: &mut Resolver<'_>) -> R<()> {
+fn actual_sources(sources: &mut [StorageSource], r: &mut impl TypeResolver) -> R<()> {
+    for source in sources {
+        r.charge(0, Span::default())?;
+        match source {
+            StorageSource::OwnedView { leaf, .. } | StorageSource::Static { leaf, .. } => {
+                *leaf = r.ty(leaf, 0, Span::default())?;
+            }
+            StorageSource::Exact(_)
+            | StorageSource::PlaceAddress { .. }
+            | StorageSource::ReborrowedLeaf { .. } => {}
+        }
+    }
+    Ok(())
+}
+fn contract(c: &mut DynContract, r: &mut impl TypeResolver) -> R<()> {
     for requirement in c.requires.iter_mut().flatten() {
         if let DynRequirement::State { ty, .. } = requirement {
             *ty = r.ty(ty, 0, Span::default())?;
         }
     }
     for guarantee in c.guarantees.iter_mut().flatten() {
-        if let DynGuarantee::State { ty, .. } = guarantee {
-            *ty = r.ty(ty, 0, Span::default())?;
+        match guarantee {
+            DynGuarantee::State { ty, .. } => {
+                *ty = r.ty(ty, 0, Span::default())?;
+            }
+            DynGuarantee::StorageSources(binding) => {
+                actual_sources(&mut binding.sources, r)?;
+            }
+            DynGuarantee::ManageResult => {}
         }
+    }
+    if let Some(DynResultSource::Borrow { sources, .. }) = &mut c.result {
+        actual_sources(sources, r)?;
     }
     if let Some(c) = &mut c.cleanup {
         cleanup(c, r)?;
@@ -274,12 +336,32 @@ fn contract(c: &mut DynContract, r: &mut Resolver<'_>) -> R<()> {
 #[allow(clippy::type_complexity)]
 pub(super) fn resolve(
     core: &CoreModule,
-    r: &mut Resolver<'_>,
+    r: &mut impl TypeResolver,
 ) -> R<(Vec<DynDeclaration>, Vec<DynInterface>, Vec<CoreDynVtable>)> {
     let mut declarations = core.dyn_declarations.clone();
     let mut interfaces = core.dyn_interfaces.clone();
     let mut tables = core.dyn_vtables.clone();
-    for d in &mut declarations {
+    declarations_types(&mut declarations, r)?;
+    interfaces_types(&mut interfaces, r)?;
+    for t in &mut tables {
+        // Self is payload at this explicit specialization boundary. Preserve
+        // the original full life/classes while resolving its complete type.
+        t.self_type = receiver_type(&t.self_type, r)?;
+        for value in t.implementation_witnesses.iter_mut().flatten() {
+            witness(value, r)?;
+        }
+        for a in &mut t.actuals {
+            actual(a, r)?;
+        }
+    }
+    Ok((declarations, interfaces, tables))
+}
+
+pub(crate) fn declarations_types(
+    declarations: &mut [DynDeclaration],
+    r: &mut impl TypeResolver,
+) -> R<()> {
+    for d in declarations {
         for k in &mut d.parameters {
             if let LifeParameterKind::Const(t) = k {
                 *t = r.ty(t, 0, Span::default())?;
@@ -350,7 +432,13 @@ pub(super) fn resolve(
             }
         }
     }
-    for i in &mut interfaces {
+    Ok(())
+}
+pub(crate) fn interfaces_types(
+    interfaces: &mut [DynInterface],
+    r: &mut impl TypeResolver,
+) -> R<()> {
+    for i in interfaces {
         if let Some(t) = &mut i.context {
             *t = r.ty(t, 0, Span::default())?;
         }
@@ -394,22 +482,21 @@ pub(super) fn resolve(
             contract(&mut s.contract, r)?;
         }
     }
-    for t in &mut tables {
-        // Self is payload at this explicit specialization boundary. Preserve
-        // the original full life/classes while resolving its complete type.
-        t.self_type = receiver_type(&t.self_type, r)?;
-        for value in t.implementation_witnesses.iter_mut().flatten() {
-            witness(value, r)?;
-        }
-        for a in &mut t.actuals {
-            actual(a, r)?;
-        }
+    Ok(())
+}
+pub(crate) fn table_types(t: &mut DynVtable, r: &mut impl TypeResolver) -> R<()> {
+    t.self_type = receiver_type(&t.self_type, r)?;
+    for value in t.implementation_witnesses.iter_mut().flatten() {
+        witness(value, r)?;
     }
-    Ok((declarations, interfaces, tables))
+    for a in &mut t.actuals {
+        actual(a, r)?;
+    }
+    Ok(())
 }
 
-struct SemanticRewrite<'r, 'a>(&'r mut Resolver<'a>);
-impl crate::semantics::rewrite::Context for SemanticRewrite<'_, '_> {
+struct SemanticRewrite<'r, T: TypeResolver>(&'r mut T);
+impl<T: TypeResolver> crate::semantics::rewrite::Context for SemanticRewrite<'_, T> {
     fn node(&mut self, depth: usize) -> R<()> {
         self.0.charge(depth, Span::default())
     }
@@ -417,6 +504,6 @@ impl crate::semantics::rewrite::Context for SemanticRewrite<'_, '_> {
         self.0.ty(ty, depth, Span::default())
     }
 }
-pub(super) fn semantic(value: &mut SemanticModule, resolver: &mut Resolver<'_>) -> R<()> {
+pub(super) fn semantic(value: &mut SemanticModule, resolver: &mut impl TypeResolver) -> R<()> {
     crate::semantics::rewrite::module(value, &mut SemanticRewrite(resolver))
 }

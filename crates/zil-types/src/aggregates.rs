@@ -3,7 +3,7 @@ use super::*;
 use std::collections::BTreeSet;
 use zil_base::ModuleId;
 #[path = "aggregates_dyn_metadata.rs"]
-mod dyn_metadata;
+pub(crate) mod dyn_metadata;
 
 /// Visibility is checked on the actual resolved field indices. It is a source
 /// module restriction, not a runtime capability or a change to record layout.

@@ -3,17 +3,34 @@
 //! proposes only a layout; the ordinary-domain and original-field passes still
 //! check every resulting row before publication.
 use super::*;
-use std::collections::BTreeMap;
+#[path = "materialize_qualified.rs"]
+mod qualified;
+#[path = "materialize_qualified_rewrite.rs"]
+mod rewrite;
 
-struct Pending<'a> {
-    known: BTreeMap<zil_base::Fingerprint, Vec<&'a Type>>,
-    rows: Vec<LifeNominalInstance>,
+struct Pending {
+    rows: Vec<(Type, LifeNominalInstance)>,
 }
 
 impl Eval<'_, '_, '_> {
+    fn deferred_result(&mut self, result: R<()>, blocked: &mut BTreeSet<ClosureId>) -> R<()> {
+        let dependency = self.pending_header.take();
+        match result {
+            Err(diagnostic) if is_pending_header(&diagnostic) && dependency.is_some() => {
+                self.fee(blocked.len().saturating_add(1).ilog2() as usize + 1)?;
+                blocked.insert(dependency.expect("checked exact missing actual header"));
+                Ok(())
+            }
+            result => result,
+        }
+    }
     fn deferred_logical_nominal(
-        &mut self, scope: SemanticInstanceId, recipe: &SemanticTypeRecipe,
-        hint: LogicalExpected<'_>, depth: usize, pending: &mut Pending<'_>,
+        &mut self,
+        scope: SemanticInstanceId,
+        recipe: &SemanticTypeRecipe,
+        hint: LogicalExpected<'_>,
+        depth: usize,
+        pending: &mut Pending,
     ) -> R<()> {
         hint.materialize(|ty| self.deferred_physical_nominal(scope, recipe, ty, depth, pending))
     }
@@ -23,7 +40,7 @@ impl Eval<'_, '_, '_> {
         recipe: &SemanticTypeRecipe,
         hint: &Type,
         depth: usize,
-        pending: &mut Pending<'_>,
+        pending: &mut Pending,
     ) -> R<()> {
         self.node(depth)?;
         match (recipe, hint) {
@@ -45,38 +62,11 @@ impl Eval<'_, '_, '_> {
                 _,
             ) => {
                 let original = self.definition(*definition)?;
-                let SemanticDefinitionBody::Nominal {
-                    declaration, kind, ..
-                } = &original.body
-                else {
+                let SemanticDefinitionBody::Nominal { kind, .. } = &original.body else {
                     return Err(bad(
                         "pending nominal use does not select an original nominal",
                     ));
                 };
-                inference::charge_type_snapshot(hint, Span::default(), self.limits, self.left, 1)?;
-                let key = hint.fingerprint();
-                self.fee(
-                    key.0
-                        .len()
-                        .saturating_add(pending.known.len().saturating_add(1).ilog2() as usize + 1),
-                )?;
-                if let Some(types) = pending.known.get(&key) {
-                    self.fee(types.len())?;
-                    for actual in types {
-                        inference::charge_type_snapshot(
-                            actual,
-                            Span::default(),
-                            self.limits,
-                            self.left,
-                            1,
-                        )?;
-                        if *actual == hint {
-                            // The structural index only locates exact types.
-                            // Regular materialization still checks full actuals.
-                            return Ok(());
-                        }
-                    }
-                }
                 if original.parameters.len() != arguments.len() {
                     return Err(bad("pending nominal omits its full mixed actuals"));
                 }
@@ -94,51 +84,9 @@ impl Eval<'_, '_, '_> {
                     // this proposal pass never unwraps them speculatively.
                     return Ok(());
                 }
-                if let Type::BorrowedStorage { life, .. } = hint {
-                    let _paid = self.copy_shape(life)?;
-                    if life.binder_count != 0
-                        || !life.slots.is_empty()
-                        || !life.retained.is_empty()
-                        || !life.nominal_arguments.is_empty()
-                    {
-                        return Err(unknown(
-                            "pending nonzero nominal requires canonical full-type rewriting at every actual use",
-                        ));
-                    }
-                }
-                self.fee(arguments.len())?;
-                let mut actuals = Vec::new();
-                for (formal, argument) in original.parameters.iter().zip(arguments) {
-                    let actual = self.recipe_actual(scope, argument, depth + 1)?;
-                    actuals.push(match (formal, actual) {
-                        (SemanticFormal::Type { .. }, SemanticActual::Type(SemanticTypeValue::Resolved { ty, life, classes })) => {
-                            if life.binder_count != 0 || !classes.is_empty() || !life.slots.is_empty()
-                                || !life.retained.is_empty() || !life.nominal_arguments.is_empty() {
-                                return Err(unknown("pending nominal Type actual retains a nonzero or incomplete intrinsic domain"));
-                            }
-                            if matches!(ty, Type::BorrowedStorage { .. }) {
-                                LifeNominalActual::QualifiedType { ty, life }
-                            } else {
-                                LifeNominalActual::Type(ty)
-                            }
-                        }
-                        (SemanticFormal::Const { .. }, SemanticActual::Const { ty: SemanticTypeValue::Resolved { ty, life, classes }, value }) => {
-                            if life.binder_count != 0 || !classes.is_empty() || !life.slots.is_empty()
-                                || !life.retained.is_empty() || !life.nominal_arguments.is_empty() || value.ty() != ty {
-                                return Err(bad("pending nominal Const actual changes its complete carrier"));
-                            }
-                            LifeNominalActual::Const(value)
-                        }
-                        (SemanticFormal::Lifetime, SemanticActual::Life(_)) => return Err(unknown("pending phantom lifetime requires a complete qualified nominal boundary")),
-                        _ => return Err(bad("pending nominal changes a full mixed actual kind")),
-                    });
-                }
+                let row = self.qualified_nominal(scope, *definition, arguments, hint, depth + 1)?;
                 self.fee(1)?;
-                pending.rows.push(LifeNominalInstance {
-                    declaration: *declaration,
-                    ty: self.physical(hint)?,
-                    arguments: actuals,
-                });
+                pending.rows.push((self.physical(hint)?, row));
                 Ok(())
             }
             (SemanticTypeRecipe::Managed(recipe), Type::Managed(actual))
@@ -187,28 +135,14 @@ impl Eval<'_, '_, '_> {
 /// a physical proposal. Unused global aggregate prototypes supply no scope and
 /// are deliberately not promoted to complete applications.
 pub(crate) fn populate(
-    program: &SemanticModule,
+    program: &mut SemanticModule,
     module: &mut TypedModule,
-    ledger: &Ledger,
+    ledger: &mut Ledger,
     limits: &Limits,
     left: &mut usize,
-) -> R<()> {
-    let mut pending = Pending {
-        known: BTreeMap::new(),
-        rows: Vec::new(),
-    };
-    for row in &module.life_instances {
-        inference::charge_type_snapshot(&row.ty, Span::default(), limits, left, 1)?;
-        let key = row.ty.fingerprint();
-        let work = key
-            .0
-            .len()
-            .saturating_add(pending.known.len().saturating_add(1).ilog2() as usize + 1);
-        *left = left.checked_sub(work).ok_or_else(|| {
-            Diagnostic::limit(Phase::Types, "pending nominal index work exceeded", None)
-        })?;
-        pending.known.entry(key).or_default().push(&row.ty);
-    }
+) -> R<(bool, Formation<()>)> {
+    let mut blocked = BTreeSet::new();
+    let mut pending = Pending { rows: Vec::new() };
     {
         let mut eval = Eval {
             input: program,
@@ -218,7 +152,7 @@ pub(crate) fn populate(
             left,
             active: BTreeSet::new(),
             invocation_probe: None,
-        pending_header: None,
+            pending_header: None,
         };
         eval.fee(program.instances.len().saturating_add(program.sites.len()))?;
         for instance in &program.instances {
@@ -240,13 +174,22 @@ pub(crate) fn populate(
                     scope: SemanticScopeRef::Ancestor(0),
                     source: SemanticOriginalTypeSource::Parameter(index as u32),
                 };
-                eval.deferred_physical_nominal(instance.id, &recipe, ty, 0, &mut pending)?;
+                let request =
+                    eval.deferred_physical_nominal(instance.id, &recipe, ty, 0, &mut pending);
+                eval.deferred_result(request, &mut blocked)?;
             }
             let recipe = SemanticTypeRecipe::OriginalType {
                 scope: SemanticScopeRef::Ancestor(0),
                 source: SemanticOriginalTypeSource::Result,
             };
-            eval.deferred_physical_nominal(instance.id, &recipe, function.result()?, 0, &mut pending)?;
+            let request = eval.deferred_physical_nominal(
+                instance.id,
+                &recipe,
+                function.result()?,
+                0,
+                &mut pending,
+            );
+            eval.deferred_result(request, &mut blocked)?;
         }
         for site in &program.sites {
             let function = eval.function(site.instance)?;
@@ -273,8 +216,14 @@ pub(crate) fn populate(
                 let Some(result) = operation.result else {
                     continue;
                 };
-                let hint = logical_operand(eval.ledger, eval.module, function,
-                    &SemanticOperand::Value(result), eval.limits, eval.left)?;
+                let hint = logical_operand(
+                    eval.ledger,
+                    eval.module,
+                    function,
+                    &SemanticOperand::Value(result),
+                    eval.limits,
+                    eval.left,
+                )?;
                 let owner = eval.instance(site.instance)?.definition;
                 let original = eval.definition(owner)?;
                 let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body
@@ -296,33 +245,63 @@ pub(crate) fn populate(
                     scope: SemanticScopeRef::Ancestor(0),
                     source: SemanticOriginalTypeSource::Expression(node),
                 };
-                eval.deferred_logical_nominal(site.instance, &recipe, hint, 0, &mut pending)?;
+                let request =
+                    eval.deferred_logical_nominal(site.instance, &recipe, hint, 0, &mut pending);
+                eval.deferred_result(request, &mut blocked)?;
                 continue;
             }
             let (value, hint) = match &site.action {
                 SemanticSiteAction::Construct {
                     result: SemanticOperand::Value(result),
                     value,
-                } => (value, logical_operand(eval.ledger, eval.module, function,
-                    &SemanticOperand::Value(*result), eval.limits, eval.left)?),
+                } => (
+                    value,
+                    logical_operand(
+                        eval.ledger,
+                        eval.module,
+                        function,
+                        &SemanticOperand::Value(*result),
+                        eval.limits,
+                        eval.left,
+                    )?,
+                ),
                 SemanticSiteAction::DeclareLocal {
                     local: SemanticLocalTarget::Typed(local),
                     expected,
                 } => (
                     expected,
-                    LogicalExpected::local(eval.ledger.logical_local_type(function, *local, eval.limits, eval.left)?),
+                    LogicalExpected::local(eval.ledger.logical_local_type(
+                        function,
+                        *local,
+                        eval.limits,
+                        eval.left,
+                    )?),
                 ),
                 SemanticSiteAction::TypeUse {
                     subject: SemanticOperand::Value(value),
                     expected,
-                } => (expected, logical_operand(eval.ledger, eval.module, function,
-                    &SemanticOperand::Value(*value), eval.limits, eval.left)?),
+                } => (
+                    expected,
+                    logical_operand(
+                        eval.ledger,
+                        eval.module,
+                        function,
+                        &SemanticOperand::Value(*value),
+                        eval.limits,
+                        eval.left,
+                    )?,
+                ),
                 SemanticSiteAction::TypeUse {
                     subject: SemanticOperand::Local(local),
                     expected,
                 } => (
                     expected,
-                    LogicalExpected::local(eval.ledger.logical_local_type(function, *local, eval.limits, eval.left)?),
+                    LogicalExpected::local(eval.ledger.logical_local_type(
+                        function,
+                        *local,
+                        eval.limits,
+                        eval.left,
+                    )?),
                 ),
                 _ => continue,
             };
@@ -330,7 +309,9 @@ pub(crate) fn populate(
                 match source {
                     SemanticCoreTypeSource::OriginalRecipe(recipe)
                     | SemanticCoreTypeSource::Expression { recipe, .. } => {
-                        eval.deferred_logical_nominal(*scope, recipe, hint, 0, &mut pending)?;
+                        let request =
+                            eval.deferred_logical_nominal(*scope, recipe, hint, 0, &mut pending);
+                        eval.deferred_result(request, &mut blocked)?;
                     }
                     SemanticCoreTypeSource::OriginalExpression { source, .. } => {
                         let recipe = eval.original_type_view(
@@ -339,79 +320,116 @@ pub(crate) fn populate(
                             source,
                             0,
                         )?;
-                        eval.deferred_logical_nominal(*scope, &recipe, hint, 0, &mut pending)?;
+                        let request =
+                            eval.deferred_logical_nominal(*scope, &recipe, hint, 0, &mut pending);
+                        eval.deferred_result(request, &mut blocked)?;
                     }
                 }
             }
         }
     }
-    drop(pending.known);
-    for row in pending.rows {
-        let mut exists = false;
-        for prior in &module.life_instances {
-            inference::charge_type_snapshot(&prior.ty, Span::default(), limits, left, 1)?;
-            inference::charge_type_snapshot(&row.ty, Span::default(), limits, left, 1)?;
-            if prior.ty == row.ty {
-                // Prepay full mixed-vector comparison, including opaque types.
-                for actual in prior.arguments.iter().chain(&row.arguments) {
-                    match actual {
-                        LifeNominalActual::Type(ty) => {
-                            inference::charge_type_snapshot(ty, Span::default(), limits, left, 1)?
-                        }
-                        LifeNominalActual::QualifiedType { ty, life } => {
-                            inference::charge_type_snapshot(ty, Span::default(), limits, left, 1)?;
-                            let work = life
-                                .slots
-                                .iter()
-                                .map(|row| row.path.len().saturating_add(1))
-                                .chain(
-                                    life.retained
-                                        .iter()
-                                        .map(|row| row.path.len().saturating_add(1)),
-                                )
-                                .chain(
-                                    life.nominal_arguments
-                                        .iter()
-                                        .map(|row| row.path.len().saturating_add(1)),
-                                )
-                                .try_fold(1usize, |work, add| work.checked_add(add))
-                                .ok_or_else(|| {
-                                    Diagnostic::limit(
-                                        Phase::Types,
-                                        "pending nominal qualification work overflow",
-                                        None,
-                                    )
-                                })?;
-                            *left = left.checked_sub(work).ok_or_else(|| {
-                                Diagnostic::limit(
-                                    Phase::Types,
-                                    "pending nominal qualification work exceeded",
-                                    None,
-                                )
-                            })?;
-                        }
-                        LifeNominalActual::Const(Constant::WideString(units)) => {
-                            *left = left.checked_sub(units.len()).ok_or_else(|| {
-                                Diagnostic::limit(
-                                    Phase::Types,
-                                    "pending nominal comparison work exceeded",
-                                    None,
-                                )
-                            })?;
-                        }
-                        _ => {}
-                    }
-                }
-                if prior != &row {
-                    return Err(bad(
-                        "one actual nominal use selects conflicting original full actuals",
-                    ));
-                }
-                exists = true;
+    let mut replacements = Vec::new();
+    let mut changed = false;
+    // All proposals are complete before any actual payload is rewritten.
+    // Repeated use sites must select exactly one original full application.
+    for index in 0..pending.rows.len() {
+        let (before, row) = &pending.rows[index];
+        inference::charge_type_snapshot(before, Span::default(), limits, left, 1)?;
+        charge_row(row, limits, left)?;
+        for (other_before, other) in &pending.rows[..index] {
+            inference::charge_type_snapshot(other_before, Span::default(), limits, left, 1)?;
+            charge_row(other, limits, left)?;
+            if before == other_before && row != other {
+                return Err(bad(
+                    "one actual nominal selects conflicting original full applications",
+                ));
             }
         }
-        if !exists {
+        if before != &row.ty {
+            inference::charge_type_snapshot(before, Span::default(), limits, left, 1)?;
+            inference::charge_type_snapshot(&row.ty, Span::default(), limits, left, 1)?;
+            replacements.push((before.clone(), row.ty.clone()));
+            changed = true;
+        }
+    }
+    for (before, row) in pending.rows {
+        let mut position = None;
+        for (index, prior) in module.life_instances.iter().enumerate() {
+            charge_row(prior, limits, left)?;
+            inference::charge_type_snapshot(&before, Span::default(), limits, left, 1)?;
+            charge_row(&row, limits, left)?;
+            if prior.ty == before || prior.ty == row.ty {
+                if position.replace(index).is_some() {
+                    return Err(bad(
+                        "canonical nominal application has duplicate catalogue rows",
+                    ));
+                }
+                if prior.declaration != row.declaration {
+                    return Err(bad("canonical nominal changes its original declaration"));
+                }
+            }
+        }
+        if let Some(index) = position {
+            charge_row(&row, limits, left)?;
+            charge_row(&module.life_instances[index], limits, left)?;
+            if module.life_instances[index] != row {
+                module.life_instances[index] = row;
+                changed = true;
+            }
+        } else {
             module.life_instances.push(row);
+            changed = true;
+        }
+    }
+    rewrite::apply(program, module, ledger, &replacements, limits, left)?;
+    Ok((
+        changed,
+        if blocked.is_empty() {
+            Formation::Complete(())
+        } else {
+            Formation::NotReady {
+                dependencies: blocked,
+            }
+        },
+    ))
+}
+
+fn charge_row(row: &LifeNominalInstance, limits: &Limits, left: &mut usize) -> R<()> {
+    inference::charge_type_snapshot(&row.ty, Span::default(), limits, left, 1)?;
+    for actual in &row.arguments {
+        match actual {
+            LifeNominalActual::Type(ty) => {
+                inference::charge_type_snapshot(ty, Span::default(), limits, left, 1)?
+            }
+            LifeNominalActual::QualifiedType { ty, life } => {
+                inference::charge_type_snapshot(ty, Span::default(), limits, left, 1)?;
+                let work = life
+                    .slots
+                    .iter()
+                    .map(|r| r.path.len().saturating_add(1))
+                    .chain(life.retained.iter().map(|r| r.path.len().saturating_add(1)))
+                    .chain(
+                        life.nominal_arguments
+                            .iter()
+                            .map(|r| r.path.len().saturating_add(1)),
+                    )
+                    .fold(life.binder_count as usize + 1, usize::saturating_add);
+                *left = left.checked_sub(work).ok_or_else(|| {
+                    Diagnostic::limit(Phase::Types, "qualified catalogue snapshot exceeded", None)
+                })?;
+            }
+            LifeNominalActual::Const(Constant::WideString(units)) => {
+                *left = left
+                    .checked_sub(units.len().saturating_add(1))
+                    .ok_or_else(|| {
+                        Diagnostic::limit(Phase::Types, "qualified Const snapshot exceeded", None)
+                    })?;
+            }
+            LifeNominalActual::Const(_) | LifeNominalActual::Lifetime(_) => {
+                *left = left.checked_sub(1).ok_or_else(|| {
+                    Diagnostic::limit(Phase::Types, "qualified catalogue snapshot exceeded", None)
+                })?;
+            }
         }
     }
     Ok(())
