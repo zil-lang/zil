@@ -2045,7 +2045,7 @@ fn check_with(
                         LifeTypeProjection::Place(PlaceProjection::Field(*index)), &mut e, b)?;
                 }
                 InstructionKind::BorrowPlaceLocal { .. }
-                    if super::stored_flow::ordinary_error_borrow(f, i, b)? =>
+                    if super::stored_flow::ordinary_error_borrow(module, f, i, b)? =>
                 {
                     if let Some(out) = out
                         && let Some(outer) = out.outer

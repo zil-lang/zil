@@ -137,11 +137,12 @@ pub(super) fn dyn_return_header(
 
 // Class grounding may recognize only this independently authenticated origin.
 pub(super) fn ordinary_error_borrow(
+    module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    Ok(pure_copy::ordinary_error_borrow(f, i, b)? || pure_copy::ordinary_resource_place(f, i, b)?)
+    Ok(pure_copy::ordinary_error_borrow(module, f, i, b)? || pure_copy::ordinary_resource_place(f, i, b)?)
 }
 
 pub(super) fn ordinary_package_borrow(
@@ -4937,7 +4938,7 @@ fn transfer(
             clear_local_holes(state, *local, b)?;
         }
         InstructionKind::BorrowPlaceLocal { local, path, .. }
-            if ordinary_error_borrow(f, i, b)? =>
+            if ordinary_error_borrow(module, f, i, b)? =>
         {
             fee(b, path.len().saturating_add(1))?;
             out.pointer.targets.insert(Target {
@@ -5941,7 +5942,7 @@ fn transfer(
         }
         _ if pure_copy::operation(&i.kind) => {
             if !pure_copy::ordinary_owned_union(f, i, b)? {
-                pure_copy::types(f, i, b)?;
+                pure_copy::types(module, f, i, b)?;
             }
             for input in resources::uses(&i.kind) {
                 let payload = get(input)?;
@@ -6186,7 +6187,7 @@ fn transfer(
                 if f.environment.and_then(|id| module.closures.get(id.0 as usize))
                     .and_then(|d| d.captures.get(index as usize))
                     .is_some_and(super::stored_callables::exclusive_capture))
-            || ordinary_error_borrow(f, i, b)?
+            || ordinary_error_borrow(module, f, i, b)?
             || pure_copy::ordinary_package_borrow(module, f, i, b)?
             || owned_byte_views::instruction(module, f, i, b)?
             || task_calls::call(&i.kind, b)?
@@ -6998,7 +6999,7 @@ fn windows(
         for block in &f.blocks {
             fee(b, block.instructions.len())?;
             for instruction in &block.instructions {
-                ordinary_error_places |= ordinary_error_borrow(f, instruction, b)?;
+                ordinary_error_places |= ordinary_error_borrow(module, f, instruction, b)?;
             }
         }
     }
@@ -7180,7 +7181,7 @@ fn windows(
                         }
                     }
                     InstructionKind::BorrowPlaceLocal { local, path, .. }
-                        if ordinary_error_borrow(f, i, b)? =>
+                        if ordinary_error_borrow(module, f, i, b)? =>
                     {
                         fee(b, path.len().saturating_add(1))?;
                         let actual = Permission {
@@ -9658,7 +9659,7 @@ fn actual_instructions(
             let byte_query = byte_queries::instruction(module, f, i, b)?;
             let package_read = pure_copy::ordinary_package_read(module, f, i, b)?;
             let package_description = pure_copy::ordinary_package_description(f, i, b)?;
-            let error_borrow = ordinary_error_borrow(f, i, b)?;
+            let error_borrow = ordinary_error_borrow(module, f, i, b)?;
             let compound_take = compound_move(module, f, i, b)?
                 || compound_unpack(module, f, i, b)?
                 || compound_constructor(module, f, i, b)?
@@ -9862,7 +9863,7 @@ fn actual_instructions(
                 if !pure_copy::ordinary_owned_union(f, i, b)?
                     && !mutex::instruction(module, f, i, b)?
                 {
-                    pure_copy::types(f, i, b)?;
+                    pure_copy::types(module, f, i, b)?;
                 }
             }
             match &i.kind {

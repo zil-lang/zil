@@ -165,7 +165,7 @@ pub(super) fn ordinary_package_borrow(
                     && super::super::stored_callables::finite(module, *id))
     } else { false };
     let ordinary = callable || !mutable
-        && (field.is_copy_value() && pure(field, b, 0)? || owned::ordinary_value(module, field, b)?);
+        && (field.is_copy_value() && pure(module, field, b, 0)? || owned::ordinary_value(module, field, b)?);
     if ordinary {
         resources::product::admit_owned(module, parent, b)?;
     } else {
@@ -220,7 +220,7 @@ pub(super) fn ordinary_package_read(
     b.type_work(field, true, "ordinary Package Copy observation")?;
     let callable = matches!(field,Type::Closure(_))
         && crate::callable_fields::copy_value(module, field, b, 0)?;
-    if !callable && (!field.is_copy_value() || !pure(field, b, 0)?) {
+    if !callable && (!field.is_copy_value() || !pure(module, field, b, 0)?) {
         return Err(failure(
             "ordinary Package read requires a complete pure Copy field",
         ));
@@ -312,7 +312,7 @@ pub(super) fn ordinary_resource_place(
     Ok(true)
 }
 
-fn pure(ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<bool> {
+fn pure(module: &TypedModule, ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<bool> {
     fee(b, 1)?;
     if depth > b.partial_depth {
         return Err(vec![Diagnostic::limit(
@@ -339,19 +339,19 @@ fn pure(ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<bool> {
         Type::FunctionPointer { .. } => super::super::class_flow::thin::data(ty, b, depth + 1),
         Type::Tuple(fields) => {
             for field in fields {
-                if !pure(field, b, depth + 1)? {
+                if !pure(module, field, b, depth + 1)? {
                     return Ok(false);
                 }
             }
             Ok(true)
         }
-        Type::Array { element, .. } => pure(element, b, depth + 1),
+        Type::Array { element, .. } => pure(module, element, b, depth + 1),
         Type::ErrorUnion { error, result } => {
-            Ok(pure(error, b, depth + 1)? && pure(result, b, depth + 1)?)
+            Ok(pure(module, error, b, depth + 1)? && pure(module, result, b, depth + 1)?)
         }
         Type::Record { fields, .. } => {
             for (_, field) in fields {
-                if !pure(field, b, depth + 1)? {
+                if !pure(module, field, b, depth + 1)? {
                     return Ok(false);
                 }
             }
@@ -361,7 +361,7 @@ fn pure(ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<bool> {
             for (_, fields) in variants {
                 fee(b, 1)?;
                 for field in fields {
-                    if !pure(field, b, depth + 1)? {
+                    if !pure(module, field, b, depth + 1)? {
                         return Ok(false);
                     }
                 }
@@ -369,20 +369,20 @@ fn pure(ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<bool> {
             Ok(true)
         }
         Type::BorrowedStorage { .. } => {
-            physical(ty, b)?;
+            physical(module, ty, b)?;
             retained::pure(ty, b)
         }
         _ => Ok(false),
     }
 }
 
-pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> CompileResult<()> {
+pub(super) fn types(module: &TypedModule, f: &TypedFunction, i: &Instruction, b: &mut Budget) -> CompileResult<()> {
     let result = value_type(
         f,
         i.result
             .ok_or_else(|| failure("pure Copy operation has no result"))?,
     )?;
-    if !pure(result, b, 0)? {
+    if !pure(module, result, b, 0)? {
         return Err(vec![Diagnostic::unsupported(
             Phase::Analyze,
             "pure Copy operation result contains an address, capability or nonordinary payload",
@@ -399,7 +399,7 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Compi
                 .get(local.0 as usize)
                 .ok_or_else(|| failure("pure ErrorUnion tag local is absent"))?
                 .ty;
-            if !matches!(ty, Type::ErrorUnion { .. }) || !pure(ty, b, 0)? {
+            if !matches!(ty, Type::ErrorUnion { .. }) || !pure(module, ty, b, 0)? {
                 return Err(failure(
                     "pure ErrorUnion tag lacks actual complete Copy union",
                 ));
@@ -408,7 +408,7 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Compi
         }
         InstructionKind::ErrorTag { value } | InstructionKind::ReadErrorUnion { value, .. } => {
             let source = value_type(f, *value)?;
-            if !pure(source, b, 0)? {
+            if !pure(module, source, b, 0)? {
                 return Err(failure("pure error observation retains actual targets"));
             }
             let Type::ErrorUnion {
@@ -453,7 +453,7 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Compi
         }
         InstructionKind::ExtractField { aggregate, index } => {
             let source = value_type(f, *aggregate)?;
-            if !pure(source, b, 0)? {
+            if !pure(module, source, b, 0)? {
                 return Err(failure(
                     "pure Copy field source contains a target-bearing payload",
                 ));
@@ -467,7 +467,7 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Compi
         }
         InstructionKind::ExtractIndex { aggregate, index } => {
             let source = value_type(f, *aggregate)?;
-            if !pure(source, b, 0)? || !value_type(f, *index)?.is_integer() {
+            if !pure(module, source, b, 0)? || !value_type(f, *index)?.is_integer() {
                 return Err(failure(
                     "pure Copy array source or integer index is invalid",
                 ));
@@ -483,7 +483,7 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Compi
             value,
         } => {
             let source = value_type(f, *aggregate)?;
-            if !pure(source, b, 0)? {
+            if !pure(module, source, b, 0)? {
                 return Err(failure("pure field update source retains a real target"));
             }
             let physical = super::carrier(source).map_or(source, |(storage, _)| storage);
@@ -510,7 +510,7 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Compi
             value,
         } => {
             let source = value_type(f, *aggregate)?;
-            if !pure(source, b, 0)? || !value_type(f, *index)?.is_integer() {
+            if !pure(module, source, b, 0)? || !value_type(f, *index)?.is_integer() {
                 return Err(failure("pure index update source or index is invalid"));
             }
             let Type::Array { element, .. } = source else {
@@ -558,7 +558,7 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Compi
             if !matches!(
                 super::carrier(source).map_or(source, |(storage, _)| storage),
                 Type::Enum { .. }
-            ) || !pure(source, b, 0)?
+            ) || !pure(module, source, b, 0)?
             {
                 return Err(failure(
                     "pure Copy tag source is not a complete ordinary enum",
@@ -572,7 +572,7 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Compi
             index,
         } => {
             let source = value_type(f, *value)?;
-            if !pure(source, b, 0)? {
+            if !pure(module, source, b, 0)? {
                 return Err(failure("pure Copy variant source contains stored targets"));
             }
             let Type::Enum { variants, .. } =
@@ -679,6 +679,7 @@ fn ordinary_owned_fields(mut pending: Vec<(&Type, usize)>, b: &mut Budget) -> Co
 // actual owner. All children, including inactive Sum arms, are examined first;
 // the ordinary responsibility/loan kernel still proves initialization/liveness.
 fn ordinary_package_field_borrow(
+    module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
     b: &mut Budget,
@@ -720,7 +721,7 @@ fn ordinary_package_field_borrow(
         };
     }
     if selected.is_copy_value() {
-        if !pure(selected, b, 0)? {
+        if !pure(module, selected, b, 0)? {
             return Ok(false);
         }
     } else if !matches!(selected, Type::Managed(_)) {
@@ -737,11 +738,12 @@ fn ordinary_package_field_borrow(
 // A selected Copy arm of an ordinary owned union is a new producer.
 // Its current tag and initialized/complete subtree are checked by Sum flow.
 pub(super) fn ordinary_error_borrow(
+    module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    if ordinary_package_field_borrow(f, i, b)? {
+    if ordinary_package_field_borrow(module, f, i, b)? {
         return Ok(true);
     }
     let InstructionKind::BorrowPlaceLocal {
@@ -780,7 +782,7 @@ pub(super) fn ordinary_error_borrow(
         }
         _ => false,
     };
-    if !pure(parent, b, 0)?
+    if !pure(module, parent, b, 0)?
         && (!matches!(companion, Type::Package { .. }) || !ordinary_union_shape(parent, b)?)
         && !task_companion
     {
@@ -790,7 +792,7 @@ pub(super) fn ordinary_error_borrow(
     if !selected.is_copy_value() {
         return Ok(false);
     }
-    if !pure(selected, b, 0)? {
+    if !pure(module, selected, b, 0)? {
         return Ok(false);
     }
     if !matches!(value_type(f, i.result.ok_or_else(|| failure("ordinary error borrow lacks result"))?)?, Type::Address { mutable: false, inner } if inner.as_ref() == selected)
@@ -806,6 +808,14 @@ pub(super) fn ordinary_error_borrow(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[allow(dead_code)]
+    mod fixture {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
+        ));
+    }
 
     #[test]
     fn inactive_and_nested_payloads_never_hide_address_roots() {
@@ -831,8 +841,9 @@ mod tests {
                 }]),
             )],
         };
+        let module = fixture::module();
         for ty in [inactive, nested, Type::ForeignHandle] {
-            assert!(!pure(&ty, &mut Budget::new(&limits), 0).unwrap());
+            assert!(!pure(&module, &ty, &mut Budget::new(&limits), 0).unwrap());
         }
     }
 }
