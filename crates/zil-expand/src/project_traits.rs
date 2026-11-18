@@ -12,17 +12,11 @@ fn plain(ty: &s::TypeRef) -> Option<&str> {
     }
 }
 
-// This is only a lazy-work switch during the already prepaid output scan.
+// This is only a lazy-work switch during the output scan.
 // The actual owner map below uses full declarations and source identity.
-pub(super) fn is_external_impl(item: &s::Item, current: ModuleId) -> bool {
-    let s::ItemKind::Impl(implementation) = &item.kind else {
-        return false;
-    };
-    implementation
-        .trait_type
-        .as_ref()
-        .and_then(trait_instances::head)
-        .and_then(|name| name.strip_prefix("$module"))
+pub(super) fn is_external_impl(trait_name: &str, current: ModuleId) -> bool {
+    trait_name
+        .strip_prefix("$module")
         .and_then(|name| name.split_once('_'))
         .and_then(|(owner, _)| owner.parse::<u32>().ok())
         .is_some_and(|owner| owner != current.0)
@@ -30,8 +24,7 @@ pub(super) fn is_external_impl(item: &s::Item, current: ModuleId) -> bool {
 
 pub(super) fn method_owners(
     specialized: &s::Module,
-    modules: &[&s::Module],
-    files: &BTreeMap<FileId, usize>,
+    files: &BTreeMap<FileId, (usize, ModuleId)>,
     budget: &mut Budget<'_>,
 ) -> Result<BTreeMap<String, ModuleId>, Diagnostic> {
     let mut traits = BTreeMap::new();
@@ -109,7 +102,7 @@ pub(super) fn method_owners(
         {
             continue;
         }
-        let position = *files.get(&host_file).ok_or_else(|| {
+        let (_, module) = *files.get(&host_file).ok_or_else(|| {
             Diagnostic::error(
                 Phase::Expand,
                 "E-MODULE-ID",
@@ -118,7 +111,7 @@ pub(super) fn method_owners(
             )
         })?;
         budget.text(host, item.span)?;
-        result.insert(host.to_owned(), modules[position].id);
+        result.insert(host.to_owned(), module);
     }
     Ok(result)
 }

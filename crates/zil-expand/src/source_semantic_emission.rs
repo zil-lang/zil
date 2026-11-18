@@ -42,7 +42,8 @@ struct Pending {
     injection: Option<Injection>,
     original_template: Option<u32>,
     instance: SemanticInstanceId,
-    creator: Option<NodeId>,
+    #[cfg(test)]
+    test_creator: Option<NodeId>,
     events: Vec<Event>,
 }
 #[derive(Default)]
@@ -52,7 +53,9 @@ pub(crate) struct Ledger {
     // still exact within the bucket; no type or recipe chooses an owner.
     emitted: Vec<((SemanticInstanceId, NodeId), Vec<Completed>)>,
     injection_payloads: Vec<(SemanticInstanceId, NodeId, NodeId, Injection)>,
-    owners: Vec<OriginalOwner>,
+    // Real instances use a single request-wide ordinal across modules. Body-free
+    // scopes leave vacant slots. Lookup additionally checks the actual module.
+    owners: Vec<Option<OriginalOwner>>,
     templates: Vec<OriginalTemplate>,
 }
 struct Completed {
@@ -93,6 +96,21 @@ fn deferred(
     })
 }
 impl Ledger {
+    fn owner(&self, instance: SemanticInstanceId) -> Option<&OriginalOwner> {
+        self.owners
+            .get(instance.index as usize)?
+            .as_ref()
+            .filter(|owner| owner.instance == instance)
+    }
+
+    fn creator(&self, pending: &Pending) -> Option<NodeId> {
+        #[cfg(test)]
+        if let Some(creator) = pending.test_creator {
+            return Some(creator);
+        }
+        self.owner(pending.instance)?.creator
+    }
+
     /// The complete actual mint log is available before its first event is
     /// consumed. Prebuild coordinates only; each token/creator/role still has
     /// to pass `take`, and every completed occurrence retains its own receipt.
@@ -137,7 +155,7 @@ impl Ledger {
                 .get(marker as usize)
                 .and_then(Option::as_ref)
                 .ok_or_else(|| unavailable("actual emission directory has no unconsumed token"))?;
-            if pending.creator != Some(creator) {
+            if self.creator(pending) != Some(creator) {
                 return Err(unavailable(
                     "actual emission directory changes its Core creator",
                 ));
@@ -267,7 +285,7 @@ impl Ledger {
                 .get(raw as usize)
                 .and_then(Option::as_ref)
                 .ok_or_else(|| unavailable("injection event is absent or consumed"))?;
-            if pending.creator.is_some() || pending.injection.is_some() {
+            if self.creator(pending).is_some() || pending.injection.is_some() {
                 return Err(unavailable("injection must precede actual Core emission"));
             }
             Self::validate_bundle(&pending.events, budget, span)?;
@@ -367,11 +385,14 @@ impl Ledger {
         let mut pending = self.entries[raw as usize]
             .take()
             .expect("checked pending injection");
-        let result_marker =
-            self.record_bundle_inner(pending.instance, pending.creator, result, budget, span)?;
+        let result_marker = self.record_bundle_inner(pending.instance, result, budget, span)?;
         let row = self.entries[result_marker.raw_index().unwrap() as usize]
             .as_mut()
             .expect("new result fragment");
+        #[cfg(test)]
+        {
+            row.test_creator = pending.test_creator;
+        }
         row.original_template = result_template;
         row.injection = Some(injection);
         let payload_marker = if payload.is_empty() {
@@ -491,7 +512,7 @@ impl Ledger {
         budget: &mut Budget<'_>,
         span: Span,
     ) -> R<s::SemanticContextMarker> {
-        budget.identity_work(self.owners.len().saturating_add(1), span)?;
+        budget.identity_work(1, span)?;
         let raw = marker
             .raw_index()
             .filter(|raw| raw & TEMPLATE != 0)
@@ -503,9 +524,7 @@ impl Ledger {
             .get((raw & !TEMPLATE) as usize)
             .ok_or_else(|| unavailable("semantic original occurrence is absent"))?;
         let owner = self
-            .owners
-            .iter()
-            .find(|owner| owner.instance == instance)
+            .owner(instance)
             .ok_or_else(|| unavailable("semantic specialization has no original owner"))?;
         if owner.definition != template.definition || owner.creator.is_some() {
             return Err(unavailable(
@@ -514,7 +533,7 @@ impl Ledger {
         }
         let events = Self::clone_events(&template.events, budget, span)?;
         let injection = Self::clone_injection(template.injection.as_ref(), budget, span)?;
-        let actual = self.record_original(instance, events, budget, span)?;
+        let actual = self.record_bundle_inner(instance, events, budget, span)?;
         let index = actual
             .raw_index()
             .ok_or_else(|| unavailable("actual semantic event lacks its minted token"))?;
@@ -590,31 +609,24 @@ impl Ledger {
         budget: &mut Budget<'_>,
         span: Span,
     ) -> R<()> {
-        budget.identity_work(self.owners.len().saturating_add(1), span)?;
-        if self.owners.iter().any(|owner| owner.instance == instance) {
+        budget.identity_work(1, span)?;
+        let index = instance.index as usize;
+        if self.owners.get(index).is_some_and(Option::is_some) {
             return Err(unavailable(
                 "semantic specialization owner is already registered",
             ));
         }
-        if self.owners.len() == self.owners.capacity() {
-            let growth = self.owners.capacity().max(4);
-            budget.lineage_bytes(
-                growth
-                    .checked_mul(std::mem::size_of::<OriginalOwner>())
-                    .ok_or_else(|| unavailable("semantic owner allocation overflow"))?,
-                span,
-            )?;
-            self.owners
-                .try_reserve_exact(growth)
-                .map_err(|_| unavailable("semantic owner allocation failed"))?;
+        while self.owners.len() <= index {
+            budget.lineage_push(&mut self.owners, None, span)?;
         }
-        self.owners.push(OriginalOwner {
+        self.owners[index] = Some(OriginalOwner {
             instance,
             definition,
             creator: None,
         });
         Ok(())
     }
+    #[cfg(test)]
     pub(crate) fn record_original(
         &mut self,
         instance: SemanticInstanceId,
@@ -622,11 +634,9 @@ impl Ledger {
         budget: &mut Budget<'_>,
         span: Span,
     ) -> R<s::SemanticContextMarker> {
-        budget.identity_work(self.owners.len().saturating_add(1), span)?;
+        budget.identity_work(1, span)?;
         let owner = self
-            .owners
-            .iter()
-            .find(|owner| owner.instance == instance)
+            .owner(instance)
             .ok_or_else(|| {
                 unavailable("semantic event has no actual original specialization owner")
             })?;
@@ -635,7 +645,7 @@ impl Ledger {
                 "original specialization cannot append events after Core emission began",
             ));
         }
-        self.record_bundle_inner(instance, None, events, budget, span)
+        self.record_bundle_inner(instance, events, budget, span)
     }
     /// Bind only at the actual CoreFunction mint, with the original identity
     /// carried by that same pending item. Neither a marker nor a source span
@@ -651,42 +661,23 @@ impl Ledger {
         budget: &mut Budget<'_>,
         span: Span,
     ) -> R<()> {
-        budget.identity_work(
-            self.owners
-                .len()
-                .saturating_add(self.entries.len())
-                .saturating_add(1),
-            span,
-        )?;
+        budget.identity_work(1, span)?;
         let owner = self
             .owners
-            .iter()
-            .position(|owner| owner.instance == instance)
+            .get_mut(instance.index as usize)
+            .and_then(Option::as_mut)
+            .filter(|owner| owner.instance == instance)
             .ok_or_else(|| {
                 unavailable("actual Core creator has no original specialization owner")
             })?;
-        if self.owners[owner].definition != definition || self.owners[owner].creator.is_some() {
+        if owner.definition != definition || owner.creator.is_some() {
             return Err(unavailable(
                 "actual Core creator reuses or changes its original specialization identity",
             ));
         }
-        if self
-            .entries
-            .iter()
-            .flatten()
-            .any(|pending| pending.instance == instance && pending.creator.is_some())
-        {
-            return Err(unavailable(
-                "original semantic event was bound before its actual creator",
-            ));
-        }
-        // Validate the complete update before publishing any creator binding.
-        self.owners[owner].creator = Some(creator);
-        for pending in self.entries.iter_mut().flatten() {
-            if pending.instance == instance {
-                pending.creator = Some(creator);
-            }
-        }
+        // Every pending production selects this exact registered owner. One
+        // actual mint binds the creator for all its separate production tokens.
+        owner.creator = Some(creator);
         Ok(())
     }
     #[cfg(test)]
@@ -722,12 +713,17 @@ impl Ledger {
         budget: &mut Budget<'_>,
         span: Span,
     ) -> R<s::SemanticContextMarker> {
-        self.record_bundle_inner(instance, Some(creator), events, budget, span)
+        let marker = self.record_bundle_inner(instance, events, budget, span)?;
+        let token = marker.raw_index().expect("new test production");
+        self.entries[token as usize]
+            .as_mut()
+            .expect("new test production")
+            .test_creator = Some(creator);
+        Ok(marker)
     }
     fn record_bundle_inner(
         &mut self,
         instance: SemanticInstanceId,
-        creator: Option<NodeId>,
         events: Vec<Event>,
         budget: &mut Budget<'_>,
         span: Span,
@@ -758,7 +754,8 @@ impl Ledger {
             injection: None,
             original_template: None,
             instance,
-            creator,
+            #[cfg(test)]
+            test_creator: None,
             events,
         }));
         Ok(s::SemanticContextMarker::untrusted(token))
@@ -785,7 +782,7 @@ impl Ledger {
             .ok_or_else(|| {
                 unavailable("source semantic production is absent or already consumed")
             })?;
-        if pending.instance != instance || pending.creator != Some(creator) {
+        if pending.instance != instance || self.creator(pending) != Some(creator) {
             return Err(unavailable(
                 "source semantic production belongs to another actual owner or role",
             ));
@@ -1097,7 +1094,7 @@ impl Ledger {
     }
     pub(crate) fn finish(&self, budget: &mut Budget<'_>, span: Span) -> R<()> {
         budget.identity_work(self.entries.len().saturating_add(self.owners.len()), span)?;
-        if self.owners.iter().any(|owner| owner.creator.is_none()) {
+        if self.owners.iter().flatten().any(|owner| owner.creator.is_none()) {
             return Err(unavailable(
                 "original specialization has no actual emitted Core creator",
             ));
@@ -1597,12 +1594,22 @@ mod tests {
             module: ModuleId(0),
             index: 7,
         };
+        let owner = instance(2);
+        let foreign_owner = SemanticInstanceId {
+            module: ModuleId(1),
+            ..owner
+        };
         ledger
-            .original_owner(instance(0), definition, &mut budget, Span::default())
+            .original_owner(owner, definition, &mut budget, Span::default())
             .unwrap();
+        assert!(
+            ledger
+                .bind_creator(foreign_owner, definition, NodeId(4), &mut budget, Span::default())
+                .is_err()
+        );
         let marker = ledger
             .record_original(
-                instance(0),
+                owner,
                 vec![event(
                     0,
                     SemanticEmissionRole::Ascription,
@@ -1616,7 +1623,7 @@ mod tests {
             ledger
                 .expression(
                     marker,
-                    instance(0),
+                    owner,
                     NodeId(4),
                     &tuple(),
                     0,
@@ -1628,7 +1635,7 @@ mod tests {
         assert!(
             ledger
                 .bind_creator(
-                    instance(0),
+                    owner,
                     SemanticDefinitionId {
                         index: 8,
                         ..definition
@@ -1641,7 +1648,7 @@ mod tests {
         );
         ledger
             .bind_creator(
-                instance(0),
+                owner,
                 definition,
                 NodeId(4),
                 &mut budget,
@@ -1651,7 +1658,7 @@ mod tests {
         assert!(
             ledger
                 .bind_creator(
-                    instance(0),
+                    owner,
                     definition,
                     NodeId(4),
                     &mut budget,
@@ -1662,7 +1669,7 @@ mod tests {
         ledger
             .expression(
                 marker,
-                instance(0),
+                owner,
                 NodeId(4),
                 &tuple(),
                 0,

@@ -261,41 +261,47 @@ pub(super) fn specialize(
     limits: &Limits,
     products: &mut generics::products::Products,
 ) -> CompileResult<Vec<(Module, Vec<CoreImport>)>> {
-    specialize_with_context(sources, modules, imports, limits, products, None)
-}
-pub(super) fn specialize_with_context(
-    sources: &[SourceUnit],
-    modules: &[&Module],
-    imports: &[Vec<CoreImport>],
-    limits: &Limits,
-    products: &mut generics::products::Products,
-    context: Option<super::source_context::SourceIdentityContext<'_>>,
-) -> CompileResult<Vec<(Module, Vec<CoreImport>)>> {
-    specialize_with_runtime(sources, modules, imports, limits, products, context, None)
-}
-pub(super) fn specialize_with_runtime(
-    sources: &[SourceUnit],
-    modules: &[&Module],
-    imports: &[Vec<CoreImport>],
-    limits: &Limits,
-    products: &mut generics::products::Products,
-    context: Option<super::source_context::SourceIdentityContext<'_>>,
-    runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
-) -> CompileResult<Vec<(Module, Vec<CoreImport>)>> {
-    normalize(
-        sources, modules, imports, limits, products, context, runtime_ct,
+    specialize_project(
+        sources,
+        ProjectSyntax::Borrowed(modules, None),
+        imports,
+        limits,
+        products,
+        None,
     )
-    .map_err(|e| vec![e])
 }
-fn normalize(
+
+pub(super) enum ProjectSyntax<'a> {
+    Borrowed(&'a [&'a Module], Option<&'a dyn crate::runtime_ct::RuntimeCt>),
+    Prepared(Vec<Module>),
+}
+
+pub(super) fn specialize_project(
     sources: &[SourceUnit],
-    modules: &[&Module],
+    syntax: ProjectSyntax<'_>,
     imports: &[Vec<CoreImport>],
     limits: &Limits,
     products: &mut generics::products::Products,
     context: Option<super::source_context::SourceIdentityContext<'_>>,
-    runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
+) -> CompileResult<Vec<(Module, Vec<CoreImport>)>> {
+    normalize(sources, syntax, imports, limits, products, context).map_err(|e| vec![e])
+}
+fn normalize<'a>(
+    sources: &[SourceUnit],
+    syntax: ProjectSyntax<'a>,
+    imports: &[Vec<CoreImport>],
+    limits: &Limits,
+    products: &mut generics::products::Products,
+    context: Option<super::source_context::SourceIdentityContext<'_>>,
 ) -> R<Vec<(Module, Vec<CoreImport>)>> {
+    let prepared;
+    let (modules, runtime_ct) = match &syntax {
+        ProjectSyntax::Borrowed(modules, runtime_ct) => (*modules, *runtime_ct),
+        ProjectSyntax::Prepared(modules) => {
+            prepared = modules.iter().collect::<Vec<_>>();
+            (prepared.as_slice(), None)
+        }
+    };
     let mut budget = Budget::new(limits);
     if runtime_ct.is_some() || products.semantic.is_some() {
         // Capture each real module while the complete original AST and its
@@ -310,7 +316,8 @@ fn normalize(
             "inconsistent project syntax inputs",
         ));
     }
-    // Bound borrowed inputs before cloning any syntax or symbol table.
+    // Prepared syntax has already been bounded by the semantic producer.
+    // Borrowed inputs need their complete preflight before any AST clone.
     for ((source, module), edges) in sources.iter().zip(modules).zip(imports) {
         budget.node(module.span, 0)?;
         if source.module_id != module.id || !module.span.is_valid_for(source) {
@@ -320,8 +327,10 @@ fn normalize(
                 "source and syntax module identities differ",
             ));
         }
-        for item in &module.items {
-            budget.item(item)?;
+        if matches!(&syntax, ProjectSyntax::Borrowed(..)) {
+            for item in &module.items {
+                budget.item(item)?;
+            }
         }
         for edge in edges {
             budget.node(edge.span, 0)?;
@@ -396,12 +405,12 @@ fn normalize(
         imports: BTreeMap::new(),
         const_parameters: BTreeMap::new(),
     };
-    let mut files = BTreeMap::<FileId, usize>::new();
+    let mut files = BTreeMap::<FileId, (usize, ModuleId)>::new();
     let mut functions = Functions::new();
     for (position, ((source, module), edges)) in
         sources.iter().zip(modules).zip(imports).enumerate()
     {
-        if files.insert(source.file_id, position).is_some()
+        if files.insert(source.file_id, (position, source.module_id)).is_some()
             || index.symbols.contains_key(&module.id)
         {
             return Err(error(
@@ -467,70 +476,101 @@ fn normalize(
         span: modules[0].span,
         items: Vec::new(),
     };
-    for module in modules {
+    let mut output = modules
+        .iter()
+        .zip(imports)
+        .map(|(m, i)| {
+            (
+                Module {
+                    id: m.id,
+                    span: m.span,
+                    items: Vec::new(),
+                },
+                i.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut append = |module: ModuleId, ordinal, source_item: Cow<'a, Item>| -> R<()> {
+        budget.node(source_item.span, 0)?;
+        if matches!(source_item.kind, ItemKind::Import(_)) {
+            return Ok(());
+        }
         let mut visitor = Visitor {
             default_nominal: None,
             const_scope: Names::new(),
             mode: Mode::Normalize(&index),
-            module: module.id,
+            module,
             budget: &mut budget,
         };
-        for (ordinal, source_item) in module.items.iter().enumerate() {
-            if matches!(source_item.kind, ItemKind::Import(_)) {
-                continue;
+        if runtime_ct.is_some()
+            && let Cow::Borrowed(source_item) = &source_item
+            && matches!(&source_item.kind, ItemKind::Aggregate(a) if !a.generics.is_empty() && !a.methods.is_empty())
+        {
+            let source_origin =
+                generics::origins::Origin::source(module, ordinal, source_item.span)?;
+            let row = origins
+                .as_ref()
+                .and_then(|origins| origins.identities.get(&source_origin.declaration))
+                .ok_or_else(|| {
+                    error(
+                        "E-SOURCE-IDENTITY",
+                        source_item.span,
+                        "CT namespace original input identity absent",
+                    )
+                })?;
+            generics::origins::pay_identity(&row.identity, visitor.budget, source_item.span)?;
+            generics::origins::pay_declaration_copy(row, visitor.budget, source_item.span)?;
+            visitor.budget.lineage_bytes(
+                (static_hosts.len() + 1) * std::mem::size_of::<StaticHostInput<'_>>(),
+                source_item.span,
+            )?;
+            static_hosts.reserve_exact(1);
+            static_hosts.push(StaticHostInput {
+                item: source_item,
+                definition: crate::runtime_ct::RuntimeDefinition {
+                    module,
+                    origin: row.clone(),
+                    member: None,
+                },
+            });
+        }
+        let mut item = source_item.into_owned();
+        visitor.item(&mut item, &Names::new(), true, 0)?;
+        if let ItemKind::Impl(implementation) = &item.kind
+            && trait_instances::head(&implementation.target)
+                .is_some_and(super::static_traits::scalar_self)
+            && let Some(name) = implementation
+                .trait_type
+                .as_ref()
+                .and_then(trait_instances::head)
+        {
+            visitor.budget.text(name, item.span)?;
+            visitor.budget.node(item.span, 0)?;
+            scalar_traits.insert(name.to_owned());
+        }
+        if let Some(origins) = &mut origins {
+            visitor.budget.node(item.span, 0)?;
+            origins.entries.push(generics::origins::Origin::source(
+                module, ordinal, item.span,
+            )?);
+        }
+        combined.items.push(item);
+        Ok(())
+    };
+    match syntax {
+        ProjectSyntax::Borrowed(modules, _) => {
+            for module in modules {
+                for (ordinal, item) in module.items.iter().enumerate() {
+                    append(module.id, ordinal, Cow::Borrowed(item))?;
+                }
             }
-            if runtime_ct.is_some()
-                && matches!(&source_item.kind, ItemKind::Aggregate(a) if !a.generics.is_empty() && !a.methods.is_empty())
-            {
-                let source_origin =
-                    generics::origins::Origin::source(module.id, ordinal, source_item.span)?;
-                let row = origins
-                    .as_ref()
-                    .and_then(|origins| origins.identities.get(&source_origin.declaration))
-                    .ok_or_else(|| {
-                        error(
-                            "E-SOURCE-IDENTITY",
-                            source_item.span,
-                            "CT namespace original input identity absent",
-                        )
-                    })?;
-                generics::origins::pay_identity(&row.identity, visitor.budget, source_item.span)?;
-                generics::origins::pay_declaration_copy(row, visitor.budget, source_item.span)?;
-                visitor.budget.lineage_bytes(
-                    (static_hosts.len() + 1) * std::mem::size_of::<StaticHostInput<'_>>(),
-                    source_item.span,
-                )?;
-                static_hosts.reserve_exact(1);
-                static_hosts.push(StaticHostInput {
-                    item: source_item,
-                    definition: crate::runtime_ct::RuntimeDefinition {
-                        module: module.id,
-                        origin: row.clone(),
-                        member: None,
-                    },
-                });
+        }
+        ProjectSyntax::Prepared(modules) => {
+            for module in modules {
+                for (ordinal, item) in module.items.into_iter().enumerate() {
+                    append(module.id, ordinal, Cow::Owned(item))?;
+                }
             }
-            let mut item = source_item.clone();
-            visitor.item(&mut item, &Names::new(), true, 0)?;
-            if let ItemKind::Impl(implementation) = &item.kind
-                && trait_instances::head(&implementation.target)
-                    .is_some_and(super::static_traits::scalar_self)
-                && let Some(name) = implementation
-                    .trait_type
-                    .as_ref()
-                    .and_then(trait_instances::head)
-            {
-                visitor.budget.text(name, item.span)?;
-                visitor.budget.node(item.span, 0)?;
-                scalar_traits.insert(name.to_owned());
-            }
-            if let Some(origins) = &mut origins {
-                visitor.budget.node(item.span, 0)?;
-                origins.entries.push(generics::origins::Origin::source(
-                    module.id, ordinal, item.span,
-                )?);
-            }
-            combined.items.push(item);
         }
     }
     let mut has_trait_instances = false;
@@ -607,30 +647,16 @@ fn normalize(
     if has_trait_instances && let Some(remaining) = &products.allowance {
         budget.adopt_profiled_remaining(remaining, products.cost_profile.take());
     }
-    let mut output = modules
-        .iter()
-        .zip(imports)
-        .map(|(m, i)| {
-            (
-                Module {
-                    id: m.id,
-                    span: m.span,
-                    items: Vec::new(),
-                },
-                i.clone(),
-            )
-        })
-        .collect::<Vec<_>>();
     let mut has_project_trait_impl = false;
     let mut positions = Vec::new();
     let mut static_impls = Vec::new();
     for (ordinal, item) in specialized.items.iter().enumerate() {
-        budget.item(item)?;
+        budget.node(item.span, 0)?;
         let position = if let Some(origins) = &products.origins {
             budget.node(item.span, 0)?;
             let owner = origins.get(ordinal, item.span)?.declaration.module;
             let mut position = None;
-            for (index, module) in modules.iter().enumerate() {
+            for (index, (module, _)) in output.iter().enumerate() {
                 budget.node(item.span, 0)?;
                 if module.id == owner {
                     position = Some(index);
@@ -645,42 +671,56 @@ fn normalize(
                 )
             })?
         } else {
-            *files.get(&item.span.file).ok_or_else(|| {
-                error(
-                    "E-MODULE-ID",
-                    item.span,
-                    "instantiated declaration lost its definition source",
-                )
-            })?
+            files
+                .get(&item.span.file)
+                .ok_or_else(|| {
+                    error(
+                        "E-MODULE-ID",
+                        item.span,
+                        "instantiated declaration lost its definition source",
+                    )
+                })?
+                .0
         };
         if products.origins.is_some() {
             budget.node(item.span, 0)?;
             positions.push(position);
         }
-        has_project_trait_impl |= project_traits::is_external_impl(item, modules[position].id);
+        let owner = output[position].0.id;
         if let ItemKind::Function(f) = &item.kind {
             // An instance stays in its template's defining module. Publicness
             // is inherited from that declaration, never from the consumer.
-            functions.entry(f.name.clone()).or_insert((
-                modules[position].id,
-                f.name.clone(),
-                false,
-            ));
+            budget.text(&f.name, item.span)?;
+            functions
+                .entry(f.name.clone())
+                .or_insert_with(|| (owner, f.name.clone(), false));
         }
         if let ItemKind::Impl(implementation) = &item.kind
             && let Some(trait_name) = implementation
                 .trait_type
                 .as_ref()
                 .and_then(trait_instances::head)
-            && let Some(static_members) = static_trait_methods.get(trait_name)
-            && implementation.members.iter().any(|member| {
-                matches!(&member.kind,
-                ItemKind::Function(method) if method.generics.is_empty()
-                    && static_members.contains(&method.name))
-            })
         {
-            budget.lineage_bytes(std::mem::size_of::<(&Item, ModuleId)>(), item.span)?;
-            static_impls.push((item, modules[position].id));
+            budget.text(trait_name, item.span)?;
+            has_project_trait_impl |= project_traits::is_external_impl(trait_name, owner);
+            if let Some(static_members) = static_trait_methods.get(trait_name) {
+                for member in &implementation.members {
+                    budget.node(member.span, 0)?;
+                    if let ItemKind::Function(method) = &member.kind
+                        && method.generics.is_empty()
+                    {
+                        budget.text(&method.name, member.span)?;
+                        if static_members.contains(&method.name) {
+                            budget.lineage_bytes(
+                                std::mem::size_of::<(&Item, ModuleId)>(),
+                                item.span,
+                            )?;
+                            static_impls.push((item, owner));
+                            break;
+                        }
+                    }
+                }
+            }
         }
     }
     if !static_impls.is_empty() {
@@ -755,19 +795,17 @@ fn normalize(
         }
     }
     let method_owners = if has_project_trait_impl {
-        project_traits::method_owners(&specialized, modules, &files, &mut budget)?
+        project_traits::method_owners(&specialized, &files, &mut budget)?
     } else {
         BTreeMap::new()
     };
-    // All source identities, budget visits and project-method checks above
-    // retain their original order. No fallible check depends on the copies;
-    // transfer each declaration only after those checks have succeeded.
+    // Transfer each declaration after its owner and project methods are known.
     let mut signature_candidates = std::mem::take(&mut products.storage.signature_candidates);
     for (ordinal, item) in specialized.items.into_iter().enumerate() {
         let position = if products.origins.is_some() {
             positions[ordinal]
         } else {
-            files[&item.span.file]
+            files[&item.span.file].0
         };
         if let Some(origins) = &mut products.origins
             && !origins.identities.is_empty()

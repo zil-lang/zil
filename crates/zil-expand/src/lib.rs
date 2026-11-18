@@ -620,7 +620,13 @@ pub fn expand_program_with_limits_target(
     target: &zil_base::TargetProfile,
 ) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
     expand_program_with_limits_target_impl(
-        sources, syntax, imports, limits, target, None, None, None,
+        sources,
+        modules::ProjectSyntax::Borrowed(syntax, None),
+        imports,
+        limits,
+        target,
+        None,
+        None,
     )
 }
 /// The snapshot mode requires the complete original closed request. Explicit
@@ -635,12 +641,11 @@ pub fn expand_program_with_limits_target_context(
 ) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
     expand_program_with_limits_target_impl(
         sources,
-        syntax,
+        modules::ProjectSyntax::Borrowed(syntax, None),
         imports,
         limits,
         target,
         Some(context),
-        None,
         None,
     )
 }
@@ -662,12 +667,11 @@ pub fn expand_program_with_runtime_ct(
     let refs = prepared.iter().collect::<Vec<_>>();
     expand_program_with_limits_target_impl(
         sources,
-        &refs,
+        modules::ProjectSyntax::Borrowed(&refs, Some(runtime_ct)),
         imports,
         &remaining,
         target,
         Some(context),
-        Some(runtime_ct),
         Some(program),
     )
 }
@@ -685,15 +689,13 @@ pub fn expand_program_with_semantics(
         source_context::capture_original_required(sources, syntax, context, limits)?;
     let (prepared, program) =
         source_semantics::program::prepare(syntax, &origins, imports, &mut remaining)?;
-    let refs = prepared.iter().collect::<Vec<_>>();
     expand_program_with_limits_target_impl(
         sources,
-        &refs,
+        modules::ProjectSyntax::Prepared(prepared),
         imports,
         &remaining,
         target,
         Some(context),
-        None,
         Some(program),
     )
 }
@@ -745,30 +747,18 @@ pub fn expand_with_map_semantics(
 
 fn expand_program_with_limits_target_impl(
     sources: &[SourceUnit],
-    syntax: &[&s::Module],
+    syntax: modules::ProjectSyntax<'_>,
     imports: &[Vec<CoreImport>],
     limits: &Limits,
     target: &zil_base::TargetProfile,
     context: Option<source_context::SourceIdentityContext<'_>>,
-    runtime_ct: Option<&dyn runtime_ct::RuntimeCt>,
     semantic: Option<source_semantics::program::Program>,
 ) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
     let mut products = generics::products::Products::default();
     products.semantic = semantic;
     products.target_pointer_width = Some(target.pointer_width);
-    let specialized = if let Some(runtime_ct) = runtime_ct {
-        modules::specialize_with_runtime(
-            sources,
-            syntax,
-            imports,
-            limits,
-            &mut products,
-            context,
-            Some(runtime_ct),
-        )?
-    } else {
-        modules::specialize_with_context(sources, syntax, imports, limits, &mut products, context)?
-    };
+    let specialized =
+        modules::specialize_project(sources, syntax, imports, limits, &mut products, context)?;
     let project_modules: Vec<_> = specialized.iter().map(|(module, _)| module).collect();
     let declarations = declaration_index(project_modules.iter().copied());
     let mut result = Vec::new();
@@ -943,14 +933,14 @@ fn expand_program_with_limits_target_impl(
             expanded.source_map,
         ));
     }
+    if products.metered() {
+        products.allowance = Some(remaining);
+    }
     products.consume_semantic_nodes(&result, limits)?;
     let mut product_cores = result
         .iter_mut()
         .map(|(module, map)| (&mut module.core, map))
         .collect::<Vec<_>>();
-    if products.metered() {
-        products.allowance = Some(remaining);
-    }
     products.finish_closure_contexts(limits)?;
     products.finish_callable_contexts(limits)?;
     products.publish(&mut product_cores, sources, limits)?;

@@ -92,6 +92,27 @@ fn inferred(request: Request, count: usize, budget: &mut Budget<'_>) -> R<Vec<Se
     }
     Ok(output)
 }
+
+fn reserve_rows<T>(rows: &mut Vec<T>, extra: usize, budget: &mut Budget<'_>) -> R<()> {
+    let span = Span::default();
+    let required = rows
+        .len()
+        .checked_add(extra)
+        .ok_or_else(|| error(span, "specialization output count overflow"))?;
+    if required > rows.capacity() {
+        budget.identity_work(rows.len(), span)?;
+        budget.lineage_bytes(
+            required
+                .checked_mul(std::mem::size_of::<T>())
+                .ok_or_else(|| error(span, "specialization output allocation overflow"))?,
+            span,
+        )?;
+        rows.try_reserve_exact(extra)
+            .map_err(|_| error(span, "specialization output allocation failed"))?;
+    }
+    Ok(())
+}
+
 pub(super) fn expand(
     modules: &mut [(ModuleId, SemanticModule)],
     requests: &[Request],
@@ -100,12 +121,18 @@ pub(super) fn expand(
     budget: &mut Budget<'_>,
 ) -> R<()> {
     let span = Span::default();
+    if pending.is_empty() && requests.is_empty() {
+        return Ok(());
+    }
+    // The source rows keep their positions throughout publication. Only a
+    // repeated activation needs to copy their complete recipes.
     struct Prototype {
         base: SemanticInstanceId,
+        root: (usize, usize),
         count: usize,
         descendants: BTreeSet<SemanticInstanceId>,
-        instances: Vec<SemanticInstance>,
-        sites: Vec<SemanticSite>,
+        instances: Vec<(usize, usize)>,
+        sites: Vec<(usize, usize)>,
         calls: Vec<Request>,
         used: bool,
     }
@@ -151,19 +178,27 @@ pub(super) fn expand(
         let mut instances = Vec::new();
         let mut sites = Vec::new();
         let mut calls = Vec::new();
-        for (_, module) in modules.iter() {
-            for row in &module.instances {
+        let mut root = None;
+        for (module_index, (module_id, module)) in modules.iter().enumerate() {
+            for (index, row) in module.instances.iter().enumerate() {
                 budget.node(span, 0)?;
                 if descendants.contains(&row.id) {
-                    prepay_recipe(row, budget, span, 0)?;
-                    push(&mut instances, row.clone(), budget)?;
+                    if row.id.module != *module_id {
+                        return Err(error(span, "specialization prototype has another owner module"));
+                    }
+                    if row.id == *base && root.replace((module_index, index)).is_some() {
+                        return Err(error(span, "actual specialization prototype is ambiguous"));
+                    }
+                    push(&mut instances, (module_index, index), budget)?;
                 }
             }
-            for row in &module.sites {
+            for (index, row) in module.sites.iter().enumerate() {
                 budget.node(span, 0)?;
                 if descendants.contains(&row.instance) {
-                    prepay_recipe(row, budget, span, 0)?;
-                    push(&mut sites, row.clone(), budget)?;
+                    if row.instance.module != *module_id {
+                        return Err(error(span, "specialization operation has another owner module"));
+                    }
+                    push(&mut sites, (module_index, index), budget)?;
                 }
             }
         }
@@ -190,6 +225,7 @@ pub(super) fn expand(
             &mut prototypes,
             Prototype {
                 base: *base,
+                root: root.ok_or_else(|| error(span, "actual call target has no Source instance"))?,
                 count: *count,
                 descendants,
                 instances,
@@ -202,7 +238,12 @@ pub(super) fn expand(
     }
     struct Activation {
         request: Request,
-        ancestry: Vec<SemanticInstanceId>,
+        parent: Option<usize>,
+    }
+    struct Publication {
+        request: Request,
+        prototype: usize,
+        copies: Option<BTreeMap<SemanticInstanceId, SemanticInstanceId>>,
     }
     let mut queue = Vec::new();
     for request in requests {
@@ -212,13 +253,20 @@ pub(super) fn expand(
                 &mut queue,
                 Activation {
                     request: *request,
-                    ancestry: Vec::new(),
+                    parent: None,
                 },
                 budget,
             )?;
         }
     }
     let mut seen = BTreeSet::new();
+    let mut publications = Vec::new();
+    let mut extra_rows = Vec::new();
+    reserve_rows(&mut extra_rows, modules.len(), budget)?;
+    for _ in modules.iter() {
+        budget.node(span, 0)?;
+        extra_rows.push((0usize, 0usize));
+    }
     let mut cursor = 0;
     while cursor < queue.len() {
         budget.node(span, 0)?;
@@ -231,11 +279,16 @@ pub(super) fn expand(
             )
         })?;
         let prototype = &mut prototypes[index];
-        if activation.ancestry.contains(&prototype.base) {
-            return Err(unsupported(
-                span,
-                "cyclic actual specialization request graph",
-            ));
+        let mut ancestor = activation.parent;
+        while let Some(index) = ancestor {
+            budget.identity_work(1, span)?;
+            if queue[index].request.callee == prototype.base {
+                return Err(unsupported(
+                    span,
+                    "cyclic actual specialization request graph",
+                ));
+            }
+            ancestor = queue[index].parent;
         }
         budget.lineage_bytes(
             12 * std::mem::size_of::<(SemanticInstanceId, SemanticSiteId, SemanticInstanceId)>(),
@@ -245,21 +298,9 @@ pub(super) fn expand(
             cursor += 1;
             continue;
         }
-        budget.lineage_bytes(
-            activation
-                .ancestry
-                .len()
-                .checked_mul(std::mem::size_of::<SemanticInstanceId>())
-                .ok_or_else(|| error(span, "specialization ancestry allocation overflow"))?,
-            span,
-        )?;
-        let mut ancestry = activation.ancestry.clone();
-        push(&mut ancestry, prototype.base, budget)?;
-        let mut map = BTreeMap::new();
-        for old in &prototype.descendants {
-            let id = if !prototype.used {
-                *old
-            } else {
+        let copies = if prototype.used {
+            let mut map = BTreeMap::new();
+            for old in &prototype.descendants {
                 let id = SemanticInstanceId {
                     module: old.module,
                     index: *next,
@@ -267,58 +308,33 @@ pub(super) fn expand(
                 *next = next
                     .checked_add(1)
                     .ok_or_else(|| error(span, "call request instance namespace exhausted"))?;
-                id
-            };
-            budget.lineage_bytes(
-                12 * std::mem::size_of::<(SemanticInstanceId, SemanticInstanceId)>(),
-                span,
-            )?;
-            map.insert(*old, id);
-        }
-        if !prototype.used {
-            let row = modules
-                .iter_mut()
-                .flat_map(|(_, m)| &mut m.instances)
-                .find(|row| row.id == prototype.base)
-                .ok_or_else(|| error(span, "actual call target has no Source instance"))?;
-            row.actuals = inferred(request, prototype.count, budget)?;
+                budget.lineage_bytes(
+                    12 * std::mem::size_of::<(SemanticInstanceId, SemanticInstanceId)>(),
+                    span,
+                )?;
+                map.insert(*old, id);
+            }
+            for (module, _) in &prototype.instances {
+                budget.identity_work(1, span)?;
+                extra_rows[*module].0 = extra_rows[*module].0.checked_add(1)
+                    .ok_or_else(|| error(span, "specialization instance count overflow"))?;
+            }
+            for (module, _) in &prototype.sites {
+                budget.identity_work(1, span)?;
+                extra_rows[*module].1 = extra_rows[*module].1.checked_add(1)
+                    .ok_or_else(|| error(span, "specialization operation count overflow"))?;
+            }
+            Some(map)
         } else {
-            for original in &prototype.instances {
-                prepay_recipe(original, budget, span, 0)?;
-                let mut row = original.clone();
-                instance(&mut row, &map);
-                if original.id == prototype.base {
-                    row.actuals = inferred(request, prototype.count, budget)?;
-                }
-                let module = modules
-                    .iter_mut()
-                    .find(|(id, _)| *id == row.id.module)
-                    .ok_or_else(|| error(span, "call request target module is absent"))?;
-                push(&mut module.1.instances, row, budget)?;
-            }
-            for original in &prototype.sites {
-                prepay_recipe(original, budget, span, 0)?;
-                let mut row = original.clone();
-                site(&mut row, &map);
-                let module = modules
-                    .iter_mut()
-                    .find(|(id, _)| *id == row.instance.module)
-                    .ok_or_else(|| error(span, "call request operation module is absent"))?;
-                push(&mut module.1.sites, row, budget)?;
-            }
-        }
+            None
+        };
         prototype.used = true;
         for dependency in &prototype.calls {
-            let caller = *map
-                .get(&dependency.caller)
-                .ok_or_else(|| error(span, "nested call request lost its actual caller owner"))?;
-            budget.lineage_bytes(
-                ancestry
-                    .len()
-                    .checked_mul(std::mem::size_of::<SemanticInstanceId>())
-                    .ok_or_else(|| error(span, "nested specialization ancestry overflow"))?,
-                span,
-            )?;
+            let caller = match &copies {
+                Some(map) => *map.get(&dependency.caller)
+                    .ok_or_else(|| error(span, "nested call request lost its actual caller owner"))?,
+                None => dependency.caller,
+            };
             push(
                 &mut queue,
                 Activation {
@@ -327,11 +343,16 @@ pub(super) fn expand(
                         call: dependency.call,
                         callee: dependency.callee,
                     },
-                    ancestry: ancestry.clone(),
+                    parent: Some(cursor),
                 },
                 budget,
             )?;
         }
+        push(
+            &mut publications,
+            Publication { request, prototype: index, copies },
+            budget,
+        )?;
         cursor += 1;
     }
     if prototypes.iter().any(|row| !row.used) {
@@ -339,6 +360,47 @@ pub(super) fn expand(
             span,
             "specialized Core function or lexical scope has no actual original call request",
         ));
+    }
+    for ((_, module), (instances, sites)) in modules.iter_mut().zip(extra_rows) {
+        reserve_rows(&mut module.instances, instances, budget)?;
+        reserve_rows(&mut module.sites, sites, budget)?;
+    }
+    for publication in &publications {
+        budget.node(span, 0)?;
+        let Some(map) = &publication.copies else {
+            continue;
+        };
+        let prototype = &prototypes[publication.prototype];
+        for &(module, index) in &prototype.instances {
+            let original = &modules[module].1.instances[index];
+            prepay_recipe(original, budget, span, 0)?;
+            let mut row = original.clone();
+            instance(&mut row, map);
+            if original.id == prototype.base {
+                row.actuals = inferred(publication.request, prototype.count, budget)?;
+            }
+            budget.node(span, 0)?;
+            modules[module].1.instances.push(row);
+        }
+        for &(module, index) in &prototype.sites {
+            let original = &modules[module].1.sites[index];
+            prepay_recipe(original, budget, span, 0)?;
+            let mut row = original.clone();
+            site(&mut row, map);
+            budget.node(span, 0)?;
+            modules[module].1.sites.push(row);
+        }
+    }
+    // The first activation keeps the actual root identity. Publish these
+    // substitutions after copying so no clone reads another request's actuals.
+    for publication in publications {
+        budget.node(span, 0)?;
+        if publication.copies.is_none() {
+            let prototype = &prototypes[publication.prototype];
+            let (module, index) = prototype.root;
+            modules[module].1.instances[index].actuals =
+                inferred(publication.request, prototype.count, budget)?;
+        }
     }
     Ok(())
 }

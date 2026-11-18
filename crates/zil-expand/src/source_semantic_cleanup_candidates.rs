@@ -156,10 +156,26 @@ struct Walk<'a, 'b, 'l> {
     early_body_cleanup: Cleanup,
     prepared: Cleanup,
     prepared_values: Vec<Value<'a>>,
+    prepared_base: usize,
     bodies: &'b mut [bool],
     budget: &'b mut Budget<'l>,
 }
 type Env<'a> = Vec<(&'a str, Value<'a>)>;
+
+fn copy_rows<T>(count: usize, budget: &mut Budget<'_>) -> R<Vec<T>> {
+    let span = Span::default();
+    budget.lineage_bytes(
+        count
+            .checked_mul(std::mem::size_of::<T>())
+            .ok_or_else(|| error(span, "cleanup snapshot allocation overflow"))?,
+        span,
+    )?;
+    let mut rows = Vec::new();
+    rows.try_reserve_exact(count)
+        .map_err(|_| error(span, "cleanup snapshot allocation failed"))?;
+    Ok(rows)
+}
+
 impl<'a> Walk<'a, '_, '_> {
     fn copy(&mut self, value: &Value<'a>, depth: usize) -> R<Value<'a>> {
         self.budget.node(Span::default(), depth)?;
@@ -213,50 +229,47 @@ impl<'a> Walk<'a, '_, '_> {
                 ready: *ready,
             },
             Value::Alternatives(fields) => {
-                let mut result = Vec::new();
-                for field in fields {
-                    let value = self.copy(field, depth + 1)?;
-                    self.budget
-                        .lineage_push(&mut result, value, Span::default())?;
-                }
-                Value::Alternatives(result)
+                Value::Alternatives(self.copy_values(fields, depth + 1)?)
             }
             Value::Tuple(fields) => {
-                let mut result = Vec::new();
-                for field in fields {
-                    let value = self.copy(field, depth + 1)?;
-                    self.budget
-                        .lineage_push(&mut result, value, Span::default())?;
-                }
-                Value::Tuple(result)
+                Value::Tuple(self.copy_values(fields, depth + 1)?)
             }
             Value::Record(fields) => {
-                let mut result = Vec::new();
+                let mut result = copy_rows(fields.len(), self.budget)?;
                 for (name, field) in fields {
                     let value = self.copy(field, depth + 1)?;
-                    self.budget
-                        .lineage_push(&mut result, (*name, value), Span::default())?;
+                    self.budget.node(Span::default(), 0)?;
+                    result.push((*name, value));
                 }
                 Value::Record(result)
             }
         })
     }
+    fn copy_values(&mut self, values: &[Value<'a>], depth: usize) -> R<Vec<Value<'a>>> {
+        let mut result = copy_rows(values.len(), self.budget)?;
+        for value in values {
+            let value = self.copy(value, depth)?;
+            self.budget.node(Span::default(), 0)?;
+            result.push(value);
+        }
+        Ok(result)
+    }
     fn env_copy(&mut self, env: &Env<'a>, depth: usize) -> R<Env<'a>> {
-        let mut result = Vec::new();
+        let mut result = copy_rows(env.len(), self.budget)?;
         for (name, value) in env {
             let value = self.copy(value, depth + 1)?;
-            self.budget
-                .lineage_push(&mut result, (*name, value), Span::default())?;
+            self.budget.node(Span::default(), 0)?;
+            result.push((*name, value));
         }
         Ok(result)
     }
     fn place_copy(&mut self, place: &Place<'a>, depth: usize) -> R<Place<'a>> {
         self.budget.node(Span::default(), depth)?;
-        let mut fields = Vec::new();
+        let mut fields = copy_rows(place.fields.len(), self.budget)?;
         for field in &place.fields {
             self.budget.text(field, Span::default())?;
-            self.budget
-                .lineage_push(&mut fields, *field, Span::default())?;
+            self.budget.node(Span::default(), 0)?;
+            fields.push(*field);
         }
         Ok(Place {
             owner: place.owner,
@@ -439,7 +452,7 @@ impl<'a> Walk<'a, '_, '_> {
         }
         // Earlier fields/arguments are real operands even before they have a
         // lexical binding. A later operand cannot revive their old Poll fact.
-        for value in &mut self.prepared_values {
+        for value in &mut self.prepared_values[self.prepared_base..] {
             Self::invalidate_value(self.budget, value, place, depth + 1)?;
         }
         Ok(())
@@ -504,6 +517,17 @@ impl<'a> Walk<'a, '_, '_> {
         self.budget.lineage_bytes(bytes, span)?;
         Ok(self.prepared_values.split_off(base))
     }
+    fn enter_operand_frame(&mut self) -> (Cleanup, usize) {
+        (
+            std::mem::replace(&mut self.prepared, Cleanup::NONE),
+            std::mem::replace(&mut self.prepared_base, self.prepared_values.len()),
+        )
+    }
+    fn leave_operand_frame(&mut self, (prepared, base): (Cleanup, usize)) {
+        self.prepared_values.truncate(self.prepared_base);
+        self.prepared_base = base;
+        self.prepared = prepared;
+    }
     fn refine_ready(
         &mut self,
         owner: usize,
@@ -540,6 +564,9 @@ impl<'a> Walk<'a, '_, '_> {
         value: &Value<'a>,
         depth: usize,
     ) -> R<ReadyCleanup> {
+        if !matches!(value, Value::Poll(_)) {
+            return Ok(ReadyCleanup::Unknown);
+        }
         let mut ready = self.env_copy(env, depth + 1)?;
         if self.refine_ready(owner, &mut ready, value, depth + 1)? {
             Ok(ReadyCleanup::Known(self.residual(&ready, depth + 1)?))
@@ -1535,15 +1562,14 @@ impl<'a> Walk<'a, '_, '_> {
         // Publication always uses the declaration Gamma. A separate replay
         // of the same original return/capture operations may transport actual
         // birth candidates, but its publish flag is sealed off above.
-        let frames = std::mem::take(&mut self.frames);
+        let frames = self.frames.len();
         let context = self.context.take();
         let execution = std::mem::replace(&mut self.execution, false);
         let known_execution = std::mem::replace(&mut self.known_execution, false);
         let held = self.held_captures;
         let early = std::mem::replace(&mut self.early_cleanup, Cleanup::NONE);
         let early_body = std::mem::replace(&mut self.early_body_cleanup, Cleanup::NONE);
-        let prepared = std::mem::replace(&mut self.prepared, Cleanup::NONE);
-        let operands = std::mem::take(&mut self.prepared_values);
+        let operands = self.enter_operand_frame();
         let mut env = Vec::new();
         for slot in &definition.environment {
             if let SemanticActualRecipe::Type(
@@ -1586,19 +1612,14 @@ impl<'a> Walk<'a, '_, '_> {
         self.active.pop();
         self.publish = publish;
         self.shutdown = shutdown;
-        self.budget
-            .drop_lineage_vec(std::mem::replace(&mut self.frames, frames), Span::default())?;
+        self.frames.truncate(frames);
         self.context = context;
         self.execution = execution;
         self.known_execution = known_execution;
         self.held_captures = held;
         self.early_cleanup = early;
         self.early_body_cleanup = early_body;
-        self.prepared = prepared;
-        self.budget.drop_lineage_vec(
-            std::mem::replace(&mut self.prepared_values, operands),
-            Span::default(),
-        )?;
+        self.leave_operand_frame(operands);
         Ok(flow)
     }
     fn function_result(&mut self, owner: usize, depth: usize) -> R<Value<'a>> {
@@ -1974,13 +1995,13 @@ impl<'a> Walk<'a, '_, '_> {
                     self.transfer(owner, env, field, &value, depth + 1)?;
                     self.park(value, true, field.span, depth + 1)?;
                 }
-                let operands = self.unpark(base, expression.span)?;
-                self.prepared = prepared;
-                let mut values = Vec::new();
+                let mut values = copy_rows(fields.len(), self.budget)?;
+                let operands = self.prepared_values.drain(base..);
                 for ((name, field), value) in fields.iter().zip(operands) {
-                    self.budget
-                        .lineage_push(&mut values, (name.as_str(), value), field.span)?;
+                    self.budget.node(field.span, 0)?;
+                    values.push((name.as_str(), value));
                 }
+                self.prepared = prepared;
                 Value::Record(values)
             }
             E::Call { callee, arguments } => {
@@ -2098,13 +2119,9 @@ impl<'a> Walk<'a, '_, '_> {
                 if let Some(place) = &primitive_place {
                     self.invalidate(env, place, depth + 1)?;
                 }
-                let mut operands = self.unpark(base, expression.span)?.into_iter();
-                let mut callable = operands.next().expect("prepared original callee");
-                let mut inputs = Vec::new();
-                for value in operands {
-                    self.budget
-                        .lineage_push(&mut inputs, value, expression.span)?;
-                }
+                self.budget.identity_work(arguments.len(), expression.span)?;
+                let mut callable = self.prepared_values.remove(base);
+                let inputs = self.unpark(base, expression.span)?;
                 self.prepared = saved_prepared;
                 // A stored non-consuming receiver is read after all argument
                 // effects. Its pre-argument clone cannot supply later state.
@@ -2384,8 +2401,7 @@ impl<'a> Walk<'a, '_, '_> {
                 let known_execution = std::mem::replace(&mut self.known_execution, false);
                 let early = std::mem::replace(&mut self.early_cleanup, Cleanup::NONE);
                 let early_body = std::mem::replace(&mut self.early_body_cleanup, Cleanup::NONE);
-                let prepared = std::mem::replace(&mut self.prepared, Cleanup::NONE);
-                let operands = std::mem::take(&mut self.prepared_values);
+                let operands = self.enter_operand_frame();
                 let mut flow = self.block(child, &mut captured, body, depth + 1)?;
                 flow.cleanup |= self.early_cleanup;
                 flow.body_cleanup |= self.early_body_cleanup;
@@ -2409,11 +2425,7 @@ impl<'a> Walk<'a, '_, '_> {
                 self.held_captures = held;
                 self.early_cleanup = early;
                 self.early_body_cleanup = early_body;
-                self.prepared = prepared;
-                self.budget.drop_lineage_vec(
-                    std::mem::replace(&mut self.prepared_values, operands),
-                    expression.span,
-                )?;
+                self.leave_operand_frame(operands);
                 Value::Callable {
                     definition: Some(child),
                     scope: child,
@@ -3112,6 +3124,7 @@ fn propose_inner(
                 early_body_cleanup: Cleanup::NONE,
                 prepared: Cleanup::NONE,
                 prepared_values: Vec::new(),
+                prepared_base: 0,
                 bodies: &mut bodies,
                 budget: &mut *budget,
             };
