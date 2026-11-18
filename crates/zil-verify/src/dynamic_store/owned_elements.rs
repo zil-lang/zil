@@ -175,6 +175,23 @@ mod tests {
     }
 
     #[test]
+    fn standalone_store_element_requires_the_exact_complete_owner() {
+        let (module, _) = request(Type::I32);
+        let ticket = ticket("TicketA");
+        let owner = Type::Managed(Box::new(ticket.clone()));
+        let mut budget = Budget::new(&Limits::default());
+        assert!(!budget.nested_store_windows);
+        check_store_element(&module, &owner, None, &mut budget).unwrap();
+        assert!(check_element(&module, &owner, None, &mut budget).is_err());
+        assert!(check_store_element(&module, &Type::Desc(Box::new(ticket)), None, &mut budget).is_err());
+
+        let mut missing = module;
+        missing.resources.retain(|resource| resource.name != "TicketA");
+        let mut budget = Budget::new(&Limits::default());
+        assert!(check_store_element(&missing, &owner, None, &mut budget).is_err());
+    }
+
+    #[test]
     fn complete_direct_and_package_owner_elements_require_every_actual_resource_raw_wire() {
         let user = Type::Managed(Box::new(ticket("TicketA")));
         let drain = Type::Package {

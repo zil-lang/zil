@@ -617,7 +617,11 @@ fn check_element_admission_cold(
         return check_pod_element(element, &module.target, span, budget);
     }
     resources::charge_payload(element, budget)?;
-    if budget.nested_store_windows && owned_elements::candidate(element, budget)? {
+    // A standalone StoreElement obligation can name a complete direct
+    // owner even when this module never opens a nested Store window.
+    if (product_container || budget.nested_store_windows)
+        && owned_elements::candidate(element, budget)?
+    {
         return owned_elements::check(module, element, span, budget);
     }
     if packages::has_children(element) {
