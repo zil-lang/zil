@@ -90,6 +90,16 @@ impl<'a> Inventory<'a> {
         id: LifeDeclarationId,
         b: &mut Budget,
     ) -> CompileResult<&'a DynDeclaration> {
+        self.find_original_dyn(id, b)?.ok_or_else(|| {
+            fail("original trait declaration is absent from the complete source inventory")
+        })
+    }
+
+    fn find_original_dyn(
+        &self,
+        id: LifeDeclarationId,
+        b: &mut Budget,
+    ) -> CompileResult<Option<&'a DynDeclaration>> {
         let key = (self.source_key(), id);
         b.lookup(self.dyn_definitions.borrow().len(), WORK)?;
         if let Some(location) = self.dyn_definitions.borrow().get(&key).copied() {
@@ -107,7 +117,7 @@ impl<'a> Inventory<'a> {
                     .and_then(|source| source.modules.get(module))
                     .and_then(|module| module.core.dyn_declarations.get(declaration)),
             };
-            return row.filter(|row| row.id == id).ok_or_else(|| {
+            return row.filter(|row| row.id == id).map(Some).ok_or_else(|| {
                 fail("cached original trait coordinate differs from its exact source view")
             });
         }
@@ -149,14 +159,13 @@ impl<'a> Inventory<'a> {
                 scan(&module.core.dyn_declarations, Some(position), b)?;
             }
         }
-        let found = found.ok_or_else(|| {
-            fail("original trait declaration is absent from the complete source inventory")
-        })?;
-        b.lookup(self.dyn_definitions.borrow().len(), WORK)?;
-        self.dyn_definitions.borrow_mut().insert(
-            key,
-            location.ok_or_else(|| fail("original trait has no source directory coordinate"))?,
-        );
+        if found.is_some() {
+            b.lookup(self.dyn_definitions.borrow().len(), WORK)?;
+            self.dyn_definitions.borrow_mut().insert(
+                key,
+                location.ok_or_else(|| fail("original trait has no source directory coordinate"))?,
+            );
+        }
         Ok(found)
     }
 }
@@ -268,13 +277,22 @@ impl Solver<'_, '_> {
             let SemanticDefinitionBody::Scope(recipe) = &definition.body else {
                 continue;
             };
-            let id = match recipe {
+            let (id, raw) = match recipe {
                 SemanticScopeRecipe::Trait { declaration }
-                | SemanticScopeRecipe::TraitImpl { declaration, .. }
-                | SemanticScopeRecipe::InherentImpl { declaration, .. } => *declaration,
+                | SemanticScopeRecipe::TraitImpl { declaration, .. } => {
+                    (*declaration, self.inventory.original_dyn(*declaration, b)?)
+                }
+                SemanticScopeRecipe::InherentImpl { declaration, .. } => {
+                    // Authored inherent methods normally have only their
+                    // lexical Scope. trait_scope_frames checks their complete
+                    // Self recipe before their original bodies are checked.
+                    let Some(raw) = self.inventory.find_original_dyn(*declaration, b)? else {
+                        continue;
+                    };
+                    (*declaration, raw)
+                }
                 _ => continue,
             };
-            let raw = self.inventory.original_dyn(id, b)?;
             crate::dyn_metadata::recipe_declaration(raw, b)?;
             if raw.identity != definition.identity
                 || raw.parameters.len() != definition.parameters.len()
