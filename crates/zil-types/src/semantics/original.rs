@@ -241,6 +241,10 @@ pub(super) struct Proof {
         (SemanticDefinitionId, SemanticSiteId, SemanticDefinitionId),
         Vec<SemanticActualRecipe>,
     >,
+    pub(super) call_injections: BTreeMap<
+        (SemanticDefinitionId, SemanticSiteId),
+        (usize, Vec<(usize, NodeId)>),
+    >,
     call_callees: BTreeMap<(SemanticDefinitionId, SemanticSiteId), NodeId>,
     inferred_pointee_environments: BTreeMap<(SemanticDefinitionId, NodeId, u32), BTreeSet<u32>>,
     inferred_type_origins: BTreeMap<

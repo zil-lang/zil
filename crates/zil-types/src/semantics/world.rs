@@ -23,6 +23,8 @@ mod flow;
 mod function_values;
 #[path = "world_index.rs"]
 mod index;
+#[path = "world_error_injection.rs"]
+mod error_injection;
 #[path = "world_intrinsics.rs"]
 mod intrinsics;
 #[path = "world_methods.rs"]
@@ -407,7 +409,6 @@ impl<'a> World<'a, '_> {
         block: BlockId,
         index: usize,
         result: ValueId,
-        injected_error: Option<bool>,
     ) -> R<Option<SharedType>> {
         let ledger = self.ledger;
         let frame = ledger
@@ -438,18 +439,6 @@ impl<'a> World<'a, '_> {
                     .any(|point| point.block == block && point.instruction == index)
             {
                 continue;
-            }
-            if let Some(is_error) = injected_error {
-                let actual = function
-                    .values
-                    .get(result.0 as usize)
-                    .ok_or_else(|| bad("actual injection result has no whole type"))?;
-                if let Some(value) = self.emitted_error_injection(instance, node, is_error, actual)? {
-                    if let Some(old) = &selected {
-                        self.equal(old, &value)?;
-                    }
-                    selected = Some(value);
-                }
             }
             let Some(end) = expression.end else {
                 continue;
@@ -525,58 +514,6 @@ impl<'a> World<'a, '_> {
         }
         Ok(selected)
     }
-    fn emitted_error_injection(
-        &mut self,
-        instance: &SemanticInstance,
-        node: zil_base::NodeId,
-        is_error: bool,
-        actual: &Type,
-    ) -> R<Option<SharedType>> {
-        let ledger = self.ledger;
-        let original = ledger.original.borrow();
-        let (program, proof) = if let Some(proof) = original
-            .as_ref()
-            .filter(|proof| proof.complete.contains(&instance.definition))
-        {
-            (self.program, proof)
-        } else if let Some(source) = &ledger.frozen {
-            (&source.semantic, &source.original)
-        } else {
-            return Ok(None);
-        };
-        self.pay(index::search(proof.injections.len()))?;
-        let Some(injection) = proof.injections.get(&(instance.definition, node)) else {
-            return Ok(None);
-        };
-        if injection.is_error != is_error {
-            return Err(bad(
-                "emitted injection changes the independently selected original arm",
-            ));
-        }
-        let source = SemanticOriginalTypeSource::Expression(node);
-        // Recheck the exact original injection theorem. A private emitter
-        // receipt identifies the source occurrence but supplies no Type or
-        // class premise. The active operand is compared against the resulting
-        // original arm by the MakeErrorUnion rule.
-        proof.constructor_type_recipe(
-            program,
-            instance.definition,
-            instance.definition,
-            &source,
-            self.limits,
-            self.left,
-        )?;
-        let recipe = proof.type_recipe_view(
-            program,
-            instance.definition,
-            instance.definition,
-            &source,
-            self.limits,
-            self.left,
-        )?;
-        self.physical_type(instance.id, &recipe, actual).map(Some)
-    }
-
     fn field_value(&mut self, parent: &SemanticTypeValue, index: u32) -> R<SharedType> {
         projection::field(self, parent, index)
     }
@@ -3493,7 +3430,7 @@ impl World<'_, '_> {
                                 )? } {
                                     Some(value) => value,
                                     None => match self
-                                        .emitted_value(instance, f, block.id, index, result, None)?
+                                        .emitted_value(instance, f, block.id, index, result)?
                                     {
                                         Some(value) => value,
                                         None => self.zero(actual_ty)?,
@@ -4262,16 +4199,18 @@ impl World<'_, '_> {
                             )? {
                                 Some(value) => value,
                                 None => match self
-                                    .emitted_value(instance, f, block.id, index, result, Some(*is_error))?
+                                    .emitted_value(instance, f, block.id, index, result)?
                                 {
                                     Some(value) => value,
                                     None if ty == Some(&f.return_type) => {
                                         self.copy(&expected_result)?
                                     }
                                     None => {
-                                        return Err(pending(
+                                        error_injection::call_operand(
+                                            self, instance, f, &sites, result, *is_error, actual_ty,
+                                        )?.ok_or_else(|| pending(
                                             "error union constructor lacks its original complete result equation",
-                                        ));
+                                        ))?
                                     }
                                 },
                             };

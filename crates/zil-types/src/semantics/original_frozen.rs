@@ -301,6 +301,9 @@ fn clone_proof(
             .saturating_add(source.nominal_constructors.len())
             .saturating_add(source.call_result_origins.len())
             .saturating_add(source.call_callees.len())
+            .saturating_add(source.call_injections.values().fold(0usize, |work, (_, operands)| {
+                work.saturating_add(operands.len().saturating_add(1))
+            }))
             .saturating_add(source.inferred_type_sources.len())
             .saturating_add(source.inferred_type_origins.len())
             .saturating_add(source.scope_calls.len())

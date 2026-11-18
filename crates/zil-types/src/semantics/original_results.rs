@@ -323,13 +323,28 @@ impl Check<'_, '_> {
         } else {
             self.view_bound(owner, expression, variables, depth + 1)?;
         }
-        if let CoreExprKind::Call { callee, .. } = &expression.kind {
+        if let CoreExprKind::Call { callee, arguments } = &expression.kind {
             if let Some(site) = self.site(owner, SemanticOriginalNode::Expression(expression.id))? {
                 self.pay(1, depth)?;
                 self.proof
                     .proof_mut()?
                     .call_callees
                     .insert((owner, site.id), callee.id);
+                if !self.proof.injections.is_empty() {
+                    let mut injections = Vec::new();
+                    for (ordinal, argument) in arguments.iter().enumerate() {
+                        self.pay(self.proof.injections.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+                        if self.proof.injections.contains_key(&(owner, argument.id)) {
+                            self.pay(1, depth)?;
+                            injections.push((ordinal, argument.id));
+                        }
+                    }
+                    if !injections.is_empty() {
+                        self.pay(1, depth)?;
+                        self.proof.proof_mut()?.call_injections
+                            .insert((owner, site.id), (arguments.len(), injections));
+                    }
+                }
             }
         }
         // This receipt describes a whole opaque value. Aggregates or projections

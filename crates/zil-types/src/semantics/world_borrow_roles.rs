@@ -180,6 +180,21 @@ fn reaching_values_inner(
     Ok(values.into_iter().collect())
 }
 
+/// Check the actual affine call preparation from its nearest initialized store.
+pub(super) fn prepared_argument_matches(
+    world: &mut World<'_, '_>,
+    function: &TypedFunction,
+    argument: ValueId,
+    source: ValueId,
+) -> R<bool> {
+    let (instruction, block, index) = producer(world, function, argument)?;
+    let InstructionKind::TakeLocal { local } = instruction else {
+        return Ok(false);
+    };
+    let reaching = reaching_values(world, function, *local, (block, index))?;
+    Ok(reaching.as_slice() == [ActivationSource::Value(source)])
+}
+
 /// Reconstruct the complete captured value through the actual activation
 /// prologue and its exact reaching copies. This is geometry/source transport;
 /// it neither resurrects a transferred field nor grants current permission.
