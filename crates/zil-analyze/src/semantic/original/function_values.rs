@@ -716,24 +716,11 @@ impl Checked {
         inventory: &Inventory<'_>,
         b: &mut Budget,
     ) -> CompileResult<Option<(NodeId, SemanticDefinitionId)>> {
-        let definition = inventory.definition(context.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
-            return Err(fail("original code value has no body inventory"));
+        let index = inventory.original_index(context.definition, b)?;
+        let Some(SemanticOriginalNode::Expression(node)) = index.site_node(site, b)? else {
+            return Ok(None);
         };
-        let mut found = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.site == site {
-                if let SemanticOriginalNode::Expression(node) = link.node {
-                    b.lookup(self.function_values.len(), WORK)?;
-                    if let Some(target) = self.function_values.get(&(context.definition, node)) {
-                        if found.replace((node, *target)).is_some() {
-                            return Err(fail("original code value has multiple node links"));
-                        }
-                    }
-                }
-            }
-        }
-        Ok(found)
+        b.lookup(self.function_values.len(), WORK)?;
+        Ok(self.function_values.get(&(context.definition, node)).map(|target| (node, *target)))
     }
 }

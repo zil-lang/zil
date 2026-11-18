@@ -116,52 +116,14 @@ impl Solver<'_, '_> {
     ) -> CompileResult<u32> {
         let index = self.inventory.original_index(owner, b)?;
         let site_id = index.declaration_site(statement, b)?;
-        let original = self.inventory.definition(owner, b)?;
-        let SemanticDefinitionBody::FunctionWithBody {
-            sites, site_nodes, ..
-        } = &original.body
-        else {
-            return Err(fail(
-                "original reference binding has no complete declaration body",
-            ));
-        };
-        b.spend(site_nodes.len().saturating_add(sites.len()), WORK)?;
-        let mut links = site_nodes.iter().filter(|link| link.site == site_id);
-        if !matches!(links.next(), Some(link) if link.node == SemanticOriginalNode::Statement(statement))
-            || links.next().is_some()
-        {
-            return Err(fail(
-                "reference role does not select its exact original declaration",
-            ));
+        if index.site_node(site_id, b)? != Some(SemanticOriginalNode::Statement(statement)) {
+            return Err(fail("reference role does not select its exact original declaration"));
         }
-        let mut recipes = sites.iter().filter(|site| site.id == site_id);
-        let recipe = recipes
-            .next()
-            .ok_or_else(|| fail("reference role declaration recipe is absent"))?;
-        if recipes.next().is_some()
-            || !matches!(recipe.kind, SemanticSiteRecipeKind::DeclareLocal { .. })
-        {
-            return Err(fail(
-                "reference role has another original declaration operation",
-            ));
+        let recipe = index.recipe(site_id, b)?;
+        if !matches!(recipe.kind, SemanticSiteRecipeKind::DeclareLocal { .. }) {
+            return Err(fail("reference role has another original declaration operation"));
         }
-        let mut ordinal = None;
-        for implicit in &original.implicit_lifetimes {
-            b.spend(
-                implicit
-                    .occurrence_path
-                    .len()
-                    .saturating_add(recipe.occurrence_path.len() + 1),
-                WORK,
-            )?;
-            if implicit.occurrence_path == recipe.occurrence_path
-                && ordinal.replace(implicit.ordinal).is_some()
-            {
-                return Err(fail(
-                    "reference binding has competing original lifetime occurrences",
-                ));
-            }
-        }
+        let ordinal = self.inventory.implicit_ordinal(owner, &recipe.occurrence_path, b)?;
         ordinal.ok_or_else(|| {
             unknown("reference binding has no original declaration lifetime occurrence")
         })

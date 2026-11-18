@@ -17,6 +17,8 @@ pub(super) struct Index<'a> {
     navigation: BTreeSet<NodeId>,
     declarations: BTreeMap<NodeId, SemanticSiteId>,
     recipes: BTreeMap<u32, &'a SemanticSiteRecipe>,
+    site_nodes: BTreeMap<u32, SemanticOriginalNode>,
+    events: BTreeMap<(NodeId, EventRole), SemanticSiteId>,
 }
 impl<'a> Index<'a> {
     /// All runtime returns of this exact definition, including returns reached
@@ -62,6 +64,18 @@ impl<'a> Index<'a> {
         Ok(result)
     }
 
+    /// The complete original inventory checks this one-to-one site binding once.
+    /// A caller still reconstructs its own operation role and actual operands.
+    pub(super) fn site_node(&self, site: SemanticSiteId, b: &mut Budget)
+        -> CompileResult<Option<SemanticOriginalNode>> {
+        b.lookup(self.site_nodes.len(), WORK)?;
+        Ok(self.site_nodes.get(&site.0).copied())
+    }
+    pub(super) fn event_site(&self, node: NodeId, role: EventRole, b: &mut Budget)
+        -> CompileResult<Option<SemanticSiteId>> {
+        b.lookup(self.events.len(), WORK)?;
+        Ok(self.events.get(&(node, role)).copied())
+    }
     pub(super) fn recipe(&self, id: SemanticSiteId, b: &mut Budget) -> CompileResult<&'a SemanticSiteRecipe> {
         b.lookup(self.recipes.len(), WORK)?;
         self.recipes.get(&id.0).copied()
@@ -429,6 +443,8 @@ fn walk_from<'a>(root: Work<'a>, b: &mut Budget) -> CompileResult<Index<'a>> {
         navigation,
         declarations: BTreeMap::new(),
         recipes: BTreeMap::new(),
+        site_nodes: BTreeMap::new(),
+        events: BTreeMap::new(),
     })
 }
 
@@ -765,15 +781,18 @@ fn names(values: &[SemanticOriginalNameBinding], b: &mut Budget) -> CompileResul
     }
     Ok(())
 }
-fn role(kind: &SemanticSiteRecipeKind) -> u8 {
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum EventRole { Construct, Call, TypeUse, DeclareLocal, Closure }
+
+fn role(kind: &SemanticSiteRecipeKind) -> EventRole {
     match kind {
-        SemanticSiteRecipeKind::Construct { .. } => 0,
+        SemanticSiteRecipeKind::Construct { .. } => EventRole::Construct,
         SemanticSiteRecipeKind::Call { .. }
         | SemanticSiteRecipeKind::CallableCall { .. }
-        | SemanticSiteRecipeKind::OriginalCall => 1,
-        SemanticSiteRecipeKind::TypeUse { .. } => 2,
-        SemanticSiteRecipeKind::DeclareLocal { .. } => 3,
-        SemanticSiteRecipeKind::Closure { .. } => 4,
+        | SemanticSiteRecipeKind::OriginalCall => EventRole::Call,
+        SemanticSiteRecipeKind::TypeUse { .. } => EventRole::TypeUse,
+        SemanticSiteRecipeKind::DeclareLocal { .. } => EventRole::DeclareLocal,
+        SemanticSiteRecipeKind::Closure { .. } => EventRole::Closure,
     }
 }
 fn event(kind: &SemanticSiteRecipeKind, node: Node<'_>) -> CompileResult<()> {
@@ -836,6 +855,8 @@ pub(super) fn index<'a>(
                 navigation: BTreeSet::new(),
                 declarations: BTreeMap::new(),
                 recipes: BTreeMap::new(),
+        site_nodes: BTreeMap::new(),
+        events: BTreeMap::new(),
             }
         }
     };
@@ -846,11 +867,9 @@ pub(super) fn index<'a>(
             return Err(bad("original site recipe ID is duplicated"));
         }
     }
-    let mut bound = BTreeSet::new();
-    let mut events = BTreeSet::new();
     for binding in site_nodes {
-        b.lookup(bound.len(), WORK)?;
-        if !bound.insert(binding.site.0) {
+        b.lookup(output.site_nodes.len(), WORK)?;
+        if output.site_nodes.insert(binding.site.0, binding.node).is_some() {
             return Err(bad("original site is rebound to a second node"));
         }
         b.lookup(recipes.len(), WORK)?;
@@ -868,12 +887,12 @@ pub(super) fn index<'a>(
                 return Err(bad("original binding has competing declaration events"));
             }
         }
-        b.lookup(events.len(), WORK)?;
-        if !events.insert((id, role(&recipe.kind))) {
+        b.lookup(output.events.len(), WORK)?;
+        if output.events.insert((id, role(&recipe.kind)), binding.site).is_some() {
             return Err(bad("original node repeats the same event role"));
         }
     }
-    if bound.len() != recipes.len() {
+    if output.site_nodes.len() != recipes.len() {
         return Err(bad("original recipe is missing its unique node binding"));
     }
     output.recipes = recipes;

@@ -86,7 +86,7 @@ struct Inventory<'a> {
     // by the exact borrowed module and the current metadata limit profile.
     sealed_byte_buffers: std::cell::RefCell<BTreeSet<(usize, usize, usize)>>,
     geometry: geometry::Inputs,
-    call_anchors: std::cell::RefCell<BTreeMap<SemanticDefinitionId, BTreeMap<zil_base::NodeId, SemanticSiteId>>>,
+    implicit_ordinals: BTreeMap<SemanticDefinitionId, BTreeMap<&'a [u32], u32>>,
     emitted_sites: std::cell::RefCell<BTreeMap<usize, BTreeMap<(SemanticInstanceId, SemanticSiteId), usize>>>,
     function_worlds: std::cell::RefCell<BTreeMap<usize, BTreeMap<FunctionId, Vec<usize>>>>,
     actual_site_indexes: std::cell::RefCell<BTreeMap<usize, site_index::Index>>,
@@ -121,7 +121,7 @@ impl<'a> Inventory<'a> {
             ordinary_drop_absence: std::cell::RefCell::new(BTreeSet::new()),
             sealed_byte_buffers: std::cell::RefCell::new(BTreeSet::new()),
             geometry: geometry::Inputs::new(module, program, b)?,
-            call_anchors: std::cell::RefCell::new(BTreeMap::new()),
+            implicit_ordinals: BTreeMap::new(),
             emitted_sites: std::cell::RefCell::new(BTreeMap::new()),
             function_worlds: std::cell::RefCell::new(BTreeMap::new()),
             actual_site_indexes: std::cell::RefCell::new(BTreeMap::new()),
@@ -379,58 +379,16 @@ impl<'a> Inventory<'a> {
         node: zil_base::NodeId,
         b: &mut Budget,
     ) -> CompileResult<SemanticSiteId> {
-        b.lookup(self.call_anchors.borrow().len(), WORK)?;
-        if !self.call_anchors.borrow().contains_key(&owner) {
-            let original = self.definition(owner, b)?;
-            let SemanticDefinitionBody::FunctionWithBody {
-                sites, site_nodes, ..
-            } = &original.body
-            else {
-                return Err(fail("original call anchor has no complete function body"));
-            };
-            let mut recipes = BTreeMap::new();
-            for site in sites {
-                b.lookup(recipes.len(), WORK)?;
-                if recipes
-                    .insert(
-                        site.id,
-                        matches!(
-                            site.kind,
-                            SemanticSiteRecipeKind::OriginalCall
-                                | SemanticSiteRecipeKind::Call { .. }
-                                | SemanticSiteRecipeKind::CallableCall { .. }
-                        ),
-                    )
-                    .is_some()
-                {
-                    return Err(fail("original call anchor has repeated recipe identities"));
-                }
-            }
-            let mut anchors = BTreeMap::new();
-            for link in site_nodes {
-                b.lookup(recipes.len(), WORK)?;
-                if recipes.get(&link.site) != Some(&true) {
-                    continue;
-                }
-                if let SemanticOriginalNode::Expression(node) = link.node {
-                    b.lookup(anchors.len(), WORK)?;
-                    if anchors.insert(node, link.site).is_some() {
-                        return Err(fail("original call result has ambiguous role anchors"));
-                    }
-                }
-            }
-            b.lookup(self.call_anchors.borrow().len(), WORK)?;
-            self.call_anchors.borrow_mut().insert(owner, anchors);
-        }
-        let anchors = self.call_anchors.borrow();
-        let anchors = anchors
-            .get(&owner)
-            .ok_or_else(|| fail("original call anchor directory is absent"))?;
-        b.lookup(anchors.len(), WORK)?;
-        anchors
-            .get(&node)
-            .copied()
+        self.original_index(owner, b)?.event_site(node, original_index::EventRole::Call, b)?
             .ok_or_else(|| fail("original call result has no emitted role anchor"))
+    }
+    fn implicit_ordinal(&self, owner: SemanticDefinitionId, path: &[u32], b: &mut Budget)
+        -> CompileResult<Option<u32>> {
+        b.lookup(self.implicit_ordinals.len(), WORK)?;
+        let Some(rows) = self.implicit_ordinals.get(&owner) else { return Ok(None) };
+        let comparisons = rows.len().checked_ilog2().map_or(1, |n| n as usize + 2);
+        b.product(path.len().saturating_add(1), comparisons, 1, WORK)?;
+        Ok(rows.get(path).copied())
     }
     fn owns_program(&self, program: &SemanticModule, b: &mut Budget) -> CompileResult<bool> {
         b.spend(1, WORK)?;
@@ -823,22 +781,19 @@ impl<'a> Inventory<'a> {
         }
         Ok(())
     }
-    fn parents(&self, program: &SemanticModule, b: &mut Budget) -> CompileResult<()> {
+    fn parents(&mut self, program: &'a SemanticModule, b: &mut Budget) -> CompileResult<()> {
         for definition in &program.definitions {
-            let mut implicit_paths = BTreeSet::new();
+            let mut paths = BTreeMap::new();
             for (ordinal, row) in definition.implicit_lifetimes.iter().enumerate() {
-                b.spend(
-                    implicit_paths
-                        .len()
-                        .saturating_mul(row.occurrence_path.len().saturating_add(1))
-                        .saturating_add(1),
-                    WORK,
-                )?;
-                if row.ordinal as usize != ordinal || !implicit_paths.insert(&row.occurrence_path) {
-                    return Err(fail(
-                        "original implicit occurrence directory is not exact and dense",
-                    ));
+                let comparisons = paths.len().checked_ilog2().map_or(1, |n| n as usize + 2);
+                b.product(row.occurrence_path.len().saturating_add(1), comparisons, 1, WORK)?;
+                if row.ordinal as usize != ordinal || paths.insert(row.occurrence_path.as_slice(), row.ordinal).is_some() {
+                    return Err(fail("original implicit occurrence directory is not exact and dense"));
                 }
+            }
+            if !paths.is_empty() {
+                b.lookup(self.implicit_ordinals.len(), WORK)?;
+                self.implicit_ordinals.insert(definition.id, paths);
             }
             let mut active = BTreeSet::new();
             let mut current = Some(definition.id);
@@ -1116,7 +1071,7 @@ pub(super) fn pending(
     limits: &zil_base::Limits,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    let inventory = Inventory::new(module, limits, program, b)?;
+    let mut inventory = Inventory::new(module, limits, program, b)?;
     for definition in &program.definitions {
         b.spend(1, WORK)?;
         if matches!(definition.body, SemanticDefinitionBody::Function { .. }) {

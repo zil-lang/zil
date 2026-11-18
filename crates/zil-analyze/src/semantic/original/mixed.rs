@@ -357,43 +357,11 @@ impl Solver<'_, '_> {
         node: NodeId,
         b: &mut Budget,
     ) -> CompileResult<u32> {
-        let declaration = self.inventory.definition(definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody {
-            sites, site_nodes, ..
-        } = &declaration.body
-        else {
-            return Err(fail("original borrow has no complete body"));
-        };
-        let mut selected = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.node != SemanticOriginalNode::Expression(node) {
-                continue;
-            }
-            b.spend(sites.len(), WORK)?;
-            for site in sites {
-                if site.id != link.site
-                    || !matches!(site.kind, SemanticSiteRecipeKind::TypeUse { .. })
-                {
-                    continue;
-                }
-                for row in &declaration.implicit_lifetimes {
-                    b.spend(
-                        row.occurrence_path
-                            .len()
-                            .saturating_add(site.occurrence_path.len() + 1),
-                        WORK,
-                    )?;
-                    if row.occurrence_path == site.occurrence_path
-                        && selected.replace(row.ordinal).is_some()
-                    {
-                        return Err(fail(
-                            "original borrow has ambiguous declaration occurrences",
-                        ));
-                    }
-                }
-            }
-        }
+        let index = self.inventory.original_index(definition, b)?;
+        let site = index.event_site(node, original_index::EventRole::TypeUse, b)?
+            .ok_or_else(|| unknown("original borrow lacks its explicit declaration occurrence"))?;
+        let recipe = index.recipe(site, b)?;
+        let selected = self.inventory.implicit_ordinal(definition, &recipe.occurrence_path, b)?;
         selected.ok_or_else(|| unknown("original borrow lacks its explicit declaration occurrence"))
     }
 }

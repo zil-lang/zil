@@ -128,35 +128,16 @@ impl Solver<'_, '_> {
         prototype: Option<SemanticDefinitionId>,
         b: &mut Budget,
     ) -> CompileResult<Term> {
-        let definition = self.inventory.definition(frame.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody {
-            sites, site_nodes, ..
-        } = &definition.body
-        else {
-            return Err(fail("call region owner has no complete original function"));
+        let index = self.inventory.original_index(frame.definition, b)?;
+        let event = match role {
+            Role::ConstructorLife(_) => original_index::EventRole::Construct,
+            _ => original_index::EventRole::Call,
         };
-        let mut selected = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.node != SemanticOriginalNode::Expression(call) {
-                continue;
-            }
-            for site in sites {
-                b.spend(1, WORK)?;
-                let genuine = match role {
-                    Role::ConstructorLife(_) => matches!(site.kind, SemanticSiteRecipeKind::Construct { .. }),
-                    _ => matches!(site.kind, SemanticSiteRecipeKind::OriginalCall),
-                };
-                if site.id == link.site && genuine
-                {
-                    if selected.replace(site).is_some() {
-                        return Err(fail("call region has competing original Call sites"));
-                    }
-                }
-            }
+        let absent = || fail("call region has no real original Call occurrence");
+        let site = index.recipe(index.event_site(call, event, b)?.ok_or_else(absent)?, b)?;
+        if !matches!(role, Role::ConstructorLife(_)) && !matches!(site.kind, SemanticSiteRecipeKind::OriginalCall) {
+            return Err(absent());
         }
-        let site =
-            selected.ok_or_else(|| fail("call region has no real original Call occurrence"))?;
         let (suffix, length) = role.suffix();
         let size = site
             .occurrence_path
@@ -168,19 +149,12 @@ impl Solver<'_, '_> {
                 "call region occurrence exceeds its complete depth",
             ));
         }
-        let mut ordinal = None;
-        for row in &definition.implicit_lifetimes {
-            b.spend(row.occurrence_path.len().saturating_add(size + 1), WORK)?;
-            if row.occurrence_path.len() == size
-                && row.occurrence_path.starts_with(&site.occurrence_path)
-                && row.occurrence_path[site.occurrence_path.len()..] == suffix[..length]
-                && ordinal.replace(row.ordinal).is_some()
-            {
-                return Err(fail(
-                    "call region repeats its full original role occurrence",
-                ));
-            }
-        }
+        b.spend(size.saturating_add(1), WORK)?;
+        let mut path = Vec::new();
+        path.try_reserve_exact(size).map_err(|_| resource("call region occurrence allocation failed"))?;
+        path.extend_from_slice(&site.occurrence_path);
+        path.extend_from_slice(&suffix[..length]);
+        let ordinal = self.inventory.implicit_ordinal(frame.definition, &path, b)?;
         let ordinal = match ordinal {
             Some(ordinal) => ordinal,
             None => {

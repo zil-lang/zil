@@ -149,25 +149,11 @@ impl Checked {
         inventory: &Inventory<'_>,
         b: &mut Budget,
     ) -> CompileResult<Option<&'a [u8]>> {
-        let definition = inventory.definition(context.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
-            return Err(fail("original literal has no body node directory"));
+        let index = inventory.original_index(context.definition, b)?;
+        let Some(SemanticOriginalNode::Expression(node)) = index.site_node(site, b)? else {
+            return Ok(None);
         };
-        let mut found = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.site != site {
-                continue;
-            }
-            if let SemanticOriginalNode::Expression(node) = link.node {
-                b.lookup(self.string_literals.len(), WORK)?;
-                if let Some(bytes) = self.string_literals.get(&(context.definition, node)) {
-                    if found.replace(bytes.as_slice()).is_some() {
-                        return Err(fail("original literal has multiple node links"));
-                    }
-                }
-            }
-        }
-        Ok(found)
+        b.lookup(self.string_literals.len(), WORK)?;
+        Ok(self.string_literals.get(&(context.definition, node)).map(Vec::as_slice))
     }
 }
