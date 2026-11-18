@@ -321,13 +321,7 @@ impl Check<'_, '_> {
                 0,
             )?;
             if parameter.mode == PassingMode::Copy
-                && !original::nominal::predicate_actual(
-                    &value.ty,
-                    original::Predicate::Copy,
-                    self.inventory,
-                    b,
-                    0,
-                )?
+                && !self.structural_actual(&value.ty, original::Predicate::Copy, b, 0)?
             {
                 return Err(fail(
                     "callable Copy parameter lacks its complete actual Copy proof",

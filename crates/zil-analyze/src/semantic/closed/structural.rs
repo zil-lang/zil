@@ -174,6 +174,17 @@ impl Check<'_, '_> {
             crate::nested_store::semantic_element(self.module, ty, b)?;
             return Ok(true);
         }
+        // A nominal lifetime argument can survive a Copy even when there is
+        // no physical borrowed leaf. Authenticate the full original instance
+        // and its cleanup before inspecting the inline representation.
+        if let (Predicate::Copy, Type::BorrowedStorage { storage, life }) = (predicate, ty)
+            && matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. })
+            && life.slots.is_empty()
+            && crate::stored_flow::inline_capture_data(storage, b)?
+        {
+            self.structural_nominal_identity(ty, b)?;
+            return Ok(true);
+        }
         if !matches!(predicate, Predicate::Value | Predicate::SyncDrop) {
             return original::nominal::predicate_actual(ty, predicate, self.inventory, b, depth);
         }

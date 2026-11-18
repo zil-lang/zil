@@ -19,7 +19,7 @@ impl Check<'_, '_> {
             }
             return Ok(true);
         }
-        original::nominal::predicate_actual(ty, original::Predicate::Copy, self.inventory, b, depth + 1)
+        self.structural_actual(ty, original::Predicate::Copy, b, depth + 1)
     }
 
     /// A copied callable still comes from the selected initialized original
