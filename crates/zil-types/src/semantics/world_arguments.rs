@@ -434,11 +434,26 @@ pub(super) fn audit(world: &mut World<'_, '_>) -> R<()> {
                 .as_ref()
                 .ok_or_else(|| bad("sealed argument role has no complete original scheme"))?;
             let owner = world.instance(caller_id)?.definition;
-            let scheme = proof
-                .intrinsics
-                .get(&(owner, recipe))
-                .ok_or_else(|| bad("sealed argument role has no exact original call scheme"))?;
-            super::intrinsics::operand_ids(&scheme.kind, &actual.kind)?
+            if let InstructionKind::CallIndirect { callee, arguments } = &actual.kind {
+                world.pay(index::search(proof.callable_calls.len()))?;
+                let scheme = proof.callable_calls.get(&(owner, recipe))
+                    .ok_or_else(|| bad("indirect argument role has no exact original call scheme"))?;
+                if scheme.kind != CallableKind::FunctionPointer
+                    || !matches!(function.values.get(callee.0 as usize),
+                        Some(Type::BorrowedFunctionPointer { life, .. })
+                        if life.invocation_binder_count != 0
+                            && life.invocation_binder_count == scheme.signature.invocation_lifetimes)
+                {
+                    return Err(bad("indirect argument role changes its original invocation frame"));
+                }
+                arguments.clone()
+            } else {
+                let scheme = proof
+                    .intrinsics
+                    .get(&(owner, recipe))
+                    .ok_or_else(|| bad("sealed argument role has no exact original call scheme"))?;
+                super::intrinsics::operand_ids(&scheme.kind, &actual.kind)?
+            }
         };
         if actual_arguments.get(parameter as usize) != Some(&operand) {
             return Err(bad("argument role witness changes the real argument SSA"));

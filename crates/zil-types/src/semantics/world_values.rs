@@ -177,6 +177,7 @@ pub(super) fn indirect(
     arguments: &[ValueId],
     ty: &Type,
     values: &[Option<SharedType>],
+    locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<SharedType> {
     let callee_value = world.get(values, callee)?;
@@ -252,10 +253,11 @@ pub(super) fn indirect(
         let expected = world.physical_type(instance.id, &query, World::type_of(&callee_value)?)?;
         world.same(instance.id, &callee_value, &expected, implicit)?;
         world.pay(parameters.len())?;
-        for ((argument, ty), parameter) in arguments
+        for (ordinal, ((argument, ty), parameter)) in arguments
             .iter()
             .zip(parameters)
             .zip(&scheme.signature.parameters)
+            .enumerate()
         {
             if !matches!(parameter.mode, PassingMode::Infer | PassingMode::Copy) {
                 return Err(bad(
@@ -264,7 +266,16 @@ pub(super) fn indirect(
             }
             let expected = world.physical_type(instance.id, &parameter.ty, ty)?;
             let actual = world.get(values, *argument)?;
-            world.same(instance.id, &actual, &expected, implicit)?;
+            if invocations != 0 {
+                // The original solver bound this argument to a fresh call
+                // region. Use the actual reaching loan for that exact slot.
+                super::arguments::satisfy(
+                    world, instance, None, site, ordinal, *argument, &actual, &expected, values,
+                    locals, implicit,
+                )?;
+            } else {
+                world.same(instance.id, &actual, &expected, implicit)?;
+            }
         }
         selected = Some(world.physical_type(instance.id, &scheme.signature.result, ty)?);
     }

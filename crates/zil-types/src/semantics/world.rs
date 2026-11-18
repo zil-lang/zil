@@ -2765,6 +2765,7 @@ impl World<'_, '_> {
                                 arguments,
                                 ty.unwrap_or(&Type::Unit),
                                 &values,
+                                &locals,
                                 &implicit,
                             )?)
                         }
