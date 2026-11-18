@@ -61,6 +61,8 @@ pub(crate) struct Structure{
     store_success:BTreeMap<(usize,bool,bool),Vec<Limits>>,
     sum_shapes:BTreeMap<(usize,Profile),bool>,
     store_definitions:BTreeSet<usize>,
+    // Built-in scalar identity is complete without retaining a temporary Type pointer.
+    scalar_store_definitions:BTreeSet<&'static str>,
     store_resource_payloads:BTreeSet<Profile>,
     stored_bounds:BTreeMap<(usize,usize),Vec<Limits>>,
     owners:BTreeMap<(OwnerKey,SemanticDefinitionId),usize>,
@@ -88,7 +90,7 @@ impl Structure{
             program:module.semantic.as_ref().map(|program|program as *const SemanticModule as usize),
             declarations:(module.dyn_declarations.as_ptr() as usize,module.dyn_declarations.len()),
             types:BTreeSet::new(),recipes:BTreeSet::new(),program_bounds:BTreeSet::new(),declaration_nodes:BTreeSet::new(),
-            type_success:TypeFacts::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),sum_shapes:BTreeMap::new(),store_definitions:BTreeSet::new(),store_resource_payloads:BTreeSet::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),lexical_scopes:BTreeMap::new(),dyn_declarations:BTreeMap::new(),trait_providers:None,nominal_declarations:BTreeMap::new(),nominal_instances:BTreeMap::new(),scope_instances:BTreeMap::new(),shared_types:BTreeMap::new(),type_owners:BTreeMap::new(),borrowed_callback_domains:BTreeMap::new(),
+            type_success:TypeFacts::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),sum_shapes:BTreeMap::new(),store_definitions:BTreeSet::new(),scalar_store_definitions:BTreeSet::new(),store_resource_payloads:BTreeSet::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),lexical_scopes:BTreeMap::new(),dyn_declarations:BTreeMap::new(),trait_providers:None,nominal_declarations:BTreeMap::new(),nominal_instances:BTreeMap::new(),scope_instances:BTreeMap::new(),shared_types:BTreeMap::new(),type_owners:BTreeMap::new(),borrowed_callback_domains:BTreeMap::new(),
         };
         for function in &module.functions{
             result.ty(&function.return_type,b)?;
@@ -452,12 +454,16 @@ pub(crate) fn sum_shape_success(ty: &Type, shape: bool, b: &mut Budget) -> Check
     Ok(())
 }
 
-/// The only shared fact here is the canonical Package Store declaration's
+/// The only shared fact here is the canonical Store declaration's
 /// exact name, payload equality, and absence of a custom teardown. Element
 /// qualification still executes at its call site, under its current profile.
 pub(crate) fn store_definition_known(module: &TypedModule, element: &Type, b: &mut Budget) -> Check<bool> {
     let Some(state) = &b.structural else { return Ok(false); };
     if state.module != module as *const TypedModule as usize { return Ok(false); }
+    if let Some(scalar) = crate::dynamic_store::scalar_name(element) {
+        b.spend(lookup(state.scalar_store_definitions.len()).saturating_mul(scalar.len() + 1))?;
+        return Ok(b.structural.as_ref().unwrap().scalar_store_definitions.contains(scalar));
+    }
     b.spend(lookup(state.store_definitions.len()))?;
     Ok(b.structural.as_ref().unwrap().store_definitions.contains(&(element as *const Type as usize)))
 }
@@ -465,6 +471,11 @@ pub(crate) fn store_definition_known(module: &TypedModule, element: &Type, b: &m
 pub(crate) fn store_definition_success(module: &TypedModule, element: &Type, b: &mut Budget) -> Check<()> {
     let Some(state) = &b.structural else { return Ok(()); };
     if state.module != module as *const TypedModule as usize { return Ok(()); }
+    if let Some(scalar) = crate::dynamic_store::scalar_name(element) {
+        b.spend(lookup(state.scalar_store_definitions.len()).saturating_mul(scalar.len() + 1).saturating_add(2))?;
+        b.structural.as_mut().unwrap().scalar_store_definitions.insert(scalar);
+        return Ok(());
+    }
     b.spend(lookup(state.types.len()))?;
     let state = b.structural.as_ref().unwrap();
     let ptr = element as *const Type as usize;

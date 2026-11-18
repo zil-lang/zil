@@ -27,10 +27,11 @@ impl CheckedOriginal {
             if !matches!((formal,actual),(SemanticFormal::Type{..},Arg::Type(_))|(SemanticFormal::Const{..},Arg::Const(_))|(SemanticFormal::Lifetime,Arg::Life(_))){return Err(bad("closure cleanup changes an original mixed formal kind"));}
         }
         let parent=original.parent.ok_or_else(||bad("closure cleanup has no original creator"))?;
-        let index=self.source_index(module,&[parent,definition],b)?;
-        let creator=index.definitions.get(&parent).ok_or_else(||bad("closure cleanup creator has no original body"))?;
-        b.spend(creator.closures.len())?;
-        let mut sites=creator.closures.iter().filter(|(_,child)|**child==definition);
+        let grammar = self.source_grammar.as_ref()
+            .ok_or_else(|| bad("closure cleanup creator has no original body"))?;
+        let closures = grammar.closure_sites(parent, b)?;
+        b.spend(closures.len())?;
+        let mut sites = closures.iter().filter(|(_, child)| **child == definition);
         let(node,_)=sites.next().ok_or_else(||bad("closure cleanup has no exact original creation"))?;
         if sites.next().is_some(){return Err(bad("closure cleanup has ambiguous original creations"));}
         let free=self.free_values.get(&definition).ok_or_else(||bad("closure cleanup has no original free-value inventory"))?;

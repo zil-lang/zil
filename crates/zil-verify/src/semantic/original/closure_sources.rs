@@ -3,80 +3,115 @@
 use super::*;
 impl CheckedOriginal {
     pub(in crate::semantic) fn prepared_move_operand(
-        &self, module: &TypedModule, definition: SemanticDefinitionId, node: NodeId, b: &mut Budget,
+        &self, _module: &TypedModule, definition: SemanticDefinitionId, node: NodeId, b: &mut Budget,
     ) -> Check<Option<NodeId>> {
-        let index = self.source_index(module, &[definition], b)?;
-        let definition = index.definitions.get(&definition)
-            .ok_or_else(||bad("prepared transfer has no checked original body"))?;
-        b.spend(definition.expressions.len().saturating_add(1).ilog2() as usize + 1)?;
-        let Some(source) = definition.expressions.get(&node) else { return Ok(None); };
-        let CoreExprKind::Unary { op: UnaryOp::Give, operand } = &source.kind else {
-            return Ok(None);
-        };
-        let mut operand = operand.as_ref();
-        while let CoreExprKind::Group(inner) = &operand.kind {
-            b.spend(1)?;
+        let grammar = self.source_grammar.as_ref()
+            .ok_or_else(|| bad("prepared transfer has no checked original body"))?;
+        let syntax = grammar.place_syntax(definition, b)?;
+        let Some(source) = syntax.find_expression(node, b)? else { return Ok(None); };
+        let index::PlaceOperation::Give(mut operand) = source.operation else { return Ok(None); };
+        while let index::PlaceOperation::Group(inner) = syntax.expression(operand, b)?.operation {
             operand = inner;
         }
-        Ok(Some(operand.id))
+        Ok(Some(operand))
     }
     pub(in crate::semantic) fn call_input_recipes(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,b:&mut Budget)->Check<Vec<Option<(NodeId,SemanticTypeRecipe,Option<intrinsics::BufferSource>)>>>{
-        let index=self.source_index(module,&[definition],b)?;
-        let function=index.definitions.get(&definition).ok_or_else(||bad("Call inputs have no checked original function"))?;
-        let Some(index::Node::Expression(call))=function.nodes.get(&site).copied()else{return Err(bad("Call inputs have no exact original expression occurrence"));};
-        let CoreExprKind::Call{callee,arguments}=&call.kind else{return Err(bad("Call input recipe selects another original operation"));};
+        use index::PlaceOperation as Op;
+        let grammar = self.source_grammar.as_ref()
+            .ok_or_else(|| bad("Call inputs have no checked original function"))?;
+        let Some(SemanticOriginalNode::Expression(call)) = grammar.site_node(definition, site, b)? else {
+            return Err(bad("Call inputs have no exact original expression occurrence"));
+        };
+        let syntax = grammar.place_syntax(definition, b)?;
+        let Op::Call { callee, arguments } = &syntax.expression(call, b)?.operation else {
+            return Err(bad("Call input recipe selects another original operation"));
+        };
         // TaskCreate's first source argument selects the independently checked
         // static worker. It is not an actual frame input or an SSA operand.
         b.spend(self.intrinsic_calls.len().checked_ilog2().map_or(1,|depth|depth as usize+1))?;
         let offset=usize::from(self.intrinsic_calls.get(&(definition,site)).is_some_and(|use_|matches!(use_.kind,intrinsics::Intrinsic::TaskCreate|intrinsics::Intrinsic::TaskCreateOwned)));
         let arguments=arguments.get(offset..).ok_or_else(||bad("Task Call input omits its original worker selector"))?;
         let member=self.trait_calls.get(&(definition,site));
-        if !self.call_targets.contains_key(&(definition,site))&&!self.callable_nodes.contains_key(&(definition,call.id))&&member.is_none(){
+        if !self.call_targets.contains_key(&(definition,site))&&!self.callable_nodes.contains_key(&(definition,call))&&member.is_none(){
             return Err(bad("Call input occurrence has no independently resolved original callee"));
         }
         b.spend(arguments.len())?;
         let receiver=member.is_some_and(|member|member.receiver_mode.is_some());
         b.spend(usize::from(receiver))?;let mut recipes=Vec::with_capacity(arguments.len().saturating_add(usize::from(receiver)));
         let receiver_operand = if receiver {
-            let CoreExprKind::Member { object, .. } = &callee.kind else {
+            let Op::Member { object, .. } = syntax.expression(*callee, b)?.operation else {
                 return Err(bad("original borrowed receiver has no method object"));
             };
-            Some(object.as_ref())
+            Some(object)
         } else { None };
-        for (ordinal,argument) in receiver_operand.into_iter().chain(arguments).enumerate(){
-            let ty=self.original_type(definition,&SemanticOriginalTypeSource::Expression(argument.id),b)?;
+        for (ordinal,argument) in receiver_operand.into_iter().chain(arguments.iter().copied()).enumerate(){
+            let ty=self.original_type(definition,&SemanticOriginalTypeSource::Expression(argument),b)?;
             let mut expression=argument;
-            while let CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=&expression.kind{b.spend(1)?;expression=inner;}
+            while let Op::Group(inner) | Op::Ascribed(inner) = syntax.expression(expression, b)?.operation {
+                expression = inner;
+            }
             let ty=self.resolved(&ty,b)?;
             if receiver && ordinal == 0 && !matches!(ty, Ty::Address { .. } | Ty::Desc { .. }) {
                 // A fresh borrow of a value gets its head at the actual call.
                 recipes.push(None);
                 continue;
             }
-            let source=if self.temporary_description_region(definition,call.id,ordinal,b)?.is_some(){
-                let node = self.prepared_source(definition, argument.id, b)?
-                    .or(self.temporary_description_producer(argument,b)?)
+            let source=if self.temporary_description_region(definition,call,ordinal,b)?.is_some(){
+                let mut producer = expression;
+                let temporary = loop {
+                    match syntax.expression(producer, b)?.operation {
+                        Op::Group(inner) | Op::Ascribed(inner) | Op::Sequence(inner) => producer = inner,
+                        Op::Call { .. } | Op::RecordConstruction | Op::Give(_) => break Some(producer),
+                        _ => break None,
+                    }
+                };
+                let node = self.prepared_source(definition, argument, b)?
+                    .or(temporary)
                     .ok_or_else(||bad("temporary description argument has no exact original owning producer"))?;
                 if !matches!(ty,Ty::Managed(_)){
                     return Err(bad("temporary description argument no longer carries its exact original owner"));
                 }
                 Some(intrinsics::BufferSource::TemporaryOwner{definition,node})
             }else if matches!(ty,Ty::Address{..}|Ty::Desc{..}){
-                if let Some(source)=self.original_address_source(module,definition,&SemanticOriginalTypeSource::Expression(argument.id),b)?{Some(source)}
-                else if self.value_places.contains_key(&(definition,expression.id)){Some(intrinsics::BufferSource::Place{definition,node:expression.id})}
+                if let Some(source)=self.original_address_source(module,definition,&SemanticOriginalTypeSource::Expression(argument),b)?{Some(source)}
+                else if self.value_places.contains_key(&(definition,expression)){Some(intrinsics::BufferSource::Place{definition,node:expression})}
                 else{None}
+            }else if matches!(ty, Ty::Atom(Type::ForeignHandle))
+                && self.foreign_resource_member(syntax, definition, expression, b)?
+            {
+                Some(intrinsics::BufferSource::Place{definition,node:expression})
             }else if matches!(ty,Ty::Code{kind:SemanticCodeKind::FunctionPointer,..})
-                && (self.value_places.contains_key(&(definition,expression.id))
-                    || matches!(expression.kind,CoreExprKind::Index{..}|CoreExprKind::Member{..}|CoreExprKind::ReceiverMember(_)))
+                && (self.value_places.contains_key(&(definition,expression))
+                    || matches!(syntax.expression(expression, b)?.operation, Op::Index { .. } | Op::Member { .. } | Op::ReceiverMember(_)))
             {
                 // A value index may have no ownership Place in original Γ.
                 // Its original aggregate and subscript are still exact
                 // operands of the checked physical projection.
-                Some(intrinsics::BufferSource::Place{definition,node:expression.id})
+                Some(intrinsics::BufferSource::Place{definition,node:expression})
             }else{None};
-            recipes.push(Some((expression.id,SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Expression(argument.id)},source)));
+            recipes.push(Some((expression,SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Expression(argument)},source)));
         }
         Ok(recipes)
+    }
+    fn foreign_resource_member(
+        &self, syntax: &index::PlaceSyntax, definition: SemanticDefinitionId,
+        mut node: NodeId, b: &mut Budget,
+    ) -> Check<bool> {
+        use index::PlaceOperation as Op;
+        loop {
+            node = match syntax.expression(node, b)?.operation {
+                Op::Group(inner) | Op::Ascribed(inner) => inner,
+                Op::Member { object, .. } => {
+                    let parent = self.original_type(definition,
+                        &SemanticOriginalTypeSource::Expression(object), b)?;
+                    if matches!(self.resolved(&parent, b)?, Ty::Managed(_) | Ty::Desc { .. }) {
+                        return Ok(true);
+                    }
+                    object
+                }
+                _ => return Ok(false),
+            };
+        }
     }
     pub(super) fn temporary_description_producer(&self,mut expression:&SemanticOriginalExpr,b:&mut Budget)->Check<Option<NodeId>>{
         while let CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}|CoreExprKind::Sequence{value:inner,..}=&expression.kind{
@@ -158,7 +193,7 @@ impl CheckedOriginal {
         // A contextual TypeUse observes the injected sum. The source Call
         // remains its sole payload operation and has a different result role.
         if self.injections.contains_key(&(definition,node)){return Ok(None);}
-        if !matches!(expression.operation,index::PlaceOperation::Call){return Ok(None);}
+        if !matches!(expression.operation,index::PlaceOperation::Call { .. }){return Ok(None);}
         let result=self.expressions.get(&(definition,node)).ok_or_else(||bad("original Call result lacks its checked effective type"))?;
         // A later Describe occurrence observes the same manager through a new
         // outer head. Only the unchanged whole result role can reuse its Call
@@ -231,25 +266,36 @@ impl CheckedOriginal {
         source.charge_clone(b)?;
         match source.as_ref(){Binder::Local{definition,node,..}=>Ok(intrinsics::BufferSource::Local{definition:*definition,node:*node}),Binder::Parameter{definition,ordinal}=>Ok(intrinsics::BufferSource::Parameter{definition:*definition,ordinal:*ordinal}),_=>Err(unsupported("nested captured buffer needs its complete original creator source boundary",None))}
     }
-    pub(in crate::semantic) fn closure_creation(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<NodeId>> {
-        if !matches!(self.original_type(definition,source,b)?,Ty::Closure(..)){return Ok(None);}
-        let index=self.source_index(module,&[definition],b)?;
-        let function=index.definitions.get(&definition).ok_or_else(||bad("closure source has no original function"))?;
-        let binding=match source {
-            SemanticOriginalTypeSource::Binding(node)=>Some(*node),
-            SemanticOriginalTypeSource::Expression(node)=>{
-                if function.closures.contains_key(node){return Ok(Some(*node));}
-                match self.value_bindings.get(&(definition,*node)) {
-                    Some(Binder::Local{definition:owner,node,..}) if *owner==definition=>Some(*node),
-                    _=>return Ok(None),
+    pub(in crate::semantic) fn closure_creation(
+        &self, _module: &TypedModule, definition: SemanticDefinitionId,
+        source: &SemanticOriginalTypeSource, b: &mut Budget,
+    ) -> Check<Option<NodeId>> {
+        if !matches!(self.original_type(definition, source, b)?, Ty::Closure(..)) {
+            return Ok(None);
+        }
+        let grammar = self.source_grammar.as_ref()
+            .ok_or_else(|| bad("closure source has no original function"))?;
+        let closures = grammar.closure_sites(definition, b)?;
+        let search = closures.len().checked_ilog2().map_or(1, |depth| depth as usize + 2);
+        let binding = match source {
+            SemanticOriginalTypeSource::Binding(node) => *node,
+            SemanticOriginalTypeSource::Expression(node) => {
+                b.spend(search)?;
+                if closures.contains_key(node) { return Ok(Some(*node)); }
+                b.spend(self.value_bindings.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
+                match self.value_bindings.get(&(definition, *node)) {
+                    Some(Binder::Local { definition: owner, node, .. }) if *owner == definition => *node,
+                    _ => return Ok(None),
                 }
             }
-            _=>return Ok(None),
+            _ => return Ok(None),
         };
-        let statement=function.bindings.get(&binding.unwrap()).ok_or_else(||bad("original closure source binding is absent"))?;
-        let CoreStatementKind::Binding{initializer:Some(initializer),..}=&statement.kind else {return Err(unsupported("closure source needs its complete original initializer projection",None));};
-        if !function.closures.contains_key(&initializer.id){return Ok(None);}
-        Ok(Some(initializer.id))
+        let syntax = grammar.place_syntax(definition, b)?;
+        let initializer = syntax.binding(binding, b)?
+            .ok_or_else(|| bad("original closure source binding is absent"))?.value
+            .ok_or_else(|| unsupported("closure source needs its complete original initializer projection", None))?;
+        b.spend(search)?;
+        Ok(closures.contains_key(&initializer).then_some(initializer))
     }
     pub(in crate::semantic) fn implicit_capture_binding(&self,module:&TypedModule,child:SemanticDefinitionId,ordinal:u32,b:&mut Budget)->Check<intrinsics::BufferSource> {
         if self.creator_moves.get(&child)!=Some(&false){return Err(bad("implicit captured head does not have its original default-borrow creation mode"));}

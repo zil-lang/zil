@@ -11,7 +11,7 @@ pub(super) use carrier_cache::{Cache as CarrierCache, register_actual_carrier_ro
 
 pub(super) const PREFIX: &str = "@builtin:OwnedStore<";
 
-fn scalar_name(element: &Type) -> Option<&'static str> {
+pub(super) fn scalar_name(element: &Type) -> Option<&'static str> {
     Some(match element {
         Type::Bool => "bool",
         Type::U8 => "u8",
@@ -1065,8 +1065,11 @@ fn check_carrier_uncached(
         ));
     };
     check_store_element(module, element, span, budget)?;
-    let package = matches!(element, Type::Package { .. });
-    if package && dynamic_metadata::store_definition_known(module, element, budget)? {
+    let plain = plain_element(element);
+    if plain {
+        dynamic_metadata::check_store_resource_payloads(module, budget)?;
+    }
+    if dynamic_metadata::store_definition_known(module, element, budget)? {
         return Ok(());
     }
     pod_name_work(element, budget)?;
@@ -1077,10 +1080,6 @@ fn check_carrier_uncached(
             .len()
             .saturating_mul(name.len().saturating_add(1)),
     )?;
-    let plain = plain_element(element);
-    if plain {
-        dynamic_metadata::check_store_resource_payloads(module, budget)?;
-    }
     for resource in &module.resources {
         if resource.name != name || resource.teardown.is_some() {
             continue;
@@ -1093,9 +1092,7 @@ fn check_carrier_uncached(
             pod_type_work(&resource.payload, budget)?;
         }
         if actual.as_ref() == element {
-            if package {
-                dynamic_metadata::store_definition_success(module, element, budget)?;
-            }
+            dynamic_metadata::store_definition_success(module, element, budget)?;
             return Ok(());
         }
     }

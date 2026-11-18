@@ -165,7 +165,10 @@ pub(super) enum PlaceOperation {
     Dereference(NodeId),
     Borrow(NodeId),
     Name,
-    Call,
+    /// Each operand is an occurrence in this same checked original body.
+    Call { callee: NodeId, arguments: Box<[NodeId]> },
+    Sequence(NodeId),
+    RecordConstruction,
     Member { object: NodeId, name: String },
     Index { object: NodeId, index: NodeId },
     Slice { object: NodeId, start: Option<NodeId>, end: Option<NodeId> },
@@ -191,7 +194,17 @@ impl PlaceSyntax {
                     PlaceOperation::Borrow(operand.id)
                 }
                 CoreExprKind::Name(_) => PlaceOperation::Name,
-                CoreExprKind::Call { .. } => PlaceOperation::Call,
+                CoreExprKind::Call { callee, arguments } => {
+                    b.spend(arguments.len().saturating_mul(2).saturating_add(1))?;
+                    PlaceOperation::Call {
+                        callee: callee.id,
+                        arguments: arguments.iter().map(|argument| argument.id).collect(),
+                    }
+                }
+                CoreExprKind::Sequence { value, .. } => PlaceOperation::Sequence(value.id),
+                CoreExprKind::Record { .. } | CoreExprKind::RecordConstructor { .. } => {
+                    PlaceOperation::RecordConstruction
+                }
                 CoreExprKind::Member { object, member, .. } => {
                     b.spend(member.len())?;
                     PlaceOperation::Member { object: object.id, name: member.clone() }
@@ -302,6 +315,14 @@ impl SourceIndex{
         b.spend(rows.len().checked_ilog2().map_or(1, |depth| depth as usize + 2))?;
         rows.get(&definition).map(|row| &row.places)
             .ok_or_else(|| bad("place syntax has no independently checked original definition"))
+    }
+    /// Bound during the independent whole-body check to the exact child declaration.
+    pub(super) fn closure_sites(&self, definition: SemanticDefinitionId, b: &mut Budget) -> Check<&BTreeMap<NodeId, SemanticDefinitionId>> {
+        self.bounds(b)?;
+        let rows = &self.directory.definitions;
+        b.spend(rows.len().checked_ilog2().map_or(1, |depth| depth as usize + 2))?;
+        rows.get(&definition).map(|row| &row.closures)
+            .ok_or_else(|| bad("closure query has no checked original creator body"))
     }
     pub(super) fn site_node(&self, definition: SemanticDefinitionId, site: SemanticSiteId, b: &mut Budget) -> Check<Option<SemanticOriginalNode>> {
         self.bounds(b)?;
@@ -647,10 +668,20 @@ mod reverse_tests{
     fn reverse_source_directory_preserves_all_roles_ambiguity_and_owned_grammar(){
         let(mut module,_)=crate::tests::baseline();let span=module.functions[0].span;
         let definition=SemanticDefinitionId{module:module.module_id,index:0};let node=NodeId(1);
-        let call=CoreExpr{id:node,span,kind:CoreExprKind::Call{callee:Box::new(CoreExpr{id:NodeId(2),span,kind:CoreExprKind::Name("target".into())}),arguments:vec![]}};
+        let call = CoreExpr { id: node, span, kind: CoreExprKind::Call {
+            callee: Box::new(CoreExpr { id: NodeId(2), span, kind: CoreExprKind::Name("target".into()) }),
+            arguments: [NodeId(4), NodeId(3)].map(|id| CoreExpr {
+                id, span, kind: CoreExprKind::Integer("1".into()),
+            }).into(),
+        }};
         let sites=(0..3).map(|index|SemanticSiteRecipe{id:SemanticSiteId(index),occurrence_path:vec![index],kind:if index==1{SemanticSiteRecipeKind::TypeUse{expected:SemanticTypeRecipe::Atom(Type::I32)}}else{SemanticSiteRecipeKind::OriginalCall}}).collect();
         module.semantic=Some(SemanticModule{definitions:vec![SemanticDefinition{id:definition,identity:LifeDeclarationIdentity{package:"test".into(),module_path:vec![],declaration_path:vec!["caller".into()],generation_path:vec![]},parent:None,kind:SemanticDefinitionKind::Function,parameters:vec![],implicit_lifetimes:vec![],requirements:vec![],environment:vec![],body:SemanticDefinitionBody::FunctionWithBody{signature:SemanticSignatureRecipe{bound_lifetimes:0,invocation_lifetimes:0,parameters:vec![],result:SemanticTypeRecipe::Atom(Type::I32),result_mode:PassingMode::Move,call_kind:CallKind::Direct},protocol_contracts:vec![],foreign:None,resume_bound:TaskResumeBound::Local,sites,parameters:vec![],receiver_parameter:None,names:vec![],site_nodes:(0..3).map(|index|SemanticOriginalSiteNode{site:SemanticSiteId(index),node:SemanticOriginalNode::Expression(node)}).collect(),body:SemanticOriginalFunctionBody::Defined(CoreBlock{span,statements:vec![CoreStatement{id:NodeId(0),span,kind:CoreStatementKind::Expression(call)}]})}}],instances:vec![],sites:vec![],dyn_scopes:vec![]});
         let mut b=Budget::new(&Limits::default());let index=build(&module,&mut b).unwrap();let source=snapshot(&module,&index,&mut b).unwrap();drop(index);drop(module);
+        let syntax = source.place_syntax(definition, &mut b).unwrap();
+        let PlaceOperation::Call { callee, arguments } = &syntax.expression(node, &mut b).unwrap().operation else {
+            panic!("the original occurrence is a call");
+        };
+        assert_eq!((*callee, arguments.as_ref()), (NodeId(2), &[NodeId(4), NodeId(3)][..]));
         assert_eq!(source.recipes(definition,SemanticOriginalNode::Expression(node),&[Role::Call,Role::CallableCall,Role::OriginalCall],&mut b).unwrap(),vec![(0,SemanticSiteId(0)),(2,SemanticSiteId(2))]);
         assert_eq!(source.recipes(definition,SemanticOriginalNode::Expression(node),&[Role::TypeUse],&mut b).unwrap(),vec![(1,SemanticSiteId(1))]);
         assert!(source.recipes(definition,SemanticOriginalNode::Statement(node),&[Role::OriginalCall],&mut b).unwrap().is_empty());

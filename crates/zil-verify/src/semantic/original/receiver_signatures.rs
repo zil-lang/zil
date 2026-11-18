@@ -500,25 +500,23 @@ impl CheckedOriginal {
     }
     pub(in crate::semantic) fn original_call_node(
         &self,
-        module: &TypedModule,
+        _module: &TypedModule,
         owner: SemanticDefinitionId,
         site: SemanticSiteId,
         b: &mut Budget,
     ) -> Check<NodeId> {
-        let index = self.source_index(module, &[owner], b)?;
-        let function = index
-            .definitions
-            .get(&owner)
+        let grammar = self.source_grammar.as_ref()
             .ok_or_else(|| bad("Receiver call has no original function"))?;
-        let Some(index::Node::Expression(node)) = function.nodes.get(&site) else {
+        let Some(SemanticOriginalNode::Expression(node)) = grammar.site_node(owner, site, b)? else {
             return Err(bad("Receiver call site has no exact original expression"));
         };
-        if !matches!(node.kind, CoreExprKind::Call { .. })
-            || !self.callable_nodes.contains_key(&(owner, node.id))
+        let expression = grammar.place_syntax(owner, b)?.expression(node, b)?;
+        if !matches!(expression.operation, index::PlaceOperation::Call { .. })
+            || !self.callable_nodes.contains_key(&(owner, node))
         {
             return Err(bad("Receiver call selects another original operation"));
         }
-        Ok(node.id)
+        Ok(node)
     }
     pub(super) fn receiver_call_life(
         &self,
