@@ -52,6 +52,62 @@ impl Solver<'_, '_> {
         }
         Ok(found)
     }
+    /// Seal the value moved at a lexical creator without changing the local
+    /// binding's own role. Every checked source must be the same input life.
+    pub(super) fn moved_reference_capture(
+        &mut self,
+        frame: &Frame,
+        local: &Local,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Term> {
+        self.step(depth, b)?;
+        let Some(LocalAnchor::Binding(statement)) = local.anchor else {
+            return Ok(local.ty);
+        };
+        b.lookup(self.state.reference_roles.len(), WORK)?;
+        let Some(role) = self.state.reference_roles.get(&(frame.definition, statement)) else {
+            return Ok(local.ty);
+        };
+        if !self.same_original(local.ty, role.value, b, depth + 1)? {
+            return Err(fail("moved capture changes its original lexical reference role"));
+        }
+        let Kind::Address { mutable: false, inner, .. } =
+            self.state.arena[self.type_root(role.value, b)?] else {
+                return Err(fail("moved reference capture changes its original pointer mode"));
+            };
+        let mut common = None;
+        for write in &role.writes {
+            b.spend(1, WORK)?;
+            let Some(LocalAnchor::Parameter(parameter)) = self.state.reference_source_anchor(
+                frame.definition, write.expression, self.inventory, b, depth + 1,
+            )? else {
+                return Ok(local.ty);
+            };
+            let declared = *frame.parameters.get(parameter as usize)
+                .ok_or_else(|| fail("moved capture source selects an absent original input"))?;
+            if !self.same_original(write.value, declared, b, depth + 1)? {
+                return Err(fail("moved capture write disagrees with its exact original input"));
+            }
+            let Kind::Address { mutable: false, life, inner: source_inner } =
+                self.state.arena[self.type_root(declared, b)?] else {
+                    return Err(fail("moved reference capture source changes its pointer mode"));
+                };
+            if !self.same_original(inner, source_inner, b, depth + 1)? {
+                return Err(fail("moved reference capture changes its complete pointee"));
+            }
+            if let Some(previous) = common {
+                if !self.same_original(previous, life, b, depth + 1)? {
+                    return Ok(local.ty);
+                }
+            } else {
+                common = Some(life);
+            }
+        }
+        let life = common.ok_or_else(|| fail("moved reference capture has no original initializer"))?;
+        self.term(Kind::Address { mutable: false, life, inner }, b)
+    }
+
     fn reference_binding_occurrence(
         &self,
         owner: SemanticDefinitionId,

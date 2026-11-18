@@ -2778,8 +2778,32 @@ impl Solver<'_, '_> {
                     }
                     // Until complete symbolic ownership/class domains are handled,
                     // abstract owning captures cannot become scalar environments.
+                    let mut inherited = self.copy_locals(&frame.locals, b)?;
+                    if *move_capture {
+                        for environment in &child.environment {
+                            crate::dyn_metadata::recipe(&environment.source, b)?;
+                            let SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
+                                scope: SemanticScopeRef::Ancestor(0),
+                                source: SemanticOriginalTypeSource::NameAt {
+                                    at: SemanticOriginalNode::Expression(at),
+                                    name,
+                                },
+                            }) = &environment.source else { continue; };
+                            if *at != value.id {
+                                return Err(fail("moved capture selects another original lexical point"));
+                            }
+                            b.spend(frame.locals.iter()
+                                .map(|local| local.name.len().saturating_add(name.len() + 1))
+                                .sum(), WORK)?;
+                            let index = frame.locals.iter().rposition(|local| local.name == *name)
+                                .ok_or_else(|| fail("moved capture has no exact original lexical binding"))?;
+                            inherited[index].ty = self.moved_reference_capture(
+                                frame, &frame.locals[index], b, depth + 1,
+                            )?;
+                        }
+                    }
                     let mut names = Vec::new();
-                    for local in &frame.locals {
+                    for local in &inherited {
                         b.spend(local.name.len(), WORK)?;
                         Self::push(&mut names, (local.name.clone(), local.ty), b)?;
                     }
@@ -2793,7 +2817,7 @@ impl Solver<'_, '_> {
                         return Err(fail("original creator lexical point is reused"));
                     }
                     self.snapshot(frame, b)?;
-                    let term = self.function(target, Some(&frame.locals), b, depth + 1)?;
+                    let term = self.function(target, Some(&inherited), b, depth + 1)?;
                     let captured = &self
                         .state
                         .frames

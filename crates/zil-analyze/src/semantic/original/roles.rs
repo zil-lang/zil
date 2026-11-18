@@ -365,13 +365,24 @@ impl Solver<'_, '_> {
             if mutable != actual_mutable {
                 return Err(fail("original callable role changes its reference mode"));
             }
-            let expected_life = match self.state.arena[self.root(life, b)?] {
-                Kind::Life(life) => life,
-                _ => return Err(unknown("original callable role has an unresolved lifetime")),
-            };
-            let actual_life = match self.state.arena[self.root(actual_life, b)?] {
+            let actual_term = self.root(actual_life, b)?;
+            let actual_life = match self.state.arena[actual_term] {
                 Kind::Life(life) => life,
                 _ => return Err(unknown("actual original callable lifetime is unresolved")),
+            };
+            let expected_term = self.root(life, b)?;
+            b.lookup(self.call_variables.len(), WORK)?;
+            if outer && matches!(self.state.arena[expected_term], Kind::LifeVariable(None))
+                && matches!(self.call_variables.get(&expected_term), Some(call_regions::Role::Life(_)))
+                && matches!(actual_life, Life::Formal(..))
+            {
+                // A call's omitted named actual can be grounded by this
+                // complete callable's fixed input signature.
+                self.unify(expected_term, actual_term, depth + 1, b)?;
+            }
+            let expected_life = match self.state.arena[self.root(expected_term, b)?] {
+                Kind::Life(life) => life,
+                _ => return Err(unknown("original callable role has an unresolved lifetime")),
             };
             if expected_life != actual_life {
                 if !outer || !input_lives.contains(&actual_life) {
