@@ -206,6 +206,7 @@ impl Check<'_, '_> {
             Type::Address { .. }
             | Type::Desc(_)
             | Type::FunctionPointer { .. }
+            | Type::BorrowedFunctionPointer { .. }
             | Type::ForeignCallback { .. } => {
                 self.ordinary_type_at(ty, b, depth + 1)?;
                 // Dropping the non-owning handle never drops its pointee.

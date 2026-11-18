@@ -226,6 +226,14 @@ impl Check<'_, '_> {
                 self.ordinary_type_at(error, b, depth + 1)?;
                 return self.ordinary_type_at(result, b, depth + 1);
             }
+            Type::BorrowedFunctionPointer { parameters, result, life } => {
+                crate::signature_life::charge(life, b)?;
+                crate::borrowed_fp::relation(parameters, result, life)?;
+                for parameter in parameters {
+                    self.ordinary_type_at(parameter, b, depth + 1)?;
+                }
+                return self.ordinary_type_at(result, b, depth + 1);
+            }
             Type::FunctionPointer { parameters, result }
             | Type::ForeignCallback { parameters, result } => {
                 for parameter in parameters {

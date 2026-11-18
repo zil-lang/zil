@@ -1550,7 +1550,7 @@ impl Check<'_, '_> {
                     scope: SemanticScopeRef::Ancestor(0),
                     source: SemanticOriginalTypeSource::Expression(node),
                 }, b, 0)?;
-                if !matches!(original.ty, Type::FunctionPointer { .. })
+                if !matches!(original.ty, Type::FunctionPointer { .. } | Type::BorrowedFunctionPointer { .. })
                     || !empty(&original.life) || !original.classes.is_empty()
                 {
                     return Err(fail("thin closure changes its complete original code type"));
@@ -1796,7 +1796,7 @@ impl Check<'_, '_> {
                 }
                 if let SemanticSiteAction::TypeUse {
                     subject: SemanticOperand::Value(value),
-                    expected: SemanticTypeValue::Resolved { ty: Type::FunctionPointer { .. }, .. },
+                    expected: SemanticTypeValue::Resolved { ty: Type::FunctionPointer { .. } | Type::BorrowedFunctionPointer { .. }, .. },
                 } = &site.action
                     && self.original.function_reference(instance, site.recipe, self.inventory, b)?.is_some()
                 {

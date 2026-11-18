@@ -212,6 +212,7 @@ impl Check<'_, '_> {
                 self.zero_data(error, b, depth + 1)?;
                 self.zero_data(result, b, depth + 1)
             }
+            Type::BorrowedFunctionPointer { .. } => self.ordinary_type_at(ty, b, depth + 1),
             Type::FunctionPointer { parameters, result }
             | Type::ForeignCallback { parameters, result } => {
                 for parameter in parameters {

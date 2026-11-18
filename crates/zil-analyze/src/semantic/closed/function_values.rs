@@ -3,6 +3,55 @@
 use super::*;
 use crate::semantic::value::{self, Value};
 impl Check<'_, '_> {
+    pub(super) fn invocation_code_recipe(
+        &self,
+        instance: &SemanticInstance,
+        signature: &SemanticSignatureRecipe,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Value> {
+        if signature.bound_lifetimes != 0 || signature.call_kind != CallKind::Direct
+            || !matches!(signature.result_mode, PassingMode::Infer | PassingMode::Copy)
+        {
+            return Err(unknown("original borrowed Code requires its complete invocation-only ABI"));
+        }
+        let part = |recipe: &SemanticTypeRecipe, b: &mut Budget| -> CompileResult<(Type, Option<u32>)> {
+            if let SemanticTypeRecipe::Address { mutable, lifetime, inner } = recipe {
+                let SemanticLifeRecipe::Class(SemanticClassExpr::Invocation(ordinal)) = lifetime else {
+                    return Err(unknown("borrowed Code requires a local original invocation lifetime"));
+                };
+                let inner = self.recipe_value(instance, inner, b, depth + 1)?;
+                if !empty(&inner.life) || !inner.classes.is_empty() {
+                    return Err(unknown("borrowed Code needs its full nested pointee class relation"));
+                }
+                Ok((Type::Address { mutable: *mutable, inner: Box::new(inner.into_type(b)?) }, Some(*ordinal)))
+            } else {
+                let data = self.recipe_value(instance, recipe, b, depth + 1)?;
+                if !empty(&data.life) || !data.classes.is_empty() {
+                    return Err(unknown("borrowed Code needs its full nested value class relation"));
+                }
+                Ok((data.into_type(b)?, None))
+            }
+        };
+        let mut parameters = Vec::new();
+        for parameter in &signature.parameters {
+            let ty = part(&parameter.ty, b)?;
+            if !matches!(parameter.mode, PassingMode::Infer | PassingMode::Copy)
+                && !(ty.1.is_some() && parameter.mode == PassingMode::Borrow)
+            {
+                return Err(unknown("borrowed Code requires its complete original parameter mode"));
+            }
+            self.push_value(&mut parameters, ty, b)?;
+        }
+        let actual = value::invocation_code(parameters, part(&signature.result, b)?, b)?;
+        if !matches!(&actual.ty, Type::BorrowedFunctionPointer { life, .. }
+            if life.invocation_binder_count == signature.invocation_lifetimes)
+        {
+            return Err(fail("borrowed Code changes the original invocation domain"));
+        }
+        Ok(actual)
+    }
+
     pub(super) fn function_reference(
         &self,
         instance: &SemanticInstance,
@@ -25,7 +74,8 @@ impl Check<'_, '_> {
         };
         let (_, _, instruction) = self.defining(function, *value, b)?;
         let target = match (expected, &instruction.kind) {
-            (Type::FunctionPointer { .. }, InstructionKind::FunctionRef { function })
+            (Type::FunctionPointer { .. } | Type::BorrowedFunctionPointer { .. },
+                InstructionKind::FunctionRef { function })
             | (Type::ForeignCallback { .. }, InstructionKind::ForeignFunctionRef { function }) => {
                 function
             }
@@ -43,6 +93,10 @@ impl Check<'_, '_> {
         }
         let declaration = self.inventory.definition(original, b)?;
         let thin = declaration.kind == SemanticDefinitionKind::Closure;
+        let borrowed = match expected {
+            Type::BorrowedFunctionPointer { life, .. } => Some(life),
+            _ => None,
+        };
         let mut creators = 0usize;
         for world in worlds {
             if world.parent == Some(instance.id) {
@@ -54,7 +108,7 @@ impl Check<'_, '_> {
                 || !thin && world.parent.is_some()
                 || world.environment.is_some()
                 || world.self_type.is_some()
-                || !world.header_embedding.is_empty()
+                || borrowed.is_none() && !world.header_embedding.is_empty()
             {
                 return Err(fail(
                     "actual function reference selects another original specialization or environment",
@@ -62,7 +116,7 @@ impl Check<'_, '_> {
             }
         }
         if thin && (creators != 1 || declaration.parent != Some(instance.definition)
-            || !declaration.environment.is_empty() || !matches!(expected, Type::FunctionPointer { .. }))
+            || !declaration.environment.is_empty() || !matches!(expected, Type::FunctionPointer { .. } | Type::BorrowedFunctionPointer { .. }))
         {
             return Err(fail("thin function reference changes its exact original creator"));
         }
@@ -73,6 +127,7 @@ impl Check<'_, '_> {
             .ok_or_else(|| fail("actual function reference selects no real function"))?;
         let (parameters, result) = match expected {
             Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer { parameters, result, .. }
             | Type::ForeignCallback { parameters, result } => (parameters, result),
             _ => {
                 return Err(fail(
@@ -80,7 +135,13 @@ impl Check<'_, '_> {
                 ));
             }
         };
-        if thin && let Some(header) = &actual.storage_life {
+        if let Some(life) = borrowed {
+            crate::signature_life::charge(life, b)?;
+            crate::borrowed_fp::relation(parameters, result, life)?;
+            if actual.storage_life.as_ref() != Some(life) {
+                return Err(fail("borrowed code target changes its exact actual invocation ABI"));
+            }
+        } else if thin && let Some(header) = &actual.storage_life {
             crate::signature_life::charge(header, b)?;
             if header.fixed_binder_count != 0 || header.invocation_binder_count != 0
                 || !header.bindings.is_empty() || !header.static_bindings.is_empty()
@@ -138,7 +199,7 @@ impl Check<'_, '_> {
             }
             let SemanticSiteAction::TypeUse {
                 subject: subject @ SemanticOperand::Value(value),
-                expected: SemanticTypeValue::Resolved { ty: expected @ Type::FunctionPointer { .. }, .. },
+                expected: SemanticTypeValue::Resolved { ty: expected @ (Type::FunctionPointer { .. } | Type::BorrowedFunctionPointer { .. }), .. },
             } = &site.action else { continue; };
             if !self.original.function_reference(creator, site.recipe, self.inventory, b)?
                 .is_some_and(|(_, target)| target == child.definition)
@@ -232,7 +293,7 @@ impl Check<'_, '_> {
         actuals: &[SemanticActual],
         b: &mut Budget,
     ) -> CompileResult<Option<Value>> {
-        let Some((anchor, code)) =
+        let Some(original::CodeCallBoundary { anchor, code, invocation }) =
             self.original
                 .code_boundary(instance, site, self.program, self.inventory, b)?
         else {
@@ -241,8 +302,14 @@ impl Check<'_, '_> {
         if !actuals.is_empty() {
             return Err(fail("original indirect code call invents generic actuals"));
         }
-        let Type::FunctionPointer { parameters, result } = &code.ty else {
-            return Err(fail("original indirect call loses its complete code type"));
+        let (parameters, result) = match &code.ty {
+            Type::FunctionPointer { parameters, result } if invocation.is_none() => (parameters, result),
+            Type::BorrowedFunctionPointer { parameters, result, life } if invocation.is_some() => {
+                crate::signature_life::charge(life, b)?;
+                crate::borrowed_fp::relation(parameters, result, life)?;
+                (parameters, result)
+            }
+            _ => return Err(fail("original indirect call loses its complete code type")),
         };
         if !empty(&code.life) || !code.classes.is_empty() {
             return Err(unknown(
@@ -313,7 +380,7 @@ impl Check<'_, '_> {
                 "actual indirect call selects another original code operand or arity",
             ));
         }
-        for (argument, expected) in arguments.iter().zip(parameters) {
+        for (ordinal, (argument, expected)) in arguments.iter().zip(parameters).enumerate() {
             operations::available_before(
                 function,
                 (block, index, SemanticSiteEdge::Before),
@@ -326,7 +393,30 @@ impl Check<'_, '_> {
                     "actual indirect argument changes its complete original type",
                 ));
             }
-            self.zero_data(expected, b, 0)?;
+            if let (Type::Address { .. }, Some((inputs, _))) = (expected, &invocation) {
+                let (node, original) = inputs.get(ordinal)
+                    .ok_or_else(|| fail("borrowed indirect call omits an original input"))?;
+                let actual = self.ssa_value(instance, function, *argument, b, 0)?;
+                if !self.outer_role(instance, function, &actual, original, b, 0)? {
+                    return Err(fail("borrowed indirect call changes the complete original argument relation"));
+                }
+                if let Some(source) = self.original_subject_value(instance, function, *node, b)?
+                    && !self.operation_operand_matches(function, *argument, source, b)?
+                    && !matches!(self.defining(function, *argument, b)?.2.kind,
+                        InstructionKind::ReborrowAddress { address, .. } if address == source)
+                {
+                    return Err(fail("borrowed indirect argument selects another original operand"));
+                }
+            } else {
+                self.zero_data(expected, b, 0)?;
+            }
+        }
+        if let Some((_, output)) = invocation {
+            if output.ty != **result {
+                return Err(fail("borrowed indirect result changes its original invocation type"));
+            }
+            self.result(instruction, function, result)?;
+            return Ok(Some(output));
         }
         self.zero_data(result, b, 0)?;
         self.result(instruction, function, result)?;

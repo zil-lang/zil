@@ -282,6 +282,11 @@ impl Check<'_, '_> {
                 value::error_union(error, result, b)
             }
             SemanticTypeRecipe::Code { kind, signature } => {
+                if matches!(kind, SemanticCodeKind::FunctionPointer | SemanticCodeKind::BorrowedFunctionPointer)
+                    && signature.invocation_lifetimes != 0
+                {
+                    return self.invocation_code_recipe(instance, signature, b, depth + 1);
+                }
                 if signature.bound_lifetimes != 0
                     || signature.invocation_lifetimes != 0
                     || signature.call_kind != CallKind::Direct

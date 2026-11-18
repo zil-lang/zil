@@ -1760,6 +1760,54 @@ pub(super) fn class(
         }
     }
 }
+/// Build a flat invocation-only code type from independently checked outer
+/// occurrences. The physical relation check handles exact order and coverage.
+pub(super) fn invocation_code(
+    inputs: Vec<(Type, Option<u32>)>,
+    (result, result_class): (Type, Option<u32>),
+    b: &mut Budget,
+) -> CompileResult<Value> {
+    b.spend(inputs.len().saturating_add(1), WORK)?;
+    let mut parameters = Vec::with_capacity(inputs.len());
+    let mut bindings = Vec::new();
+    let mut count = 0u32;
+    for (ordinal, (ty, class)) in inputs.into_iter().enumerate() {
+        if let Some(class) = class {
+            let base = StorageBase::Parameter(u32::try_from(ordinal)
+                .map_err(|_| fail("borrowed code parameter ordinal overflow"))?);
+            bindings.push(StorageLifeBinding {
+                position: StoragePosition { base, path: Vec::new() },
+                binder: StorageBinder::Invocation(class),
+            });
+            count = count.max(class.checked_add(1)
+                .ok_or_else(|| fail("borrowed code class ordinal overflow"))?);
+        }
+        parameters.push(ty);
+    }
+    if let Some(class) = result_class {
+        if class >= count {
+            return Err(fail("borrowed code result selects no complete input class"));
+        }
+        bindings.push(StorageLifeBinding {
+            position: StoragePosition { base: StorageBase::Result, path: Vec::new() },
+            binder: StorageBinder::Invocation(class),
+        });
+    }
+    if count == 0 {
+        return Err(fail("borrowed code omits its invocation domain"));
+    }
+    let life = StorageLifeContract {
+        fixed_binder_count: 0,
+        invocation_binder_count: count,
+        bindings,
+        static_bindings: Vec::new(),
+        classes: Vec::new(),
+    };
+    crate::signature_life::charge(&life, b)?;
+    crate::borrowed_fp::relation(&parameters, &result, &life)?;
+    Ok(scalar(Type::BorrowedFunctionPointer { parameters, result: Box::new(result), life }))
+}
+
 pub(super) fn resolved(
     instance: &SemanticInstance,
     input: &SemanticTypeValue,

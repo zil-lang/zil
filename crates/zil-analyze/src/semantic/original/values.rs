@@ -738,6 +738,15 @@ impl Checked {
                 result,
                 ..
             } => {
+                if *kind == SemanticCodeKind::BorrowedFunctionPointer {
+                    let mut physical = Vec::new();
+                    for parameter in parameters {
+                        let ty = self.invocation_code_part(*parameter, context, program, inventory, b, depth + 1)?;
+                        Solver::push(&mut physical, ty, b)?;
+                    }
+                    let result = self.invocation_code_part(*result, context, program, inventory, b, depth + 1)?;
+                    return value::invocation_code(physical, result, b);
+                }
                 let mut physical = Vec::new();
                 for parameter in parameters {
                     let value =
@@ -914,6 +923,37 @@ impl Checked {
             _ => Err(unknown(
                 "original complete type remains unresolved independently of executable images",
             )),
+        }
+    }
+}
+
+impl Checked {
+    #[allow(clippy::too_many_arguments)]
+    fn invocation_code_part(
+        &self,
+        term: Term,
+        context: &SemanticInstance,
+        program: &SemanticModule,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<(Type, Option<u32>)> {
+        let term = self.root(term, b)?;
+        if let Kind::Address { mutable, life, inner } = self.arena[term] {
+            let Kind::Life(Life::Invocation(_, ordinal)) = self.arena[self.root(life, b)?] else {
+                return Err(fail("borrowed code part loses its original invocation role"));
+            };
+            let inner = self.value(inner, context, program, inventory, b, depth + 1)?;
+            if inner.life != value::empty() || !inner.classes.is_empty() {
+                return Err(unknown("borrowed code pointee needs its complete nested class relation"));
+            }
+            Ok((Type::Address { mutable, inner: Box::new(inner.into_type(b)?) }, Some(ordinal)))
+        } else {
+            let actual = self.value(term, context, program, inventory, b, depth + 1)?;
+            if actual.life != value::empty() || !actual.classes.is_empty() {
+                return Err(unknown("borrowed code data needs its complete nested class relation"));
+            }
+            Ok((actual.into_type(b)?, None))
         }
     }
 }

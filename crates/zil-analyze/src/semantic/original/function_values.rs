@@ -136,6 +136,15 @@ impl Solver<'_, '_> {
         else {
             return Ok(None);
         };
+        let borrowed = match self.receiving_for(frame, value.id, b)? {
+            Some(term) => {
+                let root = self.type_root(term, b)?;
+                matches!(self.state.arena[root], Kind::Code {
+                    kind: SemanticCodeKind::BorrowedFunctionPointer, ..
+                }).then_some(root)
+            }
+            None => None,
+        };
         if declaration.kind != SemanticDefinitionKind::Function
             || declaration.parent.is_some()
             || !declaration.environment.is_empty()
@@ -143,13 +152,27 @@ impl Solver<'_, '_> {
             || foreign.is_some()
             || signature.call_kind != CallKind::Direct
             || signature.bound_lifetimes != 0
-            || signature.invocation_lifetimes != 0
+            || borrowed.is_none() && signature.invocation_lifetimes != 0
         {
             return Err(unknown(
                 "original function value requires its complete specialization, environment and fixed code ABI",
             ));
         }
         let (_, parameters, result) = self.scheme(frame, None, target, &[], None, b, depth + 1)?;
+        if let Some(expected) = borrowed {
+            for (parameter, term) in signature.parameters.iter().zip(&parameters) {
+                b.spend(1, WORK)?;
+                if !matches!(parameter.mode, PassingMode::Infer | PassingMode::Copy)
+                    && !(parameter.mode == PassingMode::Borrow
+                        && matches!(self.state.arena[self.type_root(*term, b)?], Kind::Address { .. }))
+                {
+                    return Err(fail("borrowed code target changes its complete original parameter mode"));
+                }
+            }
+            self.check_borrowed_target(expected, &parameters, result, b, depth + 1)?;
+            self.record_code_reference(frame.definition, value.id, target, b)?;
+            return Ok(Some(expected));
+        }
         self.fixed_code_value(frame.definition, value.id, target, parameters, result, signature, b)
             .map(Some)
     }
@@ -170,14 +193,21 @@ impl Solver<'_, '_> {
         let Some(receiving) = self.receiving_for(frame, node, b)? else {
             return Ok(unchanged);
         };
-        if !matches!(self.state.arena[self.type_root(receiving, b)?],
-            Kind::Code { kind: SemanticCodeKind::FunctionPointer, .. })
-        {
+        let receiving = self.type_root(receiving, b)?;
+        let Kind::Code { kind, .. } = self.state.arena[receiving] else {
+            return Ok(unchanged);
+        };
+        if !matches!(kind, SemanticCodeKind::FunctionPointer | SemanticCodeKind::BorrowedFunctionPointer) {
             return Ok(unchanged);
         }
         let declaration = self.inventory.definition(target, b)?;
         if captures || !declaration.environment.is_empty() || !declaration.parameters.is_empty() {
             return Err(fail("original thin closure retains an environment or generic actuals"));
+        }
+        if kind == SemanticCodeKind::BorrowedFunctionPointer {
+            self.check_borrowed_target(receiving, &parameters, result, b, 0)?;
+            self.record_code_reference(frame.definition, node, target, b)?;
+            return Ok(receiving);
         }
         self.fixed_code_value(frame.definition, node, target, parameters, result, signature, b)
     }
@@ -231,15 +261,7 @@ impl Solver<'_, '_> {
             },
             b,
         )?;
-        b.lookup(self.state.function_values.len(), WORK)?;
-        if self
-            .state
-            .function_values
-            .insert((owner, node), target)
-            .is_some()
-        {
-            return Err(fail("original function reference node is repeated"));
-        }
+        self.record_code_reference(owner, node, target, b)?;
         self.term(
             Kind::Code {
                 kind: SemanticCodeKind::FunctionPointer,
@@ -269,6 +291,180 @@ impl Solver<'_, '_> {
         Ok(CodeCallAnchor::Projected { local, projections })
     }
 
+    pub(super) fn borrowed_code_recipe(
+        &mut self,
+        frame: &Frame,
+        signature: &SemanticSignatureRecipe,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Term> {
+        if signature.bound_lifetimes != 0 || signature.invocation_lifetimes == 0
+            || signature.call_kind != CallKind::Direct
+        {
+            return Err(unknown("borrowed code needs a complete Direct invocation signature"));
+        }
+        let mut inputs = Vec::new();
+        let mut modes = Vec::new();
+        let mut used = BTreeSet::new();
+        for argument in &signature.parameters {
+            let term = self.borrowed_code_type(frame, &argument.ty, &mut used, b, depth + 1)?;
+            let address = matches!(self.state.arena[self.type_root(term, b)?], Kind::Address { .. });
+            if !matches!(argument.mode, PassingMode::Infer | PassingMode::Copy)
+                && !(address && argument.mode == PassingMode::Borrow)
+            {
+                return Err(unknown("borrowed code parameter needs its complete ordinary mode"));
+            }
+            Self::push(&mut inputs, term, b)?;
+            Self::push(&mut modes, if address { PassingMode::Infer } else { argument.mode }, b)?;
+        }
+        if used.len() != signature.invocation_lifetimes as usize
+            || used.iter().copied().ne(0..signature.invocation_lifetimes)
+        {
+            return Err(fail("borrowed code parameters omit their exact invocation domain"));
+        }
+        let result = self.borrowed_code_type(frame, &signature.result, &mut used, b, depth + 1)?;
+        if used.len() != signature.invocation_lifetimes as usize
+            || !matches!(signature.result_mode, PassingMode::Infer | PassingMode::Copy)
+        {
+            return Err(unknown("borrowed code result requires its complete input relation"));
+        }
+        self.term(Kind::Code {
+            kind: SemanticCodeKind::BorrowedFunctionPointer,
+            parameters: inputs,
+            result,
+            modes,
+            result_mode: signature.result_mode,
+            call_kind: CallKind::Direct,
+        }, b)
+    }
+
+    fn borrowed_code_type(
+        &mut self,
+        frame: &Frame,
+        recipe: &SemanticTypeRecipe,
+        used: &mut BTreeSet<u32>,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Term> {
+        let SemanticTypeRecipe::Address { mutable, lifetime, inner } = recipe else {
+            return self.recipe(frame, recipe, b, depth);
+        };
+        let SemanticLifeRecipe::Class(SemanticClassExpr::Invocation(index)) = lifetime else {
+            return Err(unknown("borrowed code requires a local invocation lifetime"));
+        };
+        b.lookup(used.len(), WORK)?;
+        used.insert(*index);
+        let life = self.term(Kind::Life(Life::Invocation(frame.definition, *index)), b)?;
+        let inner = self.recipe(frame, inner, b, depth + 1)?;
+        self.term(Kind::Address { mutable: *mutable, life, inner }, b)
+    }
+
+    pub(super) fn code_outer(
+        &self,
+        term: Term,
+        b: &mut Budget,
+    ) -> CompileResult<Option<(bool, u32, Term)>> {
+        let Kind::Address { mutable, life, inner } = self.state.arena[self.type_root(term, b)?] else {
+            return Ok(None);
+        };
+        let Kind::Life(Life::Invocation(_, index)) = self.state.arena[self.root(life, b)?] else {
+            return Err(fail("borrowed code signature has no checked invocation class"));
+        };
+        Ok(Some((mutable, index, inner)))
+    }
+
+    pub(super) fn instantiate_code_terms(
+        &mut self,
+        parameters: &mut [Term],
+        result: &mut Term,
+        owner: Option<SemanticDefinitionId>,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let mut classes = BTreeMap::new();
+        for term in parameters.iter_mut().chain(std::iter::once(result)) {
+            let Some((mutable, index, inner)) = self.code_outer(*term, b)? else {
+                continue;
+            };
+            b.lookup(classes.len(), WORK)?;
+            let life = match classes.get(&index) {
+                Some(life) => *life,
+                None => {
+                    let kind = match owner {
+                        Some(owner) => Kind::Life(Life::Invocation(owner, index)),
+                        None => Kind::LifeVariable(None),
+                    };
+                    let life = self.term(kind, b)?;
+                    classes.insert(index, life);
+                    life
+                }
+            };
+            *term = self.term(Kind::Address { mutable, life, inner }, b)?;
+        }
+        Ok(())
+    }
+
+    fn check_borrowed_target(
+        &mut self,
+        receiving: Term,
+        parameters: &[Term],
+        result: Term,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        let Kind::Code { kind: SemanticCodeKind::BorrowedFunctionPointer,
+            parameters: expected, result: expected_result, .. } = &self.state.arena[receiving] else {
+            return Err(fail("borrowed function value has no checked original receiving ABI"));
+        };
+        if expected.len() != parameters.len() {
+            return Err(fail("borrowed code target changes its original arity"));
+        }
+        b.spend(expected.len().saturating_add(1), WORK)?;
+        let expected = expected.clone();
+        let expected_result = *expected_result;
+        let mut classes = Vec::new();
+        for (&actual, wanted) in parameters.iter().zip(expected).chain(std::iter::once((&result, expected_result))) {
+            let Some((mode, ordinal, inner)) = self.code_outer(wanted, b)? else {
+                self.unify(actual, wanted, depth + 1, b)?;
+                continue;
+            };
+            let Kind::Address { mutable, life, inner: actual_inner } = self.state.arena[self.type_root(actual, b)?] else {
+                return Err(fail("borrowed code target changes its original address parameter or result"));
+            };
+            let life = self.root(life, b)?;
+            if mutable != mode
+                || !matches!(self.state.arena[life], Kind::LifeVariable(None)
+                    | Kind::Life(Life::Formal(..) | Life::Implicit(..) | Life::Invocation(..))) {
+                return Err(fail("borrowed code target changes its original mode or invocation source"));
+            }
+            b.spend(classes.len(), WORK)?;
+            for (prior, previous) in &classes {
+                let same = *previous == life
+                    || matches!((&self.state.arena[*previous], &self.state.arena[life]),
+                        (Kind::Life(left), Kind::Life(right)) if left == right);
+                if same != (*prior == ordinal) {
+                    return Err(fail("borrowed code changes its complete original invocation relations"));
+                }
+            }
+            classes.push((ordinal, life));
+            self.unify(actual_inner, inner, depth + 1, b)?;
+        }
+        Ok(())
+    }
+
+    fn record_code_reference(
+        &mut self,
+        owner: SemanticDefinitionId,
+        node: NodeId,
+        target: SemanticDefinitionId,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        b.lookup(self.state.function_values.len(), WORK)?;
+        if self.state.function_values.insert((owner, node), target).is_some() {
+            return Err(fail("original function reference node is repeated"));
+        }
+        Ok(())
+    }
+
     pub(super) fn code_call(
         &mut self,
         frame: &mut Frame,
@@ -291,7 +487,8 @@ impl Solver<'_, '_> {
         else {
             return Ok(None);
         };
-        if *kind != SemanticCodeKind::FunctionPointer
+        let borrowed = *kind == SemanticCodeKind::BorrowedFunctionPointer;
+        if !matches!(kind, SemanticCodeKind::FunctionPointer | SemanticCodeKind::BorrowedFunctionPointer)
             || *call_kind != CallKind::Direct
             || !matches!(result_mode, PassingMode::Infer | PassingMode::Copy)
             || modes.len() != parameters.len()
@@ -304,9 +501,15 @@ impl Solver<'_, '_> {
             ));
         }
         b.spend(parameters.len().saturating_add(modes.len() + 1), WORK)?;
-        let parameters = parameters.clone();
-        let result = *result;
+        let mut parameters = parameters.clone();
+        let mut result = *result;
+        if borrowed {
+            self.instantiate_code_terms(&mut parameters, &mut result, None, b)?;
+        }
         for term in parameters.iter().chain(std::iter::once(&result)) {
+            if borrowed && matches!(self.state.arena[self.type_root(*term, b)?], Kind::Address { .. }) {
+                continue;
+            }
             Self::push(
                 &mut self.needs,
                 Need {
@@ -355,11 +558,17 @@ impl Solver<'_, '_> {
             }
             _ => return Err(unknown("original indirect code call needs its exact value anchor")),
         };
+        let invocation = if borrowed {
+            b.spend(parameters.len().saturating_add(1), WORK)?;
+            Some((parameters.clone(), result))
+        } else {
+            None
+        };
         b.lookup(self.state.code_calls.len(), WORK)?;
         if self
             .state
             .code_calls
-            .insert((frame.definition, node), CodeCall { code: root, anchor })
+            .insert((frame.definition, node), CodeCall { code: root, anchor, invocation })
             .is_some()
         {
             return Err(fail("original indirect call node is repeated"));
@@ -376,7 +585,7 @@ impl Checked {
         program: &SemanticModule,
         inventory: &Inventory<'_>,
         b: &mut Budget,
-    ) -> CompileResult<Option<(&CodeCallAnchor, crate::semantic::value::Value)>> {
+    ) -> CompileResult<Option<CodeCallBoundary<'_>>> {
         let definition = inventory.definition(context.definition, b)?;
         let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
             return Err(fail("original code operation has no body inventory"));
@@ -388,8 +597,26 @@ impl Checked {
                 if let SemanticOriginalNode::Expression(node) = link.node {
                     b.lookup(self.code_calls.len(), WORK)?;
                     if let Some(call) = self.code_calls.get(&(context.definition, node)) {
-                        let value = self.value(call.code, context, program, inventory, b, 0)?;
-                        if found.replace((&call.anchor, value)).is_some() {
+                        let code = self.value(call.code, context, program, inventory, b, 0)?;
+                        let invocation = if let Some((inputs, result)) = &call.invocation {
+                            let expression = inventory.original_index(context.definition, b)?.get_expr(node, b)?;
+                            let CoreExprKind::Call { arguments, .. } = &expression.kind else {
+                                return Err(fail("borrowed code invocation has no original call arguments"));
+                            };
+                            if arguments.len() != inputs.len() {
+                                return Err(fail("borrowed code invocation changes its original argument inventory"));
+                            }
+                            let mut actuals = Vec::new();
+                            for (argument, term) in arguments.iter().zip(inputs) {
+                                let value = self.value(*term, context, program, inventory, b, 0)?;
+                                Solver::push(&mut actuals, (argument.id, value), b)?;
+                            }
+                            let output = self.value(*result, context, program, inventory, b, 0)?;
+                            Some((actuals, output))
+                        } else {
+                            None
+                        };
+                        if found.replace(CodeCallBoundary { anchor: &call.anchor, code, invocation }).is_some() {
                             return Err(fail("original code call has multiple node links"));
                         }
                     }

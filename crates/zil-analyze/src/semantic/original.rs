@@ -261,6 +261,12 @@ pub(super) enum CodeCallAnchor {
 struct CodeCall {
     code: Term,
     anchor: CodeCallAnchor,
+    invocation: Option<(Vec<Term>, Term)>,
+}
+pub(super) struct CodeCallBoundary<'a> {
+    pub anchor: &'a CodeCallAnchor,
+    pub code: crate::semantic::value::Value,
+    pub invocation: Option<(Vec<(NodeId, crate::semantic::value::Value)>, crate::semantic::value::Value)>,
 }
 struct ReceivingPlace {
     parameter: u32,
@@ -664,10 +670,20 @@ impl Solver<'_, '_> {
                     call_kind: zc,
                 },
             ) if ak == zk && a.len() == z.len() && am == zm && arm == zrm && ac == zc => {
-                for (a, z) in a.iter().zip(z) {
-                    self.unify(*a, z, depth + 1, b)?;
+                for (a, z) in a.into_iter().zip(z).chain(std::iter::once((ar, zr))) {
+                    if ak == SemanticCodeKind::BorrowedFunctionPointer {
+                        match (self.code_outer(a, b)?, self.code_outer(z, b)?) {
+                            (Some((am, ac, inner)), Some((zm, zc, other))) if am == zm && ac == zc => {
+                                self.unify(inner, other, depth + 1, b)?;
+                                continue;
+                            }
+                            (None, None) => {}
+                            _ => return Err(fail("borrowed code types differ in their complete invocation relation")),
+                        }
+                    }
+                    self.unify(a, z, depth + 1, b)?;
                 }
-                self.unify(ar, zr, depth + 1, b)
+                Ok(())
             }
             (
                 Kind::Array {
@@ -1096,6 +1112,11 @@ impl Solver<'_, '_> {
                 self.term(Kind::ErrorUnion { error, result }, b)
             }
             SemanticTypeRecipe::Code { kind, signature } => {
+                if matches!(kind, SemanticCodeKind::FunctionPointer | SemanticCodeKind::BorrowedFunctionPointer)
+                    && signature.invocation_lifetimes != 0
+                {
+                    return self.borrowed_code_recipe(frame, signature, b, depth + 1);
+                }
                 if signature.bound_lifetimes != 0
                     || signature.invocation_lifetimes != 0
                     || signature.call_kind != CallKind::Direct
@@ -2922,7 +2943,7 @@ impl Solver<'_, '_> {
                         Some(wanted) => {
                             let wanted = self.type_root(wanted, b)?;
                             matches!(self.state.arena[wanted], Kind::Code {
-                                kind: SemanticCodeKind::FunctionPointer, ..
+                                kind: SemanticCodeKind::FunctionPointer | SemanticCodeKind::BorrowedFunctionPointer, ..
                             }).then_some(wanted)
                         }
                         None => None,
@@ -3774,7 +3795,7 @@ impl Solver<'_, '_> {
             let Kind::Code {
                 parameters: inputs,
                 result,
-                kind: SemanticCodeKind::FunctionPointer,
+                kind,
                 call_kind: CallKind::Direct,
                 ..
             } = &self.state.arena[code] else {
@@ -3787,7 +3808,13 @@ impl Solver<'_, '_> {
                 return Err(fail("original thin child changes its exact receiving code signature"));
             }
             b.spend(inputs.len().saturating_add(1), WORK)?;
-            Some((inputs.clone(), *result))
+            let borrowed = *kind == SemanticCodeKind::BorrowedFunctionPointer;
+            let mut inputs = inputs.clone();
+            let mut result = *result;
+            if borrowed {
+                self.instantiate_code_terms(&mut inputs, &mut result, Some(id), b)?;
+            }
+            Some((inputs, result))
         } else {
             None
         };

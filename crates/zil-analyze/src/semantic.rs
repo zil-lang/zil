@@ -1071,7 +1071,7 @@ impl<'a> Inventory<'a> {
                     SemanticSiteRecipeKind::Closure { definition, environment },
                     SemanticSiteAction::TypeUse {
                         subject: SemanticOperand::Value(result),
-                        expected: SemanticTypeValue::Resolved { ty: Type::FunctionPointer { .. }, .. },
+                        expected: SemanticTypeValue::Resolved { ty: Type::FunctionPointer { .. } | Type::BorrowedFunctionPointer { .. }, .. },
                     },
                 ) => {
                     let child = self.definition(*definition, b)?;
@@ -1081,7 +1081,7 @@ impl<'a> Inventory<'a> {
                         || !child.environment.is_empty() || edge != SemanticSiteEdge::Before
                         || !matches!(producer, Some(instruction) if instruction.result == Some(*result)
                             && matches!(instruction.kind, InstructionKind::FunctionRef { .. }))
-                        || !matches!(function.values.get(result.0 as usize), Some(Type::FunctionPointer { .. }))
+                        || !matches!(function.values.get(result.0 as usize), Some(Type::FunctionPointer { .. } | Type::BorrowedFunctionPointer { .. }))
                     {
                         return Err(fail("thin closure site changes its original code creation boundary"));
                     }
