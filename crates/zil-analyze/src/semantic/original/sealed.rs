@@ -10,6 +10,7 @@ pub(in crate::semantic) enum Intrinsic {
     OwnedDyn,
     CCallback,
     TaskYield,
+    TaskAwait,
     TaskCreate,
     TaskCreateOwned,
     TaskValid,
@@ -98,6 +99,7 @@ impl Intrinsic {
             "f32" => Self::NumericConvert(Number::F32),
             "f64" => Self::NumericConvert(Number::F64),
             "task_yield" => Self::TaskYield,
+            "task_await" => Self::TaskAwait,
             "task_create" => Self::TaskCreate,
             "task_create_owned" => Self::TaskCreateOwned,
             "task_valid" => Self::TaskValid,
@@ -141,7 +143,7 @@ impl Intrinsic {
     /// Fixed ABI of the operation, conditional on its complete scheme. This
     /// is not a proof that its arguments, modes, cleanup or callback satisfy it.
     pub(super) fn call_kind(self) -> CallKind {
-        if self == Self::TaskYield {
+        if matches!(self, Self::TaskYield | Self::TaskAwait) {
             CallKind::Suspend
         } else {
             CallKind::Direct

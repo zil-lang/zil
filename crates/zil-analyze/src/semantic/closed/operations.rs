@@ -1009,7 +1009,8 @@ impl Check<'_, '_> {
                             self.result(instruction, point.function, &Type::Unit)?;
                             return Ok(());
                         }
-                        id @ (original::sealed::Intrinsic::TaskCreate
+                        id @ (original::sealed::Intrinsic::TaskAwait
+                        | original::sealed::Intrinsic::TaskCreate
                         | original::sealed::Intrinsic::TaskCreateOwned
                         | original::sealed::Intrinsic::TaskPoll
                         | original::sealed::Intrinsic::TaskCancel

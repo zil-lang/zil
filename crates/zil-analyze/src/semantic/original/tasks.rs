@@ -971,12 +971,15 @@ impl Solver<'_, '_> {
             ));
         }
         let mut inputs = Vec::new();
-        let result = if matches!(intrinsic, sealed::Intrinsic::TaskCreate | sealed::Intrinsic::TaskCreateOwned) {
+        let result = if matches!(intrinsic, sealed::Intrinsic::TaskAwait | sealed::Intrinsic::TaskCreate | sealed::Intrinsic::TaskCreateOwned) {
             let (worker, arguments) = arguments
                 .split_first()
                 .ok_or_else(|| fail("Task creation omits its static worker"))?;
             let (target, parameters, result, modes, result_mode, call_kind, worker_actuals) =
                 self.task_worker(frame, worker, node, b, depth + 1)?;
+            if intrinsic == sealed::Intrinsic::TaskAwait && call_kind != CallKind::Suspend {
+                return Err(fail("task_await requires an original Suspend child"));
+            }
             if parameters.len() != arguments.len() || modes.len() != arguments.len() {
                 return Err(fail(
                     "Task creation changes its worker's ordered input arity",
@@ -1022,12 +1025,14 @@ impl Solver<'_, '_> {
             if self.state.task_worker_actuals.insert((frame.definition, node), worker_actuals).is_some() {
                 return Err(fail("Task creation has competing original worker actual vectors"));
             }
-            for parameter in &parameters { self.task_input_shape(*parameter, &mut task, b, depth + 1)?; }
-            // Each real ordered input contributes its complete original
-            // whole domain and P_i mapping, including opaque/phantom children.
-            // task_input_shape above still proves this input family's source
-            // port qualification; it supplies no cleanup/Closed permission.
-            self.task_input_domain(&mut task, &inputs, b)?;
+            if intrinsic != sealed::Intrinsic::TaskAwait {
+                for parameter in &parameters { self.task_input_shape(*parameter, &mut task, b, depth + 1)?; }
+                // Each real ordered input contributes its complete original
+                // whole domain and P_i mapping, including opaque/phantom children.
+                // task_input_shape above still proves this input family's source
+                // port qualification; it supplies no cleanup/Closed permission.
+                self.task_input_domain(&mut task, &inputs, b)?;
+            }
             b.lookup(self.state.native_targets.len(), WORK)?;
             if self
                 .state
@@ -1055,20 +1060,24 @@ impl Solver<'_, '_> {
             if frame.expressions.insert(worker.id, reference).is_some() {
                 return Err(fail("Task worker source node is reused"));
             }
-            let task = self.term(Kind::Task(task), b)?;
-            let owner = self.term(Kind::Wrapped(Wrapper::Managed, task), b)?;
-            let error = if intrinsic == sealed::Intrinsic::TaskCreateOwned {
-                self.task_failure(&inputs, b, depth + 1)?
+            if intrinsic == sealed::Intrinsic::TaskAwait {
+                result
             } else {
-                self.task_builtin(zil_ir::builtin_life::TASK_CREATE_ERROR, Vec::new(), b, depth + 1)?
-            };
-            self.term(
-                Kind::ErrorUnion {
-                    error,
-                    result: owner,
-                },
-                b,
-            )?
+                let task = self.term(Kind::Task(task), b)?;
+                let owner = self.term(Kind::Wrapped(Wrapper::Managed, task), b)?;
+                let error = if intrinsic == sealed::Intrinsic::TaskCreateOwned {
+                    self.task_failure(&inputs, b, depth + 1)?
+                } else {
+                    self.task_builtin(zil_ir::builtin_life::TASK_CREATE_ERROR, Vec::new(), b, depth + 1)?
+                };
+                self.term(
+                    Kind::ErrorUnion {
+                        error,
+                        result: owner,
+                    },
+                    b,
+                )?
+            }
         } else {
             if arguments.len() != 1 {
                 return Err(fail(

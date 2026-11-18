@@ -3193,6 +3193,15 @@ impl Check<'_, '_> {
                         "actual call result changes its original execution convention",
                     ));
                 }
+                if suspend {
+                    for site in self.inventory.sites_at(self.program, instance.id, block, index, SemanticSiteEdge::After, b)? {
+                        if matches!(site.action, SemanticSiteAction::BodyCall { .. })
+                            && self.original.intrinsic(instance, site.recipe, self.inventory, b)? == Some(original::sealed::Intrinsic::TaskAwait)
+                        {
+                            return self.task_result(instance, function, block, index, b);
+                        }
+                    }
+                }
                 if let Some(value) = self.trait_result(instance, function, block, index, b)? {
                     return Ok(value);
                 }

@@ -71,7 +71,7 @@ impl Check<'_, '_> {
             let SemanticSiteAction::BodyCall { actuals } = &site.action else { continue; };
             let intrinsic = self.original.intrinsic(instance, site.recipe, self.inventory, b)?
                 .ok_or_else(|| fail("Task result has no original intrinsic scheme"))?;
-            if !matches!(intrinsic, original::sealed::Intrinsic::TaskCreate | original::sealed::Intrinsic::TaskCreateOwned
+            if !matches!(intrinsic, original::sealed::Intrinsic::TaskAwait | original::sealed::Intrinsic::TaskCreate | original::sealed::Intrinsic::TaskCreateOwned
                 | original::sealed::Intrinsic::TaskPoll | original::sealed::Intrinsic::TaskPollClose) {
                 return Err(fail("Task result replaces another original intrinsic"));
             }
@@ -103,7 +103,7 @@ impl Check<'_, '_> {
         actuals: &[SemanticActual],
         b: &mut Budget,
     ) -> CompileResult<Type> {
-        if !matches!(intrinsic, original::sealed::Intrinsic::TaskCreate | original::sealed::Intrinsic::TaskCreateOwned) {
+        if !matches!(intrinsic, original::sealed::Intrinsic::TaskAwait | original::sealed::Intrinsic::TaskCreate | original::sealed::Intrinsic::TaskCreateOwned) {
             let expected_type =
                 self.original
                     .intrinsic_type_actual(instance, site, self.program, self.inventory, b)?;
@@ -137,6 +137,15 @@ impl Check<'_, '_> {
             self.original
                 .intrinsic_inputs(instance, site, self.program, self.inventory, b)?;
         let arguments: &[ValueId] = match (intrinsic, &instruction.kind) {
+            (original::sealed::Intrinsic::TaskAwait, InstructionKind::SuspendCall { function: worker, arguments }) => {
+                let child = self.module.functions.get(worker.0 as usize)
+                    .filter(|child| child.id == *worker && child.foreign.is_none() && child.call_kind == CallKind::Suspend);
+                if function.call_kind != CallKind::Suspend || child.is_none() {
+                    return Err(fail("actual await changes the Suspend parent or child"));
+                }
+                self.task_worker_arguments(instance, site, *worker, actuals, b)?;
+                arguments
+            }
             (
                 original::sealed::Intrinsic::TaskCreate,
                 InstructionKind::TaskCreate {

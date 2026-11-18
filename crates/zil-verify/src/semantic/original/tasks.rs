@@ -88,7 +88,7 @@ impl CheckedOriginal {
         active: &mut ActiveQueries,
         b: &mut Budget,
     ) -> Check<Ty> {
-        if matches!(kind, Intrinsic::TaskCreate | Intrinsic::TaskCreateOwned) {
+        if matches!(kind, Intrinsic::TaskAwait | Intrinsic::TaskCreate | Intrinsic::TaskCreateOwned) {
             if arguments.is_empty() {
                 return Err(bad("Task creation omits its original worker"));
             }
@@ -98,6 +98,9 @@ impl CheckedOriginal {
             self.operation_arity(&arguments[1..], prototype.parameters.len())?;
             if !matches!(prototype.call_kind, CallKind::Direct | CallKind::Suspend) {
                 return Err(bad("Task worker has another complete call convention"));
+            }
+            if kind == Intrinsic::TaskAwait && prototype.call_kind != CallKind::Suspend {
+                return Err(bad("task_await requires the actual original Suspend child"));
             }
             let outer_heads = self.defer_call_heads(&prototype, &worker_actuals, outer_floor, b)?;
             let index = self.source_index(module, &[env.current()?], b)?;
@@ -154,28 +157,30 @@ impl CheckedOriginal {
             self.finish_call_heads(&outer_heads, call_node, b)?;
             self.remember_call_region_parameters(&prototype.parameters, call_node, env, b)?;
             let mut retained = Retained::default();
-            for (ordinal, input) in inputs.iter().enumerate() {
-                // Expand every complete adapted input domain, including all
-                // phantom classes, independently of the worker result.
-                if !self.task_zero_domain(module, context, input, env, active, b, 0)? {
-                    let classes = vec![ClassPart::All {
-                        ty: input.clone(),
-                        path: vec![],
-                    }];
-                    retained.domain.extend(classes.clone());
-                    retained.ports.push(PortPart::FromType {
-                        ty: input.clone(),
-                        classes: classes.clone(),
-                    });
-                    retained.retained.push(RetainedPart::All {
-                        path: vec![LifeTypeProjection::Parameter(ordinal as u32)],
-                        parents: classes.clone(),
-                    });
-                    retained.nominal.push(NominalPart::FromType {
-                        path: vec![LifeTypeProjection::Parameter(ordinal as u32)],
-                        ty: input.clone(),
-                        classes,
-                    });
+            if kind != Intrinsic::TaskAwait {
+                for (ordinal, input) in inputs.iter().enumerate() {
+                    // Expand every complete adapted input domain, including all
+                    // phantom classes, independently of the worker result.
+                    if !self.task_zero_domain(module, context, input, env, active, b, 0)? {
+                        let classes = vec![ClassPart::All {
+                            ty: input.clone(),
+                            path: vec![],
+                        }];
+                        retained.domain.extend(classes.clone());
+                        retained.ports.push(PortPart::FromType {
+                            ty: input.clone(),
+                            classes: classes.clone(),
+                        });
+                        retained.retained.push(RetainedPart::All {
+                            path: vec![LifeTypeProjection::Parameter(ordinal as u32)],
+                            parents: classes.clone(),
+                        });
+                        retained.nominal.push(NominalPart::FromType {
+                            path: vec![LifeTypeProjection::Parameter(ordinal as u32)],
+                            ty: input.clone(),
+                            classes,
+                        });
+                    }
                 }
             }
             prototype.result =
@@ -191,15 +196,17 @@ impl CheckedOriginal {
             )?;
             // Cancellation and an unobserved result must settle the complete
             // result. A concrete Copy sample cannot establish abstract cleanup.
-            self.structural_obligation(
-                module,
-                context,
-                &prototype.result,
-                DynStructuralBound::SyncDrop,
-                env,
-                active,
-                b,
-            )?;
+            if kind != Intrinsic::TaskAwait {
+                self.structural_obligation(
+                    module,
+                    context,
+                    &prototype.result,
+                    DynStructuralBound::SyncDrop,
+                    env,
+                    active,
+                    b,
+                )?;
+            }
             // The common Task constructor below preserves All(Result R),
             // even at N0, without manufacturing a target or frame permission.
             let worker_definition = context.definition(module, worker, b)?;
@@ -232,6 +239,11 @@ impl CheckedOriginal {
             self.calls.insert((env.current()?, site), worker_actuals);
             self.call_targets.insert((env.current()?, site), worker);
             use_.worker = Some(worker);
+            if kind == Intrinsic::TaskAwait {
+                // Typed lowers await to an ordinary SuspendCall. Its actual
+                // call proof uses this source target and full mixed vector.
+                return Ok(prototype.result);
+            }
             let mut context_retained = retained.clone();
             context_retained.retained.retain(|part| match part {
                 RetainedPart::One { path, .. } | RetainedPart::All { path, .. } => {

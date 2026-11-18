@@ -330,7 +330,8 @@ impl CheckedOriginal {
                     Ty::Atom(Type::Unit)
                 }
             }
-            Intrinsic::TaskCreate
+            Intrinsic::TaskAwait
+            | Intrinsic::TaskCreate
             | Intrinsic::TaskCreateOwned
             | Intrinsic::TaskValid
             | Intrinsic::TaskPoll
@@ -504,7 +505,8 @@ impl CheckedOriginal {
             }
             _ => return Err(bad("operation entered another closed scheme")),
         };
-        self.execute_effect(env, CallKind::Direct, b)?;
+        let effect = if kind == Intrinsic::TaskAwait { CallKind::Suspend } else { CallKind::Direct };
+        self.execute_effect(env, effect, b)?;
         self.calls.entry((env.current()?, site)).or_insert(mixed);
         b.spend(1)?;
         self.intrinsic_calls.insert((env.current()?, site), use_);

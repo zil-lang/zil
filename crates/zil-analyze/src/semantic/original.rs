@@ -2701,7 +2701,8 @@ impl Solver<'_, '_> {
                                 return Ok(result);
                             }
                             sealed::Resolution::Intrinsic(
-                                id @ (sealed::Intrinsic::TaskCreate
+                                id @ (sealed::Intrinsic::TaskAwait
+                                | sealed::Intrinsic::TaskCreate
                                 | sealed::Intrinsic::TaskCreateOwned
                                 | sealed::Intrinsic::TaskPoll
                                 | sealed::Intrinsic::TaskPollClose

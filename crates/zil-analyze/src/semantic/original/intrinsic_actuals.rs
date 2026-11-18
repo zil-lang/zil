@@ -101,7 +101,7 @@ impl Checked {
                     .ok_or_else(|| fail("original Store scheme has no selected manager"))?,
                 false,
             ),
-            I::TaskCreate | I::TaskCreateOwned => {
+            I::TaskAwait | I::TaskCreate | I::TaskCreateOwned => {
                 let frame = self
                     .frames
                     .get(&context.definition)
