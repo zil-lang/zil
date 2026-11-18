@@ -21,45 +21,42 @@ impl CheckedContext {
         let (root,local)=loop {
             b.spend(1)?;
             match following.next() {
-                Some(Instruction{kind:InstructionKind::UpdateField{value,..},result:Some(output),span}) if *value==previous&&*span==instruction.span=>previous=*output,
+                Some(Instruction{kind:InstructionKind::UpdateField{value,..}|InstructionKind::UpdateIndex{value,..},result:Some(output),span}) if *value==previous&&*span==instruction.span=>previous=*output,
                 Some(Instruction{kind:InstructionKind::Store{local,value},span,..}) if *value==previous&&*span==instruction.span=>break(previous,*local),
                 _=>return Err(bad("Copy field update has no exact original local publication")),
             }
         };
         let original=self.field_assignment(module,caller,instruction.span,b)?;
-        let mut selected=root;
-        let mut previous_child=None;
-        let mut root_value=None;
-        let mut path=Vec::new();
-        loop {
+        let mut selected = root;
+        let mut expected_read = InstructionKind::Load(local);
+        if !f.locals.get(local.0 as usize).is_some_and(|row| row.mutable) {
+            return Err(bad("Copy update does not publish to its original mutable local"));
+        }
+        for _ in 0..b.limits.max_call_depth {
             b.spend(1)?;
-            if path.len()>=b.limits.max_call_depth {return Err(limit("Copy field update exceeds original path depth"));}
-            let (_,_,actual)=super::owner_sources::producer(f,selected,b)?;
-            let InstructionKind::UpdateField{aggregate,index,value}=actual.kind else{return Err(bad("Copy field update chain omits its constructor"));};
-            if let Some((parent,field))=previous_child {
-                let (_,_,projection)=super::owner_sources::producer(f,aggregate,b)?;
-                if projection.kind!=(InstructionKind::ExtractField{aggregate:parent,index:field}) {
-                    return Err(bad("nested field update changes its actual parent snapshot"));
-                }
+            let (_, _, update) = super::owner_sources::producer(f, selected, b)?;
+            let (parent, child, projected_read) = match update.kind {
+                InstructionKind::UpdateField { aggregate, index, value } =>
+                    (aggregate, value, InstructionKind::ExtractField { aggregate, index }),
+                InstructionKind::UpdateIndex { aggregate, index, value } =>
+                    (aggregate, value, InstructionKind::ExtractIndex { aggregate, index }),
+                _ => return Err(bad("Copy update chain omits its rebuilding operation")),
+            };
+            let (_, _, read) = super::owner_sources::producer(f, parent, b)?;
+            if read.kind != expected_read {
+                return Err(bad("nested Copy update changes its actual parent snapshot"));
             }
-            root_value.get_or_insert(aggregate);
-            path.push(PlaceProjection::Field(index));
-            let (_,_,child)=super::owner_sources::producer(f,value,b)?;
-            if matches!(child.kind,InstructionKind::UpdateField{..})&&child.span==instruction.span {
-                previous_child=Some((aggregate,index));
-                selected=value;
-            }else{
-                self.field_assignment_rhs(module,caller,f,value,&original,b)?;
-                break;
+            let (_, _, rhs) = super::owner_sources::producer(f, child, b)?;
+            if matches!(rhs.kind, InstructionKind::UpdateField { .. } | InstructionKind::UpdateIndex { .. })
+                && rhs.span == instruction.span {
+                expected_read = projected_read;
+                selected = child;
+                continue;
             }
+            self.field_assignment_rhs(module, caller, f, child, &original, b)?;
+            return self.copy_assignment_target(module, caller, f, parent, &projected_read, original.target, b);
         }
-        let root_value=root_value.ok_or_else(||bad("Copy field update omits its original parent"))?;
-        let (_,_,read)=super::owner_sources::producer(f,root_value,b)?;
-        if read.kind!=InstructionKind::Load(local)||!f.locals.get(local.0 as usize).is_some_and(|row|row.mutable){
-            return Err(bad("Copy field update publication differs from its initialized mutable source local"));
-        }
-        let ty=f.values.get(root_value.0 as usize).ok_or_else(||bad("Copy field update has no actual parent type"))?;
-        self.original_projection_source_prefix(module,caller,f,root_value,caller.definition,original.target,true,Some((ty,&path)),b)
+        Err(limit("Copy update exceeds original path depth"))
     }
 
     fn copy_record_spread(
