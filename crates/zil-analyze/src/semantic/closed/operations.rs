@@ -1543,7 +1543,7 @@ impl Check<'_, '_> {
                 let (node, target) = self.original.function_reference(
                     instance, site.recipe, self.inventory, b,
                 )?.ok_or_else(|| fail("thin closure has no original fixed code proof"))?;
-                if target != *definition || !environment.is_empty() || point.edge != SemanticSiteEdge::After {
+                if target != *definition || !environment.is_empty() || point.edge != SemanticSiteEdge::Before {
                     return Err(fail("thin closure changes its original creator, domain or result boundary"));
                 }
                 let original = self.recipe_value(instance, &SemanticTypeRecipe::OriginalType {
@@ -1556,12 +1556,16 @@ impl Check<'_, '_> {
                     return Err(fail("thin closure changes its complete original code type"));
                 }
                 self.original_claim(instance, expected, &original, b)?;
-                let instruction = instruction.ok_or_else(|| fail("thin closure has no actual code reference"))?;
-                if instruction.result != Some(*result) {
+                let producer = point.instruction.checked_sub(1)
+                    .and_then(|position| point.block.instructions.get(position))
+                    .ok_or_else(|| fail("thin closure has no actual code reference"))?;
+                if producer.result != Some(*result)
+                    || !matches!(producer.kind, InstructionKind::FunctionRef { .. })
+                {
                     return Err(fail("thin closure changes its exact actual code result"));
                 }
                 self.function_reference(instance, site.recipe, point.function, subject, &original.ty, b)?;
-                self.result(instruction, point.function, &original.ty)?;
+                self.result(producer, point.function, &original.ty)?;
             }
             (
                 SemanticSiteRecipeKind::Closure {

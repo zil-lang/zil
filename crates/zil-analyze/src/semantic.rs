@@ -1075,9 +1075,11 @@ impl<'a> Inventory<'a> {
                     },
                 ) => {
                     let child = self.definition(*definition, b)?;
+                    let producer = instruction.checked_sub(1)
+                        .and_then(|position| block.instructions.get(position as usize));
                     if child.parent != Some(instance.definition) || !environment.is_empty()
-                        || !child.environment.is_empty() || edge != SemanticSiteEdge::After
-                        || !matches!(actual, Some(instruction) if instruction.result == Some(*result)
+                        || !child.environment.is_empty() || edge != SemanticSiteEdge::Before
+                        || !matches!(producer, Some(instruction) if instruction.result == Some(*result)
                             && matches!(instruction.kind, InstructionKind::FunctionRef { .. }))
                         || !matches!(function.values.get(result.0 as usize), Some(Type::FunctionPointer { .. }))
                     {
