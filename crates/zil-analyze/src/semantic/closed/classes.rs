@@ -2947,11 +2947,12 @@ impl Check<'_, '_> {
                 closure: id,
                 captures,
             } => {
-                if self.has_ghost_capture(*id, b)? {
-                    self.ghost_creator(instance, *id, captures, b)?;
+                let stored_bounds = if self.has_ghost_capture(*id, b)? {
+                    self.ghost_creator(instance, *id, captures, b)?
                 } else {
                     self.creator_heads(instance, *id, captures, b)?;
-                }
+                    BTreeMap::new()
+                };
                 if *ty != Type::Closure(*id) {
                     return Err(fail(
                         "actual closure result changes its real constructed identity",
@@ -2972,7 +2973,12 @@ impl Check<'_, '_> {
                 // classes live in classes. Use the same complete occurrence
                 // projector as the independent creator/header checks.
                 for (capture, source) in captures.iter().enumerate() {
-                    let source = self.ssa_value(instance, function, *source, b, depth + 1)?;
+                    b.lookup(stored_bounds.len(), WORK)?;
+                    let source = if let Some(bound) = stored_bounds.get(&capture) {
+                        bound.copy(b)?
+                    } else {
+                        self.ssa_value(instance, function, *source, b, depth + 1)?
+                    };
                     for (child, class) in source.classes.iter().enumerate() {
                         for (_, _, binder) in self.capture_class_headers(
                             contract,
@@ -4388,7 +4394,7 @@ impl Check<'_, '_> {
         id: ClosureId,
         captures: &[ValueId],
         b: &mut Budget,
-    ) -> CompileResult<()> {
+    ) -> CompileResult<BTreeMap<usize, Value>> {
         self.ghost_capture_directory(id, b)?;
         let definition = self
             .module
@@ -4409,6 +4415,7 @@ impl Check<'_, '_> {
             return Err(fail("ghost creator omits an actual capture"));
         }
         let mut bindings = None;
+        let mut stored_bounds = BTreeMap::new();
         for (index, operand) in captures.iter().enumerate() {
             let actual = self.ssa_value(instance, function, *operand, b, 0)?;
             if actual.ty != definition.captures[index] {
@@ -4452,8 +4459,10 @@ impl Check<'_, '_> {
             if !self.ghost_creator_capture(child, contract, capture, proved, b)? {
                 return Err(fail("ghost creator capture changes its proved stored classes"));
             }
+            b.lookup(stored_bounds.len(), WORK)?;
+            stored_bounds.insert(index, proved.copy(b)?);
         }
-        Ok(())
+        Ok(stored_bounds)
     }
 
     fn ghost_creator_capture(
@@ -4475,7 +4484,6 @@ impl Check<'_, '_> {
         }
         Ok(true)
     }
-
 }
 
 impl Check<'_, '_> {

@@ -56,7 +56,7 @@ impl Check<'_, '_> {
         b: &mut Budget,
     ) -> CompileResult<()> {
         if self.has_ghost_capture(closure, b)? {
-            return self.ghost_creator(instance, closure, captures, b);
+            return self.ghost_creator(instance, closure, captures, b).map(|_| ());
         }
         let SemanticInstanceTarget::Function(target) = &instance.target else {
             return Err(fail(
