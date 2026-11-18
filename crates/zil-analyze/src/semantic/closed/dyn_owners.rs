@@ -370,6 +370,83 @@ impl Check<'_, '_> {
             Ok(success)
         }
     }
+    pub(super) fn live_dyn_owner(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        local: LocalId,
+        at: (BlockId, usize),
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Value> {
+        operations::initialized_local_before(function, at, local, b)?;
+        let ty = &function.locals[local.0 as usize].ty;
+        if !matches!(ty, Type::OwnedDyn { .. }) {
+            return Err(fail("dynamic borrow has no exact actual owning local"));
+        }
+        let domain = self
+            .dyn_value_domain(ty, b, depth + 1)?
+            .ok_or_else(|| fail("dynamic owner has no actual complete domain"))?;
+        if empty(&domain.life) && domain.classes.is_empty() {
+            // The actual move/borrow still proves an initialized occupant and
+            // the resource solver tracks its provider and remaining cleanup.
+            return Ok(domain);
+        }
+        self.local_value(instance, function, local, at, b, depth + 1)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn prepared_dyn_receiver(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        original: LocalId,
+        actual: LocalId,
+        at: (BlockId, usize),
+        b: &mut Budget,
+    ) -> CompileResult<Value> {
+        let receiver = self.live_dyn_owner(instance, function, actual, at, b, 0)?;
+        if original == actual {
+            return Ok(receiver);
+        }
+        let initialization = crate::shared_initialization(function, b)?;
+        let mut source = None;
+        for block in &function.blocks {
+            b.spend(1, WORK)?;
+            if !initialization.reachable[block.id.0 as usize] {
+                continue;
+            }
+            for (index, instruction) in block.instructions.iter().enumerate() {
+                b.spend(1, WORK)?;
+                if !matches!(instruction.kind, InstructionKind::TakeLocal { local } if local == original)
+                {
+                    continue;
+                }
+                let producer = instruction.result.ok_or_else(|| {
+                    fail("dynamic receiver preparation omits its actual moved SSA")
+                })?;
+                if function.values.get(producer.0 as usize) != Some(&receiver.ty)
+                    || !self.operation_local_matches(function, actual, at, producer, b)?
+                {
+                    continue;
+                }
+                let original_value =
+                    self.live_dyn_owner(instance, function, original, (block.id, index), b, 0)?;
+                if !original_value.equal_paid(&receiver, b)? || source.replace(producer).is_some() {
+                    return Err(fail(
+                        "dynamic receiver preparation changes its exact original owner occurrence",
+                    ));
+                }
+            }
+        }
+        if source.is_none() {
+            return Err(fail(
+                "dynamic receiver preparation has no complete original owning transfer",
+            ));
+        }
+        Ok(receiver)
+    }
+
     pub(super) fn dyn_owned_borrow(
         &self,
         instance: &SemanticInstance,
@@ -381,8 +458,7 @@ impl Check<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Value> {
-        operations::initialized_local_before(function, at, local, b)?;
-        let owner = self.local_value(instance, function, local, at, b, depth + 1)?;
+        let owner = self.live_dyn_owner(instance, function, local, at, b, depth + 1)?;
         let Type::OwnedDyn { interface } = owner.ty else {
             return Err(fail("Dyn owned view changes its real owning local"));
         };

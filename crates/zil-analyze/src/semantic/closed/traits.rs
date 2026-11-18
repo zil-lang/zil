@@ -228,19 +228,6 @@ impl Check<'_, '_> {
                 .receiver_anchor
                 .ok_or_else(|| fail("original dynamic receiver has no lexical head"))?;
             let local = self.anchored_local(instance, function, anchor, b)?;
-            let actual_receiver = self.local_value(instance, function, local, (block, index), b, 0)?;
-            let actual_receiver = if owned {
-                if !matches!(actual_receiver.ty, Type::OwnedDyn { interface } if interface == *expected) {
-                    return Err(fail("dynamic call changes its exact original owning interface"));
-                }
-                let (_, life, classes) = actual_receiver.into_parts(b)?;
-                Value::new(Type::Dyn { interface: *expected }, life, classes)
-            } else {
-                self.pointee(&actual_receiver, b)?
-            };
-            if !actual_receiver.equal_paid(&boundary.receiver, b)? {
-                return Err(fail("dynamic call changes its original complete Context class relation"));
-            }
             operations::available_before(
                 function,
                 (block, index, SemanticSiteEdge::Before),
@@ -258,25 +245,13 @@ impl Check<'_, '_> {
                     "actual dynamic receiver changes its complete borrowed type",
                 ));
             }
-            if owned {
-                if function.locals.get(local.0 as usize).map(|item| &item.ty)
-                    != Some(&Type::OwnedDyn {
-                        interface: *interface,
-                    })
-                {
-                    return Err(fail(
-                        "dynamic owner invocation selects another complete owner type",
-                    ));
-                }
+            let actual_receiver = if owned {
                 let mut head = *callee;
-                let mut found = false;
+                let mut source = None;
                 for _ in 0..=b.partial_depth {
                     let (at, ordinal, borrow) = self.defining(function, head, b)?;
                     match &borrow.kind {
-                        InstructionKind::ReborrowAddress {
-                            address,
-                            mutable: false,
-                        } => {
+                        InstructionKind::ReborrowAddress { address, mutable: false } => {
                             operations::available_before(
                                 function,
                                 (at, ordinal, SemanticSiteEdge::Before),
@@ -285,11 +260,8 @@ impl Check<'_, '_> {
                             )?;
                             head = *address;
                         }
-                        InstructionKind::BorrowDynOwned {
-                            local: actual,
-                            mutable: false,
-                        } if *actual == local => {
-                            found = true;
+                        InstructionKind::BorrowDynOwned { local: actual, mutable: false } => {
+                            source = Some((*actual, (at, ordinal)));
                             break;
                         }
                         _ => {
@@ -299,18 +271,29 @@ impl Check<'_, '_> {
                         }
                     }
                 }
-                if !found {
-                    return Err(unknown(
-                        "dynamic owner receiver chain exceeds its finite depth",
+                let (actual, at) = source.ok_or_else(|| {
+                    unknown("dynamic owner receiver chain exceeds its finite depth")
+                })?;
+                let receiver = self.prepared_dyn_receiver(instance, function, local, actual, at, b)?;
+                if !matches!(receiver.ty, Type::OwnedDyn { interface } if interface == *expected) {
+                    return Err(fail("dynamic call changes its exact original owning interface"));
+                }
+                let (_, life, classes) = receiver.into_parts(b)?;
+                Value::new(Type::Dyn { interface: *expected }, life, classes)
+            } else {
+                if function.locals.get(local.0 as usize).map(|item| &item.ty)
+                    != Some(&expected_callee)
+                    || self.receiver_local(function, *callee, b, 0)? != local
+                {
+                    return Err(fail(
+                        "actual dynamic receiver selects another original borrowed input",
                     ));
                 }
-            } else if function.locals.get(local.0 as usize).map(|item| &item.ty)
-                != Some(&expected_callee)
-                || self.receiver_local(function, *callee, b, 0)? != local
-            {
-                return Err(fail(
-                    "actual dynamic receiver selects another original borrowed input",
-                ));
+                let receiver = self.local_value(instance, function, local, (block, index), b, 0)?;
+                self.pointee(&receiver, b)?
+            };
+            if !actual_receiver.equal_paid(&boundary.receiver, b)? {
+                return Err(fail("dynamic call changes its original complete Context class relation"));
             }
             for ((argument, parameter), slot_type) in arguments
                 .iter()

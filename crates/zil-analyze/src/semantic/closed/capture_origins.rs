@@ -519,6 +519,20 @@ impl Check<'_, '_> {
         graph.probe = true;
         Ok(graph.solve(Query::Value(value), b)? == 0)
     }
+    pub(super) fn operation_local_matches(
+        &self,
+        function: &TypedFunction,
+        local: LocalId,
+        at: (BlockId, usize),
+        producer: ValueId,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        let mut graph = Graph::new(self, function, b)?;
+        graph.producer = Some(producer);
+        graph.probe = true;
+        Ok(graph.solve(Query::Local(local, at.0, at.1), b)? == 0)
+    }
+
     /// The same complete transport graph, grounded at one actual emitted SSA
     /// instead of a physical capture ordinal. All incoming paths must retain
     /// this exact producer; equal types/classes grant no source identity.
