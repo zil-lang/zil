@@ -1917,7 +1917,7 @@ fn ordinary_task_enum(module: &TypedModule, root: &Type, b: &mut Budget) -> Chec
                 if matches != 1 { return Err(err("Enum field lacks its unique actual resource")); }
                 owning = true;
             }
-            data if retained::closed_copy(data, b)? => {}
+            data if retained::resource_field(data, b)? => {}
             _ => return Ok(false),
         }
     }
