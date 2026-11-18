@@ -1179,7 +1179,7 @@ impl Builder<'_, '_> {
                     "Store windows cannot replace an owning callback field",
                 ));
             }
-            self.prepare_copy_read(target, address, &inner)?;
+            self.prepare_copy_read(target, address, &inner, Some(rhs))?;
             let prepared = self.expr(rhs, Some(&inner));
             self.prepared_copy_read = None;
             let (value, actual) = prepared?;

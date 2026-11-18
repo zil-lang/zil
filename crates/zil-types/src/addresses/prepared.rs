@@ -14,6 +14,7 @@ pub(crate) struct PreparedRead {
     place: StablePlace,
     address: ValueId,
     ty: Type,
+    first_read: Option<zil_base::NodeId>,
 }
 
 impl Builder<'_, '_> {
@@ -149,13 +150,28 @@ impl Builder<'_, '_> {
         target: &CoreExpr,
         address: ValueId,
         ty: &Type,
+        rhs: Option<&CoreExpr>,
     ) -> R<()> {
         self.closures.snapshot_type(ty, 1, 1, target.span)?;
         if !ty.is_copy_value() {
             return Ok(());
         }
-        let Some(place) = self.stable_assignment_root(target, 0)? else {
-            return Ok(());
+        let (place, first_read) = if let Some(place) = self.stable_assignment_root(target, 0)? {
+            (place, None)
+        } else {
+            // The first operand of a scalar binary expression executes before
+            // any RHS effects. A mutable pointer binding may be reused at
+            // that one exact dereference, then it may be rebound as usual.
+            let Some(CoreExpr { kind: CoreExprKind::Binary { left, .. }, .. }) = rhs else {
+                return Ok(());
+            };
+            let Some(place) = self.direct_dereference(target)? else {
+                return Ok(());
+            };
+            if !self.same_stable_place(target, left, 0)? {
+                return Ok(());
+            }
+            (place, Some(left.id))
         };
         let before = self.closures.remaining_work();
         let mut remaining = before;
@@ -166,8 +182,24 @@ impl Builder<'_, '_> {
             place,
             address,
             ty: ty.clone(),
+            first_read,
         });
         Ok(())
+    }
+
+    fn direct_dereference(&mut self, expression: &CoreExpr) -> R<Option<StablePlace>> {
+        let CoreExprKind::Unary { op: UnaryOp::Dereference, operand } = &expression.kind else {
+            return Ok(None);
+        };
+        let CoreExprKind::Name(name) = &operand.kind else {
+            return Ok(None);
+        };
+        self.closures.snapshot(
+            self.scopes.len().saturating_mul(self.function.locals.len().saturating_add(1))
+                .saturating_add(name.len()),
+            operand.span,
+        )?;
+        Ok(self.lookup(name).map(|root| StablePlace { root, index_bindings: Vec::new() }))
     }
 
     pub(crate) fn read_prepared_copy(
@@ -178,10 +210,16 @@ impl Builder<'_, '_> {
         let Some(prepared) = self.prepared_copy_read.take() else {
             return Ok(None);
         };
+        let one_use = prepared.first_read == Some(e.id)
+            && matches!(e.kind, CoreExprKind::Unary { op: UnaryOp::Dereference, .. });
         let result = (|| {
             // Saved root and index LocalIds distinguish RHS shadows from
             // the target's bindings even when their names are identical.
-            let place = self.stable_assignment_root(e, 0)?;
+            let place = match prepared.first_read {
+                None => self.stable_assignment_root(e, 0)?,
+                Some(_) if one_use => self.direct_dereference(e)?,
+                Some(_) => return Ok(None),
+            };
             self.closures.snapshot(
                 prepared
                     .place
@@ -232,7 +270,9 @@ impl Builder<'_, '_> {
         })();
         // Restore on success and failure. Nested assignment lowering saves
         // this entry on its Rust call frame and installs its own RHS scope.
-        self.prepared_copy_read = Some(prepared);
+        if !one_use {
+            self.prepared_copy_read = Some(prepared);
+        }
         result
     }
 }
@@ -406,7 +446,7 @@ mod tests {
             .unwrap();
         let (address, _) = builder.address_place(&field(), true).unwrap();
         builder
-            .prepare_copy_read(&field(), address, &Type::I32)
+            .prepare_copy_read(&field(), address, &Type::I32, None)
             .unwrap();
         builder.push_scope(Span::default()).unwrap();
         builder
@@ -533,7 +573,7 @@ mod tests {
         );
         let (address, _) = builder.address_place(&target, true).unwrap();
         builder
-            .prepare_copy_read(&target, address, &Type::U8)
+            .prepare_copy_read(&target, address, &Type::U8, None)
             .unwrap();
         builder.push_scope(Span::default()).unwrap();
         builder
