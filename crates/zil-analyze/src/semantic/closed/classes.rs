@@ -583,6 +583,17 @@ impl Check<'_, '_> {
                 "original nominal value selects another declaration kind",
             ));
         };
+        let closed = arguments.is_empty() && declaration.parameters.is_empty()
+            && declaration.environment.is_empty() && declaration.requirements.is_empty()
+            && self.trait_queries.borrow().is_empty();
+        let key = (definition, depth);
+        if closed {
+            let entries = self.closed_nominals.borrow();
+            b.lookup(entries.len(), "closed nominal declaration lookup")?;
+            if let Some(value) = entries.get(&key) {
+                return value.copy(b);
+            }
+        }
         let mut fields = Vec::new();
         match body {
             SemanticNominalBody::Product { fields: recipes } => {
@@ -602,7 +613,14 @@ impl Check<'_, '_> {
                 }
             }
         }
-        value::nominal(definition, arguments, &fields, self.program, self.original, self.inventory, b, depth + 1)
+        let value = value::nominal(definition, arguments, &fields, self.program, self.original,
+            self.inventory, b, depth + 1)?;
+        if closed && value.classes.is_empty() && value.life == value::empty() {
+            let mut entries = self.closed_nominals.borrow_mut();
+            b.lookup(entries.len(), "closed nominal declaration publication")?;
+            entries.insert(key, value.copy(b)?);
+        }
+        Ok(value)
     }
     fn nominal_field(
         &self,

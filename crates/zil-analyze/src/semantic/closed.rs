@@ -81,6 +81,9 @@ struct Check<'a, 'i> {
     >,
     trait_queries: std::cell::RefCell<Vec<traits::ActiveQuery>>,
     nominal_definitions: std::cell::RefCell<BTreeMap<LifeDeclarationId, SemanticDefinitionId>>,
+    /// Pure, fully reconstructed zero-domain declarations. Recursion depth is
+    /// part of the proof. No call-site class, loan or owner state is stored.
+    closed_nominals: std::cell::RefCell<BTreeMap<(SemanticDefinitionId, usize), value::Value>>,
 }
 /// Replay a nominal field with declaration-local coordinates. The caller
 /// checks this substitution against the independently obtained field value.
@@ -106,6 +109,7 @@ pub(super) fn coordinate_field(
         slot_queries: Default::default(),
         trait_queries: Default::default(),
         nominal_definitions: Default::default(),
+        closed_nominals: Default::default(),
     };
     check.nominal_field_value(definition, arguments, recipe, b, depth)
 }
@@ -1150,6 +1154,7 @@ pub(super) fn check(
         slot_queries: Default::default(),
         trait_queries: std::cell::RefCell::new(Vec::new()),
         nominal_definitions: std::cell::RefCell::new(BTreeMap::new()),
+        closed_nominals: Default::default(),
     };
     inventory.profile_stage("dyn_tables", b);
     checker.dyn_tables(b)?;
