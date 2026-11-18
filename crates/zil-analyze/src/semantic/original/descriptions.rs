@@ -62,7 +62,27 @@ impl Solver<'_, '_> {
                 }
                 errors
             })?;
-        let occurrence = self.term(Kind::Life(Life::Implicit(frame.definition, row)), b)?;
+        let capture = match anchor {
+            LocalAnchor::Environment(ordinal)
+                if place.path.is_empty() && !self.owns_captures(frame.definition, b)? =>
+            {
+                Some((frame.definition, ordinal))
+            }
+            _ => None,
+        };
+        let prior = if let Some(key) = capture {
+            b.lookup(self.state.captured_descriptions.len(), WORK)?;
+            self.state.captured_descriptions.get(&key).copied()
+        } else { None };
+        let occurrence = if let Some(prior) = prior {
+            let Kind::Desc { life, inner } = self.state.arena[self.type_root(prior, b)?] else {
+                return Err(fail("original default capture has no complete description"));
+            };
+            self.unify(inner, payload, depth + 1, b)?;
+            life
+        } else {
+            self.term(Kind::Life(Life::Implicit(frame.definition, row)), b)?
+        };
         let upper = self.description_upper(place, source, b, depth + 1)?;
         self.remember_view_upper(frame.definition, row, upper, b)?;
         let life = self.select_view_life(frame, occurrence, upper, wanted, None, b, depth + 1)?;
@@ -73,6 +93,12 @@ impl Solver<'_, '_> {
             },
             b,
         )?;
+        if let Some(key) = capture
+            && prior.is_none()
+        {
+            b.lookup(self.state.captured_descriptions.len(), WORK)?;
+            self.state.captured_descriptions.insert(key, output);
+        }
         b.spend(place.path.len(), WORK)?;
         let path = place.path.clone();
         b.lookup(self.state.descriptions.len(), WORK)?;
@@ -166,6 +192,16 @@ impl Solver<'_, '_> {
 }
 
 impl Checked {
+    pub(in crate::semantic) fn captured_description(
+        &self, context: &SemanticInstance, ordinal: u32, program: &SemanticModule,
+        inventory: &Inventory<'_>, b: &mut Budget, depth: usize,
+    ) -> CompileResult<Option<value::Value>> {
+        b.lookup(self.captured_descriptions.len(), WORK)?;
+        self.captured_descriptions.get(&(context.definition, ordinal))
+            .map(|term| self.value(*term, context, program, inventory, b, depth + 1))
+            .transpose()
+    }
+
     pub(in crate::semantic) fn has_temporary_description(
         &self, context: &SemanticInstance, site: SemanticSiteId, ordinal: usize,
         inventory: &Inventory<'_>, b: &mut Budget,

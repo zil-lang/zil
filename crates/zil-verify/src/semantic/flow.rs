@@ -532,14 +532,9 @@ impl CheckedContext {
             let mut value=value_at(values,*capture)?.clone();
             if let Some(head)=self.capture_implicit(module,child,index as u32,b)? {
                 let ClassKey::Implicit{ordinal,..}=&head else{return Err(bad("capture head does not select an original implicit occurrence"));};
-                self.capture_local_source(module,creator,child,*ordinal,*capture,b)?;
                 let owner_description=matches!(&value.ty,Type::Desc(_));
-                if owner_description{
-                    let original_producer=call_borrows::call_borrow_producer(f,*capture,b)?;
-                    if !matches!(original_producer.kind,InstructionKind::DescribeLocal{..}){
-                        return Err(bad("default Managed capture lacks its exact creator description operation"));
-                    }
-                }else if !matches!(&value.ty,Type::Address{..}){
+                self.capture_local_source(module,creator,child,*ordinal,*capture,owner_description,b)?;
+                if !owner_description&&!matches!(&value.ty,Type::Address{..}){
                     return Err(bad("implicit captured head has another complete borrow carrier"));
                 }
                 let pointee=self.child_value(module,&value,&[LifeTypeProjection::Pointee],b)?;

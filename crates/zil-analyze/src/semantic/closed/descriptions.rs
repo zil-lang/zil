@@ -55,17 +55,26 @@ impl Check<'_, '_> {
                     "implicit description source is not an original owning value",
                 ));
             };
-            self.sealed_resource_place(
-                instance,
-                function,
-                id,
-                original.anchor,
-                &original.root,
-                source,
-                &original.path,
-                payload,
-                b,
-            )?;
+            if let original::LocalAnchor::Environment(ordinal) = original.anchor
+                && original.path.is_empty()
+                && self.original.captured_description(instance, ordinal, self.program, self.inventory, b, depth + 1)?
+                    .is_some()
+            {
+                let physical = self.environment_capture(instance, function, ordinal, b)?;
+                if self.capture_value_origin(function, id, b, depth + 1)? != physical
+                    || !self.capture_values_equal(
+                        &self.capture_whole_value(instance, function, physical, b, depth + 1)?,
+                        &expected, b,
+                    )?
+                {
+                    return Err(fail("actual description observes a different original default capture"));
+                }
+            } else {
+                self.sealed_resource_place(
+                    instance, function, id, original.anchor, &original.root,
+                    source, &original.path, payload, b,
+                )?;
+            }
             let same_payload = match &expected.ty {
                 Type::Desc(inner) => geometry::same_type(inner, payload, b)?,
                 _ => false,
@@ -98,10 +107,55 @@ impl Check<'_, '_> {
             }
             selected = Some(expected);
         }
-        match selected {
-            Some(value) => Ok(Some(value)),
-            None => self.temporary_description_source(instance, function, id, b, depth + 1),
+        if selected.is_some() {
+            return Ok(selected);
         }
+        if let Some(value) = self.temporary_description_source(instance, function, id, b, depth + 1)? {
+            return Ok(Some(value));
+        }
+        self.creator_description_source(instance, function, id, b)
+    }
+
+    fn creator_description_source(
+        &self, instance: &SemanticInstance, function: &TypedFunction, id: ValueId, b: &mut Budget,
+    ) -> CompileResult<Option<Value>> {
+        let (_, _, producer) = self.defining(function, id, b)?;
+        if !matches!(producer.kind, InstructionKind::DescribeLocal { .. } | InstructionKind::DescribeCapture { .. }) {
+            return Ok(None);
+        }
+        let mut selected = None;
+        for block in &function.blocks {
+            for instruction in &block.instructions {
+                b.spend(1, WORK)?;
+                let InstructionKind::MakeClosure { closure, captures } = &instruction.kind else { continue; };
+                b.spend(captures.len(), WORK)?;
+                if !captures.contains(&id) {
+                    continue;
+                }
+                let closure = self.module.closures.get(closure.0 as usize)
+                    .filter(|row| row.id == *closure)
+                    .ok_or_else(|| fail("actual description creator loses its closure"))?;
+                for child in self.function_worlds(closure.function, b)? {
+                    if child.parent != Some(instance.id) {
+                        continue;
+                    }
+                    for binding in self.capture_creator_bindings(child, closure, b)?.values() {
+                        if !matches!((&binding.lexical.ty, &binding.stored.ty),
+                            (Type::Managed(owner), Type::Desc(view)) if owner == view)
+                        {
+                            continue;
+                        }
+                        b.lookup(binding.bound_operands.len(), WORK)?;
+                        if binding.bound_operands.contains(&id)
+                            && selected.replace(binding.stored.copy(b)?).is_some()
+                        {
+                            return Err(fail("actual description selects several original capture boundaries"));
+                        }
+                    }
+                }
+            }
+        }
+        Ok(selected)
     }
 
     pub(super) fn temporary_description_source(
