@@ -46,3 +46,25 @@ and transport. Their complete metadata is bounded and charged before copying,
 hashing or comparing it. Type and CT graph visitors preserve full identity and
 scope, including nonphysical binder references, and apply node, depth and work
 bounds to the embedded leaf Types.
+
+## Borrowed results and call composition
+
+At a call, each result leaf retains its complete position, access mode and
+lifetime relation. Substitute the actual argument at the declared input
+ordinal and follow the entire source projection. Preserve the originating
+owner, parent loans and cleanup obligations through each return. A tagged
+value selects the active arm at the point of use. Reordering declarations
+or adding an unrelated function has no effect on this relation.
+
+For a mutable byte window, writing through a local result or through a
+forwarding function has the same access requirements. A caller may grow the
+owner after the last use. Growing it before a subsequent use conflicts with
+the live loan. Analyze and Verify independently evaluate their obligations
+from the original occurrence and actual instructions. A signature failure
+identifies the affected input or result and the observed relation. A live
+conflict identifies the borrow creation, conflicting operation and reachable
+subsequent use when the analysis has such a witness. Each location can carry
+a source byte range and an IR function, block and instruction coordinate.
+
+See the [access rules](../_zil_design.md#ZIL-ACCESS) and
+[diagnostic registry](diagnostics.json).
