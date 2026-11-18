@@ -9016,12 +9016,19 @@ fn derive_cfg(
                         if !task_calls::call(&instruction.kind, b)? {
                             continue;
                         }
+                        let callee_index = function.0 as usize;
                         let callee = module
                             .functions
-                            .get(function.0 as usize)
+                            .get(callee_index)
                             .ok_or_else(|| failure("stored call target is absent"))?;
+                        // The ordinary kernel checks functions outside this
+                        // stored cohort. Their unused stored summary cannot
+                        // leave a selected caller at lattice bottom.
+                        if b.composition_stored.get(callee_index) == Some(&false) {
+                            continue;
+                        }
                         let summary = summaries
-                            .get(function.0 as usize)
+                            .get(callee_index)
                             .ok_or_else(|| failure("stored call summary is absent"))?;
                         if !summary.complete {
                             grounded = false;
@@ -9177,7 +9184,7 @@ fn derive_cfg(
                 ));
             }
             for (other, found) in module.functions.iter().zip(&summaries) {
-                if !found.complete {
+                if !found.complete && b.composition_stored.get(other.id.0 as usize) != Some(&false) {
                     for (value, ty) in other.values.iter().enumerate() {
                         if matches!(ty, Type::Address { .. })
                             && found.values.get(value).is_none_or(Vec::is_empty)
