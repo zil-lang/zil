@@ -675,6 +675,29 @@ impl Proof {
         Ok(self.inferred_pointee_environments.get(&(owner, *callee, formal)))
     }
 
+    /// Read a checked definition-local equation for invariant type queries.
+    /// An opaque call boundary still must reconstruct its actual producer.
+    pub(in crate::semantics) fn closed_world_recipe(
+        &self,
+        owner: SemanticDefinitionId,
+        source: &SemanticOriginalTypeSource,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<Option<&SemanticTypeRecipe>> {
+        crate::dyn_metadata::semantic_operand_snapshot(source, limits, left, 1)?;
+        let work = self.complete.len().saturating_add(1).ilog2() as usize
+            + self.types.len().saturating_add(1).ilog2() as usize
+            + self.call_result_origins.len().saturating_add(1).ilog2() as usize + 3;
+        *left = left.checked_sub(work).ok_or_else(|| {
+            Diagnostic::limit(Phase::Types, "relative original world recipe work exceeded", None)
+        })?;
+        let key = (owner, Query::from(source.clone()));
+        if !self.complete.contains(&owner) || self.call_result_origins.contains_key(&key) {
+            return Ok(None);
+        }
+        Ok(self.types.get(&key))
+    }
+
     pub(in crate::semantics) fn call_result_boundary(
         &self,
         current: SemanticDefinitionId,
@@ -1503,5 +1526,26 @@ impl Check<'_, '_> {
             &mut Vec::new(),
             current.as_ref(),
         )
+    }
+}
+
+#[cfg(test)]
+mod closed_world_recipe_tests {
+    use super::*;
+
+    #[test]
+    fn sharing_a_recipe_cannot_skip_its_actual_opaque_call_boundary() {
+        let owner = SemanticDefinitionId { module: zil_base::ModuleId(0), index: 0 };
+        let node = NodeId(3);
+        let source = SemanticOriginalTypeSource::Expression(node);
+        let mut proof = Proof::default();
+        proof.complete.insert(owner);
+        let expected = SemanticTypeRecipe::Atom(Type::I32);
+        proof.types.insert((owner, Query::Expression(node)), expected.clone());
+        let limits = Limits::default();
+        let mut left = limits.max_analysis_steps;
+        assert_eq!(proof.closed_world_recipe(owner, &source, &limits, &mut left).unwrap(), Some(&expected));
+        proof.call_result_origins.insert((owner, Query::Expression(node)), (owner, SemanticSiteId(0)));
+        assert!(proof.closed_world_recipe(owner, &source, &limits, &mut left).unwrap().is_none());
     }
 }

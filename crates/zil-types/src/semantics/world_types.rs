@@ -20,12 +20,39 @@ struct Entry {
 pub(super) struct Table {
     buckets: BTreeMap<Key, Vec<Entry>>,
     entries: usize,
+    portable: BTreeMap<(SemanticDefinitionId, RecipeKey), bool>,
     pub hits: usize,
     pub misses: usize,
     pub lookup_work: usize,
     pub evaluation_work: usize,
 }
 impl Table {
+    fn compact_key(recipe: &SemanticTypeRecipe) -> Option<RecipeKey> {
+        match recipe {
+            SemanticTypeRecipe::Formal(SemanticFormalRef {
+                scope: SemanticScopeRef::Ancestor(hops),
+                ordinal,
+            }) => return Some(RecipeKey::Formal(*hops, *ordinal)),
+            SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(hops),
+                source,
+            } => match source {
+                SemanticOriginalTypeSource::Expression(node) => {
+                    return Some(RecipeKey::Expression(*hops, *node));
+                }
+                SemanticOriginalTypeSource::Binding(node) => {
+                    return Some(RecipeKey::Binding(*hops, *node));
+                }
+                SemanticOriginalTypeSource::Parameter(ordinal) => {
+                    return Some(RecipeKey::Parameter(*hops, *ordinal));
+                }
+                SemanticOriginalTypeSource::Result => return Some(RecipeKey::Result(*hops)),
+                _ => {}
+            },
+            _ => {}
+        }
+        None
+    }
     fn recipe_key(
         recipe: &SemanticTypeRecipe,
         hint: &Type,
@@ -33,32 +60,39 @@ impl Table {
         left: &mut usize,
     ) -> R<RecipeKey> {
         index::pay(left, 1)?;
-        match recipe {
-            SemanticTypeRecipe::Formal(SemanticFormalRef {
-                scope: SemanticScopeRef::Ancestor(hops),
-                ordinal,
-            }) => return Ok(RecipeKey::Formal(*hops, *ordinal)),
-            SemanticTypeRecipe::OriginalType {
-                scope: SemanticScopeRef::Ancestor(hops),
-                source,
-            } => match source {
-                SemanticOriginalTypeSource::Expression(node) => {
-                    return Ok(RecipeKey::Expression(*hops, *node));
-                }
-                SemanticOriginalTypeSource::Binding(node) => {
-                    return Ok(RecipeKey::Binding(*hops, *node));
-                }
-                SemanticOriginalTypeSource::Parameter(ordinal) => {
-                    return Ok(RecipeKey::Parameter(*hops, *ordinal));
-                }
-                SemanticOriginalTypeSource::Result => return Ok(RecipeKey::Result(*hops)),
-                _ => {}
-            },
-            _ => {}
+        if let Some(key) = Self::compact_key(recipe) {
+            return Ok(key);
         }
         let recipe_key = super::super::original::protocol::recipe_key(recipe, limits, left)?;
         inference::charge_type_snapshot(hint, Span::default(), limits, left, 2)?;
         Ok(RecipeKey::Structural(recipe_key, hint.fingerprint()))
+    }
+    pub(super) fn shared_scope(
+        &mut self,
+        context: type_contexts::Context,
+        recipe: &SemanticTypeRecipe,
+        proof: &super::super::original::Proof,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<Option<SemanticInstanceId>> {
+        index::pay(left, 1)?;
+        let Some(key) = Self::compact_key(recipe) else { return Ok(None); };
+        let key = (context.definition, key);
+        index::pay(left, index::search(self.portable.len()))?;
+        let permitted = if let Some(permitted) = self.portable.get(&key) {
+            *permitted
+        } else {
+            if self.portable.len() >= limits.max_nodes {
+                return Err(Diagnostic::limit(Phase::Types, "relative world recipe index exceeds node limit", None));
+            }
+            let permitted = type_contexts::portable(proof, context.definition, recipe, limits, left, 0)?;
+            index::pay(left, index::search(self.portable.len()).saturating_add(
+                std::mem::size_of::<((SemanticDefinitionId, RecipeKey), bool)>(),
+            ))?;
+            self.portable.insert(key, permitted);
+            permitted
+        };
+        Ok(permitted.then_some(context.representative))
     }
     pub(super) fn lookup(
         &mut self,

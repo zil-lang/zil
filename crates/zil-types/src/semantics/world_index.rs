@@ -28,6 +28,7 @@ impl<'a> Iterator for PointRows<'a> {
 #[derive(Default)]
 pub(super) struct Index {
     pub definitions: BTreeMap<SemanticDefinitionId, usize>,
+    pub type_contexts: BTreeMap<SemanticInstanceId, type_contexts::Context>,
     pub instances: BTreeMap<SemanticInstanceId, usize>,
     pub functions: BTreeMap<FunctionId, usize>,
     pub frozen_definitions: BTreeMap<SemanticDefinitionId, usize>,
@@ -186,6 +187,7 @@ impl Index {
                 }
             }
         }
+        index.type_contexts = type_contexts::group(program, limits, left)?;
         Ok(index)
     }
     fn add_recipes(

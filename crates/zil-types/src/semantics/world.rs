@@ -55,6 +55,8 @@ mod roles;
 mod sourcecall;
 #[path = "world_types.rs"]
 mod types;
+#[path = "world_type_contexts.rs"]
+mod type_contexts;
 /// Relocation may identify a sealed opcode only by its independently checked
 /// original scheme. This authenticates operation correspondence, not W/classes.
 pub(super) fn intrinsic_operation_matches(
@@ -534,9 +536,15 @@ impl<'a> World<'a, '_> {
         recipe: &SemanticTypeRecipe,
         hint: &Type,
     ) -> R<SharedType> {
-        let (key, cached) = self
-            .types
-            .lookup(scope, recipe, hint, self.limits, self.left)?;
+        self.pay(index::search(self.index.type_contexts.len()))?;
+        let shared_scope = if let Some(context) = self.index.type_contexts.get(&scope).copied()
+            && let Some(proof) = self.ledger.original.borrow().as_ref()
+        {
+            self.types.shared_scope(context, recipe, proof, self.limits, self.left)?
+        } else { None };
+        let (key, cached) = self.types.lookup(
+            shared_scope.unwrap_or(scope), recipe, hint, self.limits, self.left,
+        )?;
         if let Some(value) = cached {
             return Ok(value);
         }
