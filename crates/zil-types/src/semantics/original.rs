@@ -70,7 +70,7 @@ pub(super) use places::FieldReborrow;
 pub(super) use values::FunctionValue;
 pub(super) use views::{BorrowRole, ViewBorrowRoot, ViewBorrowStep, ViewBorrowStepKind, local_source_copy};
 fn bad(message: &str) -> Diagnostic {
-    error("E-SEMANTIC-ORIGINAL", Span::default(), message)
+    Diagnostic::error(Phase::Types, "E-SEMANTIC-ORIGINAL", None, message)
 }
 fn pending(message: &str) -> Diagnostic {
     Diagnostic::unsupported(Phase::Types, message, None)
@@ -3188,11 +3188,8 @@ impl<'a> Check<'a, '_> {
                     "original Gamma: definition {:?}, expression {:?}",
                     owner, expression.id
                 ));
-                if diagnostic.span.is_none() {
-                    diagnostic.span = Some(expression.span);
-                }
             }
-            diagnostic
+            crate::semantics::locate_original(diagnostic, expression.span)
         })
     }
     fn expr_inner(
