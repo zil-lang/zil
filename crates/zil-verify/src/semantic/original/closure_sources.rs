@@ -38,8 +38,12 @@ impl CheckedOriginal {
                 else if self.value_places.contains_key(&(definition,expression.id)){Some(intrinsics::BufferSource::Place{definition,node:expression.id})}
                 else{None}
             }else if matches!(ty,Ty::Code{kind:SemanticCodeKind::FunctionPointer,..})
-                && self.value_places.contains_key(&(definition,expression.id))
+                && (self.value_places.contains_key(&(definition,expression.id))
+                    || matches!(expression.kind,CoreExprKind::Index{..}|CoreExprKind::Member{..}|CoreExprKind::ReceiverMember(_)))
             {
+                // A value index may have no ownership Place in original Γ.
+                // Its original aggregate and subscript are still exact
+                // operands of the checked physical projection.
                 Some(intrinsics::BufferSource::Place{definition,node:expression.id})
             }else{None};
             recipes.push(Some((expression.id,SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Expression(argument.id)},source)));

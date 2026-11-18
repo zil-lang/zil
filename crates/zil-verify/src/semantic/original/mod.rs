@@ -334,6 +334,11 @@ impl CheckedOriginal {
         }
         Ok(result)
     }
+    pub(in crate::semantic) fn compile_time_uses(&self, definition: SemanticDefinitionId, b: &mut Budget) -> Check<&[(usize, NodeId)]> {
+        self.source_grammar.as_ref()
+            .ok_or_else(|| bad("compile-time result has no checked source inventory"))?
+            .compile_time_uses(definition, b)
+    }
     fn source_index<'s>(
         &'s self,
         _module: &TypedModule,

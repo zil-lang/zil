@@ -115,6 +115,7 @@ pub(super) struct SourceIndex {
 }
 struct Directory {
     definitions:BTreeMap<SemanticDefinitionId,DefinitionCursor>,
+    compile_time_uses: BTreeMap<SemanticDefinitionId, Vec<(usize, NodeId)>>,
 }
 struct DefinitionCursor {
     ordinal:usize,
@@ -132,6 +133,13 @@ impl Role{fn of(recipe:&SemanticSiteRecipeKind)->Self{match recipe{
 }}}
 impl SourceIndex{
     fn bounds(&self,b:&mut Budget)->Check<()>{b.spend(12)?;if self.limits!=b.limits{dynamic_metadata::recipe(self.program.as_ref(),b)?;}Ok(())}
+    pub(super) fn compile_time_uses(&self, definition: SemanticDefinitionId, b: &mut Budget) -> Check<&[(usize, NodeId)]> {
+        let uses = &self.directory.compile_time_uses;
+        if uses.is_empty() { return Ok(&[]); }
+        self.bounds(b)?;
+        b.spend(uses.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
+        Ok(uses.get(&definition).map_or(&[], Vec::as_slice))
+    }
     pub(super) fn recipes(&self,definition:SemanticDefinitionId,node:SemanticOriginalNode,roles:&[Role],b:&mut Budget)->Check<Vec<(usize,SemanticSiteId)>>{
         self.bounds(b)?;
         b.spend(self.directory.definitions.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
@@ -146,6 +154,7 @@ impl SourceIndex{
 pub(super) fn snapshot(module:&TypedModule,index:&Index<'_>,b:&mut Budget)->Check<SourceIndex>{
     let program=module.semantic.as_ref().ok_or_else(||bad("original index directory has no complete programme"))?;
     let mut definitions=BTreeMap::new();
+    let mut compile_time_uses = BTreeMap::new();
     for(ordinal,definition)in program.definitions.iter().enumerate(){
         b.spend(index.definitions.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
         let Some(function)=index.definitions.get(&definition.id)else{continue;};
@@ -156,14 +165,26 @@ pub(super) fn snapshot(module:&TypedModule,index:&Index<'_>,b:&mut Budget)->Chec
             Node::Statement(statement)=>SemanticOriginalNode::Statement(statement.id),
         })).collect();
         let mut recipes=BTreeMap::<_,Vec<_>>::new();
+        let mut uses = Vec::new();
         for(position,recipe)in function.sites.iter().enumerate(){
             b.spend(function.nodes.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
             let node=function.nodes.get(&recipe.id).ok_or_else(||bad("reverse original site has no checked node correspondence"))?;
+            if matches!(recipe.kind, SemanticSiteRecipeKind::TypeUse { .. })
+                && let Node::Expression(expression) = node
+                && matches!(expression.kind, CoreExprKind::CompileTime(_))
+            {
+                b.spend(1 + if uses.len() == uses.capacity() { uses.len() } else { 0 })?;
+                uses.push((position, expression.id));
+            }
             let(statement,node)=match node{Node::Expression(node)=>(false,node.id),Node::Statement(node)=>(true,node.id)};
             b.spend(recipes.len().checked_ilog2().map_or(1,|n|n as usize+3))?;
             let rows=recipes.entry((statement,node,Role::of(&recipe.kind))).or_default();
             b.spend(1usize.saturating_add(if rows.len()==rows.capacity(){rows.len()}else{0}))?;
             rows.push((position,recipe.id));
+        }
+        if !uses.is_empty() {
+            b.spend(compile_time_uses.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
+            compile_time_uses.insert(definition.id, uses);
         }
         definitions.insert(definition.id,DefinitionCursor{ordinal,nodes,closures:function.closures.clone(),recipes});
     }
@@ -172,7 +193,7 @@ pub(super) fn snapshot(module:&TypedModule,index:&Index<'_>,b:&mut Budget)->Chec
     // can claim another transient module's grammar receipt.
     dynamic_metadata::recipe(program,b)?;
     b.spend(12)?;
-    Ok(SourceIndex{program:std::sync::Arc::new(program.clone()),directory:Directory{definitions},limits:b.limits.clone()})
+    Ok(SourceIndex{program:std::sync::Arc::new(program.clone()),directory:Directory{definitions,compile_time_uses},limits:b.limits.clone()})
 }
 pub(super) fn select<'a>(source:&'a SourceIndex,requested:&[SemanticDefinitionId],b:&mut Budget)->Check<Index<'a>>{
     source.bounds(b)?;

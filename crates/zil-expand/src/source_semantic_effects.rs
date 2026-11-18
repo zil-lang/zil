@@ -12,6 +12,7 @@ enum Target {
     Definition(usize),
     AppliedDefinition { owner: usize, application: usize },
     Kind(CallKind),
+    ContextualThinCode,
     // Preserve complete signatures for result projection and effect inference.
     Prototype(usize, CallKind),
     PrototypeSequence { index: usize, dimensions: u32, kind: CallKind },
@@ -47,7 +48,7 @@ struct Application<'a> {
 }
 #[derive(Clone, Copy)]
 enum Prototype<'a> {
-    Code { owner: usize, signature: &'a SemanticSignatureRecipe, context: Option<usize>, frames: Option<usize>, operation: Option<usize> },
+    Code { owner: usize, signature: &'a SemanticSignatureRecipe, context: Option<usize>, frames: Option<usize>, operation: Option<usize>, thin: bool },
     Formal { owner: usize, ordinal: u32 },
     Premises { owner: usize, ty: &'a SemanticTypeRecipe },
 }
@@ -91,6 +92,7 @@ struct Scan<'a, 'd, 'b, 'l> {
     owner: usize,
     locals: Vec<(&'a str, Target)>,
     captures: &'b mut Vec<(usize, Vec<(&'a str, Target)>)>,
+    contextual_inputs: &'b mut Vec<(InputRole, bool)>,
     applications: &'b mut Vec<Application<'a>>,
     store_elements: &'b mut Vec<Target>,
     vertex: &'b mut Vertex,
@@ -184,6 +186,85 @@ fn promote_once(
     Ok(changed)
 }
 impl<'a> Scan<'a, '_, '_, '_> {
+    fn contextual_arguments(
+        &mut self,
+        target: Target,
+        arguments: &'a [SemanticOriginalExpr],
+        depth: usize,
+        span: Span,
+    ) -> R<()> {
+        if self.observations.is_some() {
+            return Ok(());
+        }
+        let Target::Definition(child) = target else {
+            return Ok(());
+        };
+        let definition = self.definitions[child];
+        if definition.kind != SemanticDefinitionKind::Closure
+            || definition.parent != Some(self.definitions[self.owner].id)
+        {
+            return Ok(());
+        }
+        let Some(signature) = signature(definition) else {
+            return Ok(());
+        };
+        if signature.parameters.len() != arguments.len() {
+            return Ok(());
+        }
+        // An inferred child input has one original type in a closed lexical
+        // context. Types must still establish it from the actual call inputs.
+        let mut ancestor = Some(child);
+        let mut ancestor_depth = depth;
+        while let Some(owner) = ancestor {
+            self.budget.node(span, ancestor_depth)?;
+            let definition = self.definitions[owner];
+            if !definition.parameters.is_empty() || !definition.requirements.is_empty() {
+                return Ok(());
+            }
+            ancestor = match definition.parent {
+                Some(parent) => declaration_index(self.definitions, parent, self.budget, span)?,
+                None => None,
+            };
+            ancestor_depth += 1;
+        }
+        for (ordinal, (parameter, argument)) in signature.parameters.iter().zip(arguments).enumerate() {
+            self.budget.node(argument.span, depth)?;
+            let SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0),
+                source: SemanticOriginalTypeSource::Parameter(index),
+            } = &parameter.ty else { continue; };
+            if *index as usize != ordinal {
+                continue;
+            }
+            let actual = self.target(argument, depth + 1)?;
+            let thin = matches!(actual, Target::Prototype(index, CallKind::Direct)
+                if matches!(self.prototypes[index], Prototype::Code { thin: true, .. }));
+            let role = InputRole { owner: child, ordinal: *index };
+            self.budget.identity_work(self.contextual_inputs.len(), span)?;
+            if let Some((_, direct)) = self.contextual_inputs.iter_mut().find(|(input, _)| *input == role) {
+                *direct &= thin;
+            } else {
+                self.budget.lineage_push(self.contextual_inputs, (role, thin), span)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn parameter_target(&mut self, ordinal: usize, ty: &'a SemanticTypeRecipe, span: Span) -> R<Target> {
+        if matches!(ty, SemanticTypeRecipe::OriginalType {
+            scope: SemanticScopeRef::Ancestor(0),
+            source: SemanticOriginalTypeSource::Parameter(index),
+        } if *index as usize == ordinal) {
+            self.budget.identity_work(self.contextual_inputs.len(), span)?;
+            if self.contextual_inputs.iter().any(|(input, direct)| {
+                input.owner == self.owner && input.ordinal as usize == ordinal && *direct
+            }) {
+                return Ok(Target::ContextualThinCode);
+            }
+        }
+        self.callable_type(self.owner, ty, 0, span)
+    }
+
     fn input_role(&mut self, target: Target, span: Span) -> R<Option<InputRole>> {
         self.budget.node(span, 0)?;
         let Target::Prototype(index, _) = target else { return Ok(None); };
@@ -450,7 +531,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
         let known = self.independently_suspend(target, span)?;
         self.vertex.known_suspend |= known;
         match target {
-            Target::Kind(CallKind::Direct) | Target::Prototype(_, CallKind::Direct) | Target::StoreBorrow | Target::ByteView | Target::OwnedDynFactory => {}
+            Target::Kind(CallKind::Direct) | Target::ContextualThinCode | Target::Prototype(_, CallKind::Direct) | Target::StoreBorrow | Target::ByteView | Target::OwnedDynFactory => {}
             Target::Kind(CallKind::Suspend)
             | Target::Prototype(_, CallKind::Suspend)
             | Target::Unknown
@@ -593,10 +674,11 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 self.budget.lineage_push(self.elements, values, span)?;
                 Target::Elements { index, tuple: true }
             }
-            SemanticTypeRecipe::Code { signature, .. } => {
+            SemanticTypeRecipe::Code { kind, signature } => {
                 let index = self.prototypes.len();
                 self.budget.lineage_push(self.prototypes, Prototype::Code {
                     owner, signature, context, frames: self.active_quantifiers, operation: None,
+                    thin: *kind == SemanticCodeKind::FunctionPointer,
                 }, span)?;
                 Target::Prototype(index, signature.call_kind)
             },
@@ -649,6 +731,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
                                 context: Some(application),
                                 frames: Some(frame),
                                 operation: Some(declaration),
+                                thin: false,
                             },
                             span,
                         )?;
@@ -774,6 +857,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
                     let index = self.prototypes.len();
                     self.budget.lineage_push(self.prototypes, Prototype::Code {
                         owner, signature, context, frames: self.active_quantifiers, operation: None,
+                        thin: true,
                     }, span)?;
                     Target::PrototypeSequence { index, dimensions, kind: signature.call_kind }
                 } else {
@@ -1973,6 +2057,9 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 let receiver = matches!(head.kind, E::Member { .. } | E::ReceiverMember(_));
                 for target in &targets {
                     self.forwarded_inputs(*target, arguments, receiver, expression.span, depth + 1)?;
+                    if matches!(expression.kind, E::Call { .. }) && arity.is_some() {
+                        self.contextual_arguments(*target, arguments, depth + 1, expression.span)?;
+                    }
                 }
                 self.budget.drop_lineage_vec(targets, expression.span)?;
                 // A worker invocation is an actual call of the original worker
@@ -1994,7 +2081,9 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 self.expression(target, depth + 1)?;
                 self.invoke(target, Some(1), depth + 1)?;
                 let called = self.target(target, depth + 1)?;
-                self.forwarded_inputs(called, std::slice::from_ref(input.as_ref()), false, expression.span, depth + 1)?;
+                let arguments = std::slice::from_ref(input.as_ref());
+                self.forwarded_inputs(called, arguments, false, expression.span, depth + 1)?;
+                self.contextual_arguments(called, arguments, depth + 1, expression.span)?;
             }
             E::MakeDynBorrow { source: value, .. }
             | E::MakeDynOwned { source: value, .. }
@@ -2189,6 +2278,7 @@ pub(super) fn observe_call_prototypes(
     budget.identity_work(order.len().saturating_mul(order.len().saturating_add(1).ilog2() as usize + 1), span)?;
     order.sort_unstable();
     let mut captures: Vec<(usize, Vec<(&str, Target)>)> = Vec::new();
+    let mut contextual_inputs = Vec::new();
     let mut applications = Vec::new();
     let mut store_elements = Vec::new();
     let mut prototypes = Vec::new();
@@ -2206,7 +2296,7 @@ pub(super) fn observe_call_prototypes(
         }
         let mut vertex = Vertex { explicit: None, suspend: false, known_suspend: false, edges: Vec::new(), consumes: Vec::new(), forwards: Vec::new() };
         let mut scan = Scan { definitions: &definitions, owner: index, locals,
-            captures: &mut captures, applications: &mut applications, store_elements: &mut store_elements,
+            captures: &mut captures, contextual_inputs: &mut contextual_inputs, applications: &mut applications, store_elements: &mut store_elements,
             vertex: &mut vertex, evidence: None, budget, prototypes: &mut prototypes, alternatives: &mut alternatives, quantifiers: &mut quantifiers, elements: &mut elements, active_quantifiers: None, observations: Some(&mut observations), call: None, collect_targets: false, resolved_targets: Vec::new() };
         for (ordinal, parameter) in parameters.iter().enumerate() {
             let target = if let Some(parameter_type) = signature.parameters.get(ordinal) {
@@ -2305,6 +2395,7 @@ fn propose_round(
     )?;
     order.sort_unstable();
     let mut captures: Vec<(usize, Vec<(&str, Target)>)> = Vec::new();
+    let mut contextual_inputs = Vec::new();
     let mut applications = Vec::new();
     let mut store_elements = Vec::new();
     let mut prototypes = Vec::new();
@@ -2332,6 +2423,7 @@ fn propose_round(
                 owner: index,
                 locals,
                 captures: &mut captures,
+                contextual_inputs: &mut contextual_inputs,
                 applications: &mut applications,
                 store_elements: &mut store_elements,
                 vertex: &mut vertices[index],
@@ -2353,7 +2445,7 @@ fn propose_round(
                     .get(ordinal)
                     .map(|parameter| &parameter.ty);
                 let target = if let Some(ty) = target {
-                    scan.callable_type(index, ty, 0, parameter.span)?
+                    scan.parameter_target(ordinal, ty, parameter.span)?
                 } else {
                     Target::Unknown
                 };
@@ -2369,6 +2461,7 @@ fn propose_round(
         }
     }
     budget.drop_lineage_vec(order, Span::default())?;
+    budget.drop_lineage_vec(contextual_inputs, Span::default())?;
     for (_, environment) in &mut captures {
         budget.drop_lineage_vec(std::mem::take(environment), Span::default())?;
     }
@@ -2714,6 +2807,40 @@ mod tests {
         assert!(!uppers.is_empty());
         assert!(uppers.iter().all(|upper| *upper == expected), "{uppers:?}");
     }
+    #[test]
+    fn contextual_thin_code_preserves_the_child_body_effect() {
+        let module = original_module(r#"
+fn inc(x:i64)->i64{return x+1;}
+fn direct(i:i64)->i64{
+ let callbacks:[fn(i64)->i64;2]=[inc,inc];
+ let apply=(f,x)=>f(x);
+ return apply(callbacks[i],4)+apply(callbacks[0],5);
+}
+fn suspending(i:i64)->i64{
+ let callbacks:[fn(i64)->i64;2]=[inc,inc];
+ let apply=(f,x)=>{task_yield();return f(x);};
+ return apply(callbacks[i],4);
+}
+fn unknown()->i64{
+ let apply=(f,x)=>f(x);
+ return apply(unresolved,4);
+}
+"#);
+        for (name, kind) in [
+            ("direct", CallKind::Direct),
+            ("suspending", CallKind::Suspend),
+            ("unknown", CallKind::Suspend),
+        ] {
+            let creator = function(&module, name);
+            let child = module.definitions.iter().find(|definition| {
+                definition.kind == SemanticDefinitionKind::Closure
+                    && definition.parent == Some(creator.id)
+            }).unwrap();
+            assert_eq!(signature(creator).unwrap().call_kind, kind, "{name}");
+            assert_eq!(signature(child).unwrap().call_kind, kind, "{name} child");
+        }
+    }
+
     #[test]
     fn consuming_bounds_follow_original_contexts_not_actual_instances() {
         let module = original_module(r#"

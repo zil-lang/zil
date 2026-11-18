@@ -1926,6 +1926,84 @@ mod tests {
     use zil_ct::SourceCompiler;
 
     #[test]
+    fn reified_record_raw_and_wire_require_exact_field_producers() {
+        use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "reified-record.zil",
+            "struct Pair { left:i64; right:i64 }\n\
+             fn seed()->Pair { return Pair { left:6, right:7 } }\n\
+             fn result()->i64 { let pair=#(seed()); return pair.left*10 + pair.right }",
+        );
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let target = TargetProfile::host_llvm();
+        let limits = Limits::default();
+        let core = zil_expand::expand_with_map_semantics(
+            &source,
+            &syntax,
+            &limits,
+            &target,
+            SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &BTreeMap::new(),
+                declarations: DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .core;
+        let materialized = single(&core, &target, &limits).unwrap();
+        let module = zil_types::check(&materialized, &target, &limits).unwrap();
+        assert!(module.semantic.is_some());
+        let plan = zil_analyze::analyze(&module, &limits).unwrap();
+
+        for swap in [false, true] {
+            let mut module = module.clone();
+            let mut plan = plan.clone();
+            if swap {
+                let function = module
+                    .functions
+                    .iter_mut()
+                    .find(|f| f.name == "result")
+                    .unwrap();
+                let fields = function
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.instructions)
+                    .find_map(|instruction| match &mut instruction.kind {
+                        InstructionKind::MakeAggregate { fields } => Some(fields),
+                        _ => None,
+                    })
+                    .unwrap();
+                assert_eq!(fields.len(), 2);
+                assert_ne!(fields[0], fields[1]);
+                fields.swap(0, 1);
+                plan.module_fingerprint = module.fingerprint();
+            }
+            let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+            let direct = zil_verify::verify_module(module, plan, &target, &limits);
+            let wire = zil_verify::verify_module_bytes(&bytes, &target, &limits);
+            for result in [direct, wire] {
+                if swap {
+                    let errors = result.unwrap_err();
+                    assert!(
+                        errors.iter().any(|error| {
+                            error.category == ResultCategory::SafeReject
+                                && error.message.contains(
+                                    "CT data producer is outside its exact materialization sequence",
+                                )
+                        }),
+                        "{errors:#?}"
+                    );
+                } else {
+                    result.unwrap();
+                }
+            }
+        }
+    }
+
+    #[test]
     fn shared_helper_life_actual_source_helper_context_cannot_be_selected_by_pure_ct() {
         use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
         let input = SourceUnit::new(

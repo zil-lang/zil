@@ -9,6 +9,7 @@ mod closed_values;
 mod operations;
 mod products;
 mod aggregate_values;
+mod reified_data;
 mod child_values;
 mod sum_values;
 mod call_borrows;
@@ -240,6 +241,7 @@ impl CheckedContext {
         let mut queue=VecDeque::from([entry]);
         let mut values=vec![None;f.values.len()];
         let mut constraints=vec![None;f.locals.len()];
+        let reified_data=self.reified_data(module,instance,original_definition,f,environment,external,active,b)?;
         while let Some(block_id)=queue.pop_front() {
             b.spend(1)?;
             let mut state=states[block_id].clone().ok_or_else(||bad("reachable semantic block has no incoming state"))?;
@@ -323,6 +325,9 @@ impl CheckedContext {
                     }
                     InstructionKind::BindPackageCapture{..}|InstructionKind::EndPackageCapture{..}|InstructionKind::DropPackageField{..}|InstructionKind::StorePackageField{..}|InstructionKind::ReadPackageField{..}|InstructionKind::TakePackageField{..}|InstructionKind::DescribePackageField{..}|InstructionKind::BorrowPackageField{..}|InstructionKind::DescribeCapture{..}|InstructionKind::BorrowCapture{..}|InstructionKind::WriteCapture{..}|InstructionKind::DropPackage{..}|InstructionKind::ExtractField{..}|InstructionKind::AddressField{..}|InstructionKind::DescribeAddress{..}|InstructionKind::ReadDesc{..}|InstructionKind::WriteDesc{..}=>self.owner_field_instruction(module,instance,f,instruction,&mut state,&values,&environment,active,b)?,
                     InstructionKind::SliceLength{..} if sites.iter().any(|site|matches!(site.action,SemanticSiteAction::BodyCall{..}))=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
+                    InstructionKind::MakeVariant{fields,..} if reified_data::nominal_producer(&reified_data,instruction,b)?
+                        && !sites.iter().any(|site|matches!(site.action,SemanticSiteAction::Construct{..}|SemanticSiteAction::BodyCall{..}))=>
+                        Some(self.reified_variant(module,f,instruction,fields,&values,b)?),
                     InstructionKind::UpdateField{..}|InstructionKind::LoadStoredBorrow{..}|InstructionKind::StoreStoredBorrow{..}|InstructionKind::MakeVariant{..}|InstructionKind::VariantTag{..}|InstructionKind::ReadVariant{..}|InstructionKind::ExtractIndex{..}|InstructionKind::UpdateIndex{..}|InstructionKind::AddressIndex{..}|InstructionKind::AddressSlice{..}|InstructionKind::SliceLength{..}=>self.product_instruction(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::MakeErrorUnion{..}|InstructionKind::ReadErrorUnion{..}|InstructionKind::TakeErrorUnion{..}|InstructionKind::ErrorTag{..}|InstructionKind::VariantTagLocal{..}|InstructionKind::ReadVariantLocal{..}|InstructionKind::PlaceTagLocal{..}|InstructionKind::TakeVariantField{..}|InstructionKind::TakeTupleField{..}|InstructionKind::BorrowPlaceLocal{..}|InstructionKind::UnpackTuple{..}|InstructionKind::UnpackVariant{..}|InstructionKind::DropErrorUnion{..}|InstructionKind::DropEnum{..}|InstructionKind::DropTuple{..}=>self.sum_instruction(module,instance,f,instruction,&sites,&mut state,&values,signature,&environment,external,active,b)?,
                     InstructionKind::ReservePlaceLocal{..}|InstructionKind::ReservePlaceAddress{..}|InstructionKind::CommitPlaceReplace{..}|InstructionKind::AbortPlaceReservation{..}=>self.replacement_instruction(module,instance,f,instruction,&mut state,&values,&environment,external,active,b)?,
@@ -362,7 +367,7 @@ impl CheckedContext {
                         if declarations.next().is_some() {return Err(bad("actual aggregate construction has duplicate semantic claims"));}
                         let value=if let Some(site)=site{self.site_expected(module,instance,site,&environment,external,active,b)?}else if matches!(instruction.kind,InstructionKind::MakeOwnedArray{..}){self.persistent_constructor(module,instance,f,instruction,&values,b)?}
                         else if matches!(instruction.kind,InstructionKind::MakePackage{..}){self.package_repack(module,instance,f,instruction,fields,&state,b)?}
-                        else{self.internal_copy_aggregate(module,f,instruction,fields,&values,b)?};
+                        else{self.internal_copy_aggregate(module,f,instruction,fields,&values,reified_data::nominal_producer(&reified_data,instruction,b)?,b)?};
                         let mut storage=&value.ty;
                         while let Type::BorrowedStorage{storage:inner,..}|Type::Managed(inner)=storage {storage=inner;}
                         let expected_fields=match storage {

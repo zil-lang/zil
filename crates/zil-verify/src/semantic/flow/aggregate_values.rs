@@ -79,15 +79,16 @@ impl CheckedContext {
         Ok(parent.clone())
     }
 
-    pub(super) fn internal_copy_aggregate(&self,module:&TypedModule,f:&TypedFunction,instruction:&Instruction,fields:&[ValueId],values:&[Option<CheckedType>],b:&mut Budget)->Check<CheckedType>{
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn internal_copy_aggregate(&self,module:&TypedModule,f:&TypedFunction,instruction:&Instruction,fields:&[ValueId],values:&[Option<CheckedType>],reified:bool,b:&mut Budget)->Check<CheckedType>{
         if !matches!(instruction.kind,InstructionKind::MakeAggregate{..}){return Err(bad("owning or nominal construction has no exact original semantic site"));}
         let result=instruction.result.ok_or_else(||bad("internal Copy aggregate has no defining result"))?;
         let ty=f.values.get(result.0 as usize).ok_or_else(||bad("internal Copy aggregate result type is absent"))?;
         dynamic_metadata::ty(ty,b)?;
-        // A source nominal constructor and every qualified/owning carrier keep
-        // their original occurrence obligation. Only structural products can
-        // be an internal lowering product in this path.
-        if !matches!(ty,Type::Tuple(_)|Type::Array{..})||!ty.is_copy_value(){return Err(bad("actual aggregate construction has no original semantic site"));}
+        // Nominal records require an authored constructor or an exact
+        // original CT result with an independently checked producer tree.
+        if !(matches!(ty,Type::Tuple(_)|Type::Array{..}) || reified && matches!(ty,Type::Record{..}))
+            || !ty.is_copy_value(){return Err(bad("actual aggregate construction has no original semantic site"));}
         crate::check_instruction(module,f,instruction,b)?;
         let value=self.closed_value(module,ty,b)?;
         if !value.classes.is_empty()||!value.statics.is_empty(){return Err(bad("internal Copy aggregate has an unresolved class/static domain"));}
