@@ -123,7 +123,7 @@ pub(super) struct SourceIndex {
     // returned expression to the grammar checked by this original Γ.
     program:std::sync::Arc<SemanticModule>,
     directory:Directory,
-    limits:Limits,
+    shape_caps: (usize, usize),
 }
 struct Directory {
     definitions:BTreeMap<SemanticDefinitionId,DefinitionCursor>,
@@ -287,7 +287,15 @@ impl Role{
     SemanticSiteRecipeKind::Closure{..}=>Self::Closure,
 }}}
 impl SourceIndex{
-    fn bounds(&self,b:&mut Budget)->Check<()>{b.spend(12)?;if self.limits!=b.limits{dynamic_metadata::recipe(self.program.as_ref(),b)?;}Ok(())}
+    fn bounds(&self, b: &mut Budget) -> Check<()> {
+        b.spend(2)?;
+        // The complete recipe visitor bounds node count and traversal depth.
+        // Queries still spend from the current request's cumulative budget.
+        if self.shape_caps != (b.limits.max_nodes, b.limits.max_call_depth.min(128)) {
+            dynamic_metadata::recipe(self.program.as_ref(), b)?;
+        }
+        Ok(())
+    }
     pub(super) fn place_syntax(&self, definition: SemanticDefinitionId, b: &mut Budget) -> Check<&PlaceSyntax> {
         self.bounds(b)?;
         let rows = &self.directory.definitions;
@@ -394,7 +402,7 @@ pub(super) fn snapshot(module:&TypedModule,index:&Index<'_>,b:&mut Budget)->Chec
     // can claim another transient module's grammar receipt.
     dynamic_metadata::recipe(program,b)?;
     b.spend(12)?;
-    Ok(SourceIndex{program:std::sync::Arc::new(program.clone()),directory:Directory{definitions,compile_time_uses},limits:b.limits.clone()})
+    Ok(SourceIndex{program:std::sync::Arc::new(program.clone()),directory:Directory{definitions,compile_time_uses},shape_caps:(b.limits.max_nodes,b.limits.max_call_depth.min(128))})
 }
 pub(super) fn select<'a>(source:&'a SourceIndex,requested:&[SemanticDefinitionId],b:&mut Budget)->Check<Index<'a>>{
     source.bounds(b)?;
