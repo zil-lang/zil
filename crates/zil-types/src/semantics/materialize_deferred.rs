@@ -62,7 +62,10 @@ impl Eval<'_, '_, '_> {
                 _,
             ) => {
                 let original = self.definition(*definition)?;
-                let SemanticDefinitionBody::Nominal { kind, .. } = &original.body else {
+                let SemanticDefinitionBody::Nominal {
+                    declaration, kind, ..
+                } = &original.body
+                else {
                     return Err(bad(
                         "pending nominal use does not select an original nominal",
                     ));
@@ -82,6 +85,44 @@ impl Eval<'_, '_, '_> {
                     // an application. Effective resource/descriptor modes are
                     // resolved by their regular materializer and world check;
                     // this proposal pass never unwraps them speculatively.
+                    return Ok(());
+                }
+                // An existing full application owns its intrinsic coordinates.
+                // In particular a scalar address field may use its exact slot
+                // instead of an optional redundant retained-field row. Do not
+                // replace that valid directory with a newly proposed forest.
+                // Selection still checks the original declaration, all mixed
+                // actuals and their complete domains through the ordinary reader;
+                // finish separately proves every original field and where clause.
+                let module = self.module;
+                self.fee(module.life_instances.len())?;
+                let mut existing = false;
+                for row in module.life_instances {
+                    inference::charge_type_snapshot(
+                        &row.ty,
+                        Span::default(),
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    inference::charge_type_snapshot(
+                        hint,
+                        Span::default(),
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    if &row.ty == hint {
+                        if existing || row.declaration != *declaration {
+                            return Err(bad(
+                                "existing actual nominal has ambiguous original identity",
+                            ));
+                        }
+                        existing = true;
+                    }
+                }
+                if existing {
+                    self.nominal_application(scope, *definition, arguments, Some(hint), depth + 1)?;
                     return Ok(());
                 }
                 let row = self.qualified_nominal(scope, *definition, arguments, hint, depth + 1)?;

@@ -787,41 +787,49 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
         depth: usize,
     ) -> R<SemanticTypeValue> {
         self.node(depth)?;
-        self.fee(self.active.len().saturating_add(1).ilog2() as usize + 1)?;
+        // Prepay both insertion and removal: a NotReady return is resumed by
+        // the same evaluator and must not retain an abandoned active query.
+        self.fee((self.active.len().saturating_add(1).ilog2() as usize + 1).saturating_mul(2))?;
         if !self.active.insert((scope, ordinal)) {
             return Err(bad(
                 "whole-type actual depends cyclically on its own asserted class table",
             ));
         }
-        let instance = self.instance(scope)?;
-        let value = instance
-            .actuals
-            .get(ordinal as usize)
-            .ok_or_else(|| bad("whole-type actual omits its original full ordinal"))?;
-        let value = match value {
-            SemanticActual::Type(value) => self.value(scope, value, None, depth + 1)?,
-            SemanticActual::CoreRecipe { scope, recipe } => match recipe.as_ref() {
-                SemanticActualRecipe::Type(recipe) => self.ty(*scope, recipe, None, depth + 1)?,
-                _ => return Err(bad("Type formal selects a non-Type actual")),
-            },
-            SemanticActual::CoreInferred {
-                scope,
-                call,
-                formal,
-            } => {
-                if *formal != ordinal {
-                    return Err(bad("inferred Type actual changes its full holder ordinal"));
+        let value = (|| -> R<SemanticTypeValue> {
+            let instance = self.instance(scope)?;
+            let value = instance
+                .actuals
+                .get(ordinal as usize)
+                .ok_or_else(|| bad("whole-type actual omits its original full ordinal"))?;
+            let value = match value {
+                SemanticActual::Type(value) => self.value(scope, value, None, depth + 1)?,
+                SemanticActual::CoreRecipe { scope, recipe } => match recipe.as_ref() {
+                    SemanticActualRecipe::Type(recipe) => {
+                        self.ty(*scope, recipe, None, depth + 1)?
+                    }
+                    _ => return Err(bad("Type formal selects a non-Type actual")),
+                },
+                SemanticActual::CoreInferred {
+                    scope,
+                    call,
+                    formal,
+                } => {
+                    if *formal != ordinal {
+                        return Err(bad("inferred Type actual changes its full holder ordinal"));
+                    }
+                    let SemanticActual::Type(value) =
+                        self.inferred_actual(*scope, *call, *formal, Some(instance.id), depth + 1)?
+                    else {
+                        return Err(bad("original inference selected a non-Type argument"));
+                    };
+                    value
                 }
-                let SemanticActual::Type(value) =
-                    self.inferred_actual(*scope, *call, *formal, Some(instance.id), depth + 1)?
-                else {
-                    return Err(bad("original inference selected a non-Type argument"));
-                };
-                value
-            }
-            _ => return Err(bad("Type formal selects a non-Type actual")),
-        };
+                _ => return Err(bad("Type formal selects a non-Type actual")),
+            };
+            Ok(value)
+        })();
         self.active.remove(&(scope, ordinal));
+        let value = value?;
         let SemanticTypeValue::Resolved { ty, life, .. } = value else {
             unreachable!()
         };
