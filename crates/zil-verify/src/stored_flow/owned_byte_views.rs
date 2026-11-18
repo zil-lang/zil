@@ -302,7 +302,7 @@ pub(super) fn seed_description(
     if !matches!(vt(f,result)?,Type::Desc(payload) if payload.as_ref()==&Type::ByteBuffer) {
         return Ok(None);
     }
-    if matches!(selection(module,f,result,i.span,b)?,Head::Flow){
+    if matches!(selection(module, f, result, i.span, b)?, Head::Flow) {
         // The step has just published this descriptor's independently formed
         // local/field root. Reading the old SSA result at the fixed-point
         // bottom would overwrite that new producer with an empty permission.
@@ -331,18 +331,13 @@ pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> Check<bool> {
     if !seen {
         return Ok(false);
     }
-    if module.resources.len() != 1 {
-        return Err(unavailable(Span::default()));
-    }
-    b.spend(module.closures.len())?;
-    for definition in &module.closures {
-        b.spend(definition.captures.len())?;
-        for capture in &definition.captures {
-            if value(capture, b)? {
-                return Err(unavailable(Span::default()));
-            }
-        }
-    }
+    // The inventory has authenticated the unique sealed ByteBuffer resource
+    // and every actual view operation. Resource and environment qualification
+    // belong to their complete independent consumers, rather than a second
+    // module-wide restriction to one resource and no owning captures here.
+    // In particular, a captured manager is not a view permission: Flow below
+    // still needs the actual descriptor, and an escaping captured view must
+    // retain its independently established receiver parent.
     Ok(true)
 }
 
@@ -423,7 +418,10 @@ pub(super) fn value(ty: &Type, b: &mut Budget) -> Check<bool> {
     while let Some(ty) = todo.pop() {
         b.spend(1)?;
         match ty {
-            Type::ByteBuffer => return Err(unavailable(Span::default())),
+            // This narrow value classifier does not own an arbitrary nested
+            // carrier. Let the complete finite-value/owner classifier prove
+            // that carrier; a failed match here must not veto its proof.
+            Type::ByteBuffer => return Ok(false),
             Type::Address { inner, .. }
             | Type::Managed(inner)
             | Type::Desc(inner)
@@ -506,89 +504,193 @@ impl Sites {
         }
         self.active(&ancestry(&p.loans, loans, b)?, b)
     }
-    fn boundary_permission(&self,p:&Permission,live:&[usize],loans:&[Loan],requirements:&mut Vec<(Source,Source)>,span:Span,b:&mut Budget)->Check<()>{
-        if p.sources.is_empty(){
-            if !p.loans.is_empty(){return Err(err("byte view boundary retains a loan without its actual target"));}
+    fn boundary_permission(
+        &self,
+        p: &Permission,
+        live: &[usize],
+        loans: &[Loan],
+        requirements: &mut Vec<(Source, Source)>,
+        span: Span,
+        b: &mut Budget,
+    ) -> Check<()> {
+        if p.sources.is_empty() {
+            if !p.loans.is_empty() {
+                return Err(err(
+                    "byte view boundary retains a loan without its actual target",
+                ));
+            }
             return Ok(());
         }
-        if self.carried(p,loans,b)?{return Err(reject("E-VERIFY-STORED",Some(span),"live byte payload view cannot escape through an actual call or capture boundary"));}
+        if self.carried(p, loans, b)? {
+            return Err(reject(
+                "E-VERIFY-STORED",
+                Some(span),
+                "live byte payload view cannot escape through an actual call or capture boundary",
+            ));
+        }
         // A boundary with a disjoint input cannot reach this view's manager,
         // even if its complete callee body mutates or consumes that input.
         // This is separation against the actual byte loans, not permission to
         // write a shared input or to bypass unrelated live child loans.
-        access_head(p,false,b)?;
-        let delegated=ancestry(&p.loans,loans,b)?;
-        access_tail(p,true,live,loans,&delegated,requirements,b)
+        access_head(p, false, b)?;
+        let delegated = ancestry(&p.loans, loans, b)?;
+        access_tail(p, true, live, loans, &delegated, requirements, b)
     }
-    fn boundary_payload(&self,value:&Payload,live:&[usize],loans:&[Loan],requirements:&mut Vec<(Source,Source)>,span:Span,b:&mut Budget)->Check<()>{
-        value_transport::visit_fields(value,b,|permission,b|self.boundary_permission(permission,live,loans,requirements,span,b))?;
-        self.boundary_permission(&value.address,live,loans,requirements,span,b)?;
-        self.boundary_permission(&value.store_description,live,loans,requirements,span,b)?;
-        b.spend(value.leaves.len().saturating_add(value.task_ports.len()).saturating_add(value.dyn_ports.0.len()).saturating_add(value.dyn_views.len()))?;
-        for(_,p)in &value.leaves{self.boundary_permission(p,live,loans,requirements,span,b)?;}
-        for(_,p)in &value.task_ports{self.boundary_permission(p,live,loans,requirements,span,b)?;}
-        for(_,port)in &value.dyn_ports.0{
-            if !port.known{return Err(err("byte view boundary has an unknown actual opaque port"));}
-            self.boundary_permission(&port.permission,live,loans,requirements,span,b)?;
-            for source in port.parent_sources.iter().chain(&port.head_sources){
+    fn boundary_payload(
+        &self,
+        value: &Payload,
+        live: &[usize],
+        loans: &[Loan],
+        requirements: &mut Vec<(Source, Source)>,
+        span: Span,
+        b: &mut Budget,
+    ) -> Check<()> {
+        value_transport::visit_fields(value, b, |permission, b| {
+            self.boundary_permission(permission, live, loans, requirements, span, b)
+        })?;
+        self.boundary_permission(&value.address, live, loans, requirements, span, b)?;
+        self.boundary_permission(&value.store_description, live, loans, requirements, span, b)?;
+        b.spend(
+            value
+                .leaves
+                .len()
+                .saturating_add(value.task_ports.len())
+                .saturating_add(value.dyn_ports.0.len())
+                .saturating_add(value.dyn_views.len()),
+        )?;
+        for (_, p) in &value.leaves {
+            self.boundary_permission(p, live, loans, requirements, span, b)?;
+        }
+        for (_, p) in &value.task_ports {
+            self.boundary_permission(p, live, loans, requirements, span, b)?;
+        }
+        for (_, port) in &value.dyn_ports.0 {
+            if !port.known {
+                return Err(err("byte view boundary has an unknown actual opaque port"));
+            }
+            self.boundary_permission(&port.permission, live, loans, requirements, span, b)?;
+            for source in port.parent_sources.iter().chain(&port.head_sources) {
                 b.spend(width(source).saturating_add(1))?;
-                self.boundary_permission(&Permission{sources:vec![source.clone()],loans:vec![]},live,loans,requirements,span,b)?;
+                self.boundary_permission(
+                    &Permission {
+                        sources: vec![source.clone()],
+                        loans: vec![],
+                    },
+                    live,
+                    loans,
+                    requirements,
+                    span,
+                    b,
+                )?;
             }
         }
-        for view in &value.dyn_views{self.boundary_permission(&view.head,live,loans,requirements,span,b)?;}
+        for view in &value.dyn_views {
+            self.boundary_permission(&view.head, live, loans, requirements, span, b)?;
+        }
         Ok(())
     }
     #[allow(clippy::too_many_arguments)]
-    fn independent_boundary(&self,module:&TypedModule,f:&TypedFunction,i:&Instruction,state:&Frame,values:&[Payload],active:&[usize],loans:&[Loan],requirements:&mut Vec<(Source,Source)>,b:&mut Budget)->Check<bool>{
-        let local_receiver=match i.kind{
-            InstructionKind::CallClosureShared{callee,..}|InstructionKind::CallClosureMut{callee,..}=>Some(callee),
-            _=>None,
+    fn independent_boundary(
+        &self,
+        module: &TypedModule,
+        f: &TypedFunction,
+        i: &Instruction,
+        state: &Frame,
+        values: &[Payload],
+        active: &[usize],
+        loans: &[Loan],
+        requirements: &mut Vec<(Source, Source)>,
+        b: &mut Budget,
+    ) -> Check<bool> {
+        let local_receiver = match i.kind {
+            InstructionKind::CallClosureShared { callee, .. }
+            | InstructionKind::CallClosureMut { callee, .. } => Some(callee),
+            _ => None,
         };
-        let supported=match &i.kind{
-            InstructionKind::MakeClosure{closure,captures}=>{
-                let definition=crate::closures::definition(module,*closure,Some(i.span))?;
-                if definition.captures.len()!=captures.len(){return Err(err("byte view creation boundary omits an actual capture"));}
+        let supported = match &i.kind {
+            InstructionKind::MakeClosure { closure, captures } => {
+                let definition = crate::closures::definition(module, *closure, Some(i.span))?;
+                if definition.captures.len() != captures.len() {
+                    return Err(err("byte view creation boundary omits an actual capture"));
+                }
                 true
             }
-            InstructionKind::Call{function,..}|InstructionKind::SuspendCall{function,..}=>{
-                let target=module.functions.get(function.0 as usize).filter(|row|row.id==*function).ok_or_else(||err("byte view call boundary has no exact actual function"))?;
-                target.foreign.is_none()&&target.environment.is_none()
+            InstructionKind::Call { function, .. }
+            | InstructionKind::SuspendCall { function, .. } => {
+                let target = module
+                    .functions
+                    .get(function.0 as usize)
+                    .filter(|row| row.id == *function)
+                    .ok_or_else(|| err("byte view call boundary has no exact actual function"))?;
+                target.foreign.is_none() && target.environment.is_none()
             }
-            InstructionKind::CallIndirect{..}=>true,
-            InstructionKind::CallClosure{..}|InstructionKind::CallClosureBorrowed{..}
-            |InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..}
-            |InstructionKind::CallClosureOnce{..}=>{
-                stored_callables::called(module,f,&i.kind).is_some()
+            InstructionKind::CallIndirect { .. } => true,
+            InstructionKind::CallClosure { .. }
+            | InstructionKind::CallClosureBorrowed { .. }
+            | InstructionKind::CallClosureShared { .. }
+            | InstructionKind::CallClosureMut { .. }
+            | InstructionKind::CallClosureOnce { .. } => {
+                stored_callables::called(module, f, &i.kind).is_some()
             }
-            _=>false,
+            _ => false,
         };
-        if !supported{return Ok(false);}
+        if !supported {
+            return Ok(false);
+        }
         b.spend(active.len())?;
-        let mut live=Vec::new();
-        for loan in active{
-            if self.active(&ancestry(std::slice::from_ref(loan),loans,b)?,b)?{
-                b.spend(1)?;live.push(*loan);
+        let mut live = Vec::new();
+        for loan in active {
+            if self.active(&ancestry(std::slice::from_ref(loan), loans, b)?, b)? {
+                b.spend(1)?;
+                live.push(*loan);
             }
         }
-        if let Some(local)=local_receiver{
-            let value=state.locals.get(local.0 as usize).ok_or_else(||err("byte view callable receiver local is absent"))?;
-            self.boundary_payload(value,&live,loans,requirements,i.span,b)?;
-            let p=Permission{sources:vec![Source{static_dependency:StaticProvenance::NotStatic,retained_port:None,base:HoldRoot::Local(local),leaf:vec![],inline:vec![],heap_parents:vec![],heap_element:None}],loans:vec![]};
-            self.boundary_permission(&p,&live,loans,requirements,i.span,b)?;
+        if let Some(local) = local_receiver {
+            let value = state
+                .locals
+                .get(local.0 as usize)
+                .ok_or_else(|| err("byte view callable receiver local is absent"))?;
+            self.boundary_payload(value, &live, loans, requirements, i.span, b)?;
+            let p = Permission {
+                sources: vec![Source {
+                    static_dependency: StaticProvenance::NotStatic,
+                    retained_port: None,
+                    base: HoldRoot::Local(local),
+                    leaf: vec![],
+                    inline: vec![],
+                    heap_parents: vec![],
+                    heap_element: None,
+                }],
+                loans: vec![],
+            };
+            self.boundary_permission(&p, &live, loans, requirements, i.span, b)?;
         }
-        for input in instruction_operands(&i.kind){
+        for input in instruction_operands(&i.kind) {
             b.spend(1)?;
-            let value=values.get(input.0 as usize).ok_or_else(||err("byte view boundary input is absent"))?;
-            let ty=vt(f,input)?;
-            if matches!(ty,Type::Address{..}|Type::Desc(_))&&value.address.sources.is_empty()&&value.store_description.sources.is_empty(){
-                return Err(err("byte view boundary input has no complete actual pointer/description source"));
+            let value = values
+                .get(input.0 as usize)
+                .ok_or_else(|| err("byte view boundary input is absent"))?;
+            let ty = vt(f, input)?;
+            if matches!(ty, Type::Address { .. } | Type::Desc(_))
+                && value.address.sources.is_empty()
+                && value.store_description.sources.is_empty()
+            {
+                return Err(err(
+                    "byte view boundary input has no complete actual pointer/description source",
+                ));
             }
-            self.boundary_payload(value,&live,loans,requirements,i.span,b)?;
-            if let Type::Address{inner,..}=ty&&let Some(id)=returned_environment::closure(inner){
-                for(path,_)in returned_environment::leaves(module,id,b)?{
-                    let p=select(state,&value.address,&path,b)?;
-                    if p.sources.is_empty(){return Err(err("byte view boundary borrowed receiver omits an actual environment leaf"));}
-                    self.boundary_permission(&p,&live,loans,requirements,i.span,b)?;
+            self.boundary_payload(value, &live, loans, requirements, i.span, b)?;
+            if let Type::Address { inner, .. } = ty
+                && let Some(id) = returned_environment::closure(inner)
+            {
+                for (path, _) in returned_environment::leaves(module, id, b)? {
+                    let p = select(state, &value.address, &path, b)?;
+                    if p.sources.is_empty() {
+                        return Err(err(
+                            "byte view boundary borrowed receiver omits an actual environment leaf",
+                        ));
+                    }
+                    self.boundary_permission(&p, &live, loans, requirements, i.span, b)?;
                 }
             }
         }
@@ -660,8 +762,19 @@ impl Sites {
                 | InstructionKind::WithForeignCallback { .. }
                 | InstructionKind::WithScopedThread { .. }
                 | InstructionKind::WithSyncCell { .. }
-        ) && !noescape_call && self.active(live, b)?
-            && !self.independent_boundary(module,f,i,state,values,live,loans,requirements,b)?
+        ) && !noescape_call
+            && self.active(live, b)?
+            && !self.independent_boundary(
+                module,
+                f,
+                i,
+                state,
+                values,
+                live,
+                loans,
+                requirements,
+                b,
+            )?
         {
             return Err(unavailable(i.span));
         }
@@ -755,41 +868,423 @@ impl Sites {
 #[cfg(test)]
 mod boundary_tests {
     use super::*;
-    fn source(local:u32)->Source{Source{static_dependency:StaticProvenance::NotStatic,retained_port:None,base:HoldRoot::Local(LocalId(local)),leaf:vec![],inline:vec![],heap_parents:vec![],heap_element:None}}
-    fn permission(local:u32)->Permission{Permission{sources:vec![source(local)],loans:vec![1]}}
+    fn source(local: u32) -> Source {
+        Source {
+            static_dependency: StaticProvenance::NotStatic,
+            retained_port: None,
+            base: HoldRoot::Local(LocalId(local)),
+            leaf: vec![],
+            inline: vec![],
+            heap_parents: vec![],
+            heap_element: None,
+        }
+    }
+    fn permission(local: u32) -> Permission {
+        Permission {
+            sources: vec![source(local)],
+            loans: vec![1],
+        }
+    }
     // This is only the independent boundary-separation sub-proof. Complete
     // Source/callee/CFG/ownership admission is exercised by the real consumers.
     #[test]
-    fn byte_view_boundaries_preserve_all_actual_carrier_paths_and_parent_loans(){
-        let sites=Sites{values:vec![0]};
-        let mut loans=vec![Loan{sources:vec![source(0)],..Loan::default()},Loan{sources:vec![source(1)],..Loan::default()}];
-        for route in 0..8{
-            for alias in [false,true]{
-                let mut b=Budget::new(&Limits::default());
-                let p=permission(if alias{0}else{1});
-                let mut value=Payload::default();
-                match route{
-                    0=>value.address=p,
-                    1=>value.store_description=p,
-                    2=>value.leaves.push((vec![PlaceProjection::Field(0)],p),&mut b).unwrap(),
-                    3=>value.task_ports.push((vec![ContractProjection::Capture(0)],p)),
-                    4=>value.dyn_ports.0.push((vec![],dyn_ports::Port{known:true,permission:p,..dyn_ports::Port::default()})),
-                    5=>value.dyn_ports.0.push((vec![],dyn_ports::Port{known:true,parent_sources:p.sources,..dyn_ports::Port::default()})),
-                    6=>value.dyn_ports.0.push((vec![],dyn_ports::Port{known:true,head_sources:p.sources,..dyn_ports::Port::default()})),
-                    _=>value.dyn_views.push(dyn_ports::View{table:None,head:p}),
+    fn byte_view_boundaries_preserve_all_actual_carrier_paths_and_parent_loans() {
+        let sites = Sites { values: vec![0] };
+        let mut loans = vec![
+            Loan {
+                sources: vec![source(0)],
+                ..Loan::default()
+            },
+            Loan {
+                sources: vec![source(1)],
+                ..Loan::default()
+            },
+        ];
+        for route in 0..8 {
+            for alias in [false, true] {
+                let mut b = Budget::new(&Limits::default());
+                let p = permission(if alias { 0 } else { 1 });
+                let mut value = Payload::default();
+                match route {
+                    0 => value.address = p,
+                    1 => value.store_description = p,
+                    2 => value
+                        .leaves
+                        .push((vec![PlaceProjection::Field(0)], p), &mut b)
+                        .unwrap(),
+                    3 => value
+                        .task_ports
+                        .push((vec![ContractProjection::Capture(0)], p)),
+                    4 => value.dyn_ports.0.push((
+                        vec![],
+                        dyn_ports::Port {
+                            known: true,
+                            permission: p,
+                            ..dyn_ports::Port::default()
+                        },
+                    )),
+                    5 => value.dyn_ports.0.push((
+                        vec![],
+                        dyn_ports::Port {
+                            known: true,
+                            parent_sources: p.sources,
+                            ..dyn_ports::Port::default()
+                        },
+                    )),
+                    6 => value.dyn_ports.0.push((
+                        vec![],
+                        dyn_ports::Port {
+                            known: true,
+                            head_sources: p.sources,
+                            ..dyn_ports::Port::default()
+                        },
+                    )),
+                    _ => value.dyn_views.push(dyn_ports::View {
+                        table: None,
+                        head: p,
+                    }),
                 }
-                let result=sites.boundary_payload(&value,&[0],&loans,&mut Vec::new(),Span::default(),&mut b);
-                if alias{assert_eq!(result.unwrap_err().category,zil_base::ResultCategory::SafeReject,"route {route}");}
-                else{result.unwrap();}
+                let result = sites.boundary_payload(
+                    &value,
+                    &[0],
+                    &loans,
+                    &mut Vec::new(),
+                    Span::default(),
+                    &mut b,
+                );
+                if alias {
+                    assert_eq!(
+                        result.unwrap_err().category,
+                        zil_base::ResultCategory::SafeReject,
+                        "route {route}"
+                    );
+                } else {
+                    result.unwrap();
+                }
             }
         }
         // Passing an actual descendant of the view is forbidden even when a
         // purported separate root attempts to hide that delegated ancestry.
-        loans[1].parents=vec![0];
-        let mut b=Budget::new(&Limits::default());
-        assert_eq!(sites.boundary_permission(&permission(1),&[0],&loans,&mut Vec::new(),Span::default(),&mut b).unwrap_err().category,zil_base::ResultCategory::SafeReject);
-        let mut unknown=Payload::default();unknown.dyn_ports.0.push((vec![],dyn_ports::Port::default()));
-        assert!(sites.boundary_payload(&unknown,&[0],&loans,&mut Vec::new(),Span::default(),&mut b).unwrap_err().message.contains("unknown actual opaque port"));
-        assert!(sites.boundary_permission(&Permission{sources:vec![],loans:vec![1]},&[0],&loans,&mut Vec::new(),Span::default(),&mut b).is_err());
+        loans[1].parents = vec![0];
+        let mut b = Budget::new(&Limits::default());
+        assert_eq!(
+            sites
+                .boundary_permission(
+                    &permission(1),
+                    &[0],
+                    &loans,
+                    &mut Vec::new(),
+                    Span::default(),
+                    &mut b
+                )
+                .unwrap_err()
+                .category,
+            zil_base::ResultCategory::SafeReject
+        );
+        let mut unknown = Payload::default();
+        unknown
+            .dyn_ports
+            .0
+            .push((vec![], dyn_ports::Port::default()));
+        assert!(
+            sites
+                .boundary_payload(
+                    &unknown,
+                    &[0],
+                    &loans,
+                    &mut Vec::new(),
+                    Span::default(),
+                    &mut b
+                )
+                .unwrap_err()
+                .message
+                .contains("unknown actual opaque port")
+        );
+        assert!(
+            sites
+                .boundary_permission(
+                    &Permission {
+                        sources: vec![],
+                        loans: vec![1]
+                    },
+                    &[0],
+                    &loans,
+                    &mut Vec::new(),
+                    Span::default(),
+                    &mut b
+                )
+                .is_err()
+        );
+    }
+}
+
+#[cfg(test)]
+mod captured_flow_tests {
+    use super::*;
+
+    fn fixture(kind: CallableKind) -> (TypedModule, CandidatePlan) {
+        let (mut module, plan) = crate::tests::baseline();
+        let description = Type::Desc(Box::new(Type::ByteBuffer));
+        let result = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::Slice {
+                element: Box::new(Type::U8),
+            }),
+        };
+        let relation = StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 1,
+            bindings: [StorageBase::Receiver, StorageBase::Result]
+                .into_iter()
+                .map(|base| StorageLifeBinding {
+                    position: StoragePosition { base, path: vec![] },
+                    binder: StorageBinder::Invocation(0),
+                })
+                .collect(),
+            classes: vec![],
+            static_bindings: vec![],
+        };
+        let f = &mut module.functions[0];
+        f.environment = Some(ClosureId(0));
+        f.storage_life = Some(relation.clone());
+        f.return_type = result.clone();
+        f.locals[0].ty = description.clone();
+        f.values = vec![description.clone(), description, result.clone(), Type::I64];
+        let span = f.span;
+        f.blocks[0].instructions = vec![
+            Instruction {
+                result: Some(ValueId(0)),
+                kind: InstructionKind::DescribeCapture { index: 0 },
+                span,
+            },
+            Instruction {
+                result: None,
+                kind: InstructionKind::Store {
+                    local: LocalId(0),
+                    value: ValueId(0),
+                },
+                span,
+            },
+            Instruction {
+                result: Some(ValueId(1)),
+                kind: InstructionKind::Load(LocalId(0)),
+                span,
+            },
+            Instruction {
+                result: Some(ValueId(2)),
+                kind: InstructionKind::ByteBufferBorrow {
+                    buffer: ValueId(1),
+                    mutable: false,
+                },
+                span,
+            },
+            Instruction {
+                result: Some(ValueId(3)),
+                kind: InstructionKind::Constant(Constant::I64(4)),
+                span,
+            },
+        ];
+        f.blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
+        module.closures.push(ClosureDefinition {
+            id: ClosureId(0),
+            function: FunctionId(0),
+            captures: vec![
+                Type::Managed(Box::new(Type::ByteBuffer)),
+                Type::Managed(Box::new(Type::ByteBuffer)),
+            ],
+            parameters: vec![],
+            result,
+            kind,
+            storage_life: Some(relation),
+            lending_captures: vec![0],
+        });
+        module.resources = vec![
+            zil_ir::ResourceDefinition {
+                name: "@builtin:ByteBuffer".into(),
+                payload: Type::ByteBuffer,
+                teardown: None,
+            },
+            zil_ir::ResourceDefinition {
+                name: "OtherOwner".into(),
+                payload: Type::I32,
+                teardown: None,
+            },
+        ];
+        (module, plan)
+    }
+    fn source(index: u32) -> Source {
+        Source {
+            static_dependency: StaticProvenance::NotStatic,
+            retained_port: None,
+            base: HoldRoot::Capture(index),
+            leaf: vec![],
+            inline: vec![],
+            heap_parents: vec![],
+            heap_element: None,
+        }
+    }
+
+    // This tests the descriptor-flow and access components, not complete raw
+    // closure admission. Full Source execution separately checks the receiver,
+    // creator, initialization, result relation and ownership retirement.
+    #[test]
+    fn captured_byte_flow_preserves_sources_parents_and_growth_conflicts_raw_wire() {
+        let limits = Limits::default();
+        for kind in [CallableKind::Fn, CallableKind::FnMut] {
+            let (module, plan) = fixture(kind);
+            let encoded = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+            let decoded = zil_ir::wire::decode_module_candidate(&encoded, &limits)
+                .unwrap()
+                .0;
+            for module in [&module, &decoded] {
+                let mut b = Budget::new(&limits);
+                b.shared_byte_borrow = true;
+                assert!(profile(module, &mut b).unwrap());
+                let f = &module.functions[0];
+                let sites = Sites::collect(f, &mut b).unwrap();
+                let mut values = vec![Payload::default(); f.values.len()];
+                values[1].store_description = Permission {
+                    sources: vec![source(0)],
+                    loans: vec![0],
+                };
+                let borrow = &f.blocks[0].instructions[3];
+                let view = transfer(module, f, borrow, &values, &mut b).unwrap();
+                assert_eq!(view.sources, vec![source(0)]);
+                assert_eq!(view.loans, vec![0]);
+                let mut loans = vec![Loan::default(); f.values.len()];
+                loans[0].sources = vec![source(0)];
+                loans[2].sources = vec![source(0)];
+                loans[2].parents = vec![0];
+                values[2].address = view;
+                values[2].address.loans.push(2);
+                // Repeated shared views do not mutate or relocate the manager.
+                sites
+                    .check(
+                        module,
+                        f,
+                        borrow,
+                        &Frame::default(),
+                        &values,
+                        &[2],
+                        &loans,
+                        &mut vec![],
+                        &mut b,
+                    )
+                    .unwrap();
+                let growth = Instruction {
+                    result: None,
+                    kind: InstructionKind::ByteBufferReserve {
+                        buffer: ValueId(1),
+                        capacity: ValueId(3),
+                    },
+                    span: f.span,
+                };
+                assert_eq!(
+                    sites
+                        .check(
+                            module,
+                            f,
+                            &growth,
+                            &Frame::default(),
+                            &values,
+                            &[2],
+                            &loans,
+                            &mut vec![],
+                            &mut b
+                        )
+                        .unwrap_err()
+                        .category,
+                    zil_base::ResultCategory::SafeReject
+                );
+                // Once the old view is dead, the same manager may grow.
+                sites
+                    .check(
+                        module,
+                        f,
+                        &growth,
+                        &Frame::default(),
+                        &values,
+                        &[],
+                        &loans,
+                        &mut vec![],
+                        &mut b,
+                    )
+                    .unwrap();
+                // The descriptor's full actual source, not its same-shaped
+                // capture type, determines whether a live view aliases it.
+                values[1].store_description = Permission {
+                    sources: vec![source(1)],
+                    loans: vec![],
+                };
+                sites
+                    .check(
+                        module,
+                        f,
+                        &growth,
+                        &Frame::default(),
+                        &values,
+                        &[2],
+                        &loans,
+                        &mut vec![],
+                        &mut b,
+                    )
+                    .unwrap();
+                values[1].store_description = Permission::default();
+                assert!(
+                    sites
+                        .check(
+                            module,
+                            f,
+                            borrow,
+                            &Frame::default(),
+                            &values,
+                            &[],
+                            &loans,
+                            &mut vec![],
+                            &mut b
+                        )
+                        .unwrap_err()
+                        .message
+                        .contains("independently grounded head")
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn byte_profile_still_requires_the_unique_sealed_resource_and_typed_descriptor() {
+        let limits = Limits::default();
+        for attack in 0..4 {
+            let (mut module, _) = fixture(CallableKind::Fn);
+            match attack {
+                0 => {
+                    module.resources.remove(0);
+                }
+                1 => {
+                    module.resources.push(module.resources[0].clone());
+                }
+                2 => {
+                    module.resources[0].name = "unsealed".into();
+                }
+                _ => {
+                    module.functions[0].values[1] = Type::I32;
+                }
+            }
+            let mut b = Budget::new(&limits);
+            b.shared_byte_borrow = true;
+            assert!(profile(&module, &mut b).is_err(), "attack {attack}");
+        }
+        let mut b = Budget::new(&limits);
+        assert!(
+            !value(
+                &Type::Address {
+                    mutable: true,
+                    inner: Box::new(Type::Managed(Box::new(Type::ByteBuffer)))
+                },
+                &mut b
+            )
+            .unwrap(),
+            "nested owners must use their complete independent qualifier"
+        );
     }
 }
