@@ -234,6 +234,7 @@ pub(super) fn specialize_products_with_runtime<'a>(
             prepared.prelude,
             context,
             runtime_ct,
+            prepared.capture_task_input_origins,
         )
         .map(|module| Cow::Owned(module.into_owned())),
         None => specialize_products_prepared(
@@ -243,6 +244,7 @@ pub(super) fn specialize_products_with_runtime<'a>(
             origins::CompilerPrelude::default(),
             context,
             runtime_ct,
+            false,
         ),
     }
 }
@@ -257,9 +259,10 @@ fn specialize_products_prepared<'a>(
         super::source_context::SourceIdentityContext<'_>,
     )>,
     runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
+    capture_task_input_origins: bool,
 ) -> CompileResult<Cow<'a, Module>> {
     let mut names_budget = Budget::new(limits);
-    if runtime_ct.is_some() || products.semantic.is_some() {
+    if runtime_ct.is_some() || products.semantic.is_some() || capture_task_input_origins {
         names_budget.note_source_identity();
     }
     names_budget.target_pointer_width = products.target_pointer_width.unwrap_or(64);

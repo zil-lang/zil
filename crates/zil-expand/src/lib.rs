@@ -386,13 +386,13 @@ fn expand_with_map_limits_target_impl(
         debit_trait_lowering(&expanded, &mut lower_limits, 1)?;
         products.allowance = Some(lower_limits);
     }
-    if let Some(context) = context
-        && !products.storage.instances.is_empty()
+    if products.needs_nominal_inventory(context.is_some())
         && !expanded.semantic_nominal_emissions.is_empty()
     {
         let syntax = [module];
-        let (origins, mut remaining) = source_context::capture_original_required(
-            std::slice::from_ref(source), &syntax, context, products.allowance.as_ref().unwrap_or(limits),
+        let (origins, mut remaining) = source_context::core_nominal_origins(
+            std::slice::from_ref(source), &syntax, &[vec![]], context,
+            products.allowance.as_ref().unwrap_or(limits),
         )?;
         let inventory = source_declarations::collect_original_declarations_with_budget(
             &syntax, &origins, &mut remaining,
@@ -906,7 +906,8 @@ fn expand_program_with_limits_target_impl(
             || !expanded.semantic_nominal_emissions.is_empty()
         {
             if core_nominals.is_none() && products.semantic.is_none()
-                && !expanded.semantic_nominal_emissions.is_empty() && !products.storage.instances.is_empty()
+                && !expanded.semantic_nominal_emissions.is_empty()
+                && products.needs_nominal_inventory(true)
                 && let Some(syntax) = source_syntax
             {
                 let (origins, mut available) = source_context::core_nominal_origins(

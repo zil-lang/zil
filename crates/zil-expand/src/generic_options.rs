@@ -325,9 +325,13 @@ struct Probe<'a> {
     present: bool,
     tasks: bool,
     task_threads: bool,
+    owning_task: bool,
+    authored_nominal: bool,
 }
 impl crate::ct_selection::Visitor for Probe<'_> {
     fn item(&mut self, item: &Item, depth: usize) -> CompileResult<()> {
+        self.authored_nominal |= self.semantic.is_none()
+            && matches!(item.kind, ItemKind::Aggregate(_) | ItemKind::Enum(_));
         if let ItemKind::Function(function) | ItemKind::Extern { function, .. } = &item.kind
             && function.semantic.raw_index().is_some()
             && !self
@@ -379,6 +383,8 @@ impl crate::ct_selection::Visitor for Probe<'_> {
         self.task_threads |= matches!(&e.kind,ExprKind::Name(name) if name=="thread_scope" || name=="TaskThreadScopeResult");
         self.tasks |= matches!(&e.kind, ExprKind::Name(name) if task_declaration(name).is_some() || matches!(name.as_str(),"task_create"|"task_create_owned"));
         self.tasks |= matches!(&e.kind,ExprKind::Member{member:MemberName::Name(name),..} if task_declaration(name).is_some());
+        self.owning_task |= matches!(&e.kind, ExprKind::Call { callee, .. }
+            if crate::foreign::bare_name(callee) == Some("task_create_owned"));
         crate::ct_selection::walk_expression(self, e, depth)
     }
     fn statement(&mut self, statement: &Stmt, depth: usize) -> CompileResult<()> {
@@ -433,6 +439,7 @@ impl generated_spans::Visitor for Normalize<'_> {
 pub(super) struct Prepared {
     pub(super) module: Module,
     pub(super) prelude: origins::CompilerPrelude,
+    pub(super) capture_task_input_origins: bool,
 }
 #[cfg(test)]
 pub(super) fn prepare(
@@ -452,6 +459,8 @@ pub(super) fn prepare_recorded<'a>(
         present: false,
         tasks: false,
         task_threads: false,
+        owning_task: false,
+        authored_nominal: false,
     };
     for item in &module.items {
         let reserved = match &item.kind {
@@ -478,6 +487,7 @@ pub(super) fn prepare_recorded<'a>(
     let options = probe.present;
     let tasks = probe.tasks;
     let task_threads = probe.task_threads;
+    let capture_task_input_origins = probe.owning_task && probe.authored_nominal;
     let mut output = module.clone();
     let mut normal = Normalize {
         budget: probe.budget,
@@ -566,6 +576,7 @@ pub(super) fn prepare_recorded<'a>(
         Some(Prepared {
             module: output,
             prelude,
+            capture_task_input_origins,
         }),
         normal.budget.remaining_limits(),
     ))

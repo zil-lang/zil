@@ -23,6 +23,9 @@ pub(crate) struct Products {
     pub(super) rich_aliases: Vec<TypeRef>,
     pub(crate) storage: crate::stored_types::Catalog,
     pub(crate) origins: Option<origins::Origins>,
+    /// Owning Task inputs need their actual nominal applications even when
+    /// the returned Core has no semantic module or stored borrow inventory.
+    pub(crate) task_input_nominals: bool,
     pub(crate) dynamic: dynamic::Catalog,
     pub(crate) target_pointer_width: Option<u16>,
     pub(crate) member_patterns: BTreeMap<String, TypeRef>,
@@ -255,10 +258,14 @@ impl Products {
             || self.record_variants
             || self.protected_binders
             || self.borrowed_signatures
+            || self.task_input_nominals
             || self
                 .origins
                 .as_ref()
                 .is_some_and(|origins| !origins.identities.is_empty())
+    }
+    pub(crate) fn needs_nominal_inventory(&self, source_context: bool) -> bool {
+        self.task_input_nominals || source_context && !self.storage.instances.is_empty()
     }
     pub(crate) fn trait_limits(&self, limits: &Limits) -> Limits {
         let mut selected = limits.clone();

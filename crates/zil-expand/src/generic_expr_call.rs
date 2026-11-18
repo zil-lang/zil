@@ -15,6 +15,36 @@ struct CallArguments {
     value_inferred: bool,
     opaque_inputs: Vec<usize>,
 }
+
+struct TaskInputNominals<'a, 'source> {
+    declarations: &'a BTreeMap<String, &'source Item>,
+    budget: &'a mut Budget<'source>,
+    needed: bool,
+}
+impl crate::ct_selection::Visitor for TaskInputNominals<'_, '_> {
+    fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+        self.budget.node(span, depth).map_err(|error| vec![error])
+    }
+    fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+        self.budget.text(text, span).map_err(|error| vec![error])
+    }
+    fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
+        if let TypeKind::Named { path, .. } = &ty.kind
+            && let [name] = path.as_slice()
+        {
+            let lookup = self.declarations.len().saturating_add(1).ilog2() as usize + 1;
+            self.budget.identity_work(lookup.saturating_mul(name.len().saturating_add(1)), ty.span)
+                .map_err(|error| vec![error])?;
+            if self.declarations.contains_key(name) {
+                self.node(ty.span, depth)?;
+                self.needed = true;
+                return Ok(());
+            }
+        }
+        crate::ct_selection::walk_type(self, ty, depth)
+    }
+}
+
 impl Engine<'_> {
     fn expr_call_method(&mut self, e: &mut Expr, env: &mut Env, depth: usize) -> R<CallMethod> {
         self.method_call(e, env, depth)?;
@@ -402,6 +432,23 @@ impl Engine<'_> {
                         e.span,
                         "task_create argument count differs from worker",
                     ));
+                }
+                if name == "task_create_owned" && self.products.semantic.is_none()
+                    && self.origins.is_some() && !self.products.task_input_nominals
+                {
+                    use crate::ct_selection::Visitor;
+                    let mut inputs = TaskInputNominals {
+                        declarations: &self.nominals,
+                        budget: &mut self.budget,
+                        needed: false,
+                    };
+                    for parameter in &signature.params {
+                        inputs.ty(&parameter.ty, depth + 1).map_err(|mut errors| errors.remove(0))?;
+                        if inputs.needed {
+                            break;
+                        }
+                    }
+                    self.products.task_input_nominals = inputs.needed;
                 }
                 let mut context_ports = Vec::new();
                 let mut complete_context = true;
