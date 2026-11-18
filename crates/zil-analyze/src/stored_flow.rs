@@ -7457,7 +7457,8 @@ fn windows(
                         if f.environment
                             .and_then(|id| module.closures.get(id.0 as usize))
                             .and_then(|definition| definition.captures.get(*index as usize))
-                            .is_some_and(|ty| matches!(ty, Type::Closure(_) | Type::Tuple(_) | Type::Record { .. } | Type::Array { .. })) =>
+                            .is_some_and(|ty| matches!(ty, Type::Closure(_) | Type::Tuple(_) | Type::Record { .. } | Type::Array { .. }))
+                            || super::stored_callables::checked_capture_write(f, i, b)? =>
                     {
                         // Moving or replacing a child changes this physical
                         // capture slot. A previously borrowed child frame may

@@ -1896,6 +1896,30 @@ impl Check<'_, '_> {
                 for (index, instruction) in block.instructions.iter().enumerate() {
                     self.inventory.profile_operation(block.id, index, b);
                     b.spend(1, WORK)?;
+                    if let InstructionKind::WriteCapture { index: field, value } = instruction.kind
+                        && function.values.get(value.0 as usize)
+                            .is_some_and(|ty| matches!(ty, Type::Address { mutable: false, .. }))
+                    {
+                        let definition = function.environment
+                            .and_then(|id| self.module.closures.get(id.0 as usize))
+                            .filter(|definition| definition.function == function.id)
+                            .ok_or_else(|| fail("shared reference capture write has no authentic closure entry"))?;
+                        if !matches!(definition.kind, CallableKind::FnMut | CallableKind::FnOnce)
+                            || definition.storage_life.is_none() || instruction.result.is_some()
+                        {
+                            return Err(fail("shared reference capture write needs exclusive actual entry access"));
+                        }
+                        available_before(function, (block.id, index, SemanticSiteEdge::Before), value, b)?;
+                        let expected = self.capture_whole_value(instance, function, field, b, 0)?;
+                        let incoming = self.ssa_value(instance, function, value, b, 0)?;
+                        if !matches!(expected.ty, Type::Address { mutable: false, .. })
+                            || !self.outer_role(instance, function, &incoming, &expected, b, 0)?
+                        {
+                            return Err(fail("capture write changes its complete original shared reference slot"));
+                        }
+                        b.lookup(b.semantic_capture_writes.len(), WORK)?;
+                        b.semantic_capture_writes.insert((function.id, field, value));
+                    }
                     if let InstructionKind::WriteAddress { address, value } = instruction.kind
                         && function.values.get(value.0 as usize).is_some_and(|ty|
                             matches!(ty, Type::Address { .. }) || crate::stored_flow::option_address::candidate(ty)) {

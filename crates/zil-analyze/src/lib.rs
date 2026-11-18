@@ -148,6 +148,7 @@ fn analyze_budgeted_context(
     budget.semantic_receiving_returns.clear();
     budget.semantic_constructor_views.clear();
     budget.semantic_raw_writes.clear();
+    budget.semantic_capture_writes.clear();
     budget.semantic_raw_value_shapes.clear();
     budget.semantic_raw_local_shapes.clear();
     budget.semantic_cleanup_sites.clear();

@@ -126,6 +126,9 @@ pub(super) struct Budget {
     // child checked at the real constructor. Outer use is directional only.
     pub(super) semantic_constructor_views: BTreeSet<(FunctionId, ValueId, u32)>,
     pub(super) semantic_raw_writes: BTreeSet<(FunctionId, zil_ir::BlockId, usize)>,
+    // Complete original field and incoming value at each checked shared
+    // Address write. This carries no runtime receiver permission.
+    pub(super) semantic_capture_writes: BTreeSet<(FunctionId, u32, zil_ir::ValueId)>,
     // Geometry only, reconstructed from the complete original value at a real
     // immutable actual coordinate. No classes, targets, loans or capabilities.
     pub(super) semantic_raw_value_shapes: BTreeMap<(FunctionId, ValueId), zil_ir::StorageLifeShape>,
@@ -360,6 +363,7 @@ impl Budget {
             semantic_receiving_returns: BTreeSet::new(),
             semantic_constructor_views: BTreeSet::new(),
             semantic_raw_writes: BTreeSet::new(),
+            semantic_capture_writes: BTreeSet::new(),
             semantic_raw_value_shapes: BTreeMap::new(),
             semantic_raw_local_shapes: BTreeMap::new(),
             semantic_cleanup_sites: BTreeSet::new(),

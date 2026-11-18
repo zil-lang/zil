@@ -813,6 +813,21 @@ pub(super) fn instruction(module: &TypedModule, f: &TypedFunction, i: &Instructi
         _ => called(module, f, &i.kind).is_some(),
     }
 }
+pub(super) fn checked_capture_write(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if b.semantic_capture_writes.is_empty() {
+        return Ok(false);
+    }
+    let InstructionKind::WriteCapture { index, value } = i.kind else {
+        return Ok(false);
+    };
+    b.lookup(b.semantic_capture_writes.len(), "complete original shared capture write")?;
+    Ok(b.semantic_capture_writes.contains(&(f.id, index, value)))
+}
+
 pub(super) fn types(
     module: &TypedModule,
     f: &TypedFunction,
@@ -1040,7 +1055,8 @@ pub(super) fn types(
                 // access. Its constant contents are independently checked at
                 // every module constructor and write before planning.
                 if d.kind == zil_ir::CallableKind::Fn
-                    || !(scalar(t) || constant_slot || original_copy_product(d, t, b)?)
+                    || !(scalar(t) || constant_slot || original_copy_product(d, t, b)?
+                        || checked_capture_write(f, i, b)?)
                     || i.result.is_some()
                     || f.values.get(value.0 as usize) != Some(t)
                 {

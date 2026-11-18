@@ -1441,6 +1441,15 @@ fn check_with(
             b.spend(1, "class equation instruction")?;
             let out = i.result.map(|v| &values[v.0 as usize]);
             match &i.kind {
+                InstructionKind::WriteCapture { index: capture, value }
+                    if super::stored_callables::checked_capture_write(f, i, b)? =>
+                {
+                    let destination = captures.get(*capture as usize)
+                        .ok_or_else(|| bad("checked shared capture write has no actual class inventory"))?;
+                    array_outer::copy(
+                        &mut e, destination, &values[value.0 as usize], outer.as_ref(), b,
+                    )?;
+                }
                 InstructionKind::DescribeLocal { .. } => {
                     // A weak route has a real local epoch, but contributes no
                     // owning reach or holding loan. Those ledgers stay separate.
