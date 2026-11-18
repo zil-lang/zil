@@ -547,8 +547,7 @@ impl CheckedContext {
                 }
             }
         }
-        let initial = pattern_initial_transfer(module, f, local, span, b)?;
-        if !mutable && (declaration.ty.is_integer() || declaration.ty.is_float() || matches!(declaration.ty, Type::Unit | Type::Bool)) {
+        if !source.mutable && (declaration.ty.is_integer() || declaration.ty.is_float() || matches!(declaration.ty, Type::Unit | Type::Bool)) {
             match initial {
                 PatternStart::Value(value) => {
                     let slot = scalar_preparations::slot(f, local, true, b)?.ok_or_else(||bad("scalar pattern source storage is mutable, aliased or has no unique activation"))?;
@@ -560,7 +559,7 @@ impl CheckedContext {
                 }
             }
         }
-        self.pattern_projection_start(module, caller, f, initial, subject, &path, &subjects, b)
+        self.pattern_projection_start(module, caller, f, initial, subject, &source.projections, &subjects, b)
     }
     fn pattern_projection_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,subject:NodeId,path:&[LifeTypeProjection],subjects:&BTreeSet<ValueId>,b:&mut Budget)->Check<()>{
         self.pattern_projection_start(module, caller, f, PatternStart::Value(value), subject, path, subjects, b)
