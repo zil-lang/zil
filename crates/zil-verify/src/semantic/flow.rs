@@ -1017,8 +1017,16 @@ impl CheckedContext {
             let expected_origin=expected.origins.get(index).ok_or_else(||bad(&format!("nominal claim original domain is incomplete [at {:?}, original {:?}, claim type {:?}, claim domain {}, claim classes {}, expected type {:?}, expected domain {}, expected classes {}, expected origins {}]",environment.at,environment.lexical.first().map(|frame|frame.definition),ty,life.binder_count,expressions.len(),expected.ty,expected.life.binder_count,expected.classes.len(),expected.origins.len())))?;
             if let Some(origin)=self.nominal_claim_origin(&actual.origins[index],expected_origin,source.as_ref(),environment,b)?{actual.origins[index]=origin;}
             else if let Some(origin)=source{
-                if closure_cursor&&!self.same_origin(environment,&origin,expected_origin,b)?{return Err(bad("closure claim changes its exact original intrinsic occurrence"));}
-                actual.origins[index]=origin;
+                if closure_cursor {
+                    if !self.same_origin(environment,&origin,expected_origin,b)?
+                        && !self.closure_image_origin(module,expected,index,&origin,environment,b)?
+                    {
+                        return Err(bad("closure claim changes its exact original intrinsic occurrence")
+                            .with_note(format!("claim at {:?} in {:?}, class {index}; actual {:?}, expected {:?}",
+                                environment.at, environment.lexical.first().map(|frame|frame.key), origin, expected_origin)));
+                    }
+                    actual.origins[index]=expected_origin.clone();
+                }else{actual.origins[index]=origin;}
             }
             else if closure_cursor{
                 // An Implicit/Formal image is not an assertion that this κ is

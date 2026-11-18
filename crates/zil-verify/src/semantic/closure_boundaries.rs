@@ -24,6 +24,36 @@ impl CheckedContext {
         }
         Ok(false)
     }
+    // A raw claim may name the outside image through the exact original
+    // sealed source occurrence. It does not replace the closure's own ordinal.
+    pub(super) fn closure_image_origin(
+        &self, module: &TypedModule, expected: &CheckedType, index: usize,
+        origin: &IntrinsicOrigin, environment: &EvalEnv, b: &mut Budget,
+    ) -> Check<bool> {
+        let cursors = self.pending_closures.borrow();
+        b.spend(cursors.len())?;
+        for cursor in cursors.iter() {
+            if cursor.expected != *expected { continue; }
+            let instance = self.instance(module, cursor.instance, b)?;
+            b.spend(instance.header_embedding.len())?;
+            let mut rows = instance.header_embedding.iter().filter(|row| row.header == StorageBinder::Fixed(index as u32));
+            let Some(row) = rows.next() else { continue; };
+            if rows.next().is_some() { return Err(bad("Closure image has duplicate actual Fixed bindings")); }
+            let SemanticClassExpr::IntrinsicClass { operand: SemanticOperand::Environment(slot), path, class } = &row.actual else { continue; };
+            let Some(CheckedActual::Type(source)) = cursor.sealed.get(*slot as usize) else { continue; };
+            let child;
+            let value = if path.is_empty() { source } else {
+                child = self.child_value(module, source, path, b)?;
+                &child
+            };
+            if let Some(exact) = value.origins.get(*class as usize)
+                && self.same_origin(environment, origin, exact, b)?
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
     pub(super) fn original_closure_value(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,creator:ScopeKey,environment:&EvalEnv,b:&mut Budget)->Check<Option<CheckedType>> {
         let node=self.original.borrow().as_ref().ok_or_else(||bad("original closure source has no checked body"))?.closure_creation(module,definition,source,b)?;
         let Some(node)=node else{return Ok(None);};
