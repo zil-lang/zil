@@ -6,10 +6,10 @@ struct Packet {
     samples: [i64; 2]
     active: bool
 }
-fn some<T>(value: T) -> LegacyOption<T> { return LegacyOption.Some(value) }
-fn empty<T>() -> LegacyOption<T> { return LegacyOption.None }
-fn success<E, T>(value: T) -> Result<E, T> { return Result.Ok(value) }
-fn select<T: SyncDrop>(value: LegacyOption<Result<bool, T>>, fallback: T) -> T {
+fn some<T: Value>(value: T) -> LegacyOption<T> { return LegacyOption.Some(value) }
+fn empty<T: Value>() -> LegacyOption<T> { return LegacyOption.None }
+fn success<E: Value, T: Value>(value: T) -> Result<E, T> { return Result.Ok(value) }
+fn select<T: Value+SyncDrop>(value: LegacyOption<Result<bool, T>>, fallback: T) -> T {
     match value {
         LegacyOption.None() => { return fallback }
         LegacyOption.Some(Result.Err(_)) => { return fallback }

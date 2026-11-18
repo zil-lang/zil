@@ -7,10 +7,10 @@ pub type Count = i64
 pub type Score = Result<bool, Count>
 pub type MaybeRow = LegacyOption<Row<Count>>
 
-pub fn some<T>(value: T) -> LegacyOption<T> { return LegacyOption.Some(value) }
-pub fn empty<T>() -> LegacyOption<T> { return LegacyOption.None }
-pub fn ok<E, T>(value: T) -> Result<E, T> { return Result.Ok(value) }
-pub fn unwrap<T: SyncDrop>(value: LegacyOption<T>, fallback: T) -> T {
+pub fn some<T: Value>(value: T) -> LegacyOption<T> { return LegacyOption.Some(value) }
+pub fn empty<T: Value>() -> LegacyOption<T> { return LegacyOption.None }
+pub fn ok<E: Value, T: Value>(value: T) -> Result<E, T> { return Result.Ok(value) }
+pub fn unwrap<T: Value+SyncDrop>(value: LegacyOption<T>, fallback: T) -> T {
     match value {
         LegacyOption.Some(v) => { return v }
         LegacyOption.None() => { return fallback }
