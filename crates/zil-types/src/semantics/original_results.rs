@@ -137,6 +137,29 @@ impl Check<'_, '_> {
         {
             return self.inferred_type_source(owner, callee, template, actual, inner, depth + 1);
         }
+        if let (
+            SemanticTypeRecipe::Address { inner, .. },
+            SemanticTypeRecipe::Environment {
+                scope: SemanticScopeRef::Ancestor(0),
+                ordinal: environment,
+            },
+        ) = (template, actual)
+            && let SemanticTypeRecipe::Formal(SemanticFormalRef {
+                scope: SemanticScopeRef::Ancestor(u32::MAX),
+                ordinal: formal,
+            }) = inner.as_ref()
+            && let SemanticTypeRecipe::Address { inner, .. } =
+                self.observation_type(owner, actual, depth + 1)?
+            && matches!(inner.as_ref(), SemanticTypeRecipe::Opaque { .. })
+        {
+            self.pay(2, depth)?;
+            self.proof
+                .proof_mut()?
+                .inferred_pointee_environments
+                .entry((owner, callee, *formal))
+                .or_default()
+                .insert(*environment);
+        }
         if let SemanticTypeRecipe::Formal(SemanticFormalRef {
             scope: SemanticScopeRef::Ancestor(u32::MAX),
             ordinal,
@@ -599,6 +622,32 @@ impl Proof {
 }
 
 impl Proof {
+    pub(in crate::semantics) fn inferred_pointee_environments(
+        &self,
+        owner: SemanticDefinitionId,
+        call: SemanticSiteId,
+        formal: u32,
+        holder: Option<SemanticDefinitionId>,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<Option<&BTreeSet<u32>>> {
+        if self.inferred_pointee_environments.is_empty() || !self.complete.contains(&owner) {
+            return Ok(None);
+        }
+        *left = left
+            .checked_sub(self.inferred_pointee_environments.len().saturating_add(1).ilog2() as usize + 2)
+            .ok_or_else(|| Diagnostic::limit(Phase::Types, "inferred capture Type lookup exceeded", None))?;
+        let Some(callee) = self.call_callees.get(&(owner, call)) else {
+            return Ok(None);
+        };
+        if let Some(holder) = holder
+            && self.inferred_call_target(owner, call, limits, left)? != Some(holder)
+        {
+            return Ok(None);
+        }
+        Ok(self.inferred_pointee_environments.get(&(owner, *callee, formal)))
+    }
+
     pub(in crate::semantics) fn call_result_boundary(
         &self,
         current: SemanticDefinitionId,

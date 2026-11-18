@@ -777,7 +777,135 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
             return Ok(actual);
         }
         let recipe = self.inferred_recipe(scope, call, formal, holder)?;
+        if matches!(&*recipe, SemanticActualRecipe::Type(SemanticTypeRecipe::Opaque { .. }))
+            && let Some(value) = self.inferred_capture_pointee(scope, call, formal, holder, depth + 1)?
+        {
+            return Ok(SemanticActual::Type(value));
+        }
         self.recipe_actual(scope, &recipe, depth + 1)
+    }
+
+    fn inferred_capture_pointee(
+        &mut self,
+        scope: SemanticInstanceId,
+        call: SemanticSiteId,
+        formal: u32,
+        holder: Option<SemanticInstanceId>,
+        depth: usize,
+    ) -> R<Option<SemanticTypeValue>> {
+        self.node(depth)?;
+        let instance = self.instance(scope)?;
+        let owner = instance.definition;
+        let holder = holder
+            .map(|id| self.instance(id).map(|row| row.definition))
+            .transpose()?;
+        let environments = {
+            let proof = self.ledger.original.borrow();
+            let proof = proof
+                .as_ref()
+                .filter(|proof| proof.complete.contains(&owner))
+                .or_else(|| self.ledger.frozen.as_deref().map(|source| &source.original))
+                .ok_or_else(|| bad("inferred captured Type has no complete original proof"))?;
+            let Some(environments) =
+                proof.inferred_pointee_environments(owner, call, formal, holder, self.limits, self.left)?
+            else {
+                return Ok(None);
+            };
+            self.fee(environments.len())?;
+            environments.iter().copied().collect::<Vec<_>>()
+        };
+        let definition = self.definition(owner)?;
+        let creator = instance
+            .parent
+            .ok_or_else(|| bad("inferred capture Type has no actual creator"))?;
+        if definition.parent != Some(self.instance(creator)?.definition) {
+            return Err(bad("inferred capture Type changes its real lexical creator"));
+        }
+        let mut result = None;
+        for ordinal in environments {
+            let Some(SemanticActualRecipe::Type(source)) = definition
+                .environment
+                .get(ordinal as usize)
+                .map(|row| &row.source)
+            else {
+                return Err(bad("inferred capture Type has no original sealed slot"));
+            };
+            let SemanticTypeValue::Resolved {
+                ty: Type::Address { inner, .. },
+                life: capture_life,
+                classes: capture_images,
+            } = self.ty(
+                scope,
+                &SemanticTypeRecipe::Environment {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    ordinal,
+                },
+                None,
+                depth + 1,
+            )?
+            else {
+                return Err(bad(
+                    "inferred capture pointee does not select an actual address",
+                ));
+            };
+            let child = self
+                .endpoint_recipe(creator, source, LifeTypeProjection::Pointee, depth + 1)?
+                .ok_or_else(|| {
+                    unknown("inferred capture pointee lacks its complete original type equation")
+                })?;
+            let SemanticTypeValue::Resolved { ty, life, .. } =
+                self.ty(creator, &child, Some(&inner), depth + 1)?
+            else {
+                unreachable!()
+            };
+            inference::charge_type_snapshot(&ty, Span::default(), self.limits, self.left, 1)?;
+            inference::charge_type_snapshot(&inner, Span::default(), self.limits, self.left, 1)?;
+            let map = self.endpoint_direct(&capture_life, &[LifeTypeProjection::Pointee])?;
+            let map = map.as_deref().unwrap_or_default();
+            if ty != *inner || map.len() != life.binder_count as usize {
+                return Err(bad(
+                    "sealed address Type changes its original complete pointee domain",
+                ));
+            }
+            let mut recomposed = empty();
+            recomposed.binder_count = capture_life.binder_count;
+            inherit_child_shape(
+                &mut recomposed,
+                &life,
+                LifeTypeProjection::Pointee,
+                map,
+                self.limits,
+                self.left,
+            )?;
+            crate::dyn_metadata::semantic_operand_snapshot(&capture_life, self.limits, self.left, 1)?;
+            if recomposed.retained != capture_life.retained
+                || recomposed.nominal_arguments != capture_life.nominal_arguments
+            {
+                return Err(bad("sealed address loses original pointee occurrence rows"));
+            }
+            let mut images = Vec::new();
+            self.fee(map.len())?;
+            for binder in map {
+                let image = capture_images
+                    .get(*binder as usize)
+                    .ok_or_else(|| bad("sealed capture pointee selects an absent class"))?;
+                crate::dyn_metadata::semantic_operand_snapshot(image, self.limits, self.left, 1)?;
+                images.push(image.clone());
+            }
+            let value = resolved(ty, life, images);
+            if let Some(previous) = &result {
+                crate::dyn_metadata::semantic_operand_snapshot(previous, self.limits, self.left, 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(&value, self.limits, self.left, 1)?;
+                if previous != &value {
+                    return Err(unknown(
+                        "inferred opaque pointee has distinct sealed capture Type domains",
+                    ));
+                }
+            } else {
+                result = Some(value);
+            }
+        }
+        Ok(result)
     }
 
     fn type_actual(

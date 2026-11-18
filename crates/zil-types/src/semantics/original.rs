@@ -240,6 +240,7 @@ pub(super) struct Proof {
         Vec<SemanticActualRecipe>,
     >,
     call_callees: BTreeMap<(SemanticDefinitionId, SemanticSiteId), NodeId>,
+    inferred_pointee_environments: BTreeMap<(SemanticDefinitionId, NodeId, u32), BTreeSet<u32>>,
     inferred_type_origins: BTreeMap<
         (SemanticDefinitionId, NodeId, u32),
         Vec<(NodeId, SemanticDefinitionId, SemanticSiteId)>,

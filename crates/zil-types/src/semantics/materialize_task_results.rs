@@ -5,7 +5,7 @@ use super::*;
 use crate::semantics::original::TaskReturnSources;
 
 impl Eval<'_, '_, '_> {
-    fn endpoint_recipe(
+    pub(super) fn endpoint_recipe(
         &mut self,
         scope: SemanticInstanceId,
         recipe: &SemanticTypeRecipe,
@@ -124,7 +124,7 @@ impl Eval<'_, '_, '_> {
             bad("original Task Return endpoint leaves its exact complete operand type")
         })
     }
-    fn endpoint_direct(
+    pub(super) fn endpoint_direct(
         &mut self,
         life: &StorageLifeShape,
         path: &[LifeTypeProjection],
