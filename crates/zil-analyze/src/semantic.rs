@@ -175,6 +175,20 @@ impl<'a> Inventory<'a> {
             b.spend(identities.len().saturating_sub(low).saturating_add(relocation).saturating_mul(2).saturating_add(1), WORK)?;
             identities.try_reserve(1).map_err(|_| fail("original identity directory allocation failed"))?;
             identities.insert(low, (identity, width));
+            // Both the complete frozen Source view and its executable view
+            // query these declaration coordinates before deriving dynamic facts.
+            let mut paths = BTreeMap::new();
+            for (ordinal, row) in definition.implicit_lifetimes.iter().enumerate() {
+                let comparisons = paths.len().checked_ilog2().map_or(1, |n| n as usize + 2);
+                b.product(row.occurrence_path.len().saturating_add(1), comparisons, 1, WORK)?;
+                if row.ordinal as usize != ordinal || paths.insert(row.occurrence_path.as_slice(), row.ordinal).is_some() {
+                    return Err(fail("original implicit occurrence directory is not exact and dense"));
+                }
+            }
+            if !paths.is_empty() {
+                b.lookup(inventory.implicit_ordinals.len(), WORK)?;
+                inventory.implicit_ordinals.insert(definition.id, paths);
+            }
             inventory.index_top_level_name(definition, b)?;
         }
         for instance in &program.instances {
@@ -783,18 +797,6 @@ impl<'a> Inventory<'a> {
     }
     fn parents(&mut self, program: &'a SemanticModule, b: &mut Budget) -> CompileResult<()> {
         for definition in &program.definitions {
-            let mut paths = BTreeMap::new();
-            for (ordinal, row) in definition.implicit_lifetimes.iter().enumerate() {
-                let comparisons = paths.len().checked_ilog2().map_or(1, |n| n as usize + 2);
-                b.product(row.occurrence_path.len().saturating_add(1), comparisons, 1, WORK)?;
-                if row.ordinal as usize != ordinal || paths.insert(row.occurrence_path.as_slice(), row.ordinal).is_some() {
-                    return Err(fail("original implicit occurrence directory is not exact and dense"));
-                }
-            }
-            if !paths.is_empty() {
-                b.lookup(self.implicit_ordinals.len(), WORK)?;
-                self.implicit_ordinals.insert(definition.id, paths);
-            }
             let mut active = BTreeSet::new();
             let mut current = Some(definition.id);
             while let Some(id) = current {
