@@ -47,7 +47,7 @@ impl CheckedContext {
 }
 
 #[derive(Default)]
-pub(super) struct Boundary{classes:Vec<(ClassKey,ClassKey)>,origins:Vec<(IntrinsicOrigin,IntrinsicOrigin)>,scopes:Vec<(ScopeKey,ScopeKey)>}
+pub(super) struct Boundary{ambiguous_fixed:Vec<ClassKey>,classes:Vec<(ClassKey,ClassKey)>,origins:Vec<(IntrinsicOrigin,IntrinsicOrigin)>,scopes:Vec<(ScopeKey,ScopeKey)>}
 impl Boundary{
     pub(super) fn scope(&mut self,actual:ScopeKey,expected:ScopeKey,b:&mut Budget)->Check<()>{
         b.spend(self.scopes.len().saturating_add(1))?;
@@ -55,6 +55,8 @@ impl Boundary{
     }
     fn image(&self,key:&ClassKey,b:&mut Budget)->Check<ClassKey>{
         b.spend(self.classes.len().saturating_add(self.scopes.len()).saturating_add(1))?;
+        b.spend(self.ambiguous_fixed.len())?;
+        if self.ambiguous_fixed.contains(key){return Err(unsupported("closure signature needs an exact occurrence for a shared creator lifetime",None));}
         if let Some((_,image))=self.classes.iter().find(|(source,_)|source==key){return Ok(image.clone());}
         // An inferred outer occurrence belongs to this fresh call frame. Its
         // correspondence is a role substitution, never global equality.
@@ -104,6 +106,25 @@ impl Boundary{
         else{self.classes.push((actual.clone(),expected.clone()));}Ok(())
     }
     pub(super) fn value(&mut self,context:&CheckedContext,env:&EvalEnv,actual:&CheckedType,expected:&CheckedType,b:&mut Budget)->Check<()>{
+        self.value_origins(context,env,actual,expected,b)?;
+        for(a,z)in actual.classes.iter().zip(&expected.classes){self.class(context,env,a,z,b)?;}
+        Ok(())
+    }
+    pub(super) fn closure_receiver(&mut self,context:&CheckedContext,env:&EvalEnv,actual:&CheckedType,expected:&CheckedType,b:&mut Budget)->Check<()>{
+        self.value_origins(context,env,actual,expected,b)?;
+        // Fixed occurrences may inherit the same creator lifetime. A generic
+        // receiver retains one intrinsic identity for each original occurrence.
+        for (key,image) in actual.classes.iter().zip(&expected.classes) {
+            b.spend(self.classes.len().saturating_add(self.ambiguous_fixed.len()).saturating_add(1))?;
+            if let Some((_,known))=self.classes.iter().find(|(source,_)|source==key){
+                if !context.same(env,known,image,b)? && !self.ambiguous_fixed.contains(key){
+                    self.ambiguous_fixed.push(key.clone());
+                }
+            }else{self.classes.push((key.clone(),image.clone()));}
+        }
+        Ok(())
+    }
+    fn value_origins(&mut self,context:&CheckedContext,env:&EvalEnv,actual:&CheckedType,expected:&CheckedType,b:&mut Budget)->Check<()>{
         let same_raw=actual.same_raw_type(expected,b)?;
         if !same_raw||actual.life!=expected.life||actual.classes.len()!=expected.classes.len()||actual.origins.len()!=expected.origins.len()||actual.statics!=expected.statics{return Err(bad("member call boundary changes its complete type/domain/static occurrences"));}
         let mut local=Vec::<(&IntrinsicOrigin,&IntrinsicOrigin)>::new();
@@ -115,7 +136,7 @@ impl Boundary{
             if let Some((_,known))=self.origins.iter().find(|(known,_)|known==a){if !context.same_origin(env,known,z,b)?{return Err(bad("member call boundary permutes a repeated intrinsic origin"));}}
             else{self.origins.push((a.clone(),z.clone()));}
         }
-        for(a,z)in actual.classes.iter().zip(&expected.classes){self.class(context,env,a,z,b)?;}Ok(())
+        Ok(())
     }
     pub(super) fn actual(&mut self,context:&CheckedContext,env:&EvalEnv,actual:&CheckedActual,expected:&CheckedActual,b:&mut Budget)->Check<()>{
         match(actual,expected){(CheckedActual::Type(a),CheckedActual::Type(z))=>self.value(context,env,a,z,b),(CheckedActual::Life(a),CheckedActual::Life(z))=>self.class(context,env,a,z,b),(CheckedActual::Const{carrier:a,value:av},CheckedActual::Const{carrier:z,value:zv})if av==zv=>self.value(context,env,a,z,b),_=>Err(bad("member call boundary changes its ordered actual kind or constant value"))}

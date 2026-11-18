@@ -2,6 +2,23 @@
 //! retain their reaching Store, so a repeated SSA call site is not an epoch.
 use super::*;
 
+// A replaceable FnMut local is lowered to one physical owned array element.
+// The called SSA address must be the exclusive borrow of that exact slot.
+fn invokes(code: &Code<'_>, kind: &InstructionKind, local: LocalId) -> bool {
+    match kind {
+        InstructionKind::CallClosureMut { callee, .. } => *callee == local,
+        InstructionKind::CallClosureBorrowed { callee, kind: zil_ir::CallableKind::FnMut, .. } => {
+            matches!(code.f.locals.get(local.0 as usize).map(|l| &l.ty),
+                Some(Type::Array { element, length: 1 }) if matches!(element.as_ref(), Type::Closure(_)))
+                && code.definition(*callee).is_some_and(|(_, source)| matches!(
+                    source.kind,
+                    InstructionKind::BorrowOwnedArrayElement { local: owner, index: 0, mutable: true } if owner == local
+                ))
+        }
+        _ => false,
+    }
+}
+
 fn replaces(i: &InstructionKind, local: LocalId) -> bool {
     // The same physical owner-write directory guards complete consuming
     // proofs and per-drop Closed witnesses. A write without an exact after
@@ -12,6 +29,9 @@ fn replaces(i: &InstructionKind, local: LocalId) -> bool {
         | InstructionKind::BorrowLocalMut { local: changed }
         | InstructionKind::TakeLocal { local: changed }
         | InstructionKind::DropClosure { local: changed }
+        | InstructionKind::DropOwnedArray { local: changed }
+        | InstructionKind::TakeOwnedArrayElement { local: changed, .. }
+        | InstructionKind::DropOwnedArrayElement { local: changed, .. }
         | InstructionKind::StorageDead(changed)
         | InstructionKind::StorageLive(changed) => *changed == local,
         // exits() proved this entry cannot replace any owned task capture.
@@ -95,7 +115,7 @@ fn query(
         return Ok(false);
     };
     let answer = match instruction.kind {
-        InstructionKind::CallClosureMut { callee, .. } if callee == local => {
+        ref kind if invokes(code, kind, local) => {
             code.f.values.get(value.0 as usize)
                 == Some(&super::super::super::task_poll_type(&Type::Unit))
                 && unchanged(code, (at.0, at.1 + 1), use_at, local, b)?
@@ -167,8 +187,13 @@ pub(super) fn allow_at(
     at: Point,
     b: &mut Budget,
 ) -> Check<bool> {
-    let Some(Type::Closure(id)) = f.locals.get(local.0 as usize).map(|l| &l.ty) else {
-        return Ok(false);
+    let id = match f.locals.get(local.0 as usize).map(|l| &l.ty) {
+        Some(Type::Closure(id)) => id,
+        Some(Type::Array { element, length: 1 }) => match element.as_ref() {
+            Type::Closure(id) => id,
+            _ => return Ok(false),
+        },
+        _ => return Ok(false),
     };
     let Some(d) = module.closures.get(id.0 as usize) else {
         return Ok(false);
@@ -203,8 +228,7 @@ pub(super) fn allow_at(
             let mut anchored = false;
             for instruction in row.instructions[..end].iter().rev() {
                 b.spend(1)?;
-                if matches!(instruction.kind, InstructionKind::CallClosureMut { callee, .. }
-                    if callee == local && proof.always.contains(&capture))
+                if proof.always.contains(&capture) && invokes(&code, &instruction.kind, local)
                 {
                     anchored = true;
                     break;

@@ -411,7 +411,6 @@ impl CheckedContext {
                 let row=rows.next().ok_or_else(||bad("closure call loses an actual fixed intrinsic occurrence"))?;
                 if rows.next().is_some(){return Err(bad("closure call duplicates a fixed intrinsic occurrence"));}
                 let key=self.class(module,&row.actual,&world,b)?;free.push(key.clone());
-                boundary.class(self,environment,&key,&receiver.classes[class as usize],b)?;
             }
             let owner=CheckedType{type_cell: crate::semantic::CheckedTypeData::new(Type::Closure(id)),life:StorageLifeShape{binder_count:header.fixed_binder_count,slots:vec![],retained:vec![],nominal_arguments:vec![]},classes:free,origins:(0..header.fixed_binder_count).map(|class|IntrinsicOrigin::Existing{scope:ScopeKey::Instance(instance.id),operand:OperandKey::Receiver,path:vec![],class}).collect(),statics:receiver.statics.clone()};
             if let Some(parent)=pending_parent{
@@ -420,7 +419,7 @@ impl CheckedContext {
                 // separate outside image, checked by the joint boundary below.
                 self.register_closure_cursor(module,instance.id,&parent,&world.lexical[0].actuals,&world.lexical[0].environment,&owner,b)?;
             }
-            boundary.value(self,environment,&owner,receiver,b)?;
+            boundary.closure_receiver(self,environment,&owner,receiver,b)?;
             if crate::signature_life::outer(header,StorageBase::Receiver).is_some(){
                 let node=self.original.borrow().as_ref().ok_or_else(||bad("Receiver call has no original whole caller"))?.original_call_node(module,caller.definition,site.recipe,b)?;
                 let recipe=self.original.borrow().as_ref().ok_or_else(||bad("Receiver call loses its original callee occurrence"))?.receiver_role(module,caller.definition,node,StoredBorrowMode::SharedAddress,environment,b)?;
