@@ -259,7 +259,28 @@ impl Solver<'_, '_> {
             .ok_or_else(|| fail("original installation loses its callback"))?;
         let callback = self.expression(frame, callback_expression, b, depth + 1)?;
         self.prepare_call_value(frame.definition, callback_expression.id, callback, b)?;
-        let anchor = self.registration_anchor(frame, callback_expression, b, depth + 1)?;
+        let mut operand = callback_expression;
+        while let CoreExprKind::Group(inner)
+        | CoreExprKind::Ascribed { value: inner, .. }
+        | CoreExprKind::Unary { op: UnaryOp::Give, operand: inner } = &operand.kind
+        {
+            b.spend(1, WORK)?;
+            operand = inner;
+        }
+        let key = (frame.definition, node);
+        b.lookup(self.state.calls.len(), WORK)?;
+        if self.state.calls.get(&(frame.definition, operand.id))
+            .is_some_and(|call| call.operation.is_none())
+        {
+            b.lookup(self.state.registration_factories.len(), WORK)?;
+            if self.state.registration_factories.insert(key, operand.id).is_some() {
+                return Err(fail("original registration installation repeats its callback producer"));
+            }
+        } else {
+            let anchor = self.registration_anchor(frame, operand, b, depth + 1)?;
+            b.lookup(self.state.intrinsic_anchors.len(), WORK)?;
+            self.state.intrinsic_anchors.insert(key, anchor);
+        }
         for predicate in [
             Predicate::SyncDrop,
             Predicate::Capability(SemanticBuiltinTrait::ClosedEnvironment),
@@ -329,10 +350,6 @@ impl Solver<'_, '_> {
                 "original installation has competing foreign provider sets",
             ));
         }
-        b.lookup(self.state.intrinsic_anchors.len(), WORK)?;
-        self.state
-            .intrinsic_anchors
-            .insert((frame.definition, node), anchor);
         b.lookup(self.state.intrinsic_inputs.len(), WORK)?;
         self.state
             .intrinsic_inputs
@@ -355,6 +372,21 @@ impl Solver<'_, '_> {
 }
 
 impl Checked {
+    pub(in crate::semantic) fn registration_factory(
+        &self,
+        instance: &SemanticInstance,
+        site: SemanticSiteId,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<Option<NodeId>> {
+        if self.registration_factories.is_empty() {
+            return Ok(None);
+        }
+        let node = self.intrinsic_node(instance, site, inventory, b)?;
+        b.lookup(self.registration_factories.len(), WORK)?;
+        Ok(self.registration_factories.get(&(instance.definition, node)).copied())
+    }
+
     pub(in crate::semantic) fn scoped_foreign_operands(
         &self,
         instance: &SemanticInstance,

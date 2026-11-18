@@ -93,14 +93,27 @@ impl Check<'_, '_> {
                 ));
             }
         }
-        let anchor = self
-            .original
-            .intrinsic_anchor(instance, site, self.inventory, b)?;
-        let local = self.anchored_local(instance, function, anchor, b)?;
-        if self.receiver_local(function, callback, b, 0)? != local {
-            return Err(fail(
-                "actual registration installation consumes another original callback operand",
-            ));
+        if let Some(node) = self.original.registration_factory(instance, site, self.inventory, b)? {
+            let source = self.original_subject_value(instance, function, node, b)?
+                .ok_or_else(|| fail("actual registration installation loses its original factory result"))?;
+            if source != callback && !self.operation_operand_matches(function, callback, source, b)? {
+                let mut errors = fail("actual registration installation consumes another original factory result");
+                errors[0].notes.push(format!(
+                    "original callback expression {} produces SSA {}, actual callback SSA {}",
+                    node.0, source.0, callback.0
+                ));
+                return Err(errors);
+            }
+        } else {
+            let anchor = self
+                .original
+                .intrinsic_anchor(instance, site, self.inventory, b)?;
+            let local = self.anchored_local(instance, function, anchor, b)?;
+            if self.receiver_local(function, callback, b, 0)? != local {
+                return Err(fail(
+                    "actual registration installation consumes another original callback operand",
+                ));
+            }
         }
         if function.values.get(callback.0 as usize) != Some(&expected.ty)
             || self.ssa_value(instance, function, callback, b, 0)? != *expected

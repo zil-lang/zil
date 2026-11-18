@@ -75,6 +75,11 @@ impl CheckedContext {
                     self.operation_target(module, actual, expected, b)?;
                 }
                 value_at(values, *callback)?;
+                let source = self.original.borrow().as_ref()
+                    .ok_or_else(|| bad("registration installation lacks its original callback operand"))?
+                    .intrinsic_receiver(caller.definition, site, b)?;
+                self.assignment_value_source(module, caller, f, *callback, source, b)
+                    .map_err(|error| error.with_note("at the original registration callback operand"))?;
                 crate::registration::instruction(module, f, instruction, b)?
             }
             InstructionKind::AsyncRegistrationValid { .. }
