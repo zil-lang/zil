@@ -166,7 +166,7 @@ fn compare(module: &TypedModule) -> (usize, usize) {
 }
 
 #[test]
-fn reverse_chain_revisits_only_affected_predecessors() {
+fn acyclic_reverse_chain_solves_each_actual_body_once() {
     let n = 48;
     let edges: Vec<_> = (0..n)
         .map(|i| {
@@ -181,10 +181,10 @@ fn reverse_chain_revisits_only_affected_predecessors() {
     writes[n - 1] = 1;
     let module = fixture(&edges, &writes);
     let (queued, scanned) = compare(&module);
-    assert_eq!(queued, 2 * n - 1);
+    assert_eq!(queued, n);
     assert_eq!(scanned, n * (n + 1));
     println!(
-        "080 Verify reverse48 complete-summary solves: frontier={queued}, full_scan={scanned}"
+        "080 Verify reverse48 complete-summary solves: postorder={queued}, full_scan={scanned}"
     );
 }
 

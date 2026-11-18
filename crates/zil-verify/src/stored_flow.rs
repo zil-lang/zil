@@ -8206,13 +8206,12 @@ fn check_with_mask(
 // Direct ordinary calls can consume the independently reconstructed callee
 // result immediately when all their physical call edges are acyclic. Calls
 // in every block are included because summary completeness inspects them.
-fn direct_dependency_postorder(
+pub(super) fn direct_dependency_postorder(
     module: &TypedModule,
     mask: Option<&[bool]>,
     b: &mut Budget,
 ) -> Check<Option<Vec<usize>>> {
-    if !b.store_option_results
-        || !b.ordinary_error_places
+    if module.functions.len() < 2
         || b.tasks
         || b.registrations
         || b.async_registrations

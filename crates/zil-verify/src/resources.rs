@@ -49,7 +49,12 @@ pub(super) fn is_teardown(
 // payload admission and equality work as well; the first shape pass cannot pay
 // for every later use of a nominal resource type.
 pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
+    charge_payload_store_shape(ty, budget).map(|_| ())
+}
+
+pub(super) fn charge_payload_store_shape(ty: &Type, budget: &mut Budget) -> Check<bool> {
     let mut pending = vec![ty];
+    let mut contains_store = false;
     while let Some(ty) = pending.pop() {
         budget.spend(2)?;
         tasks::charge_result_context(ty, budget)?;
@@ -89,10 +94,13 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
             | Type::AsyncRegistration {
                 environment: element,
             }
-            | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
             | Type::Managed(element)
             | Type::Desc(element) => pending.push(element),
+            Type::OwnedStore { element } => {
+                contains_store = true;
+                pending.push(element);
+            }
             Type::ErrorUnion { error, result } => {
                 budget.spend(2)?;
                 pending.push(error);
@@ -135,7 +143,7 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
             _ => {}
         }
     }
-    Ok(())
+    Ok(contains_store)
 }
 
 pub(super) fn check_type_for(

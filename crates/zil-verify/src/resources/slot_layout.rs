@@ -161,6 +161,20 @@ impl<'a, 'b> Request<'a, 'b> {
     pub(super) fn infer_effects(&mut self) -> Check<Vec<BTreeSet<Root>>> {
         self.budget.spend(self.module.functions.len())?;
         let mut effects = vec![BTreeSet::new(); self.module.functions.len()];
+        if self.replacements.is_none()
+            && let Some(order) =
+                crate::stored_flow::direct_dependency_postorder(self.module, None, self.budget)?
+        {
+            // Every actual callee has a complete effect before this transfer.
+            // Recursive or non-direct dependencies retain the frontier below.
+            for index in order {
+                self.budget.spend(1)?;
+                #[cfg(test)]
+                TEST_EFFECT_SOLVES.with(|value| value.set(value.get() + 1));
+                effects[index] = self.run(index, &effects, false, None)?;
+            }
+            return Ok(effects);
+        }
         let dependents = effect_dependents(self.module, self.graphs, self.budget)?;
         // Keep the original batch boundaries and consumer notification order.
         let mut dirty: Vec<usize> = (0..self.module.functions.len()).rev().collect();
