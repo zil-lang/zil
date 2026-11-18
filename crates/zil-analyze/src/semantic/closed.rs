@@ -1045,7 +1045,11 @@ impl Check<'_, '_> {
                     (expected, parameter_recipe.mode),
                     (Type::Address { mutable: false, .. }, PassingMode::Borrow)
                         | (Type::Address { mutable: true, .. }, PassingMode::BorrowMut)
-                        | (Type::Managed(_), PassingMode::Give | PassingMode::Move)
+                        // The original signature and its instantiated callable premises
+                        // establish the complete environment. Move/Give transfers that
+                        // value; the resource pass checks the callee's actual takes and
+                        // its remaining obligations on every exit.
+                        | (Type::Managed(_) | Type::Closure(_), PassingMode::Give | PassingMode::Move)
                         | (Type::Desc(_), PassingMode::Describe)
                 ) {
                     return Err(unknown(
