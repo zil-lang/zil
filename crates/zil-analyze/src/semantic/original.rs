@@ -2923,9 +2923,9 @@ impl Solver<'_, '_> {
                             ));
                         }
                     }
-                    // The literal's Invocation words belong to this closure
-                    // signature, while its ordinary lexical names stay in the
-                    // creator. Compare by a local alpha map, never a parent Inv0.
+                    // Embedded signature recipes are normalized at the child
+                    // declaration. Ancestor(1) reaches the creator from there.
+                    // Invocation ordinals name this literal's own signature.
                     let mut lives = Vec::new();
                     for ordinal in 0..child_signature.invocation_lifetimes {
                         let life = self.term(Kind::Life(Life::Invocation(target, ordinal)), b)?;
@@ -2934,26 +2934,30 @@ impl Solver<'_, '_> {
                     Self::push(
                         &mut self.role_frames,
                         roles::RoleFrame {
-                            owner: frame.definition,
+                            owner: target,
                             lifetimes: lives,
                             implicits: BTreeMap::new(),
                             receiver: None,
                         },
                         b,
                     )?;
+                    b.lookup(self.state.frames.len(), WORK)?;
+                    let child_frame = self.state.frames.remove(&target)
+                        .ok_or_else(|| fail("closure annotations lack their checked child frame"))?;
                     let annotations: CompileResult<()> = (|| {
                         for (parameter, expected) in parameters.iter().zip(expected) {
                             if let Some(annotation) = &parameter.ty {
-                                let annotation = self.recipe(frame, annotation, b, depth + 1)?;
+                                let annotation = self.recipe(&child_frame, annotation, b, depth + 1)?;
                                 self.unify(annotation, expected, depth + 1, b)?;
                             }
                         }
                         if let Some(annotation) = return_type {
-                            let annotation = self.recipe(frame, annotation, b, depth + 1)?;
+                            let annotation = self.recipe(&child_frame, annotation, b, depth + 1)?;
                             self.unify(annotation, result, depth + 1, b)?;
                         }
                         Ok(())
                     })();
+                    self.state.frames.insert(target, child_frame);
                     self.role_frames.pop().ok_or_else(|| {
                         fail("original closure literal lost its own signature frame")
                     })?;
