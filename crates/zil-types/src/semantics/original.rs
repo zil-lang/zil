@@ -251,6 +251,7 @@ pub(super) struct Proof {
     >,
     call_result_origins:
         BTreeMap<(SemanticDefinitionId, Query), (SemanticDefinitionId, SemanticSiteId)>,
+    projected_type_actuals: BTreeMap<(SemanticDefinitionId, NodeId), SemanticTypeRecipe>,
     environments: BTreeMap<(SemanticDefinitionId, u32), (SemanticDefinitionId, SemanticTypeRecipe)>,
     frozen_environments: BTreeMap<(SemanticDefinitionId, bool, NodeId), BTreeMap<String, Binding>>,
 }
@@ -6489,6 +6490,12 @@ impl Proof {
                     "original parent type requires complete checked environment sealing",
                 ));
             }
+        }
+        if owner == current
+            && let SemanticOriginalTypeSource::Expression(node) = source
+            && let Some(projected) = self.projected_type_actuals.get(&(owner, *node))
+        {
+            return Ok(std::borrow::Cow::Borrowed(projected));
         }
         Ok(std::borrow::Cow::Borrowed(value))
     }

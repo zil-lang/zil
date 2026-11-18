@@ -341,8 +341,90 @@ impl Check<'_, '_> {
             CoreExprKind::Group(value) | CoreExprKind::Ascribed { value, .. } => {
                 self.alias_result_origin(owner, target, &Query::Expression(value.id), depth + 1)?;
             }
+            CoreExprKind::Member { object, member, .. } => {
+                self.record_projected_type_actual(
+                    owner, expression.id, object.id, member, result, depth + 1,
+                )?;
+            }
             _ => {}
         }
+        Ok(())
+    }
+
+    /// A product field declared as a Type formal can retain the exact Type
+    /// actual used to build its nominal application. This supplies the field's
+    /// complete type domain. The field's value and loan still come from its
+    /// independently checked place occurrence.
+    fn record_projected_type_actual(
+        &mut self,
+        owner: SemanticDefinitionId,
+        target: NodeId,
+        object: NodeId,
+        member: &str,
+        result: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<()> {
+        self.pay(member.len().saturating_add(1), depth)?;
+        let Some(SemanticTypeRecipe::Nominal { definition, .. }) =
+            self.proof.types.get(&(owner, Query::Expression(object)))
+        else {
+            return Ok(());
+        };
+        let definition = self.definition(*definition)?;
+        let SemanticDefinitionBody::Nominal {
+            body: SemanticNominalBody::Product { fields },
+            ..
+        } = &definition.body
+        else {
+            return Ok(());
+        };
+        self.pay(fields.len(), depth)?;
+        let Some(SemanticTypeRecipe::Formal(SemanticFormalRef {
+            scope: SemanticScopeRef::Ancestor(0),
+            ordinal,
+        })) = fields
+            .iter()
+            .find(|field| field.name == member)
+            .map(|field| &field.ty)
+        else {
+            return Ok(());
+        };
+        let Some(SemanticTypeRecipe::Nominal { arguments, .. }) =
+            self.proof.types.get(&(owner, Query::Expression(object)))
+        else {
+            return Err(bad("original field loses its nominal Type application"));
+        };
+        let Some(SemanticActualRecipe::Type(
+            actual @ SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0),
+                source: SemanticOriginalTypeSource::Expression(node),
+            },
+        )) = arguments.get(*ordinal as usize)
+        else {
+            return Ok(());
+        };
+        let origin = Query::Expression(*node);
+        if !self.proof.call_result_origins.contains_key(&(owner, origin.clone())) {
+            return Ok(());
+        }
+        let actual = copy_recipe(actual, self.limits, self.left)?;
+        let original = self
+            .proof
+            .types
+            .get(&(owner, origin))
+            .ok_or_else(|| bad("projected opaque Type actual has no original equation"))?;
+        crate::dyn_metadata::semantic_operand_snapshot(original, self.limits, self.left, 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(result, self.limits, self.left, 1)?;
+        if original != result {
+            return Err(bad(
+                "projected opaque Type actual differs from the checked field type",
+            ));
+        }
+        self.pay(1, depth)?;
+        self.proof
+            .proof_mut()?
+            .projected_type_actuals
+            .insert((owner, target), actual);
         Ok(())
     }
     /// Canonicalize only original query equations. Opaque definitions and
