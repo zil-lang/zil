@@ -1167,6 +1167,18 @@ impl<'a> Check<'a, '_> {
                 self.observe_capture(owner, name, value, depth + 1)?;
                 if let Some(integer) = integer {
                     Ok(integer)
+                } else if value.capture
+                    && value.borrowed
+                    && let SemanticTypeRecipe::Managed(inner) =
+                        self.observation_type(owner, &value.ty, depth + 1)?
+                {
+                    // A default resource capture already stores a description.
+                    // Even selecting a field directly observes that exact
+                    // free-name occurrence, without transferring the owner.
+                    Ok(SemanticTypeRecipe::Desc {
+                        lifetime: self.borrow_life(owner, expression.id)?,
+                        inner,
+                    })
                 } else {
                     copy_recipe(&value.ty, self.limits, self.left)
                 }

@@ -360,6 +360,13 @@ impl Solver<'_, '_> {
         depth: usize,
     ) -> CompileResult<WritePlace> {
         if let Some(place) = self.write_place(frame, object, true, b, depth + 1)? {
+            if let Some(index) = place.local.filter(|index| *index < frame.inherited)
+                && place.path.is_empty()
+                && matches!(self.state.arena[self.type_root(place.selected, b)?], Kind::Wrapped(Wrapper::Managed, _))
+            {
+                let anchor = self.environment_anchor(frame, &frame.locals[index].name, b)?;
+                self.observe_resource_capture(frame, object, Some(anchor), place.selected, b, depth + 1)?;
+            }
             return Ok(place);
         }
         let selected = self.expression(frame, object, b, depth + 1)?;
@@ -409,8 +416,13 @@ impl Solver<'_, '_> {
                     place.indirect = true;
                 }
                 Kind::Wrapped(Wrapper::Managed, inner) => {
-                    // Ownership by itself does not override an immutable
-                    // direct binding or an already shared reference edge.
+                    // A resource field assignment observes the owner's
+                    // current description. Its Copy field can change even
+                    // when the lexical owner binding cannot be reassigned.
+                    if self.resource_payload(inner, b)? {
+                        place.writable = true;
+                        place.description = true;
+                    }
                     place.selected = inner;
                     place.projected = true;
                     place.indirect = true;
@@ -562,7 +574,13 @@ impl Solver<'_, '_> {
                     }
                 }
             }
-            if index < frame.inherited {
+            let external_description = place.description
+                && match self.state.arena[self.type_root(local.ty, b)?] {
+                    Kind::Desc { .. } => true,
+                    Kind::Wrapped(Wrapper::Managed, _) => !self.owns_captures(frame.definition, b)?,
+                    _ => false,
+                };
+            if index < frame.inherited && !external_description {
                 b.lookup(self.mutating_closures.len(), WORK)?;
                 self.mutating_closures.insert(frame.definition);
             }

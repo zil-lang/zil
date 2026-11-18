@@ -247,6 +247,7 @@ impl Solver<'_, '_> {
             self.unify(place.selected, owner, depth + 1, b)?;
         }
         self.place_inner(frame, object, true, b, depth + 1)?;
+        self.observe_resource_capture(frame, object, place.anchor, place.root, b, depth + 1)?;
         if description {
             return self.describe_argument(frame, expression, &place, field, b, depth + 1).map(Some);
         }
@@ -263,6 +264,34 @@ impl Solver<'_, '_> {
             return Err(fail("original Copy-field node is reused"));
         }
         Ok(Some(field))
+    }
+    pub(super) fn observe_resource_capture(
+        &mut self,
+        frame: &mut Frame,
+        mut source: &SemanticOriginalExpr,
+        anchor: Option<LocalAnchor>,
+        root: Term,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        if !matches!(anchor, Some(LocalAnchor::Environment(_)))
+            || !matches!(self.state.arena[self.type_root(root, b)?], Kind::Wrapped(Wrapper::Managed, _))
+            || self.owns_captures(frame.definition, b)?
+        {
+            return Ok(());
+        }
+        // The capture's actual description comes from the free Name, even
+        // when the user observes it through a chain of Copy fields.
+        while let CoreExprKind::Member { object: child, .. }
+            | CoreExprKind::Group(child)
+            | CoreExprKind::Ascribed { value: child, .. } = &source.kind
+        {
+            self.step(depth, b)?;
+            source = child;
+        }
+        let owner = Place { anchor, root, path: Vec::new(), selected: root };
+        self.describe_argument(frame, source, &owner, root, b, depth + 1)?;
+        Ok(())
     }
     pub(super) fn pending_numeric_copy(&self, term: Term, b: &mut Budget, depth: usize) -> CompileResult<bool> {
         self.step(depth, b)?;

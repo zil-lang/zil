@@ -236,7 +236,12 @@ impl CheckedOriginal {
             place.binder.charge_clone(b)?;b.spend(place.fields.iter().fold(1usize,|n,field|n.saturating_add(field.len()).saturating_add(1)))?;
             let place=place.clone();
             self.read_original_parent(module,context,&place,&ty,env,active,b)?;
-            self.written.entry(definition).or_default().insert(place.binder);
+            let external_description = matches!(&ty, Ty::Desc { .. })
+                || matches!((&ty, &place.binder), (Ty::Managed(_), Binder::Capture { definition, .. })
+                    if self.creator_moves.get(definition) == Some(&false));
+            if !external_description {
+                self.written.entry(definition).or_default().insert(place.binder);
+            }
         }
         self.resolved(&ty,b)
     }
@@ -274,7 +279,9 @@ impl CheckedOriginal {
                 let ty=self.write_parent_type(module,context,object,env,active,b)?;
                 match ty{
                     Ty::Address{mutable:true,..}=>Ok(()),
-                    Ty::Desc{inner,..} if matches!(target.kind,CoreExprKind::Member{..})=>{
+                    Ty::Desc { inner, .. } | Ty::Managed(inner)
+                        if matches!(target.kind, CoreExprKind::Member { .. }) =>
+                    {
                         let field=assignment.ok_or_else(||bad("original description cannot create an exclusive address"))?;
                         if !self.resource_payload(module,context,&inner,b)? {
                             return Err(bad("original description write has no declared resource payload"));
