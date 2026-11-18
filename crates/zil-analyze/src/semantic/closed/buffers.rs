@@ -179,9 +179,13 @@ impl Check<'_, '_> {
         };
         b.spend(path.len().saturating_add(expected_path.len()), WORK)?;
         if path != expected_path {
-            return Err(fail(
-                "actual ByteBuffer operation changes its original field path",
+            let mut errors = fail("actual ByteBuffer operation changes its original field path");
+            errors[0].span = Some(instruction.span);
+            errors[0].notes.push(format!(
+                "Original fields {expected_path:?}, actual fields {path:?} at function {}, block {}, instruction {index}.",
+                function.id.0, block.0
             ));
+            return Err(errors);
         }
         let actual = match origin {
             Origin::Local(actual, at_block, at_index) => {

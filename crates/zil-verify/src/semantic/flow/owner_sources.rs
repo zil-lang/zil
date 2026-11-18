@@ -320,14 +320,21 @@ impl CheckedContext{
     pub(in crate::semantic::flow) fn projected_local_root(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,local:LocalId,root:BufferRoot,node:NodeId,b:&mut Budget)->Check<()>{
         let range=self.original.borrow().as_ref().ok_or_else(||bad("local source lacks its complete original binder proof"))?.range_name(module,caller.definition,node,b)?;
         if let Some(range)=range{return self.range_local_root(module,caller,f,local,&range,b);}
-        match root{
-            BufferRoot::Local{node}=>if self.buffer_source_local(module,caller,f,BufferSource::Local{definition:caller.definition,node},b)?!=local{return Err(bad("field observation selects another original local"));},
-            BufferRoot::Parameter{ordinal}=>if self.buffer_source_local(module,caller,f,BufferSource::Parameter{definition:caller.definition,ordinal},b)?!=local{return Err(bad("field observation selects another original parameter"));},
-            BufferRoot::Capture=>{
-                self.captured_local_alias(module,caller,f,local,node,b)?;
-            },
-            BufferRoot::Pattern=>self.pattern_local_root(module,caller,f,local,node,b)?,
-        }Ok(())
+        let definition = caller.definition;
+        let (source, mismatch) = match root {
+            BufferRoot::Local { node } => (BufferSource::Local { definition, node }, "field observation selects another original local"),
+            BufferRoot::Parameter { ordinal } => (BufferSource::Parameter { definition, ordinal }, "field observation selects another original parameter"),
+            BufferRoot::Capture => return self.captured_local_alias(module, caller, f, local, node, b),
+            BufferRoot::Pattern => return self.pattern_local_root(module, caller, f, local, node, b),
+        };
+        let expected = self.buffer_source_local(module, caller, f, source, b)?;
+        if expected != local {
+            return Err(bad(mismatch).with_note(format!(
+                "Original expression {node:?} in {definition:?} requires local {}, actual projection is rooted at local {} in function {}.",
+                expected.0, local.0, f.id.0
+            )));
+        }
+        Ok(())
     }
     pub(super) fn range_local_root(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,local:LocalId,range:&original::RangeBinding,b:&mut Budget)->Check<()> {
         let(start,end)=range_bindings::check(&self.site_index.producers,module,f,local,range,b)?;
