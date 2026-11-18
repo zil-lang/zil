@@ -18,21 +18,45 @@ fn input(ty: &Type) -> bool {
 }
 fn eligible(function: &TypedFunction, b: &mut Budget) -> Check<bool> {
     b.spend(function.parameters.len().saturating_add(1))?;
-    Ok(function.foreign.is_none()
-        && function.environment.is_none()
-        && function.dyn_instance.is_none()
-        && function.call_kind == CallKind::Direct
-        && function.result_mode == PassingMode::Infer
-        && function.callable_contract.is_none()
-        && function.callable_return_contract.is_none()
-        && function.protocol_contracts.is_empty()
-        && matches!(&function.return_type, Type::Address { mutable: false, inner } if pointee(inner))
-        && function.parameters.iter().all(|id| {
-            function
-                .locals
-                .get(id.0 as usize)
-                .is_some_and(|local| input(&local.ty))
-        }))
+    if function.foreign.is_some()
+        || function.environment.is_some()
+        || function.call_kind != CallKind::Direct
+        || function.result_mode != PassingMode::Infer
+        || function.callable_contract.is_some()
+        || function.callable_return_contract.is_some()
+        || !function.protocol_contracts.is_empty()
+    {
+        return Ok(false);
+    }
+    let scalar_result = stored_callables::scalar(&function.return_type);
+    if !scalar_result
+        && (function.dyn_instance.is_some()
+            || !matches!(&function.return_type, Type::Address { mutable: false, inner } if pointee(inner)))
+    {
+        return Ok(false);
+    }
+    for id in &function.parameters {
+        let Some(local) = function.locals.get(id.0 as usize) else {
+            return Ok(false);
+        };
+        if input(&local.ty) {
+            continue;
+        }
+        // A scalar result cannot carry a loan back across the recursive edge.
+        // A shared receiver may consist of closed inline data; its checked
+        // nominal instance and method contract are still validated at the call.
+        let data = match &local.ty {
+            Type::Address {
+                mutable: false,
+                inner,
+            } => inner.as_ref(),
+            ty => ty,
+        };
+        if !scalar_result || !retained::resource_field(data, b)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 impl Inventory {
@@ -61,7 +85,8 @@ impl Inventory {
                 b.spend(block.instructions.len())?;
                 for instruction in &block.instructions {
                     let target = match instruction.kind {
-                        InstructionKind::Call { function, .. } => function.0 as usize,
+                        InstructionKind::Call { function, .. }
+                        | InstructionKind::SuspendCall { function, .. } => function.0 as usize,
                         _ => {
                             let Some((definition, _)) =
                                 stored_callables::called(module, function, &instruction.kind)

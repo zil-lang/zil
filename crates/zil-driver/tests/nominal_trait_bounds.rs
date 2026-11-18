@@ -4500,6 +4500,102 @@ fn trait_bound_scans_obey_actual_work_budget() {
 #[path = "../../../tests/language-readiness/borrowed-interface-flow/stdlib.rs"]
 mod trait_shared_lending_stdlib;
 
+fn original_method_candidate(unit: &SourceUnit) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let ast = zil_syntax::parse(unit).into_result().unwrap();
+    let core = zil_expand::expand_with_map_semantics(
+        unit,
+        &ast,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &BTreeMap::new(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let module = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    (module, plan)
+}
+
+fn verify_original_method_candidate(
+    module: zil_ir::TypedModule,
+    plan: zil_ir::CandidatePlan,
+) -> zil_base::CompileResult<()> {
+    let target = module.target.clone();
+    let limits = Limits::default();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    let raw = zil_verify::verify_module(module, plan, &target, &limits).map(|_| ());
+    let wire = zil_verify::verify_module_bytes(&bytes, &target, &limits).map(|_| ());
+    assert_eq!(raw, wire);
+    raw
+}
+
+#[test]
+fn recursive_method_effects_include_calls_to_other_members_of_the_cycle() {
+    let unit = source(
+        r#"
+trait Cycle {
+    fn outer(self:&Self, again:bool, n:i32)->i32 {
+        if again { return self.inner(false,n) }
+        return n
+    }
+    fn inner(self:&Self, again:bool, n:i32)->i32 {
+        if again { return self.outer(false,n) }
+        return n+1
+    }
+}
+struct Counter {}
+impl Cycle for Counter {}
+fn main()->i32 {
+    let value=Counter{}
+    return value.outer(true,6)-7
+}
+"#,
+    );
+    let (mut module, mut plan) = original_method_candidate(&unit);
+    verify_original_method_candidate(module.clone(), plan.clone()).unwrap();
+
+    // Only inner performs checked arithmetic. Forbid panic on outer while
+    // preserving both bodies, the original method identities, and all calls.
+    let mut changed = 0;
+    for declaration in &mut module.dyn_declarations {
+        let schemes = declaration
+            .method_signatures
+            .iter_mut()
+            .flatten()
+            .filter(|row| row.member == 0)
+            .map(|row| &mut row.signature);
+        let bodies = declaration
+            .method_definitions
+            .iter_mut()
+            .flatten()
+            .filter(|row| row.member == 0)
+            .map(|row| &mut row.signature);
+        for signature in schemes.chain(bodies) {
+            let effects = signature.contract.effects.as_mut().unwrap();
+            let index = effects
+                .iter()
+                .position(|e| *e == zil_ir::DynEffectRecipe::Panic)
+                .unwrap();
+            effects.remove(index);
+            changed += 1;
+        }
+    }
+    assert_eq!(changed, 2);
+    plan.module_fingerprint = module.fingerprint();
+    let errors = verify_original_method_candidate(module, plan).unwrap_err();
+    assert_eq!(errors[0].code, "E-VERIFY-DYN-CONTRACT");
+    assert_eq!(
+        errors[0].message,
+        "actual reachable method/helper effect exceeds an original trait or implementation upper"
+    );
+}
+
 #[test]
 fn default_method_wire_checks_self_mode_and_ordered_provider_arguments() {
     use zil_ir::*;
@@ -4515,32 +4611,8 @@ fn second<T:Choice<bool,i32>>(p:&T)->i32{return p.pick()}
 fn main()->i32{let p=P{};return first(&p)+second(&p)-2}
 "#,
     );
-    let limits = Limits::default();
-    let target = zil_base::TargetProfile::default();
-    let ast = zil_syntax::parse(&unit).into_result().unwrap();
-    let core = zil_expand::expand_with_map_semantics(
-        &unit,
-        &ast,
-        &limits,
-        &target,
-        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
-            root: unit.module_id,
-            aliases: &BTreeMap::new(),
-            declarations: zil_expand::source_context::DeclarationPlacement::Original,
-        },
-    )
-    .unwrap()
-    .core;
-    let module = zil_types::check(&core, &target, &limits).unwrap();
-    let plan = zil_analyze::analyze(&module, &limits).unwrap();
-    let verify = |m: TypedModule, p: CandidatePlan| {
-        let bytes = wire::encode_module_candidate(&m, &p, &limits).unwrap();
-        let raw = zil_verify::verify_module(m, p, &target, &limits).map(|_| ());
-        let wire = zil_verify::verify_module_bytes(&bytes, &target, &limits).map(|_| ());
-        assert_eq!(raw, wire);
-        raw
-    };
-    verify(module.clone(), plan.clone()).unwrap();
+    let (module, plan) = original_method_candidate(&unit);
+    verify_original_method_candidate(module.clone(), plan.clone()).unwrap();
     let prog = module.semantic.as_ref().unwrap();
     let trait_frame = prog
         .instances
@@ -4571,7 +4643,7 @@ fn main()->i32{let p=P{};return first(&p)+second(&p)-2}
     let reject = |bad: TypedModule, code: &str, message: &str| {
         let mut current = plan.clone();
         current.module_fingerprint = bad.fingerprint();
-        let errors = verify(bad, current).unwrap_err();
+        let errors = verify_original_method_candidate(bad, current).unwrap_err();
         assert_eq!(errors[0].phase, Phase::Verify);
         assert_eq!(errors[0].code, code, "{errors:?}");
         assert_eq!(errors[0].message, message, "{errors:?}");

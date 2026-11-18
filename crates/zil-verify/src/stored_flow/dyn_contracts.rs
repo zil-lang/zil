@@ -1197,9 +1197,26 @@ fn contract(
     for effect in &summary.dyn_effects {
         b.spend(effects.len())?;
         if !effects.contains(effect) {
-            return Err(bad(
+            let actual = match effect {
+                DynEffect::Alloc => "alloc",
+                DynEffect::Io => "io",
+                DynEffect::Block => "block",
+                DynEffect::Suspend => "suspend",
+                DynEffect::Spawn => "spawn",
+                DynEffect::Ffi => "ffi",
+                DynEffect::Reenter => "reenter",
+                DynEffect::Panic => "panic",
+                DynEffect::Call(_) => "call",
+                DynEffect::Cleanup(_) => "cleanup",
+            };
+            let mut error = bad(
                 "actual reachable method/helper effect exceeds an original trait or implementation upper",
-            ));
+            );
+            error.span = Some(module.functions[request.function.0 as usize].span);
+            return Err(error.with_note(format!(
+                "function {:?}, original {:?}: reachable effect {actual} has no matching entry in the declared upper",
+                request.function, request.origin
+            )));
         }
     }
     for row in &summary.description_accesses {

@@ -8290,7 +8290,10 @@ fn solve_check(
     let pending_byte_edges = byte_queries::inventory(module, graphs, mask, b)?;
     let order = direct_dependency_postorder(module, mask, b)?;
     b.spend(module.functions.len().saturating_mul(2))?;
-    let recursion = if b.dyn_contexts && b.static_borrow_occurrences && mask.is_none() {
+    let needs_recursive_contracts = b.static_borrow_occurrences
+        || !b.pending_dyn_contracts.methods.is_empty()
+        || !b.pending_dyn_contracts.callables.is_empty();
+    let recursion = if b.dyn_contexts && needs_recursive_contracts && mask.is_none() {
         Some(readonly_recursion::Inventory::build(module, graphs, b)?)
     } else {
         None
@@ -8307,6 +8310,16 @@ fn solve_check(
     let mut round = 0usize;
     let mut observed_none = false;
     let mut summaries = vec![Summary::default(); module.functions.len()];
+    if recursion.is_some() {
+        // Effects accumulate from the empty set. Completeness moves in the
+        // opposite direction: an unknown reachable operation or external
+        // dependency invalidates every caller, including its entire cycle.
+        // These initial hypotheses are never consumed as a final contract.
+        b.spend(summaries.len())?;
+        for summary in &mut summaries {
+            summary.dyn_effects_known = true;
+        }
+    }
     if let Some(mask) = mask {
         for (index, yes) in mask.iter().enumerate() {
             if !yes {
