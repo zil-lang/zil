@@ -37,6 +37,23 @@ impl CheckedOriginal {
             return Err(bad("scoped registration needs its two static providers"));
         };
         let mut resolve = |expr: &SemanticOriginalExpr, role| -> Check<SemanticDefinitionId> {
+            let mut selector = expr;
+            while let CoreExprKind::Group(inner) = &selector.kind {
+                b.spend(1)?;
+                selector = inner;
+            }
+            let direct = match &selector.kind {
+                CoreExprKind::Name(name) => !bindings.contains_key(name),
+                CoreExprKind::Member { .. } => self
+                    .static_call_type(module, context, selector, env, bindings, b)?
+                    .is_some(),
+                _ => false,
+            };
+            if !direct {
+                return Err(bad(
+                    "scoped registration provider must select a static declaration in its original scope",
+                ));
+            }
             let value = self.expression(module, context, expr, env, bindings, None, active, b)?;
             let Ty::Function(id) = self.resolved(&value, b)? else {
                 return Err(bad(
