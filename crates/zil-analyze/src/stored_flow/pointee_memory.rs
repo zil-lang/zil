@@ -194,6 +194,18 @@ fn candidate(
     let out = project(referent, &root.place, ty, b)?;
     Ok(Some(out))
 }
+
+fn inline_store_data(root: &Target, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    if root.retained_port.is_some() || root.heap_element.is_none() || !ty.is_copy_value() {
+        return Ok(false);
+    }
+    // This target is established by the checked Store window and carried
+    // through its real field projections. The ordinary access check still
+    // uses that same manager, element path and live parent loans.
+    crate::pod_store::inline_data(ty, b)?;
+    Ok(true)
+}
+
 pub(super) fn complete(value: &Value, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     if needs_state(ty, b, 0)? && !value.enum_variants.complete_tree(ty, b)? {
         return Ok(false);
@@ -252,6 +264,9 @@ pub(super) fn read(
     let mut out = Value::default();
     for root in &address.targets {
         fee(b, target_width(root).saturating_add(1))?;
+        if let Some(ty) = ty && inline_store_data(root, ty, b)? {
+            continue;
+        }
         let Some(value) = candidate(state, root, ty, b)? else {
             if check {
                 return Err(failure(
@@ -406,6 +421,13 @@ pub(super) fn write(
 ) -> CompileResult<()> {
     for root in &address.targets {
         fee(b, target_width(root).saturating_add(1))?;
+        if inline_store_data(root, ty, b)? {
+            fee(b, 1)?;
+            if *incoming != Value::default() {
+                return Err(failure("plain Store element write carries auxiliary stored state"));
+            }
+            continue;
+        }
         if root.retained_port.is_some()
             || root.heap_element.is_some()
             || !root.heap_parents.is_empty()

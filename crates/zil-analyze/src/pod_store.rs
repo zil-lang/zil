@@ -176,6 +176,12 @@ fn layout(ty: &Type, budget: &mut Budget) -> CompileResult<(u64, u64)> {
     })
 }
 
+/// A projection of a checked Store element may include zero-sized fields. Its
+/// complete inline layout has no auxiliary ownership or borrow channels.
+pub(super) fn inline_data(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
+    layout(ty, budget).map(|_| ())
+}
+
 /// Every new Store occurrence, including unused metadata and constructor-only
 /// elements, needs its exact complete sealed resource, independently of Types.
 pub(super) fn semantic_element(
