@@ -539,14 +539,13 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
         .collect();
     for indirect in [false, true] {
         let (module, plan) = stores(false, true, indirect);
-        // Private descriptor-parent reconstruction remains complete. The
-        // direct/relay candidates now omit only their 3/4 weak Desc public
-        // roots, each removing one actual claim-width unit.
+        // Store queries reuse immutable payload proofs and skip deep
+        // comparisons once the recursive type constructors differ.
         fixtures.push((
             format!("Store indirect={indirect}"),
             module,
             plan,
-            Some(if indirect { 20560 } else { 17365 }),
+            Some(if indirect { 20530 } else { 17349 }),
         ));
     }
     // Schema 48's retained_return_sources Option discriminant is checked
