@@ -115,7 +115,7 @@ impl CheckedOriginal {
                         let actual=match initializer{Some(value)=>{
                             let wanted=if family{None}else{expected.as_ref()};
                             if let Some(alias)=self.description_binding(module,context,value,wanted,env,bindings,active,b)? {alias}
-                            else{self.expression(module,context,value,env,bindings,wanted,active,b)?}
+                            else{self.binding_expression(module,context,value,env,bindings,wanted,active,b)?}
                         },None=>match expected{Some(ref ty)=>ty.clone(),None=>return Err(bad("original uninitialized binding lacks its full type"))}};
                         let actual=if let Some(initializer)=initializer{self.code_value(module,context,initializer,&actual,expected.as_ref(),true,env,active,b)?}else{actual};
                         if let Some(expected)=expected{if family{self.bind_family_result(&actual,&expected,b)?;}else{self.relate_value(&actual,&expected,b)?;}}

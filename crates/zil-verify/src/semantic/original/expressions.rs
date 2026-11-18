@@ -2,6 +2,15 @@ use super::*;
 impl CheckedOriginal {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn expression(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,expected:Option<&Ty>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
+        self.expression_mode(module,context,expression,env,bindings,expected,false,active,b)
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn binding_expression(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,expected:Option<&Ty>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
+        let observe = match expected {None => true, Some(ty) => matches!(self.resolved(ty,b)?,Ty::Desc{..})};
+        self.expression_mode(module,context,expression,env,bindings,expected,observe,active,b)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn expression_mode(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,expected:Option<&Ty>,observe_bound_fields:bool,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
         let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Type,token},b,|active,b|{
             let id=env.current()?;self.remember_names(env,SemanticOriginalNode::Expression(expression.id),bindings,b)?;
             if !matches!(expression.kind,CoreExprKind::If{..}|CoreExprKind::Sequence{..}) {
@@ -42,7 +51,8 @@ impl CheckedOriginal {
                 CoreExprKind::Integer(text)|CoreExprKind::Float(text)=>self.literal_original(module,text,matches!(expression.kind,CoreExprKind::Float(_)),expected,b)?,
                 CoreExprKind::String(_)=>Ty::Address{mutable:false,life:Life::Static,inner:Box::new(Ty::Slice(Box::new(Ty::Atom(Type::U8))))},
                 CoreExprKind::Name(name)=>match bindings.get(name){Some(binding)=>{self.value_bindings.insert((id,expression.id),binding.identity.clone());let place=Place{binder:binding.identity.clone(),fields:vec![]};self.read_original(module,context,&place,&binding.ty,env,true,active,b)?;binding.identity.charge_clone(b)?;self.value_places.insert((id,expression.id),place);binding.ty.clone()},None=>match self.bound_name(module,context,name,env,active,b)?{Arg::Type(ty)=>ty,Arg::Const(value)=>*value.carrier,Arg::Life(_)=>return Err(bad("original value expression selects a lifetime name"))}},
-                CoreExprKind::CompileTime(value)|CoreExprKind::Group(value)=>self.expression(module,context,value,env,bindings,expected,active,b)?,
+                CoreExprKind::Group(value)=>self.expression_mode(module,context,value,env,bindings,expected,observe_bound_fields,active,b)?,
+                CoreExprKind::CompileTime(value)=>self.expression(module,context,value,env,bindings,expected,active,b)?,
                 CoreExprKind::Ascribed{ty,value}=>{let expected=self.ty(module,context,ty,env,active,b)?;let actual=self.expression(module,context,value,env,bindings,Some(&expected),active,b)?;self.relate_value(&actual,&expected,b)?;expected},
                 CoreExprKind::NumericConvert{value,target}|CoreExprKind::IntegerConvert{value,target}=>{let source=self.expression(module,context,value,env,bindings,None,active,b)?;let target=self.ty(module,context,target,env,active,b)?;if !matches!(self.resolved(&source,b)?,Ty::Atom(ref ty)if ty.is_integer()||ty.is_float())||!matches!(self.resolved(&target,b)?,Ty::Atom(ref ty)if ty.is_integer()||ty.is_float()){return Err(bad("original numeric conversion has nonnumeric endpoint"));}target},
                 CoreExprKind::Unary{op:UnaryOp::Negate,operand}if matches!(operand.kind,CoreExprKind::Integer(_))=>{let CoreExprKind::Integer(text)=&operand.kind else{unreachable!()};let ty=self.literal_original_sign(module,text,false,true,expected,b)?;self.expressions.insert((id,operand.id),ty.clone());ty},
@@ -65,7 +75,19 @@ impl CheckedOriginal {
                             self.expressions.insert((id,expression.id),value.clone());return Ok(value);
                         }
                     }
-                    if let Some(ty)=self.static_call_type(module,context,expression,env,bindings,b)?{ty}else{let(ty,place)=self.place(module,context,expression,env,bindings,active,b)?;self.take_place(module,context,&ty,place.as_ref(),env,active,b)?;ty}
+                    if let Some(ty)=self.static_call_type(module,context,expression,env,bindings,b)?{ty}else{
+                        let(ty,place)=self.place(module,context,expression,env,bindings,active,b)?;
+                        if observe_bound_fields && matches!(expression.kind,CoreExprKind::Member{..})
+                            && matches!(self.resolved(&ty,b)?,Ty::Managed(_)) && let Some(place)=place.as_ref()
+                        {
+                            // A bare selected manager is a scoped observation
+                            // in a binding. Explicit Give uses ordinary transfer.
+                            self.read_original(module,context,place,&ty,env,false,active,b)?;
+                            self.observed_argument(expression,&ty,env,b)?
+                        }else{
+                            self.take_place(module,context,&ty,place.as_ref(),env,active,b)?;ty
+                        }
+                    }
                 },
                 CoreExprKind::Unary{op,operand}=>{
                     let child=self.expression(module,context,operand,env,bindings,expected,active,b)?;
