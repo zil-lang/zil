@@ -12192,7 +12192,7 @@ pub(super) fn query(
             return Err(invalid());
         }
         found = Some(CtFrozenContext {
-            stage: context.stage.clone(),
+            stage: context.frozen_stage()?.clone(),
             query: CtQueryOrigin {
                 owner: CtQueryOwner::Instance(owner.id),
                 original: SemanticOriginalNode::Expression(original_node),

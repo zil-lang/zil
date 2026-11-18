@@ -36,8 +36,12 @@ pub struct SourceProgramContext<'a> {
     // The frozen background is borrowed from the actual evaluation caller,
     // not chosen or replaced by an untrusted SourceCompiler callback.
     program: &'a CoreProgram,
-    stage: zil_ir::ct_artifact::CtStageIdentity,
-    query_nodes: [zil_base::NodeId; 2],
+    // Freeze exactly this immutable program on its first selected query.
+    // Header admission and the freeze share the original request allowance.
+    frozen: std::cell::OnceCell<CompileResult<(zil_ir::ct_artifact::CtStageIdentity, [zil_base::NodeId; 2])>>,
+    freeze_limits: Limits,
+    header_nodes: usize,
+    remaining_work: usize,
     functions: BTreeMap<(zil_base::ModuleId, &'a str), Option<&'a CoreFunction>>,
     // Explicit runtime type applications only target ordinary templates.
     // Bare calls also use their bounded headers through `functions`; neither
@@ -51,10 +55,24 @@ impl<'a> SourceProgramContext<'a> {
     pub fn frozen_program(&self) -> &'a CoreProgram {
         self.program
     }
-    pub fn frozen_stage(&self) -> &zil_ir::ct_artifact::CtStageIdentity {
-        &self.stage
+    fn snapshot(&self) -> CompileResult<&(zil_ir::ct_artifact::CtStageIdentity, [zil_base::NodeId; 2])> {
+        self.frozen.get_or_init(|| {
+            let mut nodes = self.header_nodes;
+            let mut work = self.remaining_work;
+            frozen::freeze(self.program, &self.freeze_limits, &mut nodes, &mut work)
+        }).as_ref().map_err(Clone::clone)
+    }
+    pub fn frozen_stage(&self) -> CompileResult<&zil_ir::ct_artifact::CtStageIdentity> {
+        self.snapshot().map(|(stage, _)| stage)
     }
     pub fn new(program: &'a CoreProgram, limits: &Limits) -> CompileResult<Self> {
+        let context = Self::for_evaluation(program, limits)?;
+        context.snapshot()?;
+        Ok(context)
+    }
+    /// Ordinary evaluation needs the real declaration and import directories.
+    /// A selected CT query additionally needs the complete frozen snapshot.
+    pub fn for_evaluation(program: &'a CoreProgram, limits: &Limits) -> CompileResult<Self> {
         let limit = || {
             vec![Diagnostic::limit(
                 Phase::Ct,
@@ -229,11 +247,12 @@ impl<'a> SourceProgramContext<'a> {
                     .or_insert(Some(import.module));
             }
         }
-        let (stage, query_nodes) = frozen::freeze(program, limits, &mut nodes, &mut work)?;
         Ok(Self {
             program,
-            stage,
-            query_nodes,
+            frozen: std::cell::OnceCell::new(),
+            freeze_limits: limits.clone(),
+            header_nodes: nodes,
+            remaining_work: work,
             functions,
             type_templates,
             imports,
@@ -2688,7 +2707,7 @@ impl<'a> Walker<'a> {
                     wrapper,
                     SemanticFunctionTarget::Core {
                         module: self.core.module_id,
-                        function: context.query_nodes[0],
+                        function: context.snapshot()?.1[0],
                     },
                     &limits,
                     &mut self.nodes,
@@ -4526,9 +4545,9 @@ mod tests {
         let limits=Limits::default();
         let mut program=CoreProgram {root:core.module_id,source_fingerprint:core.source_fingerprint,
             modules:vec![ProgramModule{core:core.clone(),imports:vec![],exports:vec![]}]};
-        let first=SourceProgramContext::new(&program,&limits).unwrap().frozen_stage().clone();
+        let first=SourceProgramContext::new(&program,&limits).unwrap().frozen_stage().unwrap().clone();
         program.modules[0].core.functions[1].state_parameters[0].bindings[0].life=None;
-        let changed=SourceProgramContext::new(&program,&limits).unwrap().frozen_stage().clone();
+        let changed=SourceProgramContext::new(&program,&limits).unwrap().frozen_stage().unwrap().clone();
         assert_ne!(first.declaration_inventory_fingerprint,changed.declaration_inventory_fingerprint);
         assert_ne!(first.committed_generation_fingerprint,changed.committed_generation_fingerprint);
         // This is declaration transport only; the raw fixture has no authority
@@ -4537,6 +4556,34 @@ mod tests {
         assert_eq!(normalized.functions[1].state_parameters,core.functions[1].state_parameters);
         let short=Limits{max_analysis_steps:1,..limits};
         assert!(SourceProgramContext::new(&program,&short).is_err());
+    }
+
+    #[test]
+    fn evaluated_queries_freeze_the_same_original_context_with_its_remaining_allowance() {
+        let core = runtime_generic_template();
+        let program = CoreProgram {
+            root: core.module_id,
+            source_fingerprint: core.source_fingerprint,
+            modules: vec![ProgramModule { core, imports: Vec::new(), exports: Vec::new() }],
+        };
+        let limits = Limits::default();
+        let eager = SourceProgramContext::new(&program, &limits).unwrap();
+        let runtime = SourceProgramContext::for_evaluation(&program, &limits).unwrap();
+        assert!(runtime.frozen.get().is_none());
+        let (actual, nodes) = runtime.snapshot().unwrap();
+        let (expected, eager_nodes) = eager.snapshot().unwrap();
+        assert_eq!(nodes, eager_nodes);
+        assert_eq!(actual.source_fingerprint, expected.source_fingerprint);
+        assert_eq!(actual.committed_generation_fingerprint, expected.committed_generation_fingerprint);
+        assert_eq!(actual.declaration_inventory_fingerprint, expected.declaration_inventory_fingerprint);
+        assert_ne!(actual.epoch, expected.epoch);
+        assert!(std::ptr::eq(runtime.snapshot().unwrap(), runtime.snapshot().unwrap()));
+
+        let tight = Limits { max_source_bytes: 1, ..limits };
+        let deferred = SourceProgramContext::for_evaluation(&program, &tight).unwrap();
+        let diagnostic = SourceProgramContext::new(&program, &tight).err().unwrap();
+        assert_eq!(deferred.snapshot().unwrap_err(), diagnostic);
+        assert_eq!(deferred.snapshot().unwrap_err(), diagnostic);
     }
 
     #[test]

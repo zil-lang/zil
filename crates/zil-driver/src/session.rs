@@ -661,7 +661,7 @@ impl CompilationSession {
                 let expanded = zil_expand::expand_with_map_semantics(
                     source,
                     syntax,
-                    selected.as_ref().map_or(&options.limits, |selected| &selected.remaining),
+                    &options.runtime_expansion_limits(selected.as_ref().map(|s| &s.remaining)),
                     &options.target,
                     context,
                 )?;
@@ -1073,6 +1073,7 @@ fn query_key_with_limits(
     .into_bytes();
     for value in [
         limits.max_source_bytes as u64,
+        options.max_expansion_bytes as u64,
         limits.max_tokens as u64,
         limits.max_nodes as u64,
         limits.max_functions as u64,

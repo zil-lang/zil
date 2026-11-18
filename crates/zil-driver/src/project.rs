@@ -769,16 +769,17 @@ impl CompilationSession {
                         zil_expand::source_context::DeclarationPlacement::Original
                     },
                 };
-                let expand_limits = ct_result.as_ref().and_then(|result| result.lineage_remaining.as_ref())
+                let ct_remaining = ct_result.as_ref().and_then(|result| result.lineage_remaining.as_ref())
                     .or_else(|| selected.as_ref().map(|selected| &selected.remaining))
-                    .unwrap_or(&options.limits);
+                    .or_else(|| ct_result.as_ref().map(|_| &options.limits));
+                let expand_limits = options.runtime_expansion_limits(ct_remaining);
                 let expanded = if let Some(phase) = &runtime_phase {
                     zil_expand::expand_program_with_runtime_ct(
-                        &project.modules, syntax, &runtime_imports, expand_limits, &options.target, context, phase,
+                        &project.modules, syntax, &runtime_imports, &expand_limits, &options.target, context, phase,
                     )?
                 } else {
                     zil_expand::expand_program_with_semantics(
-                        &project.modules, syntax, &runtime_imports, expand_limits, &options.target, context,
+                        &project.modules, syntax, &runtime_imports, &expand_limits, &options.target, context,
                     )?
                 };
                 for (module, map) in expanded {
@@ -878,7 +879,7 @@ impl CompilationSession {
                                 )]
                             })?;
                     }
-                    let context = zil_ct::SourceProgramContext::new(inferred, &remaining)?;
+                    let context = zil_ct::SourceProgramContext::for_evaluation(inferred, &remaining)?;
                     let initial_remaining = remaining.clone();
                     let mut unchanged = true;
                     for module in &inferred.modules {

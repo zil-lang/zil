@@ -96,6 +96,10 @@ pub struct CompileOptions {
     pub windows: Option<zil_backend_llvm::WindowsLinkOptions>,
     pub target: TargetProfile,
     pub limits: Limits,
+    /// Retained syntax and semantic metadata during ordinary runtime expansion.
+    /// Source admission charges the actual input files against limits.max_source_bytes.
+    /// CT planning also carries its remaining temporary-byte allowance across stages.
+    pub max_expansion_bytes: usize,
     pub cancellation: CancellationToken,
     /// Explicit non-source build inputs, such as a locked import/configuration
     /// manifest. The scalar driver never silently reads ambient configuration.
@@ -126,11 +130,23 @@ impl Default for CompileOptions {
             windows: None,
             target: TargetProfile::host_llvm(),
             limits: Limits::default(),
+            max_expansion_bytes: Limits::default().max_source_bytes,
             cancellation: CancellationToken::default(),
             build_inputs: Fingerprint::ZERO,
             syntax_lock: None,
             profile: ExecutionProfile::Native,
         }
+    }
+}
+impl CompileOptions {
+    fn runtime_expansion_limits(&self, ct_remaining: Option<&Limits>) -> Limits {
+        let mut limits = ct_remaining.unwrap_or(&self.limits).clone();
+        // At the Expand boundary this byte ledger bounds retained and scratch
+        // allocations. The driver has already checked the complete input size.
+        limits.max_source_bytes = ct_remaining.map_or(self.max_expansion_bytes, |remaining| {
+            remaining.max_source_bytes.min(self.max_expansion_bytes)
+        });
+        limits
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

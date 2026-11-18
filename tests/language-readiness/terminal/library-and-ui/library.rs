@@ -145,6 +145,26 @@ fn ordinary_library_source_budget_fresh_and_warm() {
     }
 }
 
+#[test]
+fn ordinary_expansion_byte_allowance_is_checked_on_warm_requests() {
+    let input = project();
+    let mut session = CompilationSession::default();
+    let mut options = CompileOptions::default();
+    options.limits.max_source_bytes = input.modules.iter().map(|unit| unit.text.len()).sum();
+    for allowed in [options.max_expansion_bytes, 1, options.max_expansion_bytes] {
+        options.max_expansion_bytes = allowed;
+        let r = session.compile_project(&input, &options);
+        if allowed == 1 {
+            assert_eq!(r.phase, zil_base::Phase::Expand, "{}", r.to_json());
+            assert_eq!(r.status, ResultCategory::ResourceLimit);
+            assert_eq!(r.verification_runs, 0);
+        } else {
+            assert_eq!(r.status, ResultCategory::Success, "{}", r.to_json());
+            assert_eq!(r.verification_runs, 1);
+        }
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn ordinary_store_remove_transfers_and_cleans_actual_owners() {

@@ -1887,7 +1887,7 @@ pub(super) fn single(
         module: core.module_id,
         target,
     };
-    let context = zil_ct::SourceProgramContext::new(&program, limits)?;
+    let context = zil_ct::SourceProgramContext::for_evaluation(&program, limits)?;
     zil_ct::evaluate_source_constants_with_compiler(core, target, limits, Some(&context), &compiler)
         .map(|(core, _)| core)
 }
