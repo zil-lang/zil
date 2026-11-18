@@ -2,6 +2,7 @@
 //! target. Every admitted opcode is replayed through the ordinary verifier's
 //! complete actual instruction contract; user cleanup is a separate graph edge.
 use super::*;
+use crate::tasks::context_projection;
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub(super) enum Kind{Physical,DirectCall,DynamicCall,ClosureCall,Lifecycle,ClosedFinish,Cleanup,Replacement,Forbidden}
 pub(super) fn kind(operation:&InstructionKind)->Kind{
@@ -291,14 +292,25 @@ pub(super) fn cleanup_dependencies(
     b.spend(targets.len())?;Ok(targets.into_iter().collect())
 }
 
-pub(super) fn terminator(f:&TypedFunction,block:&BasicBlock,reachable:bool,b:&mut Budget)->Check<()>{
+pub(super) fn terminator(
+    f:&TypedFunction,block:&BasicBlock,reachable:bool,
+    definitions:&mut Option<Vec<context_projection::Definition>>,b:&mut Budget,
+)->Check<()>{
     b.spend(1)?;
     let span=Some(f.span);
     match &block.terminator{
         Terminator::Return(value)=>{
             let ty=if let Some(value)=value{value_type(f,*value,span)?}else{&Type::Unit};
             resources::charge_payload(ty,b)?;resources::charge_payload(&f.return_type,b)?;
-            if ty!=&f.return_type{return Err(reject("E-VERIFY-TASK",span,"Task actual helper Return changes its complete result type"));}
+            if ty!=&f.return_type{
+                if let Some(value)=value{
+                    if definitions.is_none(){*definitions=Some(context_projection::definitions(f,b)?);}
+                    if context_projection::matches(f,definitions.as_deref().unwrap_or_default(),*value,ty,&f.return_type,b)?{
+                        return Ok(());
+                    }
+                }
+                return Err(reject("E-VERIFY-TASK",span,"Task actual helper Return changes its complete result type"));
+            }
         },
         Terminator::Jump(target)=>if !f.blocks.get(target.0 as usize).is_some_and(|block|block.id==*target){return Err(reject("E-VERIFY-TASK",span,"Task actual helper Jump target is absent"));},
         Terminator::Branch{condition,then_block,else_block}=>{

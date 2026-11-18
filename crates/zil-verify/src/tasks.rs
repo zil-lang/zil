@@ -1,5 +1,6 @@
 //! Independent scalar task ABI admission. No producer call-mode flag is trusted.
 use super::*;
+pub(crate) mod context_projection;
 mod context_work;
 mod drop_sync;
 pub(super) mod transfer;

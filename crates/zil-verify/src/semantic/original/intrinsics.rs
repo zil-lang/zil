@@ -111,6 +111,10 @@ impl CheckedOriginal {
         ))
     }
     pub(in crate::semantic) fn intrinsic(&self,definition:SemanticDefinitionId,site:SemanticSiteId,b:&mut Budget)->Check<Use>{b.spend(1)?;self.intrinsic_calls.get(&(definition,site)).copied().ok_or_else(||bad("actual intrinsic lacks its independently checked original closed scheme"))}
+    pub(in crate::semantic) fn retains_task_inputs(&self,definition:SemanticDefinitionId,site:SemanticSiteId,b:&mut Budget)->Check<bool>{
+        b.spend(1)?;
+        Ok(matches!(self.intrinsic_calls.get(&(definition,site)),Some(Use{kind:Intrinsic::TaskCreate|Intrinsic::TaskCreateOwned,..})))
+    }
 }
 impl CheckedOriginal {
     #[allow(clippy::too_many_arguments)]

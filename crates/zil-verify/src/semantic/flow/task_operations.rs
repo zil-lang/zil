@@ -6,6 +6,22 @@ use original::intrinsics::Use;
 
 impl CheckedContext {
     #[allow(clippy::too_many_arguments)]
+    pub(super) fn projected_task_return(
+        &self, f: &TypedFunction, definitions: &[Option<(usize, usize)>], value: ValueId,
+        actual: &CheckedType, expected: &CheckedType, environment: &EvalEnv, b: &mut Budget,
+    ) -> Check<bool> {
+        if !crate::tasks::context_projection::matches(f, definitions, value, &actual.ty, &expected.ty, b)? {
+            return Ok(false);
+        }
+        // The fallible owner still carries the original class images and
+        // intrinsic origins. Apply only its checked public type at Return.
+        actual.charge_clone(b)?;
+        let mut returned = actual.clone();
+        returned.type_cell = expected.type_cell.clone();
+        self.same_type(environment, &returned, expected, b)
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn actual_task_operation(
         &self,
         module: &TypedModule,
@@ -136,11 +152,14 @@ impl CheckedContext {
                 if !self.call_argument(module,caller,*argument,values,parameter,environment,source_checks[index],b)? {
                     return Err(bad("Task frame input changes its original complete operand or exact worker reborrow role"));
                 }
+                // The verified argument reborrow owns its actual Hold root.
+                // The worker's class image comes from that operand's checked
+                // source, so two distinct roots may share one original class.
                 boundary.value(
                     self,
                     environment,
                     parameter,
-                    value_at(values, *argument)?,
+                    &source_inputs[index],
                     b,
                 )?;
             }
@@ -192,12 +211,12 @@ impl CheckedContext {
                     ));
                 }
                 let mut boundary = trait_members::Boundary::default();
-                for (parameter, argument) in frame.parameters.iter().zip(arguments) {
+                for (parameter, source) in frame.parameters.iter().zip(&source_inputs) {
                     boundary.value(
                         self,
                         environment,
                         parameter,
-                        value_at(values, *argument)?,
+                        source,
                         b,
                     )?;
                 }

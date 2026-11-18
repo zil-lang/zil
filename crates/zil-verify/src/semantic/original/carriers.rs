@@ -152,6 +152,46 @@ impl CheckedOriginal {
 mod symbolic_zero_result_tests {
     use super::*;
     #[test]
+    fn empty_task_input_rows_require_the_same_whole_input_in_every_directory() {
+        let limits = Limits::default();
+        let (module, _) = zil_ir::wire::decode_module_candidate(
+            include_bytes!("../fixtures/local-closure-complete-head.wire"), &limits,
+        ).unwrap();
+        let mut b = Budget::new(&limits);
+        let context = CheckedContext::catalogue(&module, &mut b).unwrap();
+        let mut original = CheckedOriginal::default();
+        let mut active = ActiveQueries::new();
+        let env = Env { lexical: vec![], bounds: vec![], invocation: vec![], self_type: None };
+        let owner = SemanticDefinitionId { module: zil_base::ModuleId(0), index: 0 };
+        let mut shape = Retained::default();
+        for (index, ty) in [Ty::Atom(Type::I32), Ty::Variable(owner, 0)].into_iter().enumerate() {
+            let component = ClassPart::All { ty: ty.clone(), path: vec![] };
+            let path = vec![LifeTypeProjection::Parameter(index as u32)];
+            shape.domain.push(component.clone());
+            shape.ports.push(PortPart::FromType { ty: ty.clone(), classes: vec![component.clone()] });
+            shape.retained.push(RetainedPart::All { path: path.clone(), parents: vec![component.clone()] });
+            shape.nominal.push(NominalPart::FromType { path, ty, classes: vec![component] });
+        }
+        let result = RetainedPart::All {
+            path: vec![LifeTypeProjection::Result],
+            parents: vec![ClassPart::All { ty: Ty::Atom(Type::I32), path: vec![] }],
+        };
+        shape.retained.push(result);
+        let normalize = |original: &mut CheckedOriginal, shape: Retained, active: &mut ActiveQueries, b: &mut Budget| {
+            original.task_input_directory(&module, &context, shape, &env, active, b).unwrap()
+        };
+        let checked = normalize(&mut original, shape.clone(), &mut active, &mut b);
+        assert_eq!(checked.domain, shape.domain[1..]);
+        assert_eq!(checked.ports, shape.ports[1..]);
+        assert_eq!(checked.retained, shape.retained[1..]);
+        assert_eq!(checked.nominal, shape.nominal[1..]);
+
+        let NominalPart::FromType { ty, .. } = &mut shape.nominal[0] else { unreachable!() };
+        *ty = Ty::Atom(Type::I64);
+        assert_eq!(normalize(&mut original, shape.clone(), &mut active, &mut b), shape);
+    }
+
+    #[test]
     fn an_explicit_zero_result_row_is_neutral_but_unknown_or_lifetime_contexts_are_not(){
         let limits=Limits::default();let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../fixtures/local-closure-complete-head.wire"),&limits).unwrap();
         let mut b=Budget::new(&limits);let context=CheckedContext::catalogue(&module,&mut b).unwrap();
@@ -167,6 +207,79 @@ mod symbolic_zero_result_tests {
 }
 
 impl CheckedOriginal {
+    /// Context tuples number all inputs, including those proved to contribute
+    /// no classes or ports. Omit their neutral whole-type entries without
+    /// altering the coordinates of the other inputs or the Result directory.
+    pub(super) fn task_input_directory(
+        &mut self, module: &TypedModule, context: &CheckedContext, shape: Retained,
+        env: &Env, active: &mut ActiveQueries, b: &mut Budget,
+    ) -> Check<Retained> {
+        let inputs = shape.domain.len();
+        if inputs == 0 || shape.ports.len() != inputs || shape.nominal.len() != inputs
+            || shape.retained.len() < inputs || shape.retained.len() > inputs.saturating_add(1) {
+            return Ok(shape);
+        }
+        if let Some(tail) = shape.retained.get(inputs) {
+            let path = match tail {
+                RetainedPart::One { path, .. } | RetainedPart::All { path, .. } => path,
+            };
+            if path.as_slice() != [LifeTypeProjection::Result] {
+                return Ok(shape);
+            }
+        }
+        let mut neutral = Vec::new();
+        for (ordinal, (((domain, port), retained), nominal)) in shape.domain.iter()
+            .zip(&shape.ports).zip(&shape.retained).zip(&shape.nominal).enumerate() {
+            b.spend(1)?;
+            let (
+                ClassPart::All { ty, path: selected },
+                PortPart::FromType { ty: port_ty, classes: port_classes },
+                RetainedPart::All { path: retained_path, parents },
+                NominalPart::FromType { path: nominal_path, ty: nominal_ty, classes: nominal_classes },
+            ) = (domain, port, retained, nominal) else {
+                return Ok(shape);
+            };
+            let coordinate = [LifeTypeProjection::Parameter(u32::try_from(ordinal)
+                .map_err(|_| limit("original Task input ordinal overflow"))?)];
+            if !selected.is_empty() || retained_path.as_slice() != coordinate
+                || nominal_path.as_slice() != coordinate {
+                return Ok(shape);
+            }
+            if !self.task_zero_domain(module, context, ty, env, active, b, 0)? {
+                neutral.push(false);
+                continue;
+            }
+            let mut whole = self.same(ty, port_ty, b)? && self.same(ty, nominal_ty, b)?;
+            for part in [port_classes, parents, nominal_classes] {
+                b.spend(1)?;
+                let [ClassPart::All { ty: input, path }] = part.as_slice() else {
+                    whole = false;
+                    break;
+                };
+                whole &= path.is_empty() && self.same(ty, input, b)?;
+            }
+            if !whole {
+                return Ok(shape);
+            }
+            neutral.push(true);
+        }
+        let mut result = shape;
+        fn elide<T>(rows: &mut Vec<T>, neutral: &[bool]) {
+            let mut index = 0;
+            rows.retain(|_| {
+                let keep = !neutral.get(index).copied().unwrap_or(false);
+                index += 1;
+                keep
+            });
+        }
+        b.spend(neutral.len().saturating_mul(4))?;
+        elide(&mut result.domain, &neutral);
+        elide(&mut result.ports, &neutral);
+        elide(&mut result.retained, &neutral);
+        elide(&mut result.nominal, &neutral);
+        Ok(result)
+    }
+
     /// Every original Task producer preserves a complete symbolic Result
     /// directory. Explicit per-occurrence directories remain invariant; a
     /// declaration with no such rows uses All(R), including at known N0.

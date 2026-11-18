@@ -18,7 +18,12 @@ impl CheckedContext {
         let f=module.functions.get(function.0 as usize).filter(|row|row.id==function).ok_or_else(||bad("original Call input actual caller is absent"))?;
         b.spend(arguments.len())?;
         let mut checked=Vec::with_capacity(arguments.len());b.spend(arguments.len())?;let mut exact_sources=vec![false;arguments.len()];
-        let original_regions=self.original.borrow().as_ref().ok_or_else(||bad("Call inputs have no original region proof"))?.call_region_parameter_recipes(module,caller.definition,site.recipe,environment,b)?;
+        let (original_regions, retains_task_inputs) = {
+            let original = self.original.borrow();
+            let original = original.as_ref().ok_or_else(||bad("Call inputs have no original region proof"))?;
+            (original.call_region_parameter_recipes(module,caller.definition,site.recipe,environment,b)?,
+             original.retains_task_inputs(caller.definition,site.recipe,b)?)
+        };
         let mut adapted=Vec::new();
         let mut code_arguments=Vec::new();
         let mut descriptions=Vec::new();
@@ -44,7 +49,7 @@ impl CheckedContext {
             let exported=returned_input_head(signature,key,index,b)?;
             let local_window=self.original_local_call_window(caller,&signature.parameters[index].0,environment,b)?;
             let shared=matches!(actual.ty,Type::Address{mutable:false,..})&&matches!(signature.parameters[index].0.ty,Type::Address{mutable:false,..});
-            if !exported&&!local_window&&!(shared&&shared_reborrow_adapter(module,f,*argument,b)?){continue;}
+            if !retains_task_inputs&&!exported&&!local_window&&!(shared&&shared_reborrow_adapter(module,f,*argument,b)?){continue;}
             let producer=call_borrow_producer(f,*argument,b)?;
             crate::check_instruction(module,f,producer,b)?;
             if matches!(producer.kind,InstructionKind::ReborrowAddress{..}){b.spend(1)?;adapted.push(index);}

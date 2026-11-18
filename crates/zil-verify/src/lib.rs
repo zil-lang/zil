@@ -2615,6 +2615,7 @@ fn check_function(
     let mut predecessors = vec![Vec::<usize>::new(); n];
     let mut successors = vec![Vec::<usize>::new(); n];
     let mut definitions = vec![None; function.values.len()];
+    let mut projected_returns = Vec::new();
     let mut addressed_sums = false;
     let mut mixed_address_sums = false;
     let mut immutable_stores = vec![0usize; m];
@@ -2715,9 +2716,11 @@ fn check_function(
             Terminator::Return(value) => {
                 match value {
                     None if function.return_type == Type::Unit => {}
-                    Some(value)
-                        if value_type(function, *value, Some(function.span))?
-                            == &function.return_type => {}
+                    Some(value) => {
+                        if value_type(function, *value, Some(function.span))? != &function.return_type {
+                            projected_returns.push(*value);
+                        }
+                    }
                     _ => {
                         return Err(fail(
                             "E-VERIFY-RETURN",
@@ -2743,6 +2746,14 @@ fn check_function(
     }
     if definitions.iter().any(Option::is_none) {
         return Err(fail("E-VERIFY-SSA", "declared SSA value has no definition"));
+    }
+    for value in projected_returns {
+        if !tasks::context_projection::matches(
+            function, &definitions, value,
+            value_type(function, value, Some(function.span))?, &function.return_type, budget,
+        )? {
+            return Err(fail("E-VERIFY-RETURN", "return value does not match the function result type"));
+        }
     }
     let reachable = reachability(function.entry.0 as usize, &successors, budget)?;
     let mut role_data_uses = Vec::new();

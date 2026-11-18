@@ -129,7 +129,16 @@ impl CheckedOriginal {
                     },
                     CoreStatementKind::TupleBinding{pattern,mutable,ty,initializer}=>{let expected=ty.as_ref().map(|recipe|self.ty(module,context,recipe,env,active,b)).transpose()?;let actual=self.expression(module,context,initializer,env,bindings,expected.as_ref(),active,b)?;self.pattern_root(module,context,statement.id,&[],pattern,&actual,*mutable,env,bindings,active,b)?;self.bindings.insert((env.current()?,statement.id),actual);false},
                     CoreStatementKind::Expression(expression)=>{let value=self.expression(module,context,expression,env,bindings,None,active,b)?;self.overwrite_cleanup(env,expression.id,&value,None,b)?;false},
-                    CoreStatementKind::Return(expression)=>{if self.in_defer.get(&env.current()?).copied().unwrap_or(0)!=0{return Err(bad("original deferred cleanup cannot return from its caller"));}let actual=match expression{Some(expression)=>self.expression(module,context,expression,env,bindings,Some(result),active,b)?,None=>Ty::Atom(Type::Unit)};self.relate_value(&actual,result,b)?;self.return_resource(expression.as_ref(),&actual,env,b)?;self.queue_cleanup(env,None,b)?;true},
+                    CoreStatementKind::Return(expression)=>{
+                        if self.in_defer.get(&env.current()?).copied().unwrap_or(0)!=0{return Err(bad("original deferred cleanup cannot return from its caller"));}
+                        let actual=match expression{
+                            Some(expression)=>self.return_expression(module,context,expression,env,bindings,result,active,b)?,
+                            None=>{self.relate_value(&Ty::Atom(Type::Unit),result,b)?;Ty::Atom(Type::Unit)},
+                        };
+                        self.return_resource(expression.as_ref(),&actual,env,b)?;
+                        self.queue_cleanup(env,None,b)?;
+                        true
+                    },
                     CoreStatementKind::Assign{target,value}=>{let(expected,place)=self.place(module,context,target,env,bindings,active,b)?;self.assignment_place(module,context,target,&expected,env,bindings,active,b)?;if !self.shared_local_assignment(module,context,target,value,&expected,place.as_ref(),env,bindings,active,b)?{let actual=self.expression(module,context,value,env,bindings,Some(&expected),active,b)?;self.relate_value(&actual,&expected,b)?;}self.overwrite_cleanup(env,target.id,&expected,place.as_ref(),b)?;if let Some(place)=place{if !self.creation(env.current()?,value,bindings,b)?{b.spend(1)?;self.creation_tainted.insert(place.binder.clone());}self.uses.entry(env.current()?).or_default().initialize(&place,b)?;}false},
                     CoreStatementKind::CompoundAssign{target,op,value}=>{let expected=self.expression(module,context,target,env,bindings,None,active,b)?;self.assignment_place(module,context,target,&expected,env,bindings,active,b)?;let actual=self.expression(module,context,value,env,bindings,Some(&expected),active,b)?;self.numeric_binary_original(*op,&expected,&actual,b)?;false},
                     CoreStatementKind::If{condition,then_body,else_body}=>{

@@ -191,6 +191,7 @@ impl CheckedContext {
         if f.protocol_contracts!=*protocol_contracts{return Err(bad("actual phase contract differs from the complete original protocol declaration"));}
         if f.parameters.len()!=signature.parameters.len()||f.return_type!=signature.result.ty||f.result_mode!=signature.result_mode||f.call_kind!=signature.call_kind {return Err(bad("actual function ABI differs from the original complete signature"));}
         let scope=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?.key;
+        let mut task_return_definitions = None;
         b.spend(f.locals.len().saturating_add(f.values.len()).saturating_add(f.blocks.len()))?;
         {
             let original = self.original.borrow();
@@ -454,7 +455,21 @@ impl CheckedContext {
                 }
             }
             let successors=match &block.terminator {
-                Terminator::Return(Some(value))=>{if !self.compatible(environment,value_at(&values,*value)?,&signature.result,b)? {return Err(bad("actual Return violates the original rigid semantic result"));}vec![]},
+                Terminator::Return(Some(value))=>{
+                    let actual = value_at(&values,*value)?;
+                    if !self.compatible(environment,actual,&signature.result,b)? {
+                        if actual.ty == signature.result.ty {
+                            return Err(bad("actual Return violates the original rigid semantic result"));
+                        }
+                        if task_return_definitions.is_none() {
+                            task_return_definitions = Some(crate::tasks::context_projection::definitions(f,b)?);
+                        }
+                        if !self.projected_task_return(f,task_return_definitions.as_deref().unwrap_or_default(),*value,actual,&signature.result,environment,b)? {
+                            return Err(bad("actual Return violates the original rigid semantic result"));
+                        }
+                    }
+                    vec![]
+                },
                 Terminator::Return(None)=>{if signature.result.ty!=Type::Unit {return Err(bad("semantic non-Unit function has a Unit Return"));}vec![]},
                 Terminator::Jump(target)=>vec![*target],Terminator::Branch{condition,then_block,else_block}=>{if value_at(&values,*condition)?.ty!=Type::Bool {return Err(bad("actual semantic CFG condition is not Bool"));}vec![*then_block,*else_block]},
                 Terminator::Trap=>vec![],Terminator::Unreachable=>return Err(bad("reachable semantic Unreachable terminator")),

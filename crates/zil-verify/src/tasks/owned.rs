@@ -778,6 +778,7 @@ fn helper_graph(
         } else {
             None
         };
+        let mut task_return_definitions = None;
         for (block_index, block) in f.blocks.iter().enumerate() {
             for i in &block.instructions {
                 budget.spend(1)?;
@@ -902,6 +903,7 @@ fn helper_graph(
                 f,
                 block,
                 live.get(block_index).copied().unwrap_or(false),
+                &mut task_return_definitions,
                 budget,
             )?;
         }

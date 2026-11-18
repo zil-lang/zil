@@ -5,6 +5,76 @@ use intrinsics::{Intrinsic, Use};
 
 impl CheckedOriginal {
     #[allow(clippy::too_many_arguments)]
+    pub(super) fn return_expression(
+        &mut self, module: &TypedModule, context: &CheckedContext,
+        expression: &SemanticOriginalExpr, env: &Env, bindings: &BTreeMap<String, Binding>,
+        expected: &Ty, active: &mut ActiveQueries, b: &mut Budget,
+    ) -> Check<Ty> {
+        if let CoreExprKind::Call { callee, arguments } = &expression.kind
+            && matches!(&callee.kind, CoreExprKind::Name(name) if name == "task_create")
+            && self.intrinsic_name(module, context, callee, env, bindings, b)? == Some(Intrinsic::TaskCreate)
+        {
+            // Keep the original expression in the worker's coordinates; its
+            // exact typed creation will have to prove that physical result.
+            let actual = self.expression(module, context, expression, env, bindings, None, active, b)?;
+            if let Some(public) = self.project_constructor_return(&actual, expected, arguments, env, bindings, b)? {
+                self.relate_value(&public, expected, b)?;
+            } else {
+                self.relate_value(&actual, expected, b)?;
+            }
+            return Ok(actual);
+        }
+        let actual = self.expression(module, context, expression, env, bindings, Some(expected), active, b)?;
+        self.relate_value(&actual, expected, b)?;
+        Ok(actual)
+    }
+
+    fn project_constructor_return(
+        &self, actual: &Ty, expected: &Ty, arguments: &[SemanticOriginalExpr],
+        env: &Env, bindings: &BTreeMap<String, Binding>, b: &mut Budget,
+    ) -> Check<Option<Ty>> {
+        fn task_context(ty: &mut Ty) -> Option<&mut Retained> {
+            let Ty::ErrorUnion(_, success) = ty else { return None; };
+            let Ty::Managed(task) = success.as_mut() else { return None; };
+            let Ty::Carrier { kind: CarrierKind::Task, retained, .. } = task.as_mut() else { return None; };
+            Some(retained)
+        }
+        if self.same(actual, expected, b)? {
+            return Ok(None);
+        }
+        let mut projected = self.resolved(actual, b)?;
+        let Some(context) = task_context(&mut projected) else { return Ok(None); };
+        let owner = env.current()?;
+        let mut origins = BTreeMap::new();
+        let mut sources = BTreeSet::new();
+        let retained = context.retained.iter_mut().map(|row| match row {
+            RetainedPart::All { path, .. } | RetainedPart::One { path, .. } => path,
+        });
+        let nominal = context.nominal.iter_mut().map(|row| match row {
+            NominalPart::FromType { path, .. } | NominalPart::One { path, .. } => path,
+        });
+        for path in retained.chain(nominal) {
+            b.spend(path.len().saturating_add(origins.len().checked_ilog2().unwrap_or(0) as usize).saturating_add(1))?;
+            let Some(LifeTypeProjection::Parameter(worker)) = path.first_mut() else { continue; };
+            if let Some(factory) = origins.get(worker) {
+                *worker = *factory;
+                continue;
+            }
+            let Some(argument) = arguments.get(*worker as usize + 1) else { return Ok(None); };
+            let CoreExprKind::Name(name) = &argument.kind else { return Ok(None); };
+            b.spend(bindings.len().saturating_add(1).saturating_mul(name.len().saturating_add(1)))?;
+            let Some(binding) = bindings.get(name) else { return Ok(None); };
+            let Binder::Parameter { definition, ordinal } = binding.identity else { return Ok(None); };
+            if definition != owner || binding.mutable || !sources.insert(ordinal) {
+                return Ok(None);
+            }
+            origins.insert(*worker, ordinal);
+            *worker = ordinal;
+        }
+        Ok(Some(projected))
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn task_operation(
         &mut self,
         module: &TypedModule,
