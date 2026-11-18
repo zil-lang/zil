@@ -4183,6 +4183,15 @@ impl Check<'_, '_> {
         b: &mut Budget,
     ) -> CompileResult<Vec<&'v StorageRetainedBinding>> {
         let mut selected = Vec::new();
+        if value::qualified_reference_header(value, self.inventory, b)? {
+            for row in &value.life.retained {
+                b.spend(row.path.len().saturating_add(1), WORK)?;
+                if row.path.as_slice() == [LifeTypeProjection::Pointee] {
+                    self.push_value(&mut selected, row, b)?;
+                }
+            }
+            return Ok(selected);
+        }
         for row in &value.life.retained {
             b.spend(row.path.len().saturating_add(1), WORK)?;
             let mut child = Some(&value.ty);

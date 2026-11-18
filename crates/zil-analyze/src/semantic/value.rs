@@ -551,8 +551,25 @@ pub(super) fn pointee(
     let Type::Address { inner, .. } = &input.ty else {
         return Err(fail("whole pointee query is not an Address"));
     };
+    reference_pointee(input, inner, inventory, b)
+}
+
+/// Recover the actual qualified domain, including all inherited occurrences,
+/// before publishing just its root classes in the signature.
+pub(super) fn qualified_reference_header(
+    input: &Value, inventory: &Inventory<'_>, b: &mut Budget,
+) -> CompileResult<bool> {
+    let (Type::Address { inner, .. } | Type::Desc(inner)) = &input.ty else { return Ok(false) };
+    if !matches!(inner.as_ref(), Type::BorrowedStorage { .. }) { return Ok(false); }
+    reference_pointee(input, inner, inventory, b)?;
+    Ok(true)
+}
+
+fn reference_pointee(
+    input: &Value, inner: &Type, inventory: &Inventory<'_>, b: &mut Budget,
+) -> CompileResult<Value> {
     geometry::retain_child(&input.geometry, geometry::Child::Inner, b)?;
-    let life = match inner.as_ref() {
+    let life = match inner {
         Type::Dyn { .. } | Type::OwnedDyn { .. } => dyn_domain(inner, inventory, b)?,
         Type::MutexGuard { .. } => mutex_guard_domain(inner, b)?,
         Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }) =>
@@ -618,9 +635,12 @@ pub(super) fn pointee(
     let geometry = geometry::project(&input.geometry, geometry::Child::Inner, &life, b)?;
     if !(super::original::strings::is_byte_type(&input.ty) && empty_shape(&input.life) && input.classes.is_empty()) {
         let [slot] = input.life.slots.as_slice() else { return Err(fail("whole address has no unique outer slot")); };
-        let Type::Address { mutable, .. } = input.ty else { unreachable!() };
-        let expected = address(mutable, Class::Local(slot.binder),
-            Value::from_geometry(std::sync::Arc::clone(&geometry), local_classes), b)?;
+        let target = Value::from_geometry(std::sync::Arc::clone(&geometry), local_classes);
+        let expected = match input.ty {
+            Type::Address { mutable, .. } => address(mutable, Class::Local(slot.binder), target, b)?,
+            Type::Desc(_) => description(Class::Local(slot.binder), target, b)?,
+            _ => return Err(fail("whole reference has no actual pointer constructor")),
+        };
         if expected.life != input.life {
             return Err(fail("whole address changes its complete Pointee class or nominal forest"));
         }
