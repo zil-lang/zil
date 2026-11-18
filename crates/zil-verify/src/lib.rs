@@ -928,11 +928,7 @@ fn check_module(
     program: Option<&TypedProgram>,
 ) -> Check<CheckedModule> {
     let mut budget = Budget::new(limits);
-    let report_scans = std::env::var_os("ZIL_VERIFY_PROFILE_SCANS").is_some();
-    if report_scans && budget.diagnostic_progress.is_none() {
-        budget.diagnostic_progress = Some(DiagnosticProgress::default());
-    }
-    let checked = check_module_budget(
+    check_module_budget(
         module,
         plan,
         expected_target,
@@ -940,13 +936,7 @@ fn check_module(
         program,
         &mut budget,
         None,
-    );
-    if report_scans && let Some(progress) = budget.diagnostic_progress {
-        eprintln!("verify-original-body completed={} walks={} revisits={} statement_and_expression_visits={} cfg_block_visits={}",
-            checked.is_ok(), progress.original_body_walks, progress.original_body_revisits,
-            progress.original_statement_and_expression_visits, progress.block_visits);
-    }
-    checked
+    )
 }
 fn check_module_budget(
     module: &TypedModule,
@@ -1004,6 +994,10 @@ fn check_module_budget(
     let prior_structure = budget.structural.take();
     let prior_capture_classes = std::mem::take(&mut budget.semantic_capture_classes);
     let prior_progress = budget.diagnostic_progress;
+    let report_scans = std::env::var_os("ZIL_VERIFY_PROFILE_SCANS").is_some();
+    if report_scans {
+        budget.diagnostic_progress = Some(DiagnosticProgress::default());
+    }
     let result = (|| {
         budget.diagnostic_stage("immutable registration");
         budget.structural = Some(dynamic_metadata::Structure::register(module, budget)?);
@@ -1642,6 +1636,11 @@ fn check_module_budget(
     })();
     budget.structural = prior_structure;
     budget.semantic_capture_classes = prior_capture_classes;
+    if report_scans && let Some(progress) = budget.diagnostic_progress {
+        eprintln!("verify-original-body completed={} walks={} revisits={} statement_and_expression_visits={} cfg_block_visits={}",
+            result.is_ok(), progress.original_body_walks, progress.original_body_revisits,
+            progress.original_statement_and_expression_visits, progress.block_visits);
+    }
     budget.diagnostic_progress = prior_progress;
     result
 }
@@ -3132,8 +3131,7 @@ fn check_instruction(
                 ));
             };
             if !source.is_copy_value()
-                && !(budget.stored_enum_addresses
-                    && stored_flow::enum_address::ordinary(module, source, budget)?)
+                && !stored_flow::enum_address::checked_ordinary(module, source, budget)?
             {
                 return Err(reject(
                     "E-VERIFY-ERROR",
