@@ -550,11 +550,35 @@ impl<'a> Engine<'a> {
         let mut next_elided = u32::try_from(self.life_scope.len())
             .map_err(|_| error(function.span, "lifetime scope overflow"))?;
         for (index, parameter) in function.params.iter_mut().enumerate() {
+            let ordinal = u32::try_from(index)
+                .map_err(|_| error(parameter.span, "parameter ordinal overflow"))?;
             let mut parameter_stored = false;
+            if !candidate.source_inputs.is_empty()
+                && super::generic_source_input_life::byte_buffer_description(parameter, &mut self.budget)?
+            {
+                for source in &candidate.source_inputs {
+                    self.budget.node(parameter.span, 0)?;
+                    if source.parameter == ordinal && source.path.is_empty() {
+                        self.budget.lineage_push(
+                            &mut occurrences,
+                            stored_types::Occurrence {
+                                position: stored_types::OccurrencePosition::Borrow(
+                                    zil_ir::StoragePosition {
+                                        base: zil_ir::StorageBase::Parameter(ordinal),
+                                        path: Vec::new(),
+                                    },
+                                ),
+                                life: LexicalLife(source.binder),
+                                fixed_input: false,
+                            },
+                            parameter.span,
+                        )?;
+                        parameter_stored = true;
+                    }
+                }
+            }
             let anonymous = self.anonymous_signature_actual(&parameter.ty)?;
             if let Some(actual) = anonymous {
-                let ordinal = u32::try_from(index)
-                    .map_err(|_| error(parameter.span, "parameter ordinal overflow"))?;
                 self.anonymous_signature_occurrences(
                     &actual,
                     zil_ir::StorageBase::Parameter(ordinal),
@@ -567,10 +591,7 @@ impl<'a> Engine<'a> {
             } else {
                 self.storage_header(
                     &mut parameter.ty,
-                    zil_ir::StorageBase::Parameter(
-                        u32::try_from(index)
-                            .map_err(|_| error(parameter.span, "parameter ordinal overflow"))?,
-                    ),
+                    zil_ir::StorageBase::Parameter(ordinal),
                     &mut Vec::new(),
                     &mut Vec::new(),
                     &mut occurrences,

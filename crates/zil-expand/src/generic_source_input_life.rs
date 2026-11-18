@@ -3,6 +3,34 @@ use super::*;
 use crate::stored_types::{SignatureCandidate, SourceInputLife};
 use zil_ir::LifeTypeProjection as P;
 
+fn header_grouped<'a>(mut ty: &'a TypeRef, budget: &mut Budget<'_>) -> R<&'a TypeRef> {
+    let mut depth = 0;
+    while let TypeKind::Group(inner) = &ty.kind {
+        budget.node(ty.span, depth)?;
+        ty = inner;
+        depth += 1;
+    }
+    Ok(ty)
+}
+
+pub(super) fn byte_buffer_description(parameter: &Param, budget: &mut Budget<'_>) -> R<bool> {
+    if parameter.give {
+        return Ok(false);
+    }
+    let byte_buffer = |ty: &TypeRef| {
+        matches!(&ty.kind, TypeKind::Named { path, args }
+            if path.as_slice() == ["ByteBuffer"] && args.is_empty())
+    };
+    let ty = header_grouped(&parameter.ty, budget)?;
+    if let TypeKind::Named { path, args } = &ty.kind
+        && matches!(path.as_slice(), [name] if name == "Desc" || name == "Ref")
+        && let [GenericArg::Type(payload)] = args.as_slice()
+    {
+        return Ok(byte_buffer(header_grouped(payload, budget)?));
+    }
+    Ok(byte_buffer(ty))
+}
+
 /// This paid source walk only selects producer work. Code signatures introduce
 /// their own invocation domains and are not retained input data occurrences.
 pub(crate) fn has_elided(ty: &TypeRef, budget: &mut Budget<'_>, depth: usize) -> R<bool> {
@@ -57,6 +85,36 @@ impl Engine<'_> {
         function: &mut Function,
         candidate: &mut SignatureCandidate,
     ) -> R<bool> {
+        fn implicit_input(
+            engine: &mut Engine<'_>,
+            parameter: u32,
+            path: &[P],
+            rows: &mut Vec<SourceInputLife>,
+            span: Span,
+        ) -> R<String> {
+            let binder = u32::try_from(engine.life_scope.len())
+                .map_err(|_| error(span, "implicit input class count overflow"))?;
+            engine.budget.identity_work(
+                64usize.saturating_add(path.len().saturating_mul(8)),
+                span,
+            )?;
+            // A request-local name identifies one exact parameter occurrence.
+            let name = format!("$input_life_{parameter}_{binder}");
+            engine.budget.text(&name, span)?;
+            engine.budget.lineage_bytes(
+                std::mem::size_of::<SourceInputLife>()
+                    .saturating_add(path.len().saturating_mul(std::mem::size_of::<P>()))
+                    .saturating_add(name.len().saturating_mul(3)),
+                span,
+            )?;
+            engine.life_scope.push(name.clone());
+            rows.push(SourceInputLife {
+                parameter,
+                path: path.to_vec(),
+                binder,
+            });
+            Ok(name)
+        }
         fn input(
             engine: &mut Engine<'_>,
             ty: &mut TypeRef,
@@ -72,30 +130,7 @@ impl Engine<'_> {
                     lifetime, inner, ..
                 } => {
                     if lifetime.is_none() {
-                        let binder = u32::try_from(engine.life_scope.len())
-                            .map_err(|_| error(ty.span, "implicit input class count overflow"))?;
-                        engine.budget.identity_work(
-                            64usize.saturating_add(path.len().saturating_mul(8)),
-                            ty.span,
-                        )?;
-                        // `$` cannot occur in a user identifier. The containing
-                        // exact Pending function owns the domain; ordinal/path
-                        // records identify its real Source input occurrence.
-                        let name = format!("$input_life_{parameter}_{binder}");
-                        engine.budget.text(&name, ty.span)?;
-                        engine.budget.lineage_bytes(
-                            std::mem::size_of::<SourceInputLife>()
-                                .saturating_add(path.len().saturating_mul(std::mem::size_of::<P>()))
-                                .saturating_add(name.len().saturating_mul(3)),
-                            ty.span,
-                        )?;
-                        engine.life_scope.push(name.clone());
-                        *lifetime = Some(name);
-                        rows.push(SourceInputLife {
-                            parameter,
-                            path: path.clone(),
-                            binder,
-                        });
+                        *lifetime = Some(implicit_input(engine, parameter, path, rows, ty.span)?);
                     }
                     let name = lifetime
                         .as_ref()
@@ -238,6 +273,11 @@ impl Engine<'_> {
         let roles = callable::template(function, &mut self.budget)?;
         let mut lives = Vec::new();
         let mut data_lives = Vec::new();
+        let elided_window = if let Some(ty) = &function.return_type {
+            matches!(&header_grouped(ty, &mut self.budget)?.kind, TypeKind::Reference { lifetime: None, .. })
+        } else {
+            false
+        };
         for (index, parameter) in function.params.iter_mut().enumerate() {
             let start = lives.len();
             let callable_receiver = roles.as_ref().is_some_and(|roles| {
@@ -245,16 +285,26 @@ impl Engine<'_> {
                     callable::parameter_mode(&parameter.ty, &role.generic_name).is_some()
                 })
             });
+            let ordinal = u32::try_from(index)
+                .map_err(|_| error(parameter.span, "input parameter ordinal overflow"))?;
             input(
                 self,
                 &mut parameter.ty,
-                u32::try_from(index)
-                    .map_err(|_| error(parameter.span, "input parameter ordinal overflow"))?,
+                ordinal,
                 &mut Vec::new(),
                 &mut candidate.source_inputs,
                 &mut lives,
                 0,
             )?;
+            if elided_window && byte_buffer_description(parameter, &mut self.budget)? {
+                lives.push(implicit_input(
+                    self,
+                    ordinal,
+                    &[],
+                    &mut candidate.source_inputs,
+                    parameter.span,
+                )?);
+            }
             if !callable_receiver {
                 for name in &lives[start..] {
                     self.budget.text(name, parameter.span)?;
@@ -282,13 +332,22 @@ impl Engine<'_> {
                 unique.push(life);
             }
         }
-        let receiver = function
+        let receiver_parameter = function
             .params
             .first()
             .filter(|parameter| parameter.name == "self"
-                || parameter.name == trait_instances::LOWERED_RECEIVER_NAME)
+                || parameter.name == trait_instances::LOWERED_RECEIVER_NAME);
+        if receiver_parameter.is_some() && elided_window {
+            self.budget.identity_work(candidate.source_inputs.len(), function.span)?;
+        }
+        let receiver = receiver_parameter
             .and_then(|parameter| match &grouped(&parameter.ty).kind {
                 TypeKind::Reference { lifetime, .. } => lifetime.as_deref(),
+                _ if elided_window => candidate.source_inputs
+                    .iter()
+                    .find(|input| input.parameter == 0 && input.path.is_empty())
+                    .and_then(|input| self.life_scope.get(input.binder as usize))
+                    .map(String::as_str),
                 _ => None,
             });
         // A borrowed callable receiver has its own environment domain. A
