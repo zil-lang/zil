@@ -416,7 +416,11 @@ fn dependency_order(
     let mut predecessors = vec![0usize; count];
     let mut consumers = vec![Vec::new(); count];
     for (caller, f) in module.functions.iter().enumerate() {
-        if f.callable_contract.is_none() {
+        let data_candidate = if f.callable_contract.is_none() && !f.parameters.is_empty() {
+            budget.spend(f.parameters.len())?;
+            f.parameters.iter().any(|local| matches!(f.locals[local.0 as usize].ty,Type::Closure(_)))
+        } else {false};
+        if f.callable_contract.is_none() && !data_candidate {
             continue;
         }
         if depths.is_none() {
@@ -435,7 +439,12 @@ fn dependency_order(
                 } = instruction.kind
                 {
                     let callee = callee.0 as usize;
-                    if module.functions[callee].callable_contract.is_some() {
+                    let target=&module.functions[callee];
+                    let data_dependency = if data_candidate && target.callable_contract.is_none() {
+                        budget.spend(target.parameters.len())?;
+                        target.parameters.iter().any(|local| matches!(target.locals[local.0 as usize].ty,Type::Closure(_)))
+                    } else {false};
+                    if (f.callable_contract.is_some() && target.callable_contract.is_some()) || data_dependency {
                         budget.spend(2)?;
                         predecessors[caller] += 1;
                         consumers[callee].push(caller);
@@ -861,6 +870,7 @@ pub(super) fn check_module(
     let order = dependency_order(module, graphs, limits, budget)?;
     budget.spend(module.functions.len())?;
     let mut checked = vec![false; module.functions.len()];
+    let mut data_parameters = Vec::new();
     for index in order {
         let f = &module.functions[index];
         let mut parameters: Vec<(u32, ClosureId, bool, &Type)> = Vec::new();
@@ -914,7 +924,7 @@ pub(super) fn check_module(
         // Preserve the single self-contained owning State value boundary.
         if let [(position, closure, false, _)] = parameters.as_slice()
             && f.callable_contract.is_none()
-            && owning_product::transfers_parameter(module, f, f.parameters[*position as usize], budget)?
+            && owning_product::transfers_parameter(module, f, f.parameters[*position as usize], &data_parameters, budget)?
         {
             if owned_union_data || budget.sum_function(f.id) {
                 budget.spend(f.parameters.len())?;
@@ -938,7 +948,14 @@ pub(super) fn check_module(
                 }
             }
             closures::self_contained(module, *closure, budget)?;
-            if matches!(f.return_type,Type::Package{..}) {packages::check_type_for(module, &f.return_type, Some(f.span), budget)?;}
+            if matches!(f.return_type,Type::Package{..}) {
+                packages::check_ordinary_type(module, &f.return_type, Some(f.span), budget)?;
+            }
+            if data_parameters.is_empty() {
+                budget.spend(module.functions.len())?;
+                data_parameters.resize(module.functions.len(), None);
+            }
+            data_parameters[index] = Some(*position);
             continue;
         }
         // A second owned input is a second value, even when both use the same

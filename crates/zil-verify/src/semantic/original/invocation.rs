@@ -6,7 +6,29 @@ impl CheckedOriginal {
     pub(super) fn call_signature(&mut self,module:&TypedModule,context:&CheckedContext,target:SemanticDefinitionId,signature:&SemanticSignatureRecipe,selected:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Prototype>{
         let rigid=self.environment(module,context,target,active,b)?;
         let prototype=self.signature(module,context,signature,&rigid,active,b)?;
-        self.instantiate_prototype(&prototype,Some(target),selected,b)
+        let mut description_heads=BTreeMap::new();
+        for (position,parameter) in signature.parameters.iter().enumerate() {
+            let SemanticTypeRecipe::Desc{lifetime:SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit{scope:SemanticScopeRef::Ancestor(0),ordinal}),inner}=&parameter.ty else{continue;};
+            if !matches!(inner.as_ref(),SemanticTypeRecipe::Atom(Type::ByteBuffer)){continue;}
+            let definition=context.definition(module,target,b)?;
+            let position=u32::try_from(position).map_err(|_|limit("description parameter position exceeds its complete domain"))?;
+            for implicit in &definition.implicit_lifetimes {
+                b.spend(implicit.occurrence_path.len().saturating_add(1))?;
+                if implicit.ordinal==*ordinal && implicit.occurrence_path==[1,position] {
+                    description_heads.insert(Life::Implicit(target,*ordinal),position);
+                }
+            }
+        }
+        let (result,roles)=self.instantiate_prototype_roles(&prototype,Some(target),selected,b)?;
+        for (source,position) in description_heads {
+            let Some(Life::Infer(id))=roles.get(&source) else{return Err(bad("original ByteBuffer description has no exact fresh call head"));};
+            // The omitted lifetime at this exact Desc parameter denotes its
+            // description Head. Keep the call's inferred class and argument
+            // source, and select only this source-authenticated coordinate.
+            b.spend(2)?;
+            self.call_head_roles.insert(*id,vec![2,position]);
+        }
+        Ok(result)
     }
     /// An actual inserted through a generic Formal remains caller-owned.
     /// Only this raw original source role can select another creator scope.

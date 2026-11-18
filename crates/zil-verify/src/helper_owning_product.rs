@@ -1,164 +1,139 @@
-//! Prove that the incoming callback is transferred as data into an actual
-//! returned product or passed to a fully typed by-value aggregate parameter.
+//! Track the incoming callback through real owning constructions and field
+//! publications. A previously checked callee may take the naked callback
+//! only at its exact independently verified data parameter.
 use super::*;
 
 pub(super) fn transfers_parameter(
     module: &TypedModule,
     f: &TypedFunction,
     parameter: LocalId,
+    data_parameters: &[Option<u32>],
     b: &mut Budget,
 ) -> Check<bool> {
     let locals = f.locals.len();
-    let count = locals.saturating_add(f.values.len());
-    b.spend(count.saturating_mul(2).saturating_add(f.blocks.len()))?;
-    let mut edges = vec![Vec::new(); count];
-    let mut live = vec![false; f.blocks.len()];
-    let mut pending = vec![f.entry];
-    while let Some(id) = pending.pop() {
-        b.spend(1)?;
-        let row = live
-            .get_mut(id.0 as usize)
-            .ok_or_else(|| bad(f, "owning constructor has an absent CFG target"))?;
-        if std::mem::replace(row, true) {
-            continue;
-        }
-        let block = &f.blocks[id.0 as usize];
-        match block.terminator {
-            Terminator::Jump(next) => pending.push(next),
-            Terminator::Branch {
-                then_block,
-                else_block,
-                ..
-            } => pending.extend([then_block, else_block]),
-            _ => {}
-        }
-        for op in &block.instructions {
-            b.spend(1)?;
-            let mut edge = |from: usize, to: usize| -> Check<()> {
-                b.spend(1)?;
-                if from >= count || to >= count {
-                    return Err(bad(f, "owning constructor operand is absent"));
-                }
-                edges[from].push(to);
-                Ok(())
-            };
-            match &op.kind {
-                InstructionKind::Store { local, value } => {
-                    edge(locals + value.0 as usize, local.0 as usize)?
-                }
-                InstructionKind::TakeLocal { local } => {
-                    if let Some(output) = op.result {
-                        edge(local.0 as usize, locals + output.0 as usize)?;
-                    }
-                }
-                kind if aggregate(kind) => {
-                    if let Some(output) = op.result {
-                        for field in kind.value_operands() {
-                            edge(locals + field.0 as usize, locals + output.0 as usize)?;
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    let mut derived = vec![false; count];
-    let mut work = vec![parameter.0 as usize];
-    while let Some(node) = work.pop() {
-        b.spend(1)?;
-        if std::mem::replace(&mut derived[node], true) {
-            continue;
-        }
-        b.spend(edges[node].len())?;
-        work.extend_from_slice(&edges[node]);
-    }
+    b.spend(f.blocks.len().saturating_add(locals).saturating_add(f.values.len()))?;
+    let mut initial = vec![false; locals];
+    initial[parameter.0 as usize] = true;
+    let mut incoming = vec![None; f.blocks.len()];
+    incoming[f.entry.0 as usize] = Some(initial);
+    let mut values = vec![false; f.values.len()];
     let mut transferred = false;
-    for (index, block) in f.blocks.iter().enumerate() {
-        if !live[index] {
-            continue;
-        }
-        match block.terminator {
-            Terminator::Return(Some(value)) if marked_value(f, &derived, value)? => {
-                if !product_type(&f.values[value.0 as usize]) {
-                    return Ok(false);
-                }
-                transferred = true;
-            }
-            Terminator::Branch { condition, .. } if marked_value(f, &derived, condition)? => {
-                return Ok(false);
-            }
-            _ => {}
-        }
-        for op in &block.instructions {
+    loop {
+        let mut changed = false;
+        for (index, block) in f.blocks.iter().enumerate() {
             b.spend(1)?;
-            let kind = &op.kind;
-            let mut marked_inputs = 0usize;
-            for value in kind.value_operands() {
+            let Some(entry) = &incoming[index] else { continue; };
+            b.spend(entry.len())?;
+            let mut exact = entry.clone();
+            for op in &block.instructions {
                 b.spend(1)?;
-                marked_inputs += usize::from(marked_value(f, &derived, value)?);
-            }
-            if marked_inputs > 0 {
-                if let InstructionKind::Call {
-                    function,
-                    arguments,
-                } = kind
-                {
-                    let Some(target) = module.functions.get(function.0 as usize) else {
-                        return Err(bad(f, "owning aggregate Call has no callee"));
-                    };
-                    if target.parameters.len() != arguments.len() {
-                        return Ok(false);
+                let kind = &op.kind;
+                let mut marked = 0;
+                for value in kind.value_operands() {
+                    b.spend(1)?;
+                    marked += usize::from(contains_value(f, &values, value)?);
+                }
+                let mut output = false;
+                match kind {
+                    InstructionKind::Store { local, .. } => {
+                        exact[local.0 as usize] = marked != 0;
                     }
-                    for (argument, parameter) in arguments.iter().zip(&target.parameters) {
-                        b.spend(1)?;
-                        if !marked_value(f, &derived, *argument)? {
-                            continue;
-                        }
-                        let ty = &f.values[argument.0 as usize];
-                        resources::charge_payload(ty, b)?;
-                        if !product_type(ty)
-                            || target
-                                .locals
-                                .get(parameter.0 as usize)
-                                .is_none_or(|l| &l.ty != ty)
-                        {
+                    InstructionKind::TakeLocal { local } => {
+                        output = std::mem::take(&mut exact[local.0 as usize]);
+                    }
+                    InstructionKind::StorageLive(local)
+                    | InstructionKind::StorageDead(local)
+                    | InstructionKind::DropClosure { local }
+                    | InstructionKind::DropPackage { local }
+                    | InstructionKind::DropEnum { local }
+                    | InstructionKind::DropTuple { local }
+                    | InstructionKind::DropOwnedArray { local }
+                    | InstructionKind::DropErrorUnion { local } => {
+                        exact[local.0 as usize] = false;
+                    }
+                    InstructionKind::StorePackageField { local, index, value } if marked != 0 => {
+                        let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty else {
+                            return Ok(false);
+                        };
+                        let Some((_, field)) = fields.get(*index as usize) else {
+                            return Ok(false);
+                        };
+                        if exact[local.0 as usize] || field != &f.values[value.0 as usize] {
                             return Ok(false);
                         }
+                        exact[local.0 as usize] = true;
                     }
-                    transferred = true;
-                } else if marked_inputs != 1
-                    || !(aggregate(kind) || matches!(kind, InstructionKind::Store { .. }))
-                {
-                    return Ok(false);
+                    kind if aggregate(kind) && marked != 0 => {
+                        if marked != 1 { return Ok(false); }
+                        output = true;
+                    }
+                    InstructionKind::Call { function, arguments } if marked != 0 => {
+                        let target = module.functions.get(function.0 as usize)
+                            .ok_or_else(|| bad(f, "owning data call has no actual callee"))?;
+                        if target.parameters.len() != arguments.len() { return Ok(false); }
+                        for (ordinal, (argument, parameter)) in arguments.iter().zip(&target.parameters).enumerate() {
+                            b.spend(1)?;
+                            if !contains_value(f, &values, *argument)? { continue; }
+                            let ty = &f.values[argument.0 as usize];
+                            resources::charge_payload(ty, b)?;
+                            let direct = matches!(ty, Type::Closure(_))
+                                && data_parameters.get(function.0 as usize).copied().flatten()
+                                    .is_some_and(|selected| selected as usize == ordinal);
+                            if !(product_type(ty) || direct)
+                                || target.locals.get(parameter.0 as usize).is_none_or(|row| &row.ty != ty)
+                            {
+                                return Ok(false);
+                            }
+                        }
+                        transferred = true;
+                        output = product_type(&target.return_type)
+                            || matches!(target.return_type, Type::Closure(_));
+                    }
+                    _ => {
+                        if marked != 0 { return Ok(false); }
+                        for local in kind.local_operands() {
+                            b.spend(1)?;
+                            if exact[local.0 as usize] { return Ok(false); }
+                        }
+                    }
+                }
+                if output {
+                    let result = op.result.ok_or_else(|| bad(f, "owning data transfer has no actual output"))?;
+                    let slot = values.get_mut(result.0 as usize)
+                        .ok_or_else(|| bad(f, "owning data output is absent"))?;
+                    changed |= !std::mem::replace(slot, true);
                 }
             }
-            for local in kind.local_operands() {
-                b.spend(1)?;
-                if local.0 as usize >= locals {
-                    return Err(bad(f, "owning aggregate local is absent"));
+            let successors = match block.terminator {
+                Terminator::Return(Some(value)) if contains_value(f, &values, value)? => {
+                    if !product_type(&f.values[value.0 as usize]) { return Ok(false); }
+                    transferred = true;
+                    [None, None]
                 }
-                if !derived[local.0 as usize] {
-                    continue;
+                Terminator::Jump(next) => [Some(next), None],
+                Terminator::Branch { condition, then_block, else_block } => {
+                    if contains_value(f, &values, condition)? { return Ok(false); }
+                    [Some(then_block), Some(else_block)]
                 }
-                match kind {
-                    // Every possible writer of a carrier must supply the
-                    // parameter. An unmarked branch cannot donate another F.
-                    InstructionKind::Store { .. } if marked_inputs == 1 && local != parameter => {}
-                    InstructionKind::TakeLocal { .. }
-                    | InstructionKind::StorageLive(_)
-                    | InstructionKind::StorageDead(_)
-                    | InstructionKind::DropClosure { .. }
-                    | InstructionKind::DropPackage { .. }
-                    | InstructionKind::DropEnum { .. }
-                    | InstructionKind::DropTuple { .. }
-                    | InstructionKind::DropOwnedArray { .. }
-                    | InstructionKind::DropErrorUnion { .. } => {}
-                    _ => return Ok(false),
+                _ => [None, None],
+            };
+            for successor in successors.into_iter().flatten() {
+                let slot = incoming.get_mut(successor.0 as usize)
+                    .ok_or_else(|| bad(f, "owning data transfer has an absent CFG successor"))?;
+                b.spend(exact.len().saturating_add(1))?;
+                if let Some(previous) = slot {
+                    for (target, source) in previous.iter_mut().zip(&exact) {
+                        changed |= *source && !*target;
+                        *target |= *source;
+                    }
+                } else {
+                    *slot = Some(exact.clone());
+                    changed = true;
                 }
             }
         }
+        if !changed { return Ok(transferred); }
     }
-    Ok(transferred)
 }
 
 fn aggregate(kind: &InstructionKind) -> bool {
@@ -182,11 +157,10 @@ fn product_type(ty: &Type) -> bool {
             | Type::Array { .. }
     )
 }
-fn marked_value(f: &TypedFunction, derived: &[bool], value: ValueId) -> Check<bool> {
-    derived
-        .get(f.locals.len().saturating_add(value.0 as usize))
-        .copied()
-        .ok_or_else(|| bad(f, "owning aggregate value is absent"))
+
+fn contains_value(f: &TypedFunction, values: &[bool], value: ValueId) -> Check<bool> {
+    values.get(value.0 as usize).copied()
+        .ok_or_else(|| bad(f, "owning data value is absent"))
 }
 
 #[cfg(test)]
@@ -238,7 +212,7 @@ mod tests {
             for actual in [&module, &wire] {
                 let mut budget = Budget::new(&limits);
                 assert_eq!(
-                    transfers_parameter(actual, &actual.functions[0], LocalId(0), &mut budget)
+                    transfers_parameter(actual, &actual.functions[0], LocalId(0), &[], &mut budget)
                         .unwrap(),
                     !mixed
                 );
