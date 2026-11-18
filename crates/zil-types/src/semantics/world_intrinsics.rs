@@ -130,6 +130,13 @@ pub(super) fn evaluate(
     let mut parameters = Vec::new();
     for (ordinal, (operand, parameter)) in operands.iter().zip(&call.parameters).enumerate() {
         let actual = world.get(values, *operand)?;
+        if ordinal == 0
+            && let Some(manager) = call.temporary_manager
+        {
+            temporary_manager_operand(world, instance, original, manager, *operand, parameter, values)?;
+            parameters.push(actual);
+            continue;
+        }
         let expected = world.physical_type(instance.id, parameter, World::type_of(&actual)?)?;
         arguments::satisfy(
             world, instance, None, site, ordinal, *operand, &actual, &expected, values, locals,
@@ -393,6 +400,50 @@ pub(super) fn operand_ids(kind: &IntrinsicKind, instruction: &InstructionKind) -
         }
     })
 }
+fn temporary_manager_operand(
+    world: &mut World<'_, '_>,
+    instance: &SemanticInstance,
+    original: &SemanticDefinition,
+    source: zil_base::NodeId,
+    descriptor: ValueId,
+    expected: &SemanticTypeRecipe,
+    values: &[Option<SharedType>],
+) -> R<()> {
+    let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) = instance.target else {
+        return Err(bad("prepared ByteBuffer has no actual function"));
+    };
+    let function = world.function(id)?;
+    let manager = occurrences::expression_value(world, instance, original, source)?
+        .ok_or_else(|| bad("prepared ByteBuffer lost its exact original producing expression"))?;
+    let (InstructionKind::DescribeLocal { local }, block, description) =
+        borrow_roles::producer(world, function, descriptor)?
+    else {
+        return Err(bad("prepared ByteBuffer requires its actual temporary description"));
+    };
+    let before = description.checked_sub(1)
+        .and_then(|index| function.blocks.get(block.0 as usize)
+            .filter(|actual| actual.id == block)
+            .and_then(|actual| actual.instructions.get(index)));
+    if !matches!(before.map(|i| &i.kind), Some(InstructionKind::Store { local: dest, value })
+        if dest == local && *value == manager)
+    {
+        return Err(bad("temporary description does not select its exact original manager store"));
+    }
+    let value = world.get(values, manager)?;
+    let physical = World::type_of(&value)?;
+    let wanted = world.physical_type(instance.id, expected, physical)?;
+    let description = world.get(values, descriptor)?;
+    if !matches!(physical, Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer)
+        || !matches!(World::type_of(&description)?, Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
+        || !function.locals.get(local.0 as usize).is_some_and(|declaration|
+            declaration.id == *local && &declaration.ty == physical)
+    {
+        return Err(bad("temporary ByteBuffer changes its complete actual categories"));
+    }
+    world.same(instance.id, &value, &wanted, &BTreeMap::new())
+}
+
+
 fn function_instance<'a>(
     world: &mut World<'a, '_>,
     function: FunctionId,

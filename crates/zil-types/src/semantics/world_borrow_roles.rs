@@ -11,7 +11,7 @@ enum Cursor {
     Local(LocalId),
     StoredField { value: ValueId, remaining: usize },
 }
-fn producer<'f>(
+pub(super) fn producer<'f>(
     world: &mut World<'_, '_>,
     function: &'f TypedFunction,
     value: ValueId,

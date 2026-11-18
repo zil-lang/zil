@@ -186,7 +186,14 @@ impl Check<'_, '_> {
         let actual = match origin {
             Origin::Local(actual, at_block, at_index) => {
                 operations::initialized_local_before(function, (at_block, at_index), actual, b)?;
-                if self.anchored_local(instance, function, anchor, b)? != actual {
+                if matches!(selected.ty, Type::Desc(_))
+                    && let original::LocalAnchor::Environment(ordinal) = anchor
+                {
+                    let capture = self.environment_capture(instance, function, ordinal, b)?;
+                    if self.capture_origin_local(function, actual, (at_block, at_index), b, 0)? != capture {
+                        return Err(fail("actual ByteBuffer description loads a different original capture"));
+                    }
+                } else if self.anchored_local(instance, function, anchor, b)? != actual {
                     return Err(fail(
                         "actual ByteBuffer operation selects another original parent place",
                     ));
@@ -377,6 +384,85 @@ impl Check<'_, '_> {
         }
         Ok(())
     }
+    fn temporary_buffer_source(
+        &self,
+        instance: &SemanticInstance,
+        site: SemanticSiteId,
+        function: &TypedFunction,
+        descriptor: ValueId,
+        expected: &Value,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let definition = self.inventory.definition(instance.definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
+            return Err(fail("temporary ByteBuffer call lacks its original body"));
+        };
+        let mut node = None;
+        for link in site_nodes {
+            b.spend(1, WORK)?;
+            if link.site == site {
+                let SemanticOriginalNode::Expression(source) = link.node else {
+                    return Err(fail("temporary ByteBuffer call does not select an original expression"));
+                };
+                if node.replace(source).is_some() {
+                    return Err(fail("temporary ByteBuffer call has competing original expressions"));
+                }
+            }
+        }
+        let node = node.ok_or_else(|| fail("temporary ByteBuffer call has no original expression"))?;
+        let directory = self.inventory.original_index(instance.definition, b)?;
+        let CoreExprKind::Call { arguments, .. } = &directory.get_expr(node, b)?.kind else {
+            return Err(fail("temporary ByteBuffer source does not belong to an original call"));
+        };
+        let manager = arguments.first().filter(|arg| matches!(arg.kind, CoreExprKind::Call { .. }))
+            .ok_or_else(|| fail("temporary ByteBuffer does not select the original result operand"))?;
+        let mut source = None;
+        for actual in self.inventory.sites_for_expression(self.program, instance, manager.id, b)? {
+            b.spend(1, WORK)?;
+            if !matches!(actual.action, SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::Call { .. }) {
+                continue;
+            }
+            let SemanticSiteAddress::Typed { block, instruction, edge: SemanticSiteEdge::After } = actual.at else {
+                return Err(fail("temporary ByteBuffer result has no actual producing boundary"));
+            };
+            let value = function.blocks.get(block.0 as usize)
+                .filter(|actual| actual.id == block)
+                .and_then(|actual| actual.instructions.get(instruction as usize))
+                .and_then(|instruction| instruction.result)
+                .ok_or_else(|| fail("temporary ByteBuffer call has no actual produced value"))?;
+            if source.replace(value).is_some() {
+                return Err(fail("temporary ByteBuffer has competing actual source values"));
+            }
+        }
+        let source = source.ok_or_else(|| fail("temporary ByteBuffer has no actual original result"))?;
+        let (block, index, operation) = self.defining(function, descriptor, b)?;
+        let InstructionKind::DescribeLocal { local } = operation.kind else {
+            return Err(fail("temporary ByteBuffer requires its real description operation"));
+        };
+        let store = index.checked_sub(1)
+            .ok_or_else(|| fail("temporary ByteBuffer has no preceding manager store"))?;
+        let stored = function.blocks.get(block.0 as usize)
+            .filter(|actual| actual.id == block)
+            .and_then(|actual| actual.instructions.get(store));
+        if !matches!(stored.map(|instruction| &instruction.kind), Some(InstructionKind::Store { local: dest, value })
+            if *dest == local && *value == source)
+        {
+            return Err(fail("temporary ByteBuffer describes a different prepared result"));
+        }
+        operations::available_before(function, (block, store, SemanticSiteEdge::Before), source, b)?;
+        operations::initialized_local_before(function, (block, index), local, b)?;
+        if !matches!(function.values.get(descriptor.0 as usize), Some(Type::Desc(payload))
+            if payload.as_ref() == &Type::ByteBuffer)
+            || !matches!(&expected.ty, Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer)
+            || !function.locals.get(local.0 as usize).is_some_and(|declaration|
+                declaration.id == local && declaration.ty == expected.ty)
+            || !self.ssa_value(instance, function, source, b, 0)?.equal_paid(expected, b)?
+        {
+            return Err(fail("temporary ByteBuffer changes its complete prepared resource"));
+        }
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn buffer_operation(
         &self,
@@ -442,36 +528,28 @@ impl Check<'_, '_> {
                 descriptor,
                 b,
             )?;
-            if inputs.len() != 2 + usize::from(extra.is_some()) {
-                return Err(fail(
-                    "actual ByteBuffer operation changes its original full input arity",
-                ));
-            }
-            let anchor = self
-                .original
-                .intrinsic_anchor(instance, site, self.inventory, b)?;
-            let path = self
-                .original
-                .native_path(instance, site, self.inventory, b)?;
-            self.sealed_resource_place(
-                instance,
-                function,
-                descriptor,
-                anchor,
-                &inputs[0],
-                &inputs[1],
-                &path,
-                &Type::ByteBuffer,
-                b,
-            )?;
+            let extra_count = usize::from(extra.is_some());
+            let scalar_index = if inputs.len() == 2 + extra_count {
+                let anchor = self.original.intrinsic_anchor(instance, site, self.inventory, b)?;
+                let path = self.original.native_path(instance, site, self.inventory, b)?;
+                self.sealed_resource_place(
+                    instance, function, descriptor, anchor, &inputs[0], &inputs[1],
+                    &path, &Type::ByteBuffer, b,
+                )?;
+                2
+            } else if inputs.len() == 1 + extra_count
+                && !matches!(intrinsic, original::sealed::Intrinsic::BytesView { .. })
+            {
+                self.temporary_buffer_source(instance, site, function, descriptor, &inputs[0], b)?;
+                1
+            } else {
+                return Err(fail("actual ByteBuffer operation changes its original full input arity"));
+            };
             if let Some(extra) = extra {
                 operations::available_before(
-                    function,
-                    (block, index, SemanticSiteEdge::Before),
-                    extra,
-                    b,
+                    function, (block, index, SemanticSiteEdge::Before), extra, b,
                 )?;
-                if function.values.get(extra.0 as usize) != Some(&inputs[2].ty) {
+                if function.values.get(extra.0 as usize) != Some(&inputs[scalar_index].ty) {
                     return Err(fail(
                         "actual ByteBuffer scalar argument changes its original fixed carrier",
                     ));

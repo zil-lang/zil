@@ -493,7 +493,8 @@ pub(super) fn semantic_copy_capture(
     if let Type::Desc(payload) = ty {
         let mutex = matches!(payload.as_ref(), Type::Mutex { payload } if **payload == Type::I32);
         let resource = resource_payload(payload, b)?;
-        if !mutex && !resource {
+        let bytes = payload.as_ref() == &Type::ByteBuffer;
+        if !mutex && !resource && !bytes {
             return Ok(false);
         }
         b.type_work(ty, false, "complete original weak resource capture")?;
@@ -510,6 +511,9 @@ pub(super) fn semantic_copy_capture(
         }
         if resource {
             super::stored_flow::owned::registered(module, payload, b)?;
+        }
+        if bytes && !super::stored_flow::owned::ordinary_value(module, ty, b)? {
+            return Err(bad("completed weak ByteBuffer capture needs its canonical resource"));
         }
         // Environments containing weak descriptions must run the actual
         // MakeClosure/ReadCapture resource flow. It transports the exact

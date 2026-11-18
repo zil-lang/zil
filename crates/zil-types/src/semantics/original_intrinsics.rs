@@ -91,6 +91,7 @@ pub(crate) struct IntrinsicCall {
     pub result: SemanticTypeRecipe,
     pub effect: CallKind,
     pub worker_scheme: Option<(SemanticSignatureRecipe, Vec<SemanticActualRecipe>)>,
+    pub temporary_manager: Option<NodeId>,
 }
 
 impl Check<'_, '_> {
@@ -338,6 +339,7 @@ impl Check<'_, '_> {
             };
             parameters.push(self.expr(owner, argument, variables, expected.as_ref(), depth + 1)?);
         }
+        let mut temporary_manager = None;
         let result = match &kind {
             IntrinsicKind::MutexCreate => {
                 let payload = copy_recipe(&parameters[0], self.limits, self.left)?;
@@ -446,10 +448,24 @@ impl Check<'_, '_> {
             | IntrinsicKind::BytesLen
             | IntrinsicKind::BytesCapacity
             | IntrinsicKind::BytesBorrow { .. } => {
-                let SemanticTypeRecipe::Desc { lifetime, inner } = &parameters[0] else {
-                    return Err(bad("original bytes operation requires a scoped descriptor"));
+                let lifetime = match &parameters[0] {
+                    SemanticTypeRecipe::Desc { lifetime, inner } => {
+                        self.same(inner, &SemanticTypeRecipe::Atom(Type::ByteBuffer))?;
+                        crate::dyn_metadata::semantic_operand_snapshot(
+                            lifetime, self.limits, self.left, 1,
+                        )?;
+                        Some(lifetime)
+                    }
+                    SemanticTypeRecipe::Managed(inner)
+                        if !matches!(kind, IntrinsicKind::BytesBorrow { .. })
+                            && matches!(arguments[0].kind, CoreExprKind::Call { .. }) =>
+                    {
+                        self.same(inner, &SemanticTypeRecipe::Atom(Type::ByteBuffer))?;
+                        temporary_manager = Some(arguments[0].id);
+                        None
+                    }
+                    _ => return Err(bad("original bytes operation requires a scoped descriptor")),
                 };
-                self.same(inner, &SemanticTypeRecipe::Atom(Type::ByteBuffer))?;
                 if parameters.len() == 2 {
                     self.same(
                         &parameters[1],
@@ -460,19 +476,13 @@ impl Check<'_, '_> {
                         }),
                     )?;
                 }
-                crate::dyn_metadata::semantic_operand_snapshot(
-                    lifetime,
-                    self.limits,
-                    self.left,
-                    1,
-                )?;
                 match &kind {
                     IntrinsicKind::BytesLen | IntrinsicKind::BytesCapacity => {
                         SemanticTypeRecipe::Atom(Type::I64)
                     }
                     IntrinsicKind::BytesBorrow { mutable } => SemanticTypeRecipe::Address {
                         mutable: *mutable,
-                        lifetime: lifetime.clone(),
+                        lifetime: lifetime.ok_or_else(|| bad("a ByteBuffer window requires an original manager region"))?.clone(),
                         inner: Box::new(SemanticTypeRecipe::Slice(Box::new(
                             SemanticTypeRecipe::Atom(Type::U8),
                         ))),
@@ -525,6 +535,11 @@ impl Check<'_, '_> {
             | IntrinsicKind::StoreBorrow { .. } => unreachable!(),
         };
         self.record_intrinsic(owner, site, kind, parameters, &result, wanted, depth + 1)?;
+        if temporary_manager.is_some() {
+            self.proof.proof_mut()?.intrinsics.get_mut(&(owner, site))
+                .ok_or_else(|| bad("original temporary manager lost its sealed call"))?
+                .temporary_manager = temporary_manager;
+        }
         Ok(Some(result))
     }
     pub(super) fn record_intrinsic(
@@ -614,6 +629,7 @@ impl Check<'_, '_> {
                 result,
                 effect,
                 worker_scheme: None,
+                temporary_manager: None,
             },
         );
         Ok(())
