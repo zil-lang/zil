@@ -107,7 +107,7 @@ impl Check<'_, '_> {
         function: &TypedFunction,
         recipe: &SemanticSiteRecipe,
         value: ValueId,
-        covered_operands: &mut BTreeSet<NodeId>,
+        covered_operands: &mut BTreeSet<zil_base::NodeId>,
         b: &mut Budget,
     ) -> CompileResult<()> {
         let SemanticSiteRecipeKind::TypeUse {
