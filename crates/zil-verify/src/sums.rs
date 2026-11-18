@@ -31,6 +31,70 @@ pub(super) fn owned(ty: &Type) -> bool {
         && owned_leaf(ty)
 }
 
+/// Ordinary sum cleanup verifies the selected arm. Capturing that arm also
+/// needs a capture-qualified owner at each possible cleanup leaf.
+pub(super) fn check_capture_owners(
+    ty: &Type,
+    inline_store_capture: bool,
+    budget: &mut Budget,
+) -> Check<()> {
+    let physical = match ty {
+        Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+        _ => ty,
+    };
+    if !budget.sums
+        || !matches!(
+            physical,
+            Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+        )
+    {
+        return Ok(());
+    }
+    if !needs_shape(physical, budget)? {
+        return Ok(());
+    }
+    budget.spend(1)?;
+    let mut pending = vec![(physical, false)];
+    while let Some((ty, in_sum)) = pending.pop() {
+        budget.spend(1)?;
+        match ty {
+            Type::BorrowedStorage { storage, .. } => {
+                budget.spend(1)?;
+                pending.push((storage.as_ref(), in_sum));
+            }
+            Type::Package { fields, .. } => {
+                budget.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, field)| (field, in_sum)));
+            }
+            Type::Tuple(fields) => {
+                budget.spend(fields.len())?;
+                pending.extend(fields.iter().map(|field| (field, true)));
+            }
+            Type::Enum { variants, .. } => {
+                budget.spend(variants.len())?;
+                for (_, fields) in variants {
+                    budget.spend(fields.len())?;
+                    pending.extend(fields.iter().map(|field| (field, true)));
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                budget.spend(2)?;
+                pending.extend([(error.as_ref(), true), (result.as_ref(), true)]);
+            }
+            Type::Managed(_) | Type::OwnedDyn { .. } | Type::Closure(_) if in_sum => {
+                if !(inline_store_capture && dynamic_store::inline_owner(ty)) {
+                    return Err(unsupported(
+                        "captured owning Sum requires a qualified owner at each actual cleanup leaf",
+                        None,
+                    ));
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
 fn owned_leaf(ty: &Type) -> bool {
     match ty {
         Type::BorrowedStorage { storage, .. } => owned_leaf(storage),

@@ -441,3 +441,61 @@ fn unused_error_union_slots_preserve_the_old_managed_success_profile() {
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
+
+#[test]
+fn a_store_arm_does_not_qualify_another_captured_resource_arm() {
+    const SOURCE: &str = "
+        extern \"C\" fn putchar(n:i32)->i32;
+        resource R { n:i32 }
+        impl Drop for R { fn drop(self:Self){unsafe{putchar(.n)}} }
+        package Other { manages r:R }
+        enum Choice { Present(Store<i32>), Empty }
+        package Bag { state:Choice; manages side:R }
+        fn make()->Store<i32> contract{result(create)} {return store_new()}
+        fn consume(value:Bag)->i32 {return 13}
+        fn callback()->impl FnOnce()->i32 {
+            let x=Bag{state:Choice.Present(make()),side:R{n:83}}
+            return move()=>consume(x)
+        }
+        fn main()->i32 {let c=callback();return c()-13}
+    ";
+    let target = TargetProfile::host_llvm();
+    let limits = Limits::default();
+    let typed = |text: &str| {
+        let unit = SourceUnit::new(FileId(0), ModuleId(0), "main.zil", text);
+        let ast = zil_syntax::parse(&unit).into_result().unwrap();
+        let core = zil_expand::expand(&unit, &ast).unwrap();
+        zil_types::check(&core, &target, &limits).unwrap()
+    };
+    let legal = typed(SOURCE);
+    let mut plan = zil_analyze::analyze(&legal, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&legal, &plan, &limits).unwrap();
+    zil_verify::verify_module(legal, plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+    let forbidden = typed(&SOURCE.replace(", Empty }", ", Empty(Other) }"));
+    let errors = zil_analyze::analyze(&forbidden, &limits).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.category == ResultCategory::Unsupported
+                && error.message.contains("ordinary owned Sum")),
+        "{errors:?}"
+    );
+    // Only the unused variant's type changed. The actual constructor,
+    // local/value IDs, ownership transfers, cleanup exits and Holds are identical.
+    plan.module_fingerprint = forbidden.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&forbidden, &plan, &limits).unwrap();
+    for errors in [
+        zil_verify::verify_module(forbidden, plan, &target, &limits).unwrap_err(),
+        zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err(),
+    ] {
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.category == ResultCategory::Unsupported
+                    && error.message.contains("each actual cleanup leaf")),
+            "{errors:?}"
+        );
+    }
+}

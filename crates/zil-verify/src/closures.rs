@@ -531,6 +531,7 @@ pub(super) fn check_definitions(
                     None,
                 ));
             }
+            sums::check_capture_owners(ty, inline_store_capture, budget)?;
             if let Type::Closure(id) = ty {
                 let leaves = crate::retained::sources::capture_leaves(module, *id, limits, budget)?;
                 if leaves.is_empty() {
