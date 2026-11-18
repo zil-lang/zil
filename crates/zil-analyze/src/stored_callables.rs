@@ -437,9 +437,13 @@ pub(super) fn semantic_copy_capture(
         b.owning_environment_captures = true;
         return Ok(true);
     }
-    if matches!(ty,Type::Desc(inner) if matches!(inner.as_ref(),Type::Mutex {payload} if **payload==Type::I32))
-    {
-        b.type_work(ty, false, "complete original weak Mutex capture")?;
+    if let Type::Desc(payload) = ty {
+        let mutex = matches!(payload.as_ref(), Type::Mutex { payload } if **payload == Type::I32);
+        let resource = resource_payload(payload, b)?;
+        if !mutex && !resource {
+            return Ok(false);
+        }
+        b.type_work(ty, false, "complete original weak resource capture")?;
         b.spend(module.closures.len(), "completed weak capture owner")?;
         if closure.storage_life.is_none()
             || !module
@@ -451,9 +455,14 @@ pub(super) fn semantic_copy_capture(
                 "completed weak capture is not its immutable actual closure",
             ));
         }
-        // Admission selects the existing actual Mutex/epoch consumers. A
-        // descriptor remains weak; this supplies no holding loan or ownership.
-        b.generic_mutex = true;
+        if resource {
+            super::stored_flow::owned::registered(module, payload, b)?;
+        }
+        // Environments containing weak descriptions must run the actual
+        // MakeClosure/ReadCapture resource flow. It transports the exact
+        // sources, verifies their liveness at invocation and keeps writes in
+        // the borrowed-field ledger.
+        b.generic_mutex |= mutex;
         b.owning_environment_captures = true;
         return Ok(true);
     }
