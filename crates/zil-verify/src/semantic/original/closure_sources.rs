@@ -26,10 +26,15 @@ impl CheckedOriginal {
             let ty=self.original_type(definition,&SemanticOriginalTypeSource::Expression(argument.id),b)?;
             let mut expression=argument;
             while let CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=&expression.kind{b.spend(1)?;expression=inner;}
-            let source=if matches!(self.resolved(&ty,b)?,Ty::Address{..}|Ty::Desc{..}){
+            let ty=self.resolved(&ty,b)?;
+            let source=if matches!(ty,Ty::Address{..}|Ty::Desc{..}){
                 if let Some(source)=self.original_address_source(module,definition,&SemanticOriginalTypeSource::Expression(argument.id),b)?{Some(source)}
                 else if self.value_places.contains_key(&(definition,expression.id)){Some(intrinsics::BufferSource::Place{definition,node:expression.id})}
                 else{None}
+            }else if matches!(ty,Ty::Code{kind:SemanticCodeKind::FunctionPointer,..})
+                && self.value_places.contains_key(&(definition,expression.id))
+            {
+                Some(intrinsics::BufferSource::Place{definition,node:expression.id})
             }else{None};
             recipes.push(Some((expression.id,SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Expression(argument.id)},source)));
         }

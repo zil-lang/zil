@@ -20,6 +20,7 @@ impl CheckedContext {
         let mut checked=Vec::with_capacity(arguments.len());b.spend(arguments.len())?;let mut exact_sources=vec![false;arguments.len()];
         let original_regions=self.original.borrow().as_ref().ok_or_else(||bad("Call inputs have no original region proof"))?.call_region_parameter_recipes(module,caller.definition,site.recipe,environment,b)?;
         let mut adapted=Vec::new();
+        let mut code_arguments=Vec::new();
         for(index,argument)in arguments.iter().enumerate(){
             let actual=value_at(values,*argument)?;
             actual.charge_clone(b)?;checked.push(actual.clone());
@@ -29,6 +30,10 @@ impl CheckedContext {
             // exported fresh head or a real exclusive-to-shared adapter also
             // proves its original source instead of borrowing another SSA's
             // same-shaped type. Neither path changes a child intrinsic class.
+            if matches!(actual.ty,Type::FunctionPointer{..}) {
+                b.spend(1)?;
+                code_arguments.push(index);
+            }
             if !matches!(actual.ty,Type::Address{..}){continue;}
             b.spend(original_regions.len())?;if original_regions.iter().any(|(ordinal,_)|*ordinal as usize==index){b.spend(1)?;adapted.push(index);continue;}
             let exported=returned_input_head(signature,key,index,b)?;
@@ -39,9 +44,16 @@ impl CheckedContext {
             crate::check_instruction(module,f,producer,b)?;
             if matches!(producer.kind,InstructionKind::ReborrowAddress{..}){b.spend(1)?;adapted.push(index);}
         }
-        if adapted.is_empty(){return Ok((checked,exact_sources));}
+        if adapted.is_empty()&&code_arguments.is_empty(){return Ok((checked,exact_sources));}
         let recipes=self.original.borrow().as_ref().ok_or_else(||bad("Call inputs have no universal original body proof"))?.call_input_recipes(module,caller.definition,site.recipe,b)?;
         if recipes.len()!=arguments.len(){return Err(bad("actual Call inputs change the exact original argument arity"));}
+        for index in code_arguments {
+            let Some((node,_,origin))=&recipes[index] else {
+                return Err(bad("plain code argument has no exact original operand occurrence"));
+            };
+            self.call_input_source(module,caller,f,arguments[index],*node,*origin,b)
+                .map_err(|error|error.with_note(format!("actual code argument {index} in original call {:?}, SSA {:?}",site.recipe,arguments[index])))?;
+        }
         for index in adapted{
             let Some((node,recipe,origin))=&recipes[index]else{continue;};let argument=arguments[index];
             let source=self.evaluate_type(module,recipe,environment,external,active,b)?;
