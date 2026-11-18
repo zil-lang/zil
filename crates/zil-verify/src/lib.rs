@@ -2907,6 +2907,21 @@ fn check_function(
                 &dominators,
                 function.span,
             )?;
+            if reachable[b]
+                && matches!(block.terminator, Terminator::Return(Some(_)))
+                && matches!(function.return_type, Type::Address { .. })
+            {
+                // check_use proved this exact SSA producer dominates the return.
+                let (source_block, index) = definitions[value.0 as usize]
+                    .ok_or_else(|| fail("E-VERIFY-SSA", "reference return has no definition"))?;
+                let producer = &function.blocks[source_block].instructions[index];
+                if matches!(producer.kind, InstructionKind::BorrowLocal { .. }
+                    | InstructionKind::BorrowLocalMut { .. })
+                {
+                    return Err(reject("E-BORROW-ESCAPE", Some(producer.span),
+                        "reference return takes an address of this activation's own local storage"));
+                }
+            }
         }
     }
     let package_views = packages::capture_views(module, function, &predecessors, budget)?;

@@ -427,7 +427,9 @@ self.original_name(
             let mut prefixes = Vec::new();
             if row.module == module {
                 self.push(&mut prefixes, None, row.item.span)?;
-            } else if row.public {
+            } else if row.public || (scope.public && matches!(scope.item.kind, s::ItemKind::Trait(_))) {
+                // A public trait publishes its declared member schemes as a
+                // unit. The concrete receiver still must prove its application.
                 for (origin, edges) in self.imports {
                     if *origin == module {
                         for edge in *edges {

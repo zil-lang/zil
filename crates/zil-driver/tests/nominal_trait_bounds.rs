@@ -3085,10 +3085,12 @@ fn trait_default_required_body_escape_cannot_gain_a_verify_proof() {
             block.terminator = zil_ir::Terminator::Return(Some(root));
         }
     }
-    // Unannotated ordinary returns use the established architecture: Analyze
-    // produces a candidate and records the local root; Verify independently
-    // refuses to turn that candidate into a safety proof.
-    plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    // The legitimate candidate records the source of the borrowed local.
+    // The changed return must independently fail both proof boundaries.
+    let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+    assert!(errors.iter().any(|d| d.phase == Phase::Analyze
+        && d.category == ResultCategory::SafeReject && d.code == "E-ANALYZE-IR"
+        && d.message.contains("stored return would retain an activation-local target")), "{errors:?}");
     assert!(
         plan.functions
             .iter()
@@ -3099,7 +3101,7 @@ fn trait_default_required_body_escape_cannot_gain_a_verify_proof() {
             .iter()
             .any(|r| matches!(r, zil_ir::HoldRoot::Local(_)))
     );
-    eprintln!("review330 raw Analyze: CandidatePlan, local origin retained");
+    plan.module_fingerprint = module.fingerprint();
     let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
     for result in [
         zil_verify::verify_module(module.clone(), plan, &module.target, &Limits::default()),
