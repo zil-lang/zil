@@ -111,6 +111,7 @@ pub(super) struct Inputs {
     types: BTreeSet<usize>,
     lives: BTreeSet<usize>,
     empty: StorageLifeShape,
+    scalars: std::cell::RefCell<Vec<Arc<Geometry>>>,
     resolved: std::cell::RefCell<BTreeMap<(usize, usize), Arc<Geometry>>>,
     // Exact immutable input Type coordinates. The owner's actual first domain
     // was fully bounded; it is not a domain premise for a later request.
@@ -125,6 +126,7 @@ impl Default for Inputs {
             types: BTreeSet::new(),
             lives: BTreeSet::new(),
             empty: value::empty(),
+            scalars: std::cell::RefCell::default(),
             resolved: std::cell::RefCell::new(BTreeMap::new()),
             type_roots: std::cell::RefCell::new(BTreeMap::new()),
             nominals: std::cell::RefCell::new(BTreeMap::new()),
@@ -427,6 +429,23 @@ impl Inputs {
         // A hit therefore already authenticates both roots and their limits;
         // do not repeat two source-membership and an owned-root tree search.
         if self.raw_limits == (budget.partial_depth, budget.helper_nodes) {
+            // Empty-domain scalar values have no declaration, member position,
+            // loan or cleanup obligation. The same scalar from any source
+            // coordinate has exactly the same immutable representation.
+            if ty.is_b0_scalar() && life == &self.empty {
+                let mut values = self.scalars.borrow_mut();
+                for value in values.iter() {
+                    budget.spend(1, "semantic scalar lookup")?;
+                    if &value.ty == ty {
+                        return Ok(Arc::clone(value));
+                    }
+                }
+                let value = intern::borrowed(ty, life, budget)?;
+                let relocation = if values.len() == values.capacity() { values.len() } else { 0 };
+                budget.spend(1 + relocation, "semantic scalar publication")?;
+                values.push(Arc::clone(&value));
+                return Ok(value);
+            }
             budget.lookup(
                 self.resolved.borrow().len(),
                 "semantic geometry source lookup",
@@ -601,6 +620,10 @@ fn registered_type(ty: &Type, budget: &mut Budget) -> CompileResult<Option<(usiz
 /// Exact Type equality only. Cached roots are owned until this request ends;
 /// class vectors, providers and permissions are not part of this catalogue.
 pub(super) fn same_type(left: &Type, right: &Type, budget: &mut Budget) -> CompileResult<bool> {
+    if left.is_b0_scalar() && right.is_b0_scalar() {
+        budget.spend(1, "semantic scalar comparison")?;
+        return Ok(left == right);
+    }
     let left_entry = registered_type(left, budget)?;
     let right_entry = registered_type(right, budget)?;
     if let (Some((left, _)), Some((right, _))) = (left_entry, right_entry) {

@@ -200,14 +200,11 @@ pub(super) fn node(owner: &Geometry, selector: Node) -> CompileResult<&Type> {
     }
 }
 
-fn type_candidates(
+fn structural_type_candidate(
     ty: &Type,
     raw_work: usize,
     b: &mut Budget,
 ) -> CompileResult<(u64, Option<usize>)> {
-    if let Some((id, _)) = registered_type(ty, b)? {
-        return Ok((0, Some(id)));
-    }
     let digest = hash(ty, b)?;
     let key = (b.geometry_module, limits(b), digest);
     b.lookup(
@@ -386,7 +383,7 @@ pub(super) fn retain_payload(parent: &Type, payload: &Type, b: &mut Budget) -> C
     let before = b.remaining();
     crate::dyn_metadata::ty(payload, b)?;
     let raw_work = before - b.remaining();
-    let (digest, id) = type_candidates(payload, raw_work, b)?;
+    let (digest, id) = structural_type_candidate(payload, raw_work, b)?;
     let type_id = match id {
         Some(id) => id,
         None => add_type(&owner, Node::Child(Child::Inner), digest, raw_work, b)?,
@@ -412,17 +409,22 @@ pub(super) fn retain_payload(parent: &Type, payload: &Type, b: &mut Budget) -> C
     );
     Ok(())
 }
-fn bounds(ty: &Type, life: &StorageLifeShape, b: &mut Budget) -> CompileResult<(usize, usize)> {
-    let raw = if let Some((_, raw)) = registered_type(ty, b)? {
-        raw
-    } else {
-        let before = b.remaining();
-        crate::dyn_metadata::ty(ty, b)?;
-        before - b.remaining()
-    };
+/// The authenticated coordinate supplies both the type identity and the
+/// structural comparison bound. On a miss, measure the complete type once.
+fn bounded_type_candidate(ty: &Type, b: &mut Budget) -> CompileResult<(usize, u64, Option<usize>)> {
+    if let Some((id, work)) = registered_type(ty, b)? {
+        return Ok((work, 0, Some(id)));
+    }
+    let before = b.remaining();
+    crate::dyn_metadata::ty(ty, b)?;
+    let work = before - b.remaining();
+    let (digest, id) = structural_type_candidate(ty, work, b)?;
+    Ok((work, digest, id))
+}
+fn shape_work(life: &StorageLifeShape, b: &mut Budget) -> CompileResult<usize> {
     let before = b.remaining();
     crate::dyn_metadata::shape(life, b)?;
-    Ok((raw, before - b.remaining()))
+    Ok(before - b.remaining())
 }
 pub(super) fn construct(
     kind: Constructor,
@@ -610,8 +612,8 @@ pub(super) fn borrowed(
     life: &StorageLifeShape,
     b: &mut Budget,
 ) -> CompileResult<Arc<Geometry>> {
-    let (raw_work, shape_work) = bounds(ty, life, b)?;
-    let (type_digest, type_id) = type_candidates(ty, raw_work, b)?;
+    let (raw_work, type_digest, type_id) = bounded_type_candidate(ty, b)?;
+    let shape_work = shape_work(life, b)?;
     let (geometry_digest, existing) = if let Some(type_id) = type_id {
         geometry_candidate(type_id, life, shape_work, b)?
     } else {
@@ -651,8 +653,8 @@ pub(super) fn owned(owner: &Arc<Geometry>, b: &mut Budget) -> CompileResult<Rece
     if let Some(receipt) = current_receipt(owner, b) {
         return Ok(receipt.clone());
     }
-    let (raw_work, shape_work) = bounds(&owner.ty, &owner.life, b)?;
-    let (type_digest, type_id) = type_candidates(&owner.ty, raw_work, b)?;
+    let (raw_work, type_digest, type_id) = bounded_type_candidate(&owner.ty, b)?;
+    let shape_work = shape_work(&owner.life, b)?;
     let type_id = match type_id {
         Some(id) => id,
         None => add_type(owner, Node::Root, type_digest, raw_work, b)?,
@@ -684,10 +686,7 @@ fn child_type(owner: &Arc<Geometry>, child: Child, b: &mut Budget) -> CompileRes
     let (id, raw_work) = if let Some(row) = b.geometry_child_types.get(&key).copied() {
         row
     } else {
-        let before = b.remaining();
-        crate::dyn_metadata::ty(actual, b)?;
-        let raw = before - b.remaining();
-        let (digest, id) = type_candidates(actual, raw, b)?;
+        let (raw, digest, id) = bounded_type_candidate(actual, b)?;
         let id = match id {
             Some(id) => id,
             None => add_type(owner, Node::Child(child), digest, raw, b)?,
