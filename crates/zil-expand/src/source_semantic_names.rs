@@ -237,6 +237,13 @@ impl Builder<'_, '_, '_, '_> {
         }
         Ok(())
     }
+    fn original_module_binding(&mut self, index: usize) -> R<SemanticOriginalNameValue> {
+        if matches!(&self.inventory.declarations[index].item.kind, s::ItemKind::TypeAlias(_)) {
+            let recipe = self.alias_type(index, Vec::new(), &mut Vec::new(), 0, false)?;
+            return Ok(SemanticOriginalNameValue::Recipe(SemanticActualRecipe::Type(recipe)));
+        }
+        Ok(SemanticOriginalNameValue::Definition(self.id(index)))
+    }
     pub(super) fn original_names(&mut self) -> R<Vec<SemanticOriginalNameBinding>> {
         let inventory = self.inventory;
         let owner = self.owner;
@@ -340,9 +347,10 @@ impl Builder<'_, '_, '_, '_> {
                 s::ItemKind::Aggregate(value) => (&value.name, SemanticOriginalNamespace::Type),
                 s::ItemKind::Enum(value) => (&value.name, SemanticOriginalNamespace::Type),
                 s::ItemKind::Trait(value) => (&value.name, SemanticOriginalNamespace::Type),
-                // Aliases are normalized by their actual source recipe when
-                // used as a type. A global Const has no original definition
-                // carrier in this model and cannot be invented as a function.
+                // Closed transparent aliases can also head a value constructor or pattern.
+                s::ItemKind::TypeAlias(alias) if alias.generics.is_empty() => {
+                    (&alias.name, SemanticOriginalNamespace::Type)
+                }
                 _ => continue,
             };
             if !uses.contains(spelling, self.budget, row.item.span)? {
@@ -350,11 +358,12 @@ impl Builder<'_, '_, '_, '_> {
             }
             if row.module == module {
                 let path = self.name_path(None, spelling, row.item.span)?;
-                self.original_name(
+                let value = self.original_module_binding(index)?;
+self.original_name(
                     &mut names,
                     path,
                     namespace,
-                    SemanticOriginalNameValue::Definition(self.id(index)),
+                    value,
                     true,
                     row.item.span,
                 )?;
@@ -371,11 +380,12 @@ impl Builder<'_, '_, '_, '_> {
                             continue;
                         }
                         let path = self.name_path(Some(&edge.alias), spelling, row.item.span)?;
-                        self.original_name(
+                        let value = self.original_module_binding(index)?;
+self.original_name(
                             &mut names,
                             path,
                             namespace,
-                            SemanticOriginalNameValue::Definition(self.id(index)),
+                            value,
                             false,
                             row.item.span,
                         )?;
