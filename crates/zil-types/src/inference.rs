@@ -1778,7 +1778,7 @@ fn expression_has_closure_closure(
                 }
                 if let Some(inputs) = &mut budget.contextual_inputs {
                     let origin = (budget.current_module, budget.current_creator, e.id);
-                    inputs.record(origin, parameters, e.span, &mut budget.work)?;
+                    inputs.record(origin, parameters, return_type.as_ref(), e.span, &mut budget.work)?;
                 }
                 if let Some(ty) = return_type {
                     validate_type(ty, depth + 1, e.span, budget)?;

@@ -9,20 +9,25 @@ type CoreOrigin = (ModuleId, NodeId, NodeId);
 type CoreParameters = Vec<(u32, String, SemanticTypeRecipe)>;
 
 #[derive(Default)]
-pub(crate) struct CoreInputs(BTreeMap<CoreOrigin, CoreParameters>);
-pub(super) type Goals = BTreeMap<SemanticDefinitionId, BTreeMap<u32, SemanticTypeRecipe>>;
+pub(crate) struct CoreInputs(BTreeMap<CoreOrigin, (CoreParameters, Option<Type>)>);
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum Position {
+    Parameter(u32),
+    IntegerResult,
+}
+pub(super) type Goals = BTreeMap<SemanticDefinitionId, BTreeMap<Position, SemanticTypeRecipe>>;
 
 pub(super) const MISSING: &str = "E-ORIGINAL-CALLABLE-CONTEXT";
 
 #[derive(Clone, Copy)]
 pub(super) struct Demand {
     pub child: SemanticDefinitionId,
-    pub parameter: u32,
+    pub position: Position,
 }
 
 impl Demand {
     pub(super) fn has_candidate(self, goals: &Goals) -> bool {
-        goals.get(&self.child).is_some_and(|inputs| inputs.contains_key(&self.parameter))
+        goals.get(&self.child).is_some_and(|inputs| inputs.contains_key(&self.position))
     }
 }
 
@@ -58,6 +63,7 @@ impl CoreInputs {
         &mut self,
         origin: CoreOrigin,
         parameters: &[CoreClosureParameter],
+        return_type: Option<&Type>,
         span: Span,
         left: &mut usize,
     ) -> R<()> {
@@ -76,9 +82,10 @@ impl CoreInputs {
                 candidates.push((ordinal as u32, parameter.name.clone(), recipe));
             }
         }
-        if !candidates.is_empty() {
+        let integer_result = return_type.filter(|ty| ty.is_integer() && **ty != Type::I32).cloned();
+        if !candidates.is_empty() || integer_result.is_some() {
             pay(left, self.0.len().saturating_add(1).ilog2() as usize + 1)?;
-            if self.0.insert(origin, candidates).is_some() {
+            if self.0.insert(origin, (candidates, integer_result)).is_some() {
                 return Err(error("E-ORIGINAL-CALLABLE-ORIGIN", span,
                     "one Core closure occurrence names multiple callable input contexts"));
             }
@@ -149,7 +156,7 @@ pub(super) fn bind(
             module, creator, expression, occurrence: 0,
         }) = &entry.target else { continue; };
         pay(left, inputs.0.len().saturating_add(1).ilog2() as usize + 1)?;
-        let Some(candidates) = inputs.0.get(&(*module, *creator, *expression)) else { continue; };
+        let Some((candidates, integer_result)) = inputs.0.get(&(*module, *creator, *expression)) else { continue; };
         if entry.lifetime_instantiation != SemanticLifetimeInstantiation::Rigid || !entry.actuals.is_empty() {
             continue;
         }
@@ -233,8 +240,16 @@ pub(super) fn bind(
                 } if parameter == ordinal)
             {
                 crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, left, 1)?;
-                child_goals.insert(*ordinal, recipe.clone());
+                child_goals.insert(Position::Parameter(*ordinal), recipe.clone());
             }
+        }
+        if let Some(ty) = integer_result
+            && matches!(signature.result, SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result,
+            })
+        {
+            pay(left, 1)?;
+            child_goals.insert(Position::IntegerResult, SemanticTypeRecipe::Atom(ty.clone()));
         }
         if !child_goals.is_empty() && goals.insert(child.id, child_goals).is_some() {
             return Err(error("E-ORIGINAL-CALLABLE-ORIGIN", Span::default(),
@@ -242,4 +257,52 @@ pub(super) fn bind(
         }
     }
     Ok(goals)
+}
+
+#[cfg(test)]
+mod integer_result_tests {
+    use super::*;
+
+    #[test]
+    fn a_context_for_one_closure_cannot_lend_a_width_to_an_unconstrained_sibling() {
+        let text = r#"
+fn run<F:Fn()->i64>(cb:&F)->i64 { return cb() }
+fn main()->i32 {
+    let spare=()=>17
+    let observed=()=>11
+    return i32(run(&observed))
+}
+"#;
+        let limits = Limits::default();
+        let target = TargetProfile::host_llvm();
+        let source = zil_base::SourceUnit::new(
+            zil_base::FileId(0), ModuleId(0), "integer-results.zil", text,
+        );
+        let ast = zil_syntax::parse(&source).into_result().unwrap();
+        let mut core = zil_expand::expand_with_map_semantics(
+            &source, &ast, &limits, &target,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &BTreeMap::new(),
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+        ).unwrap().core;
+        crate::check(&core, &target, &limits).unwrap();
+        let main = core.functions.iter_mut().find(|f| f.name == "main").unwrap();
+        let mut count = 0;
+        for statement in &mut main.body.statements {
+            if let CoreStatementKind::Binding { name, initializer: Some(init), .. } = &mut statement.kind
+                && name == "spare"
+                && let CoreExprKind::Closure { return_type, .. } = &mut init.kind
+            {
+                *return_type = Some(Type::I64);
+                count += 1;
+            }
+        }
+        assert_eq!(count, 1);
+        let errors = crate::check(&core, &target, &limits).unwrap_err();
+        assert_eq!(errors[0].code, "E-SEMANTIC-ORIGINAL");
+        assert_eq!(errors[0].message,
+            "contextual integer closure result lacks an actual matching callable result constraint");
+    }
 }

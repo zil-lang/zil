@@ -272,6 +272,9 @@ impl Check<'_, '_> {
             || actual.result_mode != wanted.result_mode {
             return Err(bad("original mixed callable actual changes its complete operation scheme"));
         }
+        if matches!(&signature.result, SemanticTypeRecipe::Atom(ty) if ty.is_integer()) {
+            self.contextual_integer_result(&value, &actual.result, &wanted.result, depth)?;
+        }
         let mut implicit = BTreeMap::new();
         let mut invocation = BTreeMap::new();
         for (parameter, source) in wanted.parameters.iter().zip(&actual.parameters) {
@@ -1564,6 +1567,30 @@ impl Check<'_, '_> {
     ) -> R<()> {
         self.callable_requirement_under(owner, ty, required, wanted, &[], depth)
     }
+    pub(super) fn contextual_integer_result(
+        &mut self, value: &SemanticTypeRecipe, actual: &SemanticTypeRecipe,
+        wanted: &SemanticTypeRecipe, depth: usize,
+    ) -> R<()> {
+        let (SemanticTypeRecipe::Closure { definition, .. }, SemanticTypeRecipe::Atom(provisional),
+            SemanticTypeRecipe::Atom(expected)) = (value, actual, wanted) else { return Ok(()); };
+        if !provisional.is_integer() || !expected.is_integer() || self.proof.literal_return_closures.is_empty() {
+            return Ok(());
+        }
+        self.pay(self.proof.literal_return_closures.len().ilog2() as usize + 2, depth)?;
+        if !self.proof.literal_return_closures.contains(definition) { return Ok(()); }
+        if self.proof.integer_return_obligations.contains_key(definition) {
+            if provisional == expected && let ProofAccess::Owned(proof) = &mut self.proof {
+                *proof.integer_return_obligations.get_mut(definition).unwrap() = true;
+            }
+        } else if provisional != expected && matches!(self.proof, ProofAccess::Owned(_)) {
+            self.contextual_code_need = Some(code_context::Demand {
+                child: *definition, position: code_context::Position::IntegerResult,
+            });
+            return Err(Diagnostic::error(Phase::Types, code_context::MISSING, None,
+                "original closure integer literal needs its actual callable result context"));
+        }
+        Ok(())
+    }
     pub(super) fn callable_requirement_under(
         &mut self,
         owner: SemanticDefinitionId,
@@ -2041,7 +2068,7 @@ impl Check<'_, '_> {
                 if (origin == owner || binding.capture && self.active.contains(&origin))
                     && !self.proof.types.contains_key(&(origin, Query::Parameter(ordinal)))
                 {
-                    self.contextual_code_need = Some(code_context::Demand { child: origin, parameter: ordinal });
+                    self.contextual_code_need = Some(code_context::Demand { child: origin, position: code_context::Position::Parameter(ordinal) });
                     return Err(zil_base::Diagnostic::new(
                         Phase::Types,
                         zil_base::ResultCategory::Unsupported,

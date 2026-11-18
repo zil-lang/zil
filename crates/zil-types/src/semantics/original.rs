@@ -194,6 +194,9 @@ pub(super) struct TemporaryDescription {
 
 #[derive(Clone, Default)]
 pub(super) struct Proof {
+    // Closed original integer return whose candidate still needs a checked callable use.
+    integer_return_obligations: BTreeMap<SemanticDefinitionId, bool>,
+    literal_return_closures: BTreeSet<SemanticDefinitionId>,
     capture_candidates: BTreeMap<SemanticDefinitionId, std::rc::Rc<capture_candidates::Candidates>>,
     pub(super) definition_positions: std::rc::Rc<BTreeMap<SemanticDefinitionId, usize>>,
     view_bounds: BTreeMap<(SemanticDefinitionId, Query), views::ViewBorrowBound>,
@@ -3109,9 +3112,25 @@ impl<'a> Check<'a, '_> {
                 let Some(input) = input.as_ref() else { continue; };
                 input
             } else { requirement };
-            let requirement =
+            let selected =
                 substitute::requirement(requirement, &substitution, self.limits, self.left)?;
-            self.satisfy_requirement(owner, &requirement, depth + 1)?;
+            // An inferred target variable may itself have been solved from the
+            // closure. Only a width written in the callee's original contract
+            // independently constrains a literal returned by the caller.
+            if !self.proof.literal_return_closures.is_empty()
+                && let SemanticRequirementRecipe::Callable { signature, .. } = requirement
+                && matches!(&signature.result, SemanticTypeRecipe::Atom(ty) if ty.is_integer())
+                && let SemanticRequirementRecipe::Callable { ty, .. } = &selected
+            {
+                let value = self.observation_type(owner, ty, depth + 1)?;
+                if let SemanticTypeRecipe::Closure { definition, .. } = &value
+                    && self.proof.literal_return_closures.contains(definition)
+                    && let Some((_, actual)) = self.concrete_callable(&value, depth + 1)?
+                {
+                    self.contextual_integer_result(&value, &actual.result, &signature.result, depth)?;
+                }
+            }
+            self.satisfy_requirement(owner, &selected, depth + 1)?;
         }
         Ok(())
     }
@@ -4500,10 +4519,32 @@ impl<'a> Check<'a, '_> {
                     self.contextual_code_signature(owner, child, wanted, depth + 1)?,
                 _ => self.contextual_closure_signature(owner, child, wanted, depth + 1)?,
             };
+            let mut result_goal = result_goal;
+            let mut unresolved_integer = false;
+            if result_goal.is_none()
+                && let [CoreStatement { kind: CoreStatementKind::Return(Some(value)), .. }] = child_body.statements.as_slice()
+                && self.contextual_integer(value, &captured, depth + 1)?
+            {
+                self.pay(self.proof.literal_return_closures.len().saturating_add(1).ilog2() as usize + 2, depth)?;
+                self.proof.proof_mut()?.literal_return_closures.insert(child.id);
+                if let Some(goal) = self.contextual_code_goals.get(&child.id)
+                    .and_then(|row| row.get(&code_context::Position::IntegerResult))
+                {
+                    result_goal = Some(copy_recipe(goal, self.limits, self.left)?);
+                    self.proof.proof_mut()?.integer_return_obligations.insert(child.id, false);
+                } else {
+                    unresolved_integer = true;
+                }
+            }
             let parent_goal = std::mem::replace(&mut self.closure_result_goal,
                 result_goal.map(|ty| (child.id, ty)));
             let checked = self.function(child, Some(captured));
             self.closure_result_goal = parent_goal;
+            if unresolved_integer && checked.as_ref().is_err_and(|error| error.code == "E-INTEGER-RANGE") {
+                self.contextual_code_need = Some(code_context::Demand {
+                    child: child.id, position: code_context::Position::IntegerResult,
+                });
+            }
             checked?;
             let captures = self.captures.get(definition).ok_or_else(|| {
                 bad("original closure lacks a completed lexical capture set")
@@ -6463,7 +6504,7 @@ impl<'a> Check<'a, '_> {
             let deferred = if unannotated_closure_input {
                 self.pay(self.proof.types.len().saturating_add(1).ilog2() as usize + 2, 0)?;
                 if !self.proof.types.contains_key(&(definition.id, query.clone())) {
-                    if let Some(ty) = self.contextual_code_goals.get(&definition.id).and_then(|row| row.get(&(index as u32))) {
+                    if let Some(ty) = self.contextual_code_goals.get(&definition.id).and_then(|row| row.get(&code_context::Position::Parameter(index as u32))) {
                         let ty = copy_recipe(ty, self.limits, self.left)?;
                         self.contextual_code_inputs.entry(definition.id).or_default().insert(index as u32);
                         self.proof.proof_mut()?.types.insert((definition.id, query.clone()), ty);
@@ -6791,8 +6832,9 @@ fn check_requested(
                 contextual_code_goals = check.contextual_code_goals;
             }
             Err(diagnostic) => {
-                if diagnostic.code == code_context::MISSING
-                    && let Some(demand) = check.contextual_code_need
+                if let Some(demand) = check.contextual_code_need
+                    && (diagnostic.code == code_context::MISSING || diagnostic.code == "E-INTEGER-RANGE"
+                        && demand.position == code_context::Position::IntegerResult)
                 {
                     return Err(code_context::Failure::Missing { demand, diagnostic });
                 }
@@ -6837,6 +6879,10 @@ fn check_complete(check: &mut Check<'_, '_>) -> R<BTreeSet<SemanticDefinitionId>
                 "original code definition has no checked lexical creation context",
             ));
         }
+    }
+    check.pay(check.proof.integer_return_obligations.len(), 0)?;
+    if check.proof.integer_return_obligations.values().any(|checked| !*checked) {
+        return Err(bad("contextual integer closure result lacks an actual matching callable result constraint"));
     }
     for child in check.contextual_code_inputs.keys() {
         if !check.contextual_code_calls.contains(child) {
