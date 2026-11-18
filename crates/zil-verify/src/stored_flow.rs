@@ -4534,8 +4534,14 @@ static_dependency: StaticProvenance::NotStatic,
             for (index, (value, ty)) in captures.iter().zip(&d.captures).enumerate() {
                 let actual = val(*value)?;
                 let prefix = vec![PlaceProjection::Field(index as u32)];
-                if matches!(ty, Type::Address { .. }) {
+                if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
                     add_leaf(&mut out, &prefix, &actual.address, b)?;
+                }
+                if matches!(ty, Type::Desc(_)) {
+                    // Preserve the weak manager source in this exact
+                    // environment field. The actual callback effect supplies
+                    // the access mode when the descriptor is used.
+                    value_transport::attach_aux(&mut out, &prefix, ty, actual, b)?;
                 }
                 if let Some(slots)=compound::slots(ty,b)?{
                     for(path,_)in slots{
