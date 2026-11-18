@@ -177,6 +177,75 @@ impl Solver<'_, '_> {
             .map(Some)
     }
 
+    /// The receiving occurrence may constrain a lexical child's body through
+    /// its original code signature or through the owner's exact opaque result
+    /// bound. Neither goal reads a specialized executable parameter/result.
+    pub(super) fn closure_goal(
+        &mut self,
+        frame: &Frame,
+        node: NodeId,
+        child: SemanticDefinitionId,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Option<(Vec<Term>, Term)>> {
+        let Some(wanted) = self.receiving_for(frame, node, b)? else {
+            return Ok(None);
+        };
+        let root = self.type_root(wanted, b)?;
+        if let Kind::Code { kind, parameters, result, call_kind: CallKind::Direct, .. } =
+            &self.state.arena[root]
+            && matches!(kind, SemanticCodeKind::FunctionPointer | SemanticCodeKind::BorrowedFunctionPointer)
+        {
+            b.spend(parameters.len().saturating_add(1), WORK)?;
+            let borrowed = *kind == SemanticCodeKind::BorrowedFunctionPointer;
+            let mut parameters = parameters.clone();
+            let mut result = *result;
+            if borrowed {
+                self.instantiate_code_terms(&mut parameters, &mut result, Some(child), b)?;
+            }
+            return Ok(Some((parameters, result)));
+        }
+        if wanted != frame.result {
+            return Ok(None);
+        }
+        let definition = self.inventory.definition(frame.definition, b)?;
+        if !matches!(&definition.body, SemanticDefinitionBody::FunctionWithBody { signature, .. }
+            if matches!(&signature.result, SemanticTypeRecipe::Opaque { definition: owner, hidden, .. }
+                if *owner == definition.id && matches!(hidden.as_ref(), SemanticTypeRecipe::OriginalType {
+                    scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result,
+                })))
+        {
+            return Ok(None);
+        }
+        let mut selected = None;
+        for requirement in &definition.requirements {
+            b.spend(1, WORK)?;
+            if let SemanticRequirementRecipe::Callable {
+                ty: SemanticTypeRecipe::OriginalType {
+                    scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result,
+                },
+                signature, ..
+            } = requirement
+                && selected.replace(signature).is_some_and(|prior| prior != signature)
+            {
+                return Ok(None);
+            }
+        }
+        let Some(signature) = selected else { return Ok(None) };
+        if signature.bound_lifetimes != 0 || signature.invocation_lifetimes != 0
+            || signature.call_kind != CallKind::Direct
+        {
+            return Ok(None);
+        }
+        let mut inputs = Vec::new();
+        for input in &signature.parameters {
+            let term = self.recipe(frame, &input.ty, b, depth + 1)?;
+            Self::push(&mut inputs, term, b)?;
+        }
+        let result = self.recipe(frame, &signature.result, b, depth + 1)?;
+        Ok(Some((inputs, result)))
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn thin_closure_value(
         &mut self,

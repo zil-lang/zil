@@ -2938,17 +2938,8 @@ impl Solver<'_, '_> {
                         return Err(fail("original creator lexical point is reused"));
                     }
                     self.snapshot(frame, b)?;
-                    let wanted = self.receiving_for(frame, value.id, b)?;
-                    let code_context = match wanted {
-                        Some(wanted) => {
-                            let wanted = self.type_root(wanted, b)?;
-                            matches!(self.state.arena[wanted], Kind::Code {
-                                kind: SemanticCodeKind::FunctionPointer | SemanticCodeKind::BorrowedFunctionPointer, ..
-                            }).then_some(wanted)
-                        }
-                        None => None,
-                    };
-                    let term = self.function(target, Some(&inherited), code_context, b, depth + 1)?;
+                    let goal = self.closure_goal(frame, value.id, target, b, depth + 1)?;
+                    let term = self.function(target, Some(&inherited), goal, b, depth + 1)?;
                     let captured = &self
                         .state
                         .frames
@@ -3730,7 +3721,7 @@ impl Solver<'_, '_> {
         &mut self,
         id: SemanticDefinitionId,
         inherited: Option<&[Local]>,
-        code_context: Option<Term>,
+        goal: Option<(Vec<Term>, Term)>,
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Term> {
@@ -3791,33 +3782,13 @@ impl Solver<'_, '_> {
                 "original value parameter identities differ from the declared signature",
             ));
         }
-        let code_context = if let Some(code) = code_context {
-            let Kind::Code {
-                parameters: inputs,
-                result,
-                kind,
-                call_kind: CallKind::Direct,
-                ..
-            } = &self.state.arena[code] else {
-                return Err(fail("original thin child loses its checked receiving code type"));
-            };
-            if definition.kind != SemanticDefinitionKind::Closure
+        if let Some((inputs, _)) = &goal
+            && (definition.kind != SemanticDefinitionKind::Closure
                 || signature.call_kind != CallKind::Direct
-                || inputs.len() != parameters.len()
-            {
-                return Err(fail("original thin child changes its exact receiving code signature"));
-            }
-            b.spend(inputs.len().saturating_add(1), WORK)?;
-            let borrowed = *kind == SemanticCodeKind::BorrowedFunctionPointer;
-            let mut inputs = inputs.clone();
-            let mut result = *result;
-            if borrowed {
-                self.instantiate_code_terms(&mut inputs, &mut result, Some(id), b)?;
-            }
-            Some((inputs, result))
-        } else {
-            None
-        };
+                || inputs.len() != parameters.len())
+        {
+            return Err(fail("original closure changes its exact receiving signature"));
+        }
         self.premises_well_formed(id, &definition.requirements, b)?;
         let mut frame = Frame {
             definition: id,
@@ -3898,7 +3869,7 @@ impl Solver<'_, '_> {
             {
                 return Err(fail("original value parameter name is duplicated"));
             }
-            if let Some((inputs, _)) = &code_context {
+            if let Some((inputs, _)) = &goal {
                 self.unify(frame.parameters[index], inputs[index], depth + 1, b)?;
             }
             let declared = self.recipe(&frame, &signature.parameters[index].ty, b, depth + 1)?;
@@ -3927,7 +3898,7 @@ impl Solver<'_, '_> {
             let expected = self.recipe(&frame, &signature.result, b, depth + 1)?;
             self.unify(frame.result, expected, depth + 1, b)?;
         }
-        if let Some((_, result)) = code_context {
+        if let Some((_, result)) = goal {
             self.unify(frame.result, result, depth + 1, b)?;
         }
         match body {
