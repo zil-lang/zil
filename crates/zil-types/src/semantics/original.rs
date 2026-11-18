@@ -3309,7 +3309,13 @@ impl<'a> Check<'a, '_> {
             return Ok(result);
         }
         let result = match &expression.kind {
-            CoreExprKind::Literal(value) => SemanticTypeRecipe::Atom(value.ty()),
+            CoreExprKind::Literal(value) => {
+                if let Constant::WideString(units) = value {
+                    self.pay(units.len(), depth)?;
+                    foreign::check_literal(value, expression.span)?;
+                }
+                SemanticTypeRecipe::Atom(value.ty())
+            }
             CoreExprKind::Integer(text) => {
                 let expected = wanted.and_then(|ty| {
                     if let SemanticTypeRecipe::Atom(ty) = ty {

@@ -10,6 +10,14 @@ use zil_ir::{
 
 use crate::bad;
 
+pub(super) fn valid_wide_string(units: &[u16]) -> bool {
+    units.split_last().is_some_and(|(&last, content)| {
+        last == 0
+            && !content.contains(&0)
+            && char::decode_utf16(content.iter().copied()).all(|ch| ch.is_ok())
+    })
+}
+
 fn exhausted(context: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::limit(
         Phase::Analyze,
@@ -3246,8 +3254,28 @@ pub(super) fn preflight(
                     | InstructionKind::OwnedStoreBorrowMut { .. } => {
                         super::pod_store::instruction(function, instruction, budget)?;
                     }
-                    InstructionKind::Constant(Constant::WideString(units)) => {
-                        budget.input(units.len(), "static UTF-16 units")?;
+                    InstructionKind::Constant(
+                        constant @ (Constant::NullHandle
+                        | Constant::NullWideString
+                        | Constant::WideString(_)),
+                    ) => {
+                        if let Constant::WideString(units) = constant {
+                            budget.input(units.len(), "static UTF-16 units")?;
+                            if !valid_wide_string(units) {
+                                return Err(bad(
+                                    "static UTF-16 constant requires valid UTF-16 and exactly one trailing NUL",
+                                ));
+                            }
+                        }
+                        if instruction
+                            .result
+                            .and_then(|id| function.values.get(id.0 as usize))
+                            != Some(&constant.ty())
+                        {
+                            return Err(bad(
+                                "static foreign constant requires a result of its exact type",
+                            ));
+                        }
                     }
                     InstructionKind::ConvertNumber { value, target } => {
                         let source = function

@@ -139,7 +139,8 @@ impl Check<'_, '_> {
                 b,
             ),
             SemanticTypeRecipe::Atom(ty)
-                if ty.is_b0_scalar() || matches!(ty, Type::ForeignHandle | Type::ByteBuffer) =>
+                if ty.is_b0_scalar()
+                    || matches!(ty, Type::ForeignHandle | Type::CWideString | Type::ByteBuffer) =>
             {
                 value::borrowed_scalar(ty, self.inventory, b)
             }

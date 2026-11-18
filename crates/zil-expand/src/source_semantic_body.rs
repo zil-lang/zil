@@ -8,6 +8,7 @@ mod free_uses;
 
 pub(super) enum OriginalBodyNodeKind {
     Expression,
+    ForeignLiteral,
     Binding,
 }
 pub(super) struct OriginalBodyNode {
@@ -782,6 +783,22 @@ impl Builder<'_, '_, '_, '_> {
         depth: usize,
     ) -> R<SemanticOriginalExpr> {
         let span = value.span;
+        if let s::ExprKind::Call { callee, arguments } = &value.kind
+            && let Some(literal) = crate::foreign::literal_constructor(callee, arguments, span)
+        {
+            let literal = literal?;
+            if let Constant::WideString(units) = &literal {
+                self.budget.identity_work(units.len(), span)?;
+                self.budget
+                    .lineage_bytes(std::mem::size_of_val(units.as_slice()), span)?;
+            }
+            let id = self.body_id(mint, path, OriginalBodyNodeKind::ForeignLiteral, span, depth)?;
+            return Ok(CoreExpr {
+                id,
+                kind: CoreExprKind::Literal(literal),
+                span,
+            });
+        }
         let id = self.body_id(mint, path, OriginalBodyNodeKind::Expression, span, depth)?;
         let kind = match &value.kind {
             s::ExprKind::Literal(s::Literal::Integer(text)) => {

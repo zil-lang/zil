@@ -790,7 +790,10 @@ fn operations(
                     statement.span,
                 )?;
             }
-            (body::OriginalBodyNodeKind::Expression, body_nodes::Node::Expression(expression)) => {
+            (
+                body::OriginalBodyNodeKind::Expression | body::OriginalBodyNodeKind::ForeignLiteral,
+                body_nodes::Node::Expression(expression),
+            ) => {
                 budget.identity_work(closures.len(), expression.span)?;
                 let capture = closures
                     .iter()
@@ -857,6 +860,22 @@ fn operations(
                                 },
                                 Action::Construct(expected),
                                 SemanticEmissionRole::Construct,
+                            ))
+                        }
+                        s::ExprKind::Call { .. }
+                            if matches!(original.kind, body::OriginalBodyNodeKind::ForeignLiteral) =>
+                        {
+                            let expected = SemanticTypeRecipe::OriginalType {
+                                scope: SemanticScopeRef::Ancestor(0),
+                                source: SemanticOriginalTypeSource::Expression(original.id),
+                            };
+                            prepay_recipe(&expected, budget, expression.span, 0)?;
+                            Some((
+                                SemanticSiteRecipeKind::TypeUse {
+                                    expected: expected.clone(),
+                                },
+                                Action::TypeUse(expected),
+                                SemanticEmissionRole::Ascription,
                             ))
                         }
                         s::ExprKind::Call { .. } => Some((

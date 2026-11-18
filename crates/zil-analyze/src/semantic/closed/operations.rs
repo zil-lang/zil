@@ -193,6 +193,37 @@ impl Point<'_> {
 }
 
 impl Check<'_, '_> {
+    fn ffi_literal_occurrence(
+        &self,
+        instance: &SemanticInstance,
+        site: SemanticSiteId,
+        function: &TypedFunction,
+        subject: &SemanticOperand,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let Some(original) = self.original.ffi_literal_at(instance, site, self.inventory, b)? else {
+            return Ok(());
+        };
+        let SemanticOperand::Value(output) = subject else {
+            return Err(fail("original foreign constant has no emitted SSA"));
+        };
+        let (_, _, instruction) = self.defining(function, *output, b)?;
+        let InstructionKind::Constant(actual) = &instruction.kind else {
+            return Err(fail(
+                "original foreign constant is replaced by another actual operation",
+            ));
+        };
+        if let (Constant::WideString(original), Constant::WideString(actual)) = (original, actual) {
+            b.spend(original.len().saturating_add(actual.len()), WORK)?;
+        }
+        if original != actual {
+            return Err(fail(
+                "actual foreign constant changes the original literal payload",
+            ));
+        }
+        Ok(())
+    }
+
     fn inputs(
         &self,
         arguments: &[ValueId],
@@ -573,6 +604,13 @@ impl Check<'_, '_> {
                             ));
                         }
                     }
+                    self.ffi_literal_occurrence(
+                        instance,
+                        site.recipe,
+                        point.function,
+                        &SemanticOperand::Value(value),
+                        b,
+                    )?;
                     if let Some(constructor) = self.original.enum_constructor(
                         instance,
                         site.recipe,
@@ -648,6 +686,7 @@ impl Check<'_, '_> {
                         ));
                     }
                 }
+                self.ffi_literal_occurrence(instance, site.recipe, point.function, subject, b)?;
                 let captured = self.captured_value(
                     instance,
                     expected,

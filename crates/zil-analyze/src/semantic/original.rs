@@ -44,6 +44,7 @@ pub(super) mod slice_borrows;
 mod slices;
 mod stores;
 pub(super) mod strings;
+mod ffi_literals;
 mod tasks;
 mod trait_members;
 mod traits;
@@ -282,6 +283,7 @@ pub(super) struct Checked {
     function_values: BTreeMap<(SemanticDefinitionId, NodeId), SemanticDefinitionId>,
     code_calls: BTreeMap<(SemanticDefinitionId, NodeId), CodeCall>,
     string_literals: BTreeMap<(SemanticDefinitionId, NodeId), Vec<u8>>,
+    ffi_literals: BTreeMap<(SemanticDefinitionId, SemanticSiteId), NodeId>,
     return_injections: BTreeMap<(SemanticDefinitionId, NodeId), (Term, bool)>,
     dyn_creations: BTreeMap<(SemanticDefinitionId, NodeId), dyn_owned::Creation>,
     receiving_places: BTreeMap<(SemanticDefinitionId, NodeId), ReceivingPlace>,
@@ -300,7 +302,7 @@ struct Solver<'a, 'i> {
     active: BTreeSet<SemanticDefinitionId>,
     creators: BTreeMap<SemanticDefinitionId, (SemanticDefinitionId, NodeId)>,
     numeric: Vec<Term>,
-    scalar_captures: Vec<Term>,
+    equality_operands: Vec<Term>,
     literals: Vec<Literal>,
     integers: Vec<Term>,
     needs: Vec<Need>,
@@ -369,7 +371,7 @@ impl Solver<'_, '_> {
     }
     fn atom(&mut self, ty: Type, b: &mut Budget) -> CompileResult<Term> {
         if !ty.is_b0_scalar()
-            && !matches!(ty, Type::ForeignHandle | Type::ByteBuffer)
+            && !matches!(ty, Type::ForeignHandle | Type::CWideString | Type::ByteBuffer)
             && ty != crate::generic_mutex::error_type()
             && !crate::dyn_dispatch::is_create_error(&ty)
         {
@@ -903,7 +905,8 @@ impl Solver<'_, '_> {
                 self.dyn_type(frame, *owned, interface, b, depth + 1)
             }
             SemanticTypeRecipe::Atom(ty)
-                if ty.is_b0_scalar() || matches!(ty, Type::ForeignHandle | Type::ByteBuffer) =>
+                if ty.is_b0_scalar()
+                    || matches!(ty, Type::ForeignHandle | Type::CWideString | Type::ByteBuffer) =>
             {
                 self.atom(ty.clone(), b)
             }
@@ -1733,6 +1736,13 @@ impl Solver<'_, '_> {
             let ty = match &value.kind {
                 CoreExprKind::Integer(text) => self.scalar_literal(frame.definition, text, false, b)?,
                 CoreExprKind::Float(text) => self.scalar_literal(frame.definition, text, true, b)?,
+                CoreExprKind::Literal(
+                    literal @ (Constant::NullHandle
+                    | Constant::NullWideString
+                    | Constant::WideString(_)),
+                ) => {
+                    self.ffi_literal(frame.definition, value.id, literal, b)?
+                }
                 CoreExprKind::Literal(value) if value.ty().is_b0_scalar() => {
                     self.atom(value.ty(), b)?
                 }
@@ -1902,7 +1912,7 @@ impl Solver<'_, '_> {
                             boolean
                         }
                         BinaryOp::Equal | BinaryOp::NotEqual => {
-                            Self::push(&mut self.scalar_captures, left, b)?;
+                            Self::push(&mut self.equality_operands, left, b)?;
                             self.atom(Type::Bool, b)?
                         }
                         BinaryOp::Less
@@ -4230,6 +4240,7 @@ pub(super) fn check(
             function_values: BTreeMap::new(),
             code_calls: BTreeMap::new(),
             string_literals: BTreeMap::new(),
+            ffi_literals: BTreeMap::new(),
             return_injections: BTreeMap::new(),
             dyn_creations: BTreeMap::new(),
             receiving_places: BTreeMap::new(),
@@ -4243,7 +4254,7 @@ pub(super) fn check(
         active: BTreeSet::new(),
         creators: BTreeMap::new(),
         numeric: Vec::new(),
-        scalar_captures: Vec::new(),
+        equality_operands: Vec::new(),
         literals: Vec::new(),
         integers: Vec::new(),
         needs: Vec::new(),
@@ -4392,11 +4403,12 @@ pub(super) fn check(
             ));
         }
     }
-    for term in &solver.scalar_captures {
+    for term in &solver.equality_operands {
         let root = solver.type_root(*term, b)?;
-        if !matches!(&solver.state.arena[root],Kind::Atom(ty) if ty.is_b0_scalar()) {
+        if !matches!(&solver.state.arena[root], Kind::Atom(ty) if ty.is_b0_scalar() || *ty == Type::ForeignHandle)
+        {
             return Err(unknown(
-                "original capture or assignment needs its complete abstract value and cleanup proof",
+                "original equality requires an admitted scalar or foreign handle",
             ));
         }
     }
@@ -4947,12 +4959,12 @@ impl Solver<'_, '_> {
         }
         match &self.state.arena[term] {
             Kind::Atom(ty) => Ok((ty.is_b0_scalar()
-                || *ty == Type::ForeignHandle
+                || matches!(ty, Type::ForeignHandle | Type::CWideString)
                 || *ty == crate::generic_mutex::error_type()
                 || crate::dyn_dispatch::is_create_error(ty)
                 || strings::is_byte_type(ty))
                 && (!matches!(predicate, Predicate::StoreElement)
-                    || (*ty != Type::Unit
+                    || (!matches!(ty, Type::Unit | Type::CWideString)
                         && !crate::dyn_dispatch::is_create_error(ty)
                         && !strings::is_byte_type(ty)))),
             Kind::CallResult { hidden, .. } => self.satisfies(*hidden, predicate, b, depth + 1),

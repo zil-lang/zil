@@ -340,6 +340,8 @@ fn wide_literal(spelling: &str) -> Option<Vec<u16>> {
                 }
                 _ => return None,
             };
+        } else if ch == '"' {
+            return None;
         }
         if ch == '\0' {
             return None;

@@ -1344,8 +1344,9 @@ pub(in crate::semantic) fn predicate_actual(
             "actual sealed capability requires its complete original environment, provider and execution proof",
         ));
     }
-    if ty.is_b0_scalar() || *ty == Type::ForeignHandle {
-        return Ok(!matches!(predicate, Predicate::StoreElement) || *ty != Type::Unit);
+    if ty.is_b0_scalar() || matches!(ty, Type::ForeignHandle | Type::CWideString) {
+        return Ok(!matches!(predicate, Predicate::StoreElement)
+            || !matches!(ty, Type::Unit | Type::CWideString));
     }
     // These predicates describe the reference value itself. Copying a
     // shared head neither copies its pointee nor changes any intrinsic class;

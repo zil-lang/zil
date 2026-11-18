@@ -83,6 +83,8 @@ fn static_unicode_literals_have_exact_utf16_and_distinct_null() {
         "fn main(){let a=c_wstr(\"a\\0b\")}",
         "fn main(){let a=c_wstr(\"a\\u{0}b\")}",
         "fn main(){let a=c_wstr(1)}",
+        "fn main(){let a=c_wstr(...\"x\")}",
+        "fn main(){let a=c_wstr(\"x\",\"y\")}",
         "fn main(){let a=c_wstr(c_wstr(\"x\"))}",
         "fn main(){let a=c_null(1)}",
         "fn main(){let a=c_wstr_null(1)}",
@@ -385,6 +387,119 @@ fn raw_static_constants_are_validated_and_budgeted_before_cloning() {
             .any(|e| e.category == ResultCategory::ResourceLimit),
         "{errors:?}"
     );
+}
+
+#[test]
+fn original_foreign_literals_keep_their_exact_public_ir_payloads_across_modules() {
+    let sources = [
+        SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "main.zil",
+            "import platform\nfn main()->i32{if platform.value(){return 0}return 1}",
+        ),
+        SourceUnit::new(
+            FileId(1),
+            ModuleId(1),
+            "platform.zil",
+            r#"pub fn value()->bool{
+                let title=c_wstr("ZIL 中文 😀")
+                let empty=c_wstr("")
+                let absent=c_wstr_null()
+                let h=c_null()
+                return h==c_null()
+            }"#,
+        ),
+    ];
+    let syntax = sources
+        .iter()
+        .map(|source| zil_syntax::parse(source).into_result().unwrap())
+        .collect::<Vec<_>>();
+    let limits = Limits::default();
+    let expanded = zil_expand::expand_program_with_limits(
+        &sources,
+        &syntax.iter().collect::<Vec<_>>(),
+        &[
+            vec![zil_ir::CoreImport {
+                alias: "platform".into(),
+                module: ModuleId(1),
+                span: syntax[0].items[0].span,
+            }],
+            Vec::new(),
+        ],
+        &limits,
+    )
+    .unwrap();
+    let program = zil_ir::CoreProgram {
+        root: ModuleId(0),
+        source_fingerprint: zil_base::Fingerprint::of(b"original foreign literals across modules"),
+        modules: expanded.into_iter().map(|(module, _)| module).collect(),
+    };
+    let typed = zil_types::check_program(&program, &TargetProfile::host_llvm(), &limits).unwrap();
+    zil_analyze::analyze_program(&typed, &limits).unwrap();
+
+    let mut expected: Vec<_> = "ZIL 中文 😀".encode_utf16().collect();
+    expected.push(0);
+    let expected = Constant::WideString(expected);
+    assert!(constants(&typed.module).contains(&&expected));
+    assert!(constants(&typed.module).contains(&&Constant::WideString(vec![0])));
+    assert!(constants(&typed.module).contains(&&Constant::NullWideString));
+    assert!(constants(&typed.module).contains(&&Constant::NullHandle));
+
+    for (replacement, diagnostic) in [
+        (
+            Constant::NullWideString,
+            "actual foreign constant changes the original literal payload",
+        ),
+        (
+            Constant::WideString(vec![65, 0]),
+            "actual foreign constant changes the original literal payload",
+        ),
+        (
+            Constant::WideString(vec![0xd800, 0]),
+            "static UTF-16 constant requires valid UTF-16",
+        ),
+    ] {
+        let mut changed = typed.module.clone();
+        let literal = changed
+            .functions
+            .iter_mut()
+            .flat_map(|f| &mut f.blocks)
+            .flat_map(|b| &mut b.instructions)
+            .find(|i| matches!(&i.kind, InstructionKind::Constant(value) if value == &expected))
+            .unwrap();
+        literal.kind = InstructionKind::Constant(replacement);
+        let errors = zil_analyze::analyze(&changed, &limits).unwrap_err();
+        assert!(
+            errors.iter().any(|e| e.message.contains(diagnostic)),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn original_handle_equality_uses_the_static_constructor() {
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "original_handle_equality.zil",
+        "fn value()->bool{let h=c_null();return h==c_null()}",
+    );
+    let report = zil_driver::compile_source(
+        &source,
+        &zil_driver::CompileOptions {
+            stop_after: zil_driver::Stage::Analyze,
+            target: TargetProfile::host_llvm(),
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, zil_base::Phase::Analyze);
 }
 
 #[test]

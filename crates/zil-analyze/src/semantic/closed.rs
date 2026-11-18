@@ -135,7 +135,7 @@ impl Check<'_, '_> {
             return Err(unknown("complete actual type exceeds its bounded depth"));
         }
         if ty.is_b0_scalar()
-            || *ty == Type::ForeignHandle
+            || matches!(ty, Type::ForeignHandle | Type::CWideString)
             || *ty == crate::generic_mutex::error_type()
             || crate::dyn_dispatch::is_create_error(ty)
         {
