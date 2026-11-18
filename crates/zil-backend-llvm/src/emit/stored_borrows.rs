@@ -1047,12 +1047,11 @@ impl FunctionEmitter<'_> {
             })?;
             indices.push(m::Arg::new(m::Ty::Int(32), m::Val::Int(i128::from(*index))));
         }
+        let result_ty = self.value_type(result(i)?)?;
         let qualified_child_take = mode == StoredBorrowLoad::Take
-            && matches!(
-                current,
-                Type::Tuple(_) | Type::Record { .. } | Type::Package { .. }
-            )
-            && matches!(self.value_type(result(i)?)?,Type::BorrowedStorage{storage,..} if storage.as_ref()==current);
+            && matches!(result_ty, Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Tuple(_) | Type::Record { .. } | Type::Package { .. })
+                    && (current == result_ty || current == storage.as_ref()));
         if !qualified_child_take
             && (!matches!(
                 (current, mode),
@@ -1063,7 +1062,7 @@ impl FunctionEmitter<'_> {
                     Type::Address { mutable: true, .. },
                     StoredBorrowLoad::Reborrow { mutable: true }
                 ) | (Type::Address { .. }, StoredBorrowLoad::Take)
-            ) || self.value_type(result(i)?)? != current)
+            ) || result_ty != current)
         {
             return invalid(
                 "E-CODEGEN-STORAGE",
