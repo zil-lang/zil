@@ -2,7 +2,23 @@
 //! parent closure occurrence. The mature kernel separately proves actual
 //! remote ABI, capture storage, manager access and synchronous completion.
 use super::*;
+use original::intrinsics::BufferSource;
 impl CheckedContext {
+    pub(super) fn actual_scoped_cell(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,instruction:&Instruction,site:&SemanticSite,head:Option<BufferSource>,b:&mut Budget)->Check<CheckedType>{
+        let nodes=self.original.borrow().as_ref().ok_or_else(||bad("synchronization lacks its universal scheme"))?.scoped_cell_arguments(module,caller.definition,site.recipe,b)?;
+        let operands:Vec<ValueId>=match instruction.kind{
+            InstructionKind::WithSyncCell{initial,body,..}=>vec![initial,body],
+            InstructionKind::SyncI32{address,value,..}=>{let mut operands=vec![address];operands.extend(value);operands},
+            InstructionKind::SyncI32CompareExchange{address,expected,desired,..}=>vec![address,expected,desired],
+            _=>return Err(bad("synchronization selects another actual opcode")),
+        };
+        if operands.len()!=nodes.len(){return Err(bad("synchronization changes the complete original operand arity"));}
+        for (position,(operand,node)) in operands.into_iter().zip(nodes).enumerate(){
+            self.call_input_source(module,caller,f,operand,node,if position==0{head}else{None},b)?;
+        }
+        let result=crate::scoped_thread::sync_instruction(module,f,instruction,b)?.ok_or_else(||bad("synchronization actual opcode has no complete result type"))?;
+        self.closed_value(module,&result,b)
+    }
     pub(super) fn actual_scoped_thread(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,instruction:&Instruction,site:&SemanticSite,values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<CheckedType>{
         let InstructionKind::WithScopedThread{worker,argument,body}=instruction.kind else{return Err(bad("thread original scheme selects another actual opcode"));};
         let(target,input_recipe,body_recipe)=self.original.borrow().as_ref().ok_or_else(||bad("thread scope has no universal original proof"))?.scoped_thread_sources(caller.definition,site.recipe,b)?;

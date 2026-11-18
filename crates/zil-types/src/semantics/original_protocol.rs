@@ -1933,9 +1933,10 @@ impl<'a> Engine<'a, '_> {
             if let Some(kind) = intrinsic {
                 let body = match (&kind, values) {
                     (IntrinsicKind::ThreadScope { .. }, [Value::Plain, _, body]) => Some(body),
+                    (IntrinsicKind::SyncCellScope(_), [_, body]) => Some(body),
                     (IntrinsicKind::RegistrationStart { form: CallbackRegistration::Scoped, .. },
                         [_, body]) => Some(body),
-                    (IntrinsicKind::ThreadScope { .. } | IntrinsicKind::RegistrationStart {
+                    (IntrinsicKind::ThreadScope { .. } | IntrinsicKind::SyncCellScope(_) | IntrinsicKind::RegistrationStart {
                         form: CallbackRegistration::Scoped, ..
                     }, _) => return Err(failure("scoped body lost its complete call operands")),
                     _ => None,
@@ -4784,7 +4785,7 @@ pub(super) fn check(
     }
     engine.pay(engine.proof.intrinsics.len(), 0)?;
     for ((owner, _), call) in &engine.proof.intrinsics {
-        if matches!(call.kind, IntrinsicKind::ThreadScope { .. }) { engine.consuming_relevant.insert(*owner); }
+        if matches!(call.kind, IntrinsicKind::ThreadScope { .. } | IntrinsicKind::SyncCellScope(_)) { engine.consuming_relevant.insert(*owner); }
     }
     loop {
         let mut changed = false;

@@ -116,7 +116,18 @@ impl CheckedOriginal {
             Ty::Opaque(definition,arguments)=>{let mut recipes=Vec::new();for argument in &arguments{recipes.push(self.reify_argument(module,argument,env,b)?);}SemanticTypeRecipe::Opaque{definition,arguments:recipes,hidden:Box::new(SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Result})}},
             Ty::Projection{receiver,declaration,arguments,member}=>{let receiver=Box::new(self.reify_type_at(module,&receiver,env,depth+1,b)?);let mut recipes=Vec::new();for argument in &arguments{recipes.push(self.reify_argument(module,argument,env,b)?);}SemanticTypeRecipe::AssociatedType{receiver,application:Box::new(SemanticTraitRecipe{declaration,arguments:recipes}),member}},
             Ty::Tuple(fields)=>{let mut recipes=Vec::new();for field in &fields{recipes.push(self.reify_type_at(module,field,env,depth+1,b)?);}SemanticTypeRecipe::Tuple(recipes)},
-            Ty::Address{mutable,life,inner}=>SemanticTypeRecipe::Address{mutable,lifetime:self.reify_outer(module,&life,env,b)?,inner:Box::new(self.reify_type_at(module,&inner,env,depth+1,b)?)},
+            Ty::Address{mutable,life,inner}=>{
+                let captured = match (&life, inner.as_ref()) {
+                    (Life::Invocation(..), Ty::Atom(Type::SyncCell(cell))) if !mutable =>
+                        self.captured_sync_invocation(&life, *cell, env, b)?,
+                    _ => None,
+                };
+                let lifetime = match captured {
+                    Some(capture) => SemanticOuterLifeRecipe::Class(capture),
+                    None => self.reify_outer(module,&life,env,b)?,
+                };
+                SemanticTypeRecipe::Address{mutable,lifetime,inner:Box::new(self.reify_type_at(module,&inner,env,depth+1,b)?)}
+            },
             Ty::Desc{life,inner}=>SemanticTypeRecipe::Desc{lifetime:self.reify_outer(module,&life,env,b)?,inner:Box::new(self.reify_type_at(module,&inner,env,depth+1,b)?)},
             Ty::Slice(inner)=>SemanticTypeRecipe::Slice(Box::new(self.reify_type_at(module,&inner,env,depth+1,b)?)),
             Ty::Managed(inner)=>SemanticTypeRecipe::Managed(Box::new(self.reify_type_at(module,&inner,env,depth+1,b)?)),
@@ -143,6 +154,31 @@ impl CheckedOriginal {
             },
             Ty::Function(_)=>return Err(bad("original static function value lacks its explicit complete code coercion")),
         })
+    }
+    fn captured_sync_invocation(&self, life: &Life, cell: SyncCellKind, env: &EvalEnv, b: &mut Budget) -> Check<Option<SemanticLifeRecipe>> {
+        let Some(frame) = env.lexical.first() else { return Ok(None); };
+        let Some(prototype) = self.prototypes.get(&frame.definition) else { return Ok(None); };
+        if prototype.environment.invocation.contains(life) { return Ok(None); }
+        let Some(original) = prototype.environment.lexical.first() else { return Ok(None); };
+        b.spend(original.environment.len().saturating_add(1))?;
+        let mut selected = None;
+        for (ordinal, source) in original.environment.iter().enumerate() {
+            let Arg::Type(Ty::Address { mutable: false, life: source_life, inner }) = source else { continue; };
+            if source_life != life || inner.as_ref() != &Ty::Atom(Type::SyncCell(cell)) { continue; }
+            let Some(CheckedActual::Type(actual)) = frame.environment.get(ordinal) else { continue; };
+            let Type::Address { mutable: false, inner } = &actual.ty else { continue; };
+            if inner.as_ref() != &Type::SyncCell(cell) { continue; }
+            if selected.replace(ordinal as u32).is_some() {
+                return Err(bad("captured synchronization head has several original invocation sources"));
+            }
+        }
+        // The sealed slot was checked at the real capture creator. Its head
+        // is in the creator's invocation domain, beyond the current entry.
+        Ok(selected.map(|ordinal| SemanticLifeRecipe::OuterOccurrence {
+            operand: SemanticRecipeOperand::Environment { scope: SemanticScopeRef::Ancestor(0), ordinal },
+            path: vec![],
+            mode: StoredBorrowMode::SharedAddress,
+        }))
     }
     pub(super) fn reify_argument(&self,module:&TypedModule,argument:&Arg,env:&EvalEnv,b:&mut Budget)->Check<SemanticActualRecipe>{match argument{
         Arg::Type(ty)=>Ok(SemanticActualRecipe::Type(self.reify_type(module,ty,env,b)?)),

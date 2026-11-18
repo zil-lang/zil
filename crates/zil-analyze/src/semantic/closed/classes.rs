@@ -140,7 +140,10 @@ impl Check<'_, '_> {
             ),
             SemanticTypeRecipe::Atom(ty)
                 if ty.is_b0_scalar()
-                    || matches!(ty, Type::ForeignHandle | Type::CWideString | Type::ByteBuffer) =>
+                    || matches!(
+                        ty,
+                        Type::ForeignHandle | Type::CWideString | Type::ByteBuffer | Type::SyncCell(_)
+                    ) =>
             {
                 value::borrowed_scalar(ty, self.inventory, b)
             }
@@ -2450,6 +2453,9 @@ impl Check<'_, '_> {
             InstructionKind::MutexCreate { .. }
             | InstructionKind::MutexLock { .. }
             | InstructionKind::MutexValue { .. }
+            | InstructionKind::WithSyncCell { .. }
+            | InstructionKind::SyncI32 { .. }
+            | InstructionKind::SyncI32CompareExchange { .. }
             | InstructionKind::WithScopedThread { .. } => {
                 self.synchronization_result(instance, function, block, index, b)
             }

@@ -1010,6 +1010,7 @@ fn relation_inputs<P:InputType>(
             t if pointee => {
                 if !(t.is_address_pointee()
                     || matches!(t, Type::Slice { element } if element.is_copy_value())
+                    || !output && ty.is_shared_sync_cell_address()
                     // Input Package shape permits either receiver mode. The
                     // actual Store source, parent loan and access authority
                     // still require the independent body checks.

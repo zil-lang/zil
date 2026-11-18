@@ -22,7 +22,10 @@ fn rebase(world: &mut World<'_, '_>, image: &SemanticClassExpr, hops: u32) -> R<
         _ => {
             return Err(pending(
                 "sealed parent class needs its complete scoped original occurrence transport",
-            ));
+            )
+            .with_note(format!(
+                "selected original parent class {image:?}, lexical hops {hops}"
+            )));
         }
     };
     let SemanticScopeRef::Ancestor(depth) = scope;
@@ -30,6 +33,47 @@ fn rebase(world: &mut World<'_, '_>, image: &SemanticClassExpr, hops: u32) -> R<
         .checked_add(hops)
         .ok_or_else(|| bad("sealed class lexical depth overflows"))?;
     Ok(image)
+}
+
+fn parent_parameter_life<'a>(
+    world: &mut World<'a, '_>,
+    parent: SemanticInstanceId,
+    image: &SemanticClassExpr,
+) -> R<Option<&'a SemanticLifeRecipe>> {
+    let SemanticClassExpr::OuterOccurrence {
+        operand: SemanticOperand::Parameter(index),
+        path,
+        mode,
+    } = image
+    else {
+        return Ok(None);
+    };
+    if !path.is_empty() {
+        return Ok(None);
+    }
+    let parent = world.instance(parent)?;
+    let declaration = world.definition(parent.definition)?;
+    let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &declaration.body else {
+        return Err(bad(
+            "sealed parent parameter has no original function signature",
+        ));
+    };
+    let parameter = signature
+        .parameters
+        .get(*index as usize)
+        .ok_or_else(|| bad("sealed parent class has no original parameter occurrence"))?;
+    let (
+        SemanticTypeRecipe::Address {
+            mutable: false,
+            lifetime: SemanticOuterLifeRecipe::Class(lifetime),
+            inner,
+        },
+        StoredBorrowMode::SharedAddress,
+    ) = (&parameter.ty, mode)
+    else {
+        return Ok(None);
+    };
+    Ok(matches!(inner.as_ref(), SemanticTypeRecipe::Atom(Type::SyncCell(_))).then_some(lifetime))
 }
 fn source(
     world: &mut World<'_, '_>,
@@ -244,6 +288,36 @@ impl Normalize {
                 }
             };
             let image = self.image(world, parent, &image, depth + 1)?;
+            if let Some(lifetime) = parent_parameter_life(world, parent, &image)? {
+                let declared = super::super::super::materialize::class_in_view(
+                    world.program,
+                    &world.view,
+                    world.ledger,
+                    parent,
+                    lifetime,
+                    world.limits,
+                    world.left,
+                )?;
+                match lifetime {
+                    SemanticLifeRecipe::Formal(_) | SemanticLifeRecipe::Implicit { .. } => {
+                        return rebase(world, &declared, hops);
+                    }
+                    // An invocation borrow belongs to the scoped parent entry.
+                    // Keep the authenticated slot in this child's whole Type,
+                    // since a bare Parameter would select this child's input.
+                    SemanticLifeRecipe::Invocation(_) if declared == image && hops == 1 => {
+                        if let Some(class) = class {
+                            world.pay(path.len().saturating_add(1))?;
+                            return Ok(SemanticClassExpr::IntrinsicClass {
+                                operand: SemanticOperand::Environment(ordinal),
+                                path: path.to_vec(),
+                                class,
+                            });
+                        }
+                    }
+                    _ => {}
+                }
+            }
             rebase(world, &image, hops)
         })();
         self.active.remove(&(scope, ordinal));

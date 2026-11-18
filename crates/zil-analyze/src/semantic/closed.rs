@@ -170,7 +170,7 @@ impl Check<'_, '_> {
             return Err(unknown("complete actual type exceeds its bounded depth"));
         }
         if ty.is_b0_scalar()
-            || matches!(ty, Type::ForeignHandle | Type::CWideString)
+            || matches!(ty, Type::ForeignHandle | Type::CWideString | Type::SyncCell(_))
             || *ty == crate::generic_mutex::error_type()
             || crate::dyn_dispatch::is_create_error(ty)
         {
@@ -511,7 +511,9 @@ impl Check<'_, '_> {
             return Err(fail("original semantic type exceeds its finite bound"));
         }
         match recipe {
-            SemanticTypeRecipe::Atom(ty) if ty.is_b0_scalar() || *ty == Type::Unit => {
+            SemanticTypeRecipe::Atom(ty)
+                if ty.is_b0_scalar() || matches!(ty, Type::Unit | Type::SyncCell(_)) =>
+            {
                 Ok(ty.clone())
             }
             SemanticTypeRecipe::Exact(value) if empty(&value.life) && value.classes.is_empty() => {

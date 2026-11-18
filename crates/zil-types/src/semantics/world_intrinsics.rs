@@ -311,6 +311,16 @@ pub(super) fn operand_ids(kind: &IntrinsicKind, instruction: &InstructionKind) -
             InstructionKind::ByteBufferBorrow { buffer, mutable },
         ) if expected == mutable => vec![*buffer],
         (IntrinsicKind::Length, InstructionKind::SliceLength { address }) => vec![*address],
+        (IntrinsicKind::SyncCellScope(expected), InstructionKind::WithSyncCell { kind, initial, body })
+            if expected == kind => vec![*initial, *body],
+        (IntrinsicKind::SyncCellOp(_, expected), InstructionKind::SyncI32 { op, address, value, ordering })
+            if expected == op && *ordering == AtomicOrdering::SeqCst => {
+                let mut operands = vec![*address];
+                operands.extend(value);
+                operands
+            }
+        (IntrinsicKind::SyncCellCompareExchange, InstructionKind::SyncI32CompareExchange { address, expected, desired, success, failure })
+            if *success == AtomicOrdering::SeqCst && *failure == AtomicOrdering::SeqCst => vec![*address, *expected, *desired],
         (
             IntrinsicKind::Numeric { target: expected },
             InstructionKind::ConvertInteger { value, target }

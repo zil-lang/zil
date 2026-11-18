@@ -93,7 +93,7 @@ impl CheckedContext {
                         "dynamic Call result changes its exact original dispatch or emission role",
                     ));
                 }
-            } else if let Some(intrinsic) = original::intrinsics::Intrinsic::actual(&operation.kind) {
+            } else if let Some(intrinsic) = original::intrinsics::Intrinsic::actual(function, &operation.kind) {
                 let expected = self.original.borrow();
                 let expected = expected.as_ref().ok_or_else(|| bad("intrinsic result lacks original proof"))?
                     .intrinsic(definition, site, b)?;

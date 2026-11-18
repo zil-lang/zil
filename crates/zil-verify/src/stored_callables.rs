@@ -424,7 +424,7 @@ pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
     })
 }
 pub(super) fn shared_input(t: &Type) -> bool {
-    if scalar(t) {
+    if scalar(t) || t.is_shared_sync_cell_address() {
         return true;
     }
     let Type::Address {

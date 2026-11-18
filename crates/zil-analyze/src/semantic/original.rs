@@ -13,6 +13,7 @@ mod cleanup;
 pub(super) use cleanup::Source as CleanupSource;
 pub(super) use cleanup::Event as CleanupEvent;
 mod call_regions;
+pub(super) use call_regions::is_region_occurrence;
 mod captures;
 mod code_inputs;
 mod constructors;
@@ -398,7 +399,10 @@ impl Solver<'_, '_> {
     }
     fn atom(&mut self, ty: Type, b: &mut Budget) -> CompileResult<Term> {
         if !ty.is_b0_scalar()
-            && !matches!(ty, Type::ForeignHandle | Type::CWideString | Type::ByteBuffer)
+            && !matches!(
+                ty,
+                Type::ForeignHandle | Type::CWideString | Type::ByteBuffer | Type::SyncCell(_)
+            )
             && ty != crate::generic_mutex::error_type()
             && !crate::dyn_dispatch::is_create_error(&ty)
         {
@@ -950,7 +954,7 @@ impl Solver<'_, '_> {
             }
             SemanticTypeRecipe::Atom(ty)
                 if ty.is_b0_scalar()
-                    || matches!(ty, Type::ForeignHandle | Type::CWideString | Type::ByteBuffer) =>
+                    || matches!(ty, Type::ForeignHandle | Type::CWideString | Type::ByteBuffer | Type::SyncCell(_)) =>
             {
                 self.atom(ty.clone(), b)
             }
@@ -2720,6 +2724,9 @@ impl Solver<'_, '_> {
                                 id @ (sealed::Intrinsic::MutexCreate
                                 | sealed::Intrinsic::MutexLock
                                 | sealed::Intrinsic::MutexValue
+                                | sealed::Intrinsic::SyncCellScope(_)
+                                | sealed::Intrinsic::SyncCellOp(..)
+                                | sealed::Intrinsic::SyncCellCompareExchange
                                 | sealed::Intrinsic::ThreadScope),
                             ) => {
                                 let result = self.mutex_call(

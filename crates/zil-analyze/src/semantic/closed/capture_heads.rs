@@ -342,6 +342,7 @@ impl Check<'_, '_> {
                     WORK,
                 )?;
                 if recipe.occurrence_path != occurrence.occurrence_path {
+                    call_region |= original::is_region_occurrence(recipe, &occurrence.occurrence_path);
                     continue;
                 }
                 if let SemanticSiteRecipeKind::DeclareLocal {
@@ -584,6 +585,12 @@ impl Check<'_, '_> {
                 }
             }
             if !emitted {
+                if source_operand.is_none() && call_region {
+                    // These exact call-local coordinates are handled by the
+                    // call's source proof. They have no independent Name
+                    // emission, and cannot satisfy a Fixed capture below.
+                    continue;
+                }
                 let node = source_operand.ok_or_else(|| {
                     fail("original implicit occurrence has no matching actual name site")
                 })?;

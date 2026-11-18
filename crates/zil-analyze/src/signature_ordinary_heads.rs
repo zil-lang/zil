@@ -80,11 +80,56 @@ fn zero_data(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<b
     }
     Ok(true)
 }
+
+fn scoped_cell_capture(module: &TypedModule, id: ClosureId, b: &mut Budget) -> CompileResult<bool> {
+    if !b.scoped_threads {
+        return Ok(false);
+    }
+    b.spend(1, "ordinary scoped cell closure lookup")?;
+    let Some(closure) = module.closures.get(id.0 as usize).filter(|closure| closure.id == id)
+    else {
+        return Ok(false);
+    };
+    if closure.result != Type::I32
+        || !closure.parameters.is_empty()
+        || !closure.lending_captures.is_empty()
+    {
+        return Ok(false);
+    }
+    let Some(relation) = &closure.storage_life else {
+        return Ok(false);
+    };
+    if relation.fixed_binder_count == 0 || relation.invocation_binder_count != 0 {
+        return Ok(false);
+    }
+    b.spend(closure.captures.len(), "ordinary scoped cell capture inventory")?;
+    let mut has_cell = false;
+    for ty in &closure.captures {
+        if ty.is_shared_sync_cell_address() {
+            has_cell = true;
+        } else if !ty.is_b0_scalar() {
+            return Ok(false);
+        }
+    }
+    if !has_cell {
+        return Ok(false);
+    }
+    // These Fixed bindings retain real borrow roots. The scoped body and
+    // ordinary loan kernels still check the creator, each use, and the join.
+    charge(relation, b)?;
+    closure_relation_resource_scopes(
+        module, closure.kind, &closure.parameters, &closure.captures,
+        &closure.result, relation, b,
+    )?;
+    Ok(true)
+}
+
 fn head_value(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     // Only a whole SSA/input head has this role. Nested Address/Desc fields
     // are dependencies and do not become empty by their payload's shape.
     match ty {
         Type::Address { inner, .. } | Type::Desc(inner) => zero_data(module, inner, b),
+        Type::Closure(id) if scoped_cell_capture(module, *id, b)? => Ok(true),
         other => zero_data(module, other, b),
     }
 }
@@ -204,11 +249,12 @@ pub(crate) fn module(module: &TypedModule, limits: &Limits, b: &mut Budget) -> C
     if !module.closures.is_empty() && b.task_input_scopes.is_none() {
         b.task_input_scopes = Some(input_scope::build(module, limits, b)?);
     }
-    // Presence of a callback role is not a stored data domain. Every actual
-    // closure must still have a complete known-zero environment; real borrowed
-    // function pointer types are independently rejected by head_value below.
+    // An actual closure must have a known-zero environment or the complete
+    // scoped cell relation. Borrowed code pointers retain their own profile.
     for closure in &module.closures {
-        if input_scope::domain(&Type::Closure(closure.id), b)? != Domain::Known(0) {
+        if input_scope::domain(&Type::Closure(closure.id), b)? != Domain::Known(0)
+            && !scoped_cell_capture(module, closure.id, b)?
+        {
             return Ok(false);
         }
     }
@@ -224,6 +270,7 @@ pub(crate) fn module(module: &TypedModule, limits: &Limits, b: &mut Budget) -> C
         if function.storage_life.is_some()
             && !input_scope::checked_empty_function(function, b)?
             && !relation(module, function, b)?
+            && !matches!(function.environment, Some(id) if scoped_cell_capture(module, id, b)?)
         {
             return Ok(false);
         }

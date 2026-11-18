@@ -535,6 +535,11 @@ impl CheckedOriginal {
             Intrinsic::ThreadScope => {
                 self.scoped_thread(module, context, site, arguments, env, bindings, active, b)?
             }
+            Intrinsic::SyncCellScope(_) | Intrinsic::SyncCellOp(..) | Intrinsic::SyncCellCompareExchange => {
+                let (result, head) = self.scoped_cell(module, context, kind, arguments, env, bindings, active, b)?;
+                use_.buffer = head;
+                result
+            }
             _ => return Err(bad("operation entered another closed scheme")),
         };
         let effect = if kind == Intrinsic::TaskAwait { CallKind::Suspend } else { CallKind::Direct };
@@ -558,7 +563,7 @@ impl CheckedOriginal {
         }
     }
     #[allow(clippy::too_many_arguments)]
-    fn operation_scalar(
+    pub(super) fn operation_scalar(
         &mut self,
         module: &TypedModule,
         context: &CheckedContext,

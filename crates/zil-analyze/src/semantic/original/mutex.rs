@@ -19,7 +19,17 @@ impl Solver<'_, '_> {
             return Err(fail("synchronization intrinsic invents generic actuals"));
         }
         let mut inputs = Vec::new();
-        let result = if intrinsic == sealed::Intrinsic::ThreadScope {
+        let result = if matches!(intrinsic, sealed::Intrinsic::SyncCellScope(_) | sealed::Intrinsic::SyncCellOp(..) | sealed::Intrinsic::SyncCellCompareExchange) {
+            let result = self.scoped_cell(frame, intrinsic, arguments, &mut inputs, b, depth + 1)?;
+            if !matches!(intrinsic, sealed::Intrinsic::SyncCellScope(_)) {
+                let anchor = self.registration_anchor(frame, &arguments[0], b, depth + 1)?;
+                b.lookup(self.state.intrinsic_anchors.len(), WORK)?;
+                if self.state.intrinsic_anchors.insert((frame.definition, node), anchor).is_some() {
+                    return Err(fail("scoped cell operation has competing original heads"));
+                }
+            }
+            result
+        } else if intrinsic == sealed::Intrinsic::ThreadScope {
             let [worker, argument, body] = arguments else {
                 return Err(fail(
                     "structured thread requires its complete worker, input and parent body",
@@ -219,8 +229,66 @@ impl Solver<'_, '_> {
         Ok(result)
     }
 
+    fn scoped_cell(
+        &mut self, frame: &mut Frame, intrinsic: sealed::Intrinsic,
+        arguments: &[SemanticOriginalExpr], inputs: &mut Vec<Term>, b: &mut Budget, depth: usize,
+    ) -> CompileResult<Term> {
+        use sealed::Intrinsic as I;
+        let (cell, arity) = match intrinsic {
+            I::SyncCellScope(cell) => (cell, 2),
+            I::SyncCellOp(cell, op) => (cell, if op == SyncI32Op::Load { 1 } else { 2 }),
+            I::SyncCellCompareExchange => (SyncCellKind::AtomicI32, 3),
+            _ => return Err(fail("another operation entered the original scoped cell scheme")),
+        };
+        if arguments.len() != arity { return Err(fail("original scoped cell has another complete operand arity")); }
+        let scalar = self.atom(Type::I32, b)?;
+        for argument in arguments {
+            let input = self.expression(frame, argument, b, depth + 1)?;
+            Self::push(inputs, input, b)?;
+        }
+        if matches!(intrinsic, I::SyncCellScope(_)) {
+            self.unify(inputs[0], scalar, depth + 1, b)?;
+            let body = inputs[1];
+            let Kind::Closure { definition, .. } = self.state.arena[self.type_root(body, b)?] else {
+                return Err(fail("original scoped cell needs its concrete body"));
+            };
+            let decl = self.inventory.definition(definition, b)?;
+            let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &decl.body else {
+                return Err(fail("original scoped cell body has no complete signature"));
+            };
+            let resolved = self.state.frames.get(&definition).ok_or_else(|| fail("original scoped cell body was not checked"))?;
+            let [head] = resolved.parameters.as_slice() else { return Err(fail("original scoped cell body changes its shared head arity")); };
+            let (head, output) = (*head, resolved.result);
+            if signature.call_kind != CallKind::Direct || signature.result_mode != PassingMode::Infer
+                || !self.scoped_cell_head(head, cell, b)? {
+                return Err(fail("original scoped cell body changes its sealed head or Direct result scheme"));
+            }
+            self.unify(output, scalar, depth + 1, b)?;
+            self.prepare_call_value(frame.definition, arguments[1].id, body, b)?;
+            Self::push(&mut self.needs, Need { term: body, predicate: Predicate::SyncDrop }, b)?;
+            let flag = self.atom(Type::Bool, b)?;
+            return self.term(Kind::Tuple(vec![flag, scalar]), b);
+        }
+        if !self.scoped_cell_head(inputs[0], cell, b)? { return Err(fail("original scoped cell operation changes its actual shared head")); }
+        for input in &inputs[1..] { self.unify(*input, scalar, depth + 1, b)?; }
+        match intrinsic {
+            I::SyncCellOp(_, SyncI32Op::Store) => self.atom(Type::Unit, b),
+            I::SyncCellCompareExchange => { let flag = self.atom(Type::Bool, b)?; self.term(Kind::Tuple(vec![scalar, flag]), b) }
+            _ => Ok(scalar),
+        }
+    }
+
+    fn scoped_cell_head(&self, term: Term, cell: SyncCellKind, b: &mut Budget) -> CompileResult<bool> {
+        let Kind::Address { mutable: false, inner, .. } = self.state.arena[self.type_root(term, b)?] else { return Ok(false); };
+        Ok(matches!(self.state.arena[self.type_root(inner, b)?], Kind::Atom(Type::SyncCell(actual)) if actual == cell))
+    }
+
     fn thread_boundary(&self, term: Term, b: &mut Budget, depth: usize) -> CompileResult<bool> {
         self.step(depth, b)?;
+        if let Kind::Address { mutable: false, inner, .. } = self.state.arena[self.type_root(term, b)?]
+            && matches!(self.state.arena[self.type_root(inner, b)?], Kind::Atom(Type::I32 | Type::SyncCell(_))) {
+            return Ok(true);
+        }
         if let Kind::Desc { inner, .. } = self.state.arena[self.type_root(term, b)?]
             && let Kind::Wrapped(Wrapper::Mutex, payload) =
                 self.state.arena[self.type_root(inner, b)?]
@@ -318,6 +386,8 @@ impl Solver<'_, '_> {
                             | sealed::Intrinsic::CCallback
                             | sealed::Intrinsic::SliceLength
                             | sealed::Intrinsic::MutexLock
+                            | sealed::Intrinsic::SyncCellOp(..)
+                            | sealed::Intrinsic::SyncCellCompareExchange
                             | sealed::Intrinsic::MutexValue
                     )
                 {

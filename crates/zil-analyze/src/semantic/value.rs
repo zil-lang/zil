@@ -1555,6 +1555,47 @@ pub(super) fn class(
     if depth > b.partial_depth {
         return Err(unknown("semantic class relation exceeds its finite depth"));
     }
+    if let SemanticClassExpr::OuterOccurrence {
+        operand: SemanticOperand::Parameter(parameter),
+        path,
+        mode: StoredBorrowMode::SharedAddress,
+    } = expression
+        && path.is_empty()
+    {
+        let original = inventory.definition(instance.definition, b)?;
+        if let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &original.body
+            && let Some(SemanticParameterRecipe {
+                ty: SemanticTypeRecipe::Address {
+                    mutable: false,
+                    lifetime: SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Invocation(role)),
+                    inner,
+                },
+                ..
+            }) = signature.parameters.get(*parameter as usize)
+            && let SemanticTypeRecipe::Atom(sealed @ Type::SyncCell(_)) = inner.as_ref()
+        {
+            let SemanticInstanceTarget::Function(target) = &instance.target else {
+                return Err(fail("scoped cell parameter lacks its actual entry"));
+            };
+            let function = inventory.function(target, b)?;
+            let local = function.parameters
+                .get(*parameter as usize)
+                .and_then(|local| function.locals.get(local.0 as usize))
+                .ok_or_else(|| fail("scoped cell class selects an absent actual parameter"))?;
+            let contract = function.storage_life
+                .as_ref()
+                .ok_or_else(|| fail("scoped cell parameter lacks its actual header"))?;
+            crate::signature_life::charge(contract, b)?;
+            if !matches!(&local.ty, Type::Address { mutable: false, inner } if inner.as_ref() == sealed)
+                || *role >= signature.invocation_lifetimes
+                || crate::signature_life::outer(contract, StorageBase::Parameter(*parameter))
+                    != Some(StorageBinder::Invocation(*role))
+            {
+                return Err(fail("scoped cell class changes its original shared invocation input"));
+            }
+            return Ok(Class::Invocation(instance.id, *role));
+        }
+    }
     match expression {
         SemanticClassExpr::OuterOccurrence {
             operand: SemanticOperand::Value(id),

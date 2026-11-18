@@ -81,8 +81,27 @@ impl Check<'_, '_> {
                     .original
                     .intrinsic_anchor(instance, site, self.inventory, b)?;
                 self.task_head(instance, function, *argument, anchor, b, 0)?;
-                self.thread_parent_body(instance, site, function, *body, b)?;
+                self.thread_parent_body(instance, site, function, *body, 2, b)?;
                 vec![*argument, *body]
+            }
+            (original::sealed::Intrinsic::SyncCellScope(expected), InstructionKind::WithSyncCell { kind, initial, body })
+                if expected == *kind => {
+                self.thread_parent_body(instance, site, function, *body, 1, b)?;
+                vec![*initial, *body]
+            }
+            (original::sealed::Intrinsic::SyncCellOp(_, expected), InstructionKind::SyncI32 { op, address, value, ordering })
+                if expected == *op && *ordering == AtomicOrdering::SeqCst => {
+                let anchor = self.original.intrinsic_anchor(instance, site, self.inventory, b)?;
+                self.task_head(instance, function, *address, anchor, b, 0)?;
+                let mut operands = vec![*address];
+                operands.extend(value);
+                operands
+            }
+            (original::sealed::Intrinsic::SyncCellCompareExchange, InstructionKind::SyncI32CompareExchange { address, expected, desired, success, failure })
+                if *success == AtomicOrdering::SeqCst && *failure == AtomicOrdering::SeqCst => {
+                let anchor = self.original.intrinsic_anchor(instance, site, self.inventory, b)?;
+                self.task_head(instance, function, *address, anchor, b, 0)?;
+                vec![*address, *expected, *desired]
             }
             _ => {
                 return Err(fail(
@@ -171,6 +190,7 @@ impl Check<'_, '_> {
         site: SemanticSiteId,
         function: &TypedFunction,
         value: ValueId,
+        body_ordinal: usize,
         b: &mut Budget,
     ) -> CompileResult<()> {
         let declaration = self.inventory.definition(instance.definition, b)?;
@@ -200,7 +220,7 @@ impl Check<'_, '_> {
             ));
         };
         let body = arguments
-            .get(2)
+            .get(body_ordinal)
             .ok_or_else(|| fail("thread operation loses its original parent body"))?;
         if !matches!(body.kind, CoreExprKind::Closure { .. }) {
             return Err(unknown(
@@ -278,6 +298,9 @@ impl Check<'_, '_> {
                 original::sealed::Intrinsic::MutexCreate
                     | original::sealed::Intrinsic::MutexLock
                     | original::sealed::Intrinsic::MutexValue
+                    | original::sealed::Intrinsic::SyncCellScope(_)
+                    | original::sealed::Intrinsic::SyncCellOp(..)
+                    | original::sealed::Intrinsic::SyncCellCompareExchange
                     | original::sealed::Intrinsic::ThreadScope
             ) {
                 return Err(fail(

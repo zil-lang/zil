@@ -26,6 +26,19 @@ impl Role {
         }
     }
 }
+
+pub(in crate::semantic) fn is_region_occurrence(recipe: &SemanticSiteRecipe, path: &[u32]) -> bool {
+    let Some(suffix) = path.strip_prefix(recipe.occurrence_path.as_slice()) else {
+        return false;
+    };
+    match recipe.kind {
+        SemanticSiteRecipeKind::OriginalCall => matches!(suffix,
+            [u32::MAX, 0..=3 | 5, _] | [u32::MAX, 4, _, _]),
+        SemanticSiteRecipeKind::Construct { .. } =>
+            matches!(suffix, [marker, 0, _] if *marker == u32::MAX - 1),
+        _ => false,
+    }
+}
 #[derive(Clone)]
 pub(super) struct Source {
     pub node: NodeId,

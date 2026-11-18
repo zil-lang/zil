@@ -1227,6 +1227,7 @@ fn relation_inner(
                 }
             } else if pointed {
                 if !(target.is_address_pointee()
+                    || ty.is_shared_sync_cell_address()
                     // A resource head contributes the address's outer class,
                     // not a lifetime hidden inside its closed owning payload.
                     // Actual resource identity and CFG head access are checked

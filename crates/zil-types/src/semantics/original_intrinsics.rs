@@ -39,6 +39,9 @@ pub(crate) enum IntrinsicKind {
     MutexLock,
     MutexValue,
     MutexUnlock,
+    SyncCellScope(SyncCellKind),
+    SyncCellOp(SyncCellKind, SyncI32Op),
+    SyncCellCompareExchange,
     StoreNew,
     StoreReserve,
     StorePush,
@@ -294,9 +297,18 @@ impl Check<'_, '_> {
                         .worker_scheme = Some((worker_signature, worker_actuals));
                     return Ok(Some(result));
                 }
-                name => match numeric(name) {
-                    Some(target) => (IntrinsicKind::Numeric { target }, 1, None),
-                    None => return Ok(None),
+                "atomic_compare_exchange" => (IntrinsicKind::SyncCellCompareExchange, 3, None),
+                name => match crate::scoped_thread::sync_primitive(name) {
+                    Some((cell, None)) => (IntrinsicKind::SyncCellScope(cell), 2, None),
+                    Some((cell, Some(op))) => (
+                        IntrinsicKind::SyncCellOp(cell, op),
+                        if op == SyncI32Op::Load { 1 } else { 2 },
+                        None,
+                    ),
+                    None => match numeric(name) {
+                        Some(target) => (IntrinsicKind::Numeric { target }, 1, None),
+                        None => return Ok(None),
+                    },
                 },
             },
             (CoreExprKind::Member { object, member, .. }, None) if member == "len" => {
@@ -335,12 +347,43 @@ impl Check<'_, '_> {
                     Some(SemanticTypeRecipe::Atom(Type::I64))
                 }
                 (IntrinsicKind::BytesPush, 1) => Some(SemanticTypeRecipe::Atom(Type::U8)),
+                (IntrinsicKind::SyncCellScope(_), 0)
+                | (IntrinsicKind::SyncCellOp(..) | IntrinsicKind::SyncCellCompareExchange, 1..) =>
+                    Some(SemanticTypeRecipe::Atom(Type::I32)),
                 _ => None,
             };
             parameters.push(self.expr(owner, argument, variables, expected.as_ref(), depth + 1)?);
         }
         let mut temporary_manager = None;
         let result = match &kind {
+            IntrinsicKind::SyncCellScope(cell) => {
+                let SemanticTypeRecipe::Closure { definition, .. } = &parameters[1] else {
+                    return Err(bad("original synchronization scope needs an actual consuming closure"));
+                };
+                let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &self.definition(*definition)?.body else {
+                    return Err(bad("original synchronization scope body has no complete signature"));
+                };
+                if signature.call_kind != CallKind::Direct || signature.result_mode != PassingMode::Infer
+                    || signature.result != SemanticTypeRecipe::Atom(Type::I32)
+                    || !matches!(signature.parameters.as_slice(), [input] if sync_cell_address(&input.ty, *cell))
+                {
+                    return Err(bad("original synchronization scope body changes its shared cell input or Direct scalar result"));
+                }
+                SemanticTypeRecipe::Tuple(vec![SemanticTypeRecipe::Atom(Type::Bool), SemanticTypeRecipe::Atom(Type::I32)])
+            }
+            IntrinsicKind::SyncCellOp(..) | IntrinsicKind::SyncCellCompareExchange => {
+                let cell = match kind { IntrinsicKind::SyncCellOp(cell, _) => cell, _ => SyncCellKind::AtomicI32 };
+                let head = self.observation_type(owner, &parameters[0], depth + 1)?;
+                if !sync_cell_address(&head, cell) {
+                    return Err(bad("original synchronization operation needs its exact shared cell kind"));
+                }
+                let scalar = SemanticTypeRecipe::Atom(Type::I32);
+                match kind {
+                    IntrinsicKind::SyncCellCompareExchange => SemanticTypeRecipe::Tuple(vec![scalar, SemanticTypeRecipe::Atom(Type::Bool)]),
+                    IntrinsicKind::SyncCellOp(_, SyncI32Op::Store) => SemanticTypeRecipe::Atom(Type::Unit),
+                    _ => scalar,
+                }
+            }
             IntrinsicKind::MutexCreate => {
                 let payload = copy_recipe(&parameters[0], self.limits, self.left)?;
                 if !self.ordinary_value(owner, &payload, depth + 1)? {
@@ -654,6 +697,11 @@ impl Check<'_, '_> {
         );
         Ok(())
     }
+}
+
+fn sync_cell_address(ty: &SemanticTypeRecipe, cell: SyncCellKind) -> bool {
+    matches!(ty, SemanticTypeRecipe::Address { mutable: false, inner, .. }
+        if inner.as_ref() == &SemanticTypeRecipe::Atom(Type::SyncCell(cell)))
 }
 
 impl Check<'_, '_> {

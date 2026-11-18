@@ -3093,6 +3093,9 @@ fn async_registration_sealed_sync_scope_source_reaches_independent_kernel() {
         include_str!(
             "../../../tests/language-readiness/terminal/concurrency-and-registration/mutex-contention.zil"
         ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/concurrency-and-registration/cas-contention.zil"
+        ),
     ] {
         let report = compile_source(&source(text), &CompileOptions::default());
         assert_eq!(
@@ -3131,6 +3134,9 @@ fn async_registration_sealed_sync_native_contention() {
         ),
         include_str!(
             "../../../tests/language-readiness/terminal/concurrency-and-registration/mutex-contention.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/concurrency-and-registration/cas-contention.zil"
         ),
     ] {
         for backend in &backends {
@@ -3198,10 +3204,9 @@ fn async_registration_sealed_sync_source_and_raw_boundaries() {
     let src = source(include_str!(
         "../../../tests/language-readiness/terminal/concurrency-and-registration/atomic-contention.zil"
     ));
-    let ast = zil_syntax::parse(&src).into_result().unwrap();
-    let core = zil_expand::expand(&src, &ast).unwrap();
     let target = zil_base::TargetProfile::default();
     let limits = Limits::default();
+    let core = sealed_sync_original_core(&src, &target, &limits);
     let typed = zil_types::check(&core, &target, &limits).unwrap();
     let plan = zil_analyze::analyze(&typed, &limits).unwrap();
     let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
@@ -3316,6 +3321,65 @@ fn async_registration_sealed_sync_source_and_raw_boundaries() {
         }
     }
     thread_parent_budget(&typed, &plan);
+}
+
+fn sealed_sync_original_core(
+    input: &SourceUnit,
+    target: &zil_base::TargetProfile,
+    limits: &Limits,
+) -> zil_ir::CoreModule {
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+
+    let syntax = zil_syntax::parse(input).into_result().unwrap();
+    zil_expand::expand_with_map_semantics(
+        input,
+        &syntax,
+        limits,
+        target,
+        SourceIdentityContext::ClosedSnapshot {
+            root: input.module_id,
+            aliases: &Default::default(),
+            declarations: DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core
+}
+
+#[test]
+fn async_registration_sealed_sync_original_atomic_ordering() {
+    use zil_ir::{AtomicOrdering, InstructionKind, SyncI32Op};
+
+    let input = source(include_str!(
+        "../../../tests/language-readiness/terminal/concurrency-and-registration/atomic-scope.zil"
+    ));
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let core = sealed_sync_original_core(&input, &target, &limits);
+    let mut raw = zil_types::check(&core, &target, &limits).unwrap();
+    let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+
+    let ordering = raw.functions.iter_mut().flat_map(|f| &mut f.blocks)
+        .flat_map(|block| &mut block.instructions)
+        .find_map(|instruction| match &mut instruction.kind {
+            InstructionKind::SyncI32 { op: SyncI32Op::Load, ordering, .. } => Some(ordering),
+            _ => None,
+        })
+        .expect("original atomic_load emits an atomic load");
+    assert_eq!(*ordering, AtomicOrdering::SeqCst);
+    *ordering = AtomicOrdering::Relaxed;
+    let analyzed = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert_eq!(analyzed[0].category, ResultCategory::SafeReject);
+    plan.module_fingerprint = raw.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    let raw = zil_verify::verify_module(raw, plan, &target, &limits).unwrap_err();
+    let wire = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
+    assert_eq!(raw[0].category, ResultCategory::SafeReject);
+    assert_eq!(raw[0].message, "original body Call selects another actual operation");
+    assert_eq!(raw, wire);
 }
 
 #[test]

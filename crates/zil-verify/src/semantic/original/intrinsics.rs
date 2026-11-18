@@ -4,7 +4,7 @@
 use super::*;
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
-pub(in crate::semantic) enum Intrinsic {SliceLen,OwnedDyn,Convert(Numeric),CCallback,TaskYield,TaskAwait,BytesNew,BytesReserve,BytesPush,BytesTruncate,BytesLen,BytesCapacity,BytesView,BytesViewMut,StoreNew,StoreReserve,StorePush,StorePop,StoreGet,StoreGetMut,StoreLen,StoreCapacity,TaskCreate,TaskCreateOwned,TaskValid,TaskPoll,TaskRequest,TaskPollClose,TaskFinish,MutexCreate,MutexLock,MutexValue,MutexUnlock,AsyncStart,AsyncValid,AsyncRequest,AsyncPoll,AsyncFinish,AsyncFinishChecked,ThreadScope,ScopedCallback}
+pub(in crate::semantic) enum Intrinsic {SliceLen,OwnedDyn,Convert(Numeric),CCallback,TaskYield,TaskAwait,BytesNew,BytesReserve,BytesPush,BytesTruncate,BytesLen,BytesCapacity,BytesView,BytesViewMut,StoreNew,StoreReserve,StorePush,StorePop,StoreGet,StoreGetMut,StoreLen,StoreCapacity,TaskCreate,TaskCreateOwned,TaskValid,TaskPoll,TaskRequest,TaskPollClose,TaskFinish,MutexCreate,MutexLock,MutexValue,MutexUnlock,SyncCellScope(SyncCellKind),SyncCellOp(SyncCellKind,SyncI32Op),SyncCellCompareExchange,AsyncStart,AsyncValid,AsyncRequest,AsyncPoll,AsyncFinish,AsyncFinishChecked,ThreadScope,ScopedCallback}
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub(in crate::semantic) enum Numeric {I8,I16,I32,I64,Isize,U8,U16,U32,U64,Usize,F32,F64}
 impl Numeric {
@@ -38,6 +38,13 @@ impl Intrinsic {
         InstructionKind::OwnedStoreNew{..}=>Self::StoreNew,InstructionKind::OwnedStoreReserve{..}=>Self::StoreReserve,InstructionKind::OwnedStorePush{..}=>Self::StorePush,InstructionKind::OwnedStorePop{..}=>Self::StorePop,InstructionKind::OwnedStoreBorrow{..}=>Self::StoreGet,InstructionKind::OwnedStoreBorrowMut{..}=>Self::StoreGetMut,InstructionKind::OwnedStoreLen{..}=>Self::StoreLen,InstructionKind::OwnedStoreCapacity{..}=>Self::StoreCapacity,
         InstructionKind::TaskCreate{..}=>Self::TaskCreate,InstructionKind::TaskCreateOwned{..}=>Self::TaskCreateOwned,InstructionKind::TaskValid{..}=>Self::TaskValid,InstructionKind::TaskPoll{..}=>Self::TaskPoll,InstructionKind::TaskRequestCancel{..}=>Self::TaskRequest,InstructionKind::TaskPollClose{..}=>Self::TaskPollClose,InstructionKind::TaskFinishDestroy{..}=>Self::TaskFinish,
         InstructionKind::MutexCreate{..}=>Self::MutexCreate,InstructionKind::MutexLock{..}=>Self::MutexLock,InstructionKind::MutexValue{..}=>Self::MutexValue,InstructionKind::MutexUnlock{..}=>Self::MutexUnlock,
+        InstructionKind::WithSyncCell{kind,..}=>Self::SyncCellScope(*kind),
+        InstructionKind::SyncI32{op,address,ordering:AtomicOrdering::SeqCst,..}=>{
+            let Type::Address{mutable:false,inner}=function.values.get(address.0 as usize)? else{return None;};
+            let Type::SyncCell(cell)=**inner else{return None;};
+            Self::SyncCellOp(cell,*op)
+        },
+        InstructionKind::SyncI32CompareExchange{success:AtomicOrdering::SeqCst,failure:AtomicOrdering::SeqCst,..}=>Self::SyncCellCompareExchange,
         InstructionKind::AsyncRegistrationStart{..}=>Self::AsyncStart,InstructionKind::AsyncRegistrationValid{..}=>Self::AsyncValid,InstructionKind::AsyncRegistrationRequestClose{..}=>Self::AsyncRequest,InstructionKind::AsyncRegistrationPollClose{..}=>Self::AsyncPoll,InstructionKind::AsyncRegistrationFinishDestroy{..}=>Self::AsyncFinish,InstructionKind::AsyncRegistrationFinishDestroyChecked{..}=>Self::AsyncFinishChecked,InstructionKind::WithScopedThread{..}=>Self::ThreadScope,InstructionKind::WithForeignCallback{..}=>Self::ScopedCallback,
         _=>return None,
     })}
@@ -45,6 +52,9 @@ impl Intrinsic {
         "store_new"=>Self::StoreNew,"store_reserve"=>Self::StoreReserve,"store_push"=>Self::StorePush,"store_pop"=>Self::StorePop,"store_at"=>Self::StoreGet,"store_at_mut"=>Self::StoreGetMut,"store_len"=>Self::StoreLen,"store_capacity"=>Self::StoreCapacity,
         "task_create"=>Self::TaskCreate,"task_create_owned"=>Self::TaskCreateOwned,"task_valid"=>Self::TaskValid,"task_poll"=>Self::TaskPoll,"task_request_cancel"=>Self::TaskRequest,"task_poll_close"=>Self::TaskPollClose,"task_finish_destroy"=>Self::TaskFinish,
         "mutex_create"=>Self::MutexCreate,"mutex_lock"=>Self::MutexLock,"mutex_value"=>Self::MutexValue,"mutex_unlock"=>Self::MutexUnlock,
+        "mutex_scope"=>Self::SyncCellScope(SyncCellKind::MutexI32),"atomic_scope"=>Self::SyncCellScope(SyncCellKind::AtomicI32),
+        "mutex_load"=>Self::SyncCellOp(SyncCellKind::MutexI32,SyncI32Op::Load),"mutex_store"=>Self::SyncCellOp(SyncCellKind::MutexI32,SyncI32Op::Store),"mutex_fetch_add"=>Self::SyncCellOp(SyncCellKind::MutexI32,SyncI32Op::FetchAdd),
+        "atomic_load"=>Self::SyncCellOp(SyncCellKind::AtomicI32,SyncI32Op::Load),"atomic_store"=>Self::SyncCellOp(SyncCellKind::AtomicI32,SyncI32Op::Store),"atomic_fetch_add"=>Self::SyncCellOp(SyncCellKind::AtomicI32,SyncI32Op::FetchAdd),"atomic_compare_exchange"=>Self::SyncCellCompareExchange,
         "c_register_async"=>Self::AsyncStart,"async_registration_valid"=>Self::AsyncValid,"async_registration_request_close"=>Self::AsyncRequest,"async_registration_poll_close"=>Self::AsyncPoll,"async_registration_finish_destroy"=>Self::AsyncFinish,"async_registration_finish_destroy_checked"=>Self::AsyncFinishChecked,"thread_scope"=>Self::ThreadScope,"c_with_callback"=>Self::ScopedCallback,_=>return None})}
 }
 impl CheckedOriginal {

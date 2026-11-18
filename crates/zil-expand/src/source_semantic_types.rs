@@ -709,6 +709,7 @@ impl Builder<'_, '_, '_, '_> {
                                     | Type::ForeignHandle
                                     | Type::CWideString
                                     | Type::TaskI32
+                                    | Type::SyncCell(_)
                             )
                         {
                             return Ok(SemanticTypeRecipe::Atom(atom));

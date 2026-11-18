@@ -1,7 +1,55 @@
 //! Remote execution is a complete original dependency-graph obligation.
 //! A mutex description is a scoped manager role, not a general Transfer fact.
 use super::*;
+use intrinsics::{BufferSource, Intrinsic};
 impl CheckedOriginal {
+    pub(super) fn scoped_cell(&mut self,module:&TypedModule,context:&CheckedContext,kind:Intrinsic,arguments:&[SemanticOriginalExpr],env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<(Ty,Option<BufferSource>)>{
+        let scalar=Ty::Atom(Type::I32);
+        let flag=Ty::Atom(Type::Bool);
+        if let Intrinsic::SyncCellScope(cell)=kind {
+            self.operation_arity(arguments,2)?;
+            self.operation_scalar(module,context,&arguments[0],Type::I32,env,bindings,active,b)?;
+            let body=self.expression(module,context,&arguments[1],env,bindings,None,active,b)?;
+            let Ty::Closure(definition,actuals,sealed)=self.resolved(&body,b)? else{return Err(bad("synchronization scope needs its original concrete body"));};
+            let prototype=self.prototypes.get(&definition).cloned().ok_or_else(||bad("synchronization body has no original prototype"))?;
+            let creator=self.closure_creator_environment(module,context,definition,&actuals,&sealed,env,active,b)?;
+            let prototype=self.specialize_code_prototype(&prototype,&creator,b)?;
+            if !matches!(prototype.parameters.as_slice(),[head] if Self::sync_cell_head(head,cell)) || prototype.result!=scalar
+                || prototype.result_mode!=PassingMode::Infer || prototype.call_kind!=CallKind::Direct
+                || !matches!(prototype.callable_kind,Some(CallableKind::Fn|CallableKind::FnMut|CallableKind::FnOnce)) {
+                return Err(bad("synchronization scope body changes its complete shared head or scalar Direct result"));
+            }
+            self.structural_obligation(module,context,&body,DynStructuralBound::SyncDrop,env,active,b)?;
+            return Ok((Ty::Tuple(vec![flag,scalar]),None));
+        }
+        let (cell,arity)=match kind {
+            Intrinsic::SyncCellOp(cell,op)=>(cell,if op==SyncI32Op::Load{1}else{2}),
+            Intrinsic::SyncCellCompareExchange=>(SyncCellKind::AtomicI32,3),
+            _=>return Err(bad("another operation entered the scoped cell scheme")),
+        };
+        self.operation_arity(arguments,arity)?;
+        let head=self.expression(module,context,&arguments[0],env,bindings,None,active,b)?;
+        if !Self::sync_cell_head(&self.resolved(&head,b)?,cell){return Err(bad("synchronization operation changes its original shared cell kind"));}
+        let source=self.operation_source(module,&arguments[0],env,bindings,b)?;
+        for argument in &arguments[1..]{self.operation_scalar(module,context,argument,Type::I32,env,bindings,active,b)?;}
+        let output=match kind {
+            Intrinsic::SyncCellCompareExchange=>Ty::Tuple(vec![scalar,flag]),
+            Intrinsic::SyncCellOp(_,SyncI32Op::Store)=>Ty::Atom(Type::Unit),
+            _=>scalar,
+        };
+        Ok((output,Some(source)))
+    }
+    fn sync_cell_head(ty:&Ty,cell:SyncCellKind)->bool{
+        matches!(ty,Ty::Address{mutable:false,inner,..}if inner.as_ref()==&Ty::Atom(Type::SyncCell(cell)))
+    }
+    pub(in crate::semantic) fn scoped_cell_arguments(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,b:&mut Budget)->Check<Vec<NodeId>>{
+        let index=self.source_index(module,&[definition],b)?;
+        let function=index.definitions.get(&definition).ok_or_else(||bad("synchronization original caller is absent"))?;
+        let Some(index::Node::Expression(node))=function.nodes.get(&site)else{return Err(bad("synchronization original Call occurrence is absent"));};
+        let CoreExprKind::Call{arguments,..}=&node.kind else{return Err(bad("synchronization selects another original expression"));};
+        b.spend(arguments.len())?;
+        Ok(arguments.iter().map(|value|value.id).collect())
+    }
     pub(super) fn scoped_thread(&mut self,module:&TypedModule,context:&CheckedContext,site:SemanticSiteId,arguments:&[SemanticOriginalExpr],env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
         if arguments.len()!=3{return Err(bad("thread_scope requires its worker, input and parent body"));}
         let worker=self.expression(module,context,&arguments[0],env,bindings,None,active,b)?;
@@ -66,7 +114,7 @@ impl CheckedOriginal {
                 b.spend(self.expressions.len().saturating_add(self.bindings.len()))?;
                 for((owner,_),ty)in self.expressions.iter().chain(self.bindings.iter()){if *owner==id&&!matches!(ty,Ty::Function(_)){types.push(self.apply_type(ty,&world,b)?);}}
                 for ty in types{if !self.scoped_worker_type(module,context,&ty,payload,&caller,active,b)?{return Err(bad("thread dependency contains an original type outside its complete scoped manager profile"));}}
-                for((owner,_),use_)in &self.intrinsic_calls{b.spend(1)?;if *owner==id&&!matches!(use_.kind,intrinsics::Intrinsic::Convert(_))&&!(payload.is_some()&&matches!(use_.kind,intrinsics::Intrinsic::MutexLock|intrinsics::Intrinsic::MutexValue|intrinsics::Intrinsic::MutexUnlock)){return Err(bad("thread dependency performs an unproved original remote operation"));}}
+                for((owner,_),use_)in &self.intrinsic_calls{b.spend(1)?;if *owner==id&&!matches!(use_.kind,intrinsics::Intrinsic::Convert(_))&& !matches!(use_.kind,intrinsics::Intrinsic::SyncCellOp(..)|intrinsics::Intrinsic::SyncCellCompareExchange)&&!(payload.is_some()&&matches!(use_.kind,intrinsics::Intrinsic::MutexLock|intrinsics::Intrinsic::MutexValue|intrinsics::Intrinsic::MutexUnlock)){return Err(bad("thread dependency performs an unproved original remote operation"));}}
                 let calls=self.call_targets.iter().filter(|((owner,_),_)|*owner==id).map(|(key,target)|(*key,*target)).collect::<Vec<_>>();b.spend(self.call_targets.len())?;
                 for(key,target)in calls{let actuals=self.calls.get(&key).ok_or_else(||bad("thread dependency call lacks original full mixed actuals"))?;let actuals=self.apply_arguments(actuals,&world,0,b)?;let mut next=self.environment(module,context,target,active,b)?;if next.lexical[0].actuals.len()!=actuals.len(){return Err(bad("thread dependency changes complete original mixed arity"));}next.lexical[0].actuals=actuals;queue.push((target,next));}
                 let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&definition.body else{unreachable!()};

@@ -60,7 +60,7 @@ impl CheckedContext {
             .as_ref()
             .ok_or_else(|| bad("actual intrinsic lacks universal original proof"))?
             .intrinsic(caller.definition, site.recipe, b)?;
-        if Intrinsic::actual(&instruction.kind) != Some(use_.kind) {
+        if Intrinsic::actual(f,&instruction.kind) != Some(use_.kind) {
             return Err(bad(
                 "actual opcode differs from its independently resolved original intrinsic",
             ));
@@ -73,6 +73,9 @@ impl CheckedContext {
         }
         if use_.kind == Intrinsic::ScopedCallback {
             return self.actual_scoped_callback(module,caller,f,instruction,site,values,environment,external,active,b).map(Some);
+        }
+        if matches!(use_.kind,Intrinsic::SyncCellScope(_)|Intrinsic::SyncCellOp(..)|Intrinsic::SyncCellCompareExchange){
+            return self.actual_scoped_cell(module,caller,f,instruction,site,use_.buffer,b).map(Some);
         }
         if use_.kind==Intrinsic::ThreadScope{
             return self.actual_scoped_thread(module,caller,f,instruction,site,values,environment,external,active,b).map(Some);

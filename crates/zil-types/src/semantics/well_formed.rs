@@ -620,6 +620,7 @@ impl<'a> Check<'a, '_> {
                         | Type::ForeignHandle
                         | Type::CWideString
                         | Type::ByteBuffer
+                        | Type::SyncCell(_)
                 ) {
                     return Err(fail(
                         "semantic Atom erases a structural, generic or nominal type expression",

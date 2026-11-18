@@ -179,13 +179,19 @@ pub(super) fn resource_closure(module:&TypedModule,id:ClosureId,b:&mut Budget)->
     let entry=module.functions.get(definition.function.0 as usize).ok_or_else(||reject("E-VERIFY-CLOSURE",None,"resource closure exact entry is absent"))?;
     let Some(relation)=&definition.storage_life else{return Ok(false);};
     if entry.id!=definition.function||entry.environment!=Some(id)||entry.storage_life.as_ref()!=Some(relation)||entry.call_kind!=CallKind::Direct||entry.foreign.is_some()||!definition.lending_captures.is_empty()||!definition.result.is_copy_value(){return Ok(false);}
+    // Shared sealed cells stay in the ordinary loan kernel. Scope and
+    // synchronization operations still check the actual cell and entry.
+    let mut synchronized = matches!(definition.parameters.as_slice(), [parameter]
+        if parameter.is_shared_sync_cell_address());
     let mut resource=false;
     for capture in &definition.captures{
         b.spend(1)?;
         if matches!(capture,Type::Desc(_))&&mutex_value(module,capture,b)?{resource=true;}
+        else if capture.is_shared_sync_cell_address(){synchronized=true;}
         else if !capture.is_copy_value()||!zero(module,capture,&mut Vec::new(),0,b)?{return Ok(false);}
     }
-    if !resource{return Ok(false);}
+    if synchronized && !definition.result.is_b0_scalar(){return Ok(false);}
+    if !resource && !synchronized{return Ok(false);}
     for ty in definition.parameters.iter().chain(std::iter::once(&definition.result)){
         let inner=if let Type::Address{inner,..}|Type::Desc(inner)=ty{inner.as_ref()}else{ty};
         if !zero(module,inner,&mut Vec::new(),0,b)?{return Ok(false);}

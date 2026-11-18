@@ -1127,6 +1127,9 @@ impl Check<'_, '_> {
                         id @ (original::sealed::Intrinsic::MutexCreate
                         | original::sealed::Intrinsic::MutexLock
                         | original::sealed::Intrinsic::MutexValue
+                        | original::sealed::Intrinsic::SyncCellScope(_)
+                        | original::sealed::Intrinsic::SyncCellOp(..)
+                        | original::sealed::Intrinsic::SyncCellCompareExchange
                         | original::sealed::Intrinsic::ThreadScope) => {
                             let output = self.mutex_operation(
                                 instance,
@@ -2182,6 +2185,9 @@ impl Check<'_, '_> {
                         | InstructionKind::MutexCreate { .. }
                         | InstructionKind::MutexLock { .. }
                         | InstructionKind::MutexValue { .. }
+                        | InstructionKind::WithSyncCell { .. }
+                        | InstructionKind::SyncI32 { .. }
+                        | InstructionKind::SyncI32CompareExchange { .. }
                         | InstructionKind::WithScopedThread { .. }
                         | InstructionKind::WithForeignCallback { .. }
                         | InstructionKind::AsyncRegistrationRequestClose { .. }

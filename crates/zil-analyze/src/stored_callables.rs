@@ -335,6 +335,7 @@ pub(super) fn byte_capture_head(ty: &Type) -> bool {
 
 pub(super) fn capture(t: &Type) -> bool {
     scalar(t)
+        || t.is_shared_sync_cell_address()
         || matches!(t, Type::Address { mutable: false, inner }
         if inner.is_copy_value() || matches!(inner.as_ref(),Type::Slice{element}if element.is_copy_value())
             || matches!(inner.as_ref(), Type::BorrowedStorage { storage, life }
