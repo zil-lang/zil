@@ -107,6 +107,7 @@ impl Check<'_, '_> {
         function: &TypedFunction,
         recipe: &SemanticSiteRecipe,
         value: ValueId,
+        covered_operands: &mut BTreeSet<NodeId>,
         b: &mut Budget,
     ) -> CompileResult<()> {
         let SemanticSiteRecipeKind::TypeUse {
@@ -122,6 +123,10 @@ impl Check<'_, '_> {
         let mut physical = value;
         loop {
             b.spend(1, WORK)?;
+            if expression.id != *node {
+                b.lookup(covered_operands.len(), WORK)?;
+                covered_operands.insert(expression.id);
+            }
             match &expression.kind {
                 CoreExprKind::Group(child) => expression = child,
                 CoreExprKind::Member { object, member, .. } => {
@@ -332,8 +337,11 @@ impl Check<'_, '_> {
         // particular specialization captures a Copy value by value. Such a row
         // contributes no Fixed class, but its original emitted occurrence is
         // still checked instead of being dropped as an unused claim.
+        let mut covered_operands = BTreeSet::new();
+        let mut pending_operands = Vec::new();
         for occurrence in &definition.implicit_lifetimes {
             let mut emitted = false;
+            let mut source_operand = None;
             for recipe in recipes {
                 b.spend(
                     recipe
@@ -347,6 +355,17 @@ impl Check<'_, '_> {
                     || !matches!(recipe.kind, SemanticSiteRecipeKind::TypeUse { .. })
                 {
                     continue;
+                }
+                if let SemanticSiteRecipeKind::TypeUse {
+                    expected: SemanticTypeRecipe::OriginalType {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        source: SemanticOriginalTypeSource::Expression(node),
+                    },
+                } = &recipe.kind
+                {
+                    if source_operand.replace(*node).is_some_and(|old| old != *node) {
+                        return Err(fail("one implicit occurrence selects competing original expressions"));
+                    }
                 }
                 for site in &self.program.sites {
                     b.spend(1, WORK)?;
@@ -453,7 +472,9 @@ impl Check<'_, '_> {
                             )?;
                         }
                         InstructionKind::ExtractField { .. } => {
-                            self.implicit_record_observation(instance, function, recipe, value, b)?;
+                            self.implicit_record_observation(
+                                instance, function, recipe, value, &mut covered_operands, b,
+                            )?;
                         }
                         InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                             if let Some(anchor) =
@@ -536,6 +557,17 @@ impl Check<'_, '_> {
                 }
             }
             if !emitted {
+                let node = source_operand.ok_or_else(|| {
+                    fail("original implicit occurrence has no matching actual name site")
+                })?;
+                self.push_value(&mut pending_operands, node, b)?;
+            }
+        }
+        // A local may occur only as the selected operand of an actual
+        // projection. The checked physical Load accounts for that child.
+        for node in pending_operands {
+            b.lookup(covered_operands.len(), WORK)?;
+            if !covered_operands.contains(&node) {
                 return Err(fail(
                     "original implicit occurrence has no matching actual name site",
                 ));
