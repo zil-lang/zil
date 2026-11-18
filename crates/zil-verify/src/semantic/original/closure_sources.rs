@@ -104,30 +104,46 @@ impl CheckedOriginal {
         // These forms already reuse a complete original type argument or have
         // no fresh class construction whose domain could be compressed.
         if matches!(checked,Ty::Atom(_)|Ty::SealedError(_)|Ty::Variable(..)|Ty::SelfType(_)|Ty::Function(_)){return Ok(None);}
-        let index=self.source_index(module,&[definition],b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("original Call result has no complete body index"))?;
+        let source_grammar = self.source_grammar.as_ref()
+            .ok_or_else(|| bad("original Call result has no complete body index"))?;
+        let syntax = source_grammar.place_syntax(definition, b)?;
         let binder=match source{
             SemanticOriginalTypeSource::Binding(node)=>Some(*node),
             SemanticOriginalTypeSource::Expression(node)=>match self.value_bindings.get(&(definition,*node)){Some(Binder::Local{definition:owner,node,..})if *owner==definition=>Some(*node),_=>None},
             SemanticOriginalTypeSource::NameAt{at,name}=>{let(kind,node)=match at{SemanticOriginalNode::Expression(node)=>(false,*node),SemanticOriginalNode::Statement(node)=>(true,*node)};b.spend(name.len())?;match self.name_binders_at.get(&(definition,kind,node,name.clone())){Some(Binder::Local{definition:owner,node,..})if *owner==definition=>Some(*node),_=>None}},
             _=>None,
         };
-        let mut expression=if let Some(node)=binder{
-            let statement=function.bindings.get(&node).ok_or_else(||bad("original Call result binding is absent"))?;
-            let CoreStatementKind::Binding{ty:None,initializer:Some(initializer),..}=&statement.kind else{return Ok(None);};initializer
-        }else if let SemanticOriginalTypeSource::Expression(node)=source{let Some(expression)=function.expressions.get(node)else{return Ok(None);};*expression}else{return Ok(None);};
-        if self.injections.contains_key(&(definition,expression.id)){return Ok(None);}
-        while let CoreExprKind::Group(inner)=&expression.kind{b.spend(1)?;expression=inner;}
+        let mut node = if let Some(node) = binder {
+            let binding = syntax.binding(node, b)?.ok_or_else(|| bad("original Call result binding is absent"))?;
+            let Some(initializer) = binding.value.filter(|_| binding.inferred) else { return Ok(None); };
+            initializer
+        } else if let SemanticOriginalTypeSource::Expression(node) = source {
+            *node
+        } else { return Ok(None); };
+        if self.injections.contains_key(&(definition,node)){return Ok(None);}
+        let Some(mut expression) = syntax.find_expression(node, b)? else { return Ok(None); };
+        while let index::PlaceOperation::Group(inner) = expression.operation {
+            node = inner;
+            expression = syntax.expression(node, b)?;
+        }
         // A contextual TypeUse observes the injected sum. The source Call
         // remains its sole payload operation and has a different result role.
-        if self.injections.contains_key(&(definition,expression.id)){return Ok(None);}
-        if !matches!(expression.kind,CoreExprKind::Call{..}){return Ok(None);}
-        let result=self.expressions.get(&(definition,expression.id)).ok_or_else(||bad("original Call result lacks its checked effective type"))?;
+        if self.injections.contains_key(&(definition,node)){return Ok(None);}
+        if !matches!(expression.operation,index::PlaceOperation::Call){return Ok(None);}
+        let result=self.expressions.get(&(definition,node)).ok_or_else(||bad("original Call result lacks its checked effective type"))?;
         // A later Describe occurrence observes the same manager through a new
         // outer head. Only the unchanged whole result role can reuse its Call
         // receipt; all adapted roles retain their own original recipe.
         if !self.same(&checked,result,b)?{return Ok(None);}
         let mut selected=None;
-        for(site,node)in &function.nodes{b.spend(1)?;if matches!(node,index::Node::Expression(node)if node.id==expression.id)&&(self.call_targets.contains_key(&(definition,*site))||self.trait_calls.contains_key(&(definition,*site))||self.callable_nodes.contains_key(&(definition,expression.id))){if selected.replace(*site).is_some(){return Err(bad("original Call result has several source call roles"));}}}
+        let callable = self.callable_nodes.contains_key(&(definition,node));
+        for (_, site) in source_grammar.recipes(definition, SemanticOriginalNode::Expression(node), &index::Role::ALL, b)? {
+            b.spend(1)?;
+            if (self.call_targets.contains_key(&(definition,site)) || self.trait_calls.contains_key(&(definition,site)) || callable)
+                && selected.replace(site).is_some() {
+                return Err(bad("original Call result has several source call roles"));
+            }
+        }
         selected.map(|site|{let dynamic=match self.trait_calls.get(&(definition,site)){Some(call)=>matches!(self.resolved(&call.receiver,b)?,Ty::Dyn(_)),None=>false};
             // Reify only the root adapter. Its whole child domain comes from
             // the completed actual call, not a second nominal construction.
@@ -139,19 +155,18 @@ impl CheckedOriginal {
     }
     pub(in crate::semantic) fn original_address_source(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<intrinsics::BufferSource>>{
         let SemanticOriginalTypeSource::Expression(node)=source else{return Ok(None);};
-        let index=self.source_index(module,&[definition],b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("original address has no complete body index"))?;
-        let mut expression=*function.expressions.get(node).ok_or_else(||bad("original address expression is absent"))?;
-        loop{b.spend(1)?;match &expression.kind{CoreExprKind::Group(value)|CoreExprKind::Ascribed{value,..}=>expression=value, _=>break}}
-        let CoreExprKind::Unary{op:UnaryOp::Borrow|UnaryOp::BorrowMut,operand}=&expression.kind else{return Ok(None);};
-        if !matches!(operand.kind,CoreExprKind::Name(_)){
-            self.address_place(module,definition,operand.id,b)?;
-            return Ok(Some(intrinsics::BufferSource::Address{definition,node:operand.id}));
+        let Some(operand) = self.callable_borrow_operand(module, definition, *node, b)? else { return Ok(None); };
+        let syntax = self.source_grammar.as_ref().ok_or_else(|| bad("original address has no complete body index"))?
+            .place_syntax(definition, b)?;
+        if !matches!(syntax.expression(operand, b)?.operation,index::PlaceOperation::Name){
+            self.address_place(module,definition,operand,b)?;
+            return Ok(Some(intrinsics::BufferSource::Address{definition,node:operand}));
         }
-        let Some(place)=self.value_places.get(&(definition,operand.id))else{
-            self.address_place(module,definition,operand.id,b)?;
-            return Ok(Some(intrinsics::BufferSource::Address{definition,node:operand.id}));
+        let Some(place)=self.value_places.get(&(definition,operand))else{
+            self.address_place(module,definition,operand,b)?;
+            return Ok(Some(intrinsics::BufferSource::Address{definition,node:operand}));
         };
-        if !place.fields.is_empty()||matches!(place.binder,Binder::Capture{..}|Binder::Pattern{..}){return Ok(Some(intrinsics::BufferSource::Place{definition,node:operand.id}));}
+        if !place.fields.is_empty()||matches!(place.binder,Binder::Capture{..}|Binder::Pattern{..}){return Ok(Some(intrinsics::BufferSource::Place{definition,node:operand}));}
         Ok(Some(match &place.binder{Binder::Local{definition,node,..}=>intrinsics::BufferSource::Local{definition:*definition,node:*node},Binder::Parameter{definition,ordinal}=>intrinsics::BufferSource::Parameter{definition:*definition,ordinal:*ordinal},_=>return Err(unsupported("original address needs its complete captured/indirect Place boundary",None))}))
     }
     pub(in crate::semantic) fn ghost_capture_source(&self,module:&TypedModule,creator:SemanticDefinitionId,child:SemanticDefinitionId,ordinal:usize,node:NodeId,b:&mut Budget)->Check<intrinsics::BufferSource>{

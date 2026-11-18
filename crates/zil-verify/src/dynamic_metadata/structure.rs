@@ -52,12 +52,16 @@ pub(crate) struct Structure{
     declarations:(usize,usize),
     types:BTreeSet<usize>,
     recipes:BTreeSet<RecipeKey>,
+    program_bounds:BTreeSet<Profile>,
     declaration_nodes:BTreeSet<usize>,
     type_success:TypeFacts,
     recipe_success:BTreeSet<(RecipeKey,Profile)>,
     declaration_success:BTreeSet<(usize,Option<SemanticDefinitionId>,Profile)>,
     resource_success:BTreeMap<(usize,Profile),usize>,
     store_success:BTreeMap<(usize,bool,bool),Vec<Limits>>,
+    sum_shapes:BTreeMap<(usize,Profile),bool>,
+    store_definitions:BTreeSet<usize>,
+    store_resource_payloads:BTreeSet<Profile>,
     stored_bounds:BTreeMap<(usize,usize),Vec<Limits>>,
     owners:BTreeMap<(OwnerKey,SemanticDefinitionId),usize>,
     lexical_scopes:BTreeMap<OwnerKey,Vec<SemanticDefinitionId>>,
@@ -83,8 +87,8 @@ impl Structure{
             module:module as *const TypedModule as usize,
             program:module.semantic.as_ref().map(|program|program as *const SemanticModule as usize),
             declarations:(module.dyn_declarations.as_ptr() as usize,module.dyn_declarations.len()),
-            types:BTreeSet::new(),recipes:BTreeSet::new(),declaration_nodes:BTreeSet::new(),
-            type_success:TypeFacts::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),lexical_scopes:BTreeMap::new(),dyn_declarations:BTreeMap::new(),trait_providers:None,nominal_declarations:BTreeMap::new(),nominal_instances:BTreeMap::new(),scope_instances:BTreeMap::new(),shared_types:BTreeMap::new(),type_owners:BTreeMap::new(),borrowed_callback_domains:BTreeMap::new(),
+            types:BTreeSet::new(),recipes:BTreeSet::new(),program_bounds:BTreeSet::new(),declaration_nodes:BTreeSet::new(),
+            type_success:TypeFacts::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),sum_shapes:BTreeMap::new(),store_definitions:BTreeSet::new(),store_resource_payloads:BTreeSet::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),lexical_scopes:BTreeMap::new(),dyn_declarations:BTreeMap::new(),trait_providers:None,nominal_declarations:BTreeMap::new(),nominal_instances:BTreeMap::new(),scope_instances:BTreeMap::new(),shared_types:BTreeMap::new(),type_owners:BTreeMap::new(),borrowed_callback_domains:BTreeMap::new(),
         };
         for function in &module.functions{
             result.ty(&function.return_type,b)?;
@@ -250,6 +254,25 @@ pub(super) fn recipe_success<T:'static>(value:&T,b:&mut Budget)->Check<()>{
     let key=(key,profile(b));let fee=lookup(state.recipe_success.len()).saturating_add(2);
     b.spend(fee)?;b.structural.as_mut().unwrap().recipe_success.insert(key);Ok(())
 }
+
+/// Bound the complete original program once for purely structural readers.
+/// A caller that clones the program or compares a body still pays that work.
+pub(crate) fn source_program_bounds(program: &SemanticModule, b: &mut Budget) -> Check<()> {
+    let registered = b.structural.as_ref().is_some_and(|state| state.program == Some(program as *const _ as usize));
+    let key = profile(b);
+    if registered {
+        b.spend(lookup(b.structural.as_ref().unwrap().program_bounds.len()))?;
+        if b.structural.as_ref().unwrap().program_bounds.contains(&key) {
+            return Ok(());
+        }
+    }
+    super::recipe(program, b)?;
+    if registered {
+        b.spend(lookup(b.structural.as_ref().unwrap().program_bounds.len()).saturating_add(2))?;
+        b.structural.as_mut().unwrap().program_bounds.insert(key);
+    }
+    Ok(())
+}
 pub(super) fn declaration_known(value:&DynDeclaration,owner:Option<SemanticDefinitionId>,b:&mut Budget)->Check<bool>{
     let Some(state)=&b.structural else{return Ok(false);};let ptr=value as *const DynDeclaration as usize;
     let fee=lookup(state.declaration_nodes.len()).saturating_add(lookup(state.declaration_success.len()));
@@ -402,6 +425,77 @@ pub(crate) fn resource_success(module:&TypedModule,record:&Type,index:usize,b:&m
     let state=b.structural.as_ref().unwrap();
     let key=(ptr,profile(b));let fee=lookup(state.resource_success.len()).saturating_add(2);b.spend(fee)?;
     b.structural.as_mut().unwrap().resource_success.insert(key,index);Ok(())
+}
+
+/// This fact is confined to a registered immutable root in this request. It
+/// determines which structural checker to run while all value/tag checks
+/// still run on their actual inputs.
+pub(crate) fn sum_shape_known(ty: &Type, b: &mut Budget) -> Check<Option<bool>> {
+    if !cacheable(ty) { return Ok(None); }
+    let Some(state) = &b.structural else { return Ok(None); };
+    b.spend(lookup(state.sum_shapes.len()))?;
+    let ptr = ty as *const Type as usize;
+    Ok(b.structural.as_ref().unwrap().sum_shapes.get(&(ptr, profile(b))).copied())
+}
+
+pub(crate) fn sum_shape_success(ty: &Type, shape: bool, b: &mut Budget) -> Check<()> {
+    if !cacheable(ty) { return Ok(()); }
+    let Some(state) = &b.structural else { return Ok(()); };
+    b.spend(lookup(state.types.len()))?;
+    let state = b.structural.as_ref().unwrap();
+    let ptr = ty as *const Type as usize;
+    if state.types.contains(&ptr) {
+        b.spend(lookup(state.sum_shapes.len()).saturating_add(2))?;
+        let key = (ptr, profile(b));
+        b.structural.as_mut().unwrap().sum_shapes.insert(key, shape);
+    }
+    Ok(())
+}
+
+/// The only shared fact here is the canonical Package Store declaration's
+/// exact name, payload equality, and absence of a custom teardown. Element
+/// qualification still executes at its call site, under its current profile.
+pub(crate) fn store_definition_known(module: &TypedModule, element: &Type, b: &mut Budget) -> Check<bool> {
+    let Some(state) = &b.structural else { return Ok(false); };
+    if state.module != module as *const TypedModule as usize { return Ok(false); }
+    b.spend(lookup(state.store_definitions.len()))?;
+    Ok(b.structural.as_ref().unwrap().store_definitions.contains(&(element as *const Type as usize)))
+}
+
+pub(crate) fn store_definition_success(module: &TypedModule, element: &Type, b: &mut Budget) -> Check<()> {
+    let Some(state) = &b.structural else { return Ok(()); };
+    if state.module != module as *const TypedModule as usize { return Ok(()); }
+    b.spend(lookup(state.types.len()))?;
+    let state = b.structural.as_ref().unwrap();
+    let ptr = element as *const Type as usize;
+    if state.types.contains(&ptr) {
+        b.spend(lookup(state.store_definitions.len()).saturating_add(2))?;
+        b.structural.as_mut().unwrap().store_definitions.insert(ptr);
+    }
+    Ok(())
+}
+
+/// POD carrier admission also checks the resource inventory's closed Task
+/// context. The live module and shape caps bind this separate structural fact.
+pub(crate) fn check_store_resource_payloads(module: &TypedModule, b: &mut Budget) -> Check<()> {
+    let registered = b.structural.as_ref().is_some_and(|state| state.module == module as *const TypedModule as usize);
+    let key = profile(b);
+    if registered {
+        let state = b.structural.as_ref().unwrap();
+        b.spend(lookup(state.store_resource_payloads.len()))?;
+        if b.structural.as_ref().unwrap().store_resource_payloads.contains(&key) {
+            return Ok(());
+        }
+    }
+    b.spend(module.resources.len())?;
+    for resource in &module.resources {
+        crate::resources::charge_payload(&resource.payload, b)?;
+    }
+    if registered {
+        b.spend(lookup(b.structural.as_ref().unwrap().store_resource_payloads.len()).saturating_add(2))?;
+        b.structural.as_mut().unwrap().store_resource_payloads.insert(key);
+    }
+    Ok(())
 }
 
 // The stored bounds visitor has its own depth convention and diagnostics.

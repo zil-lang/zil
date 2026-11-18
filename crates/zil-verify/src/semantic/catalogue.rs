@@ -6,11 +6,12 @@ impl CheckedContext {
     pub(crate) fn catalogue(module:&TypedModule,b:&mut Budget)->Check<Self> {Self::catalogue_mode(module,None,b)}
     pub(super) fn definition_catalogue(module:&TypedModule,frozen:Option<&FrozenContext<'_>>,b:&mut Budget)->Check<Self> {
         let program=module.semantic.as_ref().ok_or_else(||bad("semantic programme is absent"))?;
-        dynamic_metadata::recipe(program,b)?;
+        dynamic_metadata::source_program_bounds(program,b)?;
         let mut context=Self{domain_only:Cell::new(false),definitions:BTreeMap::new(),instances:BTreeMap::new(),site_index:sites::Index::new(module,b)?,premises:RefCell::new(BTreeMap::new()),premises_epoch:Cell::new(0),static_identity:std::rc::Rc::new(()),static_members:RefCell::new(Vec::new()),local_role_writes:RefCell::new(BTreeMap::new()),local_role_transfers:RefCell::new(BTreeMap::new()),closed_frames:RefCell::new(BTreeMap::new()),occurrences:RefCell::new(BTreeMap::new()),seals:RefCell::new(BTreeMap::new()),pending_closures:RefCell::new(vec![]),published:Cell::new(false),origin_aliases:RefCell::new(BTreeMap::new()),original:RefCell::new(None),closure_boundaries:RefCell::new(vec![]),frozen_functions:BTreeMap::new(),shared_types:RefCell::new(BTreeMap::new()),constructed_types:RefCell::new(BTreeMap::new())};
         let mut identities=BTreeSet::new();
         for (index,definition) in program.definitions.iter().enumerate() {
             b.spend(definition.parameters.len().saturating_add(definition.implicit_lifetimes.len()).saturating_add(2))?;
+            dynamic_metadata::definition_identity(&definition.identity, b)?;
             if context.definitions.insert(definition.id,index).is_some() || !identities.insert(definition.identity.clone()) {return Err(bad("duplicate original semantic definition identity"));}
             let mut ordinals=BTreeSet::new();let mut occurrences=BTreeSet::new();
             for row in &definition.implicit_lifetimes {

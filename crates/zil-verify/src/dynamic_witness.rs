@@ -18,6 +18,7 @@ mod scopes;
 mod structural;
 mod terms;
 mod values;
+pub(crate) use values::active_contains;
 
 fn bad(message: &str) -> Diagnostic {
     reject("E-VERIFY-DYN-WITNESS", None, message)

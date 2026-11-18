@@ -93,42 +93,51 @@ pub(super) fn needs_shape(ty: &Type, budget: &mut Budget) -> Check<bool> {
     if !budget.sums {
         return Ok(false);
     }
+    if let Some(shape) = dynamic_metadata::sum_shape_known(ty, budget)? {
+        return Ok(shape);
+    }
     resources::charge_payload(ty, budget)?;
+    let shape = complete_sum_shape(ty);
+    dynamic_metadata::sum_shape_success(ty, shape, budget)?;
+    Ok(shape)
+}
+
+fn complete_sum_shape(ty: &Type) -> bool {
     let mut pending = vec![(ty, false, false)];
     while let Some((ty, in_error, in_product)) = pending.pop() {
         match ty {
-            Type::BorrowedStorage { .. } if owned(ty) => return Ok(true),
-            Type::Tuple(_) if owned(ty) => return Ok(true),
-            Type::Enum { .. } if owned_enum(ty) => return Ok(true),
+            Type::BorrowedStorage { .. } if owned(ty) => return true,
+            Type::Tuple(_) if owned(ty) => return true,
+            Type::Enum { .. } if owned_enum(ty) => return true,
             Type::ErrorUnion { error, result } => {
                 if errors::direct_owner_failure(ty) {
-                    return Ok(true);
+                    return true;
                 }
                 if (in_product || in_error) && owned(ty) {
-                    return Ok(true);
+                    return true;
                 }
                 if **error != Type::Unit
                     && **result != Type::Unit
                     && (packages::has_children(error) || packages::has_children(result))
                 {
-                    return Ok(true);
+                    return true;
                 }
                 pending.push((error, true, in_product));
                 pending.push((result, true, in_product));
             }
-            Type::Closure(_) if in_product || in_error => return Ok(true),
+            Type::Closure(_) if in_product || in_error => return true,
             Type::Package { fields, .. } => {
                 pending.extend(fields.iter().map(|(_, ty)| (ty, in_error, true)));
             }
             Type::Managed(payload)
                 if in_error && matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
             {
-                return Ok(true);
+                return true;
             }
             _ => {}
         }
     }
-    Ok(false)
+    false
 }
 
 pub(super) fn check_type_for(

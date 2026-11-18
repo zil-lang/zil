@@ -74,12 +74,12 @@ impl CheckedContext {
     pub(super) fn typed_origins(&self,module:&TypedModule,ty:&Type,life:&StorageLifeShape,classes:&[ClassKey],b:&mut Budget)->Check<Vec<IntrinsicOrigin>>{
         self.typed_origins_at(module,ty,life,classes,&mut Vec::new(),0,b)
     }
-    fn typed_origins_at(&self,module:&TypedModule,ty:&Type,life:&StorageLifeShape,classes:&[ClassKey],active:&mut Vec<Type>,depth:usize,b:&mut Budget)->Check<Vec<IntrinsicOrigin>>{
-        dynamic_metadata::ty(ty,b)?;dynamic_metadata::life_shape(life,b)?;
-        b.spend(active.len().saturating_add(1))?;
-        if active.contains(ty){return Err(bad("typed nominal argument origin graph has a cycle"));}
+    fn typed_origins_at<'m>(&self,module:&'m TypedModule,ty:&'m Type,life:&StorageLifeShape,classes:&[ClassKey],active:&mut Vec<&'m Type>,depth:usize,b:&mut Budget)->Check<Vec<IntrinsicOrigin>>{
+        dynamic_metadata::bounds_type(ty,b)?;dynamic_metadata::life_shape(life,b)?;
+        b.spend(1)?;
+        if crate::dynamic_witness::active_contains(active,ty,b)?{return Err(bad("typed nominal argument origin graph has a cycle"));}
         if depth>b.limits.max_call_depth.min(128){return Err(limit("typed nominal argument origin depth exceeded"));}
-        active.push(ty.clone());
+        active.push(ty);
         let result=(||{
 
         if classes.len()!=life.binder_count as usize{return Err(bad("typed intrinsic origin directory loses a class"));}
@@ -209,7 +209,7 @@ impl CheckedContext {
         Ok(())
     }
 
-    fn typed_nominal_origins(&self,module:&TypedModule,ty:&Type,life:&StorageLifeShape,classes:&[ClassKey],active:&mut Vec<Type>,depth:usize,b:&mut Budget)->Check<Vec<IntrinsicOrigin>>{
+    fn typed_nominal_origins<'m>(&self,module:&'m TypedModule,ty:&Type,life:&StorageLifeShape,classes:&[ClassKey],active:&mut Vec<&'m Type>,depth:usize,b:&mut Budget)->Check<Vec<IntrinsicOrigin>>{
         b.spend(module.life_instances.len())?;
         let mut rows=module.life_instances.iter().filter(|row|row.ty==*ty);
         let instance=rows.next().ok_or_else(||bad("nominal origin has no complete actual declaration/arguments"))?;

@@ -1059,6 +1059,10 @@ fn check_carrier_uncached(
         ));
     };
     check_store_element(module, element, span, budget)?;
+    let package = matches!(element, Type::Package { .. });
+    if package && dynamic_metadata::store_definition_known(module, element, budget)? {
+        return Ok(());
+    }
     pod_name_work(element, budget)?;
     let name = definition_name(element);
     budget.spend(
@@ -1067,18 +1071,29 @@ fn check_carrier_uncached(
             .len()
             .saturating_mul(name.len().saturating_add(1)),
     )?;
-    if plain_element(element) {
-        for resource in &module.resources {
-            // Charge both actual trees before comparing full nominal types.
+    let plain = plain_element(element);
+    if plain {
+        dynamic_metadata::check_store_resource_payloads(module, budget)?;
+    }
+    for resource in &module.resources {
+        if resource.name != name || resource.teardown.is_some() {
+            continue;
+        }
+        let Type::OwnedStore { element: actual } = &resource.payload else { continue; };
+        if plain {
+            // The name and head checks select the only trees this comparison
+            // needs. Every resource still receives its own admission pass.
             pod_type_work(element, budget)?;
             pod_type_work(&resource.payload, budget)?;
         }
+        if actual.as_ref() == element {
+            if package {
+                dynamic_metadata::store_definition_success(module, element, budget)?;
+            }
+            return Ok(());
+        }
     }
-    if !module.resources.iter().any(|r| r.name == name && r.teardown.is_none()
-        && matches!(&r.payload, Type::OwnedStore { element: actual } if actual.as_ref() == element)) {
-        return Err(reject("E-VERIFY-OWNED-STORE", span, "Store carrier lacks its canonical sealed definition"));
-    }
-    Ok(())
+    Err(reject("E-VERIFY-OWNED-STORE", span, "Store carrier lacks its canonical sealed definition"))
 }
 
 pub(super) fn check_instruction(

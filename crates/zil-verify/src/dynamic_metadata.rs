@@ -2,6 +2,7 @@
 //! This grants no Context, port, cleanup or return-source authority.
 use super::*;
 mod structure;
+pub(crate) use structure::{check_store_resource_payloads, source_program_bounds, store_definition_known, store_definition_success, sum_shape_known, sum_shape_success};
 pub(crate) use structure::{Structure,owner_known,owner_success,lexical_scopes,program_lexical_scopes,dyn_declarations,trait_providers,nominal_declarations,nominal_instances,nominal_scope_instances,resource_known,resource_success,store_element_known,store_element_success,stored_type_known,stored_type_success,shared_type,adopt_type_cell};
 fn pay(b: &mut Budget, nodes: &mut usize, cap: usize, n: usize) -> Check<()> {
     *nodes = nodes
@@ -810,6 +811,9 @@ pub(super) fn recipe<T: DynRecipeMetadata>(value: &T, b: &mut Budget) -> Check<(
     let result=value.visit_dyn_metadata(&mut RecipeWork { b, nodes: 0 }, 0);
     b.diagnostic_metadata_caller=previous;
     result
+}
+pub(super) fn definition_identity(value: &LifeDeclarationIdentity, b: &mut Budget) -> Check<()> {
+    RecipeWork { b, nodes: 0 }.identity(value, 0)
 }
 /// A registered immutable recipe may reuse only its structural bounds. This
 /// is not a prepayment for cloning/comparing it, or a semantic obligation.

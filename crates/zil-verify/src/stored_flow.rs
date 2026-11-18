@@ -8143,6 +8143,14 @@ fn direct_dependency_postorder(
     {
         return Ok(None);
     }
+    direct_callee_postorder(module, mask, b)
+}
+
+pub(super) fn direct_callee_postorder(
+    module: &TypedModule,
+    mask: Option<&[bool]>,
+    b: &mut Budget,
+) -> Check<Option<Vec<usize>>> {
     let count = module.functions.len();
     b.spend(amount(
         count,

@@ -134,6 +134,15 @@ impl CheckedType {
     pub(crate) fn same_raw_type(&self,other:&Self,b:&mut crate::Budget)->crate::Check<bool>{
         b.spend(1)?;
         if std::rc::Rc::ptr_eq(&self.type_cell,&other.type_cell){return Ok(true);}
+        // Both actual carriers have one node and no nested metadata. Check
+        // that bound directly and compare their complete scalar identities.
+        if self.ty.is_b0_scalar() && other.ty.is_b0_scalar() {
+            if b.limits.max_nodes == 0 {
+                return Err(crate::limit("dyn metadata node count exceeded"));
+            }
+            b.spend(2)?;
+            return Ok(self.ty == other.ty);
+        }
         crate::dynamic_metadata::ty(&self.ty,b)?;
         crate::dynamic_metadata::ty(&other.ty,b)?;
         Ok(self.ty==other.ty)

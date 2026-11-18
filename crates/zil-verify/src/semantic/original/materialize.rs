@@ -58,23 +58,36 @@ impl CheckedOriginal {
         }}
         self.reify_type(module,&value,env,b)
     }
-    pub(super) fn borrow_operand_source(&self,module:&TypedModule,owner:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<NodeId>>{
+    pub(super) fn borrow_operand_source(&self,_module:&TypedModule,owner:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<NodeId>>{
         if !matches!(source,SemanticOriginalTypeSource::Expression(_)|SemanticOriginalTypeSource::Binding(_)|SemanticOriginalTypeSource::NameAt{..}){return Ok(None);}
-        let index=self.source_index(module,&[owner],b)?;let function=index.definitions.get(&owner).ok_or_else(||bad("original borrow source has no complete function"))?;
+        use index::PlaceOperation;
+        let syntax = self.source_grammar.as_ref()
+            .ok_or_else(|| bad("original borrow source has no complete function"))?
+            .place_syntax(owner, b)?;
         let binding=match source{
             SemanticOriginalTypeSource::Binding(node)=>Some(*node),
             SemanticOriginalTypeSource::NameAt{at,name}=>{let(statement,node)=match at{SemanticOriginalNode::Expression(node)=>(false,*node),SemanticOriginalNode::Statement(node)=>(true,*node)};b.spend(name.len())?;match self.name_binders_at.get(&(owner,statement,node,name.clone())){Some(Binder::Local{definition,node,..})if *definition==owner=>Some(*node),_=>return Ok(None)}},
             SemanticOriginalTypeSource::Expression(_)=>None,
             _=>return Ok(None),
         };
-        let initializer=|node|->Check<Option<&SemanticOriginalExpr>>{let Some(statement)=function.bindings.get(&node)else{return Ok(function.expressions.get(&node).copied());};Ok(match &statement.kind{CoreStatementKind::Binding{initializer,..}=>initializer.as_ref(),_=>None})};
-        let mut expression=if let Some(node)=binding{let Some(expression)=initializer(node)?else{return Ok(None);};expression}else if let SemanticOriginalTypeSource::Expression(node)=source{*function.expressions.get(node).ok_or_else(||bad("original borrow expression is absent"))?}else{return Ok(None);};
+        let mut node = if let Some(node) = binding {
+            let Some(initializer) = syntax.binding_value(node, b)? else { return Ok(None); };
+            initializer
+        } else if let SemanticOriginalTypeSource::Expression(node) = source {
+            *node
+        } else { return Ok(None); };
         let mut seen=BTreeSet::new();loop{
-            b.spend(1)?;if !seen.insert(expression.id){return Err(bad("original borrow source has a cyclic local initializer"));}
-            match &expression.kind{
-                CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=>expression=inner,
-                CoreExprKind::Name(_)=>{let Some(Binder::Local{definition,node,..})=self.value_bindings.get(&(owner,expression.id))else{return Ok(None);};if *definition!=owner{return Ok(None);}let Some(next)=initializer(*node)?else{return Ok(None);};expression=next;},
-                CoreExprKind::Unary{op:UnaryOp::Borrow|UnaryOp::BorrowMut,operand}=>return Ok(Some(operand.id)),
+            let expression = syntax.expression(node, b)?;
+            b.spend(1)?;if !seen.insert(node){return Err(bad("original borrow source has a cyclic local initializer"));}
+            match expression.operation{
+                PlaceOperation::Group(inner) | PlaceOperation::Ascribed(inner) => node = inner,
+                PlaceOperation::Name => {
+                    let Some(Binder::Local { definition, node: binder, .. }) = self.value_bindings.get(&(owner, node)) else { return Ok(None); };
+                    if *definition != owner { return Ok(None); }
+                    let Some(initializer) = syntax.binding_value(*binder, b)? else { return Ok(None); };
+                    node = initializer;
+                }
+                PlaceOperation::Borrow(operand) => return Ok(Some(operand)),
                 _=>return Ok(None),
             }
         }
@@ -173,11 +186,10 @@ impl CheckedOriginal {
         },
         Life::Bound(token,index)=>{let depth=env.bounds.iter().position(|frame|frame.token==*token).ok_or_else(||bad("original quantified term escapes its exact bound frame"))?;SemanticLifeRecipe::Bound{depth:depth as u32,index:*index}},
         Life::Local(definition,node)=>{
-            let original=module.semantic.as_ref().and_then(|program|program.definitions.iter().find(|row|row.id==*definition)).ok_or_else(||bad("original borrowed local definition absent"))?;
-            let SemanticDefinitionBody::FunctionWithBody{sites,site_nodes,..}=&original.body else{return Err(bad("original borrowed local lacks body"));};
-            let mut ordinals=BTreeSet::new();for row in site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(*node)){if let Some(site)=sites.iter().find(|site|site.id==row.site){for implicit in &original.implicit_lifetimes{b.spend(implicit.occurrence_path.len().saturating_add(1))?;if implicit.occurrence_path==site.occurrence_path{ordinals.insert(implicit.ordinal);}}}}
-            if ordinals.len()!=1{return Err(unsupported("original local borrow needs its exact implicit head occurrence",None));}
-            SemanticLifeRecipe::Implicit{scope:self.scope(*definition,env,b)?,ordinal:*ordinals.iter().next().unwrap()}
+            let grammar = self.source_grammar.as_ref().ok_or_else(|| bad("original borrowed local definition absent"))?;
+            let ordinal = grammar.implicit_head(*definition, *node, b)?
+                .ok_or_else(|| unsupported("original local borrow needs its exact implicit head occurrence", None))?;
+            SemanticLifeRecipe::Implicit{scope:self.scope(*definition,env,b)?,ordinal}
         },
         Life::Static=>return Err(bad("Static cannot be represented as a variable lifetime argument")),
         Life::Infer(_)=>return Err(bad("original call lifetime remains unresolved at the Typed boundary")),
@@ -186,9 +198,12 @@ impl CheckedOriginal {
 
 impl CheckedOriginal {
     pub(in crate::semantic) fn call_region_parameter_recipes(&self,module:&TypedModule,owner:SemanticDefinitionId,site:SemanticSiteId,env:&EvalEnv,b:&mut Budget)->Check<Vec<(u32,SemanticLifeRecipe)>>{
-        let index=self.source_index(module,&[owner],b)?;let function=index.definitions.get(&owner).ok_or_else(||bad("Call region parameter owner has no original body"))?;
-        let Some(index::Node::Expression(call))=function.nodes.get(&site)else{return Err(bad("Call region parameter recipe is not an original Call"));};
-        if self.original_call_site(owner,call.id,b)?.1!=site{return Err(bad("Call region parameter selects another original operation site"));}
-        let mut result=Vec::new();if let Some(rows)=self.call_region_parameters.get(&(owner,call.id)){b.spend(rows.len())?;for(ordinal,id)in rows{result.push((*ordinal,self.reify_life(module,&Life::CallRegion(*id),env,b)?));}}Ok(result)
+        let grammar = self.source_grammar.as_ref()
+            .ok_or_else(|| bad("Call region parameter owner has no original body"))?;
+        let Some(SemanticOriginalNode::Expression(call)) = grammar.site_node(owner, site, b)? else {
+            return Err(bad("Call region parameter recipe is not an original Call"));
+        };
+        if self.original_call_site(owner,call,b)?.1!=site{return Err(bad("Call region parameter selects another original operation site"));}
+        let mut result=Vec::new();if let Some(rows)=self.call_region_parameters.get(&(owner,call)){b.spend(rows.len())?;for(ordinal,id)in rows{result.push((*ordinal,self.reify_life(module,&Life::CallRegion(*id),env,b)?));}}Ok(result)
     }
 }

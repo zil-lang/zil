@@ -125,17 +125,12 @@ impl CheckedOriginal {
                 if !entails(established, bound) {
                     continue;
                 }
-                // Recipe interpretation is permitted to read existing solved
-                // variables, but this query must never solve a new one. Pay
-                // for the full snapshot before cloning, and reject any change
-                // even when candidate interpretation itself returns an error.
-                b.spend(self.substitutions.len())?;
-                for value in self.substitutions.values() {
-                    let _ = self.resolved(value, b)?;
-                }
-                let snapshot = self.substitutions.clone();
+                // Only fresh keys can enter the append-only inference table.
+                // Detect an attempted solution even when interpretation fails.
+                b.spend(1)?;
+                let solved = self.substitutions.len();
                 let receiver = self.ty(module, context, receiver, &selected, active, b);
-                if self.substitutions != snapshot {
+                if self.substitutions.len() != solved {
                     return Err(bad("original structural premise query attempted type inference"));
                 }
                 let receiver = receiver?;

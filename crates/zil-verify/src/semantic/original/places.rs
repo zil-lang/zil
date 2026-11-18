@@ -1,6 +1,7 @@
 //! Original place observations retain binder identity and ordered field paths.
 //! They do not create physical addresses or executable borrow permissions.
 use super::*;
+#[derive(Clone)]
 pub(in crate::semantic) struct Assignment {
     pub(in crate::semantic) statement: NodeId,
     pub(in crate::semantic) target: NodeId,
@@ -13,25 +14,21 @@ fn nonnegative_index(value:&Constant)->Option<u64>{match value{Constant::I8(valu
 impl CheckedOriginal {
     pub(in crate::semantic) fn callable_borrow_operand(
         &self,
-        module: &TypedModule,
+        _module: &TypedModule,
         definition: SemanticDefinitionId,
         node: NodeId,
         b: &mut Budget,
     ) -> Check<Option<NodeId>> {
-        let index = self.source_index(module, &[definition], b)?;
-        let function = index.definitions.get(&definition)
-            .ok_or_else(|| bad("callable borrow lacks its independently checked original body"))?;
-        let mut expression = *function.expressions.get(&node)
-            .ok_or_else(|| bad("callable borrow has no exact original callee occurrence"))?;
+        let syntax = self.source_grammar.as_ref()
+            .ok_or_else(|| bad("callable borrow lacks its independently checked original body"))?
+            .place_syntax(definition, b)?;
+        let mut node = node;
         loop {
+            let expression = syntax.expression(node, b)?;
             b.spend(1)?;
-            match &expression.kind {
-                CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } => {
-                    expression = inner;
-                }
-                CoreExprKind::Unary { op: UnaryOp::Borrow | UnaryOp::BorrowMut, operand } => {
-                    return Ok(Some(operand.id));
-                }
+            match expression.operation {
+                index::PlaceOperation::Group(inner) | index::PlaceOperation::Ascribed(inner) => node = inner,
+                index::PlaceOperation::Borrow(operand) => return Ok(Some(operand)),
                 _ => return Ok(None),
             }
         }
@@ -69,7 +66,7 @@ impl CheckedOriginal {
             b.spend(1)?;
             self.original_type(definition, &SemanticOriginalTypeSource::Expression(current), b)?;
             match expression.operation {
-                index::PlaceOperation::Transparent(value) | index::PlaceOperation::Give(value) => {
+                index::PlaceOperation::Group(value) | index::PlaceOperation::Ascribed(value) | index::PlaceOperation::Give(value) => {
                     current = value;
                 }
                 _ => break,
@@ -82,22 +79,11 @@ impl CheckedOriginal {
         b.spend(self.value_bindings.len().checked_ilog2().map_or(1,|depth|depth as usize+1))?;
         Ok(self.value_bindings.contains_key(&(definition,node)))
     }
-    pub(in crate::semantic) fn assignments(&self,module:&TypedModule,definition:SemanticDefinitionId,b:&mut Budget)->Check<Vec<Assignment>> {
+    pub(in crate::semantic) fn assignments(&self,_module:&TypedModule,definition:SemanticDefinitionId,b:&mut Budget)->Check<Vec<Assignment>> {
         if !self.checked.contains(&definition){return Err(bad("assignment source body is not completely checked"));}
-        let index=self.source_index(module,&[definition],b)?;
-        let function=index.definitions.get(&definition).ok_or_else(||bad("assignment source has no complete original body"))?;
-        let mut result=Vec::new();
-        for statement in function.statements.values(){
-            b.spend(1)?;
-            let(target,value,compound)=match &statement.kind{
-                CoreStatementKind::Assign{target,value}=>(target,value,None),
-                CoreStatementKind::CompoundAssign{target,value,op}=>(target,value,Some(*op)),
-                _=>continue,
-            };
-            b.spend(result.len().saturating_add(1))?;
-            result.push(Assignment{statement:statement.id,target:target.id,value:value.id,span:target.span,statement_span:statement.span,compound});
-        }
-        Ok(result)
+        self.source_grammar.as_ref()
+            .ok_or_else(|| bad("assignment source has no complete original body"))?
+            .place_syntax(definition, b)?.assignments(b)
     }
     pub(in crate::semantic) fn record_spread(&self,module:&TypedModule,definition:SemanticDefinitionId,span:Span,b:&mut Budget)->Check<Option<(NodeId,Vec<(String,NodeId)>)>> {
         if !self.checked.contains(&definition){return Err(bad("record spread lacks its independently checked original body"));}
@@ -154,7 +140,7 @@ impl CheckedOriginal {
                 return Ok((AddressRoot::Value(current), projections));
             }
             current = match &expression.operation {
-                Operation::Transparent(inner) | Operation::Dereference(inner) => *inner,
+                Operation::Group(inner) | Operation::Ascribed(inner) | Operation::Dereference(inner) => *inner,
                 Operation::Member { object, name } => {
                     b.spend(name.len())?;
                     projections.push(AddressProjection::Field(name.clone()));

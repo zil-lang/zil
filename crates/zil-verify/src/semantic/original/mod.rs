@@ -545,6 +545,9 @@ impl CheckedOriginal {
     fn same(&self, left: &Ty, right: &Ty, b: &mut Budget) -> Check<bool> {
         let left = self.resolved(left, b)?;
         let right = self.resolved(right, b)?;
+        self.same_resolved(&left, &right, b)
+    }
+    fn same_resolved(&self, left: &Ty, right: &Ty, b: &mut Budget) -> Check<bool> {
         let equalities = self
             .current
             .and_then(|id| self.equalities.get(&id))
@@ -554,21 +557,21 @@ impl CheckedOriginal {
         if left == right {
             return Ok(true);
         }
-        if let (Ty::Code{parameters:a,result:ar,invocation_lifetimes:n,..},Ty::Code{parameters:z,result:zr,invocation_lifetimes:m,..})=(&left,&right){
+        if let (Ty::Code{parameters:a,result:ar,invocation_lifetimes:n,..},Ty::Code{parameters:z,result:zr,invocation_lifetimes:m,..})=(left,right){
             if n==m && *n!=0{
                 let to=Self::code_invocation_frame(a,ar,*n,b)?;
                 let from=Self::code_invocation_frame(z,zr,*m,b)?;
-                let rewritten=self.map_invocation_type(&right,&mut |life,b|{
+                let rewritten=self.map_invocation_type(right,&mut |life,b|{
                     b.spend(1)?;
                     if let Life::Invocation(_,index)=life {
                         if from.get(*index as usize)==Some(life){return Ok(to[*index as usize].clone());}
                     }
                     Ok(life.clone())
                 },0,b)?;
-                if left==rewritten{return Ok(true);}
+                if left==&rewritten{return Ok(true);}
             }
         }
-        let mut queue = vec![&left];
+        let mut queue = vec![left];
         let mut seen = Vec::new();
         while let Some(current) = queue.pop() {
             b.spend(
@@ -581,13 +584,13 @@ impl CheckedOriginal {
             }
             for (a, c) in equalities {
                 if a == current {
-                    if c == &right {
+                    if c == right {
                         return Ok(true);
                     }
                     queue.push(c);
                 }
                 if c == current {
-                    if a == &right {
+                    if a == right {
                         return Ok(true);
                     }
                     queue.push(a);
@@ -600,7 +603,7 @@ impl CheckedOriginal {
     fn unify(&mut self, left: &Ty, right: &Ty, b: &mut Budget) -> Check<()> {
         let left = self.resolved(left, b)?;
         let right = self.resolved(right, b)?;
-        if self.same(&left, &right, b)? {
+        if self.same_resolved(&left, &right, b)? {
             return Ok(());
         }
         match (&left, &right) {
@@ -616,7 +619,13 @@ impl CheckedOriginal {
                         _ => return Err(bad("original integer literal requires an integer carrier")),
                     }
                 }
-                self.substitutions.insert(*id, ty.clone());
+                // A resolved Infer is unbound. Keep the solution table
+                // append-only so read-only queries can detect inference
+                // without cloning every existing solution.
+                let std::collections::btree_map::Entry::Vacant(entry) = self.substitutions.entry(*id) else {
+                    return Err(bad("original inference tried to replace an established type solution"));
+                };
+                entry.insert(ty.clone());
                 Ok(())
             }
             (Ty::Tuple(a), Ty::Tuple(c)) if a.len() == c.len() => {

@@ -16,7 +16,7 @@ pub(super) struct Inventory<'a> {
 }
 // The recursion stack borrows immutable input nodes. It is not a domain cache:
 // the same type in another sibling occurrence still gets a complete proof.
-fn active_contains(active: &[&Type], ty: &Type, b: &mut Budget) -> Check<bool> {
+pub(crate) fn active_contains(active: &[&Type], ty: &Type, b: &mut Budget) -> Check<bool> {
     for previous in active {
         b.spend(1)?;
         if std::ptr::eq(*previous, ty) {
@@ -46,7 +46,14 @@ fn active_contains(active: &[&Type], ty: &Type, b: &mut Budget) -> Check<bool> {
             (Type::Tuple(a), Type::Tuple(z)) => a.len() != z.len(),
             (Type::Closure(a), Type::Closure(z)) => a != z,
             (Type::Array { length: a, .. }, Type::Array { length: z, .. }) => a != z,
-            (Type::Address { mutable: a, .. }, Type::Address { mutable: z, .. }) => a != z,
+            (Type::Address { mutable: a, inner: x }, Type::Address { mutable: z, inner: y }) => {
+                a != z || std::mem::discriminant(x.as_ref()) != std::mem::discriminant(y.as_ref())
+            }
+            (Type::Managed(x), Type::Managed(y)) | (Type::Desc(x), Type::Desc(y))
+            | (Type::OwnedStore { element: x }, Type::OwnedStore { element: y })
+            | (Type::Slice { element: x }, Type::Slice { element: y }) => {
+                std::mem::discriminant(x.as_ref()) != std::mem::discriminant(y.as_ref())
+            }
             _ => false,
         };
         if different_head {
@@ -82,10 +89,18 @@ impl<'a> Inventory<'a> {
     }
     pub(super) fn domain(&mut self, ty: &'a Type, b: &mut Budget) -> Check<Domain> {
         dynamic_metadata::bounds_type(ty, b)?;
-        b.spend(self.active.len().saturating_add(1))?;
+        b.spend(1)?;
         if self.active.len() >= b.limits.max_call_depth.min(128) {
             return Err(limit("dynamic actual inventory depth exceeded"));
         }
+        // A leaf returns without entering the recursion stack. No active
+        // ancestor can be one of these leaves, and the depth cap still holds.
+        if matches!(ty, Type::Unit | Type::Bool | Type::ByteBuffer | Type::ForeignHandle | Type::CWideString | Type::SyncCell(_))
+            || ty.is_integer() || ty.is_float()
+        {
+            return Ok(Domain { count: 0, pending_sources: false });
+        }
+        b.spend(self.active.len())?;
         if active_contains(&self.active,ty,b)? {
             return Err(bad(
                 "dynamic actual inventory has an unproved recursive domain",
@@ -372,13 +387,6 @@ impl<'a> Inventory<'a> {
                     pending_sources: true,
                 })
             }
-            Type::Unit
-            | Type::Bool
-            | Type::ByteBuffer
-            | Type::ForeignHandle
-            | Type::CWideString
-            | Type::SyncCell(_) => Ok(closed),
-            scalar if scalar.is_integer() || scalar.is_float() => Ok(closed),
             _ => Err(bad(&format!("dynamic actual type has no complete intrinsic domain consumer: {ty:?}"))),
         }
     }

@@ -31,9 +31,8 @@ pub(super) struct Function<'a> {
 
 pub(super) fn build<'a>(module: &'a TypedModule, b: &mut Budget) -> Check<Index<'a>> {
     let program = module.semantic.as_ref().ok_or_else(|| bad("original body inventory is absent"))?;
-    // Includes annotations, constants, quote payloads, nested closure bodies and
-    // every allocation-bearing row, before recursive comparisons below.
-    dynamic_metadata::recipe(program, b)?;
+    // Includes annotations, constants, quote payloads and every nested body.
+    dynamic_metadata::source_program_bounds(program, b)?;
     let mut result = Index { definitions: BTreeMap::new() };
     let mut ids = BTreeSet::new();
     for definition in &program.definitions {
@@ -59,6 +58,13 @@ pub(super) fn build<'a>(module: &'a TypedModule, b: &mut Budget) -> Check<Index<
             let SemanticOriginalExprKind::Closure { parameters, body, .. } = &expression.kind else {
                 return Err(bad("original closure site selects another operation"));
             };
+            // These are actual complete comparisons across two distinct
+            // grammar occurrences, even after the bounds check is shared.
+            for parameter in parameters.iter().chain(child.parameters) {
+                dynamic_metadata::recipe(parameter, b)?;
+            }
+            dynamic_metadata::recipe(body, b)?;
+            dynamic_metadata::recipe(child.body, b)?;
             if child.parameters != parameters || child.receiver_parameter.is_some() || !matches!(child.body, SemanticOriginalFunctionBody::Defined(actual) if actual == body) {
                 return Err(bad("original closure child changes its parameters or complete source body"));
             }
@@ -128,6 +134,7 @@ struct DefinitionCursor {
     nodes:BTreeMap<SemanticSiteId,SemanticOriginalNode>,
     closures:BTreeMap<NodeId,SemanticDefinitionId>,
     recipes:BTreeMap<(bool,NodeId,Role),Vec<(usize,SemanticSiteId)>>,
+    implicit_heads: BTreeMap<NodeId, BTreeSet<u32>>,
     places: PlaceSyntax,
 }
 
@@ -136,7 +143,9 @@ struct DefinitionCursor {
 /// established by the consumer of each projection.
 pub(super) struct PlaceSyntax {
     pub(super) receiver: Option<u32>,
-    expressions: BTreeMap<NodeId, PlaceExpression>,
+    expressions: Vec<(NodeId, PlaceExpression)>,
+    bindings: Vec<(NodeId, BindingSyntax)>,
+    assignments: Vec<super::places::Assignment>,
 }
 
 pub(super) struct PlaceExpression {
@@ -144,10 +153,19 @@ pub(super) struct PlaceExpression {
     pub(super) span: Span,
 }
 
+pub(super) struct BindingSyntax {
+    pub(super) value: Option<NodeId>,
+    pub(super) inferred: bool,
+}
+
 pub(super) enum PlaceOperation {
-    Transparent(NodeId),
+    Group(NodeId),
+    Ascribed(NodeId),
     Give(NodeId),
     Dereference(NodeId),
+    Borrow(NodeId),
+    Name,
+    Call,
     Member { object: NodeId, name: String },
     Index { object: NodeId, index: NodeId },
     Slice { object: NodeId, start: Option<NodeId>, end: Option<NodeId> },
@@ -157,21 +175,23 @@ pub(super) enum PlaceOperation {
 
 impl PlaceSyntax {
     fn new(function: &Function<'_>, b: &mut Budget) -> Check<Self> {
-        b.spend(2)?;
-        let mut expressions = BTreeMap::new();
+        b.spend(2usize.saturating_add(function.expressions.len().saturating_mul(
+            std::mem::size_of::<(NodeId, PlaceExpression)>(),
+        )))?;
+        let mut expressions = Vec::with_capacity(function.expressions.len());
         for (&node, expression) in &function.expressions {
-            b.spend(
-                expressions.len().checked_ilog2().map_or(1, |depth| depth as usize + 2)
-                    .saturating_add(std::mem::size_of::<(NodeId, PlaceExpression)>()),
-            )?;
             let operation = match &expression.kind {
-                CoreExprKind::Group(value) | CoreExprKind::Ascribed { value, .. } => {
-                    PlaceOperation::Transparent(value.id)
-                }
+                CoreExprKind::Group(value) => PlaceOperation::Group(value.id),
+                CoreExprKind::Ascribed { value, .. } => PlaceOperation::Ascribed(value.id),
                 CoreExprKind::Unary { op: UnaryOp::Give, operand } => PlaceOperation::Give(operand.id),
                 CoreExprKind::Unary { op: UnaryOp::Dereference, operand } => {
                     PlaceOperation::Dereference(operand.id)
                 }
+                CoreExprKind::Unary { op: UnaryOp::Borrow | UnaryOp::BorrowMut, operand } => {
+                    PlaceOperation::Borrow(operand.id)
+                }
+                CoreExprKind::Name(_) => PlaceOperation::Name,
+                CoreExprKind::Call { .. } => PlaceOperation::Call,
                 CoreExprKind::Member { object, member, .. } => {
                     b.spend(member.len())?;
                     PlaceOperation::Member { object: object.id, name: member.clone() }
@@ -191,19 +211,76 @@ impl PlaceSyntax {
                 }
                 _ => PlaceOperation::Other,
             };
-            expressions.insert(node, PlaceExpression { operation, span: expression.span });
+            expressions.push((node, PlaceExpression { operation, span: expression.span }));
         }
-        Ok(Self { receiver: function.receiver_parameter, expressions })
+        b.spend(function.bindings.len().saturating_mul(
+            std::mem::size_of::<(NodeId, BindingSyntax)>(),
+        ))?;
+        let bindings = function.bindings.iter().map(|(&node, statement)| {
+            let binding = match &statement.kind {
+                CoreStatementKind::Binding { initializer, ty, .. } => BindingSyntax {
+                    value: initializer.as_ref().map(|value| value.id),
+                    inferred: ty.is_none(),
+                },
+                _ => BindingSyntax { value: None, inferred: false },
+            };
+            (node, binding)
+        }).collect();
+        let mut assignments = Vec::new();
+        for statement in function.statements.values() {
+            b.spend(1)?;
+            let (target, value, compound) = match &statement.kind {
+                CoreStatementKind::Assign { target, value } => (target, value, None),
+                CoreStatementKind::CompoundAssign { target, value, op } => (target, value, Some(*op)),
+                _ => continue,
+            };
+            if assignments.len() == assignments.capacity() {
+                b.spend(assignments.len().saturating_mul(std::mem::size_of::<super::places::Assignment>()))?;
+            }
+            b.spend(std::mem::size_of::<super::places::Assignment>())?;
+            assignments.push(super::places::Assignment {
+                statement: statement.id,
+                target: target.id,
+                value: value.id,
+                span: target.span,
+                statement_span: statement.span,
+                compound,
+            });
+        }
+        Ok(Self { receiver: function.receiver_parameter, expressions, bindings, assignments })
     }
 
     pub(super) fn expression(&self, node: NodeId, b: &mut Budget) -> Check<&PlaceExpression> {
+        self.find_expression(node, b)?.ok_or_else(|| bad("place syntax has no exact original expression"))
+    }
+
+    pub(super) fn find_expression(&self, node: NodeId, b: &mut Budget) -> Check<Option<&PlaceExpression>> {
         b.spend(self.expressions.len().checked_ilog2().map_or(1, |depth| depth as usize + 2))?;
-        self.expressions.get(&node).ok_or_else(|| bad("place syntax has no exact original expression"))
+        Ok(self.expressions.binary_search_by_key(&node, |&(id, _)| id).ok().map(|i| &self.expressions[i].1))
+    }
+
+    pub(super) fn binding(&self, node: NodeId, b: &mut Budget) -> Check<Option<&BindingSyntax>> {
+        b.spend(self.bindings.len().checked_ilog2().map_or(1, |depth| depth as usize + 2))?;
+        Ok(self.bindings.binary_search_by_key(&node, |&(id, _)| id).ok().map(|i| &self.bindings[i].1))
+    }
+
+    pub(super) fn binding_value(&self, node: NodeId, b: &mut Budget) -> Check<Option<NodeId>> {
+        if let Some(binding) = self.binding(node, b)? {
+            return Ok(binding.value);
+        }
+        Ok(self.find_expression(node, b)?.map(|_| node))
+    }
+
+    pub(super) fn assignments(&self, b: &mut Budget) -> Check<Vec<super::places::Assignment>> {
+        b.spend(self.assignments.len().saturating_mul(std::mem::size_of::<super::places::Assignment>()))?;
+        Ok(self.assignments.clone())
     }
 }
 #[derive(Clone,Copy,PartialEq,Eq,PartialOrd,Ord)]
 pub(super) enum Role{Construct,Call,CallableCall,OriginalCall,TypeUse,DeclareLocal,Closure}
-impl Role{fn of(recipe:&SemanticSiteRecipeKind)->Self{match recipe{
+impl Role{
+    pub(super) const ALL: [Self; 7] = [Self::Construct, Self::Call, Self::CallableCall, Self::OriginalCall, Self::TypeUse, Self::DeclareLocal, Self::Closure];
+    fn of(recipe:&SemanticSiteRecipeKind)->Self{match recipe{
     SemanticSiteRecipeKind::Construct{..}=>Self::Construct,SemanticSiteRecipeKind::Call{..}=>Self::Call,
     SemanticSiteRecipeKind::CallableCall{..}=>Self::CallableCall,SemanticSiteRecipeKind::OriginalCall=>Self::OriginalCall,
     SemanticSiteRecipeKind::TypeUse{..}=>Self::TypeUse,SemanticSiteRecipeKind::DeclareLocal{..}=>Self::DeclareLocal,
@@ -217,6 +294,23 @@ impl SourceIndex{
         b.spend(rows.len().checked_ilog2().map_or(1, |depth| depth as usize + 2))?;
         rows.get(&definition).map(|row| &row.places)
             .ok_or_else(|| bad("place syntax has no independently checked original definition"))
+    }
+    pub(super) fn site_node(&self, definition: SemanticDefinitionId, site: SemanticSiteId, b: &mut Budget) -> Check<Option<SemanticOriginalNode>> {
+        self.bounds(b)?;
+        let rows = &self.directory.definitions;
+        b.spend(rows.len().checked_ilog2().map_or(1, |depth| depth as usize + 2))?;
+        let row = rows.get(&definition).ok_or_else(|| bad("site has no independently checked original definition"))?;
+        b.spend(row.nodes.len().checked_ilog2().map_or(1, |depth| depth as usize + 2))?;
+        Ok(row.nodes.get(&site).copied())
+    }
+    pub(super) fn implicit_head(&self, definition: SemanticDefinitionId, node: NodeId, b: &mut Budget) -> Check<Option<u32>> {
+        self.bounds(b)?;
+        let rows = &self.directory.definitions;
+        b.spend(rows.len().checked_ilog2().map_or(1, |depth| depth as usize + 2))?;
+        let row = rows.get(&definition).ok_or_else(|| bad("original borrowed local lacks body"))?;
+        b.spend(row.implicit_heads.len().checked_ilog2().map_or(1, |depth| depth as usize + 2))?;
+        Ok(row.implicit_heads.get(&node).filter(|ordinals| ordinals.len() == 1)
+            .and_then(|ordinals| ordinals.first().copied()))
     }
     pub(super) fn compile_time_uses(&self, definition: SemanticDefinitionId, b: &mut Budget) -> Check<&[(usize, NodeId)]> {
         let uses = &self.directory.compile_time_uses;
@@ -251,9 +345,30 @@ pub(super) fn snapshot(module:&TypedModule,index:&Index<'_>,b:&mut Budget)->Chec
         })).collect();
         let mut recipes=BTreeMap::<_,Vec<_>>::new();
         let mut uses = Vec::new();
+        let mut implicit_paths: BTreeMap<&[u32], Vec<u32>> = BTreeMap::new();
+        for row in &definition.implicit_lifetimes {
+            let search = implicit_paths.len().checked_ilog2().map_or(1, |depth| depth as usize + 2);
+            b.spend(search.saturating_mul(row.occurrence_path.len().saturating_add(1)))?;
+            let ordinals = implicit_paths.entry(&row.occurrence_path).or_default();
+            b.spend(1 + if ordinals.len() == ordinals.capacity() { ordinals.len() } else { 0 })?;
+            ordinals.push(row.ordinal);
+        }
+        let mut implicit_heads: BTreeMap<NodeId, BTreeSet<u32>> = BTreeMap::new();
         for(position,recipe)in function.sites.iter().enumerate(){
             b.spend(function.nodes.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
             let node=function.nodes.get(&recipe.id).ok_or_else(||bad("reverse original site has no checked node correspondence"))?;
+            if !implicit_paths.is_empty() && let Node::Expression(expression) = node {
+                let search = implicit_paths.len().checked_ilog2().map_or(1, |depth| depth as usize + 2);
+                b.spend(search.saturating_mul(recipe.occurrence_path.len().saturating_add(1)))?;
+                if let Some(ordinals) = implicit_paths.get(recipe.occurrence_path.as_slice()) {
+                    b.spend(implicit_heads.len().checked_ilog2().map_or(1, |depth| depth as usize + 2))?;
+                    let heads = implicit_heads.entry(expression.id).or_default();
+                    for &ordinal in ordinals {
+                        b.spend(heads.len().checked_ilog2().map_or(1, |depth| depth as usize + 2))?;
+                        heads.insert(ordinal);
+                    }
+                }
+            }
             if matches!(recipe.kind, SemanticSiteRecipeKind::TypeUse { .. })
                 && let Node::Expression(expression) = node
                 && matches!(expression.kind, CoreExprKind::CompileTime(_))
@@ -272,7 +387,7 @@ pub(super) fn snapshot(module:&TypedModule,index:&Index<'_>,b:&mut Budget)->Chec
             compile_time_uses.insert(definition.id, uses);
         }
         let places = PlaceSyntax::new(function, b)?;
-        definitions.insert(definition.id,DefinitionCursor{ordinal,nodes,closures:function.closures.clone(),recipes,places});
+        definitions.insert(definition.id,DefinitionCursor{ordinal,nodes,closures:function.closures.clone(),recipes,implicit_heads,places});
     }
     // Prepay the complete immutable snapshot copy, including all unused
     // definitions, annotations and quote payloads. No address/digest/ID key

@@ -412,7 +412,7 @@ fn sparse_table_and_body_have_exact_fresh_budget_boundaries() {
 fn complete_dense_driver_preserves_readonly_and_early_error_diagnostics() {
     // Kernel-level raw fixtures, not public-IR admission claims. The full old
     // driver and body independently reach the same complete diagnostic.
-    for attack in 0..4 {
+    for attack in 0..5 {
         let mut module = fixture::module();
         let mut f = module.functions[0].clone();
         f.id = FunctionId(0);
@@ -430,6 +430,7 @@ fn complete_dense_driver_preserves_readonly_and_early_error_diagnostics() {
             terminator: Terminator::Return(Some(ValueId(0))),
         }];
         f.entry = BlockId(0);
+        let mut direct_callee = None;
         match attack {
             0 => {}
             1 => f.blocks[0].instructions.push(fixture::instruction(
@@ -453,14 +454,31 @@ fn complete_dense_driver_preserves_readonly_and_early_error_diagnostics() {
                     },
                 )];
             }
+            4 => {
+                let mut callee = f.clone();
+                callee.locals[0].ty = fixture::address(Type::ByteBuffer, true);
+                callee.values[0] = callee.locals[0].ty.clone();
+                callee.blocks[0].instructions.push(fixture::instruction(
+                    None,
+                    InstructionKind::ByteBufferReserve { buffer: ValueId(0), capacity: ValueId(1) },
+                ));
+                f.id = FunctionId(1);
+                f.blocks[0].instructions.push(fixture::instruction(
+                    None,
+                    InstructionKind::Call { function: callee.id, arguments: vec![ValueId(0)] },
+                ));
+                module.closures.clear();
+                direct_callee = Some(callee);
+            }
             _ => unreachable!(),
         }
-        module.functions = vec![f];
+        module.functions = direct_callee.into_iter().chain([f]).collect();
         let graphs: Vec<_> = module.functions.iter().map(graph).collect();
         let mut old_budget = budget();
         old_budget.head_descriptions = true;
         let mut new_budget = budget();
         new_budget.head_descriptions = true;
+        new_budget.pod_stores = attack == 4;
         let old = check_dense(&module, &graphs, &mut old_budget);
         let new = check(&module, &graphs, &mut new_budget);
         assert_eq!(new, old);
@@ -470,7 +488,7 @@ fn complete_dense_driver_preserves_readonly_and_early_error_diagnostics() {
             let error = new.unwrap_err();
             assert_eq!(
                 error.code,
-                if attack == 1 {
+                if attack == 1 || attack == 4 {
                     "E-VERIFY-HEAD-PERMISSION"
                 } else {
                     "E-VERIFY-HEAD-ACCESS"
@@ -479,7 +497,7 @@ fn complete_dense_driver_preserves_readonly_and_early_error_diagnostics() {
             assert_eq!(
                 error.message,
                 match attack {
-                    1 =>
+                    1 | 4 =>
                         "actual shared resource head reaches a mutating access through descriptor forwarding or captures",
                     2 => "capture without an environment",
                     3 => "invocation closure definition absent",

@@ -690,15 +690,28 @@ pub(super) fn check(module: &TypedModule, graphs: &[FunctionGraph], b: &mut Budg
     }
     charge(b, module.functions.len())?;
     let mut contracts = vec![Contract::default(); module.functions.len()];
-    loop {
-        let mut changed = false;
-        for id in (0..module.functions.len()).rev() {
-            let new = body(module, &module.functions[id], &graphs[id], &contracts, b)?;
-            changed |= merge(&mut contracts[id].returned, &new.returned, b)?;
-            changed |= merge_constraints(&mut contracts[id].writes, &new.writes, b)?;
+    let direct = if b.pod_stores && module.closures.is_empty() {
+        crate::stored_flow::direct_callee_postorder(module, None, b)?
+    } else {
+        None
+    };
+    if let Some(order) = direct {
+        // Each body still reaches its own CFG fixed point. Its direct
+        // callees already have complete transitive descriptor contracts.
+        for id in order {
+            contracts[id] = body(module, &module.functions[id], &graphs[id], &contracts, b)?;
         }
-        if !changed {
-            break;
+    } else {
+        loop {
+            let mut changed = false;
+            for id in (0..module.functions.len()).rev() {
+                let new = body(module, &module.functions[id], &graphs[id], &contracts, b)?;
+                changed |= merge(&mut contracts[id].returned, &new.returned, b)?;
+                changed |= merge_constraints(&mut contracts[id].writes, &new.writes, b)?;
+            }
+            if !changed {
+                break;
+            }
         }
     }
     for c in contracts {
