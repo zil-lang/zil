@@ -204,6 +204,50 @@ impl CheckedOriginal {
             return Err(bad("Call region parameter recipe is not an original Call"));
         };
         if self.original_call_site(owner,call,b)?.1!=site{return Err(bad("Call region parameter selects another original operation site"));}
-        let mut result=Vec::new();if let Some(rows)=self.call_region_parameters.get(&(owner,call)){b.spend(rows.len())?;for(ordinal,id)in rows{result.push((*ordinal,self.reify_life(module,&Life::CallRegion(*id),env,b)?));}}Ok(result)
+        let mut result = Vec::new();
+        if let Some(rows) = self.call_region_parameters.get(&(owner, call)) {
+            b.spend(rows.len())?;
+            for (ordinal, id) in rows {
+                let (_, producer, _, _) = self.call_regions.get(id)
+                    .ok_or_else(|| bad("original parameter region has no producing call"))?;
+                if *producer != call && !self.same_local_call_input(module, owner, site, *ordinal, *producer, *id, b)? {
+                    continue;
+                }
+                result.push((*ordinal, self.reify_life(module, &Life::CallRegion(*id), env, b)?));
+            }
+        }
+        Ok(result)
+    }
+    /// An invariant argument can carry a region from a prior call. A fresh
+    /// borrow then needs the same independently bound local declaration. The
+    /// flow checker still binds both operations to their actual SSA parents.
+    fn same_local_call_input(&self, module: &TypedModule, owner: SemanticDefinitionId,
+        site: SemanticSiteId, ordinal: u32, producer: NodeId, region: u64, b: &mut Budget) -> Check<bool> {
+        let prior_site = self.original_call_site(owner, producer, b)?.1;
+        if !self.call_targets.contains_key(&(owner, site)) || !self.call_targets.contains_key(&(owner, prior_site)) {
+            return Ok(false);
+        }
+        let index = self.source_index(module, &[owner], b)?;
+        let function = index.definitions.get(&owner).ok_or_else(|| bad("inherited argument has no original caller"))?;
+        let direct_local = |site, ordinal: u32, b: &mut Budget| -> Check<Option<NodeId>> {
+            b.spend(1)?;
+            let Some(index::Node::Expression(call)) = function.nodes.get(&site) else { return Ok(None) };
+            let CoreExprKind::Call { arguments, .. } = &call.kind else { return Ok(None) };
+            let Some(argument) = arguments.get(ordinal as usize) else { return Ok(None) };
+            let CoreExprKind::Unary { op: UnaryOp::Borrow | UnaryOp::BorrowMut, operand } = &argument.kind else { return Ok(None) };
+            if !matches!(operand.kind, CoreExprKind::Name(_)) { return Ok(None); }
+            Ok(match self.value_bindings.get(&(owner, operand.id)) {
+                Some(Binder::Local { definition, node, .. }) if *definition == owner => Some(*node),
+                _ => None,
+            })
+        };
+        let Some(local) = direct_local(site, ordinal, b)? else { return Ok(false) };
+        if let Some(prior) = self.call_region_parameters.get(&(owner, producer)) {
+            b.spend(prior.len())?;
+            for (ordinal, id) in prior {
+                if *id == region && direct_local(prior_site, *ordinal, b)? == Some(local) { return Ok(true); }
+            }
+        }
+        Ok(false)
     }
 }

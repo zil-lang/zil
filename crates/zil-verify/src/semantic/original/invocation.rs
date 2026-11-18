@@ -302,8 +302,8 @@ impl CheckedOriginal {
         for(ordinal,parameter)in parameters.iter().enumerate(){
             let life=match self.resolved(parameter,b)?{Ty::Address{life,..}|Ty::Desc{life,..}=>life,_=>continue};
             let Life::CallRegion(id)=life else{continue;};
-            let Some((definition,call,_,_))=self.call_regions.get(&id)else{return Err(bad("original Call parameter selects an absent region"));};
-            if *definition!=owner||*call!=node{continue;}
+            let Some((definition,_,_,_))=self.call_regions.get(&id)else{return Err(bad("original Call parameter selects an absent region"));};
+            if *definition!=owner{continue;}
             b.spend(1)?;rows.push((u32::try_from(ordinal).map_err(|_|limit("original Call region parameter exceeds its full domain"))?,id));
         }
         if !rows.is_empty(){b.spend(rows.len())?;self.call_region_parameters.insert((owner,node),rows);}Ok(())
