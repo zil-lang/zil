@@ -3,7 +3,7 @@ use super::*;
 use std::collections::BTreeSet;
 
 impl CheckedContext {
-    pub(super) fn copy_field_update(
+    pub(in crate::semantic::flow) fn copy_field_update(
         &self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,instruction:&Instruction,b:&mut Budget,
     )->Check<()> {
         let result=instruction.result.ok_or_else(||bad("Copy field update has no SSA result"))?;
@@ -57,7 +57,7 @@ impl CheckedContext {
         self.original_projection_source_prefix(module,caller,f,root_value,caller.definition,original.target,true,Some((ty,&path)),b)
     }
 
-    pub(super) fn description_field_write(
+    pub(in crate::semantic::flow) fn description_field_write(
         &self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,instruction:&Instruction,
         desc:ValueId,index:u32,value:ValueId,b:&mut Budget,
     )->Check<()> {
