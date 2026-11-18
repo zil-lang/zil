@@ -48,6 +48,181 @@ fn aggregate_operand(kind: &InstructionKind) -> bool {
     )
 }
 
+fn original_owned_input(
+    module: &TypedModule,
+    function: &TypedFunction,
+    parameter: u32,
+    closure: ClosureId,
+    point: (BlockId, usize, ValueId),
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    let Some(program) = &module.semantic else {
+        return Ok(false);
+    };
+    // The original and closed semantic passes already checked these worlds
+    // and their actual emission sites. Consume the exact parameter formal and
+    // constructor occurrence in each world of this executable function.
+    let mut found = false;
+    for instance in &program.instances {
+        budget.spend(1, "owned aggregate callable original instance")?;
+        if !matches!(instance.target,
+            SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id == function.id)
+        {
+            continue;
+        }
+        budget.spend(
+            program.definitions.len(),
+            "owned aggregate callable original definition",
+        )?;
+        let Some(definition) = program
+            .definitions
+            .iter()
+            .find(|row| row.id == instance.definition)
+        else {
+            return Ok(false);
+        };
+        let SemanticDefinitionBody::FunctionWithBody {
+            signature,
+            foreign: None,
+            ..
+        } = &definition.body
+        else {
+            return Ok(false);
+        };
+        let Some(source) = signature.parameters.get(parameter as usize) else {
+            return Ok(false);
+        };
+        let SemanticTypeRecipe::Formal(formal) = &source.ty else {
+            return Ok(false);
+        };
+        if formal.scope != SemanticScopeRef::Ancestor(0)
+            || !matches!(source.mode, PassingMode::Infer | PassingMode::Move)
+            || !matches!(instance.actuals.get(formal.ordinal as usize),
+                Some(SemanticActual::Type(SemanticTypeValue::Resolved { ty: Type::Closure(id), .. }))
+                    if *id == closure)
+        {
+            return Ok(false);
+        }
+        let Some(SemanticFormal::Type { requirements }) =
+            definition.parameters.get(formal.ordinal as usize)
+        else {
+            return Ok(false);
+        };
+        budget.spend(
+            requirements.len(),
+            "owned aggregate callable original bound",
+        )?;
+        if !requirements.iter().any(|requirement| matches!(requirement,
+            SemanticRequirementRecipe::Callable {
+                ty: SemanticTypeRecipe::Formal(bound),
+                kind: CallableKind::Fn | CallableKind::FnOnce,
+                signature,
+            } if bound == formal && signature.bound_lifetimes == 0
+                && signature.invocation_lifetimes == 0))
+        {
+            return Ok(false);
+        }
+        budget.spend(
+            program.sites.len(),
+            "owned aggregate callable original occurrence",
+        )?;
+        if !program.sites.iter().any(|site| {
+            site.instance == instance.id
+                && matches!(site.at,
+                    SemanticSiteAddress::Typed { block, instruction, edge: SemanticSiteEdge::After }
+                    if block == point.0 && instruction as usize == point.1)
+                && match &site.action {
+                    SemanticSiteAction::Construct { result, .. } => {
+                        *result == SemanticOperand::Value(point.2)
+                    }
+                    SemanticSiteAction::BodyCall { .. } => true,
+                    _ => false,
+                }
+        }) {
+            return Ok(false);
+        }
+        found = true;
+    }
+    Ok(found)
+}
+
+fn takes_owned_aggregate_input(
+    module: &TypedModule,
+    function: &TypedFunction,
+    parameter: (u32, LocalId),
+    closure: ClosureId,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    if module.semantic.is_none() {
+        return Ok(false);
+    }
+    let (_, values) = origins(module, function, &[parameter], budget)?;
+    budget.spend(
+        function.blocks.len().saturating_add(1),
+        "owned aggregate callable reachability",
+    )?;
+    let mut seen = vec![false; function.blocks.len()];
+    let mut work = vec![function.entry];
+    while let Some(id) = work.pop() {
+        if std::mem::replace(&mut seen[id.0 as usize], true) {
+            continue;
+        }
+        let block = &function.blocks[id.0 as usize];
+        budget.spend(
+            block.instructions.len().saturating_add(1),
+            "owned aggregate callable block",
+        )?;
+        for (position, instruction) in block.instructions.iter().enumerate() {
+            let Some(result) = instruction.result else {
+                continue;
+            };
+            let ty = &function.values[result.0 as usize];
+            let fields = match (&instruction.kind, ty) {
+                (InstructionKind::MakeVariant { fields, .. }, Type::Enum { .. })
+                | (InstructionKind::MakeAggregate { fields }, Type::Tuple(_)) => fields.as_slice(),
+                (InstructionKind::MakeErrorUnion { value, .. }, Type::ErrorUnion { .. }) => {
+                    std::slice::from_ref(value)
+                }
+                _ => continue,
+            };
+            budget.spend(fields.len(), "owned aggregate callable operands")?;
+            if fields.iter().any(|value| {
+                values[value.0 as usize] == Origin::supplied(0, false)
+                    && function.values[value.0 as usize] == Type::Closure(closure)
+            }) && budget.sum_type(ty)?
+                && original_owned_input(
+                    module,
+                    function,
+                    parameter.0,
+                    closure,
+                    (id, position, result),
+                    budget,
+                )?
+            {
+                // The ordinary aggregate and resource passes still conserve
+                // this input and check every field, edge, loan and cleanup.
+                return Ok(true);
+            }
+        }
+        match block.terminator {
+            Terminator::Jump(next) => {
+                budget.spend(1, "owned aggregate callable edge")?;
+                work.push(next);
+            }
+            Terminator::Branch {
+                then_block,
+                else_block,
+                ..
+            } => {
+                budget.spend(2, "owned aggregate callable edges")?;
+                work.extend([then_block, else_block]);
+            }
+            _ => {}
+        }
+    }
+    Ok(false)
+}
+
 fn origins(
     module: &TypedModule,
     function: &TypedFunction,
@@ -735,6 +910,15 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         if function.callable_contract.is_none()
             && candidates.len() == 2
             && two_input_state_constructor(module, function, &candidates, budget)?
+        {
+            continue;
+        }
+        if function.callable_contract.is_none()
+            && let [parameter] = candidates.as_slice()
+            && function.environment.is_none()
+            && function.foreign.is_none()
+            && let Type::Closure(closure) = function.locals[parameter.1.0 as usize].ty
+            && takes_owned_aggregate_input(module, function, *parameter, closure, budget)?
         {
             continue;
         }

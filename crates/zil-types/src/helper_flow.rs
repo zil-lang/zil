@@ -203,11 +203,15 @@ pub(super) fn callback(
 pub(super) fn contract(
     function: &TypedFunction,
     bounds: &[CoreCallableParameter],
+    aggregate_owner: bool,
     state: &mut closures::State,
     limits: &Limits,
     span: Span,
-) -> R<CallableTraces> {
-    let (locals, values) = environment_origins(function, bounds, state, span)?;
+) -> R<Option<CallableTraces>> {
+    let Some((locals, values)) = environment_origins(function, bounds, aggregate_owner, state, span)?
+    else {
+        return Ok(None);
+    };
     let mut scoped_loop = false;
     let mut once_parameters = BTreeSet::new();
     let mut size = Size::default();
@@ -492,6 +496,7 @@ pub(super) fn contract(
             once: &once_parameters,
         },
     )
+    .map(Some)
 }
 
 fn canonical(

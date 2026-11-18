@@ -1544,10 +1544,22 @@ impl Builder<'_, '_> {
                     },
                 });
             }
-            typed.callable_contract = Some(CallableParameterContract {
-                roles,
-                traces: flow::contract(&typed, bounds, self.closures, self.limits, span)?,
-            });
+            let aggregate_owner = forward.is_none()
+                && let [bound] = bounds
+                && matches!(
+                    function.parameters[bound.index as usize].mode,
+                    PassingMode::Infer | PassingMode::Move
+                );
+            if let Some(traces) = flow::contract(
+                &typed,
+                bounds,
+                aggregate_owner,
+                self.closures,
+                self.limits,
+                span,
+            )? {
+                typed.callable_contract = Some(CallableParameterContract { roles, traces });
+            }
         }
         if let Some(parameter) = forward {
             let role = &typed
@@ -1889,9 +1901,10 @@ fn environment_carrier_type(ty: &Type) -> bool {
 fn environment_origins(
     function: &TypedFunction,
     bounds: &[CoreCallableParameter],
+    aggregate_owner: bool,
     state: &mut closures::State,
     span: Span,
-) -> R<(Vec<Origin>, Vec<Origin>)> {
+) -> R<Option<(Vec<Origin>, Vec<Origin>)>> {
     state.snapshot(
         Origin::table_work(function.locals.len().saturating_add(function.values.len())),
         span,
@@ -2074,21 +2087,45 @@ fn environment_origins(
     }
     // Resolve every alias first: a zero mask during convergence grants no
     // permission to send a supplied role through an ordinary aggregate.
+    let mut transfers_owner = false;
     for instruction in ordinary_aggregates {
         let (inputs, extra) = ordinary_aggregate_inputs(instruction, function).unwrap();
         state.snapshot(
             inputs.len().saturating_add(usize::from(extra.is_some())),
             instruction.span,
         )?;
-        if inputs.iter().chain(extra).any(|value| {
+        for value in inputs.iter().chain(extra) {
             let index = value.0 as usize;
-            values[index].has_role()
-                || (environment_carrier_type(&function.values[index]) && !values[index].concrete())
-        }) {
-            return Err(unsupported(
-                instruction.span,
-                "supplied callable role cannot enter an ordinary aggregate",
-            ));
+            let ty = &function.values[index];
+            let origin = values[index];
+            if !origin.has_role() && (!environment_carrier_type(ty) || origin.concrete()) {
+                continue;
+            }
+            // A by-value F entering a constructor is ordinary affine storage.
+            // Keep borrowed, qualified, mixed and unproved operands in the
+            // helper role audit. A closure ID alone does not identify F.
+            if aggregate_owner
+                && let [bound] = bounds
+                && bound.life.is_none()
+                && matches!(bound.kind, CallableKind::Fn | CallableKind::FnOnce)
+                && origin == Origin::supplied(0, false)
+                && matches!(ty, Type::Closure(_))
+                && function.locals[function.parameters[bound.index as usize].0 as usize].ty == *ty
+                && let Some(result) = instruction.result
+                && matches!(
+                    (&instruction.kind, &function.values[result.0 as usize]),
+                    (InstructionKind::MakeVariant { .. }, Type::Enum { .. })
+                        | (InstructionKind::MakeAggregate { .. }, Type::Tuple(_))
+                        | (InstructionKind::MakeErrorUnion { .. }, Type::ErrorUnion { .. })
+                )
+            {
+                transfers_owner = true;
+            } else {
+                return Err(unsupported(
+                    instruction.span,
+                    "supplied callable role cannot enter an ordinary aggregate",
+                ));
+            }
         }
     }
     for instruction in concrete_captures {
@@ -2106,7 +2143,7 @@ fn environment_origins(
             ));
         }
     }
-    Ok((locals, values))
+    Ok((!transfers_owner).then_some((locals, values)))
 }
 
 struct Forwarded {
