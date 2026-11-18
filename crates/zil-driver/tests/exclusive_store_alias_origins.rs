@@ -9,6 +9,9 @@ use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, Targ
 use zil_driver::{CompileOptions, ProjectSources, compile_project};
 use zil_ir::{CandidatePlan, InstructionKind as I, Type, TypedModule};
 
+#[path = "exclusive_store_alias_origins/current_calls.rs"]
+mod current_calls;
+
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 fn directory(label: &str) -> PathBuf {
     let root = std::env::var_os("ZIL_TEST_REPORT_DIR")
@@ -134,13 +137,16 @@ fn current_call_reborrows_keep_actual_aliases() {
         ),
     ];
     for (label, helpers, body) in cases {
-        rejected_source(
-            label,
-            &format!("{MODEL}{helpers}fn main()->i32{{{SETUP}{body}}}"),
-            ResultCategory::SafeReject,
-            Phase::Verify,
-            "E-BORROW-CONFLICT",
-        );
+        let source = format!("{MODEL}{helpers}fn main()->i32{{{SETUP}{body}}}");
+        rejected_source(label, &source, ResultCategory::SafeReject, Phase::Analyze, "E-ANALYZE-IR");
+        let separate = match label {
+            "shared-and-unique-args" => "let q=store_at(t,0);return pair(p,q)",
+            "two-unique-args" => "let q=store_at_mut(t,0);return pair(p,q)",
+            "current-call-structural-effect" => "return pair(p,t)",
+            _ => unreachable!(),
+        };
+        let control = format!("{MODEL}{helpers}fn main()->i32{{{SETUP}let p=store_at_mut(s,0);let t=empty();store_reserve(t,4);store_push(t,entry(30));{separate}}}");
+        current_calls::verify_original(label, &source, &control);
     }
 }
 

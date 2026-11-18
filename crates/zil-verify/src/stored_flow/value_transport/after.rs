@@ -304,12 +304,11 @@ fn transport_type(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool
     Ok(auxiliary_type(module, ty, b)? || !physical_paths(module, ty, b)?.is_empty())
 }
 
-// A complete Store-only product has inline scalars and separately managed
-// Store heads. The actual prefix, mutation, owner and loans of those heads
-// are checked by the Store kernels. It has no inline auxiliary channel.
+// Store mutation and ordinary resource cleanup have independent kernels. An
+// element made only of those heads and inline POD carries no auxiliary slots.
 fn store_product_without_auxiliary(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
     let mut pending = vec![ty];
-    let mut owns_store = false;
+    let mut has_owner = false;
     while let Some(field) = pending.pop() {
         b.spend(1)?;
         match field {
@@ -318,16 +317,26 @@ fn store_product_without_auxiliary(module: &TypedModule, ty: &Type, b: &mut Budg
                 pending.extend(fields.iter().map(|(_, child)| child));
             }
             Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }) => {
-                owns_store = true;
+                has_owner = true;
+            }
+            Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) => {
+                crate::resources::check_type_for(module, field, None, b)?;
+                if auxiliary_type(module, payload, b)? || !physical_paths(module, payload, b)?.is_empty() {
+                    return Ok(false);
+                }
+                has_owner = true;
+            }
+            Type::Array { length, .. } if *length != 0 => {
+                dynamic_store::check_pod_element(field, &module.target, None, b)?;
             }
             field if field.is_b0_scalar() => {}
             _ => return Ok(false),
         }
     }
-    if owns_store {
+    if has_owner {
         dynamic_store::check_store_element(module, ty, None, b)?;
     }
-    Ok(owns_store)
+    Ok(has_owner)
 }
 fn physical_at<'a>(
     module: &TypedModule,
