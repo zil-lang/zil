@@ -4408,6 +4408,7 @@ impl Check<'_, '_> {
         if captures.len() != definition.captures.len() {
             return Err(fail("ghost creator omits an actual capture"));
         }
+        let mut bindings = None;
         for (index, operand) in captures.iter().enumerate() {
             let actual = self.ssa_value(instance, function, *operand, b, 0)?;
             if actual.ty != definition.captures[index] {
@@ -4415,20 +4416,66 @@ impl Check<'_, '_> {
                     "ghost creator has another complete actual capture type",
                 ));
             }
-            for (class, actual_class) in actual.classes.iter().enumerate() {
-                for (_, _, binder) in
-                    self.capture_class_headers(contract, index as u32, &actual, class as u32, b)?
-                {
-                    if self.header_class(child, binder, b)? != *actual_class {
-                        return Err(fail(
-                            "ghost creator capture comes from another actual head or complete child class source",
-                        ));
+            let capture = u32::try_from(index)
+                .map_err(|_| fail("physical capture ordinal overflow"))?;
+            if self.ghost_creator_capture(child, contract, capture, &actual, b)? {
+                continue;
+            }
+            // Only the all-creators proof can connect this exact physical
+            // operand to a different lexical upper at its stored header.
+            if child.parent != Some(instance.id) {
+                return Err(fail("ghost creator changes its actual lexical parent"));
+            }
+            if bindings.is_none() {
+                bindings = Some(self.capture_creator_bindings(child, definition, b)?);
+            }
+            let mut proved = None;
+            if let Some(bindings) = &bindings {
+                for binding in bindings.values() {
+                    b.spend(1, WORK)?;
+                    if binding.capture != capture {
+                        continue;
+                    }
+                    b.lookup(binding.reborrowed.len(), WORK)?;
+                    if binding.reborrowed.contains(operand)
+                        && proved.replace(&binding.stored).is_some()
+                    {
+                        return Err(fail("ghost creator capture has competing lexical bounds"));
                     }
                 }
+            }
+            let Some(proved) = proved else {
+                return Err(fail(
+                    "ghost creator capture comes from another actual head or complete child class source",
+                ));
+            };
+            if !self.ghost_creator_capture(child, contract, capture, proved, b)? {
+                return Err(fail("ghost creator capture changes its proved stored classes"));
             }
         }
         Ok(())
     }
+
+    fn ghost_creator_capture(
+        &self,
+        child: &SemanticInstance,
+        contract: &StorageLifeContract,
+        capture: u32,
+        value: &Value,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        for (class, actual_class) in value.classes.iter().enumerate() {
+            for (_, _, binder) in
+                self.capture_class_headers(contract, capture, value, class as u32, b)?
+            {
+                if self.header_class(child, binder, b)? != *actual_class {
+                    return Ok(false);
+                }
+            }
+        }
+        Ok(true)
+    }
+
 }
 
 impl Check<'_, '_> {

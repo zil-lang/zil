@@ -6,6 +6,7 @@ pub(super) struct CreatorBinding {
     pub(super) capture: u32,
     pub(super) lexical: Value,
     pub(super) stored: Value,
+    pub(super) reborrowed: BTreeSet<ValueId>,
 }
 impl Check<'_, '_> {
     /// Evaluate only the proved original occurrence equations. The full
@@ -297,6 +298,7 @@ impl Check<'_, '_> {
             let expected = self.resolved(parent, actual, b, 0)?;
             let mut selected = None;
             let mut stored = None;
+            let mut reborrowed = BTreeSet::new();
             let mut creators = 0usize;
             for block in &function.blocks {
                 for (index, instruction) in block.instructions.iter().enumerate() {
@@ -348,6 +350,8 @@ impl Check<'_, '_> {
                         {
                             // The header stores the lexical upper. The actual
                             // reborrow still has its own loan in the CFG.
+                            b.lookup(reborrowed.len(), WORK)?;
+                            reborrowed.insert(*operand);
                             expected.copy(b)?
                         } else {
                             return Err(fail(
@@ -390,6 +394,7 @@ impl Check<'_, '_> {
                 CreatorBinding {
                     capture: selected
                         .ok_or_else(|| fail("captured value has no physical original operand"))?,
+                    reborrowed,
                     lexical: expected,
                     stored: stored
                         .ok_or_else(|| fail("captured value has no complete stored head"))?,
