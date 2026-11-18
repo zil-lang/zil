@@ -95,15 +95,14 @@ pub(super) fn reference(
             ));
         }
     }
-    methods::sealed_worker(
-        world,
-        instance,
-        callee,
-        function,
-        &value.signature,
-        &value.actuals,
-        implicit,
-    )?;
+    let borrowed = value.signature.invocation_lifetimes != 0 && !foreign;
+    if borrowed {
+        borrowed_entry(world, instance, callee, function, &value, ty)?;
+    } else {
+        methods::sealed_worker(
+            world, instance, callee, function, &value.signature, &value.actuals, implicit,
+        )?;
+    }
     let recipe = SemanticTypeRecipe::Code {
         kind: value.kind,
         signature: Box::new(value.signature),
@@ -115,6 +114,55 @@ pub(super) fn reference(
         ));
     }
     Ok(expected)
+}
+
+fn borrowed_entry(
+    world: &mut World<'_, '_>,
+    caller: &SemanticInstance,
+    callee: &SemanticInstance,
+    function: &TypedFunction,
+    value: &FunctionValue,
+    pointer: &Type,
+) -> R<()> {
+    let Type::BorrowedFunctionPointer { parameters, result, life } = pointer else {
+        return Err(bad("borrowed code address erases its invocation relation"));
+    };
+    let header = function.storage_life.as_ref()
+        .ok_or_else(|| bad("borrowed code entry omits its complete storage header"))?;
+    if function.call_kind != value.signature.call_kind
+        || function.result_mode != value.signature.result_mode
+        || function.parameters.len() != parameters.len()
+        || callee.actuals.len() != value.actuals.len()
+    {
+        return Err(bad("borrowed code entry changes its original ABI or arity"));
+    }
+    world.pay(parameters.len().saturating_add(value.actuals.len()))?;
+    for (actual, recipe) in callee.actuals.iter().zip(&value.actuals) {
+        let expected = super::super::materialize::actual_in_view(
+            world.program, &world.view, world.ledger, caller.id, recipe, world.limits, world.left,
+        )?;
+        methods::actual_specialization(world, actual, &expected)?;
+    }
+    for (local, expected) in function.parameters.iter().zip(parameters) {
+        let actual = &function.locals.get(local.0 as usize)
+            .ok_or_else(|| bad("borrowed code entry parameter has no actual local"))?.ty;
+        inference::charge_type_snapshot(actual, Span::default(), world.limits, world.left, 1)?;
+        inference::charge_type_snapshot(expected, Span::default(), world.limits, world.left, 1)?;
+        if actual != expected {
+            return Err(bad("borrowed code entry changes a complete parameter type"));
+        }
+    }
+    inference::charge_type_snapshot(&function.return_type, Span::default(), world.limits, world.left, 1)?;
+    inference::charge_type_snapshot(result, Span::default(), world.limits, world.left, 1)?;
+    world.pay(crate::borrowed_fp::metadata_work(life)
+        .saturating_add(crate::borrowed_fp::metadata_work(header).saturating_mul(3)))?;
+    crate::borrowed_fp::qualified_inputs(header, parameters, result, |work| world.pay(work))?;
+    if &function.return_type != result.as_ref()
+        || crate::borrowed_fp::static_pointer_life(parameters, result, header).as_ref() != Some(life)
+    {
+        return Err(bad("borrowed code entry changes its complete invocation relation"));
+    }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -132,10 +180,14 @@ pub(super) fn indirect(
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<SharedType> {
     let callee_value = world.get(values, callee)?;
-    let Type::FunctionPointer { parameters, result } = World::type_of(&callee_value)? else {
-        return Err(pending(
-            "indirect code invocation requires its complete borrowed or foreign ABI relation",
-        ));
+    let (parameters, result, invocations) = match World::type_of(&callee_value)? {
+        Type::FunctionPointer { parameters, result } => (parameters, result, 0),
+        Type::BorrowedFunctionPointer { parameters, result, life } => {
+            (parameters, result, life.invocation_binder_count)
+        }
+        _ => return Err(pending(
+            "indirect code invocation requires its complete original ABI relation",
+        )),
     };
     let mut selected = None;
     for site in world.point_sites(sites, block, index)? {
@@ -180,7 +232,7 @@ pub(super) fn indirect(
         if scheme.kind != CallableKind::FunctionPointer
             || scheme.signature.call_kind != CallKind::Direct
             || scheme.signature.bound_lifetimes != 0
-            || scheme.signature.invocation_lifetimes != 0
+            || scheme.signature.invocation_lifetimes != invocations
             || scheme.signature.parameters.len() != parameters.len()
             || arguments.len() != parameters.len()
             || !matches!(

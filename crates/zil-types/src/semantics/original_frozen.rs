@@ -298,6 +298,7 @@ fn clone_proof(
             .saturating_add(source.callable_calls.len())
             .saturating_add(source.direct_calls.len())
             .saturating_add(source.function_values.len())
+            .saturating_add(source.contextual_code_frames.len())
             .saturating_add(source.nominal_constructors.len())
             .saturating_add(source.call_result_origins.len())
             .saturating_add(source.call_callees.len())

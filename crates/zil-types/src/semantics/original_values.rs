@@ -26,7 +26,10 @@ impl Check<'_, '_> {
             return Err(bad("thin closure has no original body signature"));
         };
         if child.parent != Some(owner) || signature.parameters.len() != declared.parameters.len()
-            || signature.call_kind != CallKind::Direct || signature.bound_lifetimes != 0 || signature.invocation_lifetimes != 0
+            || signature.call_kind != CallKind::Direct || declared.call_kind != CallKind::Direct
+            || signature.bound_lifetimes != 0 || declared.bound_lifetimes != 0
+            || declared.invocation_lifetimes != 0
+                && declared.invocation_lifetimes != signature.invocation_lifetimes
         {
             return Err(bad("thin closure context changes its original arity, calling mode or lifetime domain"));
         }
@@ -91,6 +94,14 @@ impl Check<'_, '_> {
         }
         crate::dyn_metadata::semantic_operand_snapshot(expected, self.limits, self.left, 1)?;
         self.pay(1, depth)?;
+        if expected.invocation_lifetimes != 0 {
+            self.pay(self.proof.contextual_code_frames.len().saturating_add(1).ilog2() as usize + 2, depth)?;
+            if self.proof.proof_mut()?.contextual_code_frames.insert(child.id, expected.invocation_lifetimes)
+                .is_some_and(|old| old != expected.invocation_lifetimes)
+            {
+                return Err(bad("thin closure changes its original invocation frame"));
+            }
+        }
         self.proof.proof_mut()?.function_values.insert((owner, node), FunctionValue {
             target: child.id, actuals: Vec::new(), kind: SemanticCodeKind::FunctionPointer, signature: expected.clone(),
         });
@@ -178,20 +189,8 @@ impl Check<'_, '_> {
         signature.result = self.mode_type(target, signature.result_mode, result, depth + 1)?;
         let kind = if foreign {
             SemanticCodeKind::ForeignCallback
-        } else if matches!(
-            wanted,
-            Some(SemanticTypeRecipe::Code {
-                kind: SemanticCodeKind::BorrowedFunctionPointer,
-                ..
-            })
-        ) || signature
-            .parameters
-            .iter()
-            .any(|parameter| matches!(parameter.ty, SemanticTypeRecipe::Address { .. }))
-            || matches!(signature.result, SemanticTypeRecipe::Address { .. })
-        {
-            SemanticCodeKind::BorrowedFunctionPointer
         } else {
+            self.quantify_code_inputs(definition, &mut signature, depth + 1)?;
             SemanticCodeKind::FunctionPointer
         };
         let recipe = SemanticTypeRecipe::Code {
@@ -244,6 +243,69 @@ impl Check<'_, '_> {
         );
         Ok(Some(result))
     }
+
+    /// A named entry's anonymous input anchors are real declaration
+    /// occurrences. Abstract them into a new code signature before moving
+    /// the signature to another definition's lexical domain.
+    fn quantify_code_inputs(
+        &mut self,
+        definition: &SemanticDefinition,
+        signature: &mut SemanticSignatureRecipe,
+        depth: usize,
+    ) -> R<()> {
+        let mut inputs = BTreeMap::new();
+        for (index, parameter) in signature.parameters.iter_mut().enumerate() {
+            self.pay(1, depth)?;
+            let SemanticTypeRecipe::Address { mutable, lifetime, .. } = &mut parameter.ty else {
+                continue;
+            };
+            let SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit {
+                scope: SemanticScopeRef::Ancestor(0), ordinal,
+            }) = *lifetime else {
+                return Err(pending("named borrowed code requires its original flat input anchor"));
+            };
+            let index = u32::try_from(index).map_err(|_| bad("code parameter index overflows"))?;
+            if signature.bound_lifetimes != 0 || signature.invocation_lifetimes != 0
+                || !matches!((*mutable, parameter.mode),
+                    (false, PassingMode::Borrow | PassingMode::Infer)
+                    | (true, PassingMode::BorrowMut | PassingMode::Infer))
+            {
+                return Err(pending("named borrowed code changes its original input mode or frame"));
+            }
+            self.pay(definition.implicit_lifetimes.len(), depth)?;
+            let mut anchors = definition.implicit_lifetimes.iter().filter(|row| row.ordinal == ordinal);
+            if !matches!(anchors.next(), Some(row) if row.occurrence_path == [1, index])
+                || anchors.next().is_some()
+            {
+                return Err(bad("named borrowed code has no exact original input occurrence"));
+            }
+            self.pay(inputs.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+            let role = u32::try_from(inputs.len()).map_err(|_| bad("code invocation frame overflows"))?;
+            if inputs.insert(ordinal, role).is_some() {
+                return Err(bad("named borrowed code repeats an anonymous input occurrence"));
+            }
+            *lifetime = SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Invocation(role));
+            parameter.mode = PassingMode::Infer;
+        }
+        if let SemanticTypeRecipe::Address { lifetime, .. } = &mut signature.result {
+            let SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit {
+                scope: SemanticScopeRef::Ancestor(0), ordinal,
+            }) = *lifetime else {
+                return Err(pending("named borrowed code requires its original result anchor"));
+            };
+            self.pay(inputs.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+            let role = *inputs.get(&ordinal).ok_or_else(|| {
+                bad("named borrowed code result has no original input anchor")
+            })?;
+            *lifetime = SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Invocation(role));
+        }
+        if !inputs.is_empty() {
+            signature.invocation_lifetimes = u32::try_from(inputs.len())
+                .map_err(|_| bad("code invocation frame overflows"))?;
+        }
+        Ok(())
+    }
+
     pub(super) fn function_value_copy(
         &mut self,
         owner: SemanticDefinitionId,
@@ -254,6 +316,7 @@ impl Check<'_, '_> {
         self.pay(1, depth)?;
         if kind == SemanticCodeKind::BorrowedFunctionPointer
             || kind == SemanticCodeKind::ForeignCallback
+            || kind == SemanticCodeKind::FunctionPointer && signature.invocation_lifetimes != 0
         {
             // Copy duplicates only the code address. The complete invocation
             // and C ABI eligibility are separate, mandatory consumers.

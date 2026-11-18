@@ -20,7 +20,19 @@ impl Eval<'_, '_, '_> {
         else {
             return Err(bad("invocation input has no original callable signature"));
         };
-        let count = signature.invocation_lifetimes;
+        let mut count = signature.invocation_lifetimes;
+        if count == 0 && definition.kind == SemanticDefinitionKind::Closure {
+            let ledger = self.ledger;
+            let proof = ledger.original.borrow();
+            let proof = proof.as_ref().filter(|proof| proof.complete.contains(&definition.id))
+                .or_else(|| ledger.frozen.as_deref().map(|source| &source.original));
+            if let Some(proof) = proof {
+                self.fee(proof.contextual_code_frames.len().saturating_add(1).ilog2() as usize + 1)?;
+                if let Some(frame) = proof.contextual_code_frames.get(&definition.id) {
+                    count = *frame;
+                }
+            }
+        }
         if index >= count {
             return Err(bad(
                 "invocation input exceeds its original complete quantifier frame",
@@ -87,6 +99,81 @@ impl Eval<'_, '_, '_> {
         })?;
         crate::dyn_metadata::semantic_operand_snapshot(image, self.limits, self.left, 1)?;
         Ok(image.clone())
+    }
+
+    /// A code address stores no input borrow. Its own complete flat
+    /// parameter/result relation is carried by its invocation header.
+    pub(super) fn borrowed_code_type(
+        &mut self,
+        scope: SemanticInstanceId,
+        signature: &SemanticSignatureRecipe,
+        depth: usize,
+    ) -> R<SemanticTypeValue> {
+        if signature.call_kind != CallKind::Direct || signature.bound_lifetimes != 0 {
+            return Err(unknown("borrowed code needs its complete quantified Direct signature"));
+        }
+        self.fee(signature.parameters.len().saturating_add(1).saturating_mul(4))?;
+        let mut parameters = Vec::with_capacity(signature.parameters.len());
+        let mut parameter_lives = Vec::with_capacity(signature.parameters.len());
+        for parameter in &signature.parameters {
+            let (ty, role) = self.borrowed_code_endpoint(
+                scope, &parameter.ty, parameter.mode, depth + 1,
+            )?;
+            parameters.push(ty);
+            parameter_lives.push(role);
+        }
+        let (result, result_life) = self.borrowed_code_endpoint(
+            scope, &signature.result, signature.result_mode, depth + 1,
+        )?;
+        let life = StorageLifeContract::from_flat(FunctionLifeContract {
+            binder_count: signature.invocation_lifetimes,
+            parameter_lives,
+            result_life,
+        }).ok_or_else(|| bad("borrowed code exceeds its complete parameter arity"))?;
+        self.fee(crate::borrowed_fp::metadata_work(&life))?;
+        crate::borrowed_fp::relation(&parameters, &result, &life, Span::default())?;
+        resolved(Type::BorrowedFunctionPointer {
+            parameters,
+            result: Box::new(result),
+            life,
+        }, empty(), Vec::new())
+    }
+
+    fn borrowed_code_endpoint(
+        &mut self,
+        scope: SemanticInstanceId,
+        recipe: &SemanticTypeRecipe,
+        mode: PassingMode,
+        depth: usize,
+    ) -> R<(Type, Option<u32>)> {
+        if !matches!(mode, PassingMode::Infer | PassingMode::Copy) {
+            return Err(unknown("borrowed code needs its complete passing mode"));
+        }
+        let address = match recipe {
+            SemanticTypeRecipe::Address {
+                mutable,
+                lifetime: SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Invocation(role)),
+                inner,
+            } => Some((*mutable, *role, inner.as_ref())),
+            SemanticTypeRecipe::Address { .. } => {
+                return Err(unknown("borrowed code requires its own invocation-local address"));
+            }
+            _ => None,
+        };
+        let value = self.ty(scope, address.map_or(recipe, |(_, _, inner)| inner), None, depth + 1)?;
+        let SemanticTypeValue::Resolved { ty, life, classes } = value else {
+            return Err(bad("borrowed code endpoint has no complete type"));
+        };
+        if life.binder_count != 0 || !classes.is_empty() {
+            return Err(unknown("borrowed code endpoint requires its complete nested class domain"));
+        }
+        if mode == PassingMode::Copy && matches!(address, Some((true, _, _))) {
+            return Err(bad("borrowed code cannot copy an exclusive input or result"));
+        }
+        Ok(match address {
+            Some((mutable, role, _)) => (Type::Address { mutable, inner: Box::new(ty) }, Some(role)),
+            None => (ty, None),
+        })
     }
 
     fn form_invocation_inputs(

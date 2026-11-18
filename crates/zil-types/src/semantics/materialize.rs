@@ -2109,6 +2109,12 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                     images,
                 )
             }
+            SemanticTypeRecipe::Code {
+                kind: SemanticCodeKind::FunctionPointer | SemanticCodeKind::BorrowedFunctionPointer,
+                signature,
+            } if signature.invocation_lifetimes != 0 => {
+                self.borrowed_code_type(scope, signature, depth + 1)?
+            }
             SemanticTypeRecipe::Code { kind, signature } => {
                 if signature.bound_lifetimes != 0 || signature.invocation_lifetimes != 0 {
                     return Err(unknown(

@@ -179,7 +179,7 @@ fn same_actual(
         _ => Err(bad("method parent changes an original mixed actual kind")),
     }
 }
-fn actual_specialization(
+pub(super) fn actual_specialization(
     world: &mut World<'_, '_>,
     actual: &SemanticActual,
     expected: &SemanticActual,

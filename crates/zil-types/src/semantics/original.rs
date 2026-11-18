@@ -226,6 +226,7 @@ pub(super) struct Proof {
     pub callable_calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), CallableCall>,
     pub providers: BTreeMap<SemanticDefinitionId, SemanticDefinitionId>,
     pub function_values: BTreeMap<(SemanticDefinitionId, NodeId), FunctionValue>,
+    pub(super) contextual_code_frames: BTreeMap<SemanticDefinitionId, u32>,
     pub nominal_constructors: BTreeMap<(SemanticDefinitionId, NodeId), (SemanticDefinitionId, u32)>,
     pub direct_calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), SemanticSignatureRecipe>,
     pub effective_call_kind: BTreeMap<SemanticDefinitionId, CallKind>,
