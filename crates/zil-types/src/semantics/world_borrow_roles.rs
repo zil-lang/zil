@@ -1270,13 +1270,17 @@ pub(super) fn capture_write(
     }
     // A source trace is mandatory even when the outer images already agree.
     trace(world, instance, original, function, &write.role, operand, values, locals, implicit, false)?;
+    // The capture header names a sealed Type coordinate and the original
+    // write can name its Life slot. Compare both in the same original Gamma.
+    let expected = world.normalize(instance.id, expected, implicit)?;
+    let actual = world.normalize(instance.id, actual, implicit)?;
     let target = role_target(world, instance, &write.role, implicit)?;
-    if roles::outer(world, expected)? != target {
+    if roles::outer(world, &expected)? != target {
         return Err(bad("captured role write changes its exact persistent environment bound"));
     }
-    if apply_role(world, instance, original, function, &write.role, operand, actual, expected,
+    if apply_role(world, instance, original, function, &write.role, operand, &actual, &expected,
         values, locals, implicit, false)?.is_none() {
-        world.same(instance.id, actual, expected, implicit)?;
+        world.same(instance.id, &actual, &expected, implicit)?;
     }
     Ok(true)
 }
