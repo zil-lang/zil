@@ -141,19 +141,21 @@ fn consumption(roles: &[CallableRole], origin: usize, b: &mut Budget) -> Check<u
 }
 
 pub(super) fn parameter(
+    module: &TypedModule,
     f: &TypedFunction,
     call: &InstructionKind,
     d: &ClosureDefinition,
     b: &mut Budget,
 ) -> Check<usize> {
-    match solve(f, call, d, b, false) {
+    match solve(module, f, call, d, b, false) {
         Err(error) if error.category != zil_base::ResultCategory::ResourceLimit => {
-            solve(f, call, d, b, true)
+            solve(module, f, call, d, b, true)
         }
         result => result,
     }
 }
 fn solve(
+    module: &TypedModule,
     f: &TypedFunction,
     call: &InstructionKind,
     d: &ClosureDefinition,
@@ -234,7 +236,7 @@ fn solve(
         }
         b.spend(block.instructions.len())?;
         for i in &block.instructions {
-            if !super::staged::finite_instruction(&i.kind) {
+            if !super::staged::finite_instruction(module, f, i, b)? {
                 return Err(failure());
             }
             if let Some(value) = i.result {

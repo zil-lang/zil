@@ -1,7 +1,7 @@
 //! Independent finite tail-fork inventory; this authenticates no ownership fact.
 use super::*;
 
-pub(super) fn entry<'a>(f: &'a TypedFunction, b: &mut Budget) -> Check<&'a BasicBlock> {
+pub(super) fn entry<'a>(module: &TypedModule, f: &'a TypedFunction, b: &mut Budget) -> Check<&'a BasicBlock> {
     b.spend(f.blocks.len().saturating_mul(4).saturating_add(1))?;
     if f.blocks.len() != 3 {
         return Err(bad("staged tail requires entry and two terminal leaves"));
@@ -40,7 +40,7 @@ pub(super) fn entry<'a>(f: &'a TypedFunction, b: &mut Budget) -> Check<&'a Basic
         }
         b.spend(block.instructions.len())?;
         for instruction in &block.instructions {
-            if !super::staged::finite_instruction(&instruction.kind) {
+            if !super::staged::finite_instruction(module, f, instruction, b)? {
                 return Err(bad("staged tail contains unsupported storage effects"));
             }
             if matches!(instruction.kind, InstructionKind::CallClosureOnce { .. }) {

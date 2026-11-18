@@ -183,9 +183,37 @@ fn checked_teardown(
 }
 // No local address can be exposed in this first fallback. In particular a
 // WriteAddress cannot silently change the whole-local Store correspondence.
-pub(super) fn finite_instruction(kind: &InstructionKind) -> bool {
-    matches!(
-        kind,
+pub(super) fn finite_instruction(
+    module: &TypedModule,
+    caller: &TypedFunction,
+    instruction: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
+    // A direct scalar call cannot receive, return or replace any environment
+    // tracked by this role proof. Derive the complete ABI from the called entry
+    // and its actual operands before treating the call as transparent here.
+    if let InstructionKind::Call { function, arguments } = &instruction.kind {
+        b.spend(arguments.len().saturating_add(1))?;
+        let Some(target) = module.functions.get(function.0 as usize) else {
+            return Ok(false);
+        };
+        return Ok(target.id == *function
+            && target.call_kind == CallKind::Direct
+            && target.environment.is_none()
+            && scalar(&target.return_type)
+            && match instruction.result {
+                Some(value) => target.return_type != Type::Unit
+                    && caller.values.get(value.0 as usize) == Some(&target.return_type),
+                None => target.return_type == Type::Unit,
+            }
+            && target.parameters.len() == arguments.len()
+            && target.parameters.iter().zip(arguments).all(|(parameter, argument)| {
+                target.locals.get(parameter.0 as usize).is_some_and(|local|
+                    scalar(&local.ty) && caller.values.get(argument.0 as usize) == Some(&local.ty))
+            }));
+    }
+    Ok(matches!(
+        instruction.kind,
         InstructionKind::ScopeEnter { .. }
             | InstructionKind::ScopeExit { .. }
             | InstructionKind::StorageLive(_)
@@ -202,7 +230,7 @@ pub(super) fn finite_instruction(kind: &InstructionKind) -> bool {
             | InstructionKind::Binary { .. }
             | InstructionKind::ConvertInteger { .. }
             | InstructionKind::ConvertNumber { .. }
-    )
+    ))
 }
 
 pub(super) fn parameter(
@@ -221,10 +249,10 @@ pub(super) fn parameter(
     }
     let fork = f.blocks.len() != 1;
     let block = if fork {
-        match super::staged_tail::entry(f, b) {
+        match super::staged_tail::entry(module, f, b) {
             Ok(block) => block,
             Err(error) if error.category != zil_base::ResultCategory::ResourceLimit => {
-                return super::staged_cfg::parameter(f, call, d, b);
+                return super::staged_cfg::parameter(module, f, call, d, b);
             }
             Err(error) => return Err(error),
         }
@@ -243,7 +271,7 @@ pub(super) fn parameter(
     b.spend(block.instructions.len())?;
     let mut before = None;
     for (index, instruction) in block.instructions.iter().enumerate() {
-        if !finite_instruction(&instruction.kind)
+        if !finite_instruction(module, f, instruction, b)?
             && !super::super::stored_owned::operation(module, f, instruction, b)?
         {
             return Err(bad(
@@ -807,6 +835,30 @@ mod tests {
                 resolve(&m, &mut Budget::new(&Limits::default())).is_err(),
                 "case {case}"
             );
+        }
+    }
+
+    #[test]
+    fn transparent_call_checks_the_actual_scalar_abi() {
+        let mut module = model();
+        let mut target = module.functions[0].clone();
+        target.id = FunctionId(module.functions.len() as u32);
+        target.call_kind = CallKind::Direct;
+        target.environment = None;
+        target.return_type = Type::Unit;
+        target.parameters = vec![LocalId(0)];
+        target.locals[0].ty = Type::I32;
+        let call = op(None, InstructionKind::Call {
+            function: target.id, arguments: vec![ValueId(0)],
+        });
+        module.functions.push(target);
+        let mut caller = module.functions[0].clone();
+        let limits = Limits::default();
+        for (actual, allowed) in [(Type::I32, true), (Type::I64, false),
+            (Type::Closure(ClosureId(0)), false)] {
+            caller.values = vec![actual];
+            assert_eq!(finite_instruction(&module, &caller, &call,
+                &mut Budget::new(&limits)).unwrap(), allowed);
         }
     }
 
