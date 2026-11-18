@@ -151,7 +151,8 @@ pub(crate) fn assignment_writes(module:&TypedModule,f:&TypedFunction,b:&mut Budg
     let session=b.semantic_checked.clone().ok_or_else(||bad("assignment lacks the completely checked original programme"))?;
     if session.module!=module as *const TypedModule as usize{return Err(bad("assignment interpreter belongs to another immutable module"));}
     if !module.functions.get(f.id.0 as usize).is_some_and(|owner| std::ptr::eq(owner, f)) {
-        return Err(bad("assignment proof selects another physical body"));
+        let worlds = session.directory.entry(f.id, b)?;
+        return session.context.assignment_writes(module, f, worlds, b);
     }
     {
         let sites = session.assignment_sites.borrow();

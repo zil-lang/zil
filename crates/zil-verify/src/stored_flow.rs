@@ -5344,50 +5344,39 @@ static_dependency: StaticProvenance::NotStatic,
     Ok(out)
 }
 
-/// A reachable DAG needs no iterative frame propagation. The graph comes from
-/// this verifier's structural checks, including checks of unreachable blocks.
-fn acyclic_order(g: &FunctionGraph, b: &mut Budget) -> Check<Option<Vec<usize>>> {
-    let count = g.reachable.len();
-    b.spend(amount(count, 3)?)?;
-    let mut incoming = vec![0usize; count];
-    let mut ready = Vec::with_capacity(count);
-    let mut order = Vec::with_capacity(count);
-    let mut reachable = 0usize;
-    b.spend(count)?;
-    for (block, live) in g.reachable.iter().enumerate() {
-        if !live {
-            continue;
-        }
-        reachable += 1;
-        b.spend(g.successors[block].len())?;
-        for child in &g.successors[block] {
-            if g.reachable[*child] {
-                incoming[*child] = incoming[*child]
-                    .checked_add(1)
-                    .ok_or_else(|| limit("stored DAG predecessor count overflow"))?;
-            }
-        }
-    }
-    b.spend(count)?;
-    for (block, degree) in incoming.iter().enumerate() {
-        if g.reachable[block] && *degree == 0 {
-            ready.push(block);
-        }
-    }
-    while let Some(block) = ready.pop() {
+/// Reverse postorder follows every reachable edge of the independently
+/// checked CFG. A back edge requires fresh complete passes until both the
+/// predecessor frames and SSA sources reach a fixed point.
+fn execution_order(g: &FunctionGraph, entry: usize, b: &mut Budget) -> Check<(Vec<usize>, bool)> {
+    let n = g.reachable.len();
+    b.spend(amount(n, 4)?)?;
+    let mut color = vec![0u8; n];
+    let mut pending = Vec::with_capacity(n);
+    let mut order = Vec::with_capacity(n);
+    let mut cyclic = false;
+    color[entry] = 1;
+    pending.push((entry, 0usize));
+    while let Some((node, edge)) = pending.last_mut() {
         b.spend(1)?;
-        order.push(block);
-        b.spend(g.successors[block].len())?;
-        for child in &g.successors[block] {
-            if g.reachable[*child] {
-                incoming[*child] -= 1;
-                if incoming[*child] == 0 {
-                    ready.push(*child);
+        if let Some(&child) = g.successors[*node].get(*edge) {
+            *edge += 1;
+            match color[child] {
+                0 => {
+                    color[child] = 1;
+                    pending.push((child, 0));
                 }
+                1 => cyclic = true,
+                _ => {}
             }
+        } else {
+            color[*node] = 2;
+            order.push(*node);
+            pending.pop();
         }
     }
-    Ok((order.len() == reachable).then_some(order))
+    b.spend(order.len())?;
+    order.reverse();
+    Ok((order, cyclic))
 }
 
 fn solve(
@@ -5405,7 +5394,7 @@ fn solve_mode(
     g: &FunctionGraph,
     summaries: &[Summary],
     b: &mut Budget,
-    use_dag: bool,
+    graph_order: bool,
 ) -> Check<Solution> {
     replacements::prepare(module, f, g, b)?;
     let projection_heads = deferred_addresses(module, f, b)?;
@@ -5435,58 +5424,68 @@ fn solve_mode(
     }
     b.spend(amount(count, 4)?)?;
     let mut loans = vec![Loan::default(); count];
+    // All blocks of this actual function start with the same empty slot
+    // layout. Each clone has independent payloads, loans and written flags.
+    let blank = empty_frame(module, f, b)?;
     let entry = seed(module, f, &mut loans, b)?;
     let sites = write_sites(module, f, &mut loans, b)?;
     let mut dyn_sites = dyn_leases::Sites::default();
     let mut values = vec![Payload::default(); f.values.len()];
     let mut outputs = Vec::new();
     for _ in &f.blocks {
-        outputs.push(empty_frame(module, f, b)?);
+        outputs.push(copy_frame(&blank, b)?);
     }
-    // The structural verifier checked SSA dominance before this kernel. For
-    // every independently proved DAG, every
-    // predecessor frame and dominating SSA definition is final before its user;
-    // join_payload still records all sources and loan growth, including values
-    // whose creation does not change a local frame.
-    if use_dag && let Some(order) = acyclic_order(g, b)? {
-        if let Some(progress) = &mut b.diagnostic_progress {
-            progress.cfg_round = 1;
-        }
-        for bi in order {
+    if graph_order {
+        let (order, cyclic) = execution_order(g, f.entry.0 as usize, b)?;
+        loop {
+            let mut changed = false;
             if let Some(progress) = &mut b.diagnostic_progress {
-                progress.block_visits = progress.block_visits.saturating_add(1);
+                progress.cfg_round = progress.cfg_round.saturating_add(1);
             }
-            b.spend(1)?;
-            let mut state = if bi == f.entry.0 as usize {
-                copy_frame(&entry, b)?
-            } else {
-                empty_frame(module, f, b)?
-            };
-            b.spend(g.predecessors[bi].len())?;
-            for pred in &g.predecessors[bi] {
-                if g.reachable[*pred] {
-                    join_frame(&mut state, &outputs[*pred], b)?;
+            for &bi in &order {
+                if let Some(progress) = &mut b.diagnostic_progress {
+                    progress.block_visits = progress.block_visits.saturating_add(1);
                 }
-            }
-            for instruction in &f.blocks[bi].instructions {
-                let out = step(
-                    module,
-                    f,
-                    instruction,
-                    &mut state,
-                    &values,
-                    summaries,
-                    &sites,
-                    &mut dyn_sites,
-                    &mut loans,
-                    is_deferred_address(instruction, &projection_heads),
-                    b,
-                )?;
-                if let Some(value) = instruction.result {
-                    join_payload(&mut values[value.0 as usize], &out, b)?;
+                b.spend(1)?;
+                let mut state = if bi == f.entry.0 as usize {
+                    copy_frame(&entry, b)?
+                } else {
+                    copy_frame(&blank, b)?
+                };
+                b.spend(g.predecessors[bi].len())?;
+                for pred in &g.predecessors[bi] {
+                    if g.reachable[*pred] {
+                        join_frame(&mut state, &outputs[*pred], b)?;
+                    }
                 }
+                for instruction in &f.blocks[bi].instructions {
+                    let out = step(
+                        module,
+                        f,
+                        instruction,
+                        &mut state,
+                        &values,
+                        summaries,
+                        &sites,
+                        &mut dyn_sites,
+                        &mut loans,
+                        is_deferred_address(instruction, &projection_heads),
+                        b,
+                    )?;
+                    if let Some(value) = instruction.result {
+                        changed |= join_payload(&mut values[value.0 as usize], &out, b)?;
+                    }
+                }
+                if cyclic {
+                    frame_work(&state, b)?;
+                    frame_work(&outputs[bi], b)?;
+                    changed |= state != outputs[bi];
+                }
+                outputs[bi] = state;
             }
-            outputs[bi] = state;
+            if !cyclic || !changed {
+                break;
+            }
         }
         return Ok(Solution {
             values,
@@ -5519,7 +5518,7 @@ fn solve_mode(
             let mut state = if bi == f.entry.0 as usize {
                 copy_frame(&entry, b)?
             } else {
-                empty_frame(module, f, b)?
+                copy_frame(&blank, b)?
             };
             for pred in &g.predecessors[bi] {
                 if g.reachable[*pred] {
@@ -6339,6 +6338,7 @@ fn windows(
     dyn_accesses: &mut Vec<(Source, bool)>,
     b: &mut Budget,
 ) -> Check<()> {
+    let blank = empty_frame(module, f, b)?;
     let projection_heads = deferred_addresses(module, f, b)?;
     // A module marker only schedules this actual per-function inventory.
     let mut ordinary_error_places = false;
@@ -6375,7 +6375,7 @@ fn windows(
         let mut state = if bi == f.entry.0 as usize {
             copy_frame(&solution.entry, b)?
         } else {
-            empty_frame(module, f, b)?
+            copy_frame(&blank, b)?
         };
         for pred in &g.predecessors[bi] {
             if g.reachable[*pred] {
@@ -9394,7 +9394,7 @@ mod tests {
     }
 
     #[test]
-    fn complete_dag_transfer_matches_reverse_fixed_point_and_cycles_keep_the_fallback() {
+    fn graph_order_matches_reverse_batches_for_acyclic_and_cyclic_stored_flow() {
         let module = fixture::module();
         for cyclic in [false, true] {
             let mut f = module.functions[0].clone();
