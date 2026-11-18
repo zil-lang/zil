@@ -44,8 +44,30 @@ pub(crate) struct Program {
     scope_applications: Vec<scopes::Application>,
     scope_owners: BTreeMap<SemanticInstanceId, SemanticInstanceId>,
     scope_requests: Vec<requests::Request>,
+    default_helpers: Vec<defaults::Helper>,
 }
 impl Program {
+    pub(crate) fn default_helper_origins(
+        &self,
+        module: ModuleId,
+    ) -> impl Iterator<Item = (u32, &crate::source_context::DeclarationOrigin)> {
+        self.default_helpers.iter().filter_map(move |helper| {
+            (helper.module == module).then_some((helper.placement, &helper.origin))
+        })
+    }
+    pub(crate) fn matches_default_helper(
+        &self,
+        marker: s::SemanticContextMarker,
+        module: ModuleId,
+        declaration: NodeId,
+    ) -> bool {
+        let Some(raw) = marker.raw_index().filter(|raw| raw & TEMPLATE != 0) else {
+            return false;
+        };
+        self.templates.get((raw & !TEMPLATE) as usize).is_some_and(|template| {
+            template.definition == (SemanticDefinitionId { module, index: declaration.0 })
+        })
+    }
     /// The selected Source rewrite moves only the original result observation;
     /// the original call/constructor/closure remains the sole payload operation.
     pub(crate) fn split_implicit_injection(
@@ -1247,7 +1269,33 @@ pub(crate) fn prepare(
     imports: &[Vec<CoreImport>],
     remaining: &mut Limits,
 ) -> CompileResult<(Vec<s::Module>, Program)> {
-    let inventory = collect_original_semantics(syntax, origins, imports, remaining)?;
+    let originals = collect_original_declarations_with_budget(syntax, origins, remaining)?;
+    let limits = remaining.clone();
+    let mut budget = Budget::new(&limits);
+    let prepared = defaults::prepare(syntax, &originals, imports, &mut budget);
+    *remaining = budget.remaining_limits();
+    if let Some(prepared) = prepared.map_err(|error| vec![error])? {
+        let limits = remaining.clone();
+        let mut budget = Budget::new(&limits);
+        let declarations = prepared.declarations(originals, &mut budget);
+        *remaining = budget.remaining_limits();
+        let declarations = declarations.map_err(|error| vec![error])?;
+        let syntax = prepared.modules.iter().collect::<Vec<_>>();
+        let inventory = collect_semantics_with_declarations(&syntax, declarations, imports, remaining)?;
+        let (modules, mut program) = prepare_with_inventory(&syntax, inventory, imports, remaining)?;
+        program.default_helpers = prepared.helpers;
+        return Ok((modules, program));
+    }
+    let inventory = collect_semantics_with_declarations(syntax, originals, imports, remaining)?;
+    prepare_with_inventory(syntax, inventory, imports, remaining)
+}
+
+fn prepare_with_inventory(
+    syntax: &[&s::Module],
+    inventory: OriginalSemanticInventory<'_>,
+    imports: &[Vec<CoreImport>],
+    remaining: &mut Limits,
+) -> CompileResult<(Vec<s::Module>, Program)> {
     let limits = remaining.clone();
     let mut budget = Budget::new(&limits);
     let result = (|| -> R<_> {

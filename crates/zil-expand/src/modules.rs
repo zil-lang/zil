@@ -338,7 +338,35 @@ fn normalize(
         let resolved = context.resolve(sources, &mut budget)?;
         for module in modules {
             let mut snapshot = generics::origins::Origins::single(module, false, &mut budget)?;
-            snapshot.capture_identities(module, false, &resolved, &mut budget)?;
+            let semantic = products.semantic.as_ref();
+            let helpers = semantic.map(|semantic| semantic.default_helper_origins(module.id));
+            let mut helpers = helpers.into_iter().flatten().peekable();
+            if let Some((first, _)) = helpers.peek() {
+                let first = *first as usize;
+                snapshot.capture_authored_prefix_identities(module, first, &resolved, &mut budget)?;
+                let mut expected = first;
+                for (position, helper) in helpers {
+                    if position as usize != expected || expected >= module.items.len() {
+                        return Err(error("E-SOURCE-IDENTITY", module.span, "default helper suffix loses its exact derived placement"));
+                    }
+                    let item = &module.items[expected];
+                    if !matches!(&item.kind, ItemKind::Function(function) if semantic.is_some_and(|semantic| semantic.matches_default_helper(function.semantic, module.id, helper.declaration))) {
+                        return Err(error("E-SOURCE-IDENTITY", item.span, "default helper is missing its original function marker"));
+                    }
+                    generics::origins::pay_identity(&helper.identity, &mut budget, item.span)?;
+                    generics::origins::pay_declaration_copy(helper, &mut budget, item.span)?;
+                    let key = generics::origins::Origin::source(module.id, expected, item.span)?.declaration;
+                    if snapshot.identities.insert(key, helper.clone()).is_some() {
+                        return Err(error("E-SOURCE-IDENTITY", item.span, "default helper overlaps an authored declaration"));
+                    }
+                    expected += 1;
+                }
+                if expected != module.items.len() {
+                    return Err(error("E-SOURCE-IDENTITY", module.span, "default helper suffix is missing a derived declaration"));
+                }
+            } else {
+                snapshot.capture_identities(module, false, &resolved, &mut budget)?;
+            }
             let output = origins.as_mut().expect("dyn provenance ledger");
             for (key, identity) in snapshot.identities {
                 budget.lineage_bytes(

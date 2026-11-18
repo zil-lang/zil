@@ -283,6 +283,15 @@ impl Origins {
             budget,
         )
     }
+    pub(crate) fn capture_authored_prefix_identities(
+        &mut self,
+        module: &Module,
+        authored: usize,
+        context: &ResolvedSourceIdentityContext<'_>,
+        budget: &mut Budget<'_>,
+    ) -> R<()> {
+        self.capture_prefix_identities(module, CompilerPrelude::option_only(false), authored, context, budget)
+    }
     pub(super) fn capture_prepared_identities(
         &mut self,
         module: &Module,
@@ -290,7 +299,17 @@ impl Origins {
         context: &ResolvedSourceIdentityContext<'_>,
         budget: &mut Budget<'_>,
     ) -> R<()> {
-        if self.entries.len() != module.items.len() {
+        self.capture_prefix_identities(module, prelude, module.items.len(), context, budget)
+    }
+    fn capture_prefix_identities(
+        &mut self,
+        module: &Module,
+        prelude: CompilerPrelude,
+        authored: usize,
+        context: &ResolvedSourceIdentityContext<'_>,
+        budget: &mut Budget<'_>,
+    ) -> R<()> {
+        if self.entries.len() != module.items.len() || authored > module.items.len() {
             return Err(error(
                 module.span,
                 "identity provenance is not aligned with syntax",
@@ -317,7 +336,7 @@ impl Origins {
                 }
                 let actual = supplied
                     .ok_or_else(|| error(module.span, "declaration-origin module absent"))?;
-                if actual.items.len().checked_add(prelude.len) != Some(module.items.len()) {
+                if actual.items.len().checked_add(prelude.len) != Some(authored) {
                     return Err(error(module.span, "declaration-origin item count differs"));
                 }
             }
@@ -330,7 +349,7 @@ impl Origins {
         let mut seen_identities = BTreeSet::new();
         let mut seen_generated_trees = BTreeMap::new();
         let mut seen_generated_ids = BTreeSet::new();
-        for (index, (item, origin)) in module.items.iter().zip(&self.entries).enumerate() {
+        for (index, (item, origin)) in module.items.iter().zip(&self.entries).take(authored).enumerate() {
             budget.node(item.span, 0)?;
             if origin.declaration.module != module.id {
                 continue;

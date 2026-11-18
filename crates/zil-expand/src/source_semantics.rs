@@ -21,6 +21,8 @@ mod closures;
 mod constants;
 #[path = "source_semantic_context.rs"]
 mod context;
+#[path = "source_semantic_defaults.rs"]
+mod defaults;
 #[path = "source_semantic_dyn.rs"]
 mod dyn_original;
 #[path = "source_semantic_effects.rs"]
@@ -439,6 +441,15 @@ pub fn collect_original_semantics<'a>(
     remaining: &mut Limits,
 ) -> CompileResult<OriginalSemanticInventory<'a>> {
     let originals = collect_original_declarations_with_budget(modules, origins, remaining)?;
+    collect_semantics_with_declarations(modules, originals, imports, remaining)
+}
+
+fn collect_semantics_with_declarations<'a>(
+    modules: &[&'a s::Module],
+    originals: SourceDeclarationInventory<'a>,
+    imports: &[Vec<CoreImport>],
+    remaining: &mut Limits,
+) -> CompileResult<OriginalSemanticInventory<'a>> {
     let (compiler_nominals, compiler_definitions, compiler_declarations) =
         prelude::collect(modules, remaining)?;
     if imports.len() != modules.len() {

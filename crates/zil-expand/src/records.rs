@@ -5,6 +5,22 @@ pub(super) fn project_default_name(nominal: &str, field: &str) -> String {
     format!("$record_default_{}_{}_{}", nominal.len(), nominal, field)
 }
 
+pub(super) fn default_function(name: String, field: &s::Field) -> s::Function {
+    s::Function {
+        semantic: Default::default(),
+        name,
+        generics: Vec::new(),
+        params: Vec::new(),
+        return_type: Some(field.ty.clone()),
+        where_clause: Vec::new(),
+        contract: Vec::new(),
+        body: s::FunctionBody::Expression(
+            field.default.clone().expect("caller selected a default"),
+        ),
+        span: field.span,
+    }
+}
+
 impl Expander<'_> {
     pub(super) fn record(
         &mut self,
@@ -207,19 +223,7 @@ impl Expander<'_> {
                 .is_some_and(|(owner, _)| *owner == self.module_id)
         });
         self.default_helpers.insert(key, name.clone());
-        let function = s::Function {
-            semantic: Default::default(),
-            name: name.clone(),
-            generics: Vec::new(),
-            params: Vec::new(),
-            return_type: Some(field.ty.clone()),
-            where_clause: Vec::new(),
-            contract: Vec::new(),
-            body: s::FunctionBody::Expression(
-                field.default.clone().expect("caller selected a default"),
-            ),
-            span: field.span,
-        };
+        let function = default_function(name.clone(), field);
         let saved_parent = self.parent_map;
         self.parent_map = None;
         self.function(
