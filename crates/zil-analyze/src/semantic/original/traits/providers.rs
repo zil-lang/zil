@@ -4,8 +4,22 @@ use super::*;
 
 impl Solver<'_, '_> {
     pub(super) fn trait_scope_frames(&mut self, b: &mut Budget) -> CompileResult<()> {
+        // Only a nominal with an authored member needs a lexical method frame.
+        let mut member_owners = BTreeSet::new();
         for definition in self.inventory.definitions.values() {
-            if !matches!(definition.body, SemanticDefinitionBody::Scope(_)) {
+            b.spend(1, WORK)?;
+            if definition.kind == SemanticDefinitionKind::Method
+                && let Some(parent) = definition.parent
+            {
+                b.lookup(member_owners.len(), WORK)?;
+                member_owners.insert(parent);
+            }
+        }
+        for definition in self.inventory.definitions.values() {
+            b.lookup(member_owners.len(), WORK)?;
+            let member_owner = matches!(definition.body, SemanticDefinitionBody::Nominal { .. })
+                && member_owners.contains(&definition.id);
+            if !member_owner && !matches!(definition.body, SemanticDefinitionBody::Scope(_)) {
                 continue;
             }
             if definition.parent.is_some() || !definition.environment.is_empty() {
@@ -21,6 +35,9 @@ impl Solver<'_, '_> {
             let mut frame = trait_frame(definition.id, arguments);
             frame.result = self.atom(Type::Unit, b)?;
             self.snapshot(&frame, b)?;
+            if member_owner {
+                self.original_trait_facts(&frame, b)?;
+            }
         }
         for definition in self.inventory.definitions.values() {
             let SemanticDefinitionBody::Scope(recipe) = &definition.body else {

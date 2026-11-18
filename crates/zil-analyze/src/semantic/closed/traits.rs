@@ -753,20 +753,33 @@ impl Check<'_, '_> {
             ));
         }
         let declaration = self.inventory.definition(instance.definition, b)?;
-        let SemanticDefinitionBody::Scope(recipe) = &declaration.body else {
-            return Err(fail(
-                "actual Self is not attached to its exact original scope",
-            ));
-        };
         let actual = instance
             .self_type
             .as_ref()
             .ok_or_else(|| fail("actual trait/impl scope omits its complete receiver"))?;
         let actual = self.resolved(instance, actual, b, depth + 1)?;
-        match recipe {
-            SemanticScopeRecipe::TraitImpl { self_type, .. }
-            | SemanticScopeRecipe::InherentImpl { self_type, .. }
-            | SemanticScopeRecipe::BuiltinImpl { self_type, .. } => {
+        match &declaration.body {
+            SemanticDefinitionBody::Nominal { .. } => {
+                let mut arguments = Vec::new();
+                for argument in &instance.actuals {
+                    self.push_value(
+                        &mut arguments,
+                        self.actual_value(instance, argument, b, depth + 1)?,
+                        b,
+                    )?;
+                }
+                let expected = self.nominal_value(declaration.id, &arguments, b, depth + 1)?;
+                if !actual.equal_paid(&expected, b)? {
+                    return Err(fail(
+                        "nominal Self differs from its original declaration and actuals",
+                    ));
+                }
+            }
+            SemanticDefinitionBody::Scope(
+                SemanticScopeRecipe::TraitImpl { self_type, .. }
+                | SemanticScopeRecipe::InherentImpl { self_type, .. }
+                | SemanticScopeRecipe::BuiltinImpl { self_type, .. },
+            ) => {
                 let expected = self.recipe_value(instance, self_type, b, depth + 1)?;
                 if expected != actual {
                     return Err(fail(
@@ -774,7 +787,7 @@ impl Check<'_, '_> {
                     ));
                 }
             }
-            SemanticScopeRecipe::Trait { declaration } => {
+            SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { declaration }) => {
                 let mut arguments = Vec::new();
                 for actual in &instance.actuals {
                     self.push_value(
@@ -785,6 +798,7 @@ impl Check<'_, '_> {
                 }
                 self.actual_provider(&actual, *declaration, &arguments, b, depth + 1)?;
             }
+            _ => return Err(fail("actual Self has no original lexical declaration")),
         }
         Ok(actual)
     }

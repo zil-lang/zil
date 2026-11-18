@@ -798,7 +798,9 @@ impl Check<'_, '_> {
             self.inventory.profile_instance(instance, b);
             let definition = self.inventory.definition(instance.definition, b)?;
             if matches!(instance.target, SemanticInstanceTarget::Scope)
-                && matches!(definition.body, SemanticDefinitionBody::Scope(_))
+                && (matches!(definition.body, SemanticDefinitionBody::Scope(_))
+                    || matches!(definition.body, SemanticDefinitionBody::Nominal { .. })
+                        && instance.self_type.is_some())
             {
                 self.scope_arguments(instance, b)?;
                 self.original_scope_self(instance, b, 0)?;
