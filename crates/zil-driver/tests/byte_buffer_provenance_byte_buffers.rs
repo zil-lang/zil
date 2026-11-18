@@ -313,6 +313,42 @@ fn returned_package_byte_view_keeps_the_actual_parameter_and_field() {
 }
 
 #[test]
+fn stored_byte_views_follow_short_circuit_loop_predecessors() {
+    let source = r#"
+package Buffer { manages data:ByteBuffer }
+fn view(value:&Buffer)->&[u8] {return bytes_view(value.data)}
+fn compare(left:&Buffer,right:&Buffer)->i32 {
+    let a=view(left)
+    let b=view(right)
+    var at:i64=0
+    while at<a.len() && at<b.len() {
+        if a[at]<b[at] {return -1}
+        if a[at]>b[at] {return 1}
+        at+=1
+    }
+    return 0
+}
+fn make(byte:u8)->ByteBuffer contract {result(create)} {
+    let buffer=bytes_new()
+    if !bytes_reserve(buffer,1) || !bytes_push(buffer,byte) {return bytes_new()}
+    return give buffer
+}
+fn main()->i32 {
+    let a=Buffer{data:make(42u8)}
+    let b=Buffer{data:make(73u8)}
+    return compare(&a,&b)+1
+}
+"#;
+    passes(source);
+    let overlap = source
+        .replace("left:&Buffer", "left:&mut Buffer")
+        .replace("let b=view(right)", "let b=view(right)\n    bytes_reserve(left.data,2)")
+        .replace("let a=Buffer", "var a=Buffer")
+        .replace("compare(&a,&b)", "compare(&mut a,&b)");
+    rejects(&overlap, Phase::Analyze, "E-BORROW-CONFLICT");
+}
+
+#[test]
 fn create_give_and_description_parameter_window_returns_compose() {
     passes(
         "fn fresh()->ByteBuffer contract{result(create);}{return bytes_new();}fn relay(give b:ByteBuffer)->ByteBuffer contract{result(give);}{return give b;}fn fill(b:ByteBuffer)->bool{return bytes_reserve(b,3)&&bytes_push(b,8u8);}fn view(b:ByteBuffer)->&[u8]{return bytes_view(b);}fn consume(give b:ByteBuffer)->i32{return i32(bytes_len(b));}fn main()->i32{let a=fresh();let b=relay(give a);if !fill(b){return 5;}let s=view(b);let value=i32(s[0]);return value+consume(give b);}",

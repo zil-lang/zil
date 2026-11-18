@@ -8277,26 +8277,24 @@ fn derive_cfg(
             let slot_ids = slot_loan_ids(module, f, &mut loans, b)?;
             let mut values = vec![Value::default(); f.values.len()];
             let mut outputs = vec![State::default(); f.blocks.len()];
-            // A reached-but-not-yet-solved predecessor is lattice bottom, not
-            // an executed move from an absent Task. The new failure carrier
-            // composes loops in both arms, so defer only genuinely unseeded
-            // blocks. Final access/resource passes still require live inputs.
-            let mut seeded = if b.task_sources() {
-                fee(b, f.blocks.len())?;
-                vec![false; f.blocks.len()]
-            } else {
-                Vec::new()
-            };
+            // A reachable block with no solved input is still at lattice
+            // bottom. Its first real predecessor may be numbered after it
+            // (for example a short-circuit loop header). Replay every
+            // transfer once a predecessor has supplied a frame.
+            fee(b, f.blocks.len())?;
+            let mut seeded = vec![false; f.blocks.len()];
             loop {
                 let mut local_changed = false;
+                let mut waiting_for_predecessor = false;
                 for (bi, block) in f.blocks.iter().enumerate() {
                     fee(b, 1)?;
                     if !reachable[bi] {
                         continue;
                     }
-                    if b.task_sources() && bi != f.entry.0 as usize {
+                    if !seeded[bi] && bi != f.entry.0 as usize {
                         fee(b, preds[bi].len().saturating_add(1))?;
                         if !preds[bi].iter().any(|p| reachable[*p] && seeded[*p]) {
+                            waiting_for_predecessor = true;
                             continue;
                         }
                     }
@@ -8333,12 +8331,9 @@ fn derive_cfg(
                         outputs[bi] = state;
                         local_changed = true;
                     }
-                    if b.task_sources() && !seeded[bi] {
-                        seeded[bi] = true;
-                        local_changed = true;
-                    }
+                    seeded[bi] = true;
                 }
-                if !local_changed {
+                if !local_changed && !waiting_for_predecessor {
                     break;
                 }
             }
