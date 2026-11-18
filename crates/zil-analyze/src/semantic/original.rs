@@ -2009,14 +2009,29 @@ impl Solver<'_, '_> {
                     operand,
                 } => {
                     let value = self.expression(frame, operand, b, depth + 1)?;
-                    if !matches!(
-                        self.state.arena[self.type_root(value, b)?],
-                        Kind::Wrapped(Wrapper::Managed, _)
-                    ) {
+                    let transferable = match self.state.arena[self.type_root(value, b)?] {
+                        Kind::Wrapped(Wrapper::Managed, _) | Kind::Closure { .. } => true,
+                        Kind::Rigid(owner, ordinal) => {
+                            // A callable premise identifies this original F,
+                            // never one of its later concrete caller images.
+                            let (kind, _, _) = self.quantified_callable_premise(owner, ordinal, b)?;
+                            matches!(
+                                kind,
+                                CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
+                            )
+                        }
+                        _ => false,
+                    };
+                    if !transferable {
                         return Err(unknown(
-                            "original give requires its complete actual owning manager category",
+                            "original give requires its complete owning manager or callable category",
                         ));
                     }
+                    // expression() already moves this real source occurrence
+                    // through the ordinary availability/capture accounting.
+                    // Keep its complete environment term: the enclosing call
+                    // prepares it once and retains cleanup on every early exit.
+                    // No Copy, SyncDrop or invocation permission follows here.
                     value
                 }
                 CoreExprKind::Unary {
