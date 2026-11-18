@@ -5891,29 +5891,6 @@ impl<'a> Check<'a, '_> {
         )?;
         Ok(())
     }
-    fn irrefutable(&mut self, pattern: &SemanticOriginalPattern, depth: usize) -> R<bool> {
-        self.pay(1, depth)?;
-        Ok(match &pattern.kind {
-            CorePatternKind::Name(_) | CorePatternKind::Wildcard => true,
-            CorePatternKind::Tuple(fields) => {
-                let mut all = true;
-                for field in fields {
-                    all &= self.irrefutable(field, depth + 1)?;
-                }
-                all
-            }
-            CorePatternKind::Record { fields, .. }
-            | CorePatternKind::RecordConstructor { fields, .. } => {
-                let mut all = true;
-                for (_, field) in fields {
-                    all &= self.irrefutable(field, depth + 1)?;
-                }
-                all
-            }
-            CorePatternKind::Reference { pattern, .. } => self.irrefutable(pattern, depth + 1)?,
-            _ => false,
-        })
-    }
     fn function(
         &mut self,
         definition: &'a SemanticDefinition,
