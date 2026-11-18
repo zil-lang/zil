@@ -1306,7 +1306,7 @@ fn task_driver_signature(f: &TypedFunction) -> CompileResult<bool> {
             return Ok(false);
         }
     }
-    Ok(found && scalar(&f.return_type))
+    Ok(found)
 }
 fn driver_call(
     module: &TypedModule,
@@ -1439,15 +1439,21 @@ fn helper_graph_uncached(
                 }
                 _ => false,
             };
+        // A driving call may hand an actual retained Task or Poll result back
+        // to the enclosing continuation. Its layout and its use as a live
+        // owner are independent of the stricter synchronous destructor graph.
+        let result_storage = if driving {
+            pollable_storage(module, &f.return_type, budget)?
+        } else {
+            record(&f.return_type, budget)? || complete_aggregate(module, &f.return_type, budget)?
+        };
         if f.call_kind != CallKind::Direct
             || f.environment.is_some()
             // A callable role is a checked input relation, not a different
             // physical frame ABI. helpers::check validates its complete real
             // occurrences after this layout pass; no role grants cleanup here.
             || f.callable_return_contract.is_some() && !handoff
-            || !(record(&f.return_type, budget)?
-                || complete_aggregate(module, &f.return_type, budget)?
-                || handoff)
+            || !result_storage
         {
             return Err(reject(
                 "E-VERIFY-TASK",
