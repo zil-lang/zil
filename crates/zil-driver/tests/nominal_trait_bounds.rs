@@ -4499,3 +4499,159 @@ fn trait_bound_scans_obey_actual_work_budget() {
 
 #[path = "../../../tests/language-readiness/borrowed-interface-flow/stdlib.rs"]
 mod trait_shared_lending_stdlib;
+
+#[test]
+fn default_method_wire_checks_self_mode_and_ordered_provider_arguments() {
+    use zil_ir::*;
+
+    let unit = source(
+        r#"
+trait Choice<A:Copy,B:Copy>{fn pick(self:&Self)->i32{return 1}}
+struct P{}
+impl Choice<i32,bool> for P{}
+impl Choice<bool,i32> for P{}
+fn first<T:Choice<i32,bool>>(p:&T)->i32{return p.pick()}
+fn second<T:Choice<bool,i32>>(p:&T)->i32{return p.pick()}
+fn main()->i32{let p=P{};return first(&p)+second(&p)-2}
+"#,
+    );
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand_with_map_semantics(
+        &unit,
+        &ast,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &BTreeMap::new(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let module = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let verify = |m: TypedModule, p: CandidatePlan| {
+        let bytes = wire::encode_module_candidate(&m, &p, &limits).unwrap();
+        let raw = zil_verify::verify_module(m, p, &target, &limits).map(|_| ());
+        let wire = zil_verify::verify_module_bytes(&bytes, &target, &limits).map(|_| ());
+        assert_eq!(raw, wire);
+        raw
+    };
+    verify(module.clone(), plan.clone()).unwrap();
+    let prog = module.semantic.as_ref().unwrap();
+    let trait_frame = prog
+        .instances
+        .iter()
+        .find(|i| {
+            i.self_type.is_some()
+                && prog.definitions.iter().any(|d| {
+                    d.id == i.definition
+                        && matches!(
+                            d.body,
+                            SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { .. })
+                        )
+                })
+        })
+        .unwrap();
+    let method = prog
+        .instances
+        .iter()
+        .find_map(|i| match i.target {
+            SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(f))
+                if i.parent == Some(trait_frame.id) =>
+            {
+                Some(f)
+            }
+            _ => None,
+        })
+        .unwrap();
+    let reject = |bad: TypedModule, code: &str, message: &str| {
+        let mut current = plan.clone();
+        current.module_fingerprint = bad.fingerprint();
+        let errors = verify(bad, current).unwrap_err();
+        assert_eq!(errors[0].phase, Phase::Verify);
+        assert_eq!(errors[0].code, code, "{errors:?}");
+        assert_eq!(errors[0].message, message, "{errors:?}");
+    };
+
+    let mut bad = module.clone();
+    let frame = bad
+        .semantic
+        .as_mut()
+        .unwrap()
+        .instances
+        .iter_mut()
+        .find(|i| i.id == trait_frame.id)
+        .unwrap();
+    let Some(SemanticTypeValue::Resolved { ty, .. }) = &mut frame.self_type else {
+        panic!("actual trait Self")
+    };
+    *ty = Type::Bool;
+    reject(
+        bad,
+        "E-VERIFY-SEMANTIC",
+        "site complete type/class claim differs from its original scoped recipe",
+    );
+
+    let mut bad = module.clone();
+    let f = &mut bad.functions[method.0 as usize];
+    let Type::Address { mutable, .. } = &mut f.locals[f.parameters[0].0 as usize].ty else {
+        panic!("actual receiver")
+    };
+    *mutable = !*mutable;
+    reject(
+        bad,
+        "E-VERIFY-DYN-WITNESS",
+        "actual ordered method parameter differs from its full original type",
+    );
+
+    let mut bad = module.clone();
+    let specialization = bad.functions[method.0 as usize]
+        .dyn_instance
+        .as_mut()
+        .unwrap();
+    assert_eq!(specialization.declaration_actuals.len(), 2);
+    specialization.declaration_actuals.swap(0, 1);
+    reject(
+        bad,
+        "E-VERIFY-DYN-WITNESS",
+        "static member instance differs from its original complete specialization",
+    );
+
+    let mut bad = module.clone();
+    let definition = bad.functions[method.0 as usize]
+        .dyn_instance
+        .as_ref()
+        .unwrap()
+        .definition;
+    let substitute = bad
+        .functions
+        .iter()
+        .find(|f| {
+            f.id != method
+                && f.dyn_instance
+                    .as_ref()
+                    .is_some_and(|d| d.definition == definition)
+        })
+        .unwrap()
+        .id;
+    let call = bad
+        .functions
+        .iter_mut()
+        .flat_map(|f| &mut f.blocks)
+        .flat_map(|b| &mut b.instructions)
+        .find_map(|op| match &mut op.kind {
+            InstructionKind::Call { function, .. } if *function == method => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    *call = substitute;
+    reject(
+        bad,
+        "E-VERIFY-DYN-WITNESS",
+        "entry changes an original full actual kind or value",
+    );
+}
