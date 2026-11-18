@@ -394,7 +394,12 @@ fn limit() -> Vec<Diagnostic> {
     )]
 }
 
-/// Every node owns its exact pointer-relative layout, never a flat union of debts.
+/// Structural cleanup of one complete physical value. Product and Array
+/// visit the occupied members in declaration or element order. Enum and
+/// Error select the active payload from this occupant. Empty has no work.
+/// The owning slot or capture supplies any partial-initialization flags.
+/// Resumable execution retains the current leaf until it settles and resets
+/// the cursor when a new occupant takes over that slot.
 #[derive(Clone, Debug)]
 pub(super) enum DropPlan {
     Empty,
