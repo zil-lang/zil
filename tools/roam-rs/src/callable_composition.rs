@@ -337,12 +337,12 @@ fn failure_location(result: &Value) -> Option<(&str, &str)> {
 }
 
 fn outcome(result: &Value) -> &'static str {
-    if result["steps"] != 1 {
-        if result["status"] == "incomplete" {
-            "budget-exhausted"
-        } else {
-            "unreached"
-        }
+    if result["status"] == "incomplete" || result["reason"] == "time-budget" {
+        "budget-exhausted"
+    } else if result["status"] == "error" && result["reason"] == "timeout" {
+        "host-timeout"
+    } else if result["steps"] != 1 {
+        "unreached"
     } else if result["status"] == "pass" {
         "matched"
     } else if let Some(compile) = first_compile_failure(&result["nativeEvidence"][0]) {
@@ -512,6 +512,14 @@ pub fn campaign(root: &Path, commit: &str, jobs: usize) -> Result<Value, String>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn budget_after_a_partial_native_step_stays_incomplete() {
+        assert_eq!(outcome(&json!({"status":"incomplete", "steps":1, "reason":"time-budget"})),
+            "budget-exhausted");
+        assert_eq!(outcome(&json!({"status":"error", "steps":0, "reason":"timeout"})),
+            "host-timeout");
+    }
 
     #[test]
     fn negative_uses_the_first_diagnostic_and_its_receiver_rule() {
