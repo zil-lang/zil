@@ -1,6 +1,6 @@
 use super::*;
 pub(in crate::semantic) enum MethodActualRecipe{Recipe(SemanticActualRecipe),ReceiverRole(SemanticClassExpr),SourceType(Vec<(SemanticTypeRecipe,bool)>)}
-pub(in crate::semantic) struct TraitCallRecipes{pub receiver:SemanticTypeRecipe,pub application:SemanticTraitRecipe,pub member:u32,pub actuals:Vec<MethodActualRecipe>}
+pub(in crate::semantic) struct TraitCallRecipes{pub receiver:SemanticTypeRecipe,pub application:SemanticTraitRecipe,pub member:u32,pub actuals:Vec<MethodActualRecipe>,pub receiver_place:Option<NodeId>}
 impl CheckedOriginal {
     pub(in crate::semantic) fn trait_call_recipes(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,environment:&EvalEnv,b:&mut Budget)->Check<Option<TraitCallRecipes>>{
         let Some(call)=self.trait_calls.get(&(definition,site))else{return Ok(None);};
@@ -11,7 +11,7 @@ impl CheckedOriginal {
             let role=match actual{Arg::Life(life)=>match self.resolved_life(life,b)?{Life::ReceiverRole(definition,node,mode)=>Some(self.receiver_role(module,definition,node,mode,environment,b)?),_=>None},_=>None};
             actuals.push(match role{Some(role)=>MethodActualRecipe::ReceiverRole(role),None=>MethodActualRecipe::Recipe(self.reify_argument(module,actual,environment,b)?)});
         }
-        Ok(Some(TraitCallRecipes{receiver:self.reify_type(module,&call.receiver,environment,b)?,application:SemanticTraitRecipe{declaration:call.declaration,arguments},member:call.member,actuals}))
+        Ok(Some(TraitCallRecipes{receiver:self.reify_type(module,&call.receiver,environment,b)?,application:SemanticTraitRecipe{declaration:call.declaration,arguments},member:call.member,actuals,receiver_place:call.receiver_place}))
     }
     pub(in crate::semantic) fn receiver_role(&self,module:&TypedModule,definition:SemanticDefinitionId,node:NodeId,mode:StoredBorrowMode,env:&EvalEnv,b:&mut Budget)->Check<SemanticClassExpr>{
         let Some(frame)=env.lexical.first().filter(|row|row.definition==definition)else{return Err(bad("original receiver role escapes its actual caller"));};

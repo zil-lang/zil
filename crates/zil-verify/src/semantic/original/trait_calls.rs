@@ -6,7 +6,7 @@ mod materialize;
 pub(in crate::semantic) use materialize::{TraitCallRecipes,MethodActualRecipe};
 
 #[derive(Clone)]
-pub(super) struct TraitCall{pub receiver:Ty,pub declaration:LifeDeclarationId,pub arguments:Vec<Arg>,pub member:u32,pub actuals:Vec<Arg>,pub node:NodeId,pub receiver_mode:Option<StoredBorrowMode>}
+pub(super) struct TraitCall{pub receiver:Ty,pub declaration:LifeDeclarationId,pub arguments:Vec<Arg>,pub member:u32,pub actuals:Vec<Arg>,pub node:NodeId,pub receiver_mode:Option<StoredBorrowMode>,pub receiver_place:Option<NodeId>}
 impl CheckedOriginal {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn trait_member_call(&mut self,module:&TypedModule,context:&CheckedContext,call:&SemanticOriginalExpr,callee:&SemanticOriginalExpr,written_types:Option<&[SemanticTypeRecipe]>,written_mixed:Option<&[CoreGenericArgument<SemanticTypeRecipe>]>,arguments:&[SemanticOriginalExpr],env:&Env,bindings:&BTreeMap<String,Binding>,expected:Option<&Ty>,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<Ty>>{
@@ -16,7 +16,10 @@ impl CheckedOriginal {
         let mut root=object.as_ref();while let CoreExprKind::Group(inner)|CoreExprKind::Member{object:inner,..}=&root.kind{root=inner;}
         if !matches!(&root.kind,CoreExprKind::Name(name)if bindings.contains_key(name)){return Ok(None);}
         let(object_type,place)=self.place(module,context,object,env,bindings,active,b)?;
-        let receiver=match self.resolved(&object_type,b)?{Ty::Address{inner,..}|Ty::Desc{inner,..}=>*inner,ty=>ty};
+        let (receiver,borrowed_head)=match self.resolved(&object_type,b)?{
+            Ty::Address{inner,life,..}|Ty::Desc{inner,life} => (*inner, Some(life)),
+            ty => (ty, None),
+        };
         if let Ty::Nominal(id,..)=&receiver{let definition=context.definition(module,*id,b)?;if matches!(&definition.body,SemanticDefinitionBody::Nominal{body:SemanticNominalBody::Product{fields},..}if fields.iter().any(|row|row.name==*member)){return Ok(None);}}
         let applications=self.original_method_applications(module,context,&receiver,member,env,active,b)?;
         if applications.is_empty(){return Ok(None);}if applications.len()!=1{return Err(bad("original member call has multiple complete trait applications"));}
@@ -48,7 +51,11 @@ impl CheckedOriginal {
             match self.resolved(&object_type,b)?{Ty::Address{mutable:true,..}=>{if let Some(place)=&place{self.written.entry(env.current()?).or_default().insert(place.binder.clone());}},Ty::Address{mutable:false,..}|Ty::Desc{..}=>return Err(bad("original mutable trait receiver crosses a shared observation")),_=>self.mutable_place(module,context,object,env,bindings,active,b)?,}
         }
         if let Some(place)=&place{self.read_original(module,context,place,&object_type,env,!matches!(mode,PassingMode::Borrow|PassingMode::BorrowMut|PassingMode::Describe),active,b)?;}
-        let actual_receiver=match receiver_parameter{Ty::Address{mutable,..}=>Ty::Address{mutable,life:Life::ReceiverRole(env.current()?,call.id,receiver_mode.unwrap()),inner:Box::new(receiver.clone())},Ty::Desc{..}=>Ty::Desc{life:Life::ReceiverRole(env.current()?,call.id,StoredBorrowMode::WritableDescription),inner:Box::new(receiver.clone())},_=>object_type};
+        // Forwarding an address uses the original input head. A fresh borrow
+        // of a value is grounded at this actual member call's receiver operand.
+        let owner = env.current()?;
+        let receiver_head = |mode| borrowed_head.clone().unwrap_or(Life::ReceiverRole(owner,call.id,mode));
+        let actual_receiver=match receiver_parameter{Ty::Address{mutable,..}=>Ty::Address{mutable,life:receiver_head(receiver_mode.unwrap()),inner:Box::new(receiver.clone())},Ty::Desc{..}=>Ty::Desc{life:receiver_head(StoredBorrowMode::WritableDescription),inner:Box::new(receiver.clone())},_=>object_type};
         self.relate_value(&actual_receiver,&prototype.parameters[0],b)?;
         self.require_input_address_wf(module,context,&actual_receiver,&prototype.parameters[0],active,b)?;
         b.spend(prototype.parameters.len())?;let mut region_parameters=Vec::with_capacity(prototype.parameters.len());region_parameters.push(self.resolved(&prototype.parameters[0],b)?);
@@ -64,7 +71,7 @@ impl CheckedOriginal {
         let site=sites.next().ok_or_else(||bad("abstract original member requires its exact BodyCall site"))?;if sites.next().is_some(){return Err(bad("original trait member call site is ambiguous"));}
         let actuals=self.resolve_arguments(&selected.lexical[0].actuals,0,b)?;
         self.remember_inferred_type_sources(module,env.current()?,site.id,original,signature,arguments,1,&written_slots,&actuals,b)?;
-        self.trait_calls.insert((env.current()?,site.id),TraitCall{receiver,declaration,arguments:trait_arguments,member:ordinal,actuals,node:call.id,receiver_mode});
+        self.trait_calls.insert((env.current()?,site.id),TraitCall{receiver,declaration,arguments:trait_arguments,member:ordinal,actuals,node:call.id,receiver_mode,receiver_place:receiver_mode.map(|_|object.id)});
         Ok(Some(result))
     }
 }

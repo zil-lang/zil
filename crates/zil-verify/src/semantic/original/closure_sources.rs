@@ -24,7 +24,7 @@ impl CheckedOriginal {
         let index=self.source_index(module,&[definition],b)?;
         let function=index.definitions.get(&definition).ok_or_else(||bad("Call inputs have no checked original function"))?;
         let Some(index::Node::Expression(call))=function.nodes.get(&site).copied()else{return Err(bad("Call inputs have no exact original expression occurrence"));};
-        let CoreExprKind::Call{arguments,..}=&call.kind else{return Err(bad("Call input recipe selects another original operation"));};
+        let CoreExprKind::Call{callee,arguments}=&call.kind else{return Err(bad("Call input recipe selects another original operation"));};
         // TaskCreate's first source argument selects the independently checked
         // static worker. It is not an actual frame input or an SSA operand.
         b.spend(self.intrinsic_calls.len().checked_ilog2().map_or(1,|depth|depth as usize+1))?;
@@ -37,15 +37,23 @@ impl CheckedOriginal {
         b.spend(arguments.len())?;
         let receiver=member.is_some_and(|member|member.receiver_mode.is_some());
         b.spend(usize::from(receiver))?;let mut recipes=Vec::with_capacity(arguments.len().saturating_add(usize::from(receiver)));
-        // A method's implicit receiver has its own independently checked
-        // ReceiverRole and exact selected member. It is not an AST value arg.
-        if receiver{recipes.push(None);}
-        for (ordinal,argument) in arguments.iter().enumerate(){
+        let receiver_operand = if receiver {
+            let CoreExprKind::Member { object, .. } = &callee.kind else {
+                return Err(bad("original borrowed receiver has no method object"));
+            };
+            Some(object.as_ref())
+        } else { None };
+        for (ordinal,argument) in receiver_operand.into_iter().chain(arguments).enumerate(){
             let ty=self.original_type(definition,&SemanticOriginalTypeSource::Expression(argument.id),b)?;
             let mut expression=argument;
             while let CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=&expression.kind{b.spend(1)?;expression=inner;}
             let ty=self.resolved(&ty,b)?;
-            let source=if self.temporary_description_region(definition,call.id,ordinal+usize::from(receiver),b)?.is_some(){
+            if receiver && ordinal == 0 && !matches!(ty, Ty::Address { .. } | Ty::Desc { .. }) {
+                // A fresh borrow of a value gets its head at the actual call.
+                recipes.push(None);
+                continue;
+            }
+            let source=if self.temporary_description_region(definition,call.id,ordinal,b)?.is_some(){
                 let node = self.prepared_source(definition, argument.id, b)?
                     .or(self.temporary_description_producer(argument,b)?)
                     .ok_or_else(||bad("temporary description argument has no exact original owning producer"))?;

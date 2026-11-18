@@ -73,6 +73,27 @@ impl CheckedOriginal{
         b.spend(arguments.len())?;
         Ok(arguments.iter().map(|argument| argument.id).collect())
     }
+
+    pub(in crate::semantic) fn tuple_call_operand(
+        &self, module: &TypedModule, definition: SemanticDefinitionId,
+        site: SemanticSiteId, ordinal: usize, b: &mut Budget,
+    ) -> Check<Option<NodeId>> {
+        let index = self.source_index(module, &[definition], b)?;
+        let function = index.definitions.get(&definition)
+            .ok_or_else(|| bad("Tuple constructor has no original function"))?;
+        let Some(index::Node::Expression(expression)) = function.nodes.get(&site) else {
+            return Err(bad("Tuple constructor has no exact original operand occurrence"));
+        };
+        let CoreExprKind::Tuple(fields) = &expression.kind else {
+            return Err(bad("actual Tuple belongs to another original construction"));
+        };
+        let mut field = fields.get(ordinal).ok_or_else(|| bad("Tuple constructor omits its original field"))?;
+        while let CoreExprKind::Group(inner) = &field.kind {
+            b.spend(1)?;
+            field = inner;
+        }
+        Ok(matches!(field.kind, CoreExprKind::Call { .. }).then_some(field.id))
+    }
 }
 
 impl CheckedOriginal {
@@ -152,7 +173,7 @@ impl CheckedOriginal {
         if rows.next().is_some(){return Err(bad("original static member Call occurrence is ambiguous"));}
         let actuals=self.resolve_arguments(&selected.lexical[0].actuals,0,b)?;
         self.remember_inferred_type_sources(module,env.current()?,site.id,original,signature,arguments,0,&written_slots,&actuals,b)?;
-        self.trait_calls.insert((env.current()?,site.id),super::trait_calls::TraitCall{receiver,declaration:*declaration,arguments:trait_arguments,member:ordinal,actuals,node:call.id,receiver_mode:None});
+        self.trait_calls.insert((env.current()?,site.id),super::trait_calls::TraitCall{receiver,declaration:*declaration,arguments:trait_arguments,member:ordinal,actuals,node:call.id,receiver_mode:None,receiver_place:None});
         if prototype.result_mode==PassingMode::Create{b.spend(1)?;self.created.insert((env.current()?,call.id));}
         Ok(Some(result))
     }

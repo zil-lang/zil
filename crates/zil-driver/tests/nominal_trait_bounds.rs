@@ -4753,3 +4753,89 @@ fn main()->i32{let p=P{};return first(&p)+second(&p)-2}
         "entry changes an original full actual kind or value",
     );
 }
+
+#[test]
+fn default_method_rejects_another_local_even_when_the_candidate_holds_that_local() {
+    use zil_ir::*;
+    let (mut module, mut plan) = original_method_candidate(&source(
+        r#"
+trait Read { fn read(self:&Self)->i32{return 7} }
+struct Point { value:i32 }
+impl Read for Point {}
+fn main()->i32{
+    let left=Point{value:7}
+    let right=Point{value:9}
+    return left.read()+right.read()-14
+}
+"#,
+    ));
+    verify_original_method_candidate(module.clone(), plan.clone()).unwrap();
+    let main = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let left = main
+        .locals
+        .iter()
+        .find(|local| local.name == "left")
+        .unwrap()
+        .id;
+    let right = main
+        .locals
+        .iter()
+        .find(|local| local.name == "right")
+        .unwrap()
+        .id;
+    let mut redirected = None;
+    let mut reborrow = None;
+    let mut call = None;
+    for block in &mut main.blocks {
+        for (at, op) in block.instructions.iter_mut().enumerate() {
+            match &mut op.kind {
+                InstructionKind::BorrowLocal { local } if *local == left => {
+                    *local = right;
+                    redirected = op.result;
+                }
+                InstructionKind::ReborrowAddress { address, .. }
+                    if Some(*address) == redirected =>
+                {
+                    reborrow = op.result
+                }
+                InstructionKind::Call { arguments, .. }
+                    if arguments.first().copied() == reborrow && reborrow.is_some() =>
+                {
+                    call = Some((block.id, at, op.span));
+                }
+                _ => {}
+            }
+        }
+    }
+    let (block, at, span) = call.unwrap();
+    let location = zil_base::DiagnosticIrLocation {
+        function: main.id.0,
+        block: Some(block.0),
+        instruction: Some(at as u32),
+    };
+    for id in [redirected.unwrap(), reborrow.unwrap()] {
+        let hold = &mut plan.functions[main.id.0 as usize].holds[id.0 as usize];
+        assert_eq!(hold.roots, [HoldRoot::Local(left)]);
+        hold.roots = vec![HoldRoot::Local(right)];
+    }
+    plan.module_fingerprint = module.fingerprint();
+    let errors = verify_original_method_candidate(module, plan).unwrap_err();
+    assert_eq!(errors[0].phase, Phase::Verify);
+    assert_eq!(errors[0].code, "E-VERIFY-SEMANTIC");
+    assert_eq!(
+        errors[0].message,
+        "field observation selects another original local"
+    );
+    assert!(
+        errors[0]
+            .related
+            .iter()
+            .any(|p| p.role == zil_base::DiagnosticRole::Input
+                && p.span == Some(span)
+                && p.ir == Some(location))
+    );
+}

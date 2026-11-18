@@ -6,6 +6,24 @@ use dynamic_witness::semantic_external::{Proofs,select_original_member};
 impl CheckedContext {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn actual_trait_member(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,callee:FunctionId,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,original:original::TraitCallRecipes,external:&mut Proofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>>{
+        if let Some(node) = original.receiver_place {
+            let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(owner)) = caller.target else {
+                return Err(bad("original member receiver has no actual caller"));
+            };
+            let f = module.functions.get(owner.0 as usize).filter(|f| f.id == owner)
+                .ok_or_else(|| bad("original member receiver caller is absent"))?;
+            let value = *arguments.first().ok_or_else(|| bad("member call omits its actual receiver"))?;
+            self.original_projection_source(module, caller, f, value, caller.definition, node, true, b).map_err(|mut error| {
+                if let Some(point) = environment.at {
+                    let span = f.blocks.get(point.block.0 as usize)
+                        .and_then(|block| block.instructions.get(point.instruction as usize)).map(|op| op.span);
+                    error.relate(zil_base::DiagnosticRole::Input, span, Some(zil_base::DiagnosticIrLocation {
+                        function: f.id.0, block: Some(point.block.0), instruction: Some(point.instruction),
+                    }), format!("Receiver {value:?} must denote original receiver expression {node:?}."));
+                }
+                error
+            })?;
+        }
         let receiver=self.evaluate_type(module,&original.receiver,environment,external,active,b)?;
         let application=self.application(module,&original.application,environment,external,active,b)?;
         self.prepare_receiver_role_flows(module,caller,site,environment,b)?;
