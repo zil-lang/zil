@@ -777,8 +777,7 @@ pub(super) fn frame_protocol_borrow(
     let selected = crate::sums::place_type(f, *local, path, Some(instruction.span), b)?;
     if *mutable && !selected.is_copy_value() { return Ok(false); }
     if !crate::stored_owned::target_free_value(module, selected, b)? { return Ok(false); }
-    let limits = b.limits.clone();
-    let expected = crate::sums::check_instruction(f, instruction, &limits, b)?;
+    let expected = crate::sums::place_instruction(module, f, instruction, b)?;
     let output = vt(f, instruction.result.ok_or_else(|| err("frame pattern address lacks its actual SSA result"))?)?;
     if expected.as_ref() != Some(output) {
         return Err(err("frame pattern address changes its selected field or access mode"));
