@@ -124,7 +124,10 @@ pub(super) fn program(
                 .iter()
                 .filter(|s| s.instance == instance.id && s.recipe == recipe.id);
             let Some(site) = actuals.next() else {
-                return Err(bad("implicit occurrence has no actual emitted read"));
+                // A lexical occurrence alone cannot establish a scalar read.
+                // The exact creator pass can still ground a moved address
+                // in the complete sealed Type of its constructor operand.
+                continue;
             };
             if actuals.next().is_some() {
                 return Err(bad("implicit occurrence has multiple actual reads"));
