@@ -1036,7 +1036,9 @@ fn relation_inputs<P:InputType>(
                         && matches!(base, StorageBase::Parameter(_))
                         && matches!(ty, Type::Address { .. })
                         && matches!(t, Type::Package { .. })
-                    || allow_callback && matches!(t, Type::Closure(_)))
+                    || allow_callback && matches!(t, Type::Closure(_))
+                    || allow_byte_input && !output && !capture
+                        && matches!(ty,Type::Desc(payload) if payload.as_ref()==&Type::ByteBuffer))
                 {
                     return Err(invalid());
                 }
@@ -1046,9 +1048,6 @@ fn relation_inputs<P:InputType>(
                 if !(t.is_copy_value()
                     || ordinary_owned_value(t)
                     || pure_array_value(t)
-                    // This exact Direct-query input consumes no relation row.
-                    || allow_byte_input && !output && !capture && !pointee
-                        && matches!(ty,Type::Desc(payload) if payload.as_ref()==&Type::ByteBuffer)
                     || allow_callback && !output && matches!(t, Type::Closure(_)))
                 {
                     return Err(invalid());
@@ -1077,7 +1076,14 @@ fn relation_inputs<P:InputType>(
                 .iter()
                 .any(|position| position.base == StorageBase::Result && position.path.is_empty());
         for (i, p) in parameters.iter().map(InputType::ty).enumerate() {
-            possible |= matches!(p,Type::Address{mutable:m,..}if !mutable||*m)
+            let byte_head=allow_byte_input
+                && matches!(p,Type::Desc(payload) if payload.as_ref()==&Type::ByteBuffer)
+                && matches!(result,Type::Address{inner,..}
+                    if matches!(inner.as_ref(),Type::Slice{element} if element.as_ref()==&Type::U8));
+            // A descriptor header contributes only its actual short-access
+            // head. The returned data provenance and loans remain independent.
+            possible |= (matches!(p,Type::Address{mutable:m,..}if !mutable||*m)
+                || byte_head && upper.is_some())
                 && outer(c, StorageBase::Parameter(i as u32)) == upper;
         }
         possible |= c.classes.iter().any(|r| {

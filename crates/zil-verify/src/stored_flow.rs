@@ -2577,12 +2577,17 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             }
         }
     }
+    let byte_window = b.shared_byte_borrow && matches!(&f.return_type,Type::Address{inner,..}
+        if matches!(inner.as_ref(),Type::Slice{element} if element.as_ref()==&Type::U8));
     let byte_signature = byte_companion
         && !byte_queries::legacy_task_signature(f)
         && f.call_kind == CallKind::Direct
         && f.foreign.is_none()
         && f.environment.is_none()
-        && byte_queries::signature_presence(module, b)?;
+        && (byte_window || byte_queries::signature_presence(module, b)?);
+    if byte_signature && byte_window {
+        crate::byte_buffers::check_carrier(module,&Type::Desc(Box::new(Type::ByteBuffer)),Some(f.span),b)?;
+    }
     if byte_signature {
         b.spend(parameters.len())?;
     }
