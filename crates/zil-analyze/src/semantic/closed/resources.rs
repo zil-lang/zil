@@ -56,6 +56,24 @@ impl Check<'_, '_> {
     /// classes. No port is created for a phantom class.
     pub(super) fn task_ports(&self, value: &Value, b: &mut Budget)
         -> CompileResult<Vec<(Vec<ContractProjection>, u32)>> {
+        if let Type::Address { inner, .. } = &value.ty
+            && matches!(inner.as_ref(), Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }))
+        {
+            let child = self.pointee(value, b)?;
+            let mut ports = self.task_ports(&child, b)?;
+            for (_, binder) in &mut ports {
+                let mut parent = None;
+                for row in &value.life.retained {
+                    b.spend(row.path.len().saturating_add(1), WORK)?;
+                    if row.path.as_slice() == [LifeTypeProjection::Pointee] && row.class == *binder
+                        && parent.replace(row.binder).is_some() {
+                        return Err(fail("borrowed Task repeats its child class image"));
+                    }
+                }
+                *binder = parent.ok_or_else(|| fail("borrowed Task port lacks its parent class image"))?;
+            }
+            return Ok(ports);
+        }
         let (task, prefix): (&Type, Vec<ContractProjection>) = match &value.ty {
             Type::Managed(inner) if matches!(inner.as_ref(), Type::Task { .. }) => (inner, Vec::new()),
             Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::Managed(inner) if matches!(inner.as_ref(), Type::Task { .. })) => {

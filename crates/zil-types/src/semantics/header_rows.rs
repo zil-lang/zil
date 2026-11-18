@@ -116,14 +116,32 @@ pub(in crate::semantics) fn complete_standalone(module: &mut TypedModule, limits
 fn qualified_pointee_rows(
     ty: &Type, outer: &StorageLifeShape, expanded: &mut [bool], limits: &Limits, left: &mut usize,
 ) -> R<()> {
-    let (Type::Address { inner, .. } | Type::Desc(inner)) = ty else { return Ok(()) };
-    let Type::BorrowedStorage { life: child, .. } = inner.as_ref() else { return Ok(()) };
+    let mut child_rows = |ty: &Type, projection| {
+        if let Type::BorrowedStorage { life, .. } = ty {
+            qualified_child_rows(life, projection, outer, expanded, limits, left)?;
+        }
+        Ok(())
+    };
+    match ty {
+        Type::Address { inner, .. } | Type::Desc(inner) =>
+            child_rows(inner, LifeTypeProjection::Pointee),
+        Type::ErrorUnion { error, result } => {
+            child_rows(error, LifeTypeProjection::Place(PlaceProjection::ErrorArm(true)))?;
+            child_rows(result, LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)))
+        }
+        _ => Ok(()),
+    }
+}
+fn qualified_child_rows(
+    child: &StorageLifeShape, prefix: LifeTypeProjection, outer: &StorageLifeShape,
+    expanded: &mut [bool], limits: &Limits, left: &mut usize,
+) -> R<()> {
     let width = child.binder_count as usize;
     if width > limits.max_nodes { return Err(Diagnostic::limit(Phase::Types, "qualified pointee class limit exceeded", None)); }
     pay(left, width.saturating_add(outer.retained.len()))?;
     let mut map = vec![None; width];
     for row in &outer.retained {
-        if row.path.as_slice() == [LifeTypeProjection::Pointee] {
+        if row.path.as_slice() == [prefix] {
             let binder = map.get_mut(row.class as usize)
                 .ok_or_else(|| bad("qualified pointee header exceeds its class domain"))?;
             if row.binder >= outer.binder_count || binder.replace(row.binder).is_some() {
@@ -141,10 +159,8 @@ fn qualified_pointee_rows(
         }
     }
     for (row, omit) in outer.retained.iter().zip(expanded) {
-        let Some((LifeTypeProjection::Pointee, rest)) = row.path.split_first() else {
-            return Err(bad("qualified pointee class leaves its actual address boundary"));
-        };
-        if rest.is_empty() { continue; }
+        let Some((parent, rest)) = row.path.split_first() else { continue };
+        if *parent != prefix || rest.is_empty() { continue; }
         path(left, limits, rest.len())?;
         pay(left, (rest.len() + 1).saturating_mul((descendants.len() + 1).ilog2() as usize + 1))?;
         let child_class = descendants.get(&(rest, row.class))

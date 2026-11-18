@@ -237,6 +237,18 @@ pub(super) fn resource(kind: geometry::Unary, inner: Value, b: &mut Budget) -> C
 }
 fn inherited_domain(child: &StorageLifeShape, prefix: LifeTypeProjection, b: &mut Budget) -> CompileResult<StorageLifeShape> {
     crate::dyn_metadata::shape(child, b)?;
+    let mut slots = Vec::new();
+    if let LifeTypeProjection::Place(selector) = prefix {
+        for slot in &child.slots {
+            if slot.binder >= child.binder_count {
+                return Err(fail("inline child slot leaves its complete class domain"));
+            }
+            let mut path = Vec::new();
+            put(&mut path, selector, b)?;
+            for step in &slot.path { put(&mut path, *step, b)?; }
+            put(&mut slots, StorageLifeSlot { path, binder: slot.binder, mode: slot.mode }, b)?;
+        }
+    }
     let mut retained = Vec::new();
     for class in 0..child.binder_count {
         put(&mut retained, StorageRetainedBinding { path: vec![prefix.clone()], class, binder: class }, b)?;
@@ -257,7 +269,7 @@ fn inherited_domain(child: &StorageLifeShape, prefix: LifeTypeProjection, b: &mu
         put(&mut nominal_arguments, NominalLifeArgument { path, declaration: row.declaration,
             argument: row.argument, binder: row.binder }, b)?;
     }
-    Ok(StorageLifeShape { binder_count: child.binder_count, slots: Vec::new(), retained, nominal_arguments })
+    Ok(StorageLifeShape { binder_count: child.binder_count, slots, retained, nominal_arguments })
 }
 /// Reconstruct the whole opaque Task domain from its complete type inventory,
 /// retaining phantom classes even when no physical port names them.

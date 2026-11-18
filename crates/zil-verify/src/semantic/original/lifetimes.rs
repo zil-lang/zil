@@ -69,6 +69,16 @@ impl CheckedOriginal {
             return Ok(());
         }
         match (&left, &right) {
+            (Life::Infer(a), Life::Infer(z))
+                if self.outer_inferences.contains_key(a) && self.outer_inferences.contains_key(z) =>
+            {
+                // A nested call's invariant result may constrain an enclosing
+                // call's still-open input. Its own arguments determine that
+                // result before the enclosing invocation finishes.
+                b.spend(1)?;
+                self.life_substitutions.insert((*a).min(*z), Life::Infer((*a).max(*z)));
+                Ok(())
+            }
             (Life::Infer(id), value) | (value, Life::Infer(id)) => {
                 b.spend(1)?;
                 self.life_substitutions.insert(*id, value.clone());

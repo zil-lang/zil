@@ -78,7 +78,7 @@ fn retained_path(path: &[ContractProjection]) -> bool {
         .any(|p| matches!(p, ContractProjection::RetainedPort(_)))
 }
 
-fn shape(
+pub(super) fn shape(
     module: &TypedModule,
     ty: &Type,
     budget: &mut Budget,

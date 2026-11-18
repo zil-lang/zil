@@ -4183,12 +4183,16 @@ impl Check<'_, '_> {
                 }
                 used_bindings += 1;
             }
-            if matches!(value.ty, Type::Address { .. } | Type::Desc(_))
+            let qualified_sum = matches!(value.ty, Type::ErrorUnion { .. })
+                && crate::stored_flow::enum_address::signature(&value.ty);
+            if matches!(value.ty, Type::Address { .. } | Type::Desc(_)) || qualified_sum
                 || self.dyn_sum_type(&value.ty, b)?
                 || self.task_domain(&value.ty, b)?.is_some()
             {
                 for child in self.signature_retained_classes(value, b)? {
                     if child.path.first() != Some(&LifeTypeProjection::Pointee)
+                        && !(qualified_sum && matches!(child.path.first(),
+                            Some(LifeTypeProjection::Place(PlaceProjection::ErrorArm(_)))))
                         && !(self.dyn_sum_type(&value.ty, b)?
                             && child.path.as_slice()
                                 == [LifeTypeProjection::Place(PlaceProjection::ErrorArm(false))])
@@ -4303,7 +4307,12 @@ impl Check<'_, '_> {
         for row in &value.life.retained {
             b.spend(row.path.len().saturating_add(1), WORK)?;
             let mut child = Some(&value.ty);
+            let mut below_qualified = false;
             for step in &row.path {
+                if matches!(child, Some(Type::BorrowedStorage { .. })) {
+                    below_qualified = true;
+                    break;
+                }
                 child = match (child, step) {
                     (
                         Some(
@@ -4340,6 +4349,7 @@ impl Check<'_, '_> {
                     _ => None,
                 };
             }
+            if below_qualified { continue; }
             let Some(Type::Managed(payload)) = child else {
                 self.push_value(&mut selected, row, b)?;
                 continue;

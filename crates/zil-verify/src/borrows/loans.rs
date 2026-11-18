@@ -217,9 +217,27 @@ fn reconstruct(
             }
         }
     }
+    // A stored sum may export its selected payload even in a module with
+    // no Task port. Give each real by-value input slot an independent loan
+    // position, using the actual input layout that the stored proof checked.
+    let mut sum_inputs = BTreeMap::new();
+    if task_covered && !budget.borrowed_task_ports {
+        for (index, local) in f.parameters.iter().enumerate() {
+            budget.spend(1)?;
+            let ty = &f.locals[local.0 as usize].ty;
+            if crate::stored_flow::enum_address::signature(ty) {
+                for (path, mode) in super::port_facts::shape(module, ty, budget)? {
+                    budget.spend(path.len().saturating_add(1))?;
+                    let position = StoragePosition { base: StorageBase::Parameter(index as u32), path };
+                    sum_inputs.insert(position, mode);
+                }
+            }
+        }
+    }
     let task_ports: Vec<_> = ports
         .parameters
         .iter()
+        .chain(&sum_inputs)
         .filter(|(position, _)| {
             budget.task_sources() && !position.path.is_empty()
                 || position
