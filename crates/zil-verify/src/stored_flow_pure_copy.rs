@@ -1336,6 +1336,7 @@ mod owned_observation_tests{
             let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();
             let(candidate,_)=if wire{zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap()}else{(module.clone(),plan.clone())};
             let f=&candidate.functions[0];let mut b=Budget::new(&limits);
+            b.function_count = candidate.functions.len();
             let operation=|result:Option<u32>,kind:InstructionKind|Instruction{result:result.map(ValueId),kind,span:f.span};
             for i in [operation(Some(1),InstructionKind::ErrorTag{value:ValueId(0)}),operation(Some(2),InstructionKind::TakeErrorUnion{value:ValueId(0),is_error:false}),operation(Some(0),InstructionKind::MakeErrorUnion{value:ValueId(2),is_error:false}),operation(None,InstructionKind::DropErrorUnion{local:LocalId(0)}),operation(Some(5),InstructionKind::VariantTag{value:ValueId(4)}),operation(Some(6),InstructionKind::ReadVariant{value:ValueId(4),variant:0,index:1})]{assert!(ordinary_owned_union(&candidate,f,&i,&mut b).unwrap());}
             let tag=operation(Some(5),InstructionKind::VariantTagLocal{local:LocalId(2),path:vec![]});

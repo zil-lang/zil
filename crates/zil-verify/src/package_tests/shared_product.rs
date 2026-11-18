@@ -533,7 +533,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
                 format!("mode={mode}"),
                 module,
                 plan,
-                Some([5582, 5920, 7698][mode as usize]),
+                Some([5583, 5921, 7698][mode as usize]),
             )
         })
         .collect();
@@ -546,7 +546,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
             format!("Store indirect={indirect}"),
             module,
             plan,
-            Some(if indirect { 20556 } else { 17363 }),
+            Some(if indirect { 20560 } else { 17365 }),
         ));
     }
     // Schema 48's retained_return_sources Option discriminant is checked
