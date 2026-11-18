@@ -659,6 +659,23 @@ pub(in crate) fn instruction(
                 .1;
             result(f, i, ty, b)?;
         }
+        InstructionKind::WriteDesc { desc, index, value } => {
+            let payload = payload(value_type(f, *desc)?, false, b)?;
+            registered(module, payload, b)?;
+            let Type::Record { fields, .. } = payload else {
+                unreachable!()
+            };
+            let expected = &fields
+                .get(*index as usize)
+                .ok_or_else(|| failure("resource written field is absent"))?
+                .1;
+            b.type_work(expected, false, "resource write complete field type")?;
+            if i.result.is_some() || value_type(f, *value)? != expected {
+                return Err(failure(
+                    "resource write changes its actual field or produces a value",
+                ));
+            }
+        }
         InstructionKind::DropManaged { local } => {
             let ty = f
                 .locals

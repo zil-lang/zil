@@ -154,6 +154,14 @@ pub(super) fn ordinary_package_borrow(
     pure_copy::ordinary_package_borrow(module, f, i, b)
 }
 
+pub(super) fn ordinary_package_description(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    pure_copy::ordinary_package_description(f, i, b)
+}
+
 /// These observations transport shared address permissions in this ledger,
 /// while the resource Sum ledger has no owning leaf to consume. Authenticate
 /// the actual operation; zero resource debt is not a Copy qualification.
@@ -5875,7 +5883,10 @@ fn transfer(
         InstructionKind::DescribeLocal { .. }
         | InstructionKind::DescribeCapture { .. }
         | InstructionKind::MakeManaged { .. }
-        | InstructionKind::ReadDesc { .. } => {}
+        | InstructionKind::ReadDesc { .. }
+        // The stored header checked the complete scalar slot and RHS. The
+        // actual description target and write access are checked in windows.
+        | InstructionKind::WriteDesc { .. } => {}
         _ if dyn_transfer.is_some() => {
             out = dyn_transfer.unwrap();
         }
@@ -9711,7 +9722,7 @@ fn actual_instructions(
             let owned_operation = owned::task_neighbour_instruction(module,f,i,b)?
                 || !task_capture_operation && (b.stored_owned_fixed
                 || b.stored_compound_values && matches!(i.kind,InstructionKind::DropManaged{local} if matches!(&f.locals[local.0 as usize].ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Record{..})))
-                || matches!(i.kind, InstructionKind::ReadDesc { .. })
+                || matches!(i.kind, InstructionKind::ReadDesc { .. } | InstructionKind::WriteDesc { .. })
                 || matches!(i.kind, InstructionKind::MakeManaged { .. })
                     && i.result.is_some_and(|id| matches!(f.values.get(id.0 as usize),
                         Some(Type::Managed(payload)) if matches!(payload.as_ref(), Type::Record { .. }))))

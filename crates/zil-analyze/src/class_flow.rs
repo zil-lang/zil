@@ -1448,6 +1448,19 @@ fn check_with(
                         e.address_origin(head, b)?;
                     }
                 }
+                InstructionKind::DescribePackageField { local, .. }
+                    if super::stored_flow::ordinary_package_description(f, i, b)? =>
+                {
+                    if let Some(head) = out.and_then(|ports| ports.outer) {
+                        if capture_view_locals.contains(local)
+                            && let Some(region) = receiver_region
+                        {
+                            array_outer::transport(&mut e, head, region, outer.as_ref(), b)?;
+                        } else {
+                            e.address_origin(head, b)?;
+                        }
+                    }
+                }
                 InstructionKind::DescribeAddress { address } => {
                     if let (Some(head), Some(parent)) = (
                         out.and_then(|ports| ports.outer),
