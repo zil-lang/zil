@@ -930,35 +930,20 @@ impl<'a> World<'a, '_> {
                         "call environment loses its complete persistent class domain",
                     ));
                 }
-                let original = self.class(child.id, image, &BTreeMap::new())?;
+                // Select the original whole occurrence before interpreting
+                // its image. Independent capture/child κ coordinates can have
+                // equal Life images; image equality never chooses a Fixed.
                 let mut selected = None;
                 for row in &child.header_embedding {
                     self.pay(1)?;
-                    let StorageBinder::Fixed(fixed) = row.header else {
-                        continue;
-                    };
+                    let StorageBinder::Fixed(fixed) = row.header else { continue; };
                     if fixed >= header.fixed_binder_count {
-                        return Err(bad(
-                            "captured header image is outside its complete Fixed domain",
-                        ));
+                        return Err(bad("captured header occurrence is outside its complete Fixed domain"));
                     }
-                    let source = self.class(child.id, &row.actual, &BTreeMap::new())?;
-                    crate::dyn_metadata::semantic_operand_snapshot(
-                        &source,
-                        self.limits,
-                        self.left,
-                        1,
-                    )?;
-                    crate::dyn_metadata::semantic_operand_snapshot(
-                        &original,
-                        self.limits,
-                        self.left,
-                        1,
-                    )?;
-                    if source == original && selected.replace(fixed).is_some() {
-                        return Err(bad(
-                            "captured original class has ambiguous actual Fixed images",
-                        ));
+                    crate::dyn_metadata::semantic_operand_snapshot(&row.actual, self.limits, self.left, 1)?;
+                    crate::dyn_metadata::semantic_operand_snapshot(&*image, self.limits, self.left, 1)?;
+                    if &row.actual == &*image && selected.replace(fixed).is_some() {
+                        return Err(bad("one original capture occurrence has multiple actual Fixed coordinates"));
                     }
                 }
                 if let Some(fixed) = selected {

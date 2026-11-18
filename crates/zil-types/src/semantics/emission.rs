@@ -232,6 +232,52 @@ impl Ledger {
         Ok(owner.map(|owner| (program, owner)))
     }
 
+    /// Formation of an already emitted environment remains traceable when it
+    /// has no early source_context proposal. This authenticates its actual
+    /// source/creator occurrence only; finish still checks MakeClosure, every
+    /// operand, full header/domain and actual caller permissions.
+    pub(crate) fn require_original_closure_transport(
+        &self, closure: ClosureId, left: &mut usize, span: Span,
+    ) -> R<()> {
+        let (program, owner) = self.original_closure_definition(closure, left)?
+            .ok_or_else(|| invalid(span, "Package callback has no genuine original closure occurrence"))?;
+        pay(left, program.definitions.len().saturating_add(self.frames.len()), span)?;
+        let original = program.definitions.iter().find(|row| row.id == owner)
+            .ok_or_else(|| invalid(span, "Package callback loses its original definition"))?;
+        if original.kind != SemanticDefinitionKind::Closure {
+            return Err(invalid(span, "Package callback origin is not its original Closure definition"));
+        }
+        let mut entries = self.frames.values().filter(|frame| frame.parent.is_some_and(|(_, id)| id == closure));
+        let entry = entries.next().ok_or_else(|| invalid(span, "Package callback has no actual closure frame"))?;
+        if entries.next().is_some() { return Err(invalid(span, "Package callback repeats its actual entry origin")); }
+        let (creator, _) = entry.parent.expect("filtered actual closure frame");
+        pay(left, lookup_cost(self.frames.len()), span)?;
+        let parent = self.frames.get(&creator)
+            .ok_or_else(|| invalid(span, "Package callback has no real creator frame"))?;
+        let expression = entry.origin.closure
+            .ok_or_else(|| invalid(span, "Package callback origin has no real source expression"))?;
+        if entry.origin.module != parent.origin.module || entry.origin.creator != parent.origin.creator {
+            return Err(invalid(span, "Package callback changes its actual lexical source owner"));
+        }
+        pay(left, program.instances.len(), span)?;
+        let has_parent = program.instances.iter().any(|row| Some(row.definition) == original.parent
+            && match &row.target {
+                SemanticInstanceTarget::Function(SemanticFunctionTarget::Core { module, function }) =>
+                    parent.origin.closure.is_none() && *module == parent.origin.module && *function == parent.origin.creator,
+                SemanticInstanceTarget::Function(SemanticFunctionTarget::CoreClosure { module, creator, expression, occurrence: 0 }) =>
+                    *module == parent.origin.module && *creator == parent.origin.creator && Some(*expression) == parent.origin.closure,
+                _ => false,
+            });
+        if !has_parent { return Err(invalid(span, "Package callback changes its original true creator")); }
+        pay(left, lookup_cost(parent.expressions.len()), span)?;
+        let receipt = parent.expressions.get(&expression)
+            .ok_or_else(|| invalid(span, "Package callback lacks its actual creator expression receipt"))?;
+        if !receipt.complete || receipt.value.is_none() || receipt.end.is_none() || receipt.instructions.is_empty() {
+            return Err(invalid(span, "Package callback precedes its genuine completed source occurrence"));
+        }
+        Ok(())
+    }
+
     /// Only an immutable original capability theorem for this exact actual
     /// closure. It grants neither synchronous cleanup nor a registration ABI.
     pub(crate) fn original_closed_environment(

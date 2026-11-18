@@ -131,9 +131,15 @@ impl Builder<'_, '_> {
 
     pub(super) fn check_package_field_closure(&mut self, field: &Type, span: Span) -> R<()> {
         if let Type::Closure(id) = field
-            && self.closures.has_source_context(*id)
             && self.closures.semantic_emission.has_original_context()
         {
+            let before = self.closures.remaining_work();
+            let mut remaining = before;
+            let checked = self.closures.semantic_emission.require_original_closure_transport(
+                *id, &mut remaining, span,
+            );
+            self.closures.snapshot(before - remaining, span)?;
+            checked?;
             // The Package field retains this complete environment. The
             // transport check admits its actual representation; the original
             // capture header and the actual place operation still account for

@@ -1387,31 +1387,32 @@ impl Builder<'_, '_> {
             ));
         }
         let mut instance_enums = None;
-        if owned_state && bounds.len() == 1 {
-            let bound = &bounds[0];
-            let nested = template
-                .function
-                .parameters
-                .iter()
-                .map(|parameter| &parameter.ty)
-                .chain(std::iter::once(&template.function.return_type))
-                .any(|ty| {
-                    callable_fields::placeholder_value(ty, &bound.generic_name)
-                        && !callable_fields::placeholder_package(ty, &bound.generic_name)
-                });
-            if nested {
-                let closure = bindings.get(bound.generic_index, span)?;
-                let mut enums = BTreeMap::new();
-                for (name, ty) in &template.context.enums {
-                    let work = inference::type_snapshot_work(ty, span, self.limits)?;
-                    self.closures
-                        .snapshot(work.saturating_mul(3).saturating_add(name.len()), span)?;
-                    let mut ty = ty.clone();
-                    callable_fields::specialize_type(&mut ty, &bound.generic_name, closure);
-                    enums.insert(name.clone(), ty);
+        let body_enum = !self.closures.helper_enum_users.is_empty() && {
+            self.closures.snapshot(plan::tree_work(self.closures.helper_enum_users.len()), span)?;
+            self.closures.helper_enum_users.contains(&key)
+        };
+        let nested = owned_state && bounds.len() == 1 && template.function.parameters.iter()
+            .map(|parameter| &parameter.ty)
+            .chain(std::iter::once(&template.function.return_type))
+            .any(|ty| callable_fields::placeholder_value(ty, &bounds[0].generic_name)
+                && !callable_fields::placeholder_package(ty, &bounds[0].generic_name));
+        if body_enum || nested {
+            let mut enums = BTreeMap::new();
+            for (name, ty) in &template.context.enums {
+                let work = inference::type_snapshot_work(ty, span, self.limits)?;
+                self.closures.snapshot(work.saturating_mul(3).saturating_add(name.len()), span)?;
+                let mut ty = ty.clone();
+                if bounds.len() == 1 {
+                    let bound = &bounds[0];
+                    callable_fields::specialize_type(&mut ty, &bound.generic_name,
+                        bindings.get(bound.generic_index, span)?);
+                } else {
+                    ty = store_templates::resolve_argument(&ty, bounds, &bindings,
+                        self.closures, self.limits, span)?;
                 }
-                instance_enums = Some(enums);
+                enums.insert(name.clone(), ty);
             }
+            instance_enums = Some(enums);
         }
         let mut builder = Builder::new(
             &function,
@@ -1709,6 +1710,10 @@ impl Builder<'_, '_> {
                 "callback argument count differs",
             ));
         }
+        // This producer returns before call_closure's ordinary preparation
+        // path. Record its real address at the same boundary, before any
+        // argument can mutate or replace the callee place.
+        self.closures.semantic_callee_place(self.function.id, callee, address)?;
         let mut values = Vec::new();
         for (argument, parameter) in arguments.iter().zip(&parameters) {
             let (value, actual) = self.argument_expr(argument, parameter)?;

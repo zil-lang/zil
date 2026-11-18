@@ -217,6 +217,9 @@ pub(super) fn prepared_callee(
             "prepared callee selects another original callable operand",
         ));
     }
+    world.pay(index::search(proof.call_callees.len()))?;
+    let original_callee = *proof.call_callees.get(&(original.id, call.recipe))
+        .ok_or_else(|| bad("prepared callee has no exact original Call operand occurrence"))?;
     let function = world.function(id)?;
     world.pay(function.blocks.len())?;
     let operation = function
@@ -252,7 +255,7 @@ pub(super) fn prepared_callee(
         {
             continue;
         }
-        if row.callee.is_none() || address != callee || selected.replace(address).is_some() {
+        if row.callee != Some(original_callee) || address != callee || selected.replace(address).is_some() {
             return Err(bad(
                 "prepared callee changes its exact selected address or call",
             ));
