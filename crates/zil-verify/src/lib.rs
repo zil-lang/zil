@@ -3264,6 +3264,10 @@ fn check_instruction(
                 && !(budget.sums && sums::owned(ty))
                 && !resources::arrays::is_owned_type(ty)
                 && !closures::owned_type(module, ty, budget)?
+                // A Value-only body may move even a shared Tuple actual.
+                // Authenticate every stored child; the move still clears the
+                // actual local, and grants no Copy or additional borrow.
+                && !stored_flow::anonymous_tuple(ty, budget)?
             {
                 return Err(reject(
                     "E-VERIFY-MOVE",

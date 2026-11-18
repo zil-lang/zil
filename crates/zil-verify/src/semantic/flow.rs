@@ -386,7 +386,22 @@ impl CheckedContext {
                             loop{match root{Type::BorrowedStorage{storage,..}=>root=storage,Type::Managed(inner)=>{path.push(LifeTypeProjection::Pointee);root=inner;},_=>break}}
                             path.push(if matches!(root,Type::Array{..}){LifeTypeProjection::Element}else{LifeTypeProjection::Place(PlaceProjection::Field(index as u32))});
                             let child=self.child_value(module,&value,&path,b)?;
-                            if !self.compatible(&environment,actual,&child,b)?{return Err(bad("actual construction changes a complete original child domain/source"));}
+                            let matches_child = if matches!(storage, Type::Tuple(_)) {
+                                if self.call_argument(module, instance, *field, &values, &child, &environment, false, b)? {
+                                    true
+                                } else if let Some(site) = site {
+                                    let source = self.original.borrow().as_ref()
+                                        .ok_or_else(|| bad("Tuple construction lacks its complete original body"))?
+                                        .tuple_call_operand(module, instance.definition, site.recipe, index, b)?;
+                                    if let Some(node) = source {
+                                        self.exact_expression_value(module, instance, f, *field, node, b)?;
+                                        self.call_argument(module, instance, *field, &values, &child, &environment, true, b)?
+                                    } else { false }
+                                } else { false }
+                            } else {
+                                self.compatible(&environment, actual, &child, b)?
+                            };
+                            if !matches_child {return Err(bad("actual construction changes a complete original child domain/source"));}
                         }
                         if let Some(result)=instruction.result {self.record(scope,OperandKey::Value(result),&value,b)?;}
                         if let Some(site)=site{if let SemanticSiteAction::Construct{value:claim,..}=&site.action {self.claim(module,claim,&value,&environment,b)?;}}

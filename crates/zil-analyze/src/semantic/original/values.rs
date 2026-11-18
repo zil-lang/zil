@@ -815,11 +815,6 @@ impl Checked {
                 let mut types = Vec::new();
                 for field in fields {
                     let field = self.value(*field, context, program, inventory, b, depth + 1)?;
-                    if !field.classes.is_empty() {
-                        return Err(unknown(
-                            "original tuple needs its complete child class embedding",
-                        ));
-                    }
                     Solver::push(&mut types, field, b)?;
                 }
                 value::tuple(types, b)

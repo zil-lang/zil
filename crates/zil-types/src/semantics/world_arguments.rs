@@ -80,6 +80,52 @@ pub(super) fn roots(
     }
     Ok(BTreeSet::new())
 }
+
+/// Check a physical tuple field against its original class domain. A real
+/// reborrow retains its separate loan in the CFG, while its reaching SSA
+/// parent can establish the original outer role of this construction.
+pub(super) fn tuple_field(
+    world: &mut World<'_, '_>,
+    scope: SemanticInstanceId,
+    operand: ValueId,
+    expected: &SemanticTypeValue,
+    values: &[Option<SharedType>],
+    implicit: &BTreeMap<u32, SemanticClassExpr>,
+) -> R<()> {
+    let actual = world.get(values, operand)?;
+    let actual = world.normalized(scope, &actual, implicit)?;
+    let expected = world.normalized(scope, expected, implicit)?;
+    world.pay(1)?;
+    crate::dyn_metadata::semantic_operand_snapshot(&*actual, world.limits, world.left, 1)?;
+    crate::dyn_metadata::semantic_operand_snapshot(&*expected, world.limits, world.left, 1)?;
+    if actual == expected {
+        return Ok(());
+    }
+    let ty = World::type_of(&actual)?;
+    if ty != World::type_of(&expected)? || !matches!(ty, Type::Address { .. }) {
+        return world.equal(&actual, &expected);
+    }
+    let mut cursor = operand;
+    let mut seen = BTreeSet::new();
+    loop {
+        world.pay(index::search(world.reborrows.len()).saturating_add(1))?;
+        let Some(edge) = world.reborrows.get(&cursor) else { break; };
+        if seen.len() >= world.limits.max_call_depth || !seen.insert(cursor) {
+            return Err(bad("tuple field has a cyclic or excessive actual reborrow chain"));
+        }
+        cursor = edge.parent;
+        let parent = world.get(values, cursor)?;
+        let parent = world.normalized(scope, &parent, implicit)?;
+        crate::dyn_metadata::semantic_operand_snapshot(&*parent, world.limits, world.left, 1)?;
+        if parent == expected {
+            let inner = world.pointee(&actual)?;
+            let expected_inner = world.pointee(&expected)?;
+            return world.equal(&inner, &expected_inner);
+        }
+    }
+    world.equal(&actual, &expected)
+}
+
 pub(super) fn satisfy(
     world: &mut World<'_, '_>,
     caller: &SemanticInstance,

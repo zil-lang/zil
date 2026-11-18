@@ -359,11 +359,6 @@ impl Check<'_, '_> {
                 let mut types = Vec::new();
                 for field in fields {
                     let field = self.recipe_value(instance, field, b, depth + 1)?;
-                    if !field.classes.is_empty() {
-                        return Err(unknown(
-                            "original tuple requires its complete retained class embedding",
-                        ));
-                    }
                     self.push_value(&mut types, field, b)?;
                 }
                 value::tuple(types, b)
@@ -1668,20 +1663,22 @@ impl Check<'_, '_> {
                 b,
             )?;
         }
-        for row in &child.life.retained {
-            b.spend(row.path.len().saturating_add(1), WORK)?;
-            let mut path = vec![prefix];
-            path.extend_from_slice(&row.path);
-            width = width.max(path.len().saturating_add(1));
-            self.push_value(
-                &mut expected.retained,
-                StorageRetainedBinding {
-                    path,
-                    class: row.class,
-                    binder: binder(row.binder, b)?,
-                },
-                b,
-            )?;
+        if !matches!(storage, Type::Tuple(_)) || !matches!(child.ty, Type::BorrowedStorage { .. }) {
+            for row in &child.life.retained {
+                b.spend(row.path.len().saturating_add(1), WORK)?;
+                let mut path = vec![prefix];
+                path.extend_from_slice(&row.path);
+                width = width.max(path.len().saturating_add(1));
+                self.push_value(
+                    &mut expected.retained,
+                    StorageRetainedBinding {
+                        path,
+                        class: row.class,
+                        binder: binder(row.binder, b)?,
+                    },
+                    b,
+                )?;
+            }
         }
         for row in &child.life.nominal_arguments {
             b.spend(row.path.len().saturating_add(1), WORK)?;
@@ -1754,7 +1751,7 @@ impl Check<'_, '_> {
         Ok(())
     }
 
-    fn closure_child_value(
+    pub(super) fn closure_child_value(
         &self,
         parent: &Value,
         selector: PlaceProjection,
@@ -1855,6 +1852,10 @@ impl Check<'_, '_> {
             LifeTypeProjection::Place(selector)
         };
         let template = match child {
+            Type::BorrowedStorage { storage, life } if matches!(storage.as_ref(), Type::Tuple(_)) => {
+                let geometry = self.inventory.geometry.type_value(child, Some(life), b)?;
+                Some(Value::from_geometry(geometry, Vec::new()))
+            }
             Type::Record { .. } | Type::Package { .. } | Type::BorrowedStorage { .. } => {
                 let (definition, arguments) = self.nominal_inventory_source(child, b)?;
                 let template = self.nominal_value(definition, &arguments, b, 0)?;
@@ -1877,6 +1878,19 @@ impl Check<'_, '_> {
                         "closure child repeats a complete intrinsic occurrence",
                     ));
                 }
+            }
+        }
+        if direct.is_empty() && matches!(storage, Type::Tuple(_))
+            && let Type::Address { mutable, .. } = child
+        {
+            let mode = if *mutable { StoredBorrowMode::ExclusiveAddress } else { StoredBorrowMode::SharedAddress };
+            b.spend(parent.life.slots.len(), WORK)?;
+            let mut slots = parent.life.slots.iter().filter(|row| row.path.as_slice() == [selector]);
+            if let Some(slot) = slots.next() {
+                if slot.mode != mode || slots.next().is_some() {
+                    return Err(fail("Tuple field changes its unique physical borrow mode"));
+                }
+                direct.insert(0, slot.binder);
             }
         }
         let count = match child {
@@ -1902,6 +1916,10 @@ impl Check<'_, '_> {
                 .transpose()?
                 .unwrap_or(0),
             _ if template.is_some() => template.as_ref().unwrap().life.binder_count,
+            _ if direct.is_empty() && matches!(storage, Type::Tuple(_)) => {
+                self.zero_data(child, b, 0)?;
+                return value::borrowed_scalar(child, self.inventory, b);
+            }
             _ => {
                 return Err(unknown(
                     "projected owning child requires its complete original domain constructor",
@@ -2884,7 +2902,9 @@ impl Check<'_, '_> {
                     fail("class-bearing Sum constructor lacks its exact original occurrence")
                 })
             }
-            InstructionKind::MakeAggregate { fields } | InstructionKind::MakePackage { fields } => {
+            InstructionKind::MakeAggregate { fields }
+            | InstructionKind::MakeOwnedTuple { fields }
+            | InstructionKind::MakePackage { fields } => {
                 let definition = self.inventory.definition(instance.definition, b)?;
                 let SemanticDefinitionBody::FunctionWithBody { sites: recipes, .. } =
                     &definition.body
@@ -2972,9 +2992,15 @@ impl Check<'_, '_> {
                                     .map_err(|_| fail("Static field ordinal overflow"))?,
                                 b,
                             )?
+                        } else if matches!(storage, Type::Tuple(_)) && !empty(&expected.life) {
+                            self.closure_child_value(
+                                &expected,
+                                PlaceProjection::Field(u32::try_from(ordinal)
+                                    .map_err(|_| fail("Tuple field ordinal overflow"))?),
+                                b,
+                            )?
                         } else {
-                            // Class-bearing structural tuples/arrays require
-                            // their own original embedding, never invented rows.
+                            // Arrays retain their independent complete element domain check.
                             self.zero_data(field, b, depth + 1)?;
                             value::borrowed_scalar(field, self.inventory, b)?
                         }
@@ -3405,6 +3431,30 @@ impl Check<'_, '_> {
                                     Some(self.ssa_value(instance, function, value, b, depth + 1)?)
                             }
                         }
+                        assigned = true;
+                        break;
+                    }
+                    InstructionKind::UnpackTuple { local: source, ref fields } => {
+                        b.spend(fields.len(), WORK)?;
+                        let mut destinations = fields.iter().enumerate()
+                            .filter(|(_, destination)| **destination == local);
+                        let Some((ordinal, _)) = destinations.next() else {
+                            if source == local {
+                                return Err(fail("semantic local read crosses a consumed Tuple source"));
+                            }
+                            continue;
+                        };
+                        if source == local || destinations.next().is_some() {
+                            return Err(fail("Tuple unpack changes its exact source or repeats a destination"));
+                        }
+                        operations::initialized_local_before(function, (at_block, index), source, b)?;
+                        let parent = self.local_value(instance, function, source, (at_block, index), b, depth + 1)?;
+                        let ordinal = u32::try_from(ordinal).map_err(|_| fail("Tuple destination ordinal overflows"))?;
+                        let child = self.closure_child_value(&parent, PlaceProjection::Field(ordinal), b)?;
+                        if !geometry::same_type(&child.ty, ty, b)? {
+                            return Err(fail("Tuple unpack changes the complete destination child type"));
+                        }
+                        origin = Some(child);
                         assigned = true;
                         break;
                     }

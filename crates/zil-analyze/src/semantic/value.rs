@@ -316,18 +316,87 @@ pub(super) fn task_domain(ty: &Type, b: &mut Budget) -> CompileResult<Option<Sto
 }
 pub(super) fn tuple(fields: Vec<Value>, b: &mut Budget) -> CompileResult<Value> {
     b.spend(fields.len().saturating_add(1), WORK)?;
+    if fields.iter().any(|field| !empty_shape(&field.life) || !field.classes.is_empty()) {
+        return qualified_tuple(fields, b);
+    }
     let mut children = Vec::new();
     children
         .try_reserve_exact(fields.len())
         .map_err(|_| fail("semantic tuple geometry allocation failed"))?;
     for field in &fields {
-        if !empty_shape(&field.life) || !field.classes.is_empty() {
-            return Err(fail("plain tuple geometry loses a complete child domain"));
-        }
         children.push(&field.geometry);
     }
     let geometry = geometry::construct(geometry::Constructor::Tuple, &children, empty(), b)?;
     Ok(Value::from_geometry(geometry, Vec::new()))
+}
+
+fn qualified_tuple(fields: Vec<Value>, b: &mut Budget) -> CompileResult<Value> {
+    let mut storage = Vec::new();
+    let mut classes = Vec::new();
+    let mut life = empty();
+    for (index, field) in fields.into_iter().enumerate() {
+        let index = u32::try_from(index).map_err(|_| fail("qualified Tuple field ordinal overflow"))?;
+        let selector = PlaceProjection::Field(index);
+        let prefix = LifeTypeProjection::Place(selector);
+        let (ty, child, images) = field.into_parts(b)?;
+        if child.binder_count as usize != images.len() {
+            return Err(fail("qualified Tuple field omits its complete class domain"));
+        }
+        let mut embedding = Vec::new();
+        let mut distinct = BTreeSet::new();
+        for class in images {
+            let mut binder = intern(&mut classes, class.clone(), b)?;
+            b.lookup(distinct.len(), WORK)?;
+            if !distinct.insert(binder) {
+                binder = u32::try_from(classes.len()).map_err(|_| fail("Tuple class domain overflow"))?;
+                put(&mut classes, class, b)?;
+                b.lookup(distinct.len(), WORK)?;
+                distinct.insert(binder);
+            }
+            put(&mut embedding, binder, b)?;
+        }
+        let parent = |binder: u32| embedding.get(binder as usize).copied()
+            .ok_or_else(|| fail("Tuple field occurrence leaves its complete class domain"));
+        let boundary = matches!(ty, Type::BorrowedStorage { .. } | Type::Closure(_)
+            | Type::MutexGuard { .. } | Type::Task { .. } | Type::Dyn { .. } | Type::OwnedDyn { .. });
+        if boundary {
+            for (class, binder) in embedding.iter().copied().enumerate() {
+                put(&mut life.retained, StorageRetainedBinding {
+                    path: vec![prefix],
+                    class: u32::try_from(class).map_err(|_| fail("Tuple child class overflow"))?,
+                    binder,
+                }, b)?;
+            }
+        } else {
+            for row in child.retained {
+                b.spend(row.path.len().saturating_add(1), WORK)?;
+                let mut path = vec![prefix];
+                path.extend(row.path);
+                put(&mut life.retained, StorageRetainedBinding {
+                    path, class: row.class, binder: parent(row.binder)?,
+                }, b)?;
+            }
+        }
+        for row in child.slots {
+            b.spend(row.path.len().saturating_add(1), WORK)?;
+            let mut path = vec![selector];
+            path.extend(row.path);
+            put(&mut life.slots, StorageLifeSlot { path, binder: parent(row.binder)?, mode: row.mode }, b)?;
+        }
+        for row in child.nominal_arguments {
+            b.spend(row.path.len().saturating_add(1), WORK)?;
+            let mut path = vec![prefix];
+            path.extend(row.path);
+            put(&mut life.nominal_arguments, NominalLifeArgument {
+                path, declaration: row.declaration, argument: row.argument, binder: parent(row.binder)?,
+            }, b)?;
+        }
+        put(&mut storage, ty, b)?;
+    }
+    life.binder_count = u32::try_from(classes.len()).map_err(|_| fail("Tuple class domain overflow"))?;
+    crate::dyn_metadata::shape(&life, b)?;
+    let ty = Type::BorrowedStorage { storage: Box::new(Type::Tuple(storage)), life: life.clone() };
+    Ok(Value::new(ty, life, classes))
 }
 /// A sum retains the entire success domain even while its error arm is
 /// active. This whole-child directory is a type map, never an active-tag proof.

@@ -172,7 +172,7 @@ impl Eval<'_, '_, '_> {
             return self.type_domain_at(scope, &expanded, hint, depth + 1, occurrence);
         }
         if let SemanticTypeRecipe::Tuple(items) = recipe {
-            return self.tuple_domain(scope, items, depth, occurrence);
+            return self.tuple_domain(scope, items, hint, depth, occurrence);
         }
         if let SemanticTypeRecipe::ErrorUnion { error, result } = recipe {
             let (error_hint, result_hint) = match hint {
@@ -570,6 +570,7 @@ impl Eval<'_, '_, '_> {
         &mut self,
         scope: SemanticInstanceId,
         items: &[SemanticTypeRecipe],
+        hint: Option<&Type>,
         depth: usize,
         occurrence: &Occurrence,
     ) -> R<Domain> {
@@ -582,24 +583,55 @@ impl Eval<'_, '_, '_> {
             return self.type_domain_at(
                 scope,
                 &SemanticTypeRecipe::Atom(Type::Unit),
-                Some(&Type::Unit),
+                hint,
                 depth + 1,
                 occurrence,
             );
         }
+        let fields = match hint.map(|ty| match ty {
+            Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+            ty => ty,
+        }) {
+            Some(Type::Tuple(fields)) if fields.len() == items.len() => Some(fields.as_slice()),
+            Some(_) => return Err(bad("original Tuple changes its actual constructor or arity")),
+            None => None,
+        };
         let mut children = Vec::new();
-        for (ordinal, item) in items.iter().enumerate() {
+        for (index, item) in items.iter().enumerate() {
             let ordinal =
-                u32::try_from(ordinal).map_err(|_| bad("tuple child ordinal overflows"))?;
+                u32::try_from(index).map_err(|_| bad("tuple child ordinal overflows"))?;
             self.occurrence_snapshot(occurrence)?;
             let mut child_occurrence = occurrence.clone();
             child_occurrence.path.push(ordinal);
-            children.push(self.type_domain_at(scope, item, None, depth + 1, &child_occurrence)?);
+            let hint = fields.map(|fields| &fields[index]);
+            children.push(self.type_domain_at(scope, item, hint, depth + 1, &child_occurrence)?);
         }
-        self.compose_tuple(children)
+        let mut domain = self.compose_product(children, true)?;
+        let SemanticTypeValue::Resolved { ty, life, .. } = &mut domain.value else {
+            unreachable!()
+        };
+        // Preserve the anonymous tuple's complete joint domain in the Type
+        // used by an actual generic specialization or nested occurrence.
+        if life.binder_count != 0 {
+            let shape = self.copy_shape(life)?;
+            let storage = std::mem::replace(ty, Type::Unit);
+            *ty = Type::BorrowedStorage { storage: Box::new(storage), life: shape };
+        }
+        if let Some(actual) = hint {
+            inference::charge_type_snapshot(ty, Span::default(), self.limits, self.left, 1)?;
+            inference::charge_type_snapshot(actual, Span::default(), self.limits, self.left, 1)?;
+            if ty != actual {
+                return Err(bad("qualified Tuple differs from its independently reconstructed child domain"));
+            }
+        }
+        Ok(domain)
     }
 
     pub(super) fn compose_tuple(&mut self, children: Vec<Domain>) -> R<Domain> {
+        self.compose_product(children, false)
+    }
+
+    fn compose_product(&mut self, children: Vec<Domain>, tuple_boundary: bool) -> R<Domain> {
         self.fee(children.len())?;
         if children.is_empty() {
             return Ok(Domain {
@@ -638,17 +670,16 @@ impl Eval<'_, '_, '_> {
                     mode: slot.mode,
                 });
             }
-            if frozen
-                || matches!(
-                    ty,
-                    Type::BorrowedStorage { .. }
-                        | Type::Closure(_)
-                        | Type::MutexGuard { .. }
-                        | Type::Task { .. }
-                        | Type::Dyn { .. }
-                        | Type::OwnedDyn { .. }
-                )
-            {
+            let embedded = matches!(
+                ty,
+                Type::BorrowedStorage { .. }
+                    | Type::Closure(_)
+                    | Type::MutexGuard { .. }
+                    | Type::Task { .. }
+                    | Type::Dyn { .. }
+                    | Type::OwnedDyn { .. }
+            );
+            if frozen || embedded {
                 self.fee(map.len())?;
                 for (class, binder) in map.iter().enumerate() {
                     life.retained.push(StorageRetainedBinding {
@@ -658,15 +689,17 @@ impl Eval<'_, '_, '_> {
                     });
                 }
             }
-            for row in child.retained {
-                self.fee(row.path.len().saturating_add(2))?;
-                let mut path = vec![LifeTypeProjection::Place(PlaceProjection::Field(ordinal))];
-                path.extend(row.path);
-                life.retained.push(StorageRetainedBinding {
-                    path,
-                    class: row.class,
-                    binder: mapped(row.binder)?,
-                });
+            if !tuple_boundary || !embedded {
+                for row in child.retained {
+                    self.fee(row.path.len().saturating_add(2))?;
+                    let mut path = vec![LifeTypeProjection::Place(PlaceProjection::Field(ordinal))];
+                    path.extend(row.path);
+                    life.retained.push(StorageRetainedBinding {
+                        path,
+                        class: row.class,
+                        binder: mapped(row.binder)?,
+                    });
+                }
             }
             for row in child.nominal_arguments {
                 self.fee(row.path.len().saturating_add(2))?;

@@ -43,7 +43,15 @@ impl Rows {
         // while retaining every descendant occurrence below that boundary.
         // This adds selectors, never a new intrinsic class or an image alias.
         let wrapper = matches!(child.ty, Type::Managed(_) | Type::Address { .. } | Type::Desc(_));
-        if boundary || wrapper {
+        let inline_outer = inline
+            && matches!(child.ty, Type::Address { .. } | Type::Desc(_))
+            && child.life.binder_count == 1
+            && child.life.retained.is_empty()
+            && child.life.nominal_arguments.is_empty()
+            && matches!(child.life.slots.as_slice(), [slot] if slot.path.is_empty() && slot.binder == 0);
+        // A thin inline borrow is represented by its physical occurrence.
+        // Wrappers with a separate pointee domain still retain that domain.
+        if boundary || wrapper && !inline_outer {
             for (class, term) in child.terms.iter().enumerate() {
                 b.spend(semantic.len().saturating_add(1))?;
                 self.retained.push((semantic.to_vec(), class as u32, *term));

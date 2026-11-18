@@ -288,6 +288,10 @@ impl Check<'_, '_> {
                 }
                 Ok(true)
             }
+            Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Tuple(_)) => {
+                crate::stored_flow::qualification(self.module, ty, self.inventory.limits, b)?;
+                self.structural_actual(storage, predicate, b, depth + 1)
+            }
             Type::BorrowedStorage { storage, .. } => {
                 self.structural_nominal_identity(ty, b)?;
                 match storage.as_ref() {

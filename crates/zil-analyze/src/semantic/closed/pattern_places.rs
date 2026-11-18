@@ -132,6 +132,9 @@ impl Check<'_, '_> {
             }
             return Ok(selected);
         }
+        if matches!(storage, Type::Tuple(_)) && !empty(&parent.life) {
+            return self.closure_child_value(parent, selector, b);
+        }
         if self.task_domain(child, b)?.is_some() {
             return self.task_projection(parent, child, selector, b);
         }

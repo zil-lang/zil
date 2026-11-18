@@ -257,6 +257,10 @@ impl Check<'_, '_> {
                 }
                 return Ok(());
             }
+            Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Tuple(_)) => {
+                crate::stored_flow::qualification(self.module, ty, self.inventory.limits, b)?;
+                return self.ordinary_type_at(storage, b, depth + 1);
+            }
             Type::Record { .. }
             | Type::Package { .. }
             | Type::Enum { .. }
