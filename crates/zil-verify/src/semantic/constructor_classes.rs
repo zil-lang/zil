@@ -82,10 +82,8 @@ impl CheckedContext {
                     let mut common:Option<Vec<BTreeSet<StorageBinder>>>=None;
                     let mut complete=true;
                     for(instance,environment)in &selected {
-                        b.spend(programme.sites.len())?;
-                        let count=programme.sites.iter().filter(|site|site.instance==instance.id
-                            &&matches!(&site.at,SemanticSiteAddress::Typed{block,instruction,..}if *block==key.block&&*instruction==key.instruction)
-                            &&matches!(&site.action,SemanticSiteAction::Construct{result:SemanticOperand::Value(value),..}if *value==result)).count();
+                        let count=self.actual_sites(module,instance.id,key.block,key.instruction,b)?.into_iter()
+                            .filter(|site|matches!(&site.action,SemanticSiteAction::Construct{result:SemanticOperand::Value(value),..}if *value==result)).count();
                         if count!=1{complete=false;break;}
                         let occurrences=self.occurrences.borrow();
                         let Some(value)=occurrences.get(&(ScopeKey::Instance(instance.id),OperandKey::Value(result)))else{complete=false;break;};
@@ -181,10 +179,8 @@ impl CheckedContext {
                 b.spend(1)?;
                 if world.target!=SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id)){continue;}
                 worlds+=1;
-                b.spend(programme.sites.len())?;
-                let mut sites=programme.sites.iter().filter(|site|site.instance==world.id
-                    &&matches!(site.at,SemanticSiteAddress::Typed{block,instruction,..}if block==key.block&&instruction==key.instruction)
-                    &&matches!(site.action,SemanticSiteAction::BodyCall{..}|SemanticSiteAction::Construct{..}));
+                let mut sites=self.actual_sites(module,world.id,key.block,key.instruction,b)?.into_iter()
+                    .filter(|site|matches!(site.action,SemanticSiteAction::BodyCall{..}|SemanticSiteAction::Construct{..}));
                 let mut matched=false;
                 for site in &mut sites{
                     if let SemanticSiteAction::Construct{result,..}=&site.action{if *result!=SemanticOperand::Value(key.result){continue;}}

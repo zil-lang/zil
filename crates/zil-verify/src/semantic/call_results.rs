@@ -33,22 +33,13 @@ impl CheckedContext {
         let Some((site, dynamic, outer)) = site else {
             return Ok(None);
         };
-        let program = module
-            .semantic
-            .as_ref()
-            .ok_or_else(|| bad("original Call result has no actual site directory"))?;
         let function = module
             .functions
             .get(at.function.0 as usize)
             .filter(|function| function.id == at.function)
             .ok_or_else(|| bad("Call result caller is absent"))?;
-        b.spend(program.sites.len())?;
         let mut selected = None;
-        for row in program
-            .sites
-            .iter()
-            .filter(|row| row.instance == instance && row.recipe == site)
-        {
+        for row in self.site_index.all_roles(module, instance, site, b)? {
             let SemanticSiteAddress::Typed {
                 block, instruction, ..
             } = row.at

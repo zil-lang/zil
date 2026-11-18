@@ -15,18 +15,13 @@ impl CheckedContext {
         if body.instructions.get(ordinal as usize).is_none_or(|row| !std::ptr::eq(row, actual)) {
             return Err(bad("package repack has no canonical actual instruction coordinate"));
         }
-        let program = module.semantic.as_ref().ok_or_else(|| bad("package repack has no original operation ledger"))?;
         let definition = self.definition(module, instance.definition, b)?;
         let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
             return Err(bad("package repack has no complete original body"));
         };
-        b.spend(program.sites.len().saturating_add(site_nodes.len()))?;
-        let mut sites = program.sites.iter().filter(|site| {
-            site.instance == instance.id
-                && matches!(site.at, SemanticSiteAddress::Typed { block: actual, instruction: at, .. }
-                    if actual == block && at >= ordinal)
-                && matches!(site.action, SemanticSiteAction::TypeUse { subject: SemanticOperand::Value(actual), .. }
-                    if actual == result)
+        b.spend(site_nodes.len())?;
+        let mut sites = self.site_index.block_from(module, instance.id, block, ordinal, b)?.into_iter().filter(|site| {
+            matches!(site.action, SemanticSiteAction::TypeUse { subject: SemanticOperand::Value(actual), .. } if actual == result)
         });
         let site = sites.next().ok_or_else(|| bad("package repack lacks its exact original whole-place TypeUse"))?;
         if sites.next().is_some() {

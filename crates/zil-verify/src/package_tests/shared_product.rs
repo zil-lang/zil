@@ -533,7 +533,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
                 format!("mode={mode}"),
                 module,
                 plan,
-                Some([5583, 5921, 7698][mode as usize]),
+                Some([5584, 5922, 7699][mode as usize]),
             )
         })
         .collect();
@@ -545,9 +545,10 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
             format!("Store indirect={indirect}"),
             module,
             plan,
-            Some(if indirect { 20530 } else { 17349 }),
+            Some(if indirect { 20531 } else { 17350 }),
         ));
     }
+    // Each fixture has one closure whose capture list selects the fixed point.
     // Schema 48's retained_return_sources Option discriminant is checked
     // once per actual function: +2 for each Product fixture, +3/+4 for Store.
     let mut observed = Vec::new();

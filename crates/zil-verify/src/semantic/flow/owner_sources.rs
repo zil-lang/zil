@@ -544,11 +544,9 @@ impl CheckedContext {
         let subject = source.subject;
         let definition=self.definition(module,caller.definition,b)?;
         let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&definition.body else{return Err(bad("pattern address owner has no complete original body"));};
-        let program=module.semantic.as_ref().ok_or_else(||bad("pattern address programme is absent"))?;
         let mut subjects=BTreeSet::new();
         for original in site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(subject)){
-            b.spend(program.sites.len())?;
-            for site in program.sites.iter().filter(|site|site.instance==caller.id&&site.recipe==original.site){
+            for site in self.site_index.all_roles(module,caller.id,original.site,b)? {
                 match site.action{
                     SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(value),..}=>{subjects.insert(value);},
                     SemanticSiteAction::BodyCall{..}|SemanticSiteAction::Call{..}=>{

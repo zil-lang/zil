@@ -30,7 +30,7 @@ impl Action {
 pub(super) struct Index {
     module: usize,
     limits: Limits,
-    by_recipe: BTreeMap<(SemanticInstanceId, SemanticSiteId, Action), Vec<usize>>,
+    by_recipe: BTreeMap<(SemanticInstanceId, SemanticSiteId), Vec<usize>>,
     by_position: BTreeMap<(SemanticInstanceId, BlockId, u32), Vec<usize>>,
     pub(super) producers: Producers,
 }
@@ -152,7 +152,7 @@ impl Index {
         )?;
         let rows = self
             .by_recipe
-            .entry((site.instance, site.recipe, Action::of(&site.action)))
+            .entry((site.instance, site.recipe))
             .or_default();
         push(rows, position, b)?;
         let rows = self
@@ -223,34 +223,49 @@ impl Index {
         }
         Ok(rows)
     }
-    pub(super) fn recipe<'a>(
-        &self,
-        module: &'a TypedModule,
-        instance: SemanticInstanceId,
-        recipe: SemanticSiteId,
-        action: Action,
+    pub(super) fn all_roles<'a>(
+        &self, module: &'a TypedModule, instance: SemanticInstanceId, recipe: SemanticSiteId,
         b: &mut Budget,
     ) -> Check<Vec<&'a SemanticSite>> {
         let programme = self.programme(module, b)?;
         b.spend(lookup(self.by_recipe.len()))?;
-        let rows = Self::rows(
-            programme,
-            self.by_recipe
-                .get(&(instance, recipe, action))
-                .map(Vec::as_slice),
-            b,
-        )?;
+        let rows = Self::rows(programme, self.by_recipe.get(&(instance, recipe)).map(Vec::as_slice), b)?;
         for row in &rows {
             b.spend(1)?;
-            if row.instance != instance || row.recipe != recipe || Action::of(&row.action) != action
-            {
-                return Err(bad(
-                    "actual occurrence directory changes its exact recipe/action identity",
-                ));
+            if row.instance != instance || row.recipe != recipe {
+                return Err(bad("actual occurrence directory changes its original instance or recipe"));
             }
         }
         Ok(rows)
     }
+    pub(super) fn recipe<'a>(
+        &self, module: &'a TypedModule, instance: SemanticInstanceId, recipe: SemanticSiteId,
+        action: Action, b: &mut Budget,
+    ) -> Check<Vec<&'a SemanticSite>> {
+        let mut rows = self.all_roles(module, instance, recipe, b)?;
+        b.spend(rows.len())?;
+        rows.retain(|row| Action::of(&row.action) == action);
+        Ok(rows)
+    }
+    pub(super) fn block_from<'a>(
+        &self, module: &'a TypedModule, instance: SemanticInstanceId, block: BlockId, first: u32, b: &mut Budget,
+    ) -> Check<Vec<&'a SemanticSite>> {
+        let program = self.programme(module, b)?;
+        b.spend(lookup(self.by_position.len()).saturating_mul(2))?;
+        let mut rows = vec![];
+        for ((_, _, at), positions) in self.by_position.range((instance,block,first)..=(instance,block,u32::MAX)) {
+            b.spend(positions.len().saturating_add(1))?;
+            for site in Self::rows(program, Some(positions), b)? {
+                if site.instance != instance || !matches!(site.at, SemanticSiteAddress::Typed{block:id,instruction,..} if id==block && instruction==*at) {
+                    return Err(bad("actual occurrence directory changes its indexed block or instruction"));
+                }
+                b.spend(1usize.saturating_add(if rows.capacity()==rows.len(){rows.len()}else{0}))?;
+                rows.push(site);
+            }
+        }
+        Ok(rows)
+    }
+
 }
 fn push(rows: &mut Vec<usize>, position: usize, b: &mut Budget) -> Check<()> {
     b.spend(1usize.saturating_add(if rows.len() == rows.capacity() {
@@ -380,6 +395,9 @@ mod tests {
         }
         let rows = index.at(&module, instance, BlockId(0), 0, &mut b).unwrap();
         assert_eq!(rows.len(), 3);
+        assert_eq!(index.all_roles(&module, instance, recipe, &mut b).unwrap(), rows);
+        assert_eq!(index.block_from(&module, instance, BlockId(0), 0, &mut b).unwrap(), rows);
+        assert!(index.block_from(&module, instance, BlockId(0), 1, &mut b).unwrap().is_empty());
         assert!(matches!(
             rows[0].at,
             SemanticSiteAddress::Typed {

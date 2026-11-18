@@ -1,7 +1,25 @@
 //! Original premises and concrete obligations have separate entry paths.
 //! A successful actual Callable role check never modifies the equality graph.
 use super::*;
+
+/// Original requirements and replayed borrow occurrences can establish the
+/// same scoped fact more than once. Retaining its first occurrence makes a
+/// CFG revisit idempotent and keeps rollback checkpoints append-only.
+fn record_fact<T: PartialEq>(rows: &mut Vec<T>, fact: T, b: &mut Budget) -> Check<bool> {
+    b.spend(rows.len().saturating_add(1))?;
+    if rows.contains(&fact) { return Ok(false); }
+    b.spend(1usize.saturating_add(if rows.len() == rows.capacity() { rows.len() } else { 0 }))?;
+    rows.push(fact);
+    Ok(true)
+}
+
 impl CheckedContext {
+    pub(super) fn original_equality(&self, key: ScopeKey, left: ClassKey, right: ClassKey, b: &mut Budget) -> Check<()> {
+        let added = record_fact(&mut self.premises.borrow_mut().entry(key).or_default().relations.equalities, (left,right), b)?;
+        if added { self.invalidate_closed_frames(); }
+        Ok(())
+    }
+
     pub(crate) fn evaluate_requirements(&self,module:&TypedModule,recipes:&[SemanticRequirementRecipe],environment:&EvalEnv,mode:RequirementMode,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         b.spend(recipes.len())?;
         if mode==RequirementMode::DeclarationPremise {
@@ -35,15 +53,12 @@ impl CheckedContext {
                     match recipe {
                         SemanticRequirementRecipe::LifeEqual{left,right}=>{
                             let left=self.life(module,left,environment,b)?;let right=self.life(module,right,environment,b)?;
-                            b.spend(1)?;
-                            b.spend(1)?;self.invalidate_closed_frames();
-                            self.premises.borrow_mut().entry(key).or_default().relations.equalities.push((left,right));
+                            self.original_equality(key, left, right, b)?;
                         }
                         SemanticRequirementRecipe::Outlives{longer,shorter}=>{
                             let longer=self.life(module,longer,environment,b)?;let shorter=self.life(module,shorter,environment,b)?;
-                            b.spend(1)?;
-                            b.spend(1)?;self.invalidate_closed_frames();
-                            self.premises.borrow_mut().entry(key).or_default().relations.outlives.push((longer,shorter));
+                            let added = record_fact(&mut self.premises.borrow_mut().entry(key).or_default().relations.outlives, (longer,shorter), b)?;
+                            if added { self.invalidate_closed_frames(); }
                         }
                         _=>{}
                     }
@@ -140,9 +155,8 @@ impl CheckedContext {
     pub(crate) fn external_requirement(&self,module:&TypedModule,environment:&EvalEnv,request:ExternalRequest,mode:RequirementMode,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         let key=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?.key;
         if mode==RequirementMode::DeclarationPremise {
-            b.spend(1)?;
-            b.spend(1)?;self.invalidate_closed_frames();
-            self.premises.borrow_mut().entry(key).or_default().external.push(request);
+            let added = record_fact(&mut self.premises.borrow_mut().entry(key).or_default().external, request, b)?;
+            if added { self.invalidate_closed_frames(); }
             return Ok(());
         }
         {
@@ -228,7 +242,11 @@ mod premise_rollback_tests {
         };
         assert!(apply(&rows).unwrap_err().message.contains("TypeEqual"));
         assert!(!context.premises.borrow().contains_key(&scope));
-        apply(&[keep]).unwrap();
+        apply(std::slice::from_ref(&keep)).unwrap();
+        let generation = context.premises_epoch.get();
+        apply(std::slice::from_ref(&keep)).unwrap();
+        assert_eq!(context.premises_epoch.get(), generation);
+        assert_eq!(context.premises.borrow()[&scope].relations.equalities.len(), 1);
         let before = context.premises.borrow()[&scope].clone();
         assert!(apply(&rows).unwrap_err().message.contains("TypeEqual"));
         let graph = context.premises.borrow();

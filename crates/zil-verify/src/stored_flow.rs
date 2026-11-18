@@ -8254,7 +8254,6 @@ pub(super) fn direct_dependency_postorder(
         || b.registrations
         || b.async_registrations
         || b.dyn_contexts
-        || !module.closures.is_empty()
         || !module.dyn_interfaces.is_empty()
         || !module.dyn_vtables.is_empty()
     {
@@ -8268,6 +8267,16 @@ pub(super) fn direct_callee_postorder(
     mask: Option<&[bool]>,
     b: &mut Budget,
 ) -> Check<Option<Vec<usize>>> {
+    // A captureless concrete closure has one actual entry. Include both
+    // formation and invocation as dependencies. Captured, indirect or
+    // recursive dispatch retains the general interprocedural fixed point.
+    b.spend(module.closures.len())?;
+    if module.closures.iter().enumerate().any(|(index, c)| {
+        c.id.0 as usize != index || !c.captures.is_empty()
+            || module.functions.get(c.function.0 as usize).is_none_or(|f| f.environment != Some(c.id))
+    }) {
+        return Ok(None);
+    }
     let count = module.functions.len();
     b.spend(amount(
         count,
@@ -8286,29 +8295,36 @@ pub(super) fn direct_callee_postorder(
         for block in &f.blocks {
             b.spend(block.instructions.len())?;
             for operation in &block.instructions {
-                match operation.kind {
-                    InstructionKind::Call { function, .. } => {
-                        let callee = function.0 as usize;
-                        if callee >= count {
-                            return Err(err("actual direct stored dependency is absent"));
-                        }
-                        let outgoing = &mut calls[index];
-                        b.spend(amount(
-                            outgoing.len().saturating_add(2),
-                            std::mem::size_of::<usize>(),
-                        )?)?;
-                        outgoing.push(callee);
+                let callee = match &operation.kind {
+                    InstructionKind::Call { function, .. } => *function,
+                    InstructionKind::MakeClosure { closure, captures } if captures.is_empty() => {
+                        let Some(definition) = module.closures.get(closure.0 as usize) else { return Ok(None); };
+                        definition.function
                     }
-                    InstructionKind::SuspendCall { .. }
-                    | InstructionKind::CallIndirect { .. }
-                    | InstructionKind::CallDynSlot { .. }
-                    | InstructionKind::CallClosure { .. }
+                    InstructionKind::CallClosure { .. }
                     | InstructionKind::CallClosureBorrowed { .. }
                     | InstructionKind::CallClosureShared { .. }
                     | InstructionKind::CallClosureMut { .. }
-                    | InstructionKind::CallClosureOnce { .. } => return Ok(None),
-                    _ => {}
+                    | InstructionKind::CallClosureOnce { .. } => {
+                        let Some((definition, _)) = super::stored_callables::called(module, f, &operation.kind)
+                            else { return Ok(None); };
+                        definition.function
+                    }
+                    // Structured host operations invoke a body chosen at this
+                    // use, which can differ from the function that formed it.
+                    InstructionKind::WithForeignCallback { .. } | InstructionKind::WithSyncCell { .. }
+                    | InstructionKind::WithScopedThread { .. } | InstructionKind::MakeClosure { .. }
+                    | InstructionKind::SuspendCall { .. } | InstructionKind::CallIndirect { .. }
+                    | InstructionKind::CallDynSlot { .. } => return Ok(None),
+                    _ => continue,
+                };
+                let callee = callee.0 as usize;
+                if callee >= count {
+                    return Err(err("actual stored dependency selects an absent function"));
                 }
+                let outgoing = &mut calls[index];
+                b.spend(amount(outgoing.len().saturating_add(2), std::mem::size_of::<usize>())?)?;
+                outgoing.push(callee);
             }
         }
     }
@@ -9490,6 +9506,43 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn concrete_captureless_entry_precedes_its_caller_and_cycles_use_iteration() {
+        let (mut module, _) = crate::tests::baseline();
+        let closure = ClosureId(0);
+        let mut entry = module.functions[0].clone();
+        entry.id = FunctionId(1);
+        entry.environment = Some(closure);
+        module.functions.push(entry);
+        module.closures.push(ClosureDefinition {
+            id: closure, function: FunctionId(1), captures: vec![], parameters: vec![],
+            result: Type::I32, storage_life: None, kind: CallableKind::Fn, lending_captures: vec![],
+        });
+        let span = module.functions[0].span;
+        let head = ValueId(module.functions[0].values.len() as u32);
+        module.functions[0].values.push(Type::Closure(closure));
+        module.functions[0].blocks[0].instructions.push(Instruction {
+            result: Some(head), kind: InstructionKind::MakeClosure { closure, captures: vec![] }, span,
+        });
+        module.functions[0].blocks[0].instructions.push(Instruction {
+            result: None, kind: InstructionKind::CallClosure { callee: head, arguments: vec![] }, span,
+        });
+        let mut b = Budget::new(&Limits::default());
+        assert_eq!(direct_callee_postorder(&module, None, &mut b).unwrap(), Some(vec![1,0]));
+        module.functions[1].blocks[0].instructions.push(Instruction {
+            result: None, kind: InstructionKind::Call { function: FunctionId(0), arguments: vec![] }, span,
+        });
+        assert!(direct_callee_postorder(&module, None, &mut b).unwrap().is_none());
+        module.functions[1].blocks[0].instructions.pop();
+        module.functions[0].blocks[0].instructions.push(Instruction {
+            result: None, kind: InstructionKind::WithScopedThread { worker: FunctionId(1), argument: head, body: head }, span,
+        });
+        assert!(direct_callee_postorder(&module, None, &mut b).unwrap().is_none());
+        module.functions[0].blocks[0].instructions.pop();
+        module.closures[0].captures.push(Type::I32);
+        assert!(direct_callee_postorder(&module, None, &mut b).unwrap().is_none());
     }
 
     #[test]

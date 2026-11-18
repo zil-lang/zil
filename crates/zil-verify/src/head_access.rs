@@ -690,7 +690,7 @@ pub(super) fn check(module: &TypedModule, graphs: &[FunctionGraph], b: &mut Budg
     }
     charge(b, module.functions.len())?;
     let mut contracts = vec![Contract::default(); module.functions.len()];
-    let direct = if b.pod_stores && module.closures.is_empty() {
+    let direct = if b.pod_stores {
         crate::stored_flow::direct_callee_postorder(module, None, b)?
     } else {
         None

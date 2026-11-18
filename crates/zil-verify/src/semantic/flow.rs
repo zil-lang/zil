@@ -1068,10 +1068,7 @@ impl CheckedContext {
         if expected!=&original {return Err(bad("implicit occurrence resolved to another original lifetime"));}
         // This original declaration names this exact actual borrow occurrence;
         // it is not equality inferred from a shared outside image or header.
-        b.spend(1)?;
-        b.spend(1)?;self.invalidate_closed_frames();
-        self.premises.borrow_mut().entry(frame.key).or_default().relations.equalities.push((original,actual.clone()));
-        Ok(())
+        self.original_equality(frame.key, original, actual.clone(), b)
     }
     fn site_expected(&self,module:&TypedModule,instance:&SemanticInstance,site:&SemanticSite,environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<CheckedType> {
         let definition=self.definition(module,instance.definition,b)?;
