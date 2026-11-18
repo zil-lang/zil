@@ -115,6 +115,7 @@ pub(super) struct CheckedOriginal {
     proven_synchronous_births: BTreeSet<(SemanticDefinitionId, NodeId)>,
     callable_nodes: BTreeMap<(SemanticDefinitionId, NodeId), NodeId>,
     code_sources: BTreeMap<(SemanticDefinitionId, NodeId), SemanticDefinitionId>,
+    thin_literals: BTreeMap<SemanticDefinitionId, SemanticSiteId>,
     prototypes: BTreeMap<SemanticDefinitionId, Prototype>,
     substitutions: BTreeMap<u64, Ty>,
     life_substitutions: BTreeMap<u64, Life>,

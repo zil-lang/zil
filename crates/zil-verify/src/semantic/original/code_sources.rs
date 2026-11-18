@@ -3,6 +3,61 @@
 use super::*;
 impl CheckedOriginal {
     pub(in crate::semantic) fn code_source(&self,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<Option<SemanticDefinitionId>>{b.spend(1)?;Ok(self.code_sources.get(&(definition,node)).copied())}
+    pub(in crate::semantic) fn thin_literal(&self, child: SemanticDefinitionId, b: &mut Budget) -> Check<Option<SemanticSiteId>> {
+        if self.thin_literals.is_empty() { return Ok(None); }
+        b.spend(self.thin_literals.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
+        Ok(self.thin_literals.get(&child).copied())
+    }
+
+    /// Seed the original child's inference slots before checking its complete body.
+    /// Only a pointer type already established by the creator supplies these inputs.
+    pub(super) fn contextual_code_inputs(
+        &mut self, child: &SemanticDefinition, expected: Option<&Ty>, b: &mut Budget,
+    ) -> Check<Option<Ty>> {
+        let Some(expected) = expected else { return Ok(None) };
+        let code = self.resolved(expected, b)?;
+        let Ty::Code { kind: SemanticCodeKind::FunctionPointer, parameters, result, modes,
+            result_mode, call_kind, bound_lifetimes, invocation_lifetimes } = &code else { return Ok(None) };
+        let SemanticDefinitionBody::FunctionWithBody { signature, receiver_parameter: None,
+            foreign: None, body: SemanticOriginalFunctionBody::Defined(_), .. } = &child.body
+            else { return Err(bad("contextual fn literal lacks its receiver-free original body")) };
+        b.spend(parameters.len().saturating_add(1))?;
+        if child.kind != SemanticDefinitionKind::Closure || !child.environment.is_empty()
+            || !child.parameters.is_empty() || *call_kind != CallKind::Direct
+            || signature.call_kind != *call_kind || signature.result_mode != *result_mode
+            || *bound_lifetimes != 0 || *invocation_lifetimes != 0
+            || signature.bound_lifetimes != 0 || signature.invocation_lifetimes != 0
+            || signature.parameters.len() != parameters.len()
+            || !signature.parameters.iter().map(|p| p.mode).eq(modes.iter().copied())
+        { return Err(bad("contextual fn literal changes its environment or complete original signature")); }
+        for (ordinal, ty) in parameters.iter().enumerate() {
+            let key = (child.id, ordinal as u32);
+            if let Some(previous) = self.parameters.get(&key).cloned() { self.unify(&previous, ty, b)?; }
+            else { self.parameters.insert(key, ty.clone()); }
+        }
+        if let Some(previous) = self.results.get(&child.id).cloned() { self.unify(&previous, result, b)?; }
+        else { self.results.insert(child.id, result.as_ref().clone()); }
+        Ok(Some(code))
+    }
+
+    pub(super) fn finish_contextual_code(&mut self, parent: SemanticDefinitionId, node: NodeId,
+        child: SemanticDefinitionId, site: SemanticSiteId, expected: &Ty, b: &mut Budget) -> Check<()> {
+        let used = self.used.get(&child);
+        b.spend(used.map_or(0, BTreeSet::len).saturating_add(1))?;
+        if used.is_some_and(|rows| rows.iter().any(|binder| matches!(binder, Binder::Capture { .. }))) {
+            return Err(bad("contextual fn literal reads a captured creator binding"));
+        }
+        let signature = self.prototypes.get(&child).ok_or_else(||bad("contextual fn literal has no checked body signature"))?;
+        let actual = Ty::Code { kind: SemanticCodeKind::FunctionPointer, parameters: signature.parameters.clone(),
+            result: Box::new(signature.result.clone()), modes: signature.modes.clone(), result_mode: signature.result_mode,
+            call_kind: signature.call_kind, bound_lifetimes: signature.bound_lifetimes,
+            invocation_lifetimes: signature.invocation_lifetimes };
+        self.unify(&actual, expected, b)?;
+        self.code_sources.insert((parent, node), child);
+        self.thin_literals.insert(child,site);
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn code_value(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,actual:&Ty,expected:Option<&Ty>,value_role:bool,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
         let actual=self.resolved(actual,b)?;

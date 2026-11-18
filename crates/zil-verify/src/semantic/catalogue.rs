@@ -225,6 +225,22 @@ impl CheckedContext {
                 let SemanticLocalTarget::Typed(local)=local else {return Err(bad("Typed declaration retains a Core local"));};
                 if f.locals.get(local.0 as usize).is_none() {return Err(bad("declared semantic local is absent"));}raw_value(expected,b)?;
             }
+            (SemanticSiteRecipeKind::Closure{definition,environment}, SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(value),expected})=>{
+                let previous=instruction.checked_sub(1).and_then(|at|block.instructions.get(at as usize));
+                let Some(Instruction{kind:InstructionKind::FunctionRef{function:target},result:Some(result),..})=previous
+                    else{return Err(bad("thin literal TypeUse does not immediately follow its actual FunctionRef"));};
+                let child=self.definition(module,*definition,b)?;
+                if edge!=SemanticSiteEdge::Before || value!=result || !environment.is_empty()
+                    || child.kind!=SemanticDefinitionKind::Closure || child.parent!=Some(instance.definition)
+                    || !child.environment.is_empty() || !child.parameters.is_empty()
+                {return Err(bad("thin literal changes its original creator, environment or actual SSA occurrence"));}
+                let program=module.semantic.as_ref().ok_or_else(||bad("thin literal has no instance directory"))?;
+                b.spend(program.instances.len())?;
+                if !program.instances.iter().any(|row|row.definition==*definition && row.parent==Some(instance.id)
+                    && row.environment.is_none() && row.target==SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(*target)))
+                {return Err(bad("thin literal FunctionRef lacks its exact environment-free child instance"));}
+                raw_value(expected,b)?;
+            }
             (SemanticSiteRecipeKind::Closure{definition,..},SemanticSiteAction::Closure{result,closure,environment})=>{
                 let (SemanticOperand::Value(value),SemanticClosureTarget::Typed(closure))=(result,closure) else {return Err(bad("semantic Closure retains a Core target or non-SSA result"));};
                 let actual=actual.ok_or_else(||bad("Closure ghost site selects a terminator"))?;

@@ -186,6 +186,7 @@ impl CheckedContext {
         let signature=&checked_signature;let environment=&checked_environment;
         let f=module.functions.get(function.0 as usize).ok_or_else(||bad("semantic actual function is absent"))?;
         let original_definition=self.definition(module,instance.definition,b)?;
+        if original_definition.kind==SemanticDefinitionKind::Closure{self.check_literal_entry(module,instance,f,b)?;}
         let SemanticDefinitionBody::FunctionWithBody{protocol_contracts,foreign,resume_bound,..}=&original_definition.body else{return Err(bad("actual protocol bridge lacks its original body"));};
         if f.foreign!=*foreign||f.resume_bound!=*resume_bound{return Err(bad("actual external/resume header differs from its complete original declaration"));}
         if f.protocol_contracts!=*protocol_contracts{return Err(bad("actual phase contract differs from the complete original protocol declaration"));}
@@ -926,6 +927,17 @@ impl CheckedContext {
         let SemanticDefinitionBody::FunctionWithBody{sites,..}=&definition.body else{return Err(bad("semantic site has no original function"));};
         b.spend(sites.len())?;
         let recipe=sites.iter().find(|recipe|recipe.id==site.recipe).ok_or_else(||bad("semantic site has no original recipe"))?;
+        if let SemanticSiteRecipeKind::Closure{definition:child,..}=&recipe.kind {
+            let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&definition.body else{unreachable!()};
+            b.spend(site_nodes.len())?;
+            let link=site_nodes.iter().find(|row|row.site==recipe.id).ok_or_else(||bad("thin literal TypeUse has no original creation node"))?;
+            let SemanticOriginalNode::Expression(node)=link.node else{return Err(bad("thin literal TypeUse selects another original operation"));};
+            if self.original.borrow().as_ref().ok_or_else(||bad("thin literal has no checked original body"))?.code_source(instance.definition,node,b)?!=Some(*child){
+                return Err(bad("thin literal TypeUse has no independently proved contextual fn coercion"));
+            }
+            let source=SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Expression(node)};
+            return self.evaluate_type(module,&source,environment,external,active,b);
+        }
         let construction=matches!(recipe.kind,SemanticSiteRecipeKind::Construct{..});
         let recipe=match &recipe.kind {SemanticSiteRecipeKind::Construct{result}|SemanticSiteRecipeKind::DeclareLocal{expected:result}|SemanticSiteRecipeKind::TypeUse{expected:result}=>result,_=>return Err(bad("site role has no direct expected type recipe"))};
         if construction{if let SemanticTypeRecipe::OriginalType{scope,source}=recipe{

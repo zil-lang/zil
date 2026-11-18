@@ -113,12 +113,13 @@ impl CheckedOriginal {
                 },
                 CoreExprKind::Closure{..}=>{
                     let original=context.definition(module,id,b)?;let SemanticDefinitionBody::FunctionWithBody{sites,site_nodes,..}=&original.body else{return Err(bad("closure creator has no original operations"));};
-                    let mut children=site_nodes.iter().filter_map(|row|if row.node==SemanticOriginalNode::Expression(expression.id){sites.iter().find(|site|site.id==row.site).and_then(|site|if let SemanticSiteRecipeKind::Closure{definition,..}=site.kind{Some(definition)}else{None})}else{None});
-                    let child=children.next().ok_or_else(||bad("original closure lacks its exact creation site"))?;if children.next().is_some(){return Err(bad("original closure has ambiguous child definitions"));}
+                    let mut children=site_nodes.iter().filter_map(|row|if row.node==SemanticOriginalNode::Expression(expression.id){sites.iter().find(|site|site.id==row.site).and_then(|site|if let SemanticSiteRecipeKind::Closure{definition,..}=site.kind{Some((definition,row.site))}else{None})}else{None});
+                    let (child,site)=children.next().ok_or_else(||bad("original closure lacks its exact creation site"))?;if children.next().is_some(){return Err(bad("original closure has ambiguous child definitions"));}
                     if let Some(previous)=self.free_values.get(&child){if previous!=bindings{return Err(bad("original closure free values differ between creator sites"));}}else{self.free_values.insert(child,bindings.clone());}
                     let child_definition=context.definition(module,child,b)?;
                     for formal in &child_definition.environment{if let SemanticFormal::Type{requirements}=&formal.kind{for requirement in requirements{self.obligation(module,context,requirement,env,env,active,b)?;}}}
                     let CoreExprKind::Closure{move_capture,..}=expression.kind else{unreachable!()};self.creator_moves.insert(child,move_capture);
+                    let thin=self.contextual_code_inputs(child_definition,expected,b)?;
                     self.definition(module,context,child,active,b)?;
                     let CoreExprKind::Closure{move_capture,..}=&expression.kind else{unreachable!()};
                     let used=self.used.get(&child).cloned().unwrap_or_default();let consumed=self.uses.get(&child).cloned().unwrap_or_default();
@@ -128,7 +129,15 @@ impl CheckedOriginal {
                         self.read_original(module,context,&Place{binder:binding.identity.clone(),fields:vec![]},&binding.ty,env,*move_capture,active,b)?;
                     }
                     let child_env=self.environment(module,context,child,active,b)?;let frame=child_env.lexical.first().ok_or_else(||bad("original child scope absent"))?;
-                    Ty::Closure(child,frame.actuals.clone(),frame.environment.clone())
+                    if let Some(code)=thin {
+                        if let CoreExprKind::Closure{return_type:Some(annotation),..}=&expression.kind {
+                            let declared=self.ty(module,context,annotation,&child_env,active,b)?;
+                            let result=self.results.get(&child).cloned().ok_or_else(||bad("thin literal has no proved original result"))?;
+                            self.unify(&declared,&result,b)?;
+                        }
+                        self.finish_contextual_code(id,expression.id,child,site,&code,b)?;
+                        code
+                    }else{Ty::Closure(child,frame.actuals.clone(),frame.environment.clone())}
                 },
                 CoreExprKind::Try(value)=>match self.expression(module,context,value,env,bindings,None,active,b)?{Ty::ErrorUnion(_,result)=>*result,_=>return Err(bad("original propagation has no ErrorUnion operand"))},
                 _=>return Err(unsupported("original expression has no complete symbolic operation rule",Some(expression.span))),
