@@ -478,3 +478,38 @@ fn new_language_paths_keep_resource_limits() {
         );
     }
 }
+
+
+#[test]
+fn live_returned_window_reports_the_creation_conflict_and_subsequent_read() {
+    use zil_base::DiagnosticRole;
+
+    let source = r#"
+fn window(owner:ByteBuffer)->&mut[u8] {return bytes_view_mut(owner);}
+fn relay(owner:ByteBuffer)->&mut[u8] {return window(owner);}
+fn main()->i32 {
+    let b=bytes_new();
+    bytes_reserve(b,4);
+    bytes_push(b,7u8);
+    let slice=relay(b);
+    bytes_reserve(b,32);
+    return i32(slice[0]);
+}
+"#;
+    let report = checked(source);
+    assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+    let conflict = report.diagnostics.iter().find(|d| d.phase == Phase::Analyze
+        && d.code == "E-BORROW-CONFLICT").unwrap();
+    // Labels may select a subexpression. They must still refer to the actual
+    // operation in the original file, including the use after the conflict.
+    for (role, operation) in [(DiagnosticRole::BorrowCreated, "relay(b)"),
+                               (DiagnosticRole::ConflictingAccess, "bytes_reserve(b,32)"),
+                               (DiagnosticRole::LaterUse, "slice[0]")] {
+        let start = source.find(operation).unwrap();
+        assert!(conflict.related.iter().any(|row| row.role == role
+            && row.span.is_some_and(|span| span.file == FileId(0) && span.start < span.end
+                && span.start >= start && span.end <= start + operation.len())
+            && row.ir.is_some_and(|ir| ir.block.is_some() && ir.instruction.is_some())),
+            "{} role {role:?}", report.to_json());
+    }
+}

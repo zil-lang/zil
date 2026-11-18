@@ -11,7 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit, json_string};
-use zil_driver::{CompileOptions, Optimization, Stage, compile_path, compile_source};
+use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_path, compile_source};
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
 struct Temp(PathBuf, bool);
@@ -45,6 +45,10 @@ fn root() -> PathBuf {
         .unwrap()
 }
 fn build(text: &str, level: Optimization, fault: bool) -> Temp {
+    build_with_backend(text, level, fault, NativeBackend::default())
+}
+
+fn build_with_backend(text: &str, level: Optimization, fault: bool, backend: NativeBackend) -> Temp {
     let temp = Temp::new();
     fs::write(temp.0.join("source.zil"), text).unwrap();
     let clang = fault.then(|| fault_clang(&temp.0));
@@ -55,6 +59,7 @@ fn build(text: &str, level: Optimization, fault: bool) -> Temp {
             entry: Some("value".into()),
             output: Some(temp.0.join("program")),
             emit_dir: Some(temp.0.join("phases")),
+            backend,
             optimization: level,
             clang,
             ..CompileOptions::default()
@@ -281,6 +286,39 @@ fn dynamic_multimodule_byte_consumer_matches_rust_on_binary_inputs() {
                 input.iter().map(u8::to_ascii_uppercase).collect::<Vec<_>>()
             );
             assert!(zil.stderr.is_empty());
+        }
+    }
+}
+
+
+#[test]
+fn mutable_window_returns_preserve_the_owner_through_wrapper_composition() {
+    let program = r#"
+fn window(owner:ByteBuffer)->&mut[u8] {return bytes_view_mut(owner);}
+fn relay(owner:ByteBuffer)->&mut[u8] {return window(owner);}
+fn select_window(indirect:bool, owner:ByteBuffer)->&mut[u8] {
+    if indirect {return relay(owner);}
+    return window(owner);
+}
+fn value()->i32 {
+    let owner=bytes_new();
+    if !bytes_reserve(owner,1) || !bytes_push(owner,7u8) {return 1;}
+    let local=bytes_view_mut(owner);
+    local[0]=9u8;
+    let direct=relay(owner);
+    direct[0]=direct[0]+1u8;
+    let first=select_window(false,owner);
+    first[0]=first[0]+2u8;
+    let second=select_window(true,owner);
+    second[0]=second[0]+3u8;
+    return i32(bytes_view(owner)[0])-15;
+}
+"#;
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        for level in [Optimization::O0, Optimization::O2] {
+            let built = build_with_backend(program, level, false, backend);
+            let output = run(&built.0.join("program"), &[]);
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
         }
     }
 }
