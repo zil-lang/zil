@@ -3831,74 +3831,7 @@ impl<'a> Check<'a, '_> {
                 op: UnaryOp::Borrow | UnaryOp::BorrowMut,
                 operand,
             } => {
-                if matches!(
-                    &expression.kind,
-                    CoreExprKind::Unary {
-                        op: UnaryOp::BorrowMut,
-                        ..
-                    }
-                ) {
-                    self.writable(owner, operand, variables, depth + 1)?;
-                }
-                let inner = self.place(owner, operand, variables, depth + 1)?;
-                let inner = if matches!(inner, SemanticTypeRecipe::Opaque { .. }) {
-                    // Keep the true borrowed value's original occurrence. Its
-                    // hidden recipe must later be evaluated at that exact
-                    // factory boundary, never in this borrow caller's scope.
-                    SemanticTypeRecipe::OriginalType {
-                        scope: SemanticScopeRef::Ancestor(0),
-                        source: SemanticOriginalTypeSource::Expression(operand.id),
-                    }
-                } else {
-                    inner
-                };
-                let occurrence = self.borrow_life(owner, expression.id)?;
-                let lifetime = if let Some(SemanticTypeRecipe::Address {
-                    lifetime,
-                    inner: expected,
-                    ..
-                }) = wanted
-                {
-                    if matches!(
-                        lifetime,
-                        SemanticOuterLifeRecipe::Class(
-                            SemanticLifeRecipe::Implicit {
-                                scope: SemanticScopeRef::Ancestor(u32::MAX),
-                                ..
-                            } | SemanticLifeRecipe::Environment {
-                                scope: SemanticScopeRef::Ancestor(u32::MAX),
-                                ..
-                            }
-                        )
-                    ) {
-                        occurrence
-                    } else {
-                        self.same(&inner, expected)?;
-                        self.contextual_borrow_role(
-                            owner,
-                            expression,
-                            operand,
-                            variables,
-                            &inner,
-                            &occurrence,
-                            lifetime,
-                            depth + 1,
-                        )?
-                    }
-                } else {
-                    occurrence
-                };
-                SemanticTypeRecipe::Address {
-                    mutable: matches!(
-                        expression.kind,
-                        CoreExprKind::Unary {
-                            op: UnaryOp::BorrowMut,
-                            ..
-                        }
-                    ),
-                    lifetime,
-                    inner: Box::new(inner),
-                }
+                return self.borrow_expression(owner, expression, operand, variables, wanted, depth);
             }
             CoreExprKind::Unary {
                 op: UnaryOp::Dereference,
@@ -4011,256 +3944,8 @@ impl<'a> Check<'a, '_> {
                     wanted,
                     depth + 1,
                 )?,
-            CoreExprKind::Closure {
-                move_capture,
-                parameters,
-                body,
-                ..
-            } => {
-                let site = self
-                    .site(owner, SemanticOriginalNode::Expression(expression.id))?
-                    .ok_or_else(|| {
-                        bad("original closure has no explicit child declaration site")
-                    })?;
-                let SemanticSiteRecipeKind::Closure {
-                    definition,
-                    environment,
-                } = &site.kind
-                else {
-                    return Err(bad("original closure site changes operation kind"));
-                };
-                self.pay(1, depth)?;
-                if self
-                    .proof
-                    .proof_mut()?
-                    .closure_move
-                    .insert(*definition, *move_capture)
-                    .is_some_and(|old| old != *move_capture)
-                {
-                    return Err(bad("one original closure changes its true capture mode"));
-                }
-                let child = self.definition(*definition)?;
-                if child.parent != Some(owner) {
-                    return Err(bad("original closure has a different lexical creator"));
-                }
-                let SemanticDefinitionBody::FunctionWithBody {
-                    parameters: declared,
-                    body: SemanticOriginalFunctionBody::Defined(child_body),
-                    ..
-                } = &child.body
-                else {
-                    return Err(bad(
-                        "original closure omits its complete parameter/body declaration",
-                    ));
-                };
-                if parameters.len() != declared.len()
-                    || parameters
-                        .iter()
-                        .zip(declared)
-                        .any(|(a, b)| a.name != b.name)
-                {
-                    return Err(bad(
-                        "closure original parameter binders differ across its real source site",
-                    ));
-                }
-                let _ = (body, child_body); // Full operation correspondence is indexed per original owner.
-
-                self.pay(
-                    self.proof
-                        .capture_candidates
-                        .len()
-                        .saturating_add(1)
-                        .ilog2() as usize
-                        + 2,
-                    depth,
-                )?;
-                let candidates = if let Some(candidates) =
-                    self.proof.capture_candidates.get(&child.id)
-                {
-                    candidates.clone()
-                } else {
-                    let candidates = capture_candidates::collect(child, self.limits, self.left)?;
-                    self.pay(2, depth)?;
-                    self.proof
-                        .proof_mut()?
-                        .capture_candidates
-                        .insert(child.id, candidates.clone());
-                    candidates
-                };
-                let mut captured = BTreeMap::new();
-                let mut given = BTreeSet::new();
-                for (name, value) in variables.iter() {
-                    self.pay(
-                        name.len().saturating_add(
-                            candidates.names.len().saturating_add(1).ilog2() as usize + 2,
-                        ),
-                        depth,
-                    )?;
-                    if !candidates.opaque_type_syntax && !candidates.names.contains(name) {
-                        continue;
-                    }
-                    self.pay(
-                        value
-                            .origin
-                            .copy_work()
-                            .saturating_add(value.taken_fields.len()),
-                        depth,
-                    )?;
-                    for field in &value.taken_fields {
-                        self.pay(field.len(), depth)?;
-                    }
-                    let inferred = !*move_capture && candidates.may_give && !value.borrowed
-                        && matches!(self.observation_type(owner, &value.ty, depth + 1)?, SemanticTypeRecipe::Managed(_))
-                        && zil_ir::original_capture_use(child, name, zil_ir::CaptureUse::Give,
-                            |work, search_depth, _| self.pay(work, depth.saturating_add(search_depth)),
-                            |message, span| Diagnostic::unsupported(Phase::Types, message, Some(span)),
-                        )?.is_some();
-                    if inferred {
-                        self.pay(name.len().saturating_add(given.len().saturating_add(1).ilog2() as usize + 1), depth)?;
-                        given.insert(name.clone());
-                    }
-                    let moved = *move_capture || inferred;
-                    let mut value = Binding {
-                        ty: copy_recipe(&value.ty, self.limits, self.left)?,
-                        mutable: value.mutable,
-                        used: value.used,
-                        observed: value.observed,
-                        capture: value.capture,
-                        borrowed: value.borrowed,
-                        origin: value.origin.clone(),
-                        origin_owner: value.origin_owner,
-                        initialized: value.initialized,
-                        written: value.written,
-                        resource_root: self.capture_resource_root(
-                            owner, child.id, &value.ty, value.resource_root, moved,
-                            depth + 1,
-                        )?,
-                        taken_fields: value.taken_fields.clone(),
-                        shadowed: None,
-                    };
-                    value.capture = true;
-                    value.borrowed = !moved;
-                    value.observed = false;
-                    // Writes before creation belong to the creator. The child
-                    // independently records writes performed by its own body.
-                    value.written = false;
-                    let mut sealed = None;
-                    for (slot, formal) in child.environment.iter().enumerate() {
-                        if let SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
-                            scope: SemanticScopeRef::Ancestor(0),
-                            source,
-                        }) = &formal.source
-                        {
-                            let matches = match source {
-                                SemanticOriginalTypeSource::NameAt {
-                                    at: SemanticOriginalNode::Expression(at),
-                                    name: source_name,
-                                } => *at == expression.id && source_name == name,
-                                _ => {
-                                    value.origin_owner == owner
-                                        && Query::from(source.clone()) == value.origin
-                                }
-                            };
-                            if matches {
-                                let move_view = if *move_capture
-                                    && matches!(source, SemanticOriginalTypeSource::NameAt { .. })
-                                {
-                                    self.moved_capture_type(owner, &value, depth + 1)?
-                                } else {
-                                    None
-                                };
-                                let parent_type = if let Some(move_view) = move_view {
-                                    let snapshot = copy_recipe(&move_view, self.limits, self.left)?;
-                                    self.pay(name.len().saturating_add(1), depth)?;
-                                    self.proof.proof_mut()?.types.insert(
-                                        (owner, Query::from(source.clone())),
-                                        snapshot,
-                                    );
-                                    move_view
-                                } else {
-                                    copy_recipe(&value.ty, self.limits, self.left)?
-                                };
-                                self.proof
-                                    .proof_mut()?
-                                    .environments
-                                    .insert((child.id, slot as u32), (owner, parent_type));
-                                sealed = Some(SemanticTypeRecipe::Environment {
-                                    scope: SemanticScopeRef::Ancestor(0),
-                                    ordinal: slot as u32,
-                                });
-                            }
-                        }
-                    }
-                    value.ty = if let Some(sealed) = sealed {
-                        sealed
-                    } else {
-                        self.rehome(owner, child, &value.ty, depth + 1)?
-                    };
-                    captured.insert(name.clone(), value);
-                }
-                let result_goal = match wanted {
-                    Some(SemanticTypeRecipe::Code { .. }) =>
-                        self.contextual_code_signature(owner, child, wanted, depth + 1)?,
-                    _ => self.contextual_closure_signature(owner, child, wanted, depth + 1)?,
-                };
-                let parent_goal = std::mem::replace(&mut self.closure_result_goal,
-                    result_goal.map(|ty| (child.id, ty)));
-                let checked = self.function(child, Some(captured));
-                self.closure_result_goal = parent_goal;
-                checked?;
-                let captures = self.captures.get(definition).ok_or_else(|| {
-                    bad("original closure lacks a completed lexical capture set")
-                })?;
-                let cost = captures.iter().map(|name| name.len().saturating_add(1)).sum();
-                self.pay(cost, depth)?;
-                let captures = self.captures.get(definition).cloned().ok_or_else(|| {
-                    bad("original closure lacks a completed lexical capture set")
-                })?;
-                for name in captures {
-                    if !given.is_empty() {
-                        self.pay(name.len().saturating_add(1).saturating_mul(
-                            given.len().saturating_add(1).ilog2() as usize + 1,
-                        ), depth)?;
-                    }
-                    let value = variables.get_mut(&name)
-                        .ok_or_else(|| bad("original capture lost its creator binder"))?;
-                    if !*move_capture && !given.contains(&name) {
-                        let ty = self.observation_type(owner, &value.ty, depth + 1)?;
-                        if !matches!(ty, SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }) {
-                            self.pay(1, depth)?;
-                            self.proof.proof_mut()?.borrowed_capture_heads.insert(child.id);
-                        }
-                        continue;
-                    }
-                    if !self.copy_type(owner, &value.ty, depth + 1)? {
-                        if value.borrowed {
-                            return Err(bad("original move closure cannot transfer a non-Copy shared capture"));
-                        }
-                        if value.used || !value.initialized || !value.taken_fields.is_empty() {
-                            return Err(bad("original closure captures an already transferred affine value"));
-                        }
-                        value.used = true;
-                    }
-                    value.observed = true;
-                    self.observe_capture(owner, &name, value, depth + 1)?;
-                }
-                if !given.is_empty() {
-                    self.pay(self.proof.inferred_capture_moves.len().saturating_add(1).ilog2() as usize + 1, depth)?;
-                    self.proof.proof_mut()?.inferred_capture_moves.insert(child.id, given);
-                }
-                let mut sealed_environment = Vec::new();
-                for actual in environment {
-                    sealed_environment.push(self.resolved_actual(owner, actual, depth + 1)?);
-                }
-                if let Some(SemanticTypeRecipe::Code { kind: SemanticCodeKind::FunctionPointer, signature }) = wanted {
-                    self.checked_code_closure(owner, expression.id, child, signature, depth + 1)?
-                } else {
-                    SemanticTypeRecipe::Closure {
-                        definition: *definition,
-                        arguments: Vec::new(),
-                        environment: sealed_environment,
-                    }
-                }
+            CoreExprKind::Closure { .. } => {
+                return self.closure_expression(owner, expression, variables, wanted, depth);
             }
             CoreExprKind::Tuple(fields) if fields.is_empty() => {
                 SemanticTypeRecipe::Atom(Type::Unit)
@@ -4321,85 +4006,154 @@ impl<'a> Check<'a, '_> {
                 callee: _,
                 arguments,
             } => {
-                let site = self
-                    .site(owner, SemanticOriginalNode::Expression(expression.id))?
-                    .ok_or_else(|| {
-                        pending("original call has no resolved original target recipe")
-                    })?;
-                self.pay(
-                    usize::from(self.stage_depth > 0) + usize::from(self.cleanup_depth > 0),
-                    depth,
-                )?;
-                if self.stage_depth > 0 {
+                return self.call_expression(owner, expression, arguments, variables, wanted, depth);
+            }
+            _ => {
+                return Err(pending(
+                    "original operation awaits its complete symbolic typing rule",
+                ));
+            }
+        };
+        self.record_expression_type(owner, expression.id, result)
+    }
+    // Calls and closure literals may enter another complete original body.
+    // Keep their operation-specific temporaries in the corresponding checker.
+    fn call_expression(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        arguments: &[SemanticOriginalExpr],
+        variables: &mut BTreeMap<String, Binding>,
+        wanted: Option<&SemanticTypeRecipe>,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        let result = {
+            let site = self
+                .site(owner, SemanticOriginalNode::Expression(expression.id))?
+                .ok_or_else(|| {
+                    pending("original call has no resolved original target recipe")
+                })?;
+            self.pay(
+                usize::from(self.stage_depth > 0) + usize::from(self.cleanup_depth > 0),
+                depth,
+            )?;
+            if self.stage_depth > 0 {
+                self.proof
+                    .proof_mut()?
+                    .compile_time_calls
+                    .insert((owner, site.id));
+            }
+            if self.cleanup_depth > 0 {
+                self.proof
+                    .proof_mut()?
+                    .cleanup_calls
+                    .insert((owner, site.id));
+            }
+            if matches!(
+                site.kind,
+                SemanticSiteRecipeKind::OriginalCall
+                    | SemanticSiteRecipeKind::CallableCall { .. }
+            ) {
+                if let Some(result) =
+                    self.dyn_call(owner, expression, variables, wanted, depth + 1)?
+                {
+                    let copy = copy_recipe(&result, self.limits, self.left)?;
                     self.proof
                         .proof_mut()?
-                        .compile_time_calls
-                        .insert((owner, site.id));
+                        .types
+                        .insert((owner, Query::Expression(expression.id)), copy);
+                    return Ok(result);
                 }
-                if self.cleanup_depth > 0 {
+                if let Some(result) =
+                    self.method_call(owner, site.id, expression, variables, wanted, depth + 1)?
+                {
+                    let copy = copy_recipe(&result, self.limits, self.left)?;
                     self.proof
                         .proof_mut()?
-                        .cleanup_calls
-                        .insert((owner, site.id));
+                        .types
+                        .insert((owner, Query::Expression(expression.id)), copy);
+                    return Ok(result);
                 }
-                if matches!(
-                    site.kind,
-                    SemanticSiteRecipeKind::OriginalCall
-                        | SemanticSiteRecipeKind::CallableCall { .. }
-                ) {
-                    if let Some(result) =
-                        self.dyn_call(owner, expression, variables, wanted, depth + 1)?
-                    {
-                        let copy = copy_recipe(&result, self.limits, self.left)?;
-                        self.proof
-                            .proof_mut()?
-                            .types
-                            .insert((owner, Query::Expression(expression.id)), copy);
-                        return Ok(result);
-                    }
-                    if let Some(result) =
-                        self.method_call(owner, site.id, expression, variables, wanted, depth + 1)?
-                    {
-                        let copy = copy_recipe(&result, self.limits, self.left)?;
-                        self.proof
-                            .proof_mut()?
-                            .types
-                            .insert((owner, Query::Expression(expression.id)), copy);
-                        return Ok(result);
-                    }
-                    if let Some(result) =
-                        self.intrinsic(owner, site.id, expression, variables, wanted, depth + 1)?
-                    {
-                        self.intrinsic_resource_write(owner, site.id, arguments, variables, depth + 1)?;
-                        let copy = copy_recipe(&result, self.limits, self.left)?;
-                        self.proof
-                            .proof_mut()?
-                            .types
-                            .insert((owner, Query::Expression(expression.id)), copy);
-                        return Ok(result);
-                    }
-                    if let Some(result) = self.callable_call(
-                        owner,
-                        site.id,
-                        expression,
-                        variables,
-                        wanted,
-                        depth + 1,
-                    )? {
-                        let copy = copy_recipe(&result, self.limits, self.left)?;
-                        self.proof
-                            .proof_mut()?
-                            .types
-                            .insert((owner, Query::Expression(expression.id)), copy);
-                        return Ok(result);
-                    }
+                if let Some(result) =
+                    self.intrinsic(owner, site.id, expression, variables, wanted, depth + 1)?
+                {
+                    self.intrinsic_resource_write(owner, site.id, arguments, variables, depth + 1)?;
+                    let copy = copy_recipe(&result, self.limits, self.left)?;
+                    self.proof
+                        .proof_mut()?
+                        .types
+                        .insert((owner, Query::Expression(expression.id)), copy);
+                    return Ok(result);
                 }
-                let (target, actuals) = match &site.kind {
-                    SemanticSiteRecipeKind::Call { target, actuals } => (*target, actuals.clone()),
-                    SemanticSiteRecipeKind::CallableCall { .. } => {
-                        let CoreExprKind::Call { callee, .. } = &expression.kind else {
-                            unreachable!()
-                        };
+                if let Some(result) = self.callable_call(
+                    owner,
+                    site.id,
+                    expression,
+                    variables,
+                    wanted,
+                    depth + 1,
+                )? {
+                    let copy = copy_recipe(&result, self.limits, self.left)?;
+                    self.proof
+                        .proof_mut()?
+                        .types
+                        .insert((owner, Query::Expression(expression.id)), copy);
+                    return Ok(result);
+                }
+            }
+            let (target, actuals) = match &site.kind {
+                SemanticSiteRecipeKind::Call { target, actuals } => (*target, actuals.clone()),
+                SemanticSiteRecipeKind::CallableCall { .. } => {
+                    let CoreExprKind::Call { callee, .. } = &expression.kind else {
+                        unreachable!()
+                    };
+                    let value = self.place(owner, callee, variables, depth + 1)?;
+                    let value = if let SemanticTypeRecipe::Opaque { hidden, .. } = value {
+                        *hidden
+                    } else {
+                        value
+                    };
+                    let SemanticTypeRecipe::Closure {
+                        definition,
+                        arguments,
+                        ..
+                    } = value
+                    else {
+                        return Err(pending(
+                            "abstract callable needs its complete declared original role premise",
+                        ));
+                    };
+                    (definition, arguments)
+                }
+                SemanticSiteRecipeKind::OriginalCall => {
+                    let CoreExprKind::Call { callee, .. } = &expression.kind else {
+                        unreachable!()
+                    };
+                    let mut callee = callee.as_ref();
+                    while let CoreExprKind::TypeApply { callee: inner, .. }
+                    | CoreExprKind::GenericApply { callee: inner, .. } = &callee.kind
+                    {
+                        callee = inner;
+                    }
+                    if let Some(path) = self.declaration_path(callee, variables, depth + 1)? {
+                        let target = self.declaration_target(owner, &path, depth + 1)?
+                            .ok_or_else(|| {
+                                if path.len() == 1 {
+                                    bad("unbound original direct call name")
+                                } else {
+                                    pending("original call path lacks its real declaration import binding")
+                                }
+                            })?;
+                        let target_definition = self.definition(target)?;
+                        self.pay(target_definition.parameters.len(), depth)?;
+                        (
+                            target,
+                            vec![
+                                SemanticActualRecipe::Infer;
+                                target_definition.parameters.len()
+                            ],
+                        )
+                    } else {
                         let value = self.place(owner, callee, variables, depth + 1)?;
                         let value = if let SemanticTypeRecipe::Opaque { hidden, .. } = value {
                             *hidden
@@ -4413,148 +4167,435 @@ impl<'a> Check<'a, '_> {
                         } = value
                         else {
                             return Err(pending(
-                                "abstract callable needs its complete declared original role premise",
+                                "original callable requires its declared complete role premise",
                             ));
                         };
                         (definition, arguments)
                     }
-                    SemanticSiteRecipeKind::OriginalCall => {
-                        let CoreExprKind::Call { callee, .. } = &expression.kind else {
-                            unreachable!()
-                        };
-                        let mut callee = callee.as_ref();
-                        while let CoreExprKind::TypeApply { callee: inner, .. }
-                        | CoreExprKind::GenericApply { callee: inner, .. } = &callee.kind
-                        {
-                            callee = inner;
-                        }
-                        if let Some(path) = self.declaration_path(callee, variables, depth + 1)? {
-                            let target = self.declaration_target(owner, &path, depth + 1)?
-                                .ok_or_else(|| {
-                                    if path.len() == 1 {
-                                        bad("unbound original direct call name")
-                                    } else {
-                                        pending("original call path lacks its real declaration import binding")
-                                    }
-                                })?;
-                            let target_definition = self.definition(target)?;
-                            self.pay(target_definition.parameters.len(), depth)?;
-                            (
-                                target,
-                                vec![
-                                    SemanticActualRecipe::Infer;
-                                    target_definition.parameters.len()
-                                ],
-                            )
-                        } else {
-                            let value = self.place(owner, callee, variables, depth + 1)?;
-                            let value = if let SemanticTypeRecipe::Opaque { hidden, .. } = value {
-                                *hidden
-                            } else {
-                                value
-                            };
-                            let SemanticTypeRecipe::Closure {
-                                definition,
-                                arguments,
-                                ..
-                            } = value
-                            else {
-                                return Err(pending(
-                                    "original callable requires its declared complete role premise",
-                                ));
-                            };
-                            (definition, arguments)
-                        }
-                    }
-                    _ => return Err(bad("original call site has a different operation kind")),
-                };
-                let definition = self.definition(target)?;
-                if !self.proof.complete.contains(&target)
-                    && !self.active.contains(&target)
-                    && definition.kind != SemanticDefinitionKind::Closure
-                {
-                    self.function(definition, None)?;
                 }
-                let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body
-                else {
-                    return Err(bad(
-                        "original call target omits its complete body/signature",
-                    ));
-                };
-                let CoreExprKind::Call { callee, .. } = &expression.kind else {
-                    unreachable!()
-                };
-                crate::dyn_metadata::semantic_operand_snapshot(
-                    signature,
-                    self.limits,
-                    self.left,
-                    1,
-                )?;
-                let signature = SemanticSignatureRecipe {
-                    bound_lifetimes: signature.bound_lifetimes,
-                    invocation_lifetimes: signature.invocation_lifetimes,
-                    parameters: signature.parameters.clone(),
-                    result: self.effective_result(target, &signature.result, depth + 1)?,
-                    result_mode: signature.result_mode,
-                    call_kind: signature.call_kind,
-                };
-                self.pay(arguments.len(), depth)?;
-                let arguments: Vec<_> = arguments.iter().collect();
-                let (actuals, solved_signature) = self.solve_signature(
-                    owner,
-                    expression,
-                    callee,
-                    &arguments,
-                    &signature,
-                    &definition.parameters,
-                    &actuals,
-                    variables,
-                    wanted,
-                    false,
-                    depth + 1,
-                )?;
-                self.call_requirements(owner, definition, &actuals, depth + 1)?;
-                self.description_call(owner, target, &arguments, &solved_signature, variables, depth + 1)?;
-                self.pay(actuals.len(), depth)?;
-                self.proof
-                    .proof_mut()?
-                    .call_targets
-                    .insert((owner, site.id), target);
-                for (ordinal, actual) in actuals.iter().enumerate() {
-                    if let SemanticActualRecipe::Const { carrier, .. } = actual {
-                        let carrier = copy_recipe(carrier, self.limits, self.left)?;
-                        self.proof.proof_mut()?.types.insert(
-                            (
-                                owner,
-                                Query::CallConstCarrier {
-                                    call: expression.id,
-                                    formal: ordinal as u32,
-                                },
-                            ),
-                            carrier,
-                        );
-                    }
-                }
-                self.proof
-                    .proof_mut()?
-                    .calls
-                    .insert((owner, site.id), actuals.clone());
-                crate::dyn_metadata::semantic_operand_snapshot(
-                    &solved_signature,
-                    self.limits,
-                    self.left,
-                    1,
-                )?;
-                self.proof
-                    .proof_mut()?
-                    .direct_calls
-                    .insert((owner, site.id), solved_signature.clone());
-                solved_signature.result
+                _ => return Err(bad("original call site has a different operation kind")),
+            };
+            let definition = self.definition(target)?;
+            if !self.proof.complete.contains(&target)
+                && !self.active.contains(&target)
+                && definition.kind != SemanticDefinitionKind::Closure
+            {
+                self.function(definition, None)?;
             }
-            _ => {
-                return Err(pending(
-                    "original operation awaits its complete symbolic typing rule",
+            let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body
+            else {
+                return Err(bad(
+                    "original call target omits its complete body/signature",
                 ));
+            };
+            let CoreExprKind::Call { callee, .. } = &expression.kind else {
+                unreachable!()
+            };
+            crate::dyn_metadata::semantic_operand_snapshot(
+                signature,
+                self.limits,
+                self.left,
+                1,
+            )?;
+            let signature = SemanticSignatureRecipe {
+                bound_lifetimes: signature.bound_lifetimes,
+                invocation_lifetimes: signature.invocation_lifetimes,
+                parameters: signature.parameters.clone(),
+                result: self.effective_result(target, &signature.result, depth + 1)?,
+                result_mode: signature.result_mode,
+                call_kind: signature.call_kind,
+            };
+            self.pay(arguments.len(), depth)?;
+            let arguments: Vec<_> = arguments.iter().collect();
+            let (actuals, solved_signature) = self.solve_signature(
+                owner,
+                expression,
+                callee,
+                &arguments,
+                &signature,
+                &definition.parameters,
+                &actuals,
+                variables,
+                wanted,
+                false,
+                depth + 1,
+            )?;
+            self.call_requirements(owner, definition, &actuals, depth + 1)?;
+            self.description_call(owner, target, &arguments, &solved_signature, variables, depth + 1)?;
+            self.pay(actuals.len(), depth)?;
+            self.proof
+                .proof_mut()?
+                .call_targets
+                .insert((owner, site.id), target);
+            for (ordinal, actual) in actuals.iter().enumerate() {
+                if let SemanticActualRecipe::Const { carrier, .. } = actual {
+                    let carrier = copy_recipe(carrier, self.limits, self.left)?;
+                    self.proof.proof_mut()?.types.insert(
+                        (
+                            owner,
+                            Query::CallConstCarrier {
+                                call: expression.id,
+                                formal: ordinal as u32,
+                            },
+                        ),
+                        carrier,
+                    );
+                }
+            }
+            self.proof
+                .proof_mut()?
+                .calls
+                .insert((owner, site.id), actuals.clone());
+            crate::dyn_metadata::semantic_operand_snapshot(
+                &solved_signature,
+                self.limits,
+                self.left,
+                1,
+            )?;
+            self.proof
+                .proof_mut()?
+                .direct_calls
+                .insert((owner, site.id), solved_signature.clone());
+            solved_signature.result
+        };
+        self.record_expression_type(owner, expression.id, result)
+    }
+    fn closure_expression(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        variables: &mut BTreeMap<String, Binding>,
+        wanted: Option<&SemanticTypeRecipe>,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        let CoreExprKind::Closure { move_capture, parameters, body, .. } = &expression.kind else {
+            unreachable!();
+        };
+        let result = {
+            let site = self
+                .site(owner, SemanticOriginalNode::Expression(expression.id))?
+                .ok_or_else(|| {
+                    bad("original closure has no explicit child declaration site")
+                })?;
+            let SemanticSiteRecipeKind::Closure {
+                definition,
+                environment,
+            } = &site.kind
+            else {
+                return Err(bad("original closure site changes operation kind"));
+            };
+            self.pay(1, depth)?;
+            if self
+                .proof
+                .proof_mut()?
+                .closure_move
+                .insert(*definition, *move_capture)
+                .is_some_and(|old| old != *move_capture)
+            {
+                return Err(bad("one original closure changes its true capture mode"));
+            }
+            let child = self.definition(*definition)?;
+            if child.parent != Some(owner) {
+                return Err(bad("original closure has a different lexical creator"));
+            }
+            let SemanticDefinitionBody::FunctionWithBody {
+                parameters: declared,
+                body: SemanticOriginalFunctionBody::Defined(child_body),
+                ..
+            } = &child.body
+            else {
+                return Err(bad(
+                    "original closure omits its complete parameter/body declaration",
+                ));
+            };
+            if parameters.len() != declared.len()
+                || parameters
+                    .iter()
+                    .zip(declared)
+                    .any(|(a, b)| a.name != b.name)
+            {
+                return Err(bad(
+                    "closure original parameter binders differ across its real source site",
+                ));
+            }
+            let _ = (body, child_body); // Full operation correspondence is indexed per original owner.
+
+            self.pay(
+                self.proof
+                    .capture_candidates
+                    .len()
+                    .saturating_add(1)
+                    .ilog2() as usize
+                    + 2,
+                depth,
+            )?;
+            let candidates = if let Some(candidates) =
+                self.proof.capture_candidates.get(&child.id)
+            {
+                candidates.clone()
+            } else {
+                let candidates = capture_candidates::collect(child, self.limits, self.left)?;
+                self.pay(2, depth)?;
+                self.proof
+                    .proof_mut()?
+                    .capture_candidates
+                    .insert(child.id, candidates.clone());
+                candidates
+            };
+            let mut captured = BTreeMap::new();
+            let mut given = BTreeSet::new();
+            for (name, value) in variables.iter() {
+                self.pay(
+                    name.len().saturating_add(
+                        candidates.names.len().saturating_add(1).ilog2() as usize + 2,
+                    ),
+                    depth,
+                )?;
+                if !candidates.opaque_type_syntax && !candidates.names.contains(name) {
+                    continue;
+                }
+                self.pay(
+                    value
+                        .origin
+                        .copy_work()
+                        .saturating_add(value.taken_fields.len()),
+                    depth,
+                )?;
+                for field in &value.taken_fields {
+                    self.pay(field.len(), depth)?;
+                }
+                let inferred = !*move_capture && candidates.may_give && !value.borrowed
+                    && matches!(self.observation_type(owner, &value.ty, depth + 1)?, SemanticTypeRecipe::Managed(_))
+                    && zil_ir::original_capture_use(child, name, zil_ir::CaptureUse::Give,
+                        |work, search_depth, _| self.pay(work, depth.saturating_add(search_depth)),
+                        |message, span| Diagnostic::unsupported(Phase::Types, message, Some(span)),
+                    )?.is_some();
+                if inferred {
+                    self.pay(name.len().saturating_add(given.len().saturating_add(1).ilog2() as usize + 1), depth)?;
+                    given.insert(name.clone());
+                }
+                let moved = *move_capture || inferred;
+                let mut value = Binding {
+                    ty: copy_recipe(&value.ty, self.limits, self.left)?,
+                    mutable: value.mutable,
+                    used: value.used,
+                    observed: value.observed,
+                    capture: value.capture,
+                    borrowed: value.borrowed,
+                    origin: value.origin.clone(),
+                    origin_owner: value.origin_owner,
+                    initialized: value.initialized,
+                    written: value.written,
+                    resource_root: self.capture_resource_root(
+                        owner, child.id, &value.ty, value.resource_root, moved,
+                        depth + 1,
+                    )?,
+                    taken_fields: value.taken_fields.clone(),
+                    shadowed: None,
+                };
+                value.capture = true;
+                value.borrowed = !moved;
+                value.observed = false;
+                // Writes before creation belong to the creator. The child
+                // independently records writes performed by its own body.
+                value.written = false;
+                let mut sealed = None;
+                for (slot, formal) in child.environment.iter().enumerate() {
+                    if let SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        source,
+                    }) = &formal.source
+                    {
+                        let matches = match source {
+                            SemanticOriginalTypeSource::NameAt {
+                                at: SemanticOriginalNode::Expression(at),
+                                name: source_name,
+                            } => *at == expression.id && source_name == name,
+                            _ => {
+                                value.origin_owner == owner
+                                    && Query::from(source.clone()) == value.origin
+                            }
+                        };
+                        if matches {
+                            let move_view = if *move_capture
+                                && matches!(source, SemanticOriginalTypeSource::NameAt { .. })
+                            {
+                                self.moved_capture_type(owner, &value, depth + 1)?
+                            } else {
+                                None
+                            };
+                            let parent_type = if let Some(move_view) = move_view {
+                                let snapshot = copy_recipe(&move_view, self.limits, self.left)?;
+                                self.pay(name.len().saturating_add(1), depth)?;
+                                self.proof.proof_mut()?.types.insert(
+                                    (owner, Query::from(source.clone())),
+                                    snapshot,
+                                );
+                                move_view
+                            } else {
+                                copy_recipe(&value.ty, self.limits, self.left)?
+                            };
+                            self.proof
+                                .proof_mut()?
+                                .environments
+                                .insert((child.id, slot as u32), (owner, parent_type));
+                            sealed = Some(SemanticTypeRecipe::Environment {
+                                scope: SemanticScopeRef::Ancestor(0),
+                                ordinal: slot as u32,
+                            });
+                        }
+                    }
+                }
+                value.ty = if let Some(sealed) = sealed {
+                    sealed
+                } else {
+                    self.rehome(owner, child, &value.ty, depth + 1)?
+                };
+                captured.insert(name.clone(), value);
+            }
+            let result_goal = match wanted {
+                Some(SemanticTypeRecipe::Code { .. }) =>
+                    self.contextual_code_signature(owner, child, wanted, depth + 1)?,
+                _ => self.contextual_closure_signature(owner, child, wanted, depth + 1)?,
+            };
+            let parent_goal = std::mem::replace(&mut self.closure_result_goal,
+                result_goal.map(|ty| (child.id, ty)));
+            let checked = self.function(child, Some(captured));
+            self.closure_result_goal = parent_goal;
+            checked?;
+            let captures = self.captures.get(definition).ok_or_else(|| {
+                bad("original closure lacks a completed lexical capture set")
+            })?;
+            let cost = captures.iter().map(|name| name.len().saturating_add(1)).sum();
+            self.pay(cost, depth)?;
+            let captures = self.captures.get(definition).cloned().ok_or_else(|| {
+                bad("original closure lacks a completed lexical capture set")
+            })?;
+            for name in captures {
+                if !given.is_empty() {
+                    self.pay(name.len().saturating_add(1).saturating_mul(
+                        given.len().saturating_add(1).ilog2() as usize + 1,
+                    ), depth)?;
+                }
+                let value = variables.get_mut(&name)
+                    .ok_or_else(|| bad("original capture lost its creator binder"))?;
+                if !*move_capture && !given.contains(&name) {
+                    let ty = self.observation_type(owner, &value.ty, depth + 1)?;
+                    if !matches!(ty, SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }) {
+                        self.pay(1, depth)?;
+                        self.proof.proof_mut()?.borrowed_capture_heads.insert(child.id);
+                    }
+                    continue;
+                }
+                if !self.copy_type(owner, &value.ty, depth + 1)? {
+                    if value.borrowed {
+                        return Err(bad("original move closure cannot transfer a non-Copy shared capture"));
+                    }
+                    if value.used || !value.initialized || !value.taken_fields.is_empty() {
+                        return Err(bad("original closure captures an already transferred affine value"));
+                    }
+                    value.used = true;
+                }
+                value.observed = true;
+                self.observe_capture(owner, &name, value, depth + 1)?;
+            }
+            if !given.is_empty() {
+                self.pay(self.proof.inferred_capture_moves.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+                self.proof.proof_mut()?.inferred_capture_moves.insert(child.id, given);
+            }
+            let mut sealed_environment = Vec::new();
+            for actual in environment {
+                sealed_environment.push(self.resolved_actual(owner, actual, depth + 1)?);
+            }
+            if let Some(SemanticTypeRecipe::Code { kind: SemanticCodeKind::FunctionPointer, signature }) = wanted {
+                self.checked_code_closure(owner, expression.id, child, signature, depth + 1)?
+            } else {
+                SemanticTypeRecipe::Closure {
+                    definition: *definition,
+                    arguments: Vec::new(),
+                    environment: sealed_environment,
+                }
+            }
+        };
+        self.record_expression_type(owner, expression.id, result)
+    }
+    fn borrow_expression(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        operand: &SemanticOriginalExpr,
+        variables: &mut BTreeMap<String, Binding>,
+        wanted: Option<&SemanticTypeRecipe>,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        let result = {
+            if matches!(
+                &expression.kind,
+                CoreExprKind::Unary {
+                    op: UnaryOp::BorrowMut,
+                    ..
+                }
+            ) {
+                self.writable(owner, operand, variables, depth + 1)?;
+            }
+            let inner = self.place(owner, operand, variables, depth + 1)?;
+            let inner = if matches!(inner, SemanticTypeRecipe::Opaque { .. }) {
+                // Keep the true borrowed value's original occurrence. Its
+                // hidden recipe must later be evaluated at that exact
+                // factory boundary, never in this borrow caller's scope.
+                SemanticTypeRecipe::OriginalType {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    source: SemanticOriginalTypeSource::Expression(operand.id),
+                }
+            } else {
+                inner
+            };
+            let occurrence = self.borrow_life(owner, expression.id)?;
+            let lifetime = if let Some(SemanticTypeRecipe::Address {
+                lifetime,
+                inner: expected,
+                ..
+            }) = wanted
+            {
+                if matches!(
+                    lifetime,
+                    SemanticOuterLifeRecipe::Class(
+                        SemanticLifeRecipe::Implicit {
+                            scope: SemanticScopeRef::Ancestor(u32::MAX),
+                            ..
+                        } | SemanticLifeRecipe::Environment {
+                            scope: SemanticScopeRef::Ancestor(u32::MAX),
+                            ..
+                        }
+                    )
+                ) {
+                    occurrence
+                } else {
+                    self.same(&inner, expected)?;
+                    self.contextual_borrow_role(
+                        owner,
+                        expression,
+                        operand,
+                        variables,
+                        &inner,
+                        &occurrence,
+                        lifetime,
+                        depth + 1,
+                    )?
+                }
+            } else {
+                occurrence
+            };
+            SemanticTypeRecipe::Address {
+                mutable: matches!(
+                    expression.kind,
+                    CoreExprKind::Unary {
+                        op: UnaryOp::BorrowMut,
+                        ..
+                    }
+                ),
+                lifetime,
+                inner: Box::new(inner),
             }
         };
         self.record_expression_type(owner, expression.id, result)
@@ -5374,278 +5415,11 @@ impl<'a> Check<'a, '_> {
                 variables,
             )?;
             match &statement.kind {
-                CoreStatementKind::Binding {
-                    name,
-                    mutable,
-                    ty,
-                    initializer,
-                } => {
-                    let integer = if !*mutable && ty.is_none()
-                        && let Some(initializer) = initializer
-                        && let CoreExprKind::Integer(spelling) = &initializer.kind
-                        && self.contextual_integer(initializer, variables, depth + 1)?
-                    {
-                        self.snapshot(owner, SemanticOriginalNode::Expression(initializer.id), variables)?;
-                        self.pay(spelling.len().saturating_add(self.integer_initializers.len()).saturating_add(1), depth)?;
-                        self.integer_initializers.entry(owner).or_default().insert(statement.id,
-                            IntegerInitializer { expression: initializer.id, spelling: spelling.clone(), span: initializer.span });
-                        Some(SemanticTypeRecipe::OriginalType {
-                            scope: SemanticScopeRef::Ancestor(0),
-                            source: SemanticOriginalTypeSource::Binding(statement.id),
-                        })
-                    } else {
-                        None
-                    };
-                    let deferred = integer.is_some();
-                    let annotation = ty
-                        .as_ref()
-                        .map(|ty| self.resolve(owner, ty, depth + 1))
-                        .transpose()?;
-                    // A raw resource at an initialized local annotation root
-                    // constrains only the family. The initializer still proves
-                    // its owning/description category and its entire life domain.
-                    let family = match annotation.as_ref() {
-                        Some(annotation) => self.resource_head(owner, annotation, depth + 1)?,
-                        None => false,
-                    };
-                    let hint = if family {
-                        match (annotation.as_ref(), initializer.as_ref()) {
-                            (Some(annotation), Some(initializer))
-                                if self.initializer_owns(
-                                    owner,
-                                    initializer,
-                                    variables,
-                                    depth + 1,
-                                )? =>
-                            {
-                                self.pay(1, depth)?;
-                                Some(SemanticTypeRecipe::Managed(Box::new(copy_recipe(
-                                    annotation,
-                                    self.limits,
-                                    self.left,
-                                )?)))
-                            }
-                            _ => None,
-                        }
-                    } else {
-                        annotation
-                            .as_ref()
-                            .map(|ty| copy_recipe(ty, self.limits, self.left))
-                            .transpose()?
-                    };
-                    let actual = if deferred {
-                        integer
-                    } else if let (Some(value), Some(expected)) = (initializer, hint.as_ref())
-                    {
-                        if let Some(view) = self.shared_input_view(
-                            owner,
-                            Query::Binding(statement.id),
-                            value,
-                            expected,
-                            variables,
-                            depth + 1,
-                        )? {
-                            Some(view)
-                        } else {
-                            Some(self.expr(owner, value, variables, Some(expected), depth + 1)?)
-                        }
-                    } else {
-                        initializer
-                            .as_ref()
-                            .map(|value| {
-                                self.expr(owner, value, variables, hint.as_ref(), depth + 1)
-                            })
-                            .transpose()?
-                    };
-                    let value = if family {
-                        let actual = actual.as_ref().ok_or_else(|| {
-                            bad("resource-family binding has no initializing category")
-                        })?;
-                        let actual = self.observation_type(owner, actual, depth + 1)?;
-                        let payload = match &actual {
-                            SemanticTypeRecipe::Managed(inner)
-                            | SemanticTypeRecipe::Desc { inner, .. } => inner.as_ref(),
-                            _ => {
-                                return Err(bad(
-                                    "original resource-family initializer has no proved owning or description category",
-                                ));
-                            }
-                        };
-                        let annotation = annotation.as_ref().ok_or_else(|| {
-                            bad("resource-family binding lost its original annotation")
-                        })?;
-                        self.same(annotation, payload)?;
-                        actual
-                    } else {
-                        if let (Some(a), Some(b)) = (&annotation, &actual) {
-                            self.same(a, b)?;
-                        }
-                        annotation.or(actual).ok_or_else(|| {
-                            bad("original uninitialized binding has no declared symbolic type")
-                        })?
-                    };
-                    let value = if *mutable && (ty.is_none() || family) {
-                        if let Some(initializer) = initializer {
-                            self.view_bound(owner, initializer, variables, depth + 1)?;
-                            self.introduce_role(
-                                owner,
-                                statement.id,
-                                initializer,
-                                value,
-                                variables,
-                                depth + 1,
-                            )?
-                        } else {
-                            value
-                        }
-                    } else {
-                        value
-                    };
-                    if !deferred {
-                        let copy = copy_recipe(&value, self.limits, self.left)?;
-                        self.proof
-                            .proof_mut()?
-                            .types
-                            .insert((owner, Query::Binding(statement.id)), copy);
-                    }
-                    if let Some(initializer) = initializer {
-                        if !*mutable {
-                            self.record_task_binding(
-                                owner,
-                                statement.id,
-                                initializer,
-                                variables,
-                                depth + 1,
-                            )?;
-                        }
-                        self.alias_result_origin(
-                            owner,
-                            Query::Binding(statement.id),
-                            &Query::Expression(initializer.id),
-                            depth + 1,
-                        )?;
-                    }
-                    let resource_root = if matches!(value, SemanticTypeRecipe::Desc { .. }) {
-                        let alias = resource_writes::Root::Alias(owner, statement.id);
-                        if let Some(initializer) = initializer {
-                            let roots = self.resource_place_roots(owner, initializer, variables, depth + 1)?;
-                            self.record_resource_write(roots, Some(alias), depth + 1)?;
-                        }
-                        Some(alias)
-                    } else {
-                        None
-                    };
-                    self.insert_binding(
-                        variables,
-                        name.clone(),
-                        Binding {
-                            ty: value,
-                            mutable: *mutable,
-                            used: false,
-                            observed: false,
-                            capture: false,
-                            borrowed: false,
-                            origin: Query::Binding(statement.id),
-                            origin_owner: owner,
-                            initialized: initializer.is_some(),
-                            written: false,
-                            resource_root,
-                            taken_fields: BTreeSet::new(),
-                            shadowed: None,
-                        },
-                        depth,
-                    )?;
+                CoreStatementKind::Binding { .. } => {
+                    self.binding_statement(owner, statement, variables, depth)?;
                 }
                 CoreStatementKind::Return(Some(value)) => {
-                    let value_node = value;
-                    let task_family = self.task_return_family(result);
-                    let value = if task_family {
-                        self.task_return_value(owner, value, variables, result, depth + 1)?
-                    } else {
-                        // The declaration is a typing goal, not its yet-unproved
-                        // hidden result equation. Resolving the current opaque's
-                        // Result here would depend on the closure we are about
-                        // to check and discard its declared parameter goals.
-                        let target = if matches!(result, SemanticTypeRecipe::Opaque {
-                            definition, hidden, ..
-                        } if *definition == owner && matches!(hidden.as_ref(),
-                            SemanticTypeRecipe::OriginalType {
-                                scope: SemanticScopeRef::Ancestor(0),
-                                source: SemanticOriginalTypeSource::Result,
-                            })) {
-                            Some(copy_recipe(result, self.limits, self.left)?)
-                        } else if matches!(result, SemanticTypeRecipe::OriginalType {
-                            scope: SemanticScopeRef::Ancestor(0),
-                            source: SemanticOriginalTypeSource::Result,
-                        }) {
-                            // An inferred declaration has no result goal until
-                            // its real returns have supplied their equations.
-                            None
-                        } else {
-                            Some(self.resolve(owner, result, depth + 1)?)
-                        };
-                        // A receiver is a boundary upper, never a replacement
-                        // for the original borrow expression's own sigma.
-                        let target = target.as_ref().filter(|value| !matches!(value,
-                            SemanticTypeRecipe::Address { lifetime, .. }
-                                if views::is_receiver_upper(lifetime)));
-                        self.expr(owner, value, variables, target, depth + 1)?
-                    };
-                    let value = self.receiver_return_value(
-                        owner, value_node, variables, &value, depth + 1,
-                    )?.unwrap_or(value);
-                    self.ensure_escape(owner, &value, depth + 1)?;
-                    let infer = matches!(
-                        result,
-                        SemanticTypeRecipe::OriginalType {
-                            scope: SemanticScopeRef::Ancestor(0),
-                            source: SemanticOriginalTypeSource::Result
-                        }
-                    ) || matches!(result, SemanticTypeRecipe::Opaque { hidden, .. } if matches!(hidden.as_ref(), SemanticTypeRecipe::OriginalType { scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result }));
-                    if infer {
-                        if let Some(old) = self.proof.types.get(&(owner, Query::Result)) {
-                            let old = copy_recipe(old, self.limits, self.left)?;
-                            self.same(&old, &value)?;
-                        } else {
-                            let copy = copy_recipe(&value, self.limits, self.left)?;
-                            self.proof
-                                .proof_mut()?
-                                .types
-                                .insert((owner, Query::Result), copy);
-                        }
-                    }
-                    let expected = self.resolve(owner, result, depth + 1)?;
-                    if let SemanticTypeRecipe::Opaque {
-                        definition, hidden, ..
-                    } = &expected
-                    {
-                        if *definition != owner {
-                            return Err(bad(
-                                "original return constructs another definition's opaque result",
-                            ));
-                        }
-                        self.same(&value, hidden)?;
-                    } else if !task_family
-                        && !self.return_view(
-                            owner,
-                            value_node,
-                            variables,
-                            &value,
-                            &expected,
-                            depth + 1,
-                        )?
-                    {
-                        self.same(&value, &expected)?;
-                    }
-                    self.record_task_return(
-                        owner,
-                        statement.id,
-                        value_node,
-                        &value,
-                        variables,
-                        depth + 1,
-                    )?;
-                    self.capture_exit(owner, variables, depth + 1)?;
+                    self.return_statement(owner, statement, value, result, variables, depth)?;
                     live = false;
                 }
                 CoreStatementKind::Return(None) => {
@@ -5725,99 +5499,7 @@ impl<'a> Check<'a, '_> {
                 }
                 CoreStatementKind::Assign { target, value }
                 | CoreStatementKind::CompoundAssign { target, value, .. } => {
-                    self.record_task_place_source(owner, target, variables, depth + 1)?;
-                    let mut expected = self.writable(owner, target, variables, depth + 1)?;
-                    if matches!(&statement.kind, CoreStatementKind::CompoundAssign { .. }) {
-                        let observed = self.place(owner, target, variables, depth + 1)?;
-                        self.same(&expected, &observed)?;
-                        expected = self.observation_type(owner, &expected, depth + 1)?;
-                        let SemanticTypeRecipe::Atom(primitive) = &expected else {
-                            return Err(bad(
-                                "original compound assignment lacks a primitive endpoint premise",
-                            ));
-                        };
-                        let CoreStatementKind::CompoundAssign { op, .. } = &statement.kind else {
-                            unreachable!()
-                        };
-                        if !primitive.is_integer() && !primitive.is_float()
-                            || matches!(
-                                op,
-                                BinaryOp::Equal
-                                    | BinaryOp::NotEqual
-                                    | BinaryOp::Less
-                                    | BinaryOp::LessEqual
-                                    | BinaryOp::Greater
-                                    | BinaryOp::GreaterEqual
-                                    | BinaryOp::And
-                                    | BinaryOp::Or
-                            )
-                            || primitive.is_float()
-                                && matches!(
-                                    op,
-                                    BinaryOp::BitAnd
-                                        | BinaryOp::BitOr
-                                        | BinaryOp::BitXor
-                                        | BinaryOp::ShiftLeft
-                                        | BinaryOp::ShiftRight
-                                        | BinaryOp::AddWrapping
-                                        | BinaryOp::SubtractWrapping
-                                        | BinaryOp::MultiplyWrapping
-                                )
-                        {
-                            return Err(bad(
-                                "original compound assignment has an incompatible operator",
-                            ));
-                        }
-                    }
-                    let role = if let CoreExprKind::Name(name) = &target.kind {
-                        let binding = variables.get(name).ok_or_else(|| bad("original assignment target disappeared"))?;
-                        if let Query::Binding(statement) = binding.origin {
-                            let key = (binding.origin_owner, statement);
-                            self.pay(self.proof.local_roles.len().saturating_add(1).ilog2() as usize + 1, depth)?;
-                            self.proof.local_roles.contains_key(&key).then_some(key)
-                        } else { None }
-                    } else { None };
-                    // A replacement borrow contributes its own actual source
-                    // to an inferred local role. Checking it against the role's
-                    // previous sources would reject a different live referent.
-                    let direct_role_borrow = if role.is_some() {
-                        let mut source = value;
-                        while let CoreExprKind::Group(inner) = &source.kind {
-                            self.pay(1, depth)?;
-                            source = inner;
-                        }
-                        matches!(source.kind, CoreExprKind::Unary { op: UnaryOp::Borrow | UnaryOp::BorrowMut, .. })
-                    } else { false };
-                    let context = (!direct_role_borrow).then_some(&expected);
-                    let actual = self.expr(owner, value, variables, context, depth + 1)?;
-                    if let Some((role_owner, statement)) = role {
-                        self.view_bound(owner, value, variables, depth + 1)?;
-                        self.assign_role(owner, role_owner, statement, value, &actual, variables, depth + 1)?;
-                    } else {
-                        self.same(&actual, &expected)?;
-                    }
-                    if let CoreExprKind::Name(name) = &target.kind {
-                        if let Some(alias @ resource_writes::Root::Alias(..)) =
-                            variables.get(name).and_then(|binding| binding.resource_root)
-                        {
-                            let roots = self.resource_place_roots(owner, value, variables, depth + 1)?;
-                            self.record_resource_write(roots, Some(alias), depth + 1)?;
-                        }
-                        let target = variables
-                            .get_mut(name)
-                            .ok_or_else(|| bad("original assignment target disappeared"))?;
-                        target.used = false;
-                        target.initialized = true;
-                        target.written = true;
-                        target.taken_fields.clear();
-                    } else if let CoreExprKind::Member { object, member, .. } = &target.kind {
-                        if let CoreExprKind::Name(name) = &object.kind {
-                            self.pay(name.len().saturating_add(member.len()), depth)?;
-                            if let Some(binding) = variables.get_mut(name) {
-                                binding.taken_fields.remove(member);
-                            }
-                        }
-                    }
+                    self.assignment_statement(owner, statement, target, value, variables, depth)?;
                 }
                 CoreStatementKind::TupleBinding {
                     pattern,
@@ -6120,6 +5802,397 @@ impl<'a> Check<'a, '_> {
             }
         }
         Ok(live)
+    }
+    fn binding_statement(
+        &mut self,
+        owner: SemanticDefinitionId,
+        statement: &zil_ir::SemanticOriginalStatement,
+        variables: &mut BTreeMap<String, Binding>,
+        depth: usize,
+    ) -> R<()> {
+        let CoreStatementKind::Binding {name, mutable, ty, initializer} = &statement.kind else {
+            unreachable!();
+        };
+        let integer = if !*mutable && ty.is_none()
+            && let Some(initializer) = initializer
+            && let CoreExprKind::Integer(spelling) = &initializer.kind
+            && self.contextual_integer(initializer, variables, depth + 1)?
+        {
+            self.snapshot(owner, SemanticOriginalNode::Expression(initializer.id), variables)?;
+            self.pay(spelling.len().saturating_add(self.integer_initializers.len()).saturating_add(1), depth)?;
+            self.integer_initializers.entry(owner).or_default().insert(statement.id,
+                IntegerInitializer { expression: initializer.id, spelling: spelling.clone(), span: initializer.span });
+            Some(SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0),
+                source: SemanticOriginalTypeSource::Binding(statement.id),
+            })
+        } else {
+            None
+        };
+        let deferred = integer.is_some();
+        let annotation = ty
+            .as_ref()
+            .map(|ty| self.resolve(owner, ty, depth + 1))
+            .transpose()?;
+        // A raw resource at an initialized local annotation root
+        // constrains only the family. The initializer still proves
+        // its owning/description category and its entire life domain.
+        let family = match annotation.as_ref() {
+            Some(annotation) => self.resource_head(owner, annotation, depth + 1)?,
+            None => false,
+        };
+        let hint = if family {
+            match (annotation.as_ref(), initializer.as_ref()) {
+                (Some(annotation), Some(initializer))
+                    if self.initializer_owns(
+                        owner,
+                        initializer,
+                        variables,
+                        depth + 1,
+                    )? =>
+                {
+                    self.pay(1, depth)?;
+                    Some(SemanticTypeRecipe::Managed(Box::new(copy_recipe(
+                        annotation,
+                        self.limits,
+                        self.left,
+                    )?)))
+                }
+                _ => None,
+            }
+        } else {
+            annotation
+                .as_ref()
+                .map(|ty| copy_recipe(ty, self.limits, self.left))
+                .transpose()?
+        };
+        let actual = if deferred {
+            integer
+        } else if let (Some(value), Some(expected)) = (initializer, hint.as_ref())
+        {
+            if let Some(view) = self.shared_input_view(
+                owner,
+                Query::Binding(statement.id),
+                value,
+                expected,
+                variables,
+                depth + 1,
+            )? {
+                Some(view)
+            } else {
+                Some(self.expr(owner, value, variables, Some(expected), depth + 1)?)
+            }
+        } else {
+            initializer
+                .as_ref()
+                .map(|value| {
+                    self.expr(owner, value, variables, hint.as_ref(), depth + 1)
+                })
+                .transpose()?
+        };
+        let value = if family {
+            let actual = actual.as_ref().ok_or_else(|| {
+                bad("resource-family binding has no initializing category")
+            })?;
+            let actual = self.observation_type(owner, actual, depth + 1)?;
+            let payload = match &actual {
+                SemanticTypeRecipe::Managed(inner)
+                | SemanticTypeRecipe::Desc { inner, .. } => inner.as_ref(),
+                _ => {
+                    return Err(bad(
+                        "original resource-family initializer has no proved owning or description category",
+                    ));
+                }
+            };
+            let annotation = annotation.as_ref().ok_or_else(|| {
+                bad("resource-family binding lost its original annotation")
+            })?;
+            self.same(annotation, payload)?;
+            actual
+        } else {
+            if let (Some(a), Some(b)) = (&annotation, &actual) {
+                self.same(a, b)?;
+            }
+            annotation.or(actual).ok_or_else(|| {
+                bad("original uninitialized binding has no declared symbolic type")
+            })?
+        };
+        let value = if *mutable && (ty.is_none() || family) {
+            if let Some(initializer) = initializer {
+                self.view_bound(owner, initializer, variables, depth + 1)?;
+                self.introduce_role(
+                    owner,
+                    statement.id,
+                    initializer,
+                    value,
+                    variables,
+                    depth + 1,
+                )?
+            } else {
+                value
+            }
+        } else {
+            value
+        };
+        if !deferred {
+            let copy = copy_recipe(&value, self.limits, self.left)?;
+            self.proof
+                .proof_mut()?
+                .types
+                .insert((owner, Query::Binding(statement.id)), copy);
+        }
+        if let Some(initializer) = initializer {
+            if !*mutable {
+                self.record_task_binding(
+                    owner,
+                    statement.id,
+                    initializer,
+                    variables,
+                    depth + 1,
+                )?;
+            }
+            self.alias_result_origin(
+                owner,
+                Query::Binding(statement.id),
+                &Query::Expression(initializer.id),
+                depth + 1,
+            )?;
+        }
+        let resource_root = if matches!(value, SemanticTypeRecipe::Desc { .. }) {
+            let alias = resource_writes::Root::Alias(owner, statement.id);
+            if let Some(initializer) = initializer {
+                let roots = self.resource_place_roots(owner, initializer, variables, depth + 1)?;
+                self.record_resource_write(roots, Some(alias), depth + 1)?;
+            }
+            Some(alias)
+        } else {
+            None
+        };
+        self.insert_binding(
+            variables,
+            name.clone(),
+            Binding {
+                ty: value,
+                mutable: *mutable,
+                used: false,
+                observed: false,
+                capture: false,
+                borrowed: false,
+                origin: Query::Binding(statement.id),
+                origin_owner: owner,
+                initialized: initializer.is_some(),
+                written: false,
+                resource_root,
+                taken_fields: BTreeSet::new(),
+                shadowed: None,
+            },
+            depth,
+        )?;
+        Ok(())
+    }
+    fn return_statement(
+        &mut self,
+        owner: SemanticDefinitionId,
+        statement: &zil_ir::SemanticOriginalStatement,
+        value: &SemanticOriginalExpr,
+        result: &SemanticTypeRecipe,
+        variables: &mut BTreeMap<String, Binding>,
+        depth: usize,
+    ) -> R<()> {
+        let value_node = value;
+        let task_family = self.task_return_family(result);
+        let value = if task_family {
+            self.task_return_value(owner, value, variables, result, depth + 1)?
+        } else {
+            // The declaration is a typing goal, not its yet-unproved
+            // hidden result equation. Resolving the current opaque's
+            // Result here would depend on the closure we are about
+            // to check and discard its declared parameter goals.
+            let target = if matches!(result, SemanticTypeRecipe::Opaque {
+                definition, hidden, ..
+            } if *definition == owner && matches!(hidden.as_ref(),
+                SemanticTypeRecipe::OriginalType {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    source: SemanticOriginalTypeSource::Result,
+                })) {
+                Some(copy_recipe(result, self.limits, self.left)?)
+            } else if matches!(result, SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0),
+                source: SemanticOriginalTypeSource::Result,
+            }) {
+                // An inferred declaration has no result goal until
+                // its real returns have supplied their equations.
+                None
+            } else {
+                Some(self.resolve(owner, result, depth + 1)?)
+            };
+            // A receiver is a boundary upper, never a replacement
+            // for the original borrow expression's own sigma.
+            let target = target.as_ref().filter(|value| !matches!(value,
+                SemanticTypeRecipe::Address { lifetime, .. }
+                    if views::is_receiver_upper(lifetime)));
+            self.expr(owner, value, variables, target, depth + 1)?
+        };
+        let value = self.receiver_return_value(
+            owner, value_node, variables, &value, depth + 1,
+        )?.unwrap_or(value);
+        self.ensure_escape(owner, &value, depth + 1)?;
+        let infer = matches!(
+            result,
+            SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0),
+                source: SemanticOriginalTypeSource::Result
+            }
+        ) || matches!(result, SemanticTypeRecipe::Opaque { hidden, .. } if matches!(hidden.as_ref(), SemanticTypeRecipe::OriginalType { scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result }));
+        if infer {
+            if let Some(old) = self.proof.types.get(&(owner, Query::Result)) {
+                let old = copy_recipe(old, self.limits, self.left)?;
+                self.same(&old, &value)?;
+            } else {
+                let copy = copy_recipe(&value, self.limits, self.left)?;
+                self.proof
+                    .proof_mut()?
+                    .types
+                    .insert((owner, Query::Result), copy);
+            }
+        }
+        let expected = self.resolve(owner, result, depth + 1)?;
+        if let SemanticTypeRecipe::Opaque {
+            definition, hidden, ..
+        } = &expected
+        {
+            if *definition != owner {
+                return Err(bad(
+                    "original return constructs another definition's opaque result",
+                ));
+            }
+            self.same(&value, hidden)?;
+        } else if !task_family
+            && !self.return_view(
+                owner,
+                value_node,
+                variables,
+                &value,
+                &expected,
+                depth + 1,
+            )?
+        {
+            self.same(&value, &expected)?;
+        }
+        self.record_task_return(
+            owner,
+            statement.id,
+            value_node,
+            &value,
+            variables,
+            depth + 1,
+        )?;
+        self.capture_exit(owner, variables, depth + 1)?;
+        Ok(())
+    }
+    fn assignment_statement(
+        &mut self,
+        owner: SemanticDefinitionId,
+        statement: &zil_ir::SemanticOriginalStatement,
+        target: &SemanticOriginalExpr,
+        value: &SemanticOriginalExpr,
+        variables: &mut BTreeMap<String, Binding>,
+        depth: usize,
+    ) -> R<()> {
+        self.record_task_place_source(owner, target, variables, depth + 1)?;
+        let mut expected = self.writable(owner, target, variables, depth + 1)?;
+        if matches!(&statement.kind, CoreStatementKind::CompoundAssign { .. }) {
+            let observed = self.place(owner, target, variables, depth + 1)?;
+            self.same(&expected, &observed)?;
+            expected = self.observation_type(owner, &expected, depth + 1)?;
+            let SemanticTypeRecipe::Atom(primitive) = &expected else {
+                return Err(bad(
+                    "original compound assignment lacks a primitive endpoint premise",
+                ));
+            };
+            let CoreStatementKind::CompoundAssign { op, .. } = &statement.kind else {
+                unreachable!()
+            };
+            if !primitive.is_integer() && !primitive.is_float()
+                || matches!(
+                    op,
+                    BinaryOp::Equal
+                        | BinaryOp::NotEqual
+                        | BinaryOp::Less
+                        | BinaryOp::LessEqual
+                        | BinaryOp::Greater
+                        | BinaryOp::GreaterEqual
+                        | BinaryOp::And
+                        | BinaryOp::Or
+                )
+                || primitive.is_float()
+                    && matches!(
+                        op,
+                        BinaryOp::BitAnd
+                            | BinaryOp::BitOr
+                            | BinaryOp::BitXor
+                            | BinaryOp::ShiftLeft
+                            | BinaryOp::ShiftRight
+                            | BinaryOp::AddWrapping
+                            | BinaryOp::SubtractWrapping
+                            | BinaryOp::MultiplyWrapping
+                    )
+            {
+                return Err(bad(
+                    "original compound assignment has an incompatible operator",
+                ));
+            }
+        }
+        let role = if let CoreExprKind::Name(name) = &target.kind {
+            let binding = variables.get(name).ok_or_else(|| bad("original assignment target disappeared"))?;
+            if let Query::Binding(statement) = binding.origin {
+                let key = (binding.origin_owner, statement);
+                self.pay(self.proof.local_roles.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+                self.proof.local_roles.contains_key(&key).then_some(key)
+            } else { None }
+        } else { None };
+        // A replacement borrow contributes its own actual source
+        // to an inferred local role. Checking it against the role's
+        // previous sources would reject a different live referent.
+        let direct_role_borrow = if role.is_some() {
+            let mut source = value;
+            while let CoreExprKind::Group(inner) = &source.kind {
+                self.pay(1, depth)?;
+                source = inner;
+            }
+            matches!(source.kind, CoreExprKind::Unary { op: UnaryOp::Borrow | UnaryOp::BorrowMut, .. })
+        } else { false };
+        let context = (!direct_role_borrow).then_some(&expected);
+        let actual = self.expr(owner, value, variables, context, depth + 1)?;
+        if let Some((role_owner, statement)) = role {
+            self.view_bound(owner, value, variables, depth + 1)?;
+            self.assign_role(owner, role_owner, statement, value, &actual, variables, depth + 1)?;
+        } else {
+            self.same(&actual, &expected)?;
+        }
+        if let CoreExprKind::Name(name) = &target.kind {
+            if let Some(alias @ resource_writes::Root::Alias(..)) =
+                variables.get(name).and_then(|binding| binding.resource_root)
+            {
+                let roots = self.resource_place_roots(owner, value, variables, depth + 1)?;
+                self.record_resource_write(roots, Some(alias), depth + 1)?;
+            }
+            let target = variables
+                .get_mut(name)
+                .ok_or_else(|| bad("original assignment target disappeared"))?;
+            target.used = false;
+            target.initialized = true;
+            target.written = true;
+            target.taken_fields.clear();
+        } else if let CoreExprKind::Member { object, member, .. } = &target.kind {
+            if let CoreExprKind::Name(name) = &object.kind {
+                self.pay(name.len().saturating_add(member.len()), depth)?;
+                if let Some(binding) = variables.get_mut(name) {
+                    binding.taken_fields.remove(member);
+                }
+            }
+        }
+        Ok(())
     }
     fn range_element(
         &mut self,
