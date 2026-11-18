@@ -411,6 +411,7 @@ fn named_and_literal_function_addresses_keep_their_original_identity_on_raw_and_
         "claim",
         "parent",
         "capture",
+        "duplicate child",
     ] {
         let mut changed = raw.clone();
         let encoded = changed.semantic.as_mut().unwrap();
@@ -484,6 +485,11 @@ fn named_and_literal_function_addresses_keep_their_original_identity_on_raw_and_
                     .find(|i| i.id == child.id)
                     .unwrap()
                     .parent = None
+            }
+            "duplicate child" => {
+                let mut duplicate = child.clone();
+                duplicate.id.index = encoded.instances.iter().map(|i| i.id.index).max().unwrap() + 1;
+                encoded.instances.push(duplicate);
             }
             "capture" => {
                 // Change both original copies so structural source correspondence still succeeds.

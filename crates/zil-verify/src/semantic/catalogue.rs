@@ -236,9 +236,11 @@ impl CheckedContext {
                 {return Err(bad("thin literal changes its original creator, environment or actual SSA occurrence"));}
                 let program=module.semantic.as_ref().ok_or_else(||bad("thin literal has no instance directory"))?;
                 b.spend(program.instances.len())?;
-                if !program.instances.iter().any(|row|row.definition==*definition && row.parent==Some(instance.id)
-                    && row.environment.is_none() && row.target==SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(*target)))
-                {return Err(bad("thin literal FunctionRef lacks its exact environment-free child instance"));}
+                let mut children=program.instances.iter().filter(|row|row.definition==*definition && row.parent==Some(instance.id)
+                    && row.environment.is_none() && row.target==SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(*target)));
+                if children.next().is_none() || children.next().is_some(){
+                    return Err(bad("thin literal FunctionRef lacks a unique environment-free child of its actual creator"));
+                }
                 raw_value(expected,b)?;
             }
             (SemanticSiteRecipeKind::Closure{definition,..},SemanticSiteAction::Closure{result,closure,environment})=>{
