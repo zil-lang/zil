@@ -675,8 +675,13 @@ pub(super) fn owned(owner: &Arc<Geometry>, b: &mut Budget) -> CompileResult<Rece
 fn child_type(owner: &Arc<Geometry>, child: Child, b: &mut Budget) -> CompileResult<usize> {
     // A Type-only entry retains this exact real parent, whose whole domain was
     // checked independently. It creates no empty-domain child Value.
-    let actual = node(owner, Node::Child(child))?;
     b.spend(1, "semantic geometry physical field selector")?;
+    let actual = node(owner, Node::Child(child))?;
+    // A published coordinate retains its actual parent. Repeated projection
+    // can query the child's complete Type directly even under a new life map.
+    if let Some((id, _)) = registered_type(actual, b)? {
+        return Ok(id);
+    }
     let owner_receipt = owned(owner, b)?;
     let key = (owner_receipt.type_id, child);
     b.lookup(
@@ -686,7 +691,10 @@ fn child_type(owner: &Arc<Geometry>, child: Child, b: &mut Budget) -> CompileRes
     let (id, raw_work) = if let Some(row) = b.geometry_child_types.get(&key).copied() {
         row
     } else {
-        let (raw, digest, id) = bounded_type_candidate(actual, b)?;
+        let before = b.remaining();
+        crate::dyn_metadata::ty(actual, b)?;
+        let raw = before - b.remaining();
+        let (digest, id) = structural_type_candidate(actual, raw, b)?;
         let id = match id {
             Some(id) => id,
             None => add_type(owner, Node::Child(child), digest, raw, b)?,
@@ -704,21 +712,19 @@ fn child_type(owner: &Arc<Geometry>, child: Child, b: &mut Budget) -> CompileRes
         "semantic geometry physical child coordinate",
     )?;
     let address = actual as *const Type as usize;
-    if registered_type(actual, b)?.is_none() {
-        b.spend(1, "semantic geometry shared result")?;
-        b.geometry_types.insert(
-            address,
-            TypeEntry {
-                owner: Arc::clone(owner),
-                raw_work,
-                raw_limits: limits(b),
-                module: b.geometry_module,
-                nominal: None,
-                type_id: id,
-                coordinate: Node::Child(child),
-            },
-        );
-    }
+    b.spend(1, "semantic geometry shared result")?;
+    b.geometry_types.insert(
+        address,
+        TypeEntry {
+            owner: Arc::clone(owner),
+            raw_work,
+            raw_limits: limits(b),
+            module: b.geometry_module,
+            nominal: None,
+            type_id: id,
+            coordinate: Node::Child(child),
+        },
+    );
     Ok(id)
 }
 pub(super) fn retain_child(
