@@ -22,7 +22,7 @@ pub(in crate::semantic) enum AddressProjection {Field(String),Index(NodeId),Slic
 #[derive(Clone,Copy)]
 pub(in crate::semantic) struct Use {pub(in crate::semantic) kind:Intrinsic,pub(in crate::semantic) buffer:Option<BufferSource>,pub(in crate::semantic) worker:Option<SemanticDefinitionId>,pub(in crate::semantic) providers:Option<[SemanticDefinitionId;3]>}
 impl Intrinsic {
-    pub(in crate::semantic) fn actual(kind:&InstructionKind)->Option<Self>{Some(match kind{
+    pub(in crate::semantic) fn actual(function:&TypedFunction,kind:&InstructionKind)->Option<Self>{Some(match kind{
         InstructionKind::ConvertInteger{target,..}|InstructionKind::ConvertNumber{target,..}=>Self::Convert(Numeric::from_type(target)?),
         InstructionKind::ForeignFunctionRef{..}=>Self::CCallback,
         InstructionKind::SliceLength{..}=>Self::SliceLen,
