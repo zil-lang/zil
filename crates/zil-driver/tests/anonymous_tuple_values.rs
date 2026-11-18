@@ -24,24 +24,27 @@ fn input(text: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "anonymous-tuple.zil", text)
 }
 fn prepare(text: &str) -> (TypedModule, CandidatePlan) {
+    prepare_with_original(text, false)
+}
+fn prepare_with_original(text: &str, original: bool) -> (TypedModule, CandidatePlan) {
     let input = input(text);
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
     let syntax = zil_syntax::parse(&input).into_result().unwrap();
-    let core = zil_expand::expand_with_map_limits_target_context(
-        &input,
-        &syntax,
-        &limits,
-        &target,
-        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
-            root: input.module_id,
-            aliases: &BTreeMap::new(),
-            declarations: zil_expand::source_context::DeclarationPlacement::Original,
-        },
-    )
-    .unwrap()
-    .core;
+    let context = zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+        root: input.module_id,
+        aliases: &BTreeMap::new(),
+        declarations: zil_expand::source_context::DeclarationPlacement::Original,
+    };
+    let expanded = if original {
+        zil_expand::expand_with_map_semantics(&input, &syntax, &limits, &target, context)
+    } else {
+        zil_expand::expand_with_map_limits_target_context(&input, &syntax, &limits, &target, context)
+    }
+    .unwrap();
+    let core = expanded.core;
     let module = zil_types::check(&core, &target, &limits).unwrap();
+    assert_eq!(module.semantic.is_some(), original);
     let candidate = zil_analyze::analyze(&module, &limits).unwrap();
     (module, candidate)
 }
@@ -75,9 +78,76 @@ fn actual_anonymous_tuple_sources_verify_raw_wire() {
             )
             .unwrap();
         }
+        // The raw carrier and the same Source with its original declarations
+        // must both survive the independent Raw and Wire entry points.
         verify(module, candidate);
+        let (module, candidate) = prepare_with_original(text, true);
+        if name == "exclusive" {
+            verify(module.clone(), candidate.clone());
+            reject_swapped_tuple_bindings(module, candidate);
+        } else {
+            verify(module, candidate);
+        }
     }
 }
+
+fn reject_swapped_tuple_bindings(mut module: TypedModule, mut candidate: CandidatePlan) {
+    use zil_ir::InstructionKind as I;
+    let function = module
+        .functions
+        .iter_mut()
+        .find(|function| function.name == "edit")
+        .unwrap();
+    let (block, ordinal) = function
+        .blocks
+        .iter_mut()
+        .find_map(|block| {
+            block
+                .instructions
+                .iter()
+                .position(|instruction| matches!(instruction.kind, I::UnpackTuple { .. }))
+                .map(|ordinal| (block, ordinal))
+        })
+        .unwrap();
+    let I::UnpackTuple { fields, .. } = &mut block.instructions[ordinal].kind else {
+        unreachable!()
+    };
+    assert_eq!(fields.len(), 2);
+    let (left, right) = (fields[0], fields[1]);
+    assert_ne!(left, right);
+    assert_eq!(
+        function.locals[left.0 as usize].ty,
+        function.locals[right.0 as usize].ty
+    );
+    fields.swap(0, 1);
+    // Preserve the declaration bundle's actual reverse order. The original
+    // field classes must still distinguish the two same-typed destinations.
+    assert_eq!(
+        block.instructions[ordinal - 2].kind,
+        I::StorageLive(right)
+    );
+    assert_eq!(
+        block.instructions[ordinal - 1].kind,
+        I::StorageLive(left)
+    );
+    block.instructions.swap(ordinal - 2, ordinal - 1);
+    candidate.module_fingerprint = module.fingerprint();
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    for errors in [
+        zil_verify::verify_module(module, candidate, &target, &limits).unwrap_err(),
+        zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err(),
+    ] {
+        assert!(
+            errors.iter().any(|error| error.category == ResultCategory::SafeReject
+                && error.code == "E-VERIFY-SEMANTIC"
+                && error.message.contains("actual TypeUse violates its original rigid class requirement")),
+            "{errors:?}"
+        );
+    }
+}
+
 #[test]
 fn anonymous_tuple_values_run_both_backends_with_real_cleanup() {
     for (name, text, stdout) in [
