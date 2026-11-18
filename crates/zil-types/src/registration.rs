@@ -287,20 +287,14 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> R<(ValueId, Type)> {
         let asynchronous = name.starts_with("async_registration_") || name == "c_register_async";
-        let (kind, ty) = if matches!(name, "c_register" | "c_register_async") {
-            let (register, close, drain, callback) = match arguments {
-                [register, close, callback] if !asynchronous => (register, close, None, callback),
-                [register, close, drain, callback] if asynchronous => {
-                    (register, close, Some(drain), callback)
-                }
-                _ => {
-                    return Err(error(
-                        "E-CALL-ARITY",
-                        span,
-                        "registration constructor requires ordered actual providers and F",
-                    ));
-                }
-            };
+        let (kind, ty) = if let Some(form @ (CallbackRegistration::Owned | CallbackRegistration::AsyncOwned)) = CallbackRegistration::from_name(name) {
+            let operands = form.operands(arguments).ok_or_else(|| error(
+                "E-CALL-ARITY", span, "registration constructor requires ordered actual providers and F",
+            ))?;
+            let register = &operands.providers[0];
+            let close = &operands.providers[1];
+            let drain = operands.providers.get(2);
+            let callback = operands.callback;
             let region = self.unsafe_regions.last().copied().ok_or_else(|| {
                 error(
                     "E-FFI-UNSAFE",
@@ -313,30 +307,10 @@ impl Builder<'_, '_> {
             let drain = drain.map(|d| self.resolve_callee(d).cloned()).transpose()?;
             let threaded = asynchronous
                 && register.scoped_callback == Some(ScopedCallbackRole::ThreadAsyncRegister);
-            if register.scoped_callback
-                != Some(if threaded {
-                    ScopedCallbackRole::ThreadAsyncRegister
-                } else if asynchronous {
-                    ScopedCallbackRole::AsyncRegister
-                } else {
-                    ScopedCallbackRole::Register
-                })
-                || close.scoped_callback
-                    != Some(if threaded {
-                        ScopedCallbackRole::ThreadAsyncRequestClose
-                    } else if asynchronous {
-                        ScopedCallbackRole::AsyncRequestClose
-                    } else {
-                        ScopedCallbackRole::Close
-                    })
-                || drain.as_ref().is_some_and(|d| {
-                    d.scoped_callback
-                        != Some(if threaded {
-                            ScopedCallbackRole::ThreadAsyncPollDrain
-                        } else {
-                            ScopedCallbackRole::AsyncPollDrain
-                        })
-                })
+            let roles = form.provider_roles(threaded);
+            if register.scoped_callback != Some(roles[0])
+                || close.scoped_callback != Some(roles[1])
+                || drain.as_ref().is_some_and(|d| d.scoped_callback != roles.get(2).copied())
             {
                 return Err(error(
                     "E-FFI-REGISTRATION",

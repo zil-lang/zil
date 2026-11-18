@@ -9,38 +9,13 @@ impl Check<'_, '_, '_> {
         span: Span,
     ) -> R<TypeRef> {
         let asynchronous = name == "c_register_async" || name.starts_with("async_registration_");
-        if matches!(name, "c_register" | "c_register_async") {
-            let (providers, callback): (Vec<_>, _) = match arguments {
-                [register, close, callback] if !asynchronous => (
-                    vec![
-                        (register, zil_ir::ScopedCallbackRole::Register),
-                        (close, zil_ir::ScopedCallbackRole::Close),
-                    ],
-                    callback,
-                ),
-                [register, close, drain, callback] if asynchronous => (
-                    vec![
-                        (register, zil_ir::ScopedCallbackRole::AsyncRegister),
-                        (close, zil_ir::ScopedCallbackRole::AsyncRequestClose),
-                        (drain, zil_ir::ScopedCallbackRole::AsyncPollDrain),
-                    ],
-                    callback,
-                ),
-                _ => {
-                    return Err(error(
-                        span,
-                        "registration constructor requires ordered actual providers and F",
-                    ));
-                }
-            };
-            if !self.unsafe_scope || arguments.iter().any(|a| a.spread) {
-                return Err(error(
-                    span,
-                    "c_register requires explicit unsafe and ordered arguments",
-                ));
-            }
+        if let Some(form @ (zil_ir::CallbackRegistration::Owned | zil_ir::CallbackRegistration::AsyncOwned)) = zil_ir::CallbackRegistration::from_name(name) {
+            let operands = form.operands(arguments).ok_or_else(|| error(
+                span, "registration constructor requires ordered actual providers and F",
+            ))?;
+            let callback = operands.callback;
             let mut threaded = false;
-            for (index, (argument, role)) in providers.into_iter().enumerate() {
+            for (index, argument) in operands.providers.iter().enumerate() {
                 self.tick(argument.span)?;
                 let name = super::super::super::foreign::bare_name(&argument.value)
                     .filter(|n| !state.locals.contains_key(*n))
@@ -68,22 +43,7 @@ impl Check<'_, '_, '_> {
                 if index == 0 && asynchronous {
                     threaded = actual == Some(zil_ir::ScopedCallbackRole::ThreadAsyncRegister);
                 }
-                let role = if threaded {
-                    match role {
-                        zil_ir::ScopedCallbackRole::AsyncRegister => {
-                            zil_ir::ScopedCallbackRole::ThreadAsyncRegister
-                        }
-                        zil_ir::ScopedCallbackRole::AsyncRequestClose => {
-                            zil_ir::ScopedCallbackRole::ThreadAsyncRequestClose
-                        }
-                        zil_ir::ScopedCallbackRole::AsyncPollDrain => {
-                            zil_ir::ScopedCallbackRole::ThreadAsyncPollDrain
-                        }
-                        other => other,
-                    }
-                } else {
-                    role
-                };
+                let role = form.provider_roles(threaded)[index];
                 if actual != Some(role) || !static_callbacks {
                     return Err(error(
                         argument.span,
@@ -355,7 +315,8 @@ impl Check<'_, '_, '_> {
         state: &mut State,
         span: Span,
     ) -> R<TypeRef> {
-        let [register, close, callback, body] = arguments else {
+        let Some(zil_ir::CallbackRegistrationOperands { providers, callback, body: Some(body) }) =
+                zil_ir::CallbackRegistration::Scoped.operands(arguments) else {
             return Err(error(
                 span,
                 "c_with_callback requires four ordered arguments",
@@ -373,10 +334,7 @@ impl Check<'_, '_, '_> {
                 "c_with_callback requires an explicit unsafe block",
             ));
         }
-        for (argument, role) in [
-            (register, zil_ir::ScopedCallbackRole::Register),
-            (close, zil_ir::ScopedCallbackRole::Close),
-        ] {
+        for (argument, role) in providers.iter().zip(zil_ir::CallbackRegistration::Scoped.provider_roles(false).iter().copied()) {
             self.tick(argument.span)?;
             let name = super::super::super::foreign::bare_name(&argument.value)
                 .filter(|n| !state.locals.contains_key(*n))

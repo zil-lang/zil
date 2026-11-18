@@ -317,7 +317,9 @@ fn static_code_selector(
     };
     let provider = match (intrinsic.as_str(), child) {
         ("task_create" | "task_create_owned" | "task_await" | "thread_scope", 1) => false,
-        ("c_register" | "c_with_callback", 1..=2) | ("c_register_async", 1..=3) => true,
+        (name, position) if zil_ir::CallbackRegistration::from_name(name)
+            .and_then(|form| form.operands(arguments))
+            .is_some_and(|operands| position as usize <= operands.providers.len()) => true,
         _ => return Ok(false),
     };
     let Some(operand) = arguments.get((child - 1) as usize) else {

@@ -1458,23 +1458,20 @@ impl Check<'_, '_> {
             );
             return Ok(Some(result));
         }
-        if matches!(name, "c_register" | "c_register_async") {
+        if let Some(form @ (CallbackRegistration::Owned | CallbackRegistration::AsyncOwned)) = CallbackRegistration::from_name(name) {
             if !self.original_unsafe(owner, expression.id, depth + 1)? {
                 return Err(bad(
                     "registration construction lacks its real original unsafe region",
                 ));
             }
             let asynchronous = name == "c_register_async";
-            let provider_count = if asynchronous { 3 } else { 2 };
-            if arguments.len() != provider_count + 1 {
-                return Err(bad(
-                    "registration constructor changes its ordered actual provider/callback arity",
-                ));
-            }
+            let operands = form.operands(arguments).ok_or_else(|| bad(
+                "registration constructor changes its ordered actual provider/callback arity",
+            ))?;
             let mut providers = Vec::new();
             let mut threaded_provider = None;
-            self.pay(provider_count, depth)?;
-            for (ordinal, argument) in arguments[..provider_count].iter().enumerate() {
+            self.pay(operands.providers.len(), depth)?;
+            for (ordinal, argument) in operands.providers.iter().enumerate() {
                 let id = self.static_provider(owner, argument, variables, depth + 1)?;
                 let definition = self.definition(id)?;
                 let SemanticDefinitionBody::FunctionWithBody {
@@ -1520,21 +1517,7 @@ impl Check<'_, '_> {
                 } else {
                     false
                 };
-                let role = if !asynchronous {
-                    [ScopedCallbackRole::Register, ScopedCallbackRole::Close][ordinal]
-                } else if threaded {
-                    [
-                        ScopedCallbackRole::ThreadAsyncRegister,
-                        ScopedCallbackRole::ThreadAsyncRequestClose,
-                        ScopedCallbackRole::ThreadAsyncPollDrain,
-                    ][ordinal]
-                } else {
-                    [
-                        ScopedCallbackRole::AsyncRegister,
-                        ScopedCallbackRole::AsyncRequestClose,
-                        ScopedCallbackRole::AsyncPollDrain,
-                    ][ordinal]
-                };
+                let role = form.provider_roles(threaded)[ordinal];
                 if !definition.parameters.is_empty()
                     || !definition.environment.is_empty()
                     || signature.call_kind != CallKind::Direct
@@ -1606,7 +1589,7 @@ impl Check<'_, '_> {
             }
             let callback = self.expr(
                 owner,
-                &arguments[provider_count],
+                operands.callback,
                 variables,
                 None,
                 depth + 1,

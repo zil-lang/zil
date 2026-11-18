@@ -5562,33 +5562,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             self.expression_index += 1;
             let asynchronous =
                 name.starts_with("async_registration_") || name == "c_register_async";
-            if matches!(name, "c_register" | "c_register_async") {
-                let (providers, callback): (Vec<_>, _) = match arguments.as_slice() {
-                    [register, close, callback] if !asynchronous => (
-                        vec![
-                            (register, ScopedCallbackRole::Register),
-                            (close, ScopedCallbackRole::Close),
-                        ],
-                        callback,
-                    ),
-                    [register, close, drain, callback] if asynchronous => (
-                        vec![
-                            (register, ScopedCallbackRole::AsyncRegister),
-                            (close, ScopedCallbackRole::AsyncRequestClose),
-                            (drain, ScopedCallbackRole::AsyncPollDrain),
-                        ],
-                        callback,
-                    ),
-                    _ => {
-                        return Err(error(
-                            "E-CALL-ARITY",
-                            span,
-                            "registration constructor requires ordered actual providers and F",
-                        ));
-                    }
-                };
+            if let Some(form @ (zil_ir::CallbackRegistration::Owned | zil_ir::CallbackRegistration::AsyncOwned)) = zil_ir::CallbackRegistration::from_name(name) {
+                let operands = form.operands(arguments).ok_or_else(|| error(
+                    "E-CALL-ARITY",
+                    span, "registration constructor requires ordered actual providers and F",
+                ))?;
+                let callback = operands.callback;
                 let mut threaded = false;
-                for (index, (expression, role)) in providers.into_iter().enumerate() {
+                for (index, expression) in operands.providers.iter().enumerate() {
                     let Term::Function(signature) = self.expr(expression, depth + 1, false)? else {
                         return Err(error(
                             "E-FFI-REGISTRATION",
@@ -5600,22 +5581,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         threaded = signature.scoped_callback
                             == Some(ScopedCallbackRole::ThreadAsyncRegister);
                     }
-                    let role = if threaded {
-                        match role {
-                            ScopedCallbackRole::AsyncRegister => {
-                                ScopedCallbackRole::ThreadAsyncRegister
-                            }
-                            ScopedCallbackRole::AsyncRequestClose => {
-                                ScopedCallbackRole::ThreadAsyncRequestClose
-                            }
-                            ScopedCallbackRole::AsyncPollDrain => {
-                                ScopedCallbackRole::ThreadAsyncPollDrain
-                            }
-                            other => other,
-                        }
-                    } else {
-                        role
-                    };
+                    let role = form.provider_roles(threaded)[index];
                     if signature.scoped_callback != Some(role) {
                         return Err(error(
                             "E-FFI-REGISTRATION",
@@ -5738,17 +5704,15 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         if matches!(&callee.kind,CoreExprKind::Name(name) if name=="c_with_callback") {
             self.budget.node(depth + 1, callee.span)?;
             self.expression_index += 1;
-            let [register, close, callback, body] = arguments.as_slice() else {
+            let Some(zil_ir::CallbackRegistrationOperands { providers, callback, body: Some(body) }) =
+                zil_ir::CallbackRegistration::Scoped.operands(arguments) else {
                 return Err(error(
                     "E-CALL-ARITY",
                     span,
                     "c_with_callback requires four arguments",
                 ));
             };
-            for (expression, role) in [
-                (register, ScopedCallbackRole::Register),
-                (close, ScopedCallbackRole::Close),
-            ] {
+            for (expression, role) in providers.iter().zip(zil_ir::CallbackRegistration::Scoped.provider_roles(false).iter().copied()) {
                 let Term::Function(signature) = self.expr(expression, depth + 1, false)? else {
                     return Err(error(
                         "E-FFI-SCOPED-ROLE",

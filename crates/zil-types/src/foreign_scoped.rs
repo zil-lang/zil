@@ -7,7 +7,8 @@ impl Builder<'_, '_> {
         expected: Option<&Type>,
         span: Span,
     ) -> R<(ValueId, Type)> {
-        let [register, close, callback, body] = arguments else {
+        let Some(zil_ir::CallbackRegistrationOperands { providers, callback, body: Some(body) }) =
+                zil_ir::CallbackRegistration::Scoped.operands(arguments) else {
             return Err(error(
                 "E-CALL-ARITY",
                 span,
@@ -26,8 +27,8 @@ impl Builder<'_, '_> {
         if !self.helper_bounds.is_empty() {
             self.forward_modes(span)?;
         }
-        let register = self.resolve_callee(register)?.clone();
-        let close = self.resolve_callee(close)?.clone();
+        let register = self.resolve_callee(&providers[0])?.clone();
+        let close = self.resolve_callee(&providers[1])?.clone();
         if register.scoped_callback != Some(ScopedCallbackRole::Register)
             || close.scoped_callback != Some(ScopedCallbackRole::Close)
         {

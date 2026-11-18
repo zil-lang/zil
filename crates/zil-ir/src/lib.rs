@@ -1223,6 +1223,54 @@ pub enum ScopedCallbackRole {
     ThreadAsyncPollDrain,
 }
 
+/// Source operand roles for the three operations that take static callback
+/// providers. The caller must resolve the primitive in its lexical scope and
+/// independently check every provider declaration and callback.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CallbackRegistration {
+    Scoped,
+    Owned,
+    AsyncOwned,
+}
+
+impl CallbackRegistration {
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "c_with_callback" => Some(Self::Scoped),
+            "c_register" => Some(Self::Owned),
+            "c_register_async" => Some(Self::AsyncOwned),
+            _ => None,
+        }
+    }
+
+    pub fn provider_roles(self, threaded: bool) -> &'static [ScopedCallbackRole] {
+        use ScopedCallbackRole::*;
+        match (self, threaded) {
+            (Self::AsyncOwned, true) => &[ThreadAsyncRegister, ThreadAsyncRequestClose, ThreadAsyncPollDrain],
+            (Self::AsyncOwned, false) => &[AsyncRegister, AsyncRequestClose, AsyncPollDrain],
+            _ => &[Register, Close],
+        }
+    }
+
+    /// Split declaration selectors from the runtime callback and, for the
+    /// scoped operation, its body. Reject an extra or missing operand.
+    pub fn operands<T>(self, args: &[T]) -> Option<CallbackRegistrationOperands<'_, T>> {
+        let (providers, values) = args.split_at_checked(self.provider_roles(false).len())?;
+        let (callback, body) = match (self, values) {
+            (Self::Scoped, [callback, body]) => (callback, Some(body)),
+            (Self::Owned | Self::AsyncOwned, [callback]) => (callback, None),
+            _ => return None,
+        };
+        Some(CallbackRegistrationOperands { providers, callback, body })
+    }
+}
+
+pub struct CallbackRegistrationOperands<'a, T> {
+    pub providers: &'a [T],
+    pub callback: &'a T,
+    pub body: Option<&'a T>,
+}
+
 fn scoped_callback_role_tag(role: Option<ScopedCallbackRole>) -> u8 {
     match role {
         None => 0,

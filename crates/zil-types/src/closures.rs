@@ -5799,17 +5799,15 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         }
         if matches!(&callee.kind,CoreExprKind::Name(name) if name=="c_with_callback") {
             self.visit(depth + 1, callee.span)?;
-            let [register, close, callback, body] = arguments.as_slice() else {
+            let Some(zil_ir::CallbackRegistrationOperands { providers, callback, body: Some(body) }) =
+                zil_ir::CallbackRegistration::Scoped.operands(arguments) else {
                 return Err(error(
                     "E-CALL-ARITY",
                     span,
                     "c_with_callback requires four arguments",
                 ));
             };
-            for (expression, role) in [
-                (register, ScopedCallbackRole::Register),
-                (close, ScopedCallbackRole::Close),
-            ] {
+            for (expression, role) in providers.iter().zip(zil_ir::CallbackRegistration::Scoped.provider_roles(false).iter().copied()) {
                 self.visit(depth + 1, expression.span)?;
                 let signature = self.callee(expression)?;
                 self.reserve_signature(signature, expression.span)?;
