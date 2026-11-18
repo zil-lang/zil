@@ -1040,7 +1040,7 @@ fn qualified_nominal_domain<'a>(
                     put(&mut classes, class.clone(), b)?;
                     put(&mut local, Class::Local(index), b)?;
                 }
-                inherit_qualified_rows(&mut shape, &value.life, &local, LifeTypeProjection::TypeArgument(index), b)?;
+                inherit_qualified_rows(&mut shape, value, &local, LifeTypeProjection::TypeArgument(index), b)?;
                 (Argument::Type(value.with_classes(local, b)?), ExpectedActual::Value(value))
             }
             (SemanticFormal::Lifetime, LifeParameterKind::Lifetime, Argument::Life(image)) => {
@@ -1089,7 +1089,7 @@ fn qualified_nominal_domain<'a>(
                 return Err(fail("qualified field changes the image of its original coordinate"));
             }
         }
-        inherit_qualified_rows(&mut shape, &located.life, &located.classes, LifeTypeProjection::Place(path), b)
+        inherit_qualified_rows(&mut shape, &located, &located.classes, LifeTypeProjection::Place(path), b)
     };
     match body {
         SemanticNominalBody::Product { fields } => {
@@ -1145,8 +1145,9 @@ fn qualified_nominal_domain<'a>(
     Ok((reordered, expected, shape))
 }
 
-fn inherit_qualified_rows(parent: &mut StorageLifeShape, child: &StorageLifeShape,
+fn inherit_qualified_rows(parent: &mut StorageLifeShape, value: &Value,
     coordinates: &[Class], prefix: LifeTypeProjection, b: &mut Budget) -> CompileResult<()> {
+    let child = &value.life;
     if child.binder_count as usize != coordinates.len() {
         return Err(fail("qualified child omits its intrinsic class domain"));
     }
@@ -1154,8 +1155,17 @@ fn inherit_qualified_rows(parent: &mut StorageLifeShape, child: &StorageLifeShap
         Some(Class::Local(binder)) => Ok(*binder),
         _ => Err(fail("qualified child row lacks a declaration-local coordinate")),
     };
-    for class in 0..child.binder_count {
-        put(&mut parent.retained, StorageRetainedBinding { path: vec![prefix], class, binder: mapped(class)? }, b)?;
+    // A physical root address spells its class in the slot itself. The
+    // corresponding type argument still needs its separate retained entry.
+    let direct_address = matches!(prefix, LifeTypeProjection::Place(_))
+        && matches!(value.ty, Type::Address { .. })
+        && child.binder_count == 1
+        && matches!(child.slots.as_slice(), [slot] if slot.path.is_empty() && slot.binder == 0)
+        && child.retained.is_empty() && child.nominal_arguments.is_empty();
+    if !direct_address {
+        for class in 0..child.binder_count {
+            put(&mut parent.retained, StorageRetainedBinding { path: vec![prefix], class, binder: mapped(class)? }, b)?;
+        }
     }
     let prefixed = |tail: &[LifeTypeProjection], b: &mut Budget| -> CompileResult<Vec<LifeTypeProjection>> {
         b.spend(tail.len().saturating_add(1), WORK)?;
