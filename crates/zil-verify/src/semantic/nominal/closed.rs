@@ -1,5 +1,5 @@
-//! A closed nominal body consisting of original scalar fields and whole type
-//! formals has one physical result per ordered list of complete type actuals.
+//! A closed nominal body with checked field dependencies has one physical
+//! result per ordered list of complete type actuals.
 //! Requirements on those formals are checked anew in the calling environment.
 //! This directory stores only the physical result of a completed inventory
 //! search. A lifetime, origin, lexical parent or scope witness stays on the
@@ -22,6 +22,30 @@ fn empty_domain(value: &CheckedType) -> bool {
         && value.classes.is_empty()
         && value.origins.is_empty()
         && value.statics.is_empty()
+}
+
+/// Check every immutable alternative, including rows that did not match
+/// this use. No outside caller fact may turn a previous mismatch into a match.
+pub(super) fn closed_inventory(inventory: &[&LifeNominalInstance], b: &mut Budget) -> Check<bool> {
+    if inventory.is_empty() {
+        return Ok(false);
+    }
+    b.spend(inventory.len())?;
+    for row in inventory {
+        if !type_storage::closed_storage(&row.ty, b)? {
+            return Ok(false);
+        }
+        b.spend(row.arguments.len())?;
+        for a in &row.arguments {
+            let LifeNominalActual::Type(ty) = a else {
+                return Ok(false);
+            };
+            if !type_storage::closed_storage(ty, b)? {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
 }
 
 impl ClosedNominals {
@@ -77,7 +101,6 @@ impl ClosedNominals {
         key: (SemanticDefinitionId, bool, usize),
         definition: &SemanticDefinition,
         actuals: &[CheckedActual],
-        body: &SemanticNominalBody,
         inventory: &[&LifeNominalInstance],
         result: &CheckedType,
         b: &mut Budget,
@@ -91,51 +114,8 @@ impl ClosedNominals {
         {
             return Ok(());
         }
-        // These recipes read only this invocation's checked type arguments.
-        // Complex child constructors can introduce their own obligations.
-        let field = |ty: &SemanticTypeRecipe| {
-            matches!(ty, SemanticTypeRecipe::Atom(t) if t.is_b0_scalar())
-                || matches!(
-                    ty,
-                    SemanticTypeRecipe::Formal(SemanticFormalRef {
-                        scope: SemanticScopeRef::Ancestor(0),
-                        ..
-                    })
-                )
-        };
-        match body {
-            SemanticNominalBody::Product { fields } => {
-                b.spend(fields.len())?;
-                if !fields.iter().all(|f| field(&f.ty)) {
-                    return Ok(());
-                }
-            }
-            SemanticNominalBody::Enum { variants } => {
-                b.spend(variants.len())?;
-                for v in variants {
-                    b.spend(v.fields.len())?;
-                    if !v.fields.iter().all(field) {
-                        return Ok(());
-                    }
-                }
-            }
-        }
-        // Every alternative must be independent of caller equations, including
-        // alternatives that failed to match on the first successful lookup.
-        b.spend(inventory.len())?;
-        for row in inventory {
-            if !type_storage::closed_storage(&row.ty, b)? {
-                return Ok(());
-            }
-            b.spend(row.arguments.len())?;
-            for a in &row.arguments {
-                let LifeNominalActual::Type(ty) = a else {
-                    return Ok(());
-                };
-                if !type_storage::closed_storage(ty, b)? {
-                    return Ok(());
-                }
-            }
+        if !closed_inventory(inventory, b)? {
+            return Ok(());
         }
         b.spend(actuals.len())?;
         let mut arguments = Vec::with_capacity(actuals.len());
@@ -217,16 +197,19 @@ mod tests {
         let mut directory = ClosedNominals::default();
         let key = (definition.id, false, 1);
         let mut b = Budget::new(&limits);
+        definition.parameters = vec![
+            SemanticFormal::Type {
+                requirements: vec![]
+            };
+            2
+        ];
+        let context = CheckedContext::definition_catalogue(&module, None, &mut b).unwrap();
+        assert!(
+            super::super::closed_fields::independent(&context, &module, &definition, &body, &mut b)
+                .unwrap()
+        );
         directory
-            .remember(
-                key,
-                &definition,
-                &args,
-                &body,
-                &[&inventory],
-                &result,
-                &mut b,
-            )
+            .remember(key, &definition, &args, &[&inventory], &result, &mut b)
             .unwrap();
         assert_eq!(directory.get(key, &args, &mut b).unwrap(), Some(result));
         assert!(

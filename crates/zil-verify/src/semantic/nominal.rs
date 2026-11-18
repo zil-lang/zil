@@ -2,6 +2,7 @@
 //! ordered actuals. A matching layout is never a nominal identity.
 use super::*;
 pub(super) mod closed;
+mod closed_fields;
 
 impl CheckedContext {
     pub(super) fn nominal(
@@ -233,8 +234,8 @@ impl CheckedContext {
             selected.origins=self.nominal_origins(*declaration,&actuals,&environment.lexical[0].environment,&selected.life,&selected.origins,b)?;
             for origin in &mut selected.origins{*origin=self.normalized_origin(caller,origin,b)?;}
         }
-        if reusable && scope_instances.is_empty() {
-            self.closed_nominals.borrow_mut().remember(closed_key, definition, &actuals, body, &inventory, &selected, b)?;
+        if reusable && scope_instances.is_empty() && closed_fields::independent(self, module, definition, body, b)? {
+            self.closed_nominals.borrow_mut().remember(closed_key, definition, &actuals, &inventory, &selected, b)?;
         }
         Ok(selected)
     }
