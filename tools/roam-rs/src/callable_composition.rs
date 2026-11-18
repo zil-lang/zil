@@ -402,6 +402,10 @@ pub fn campaign(root: &Path, commit: &str, jobs: usize) -> Result<Value, String>
     fs::create_dir(root).map_err(|e| e.to_string())?;
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let snapshot = host::freeze(&exe, &root.join("snapshots"), commit)?;
+    let worker_sha = snapshot
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or("frozen worker identity is missing")?;
     let toolchain = crate::native::identity()?;
     let cases = fixed();
     let plan = cases
@@ -492,7 +496,7 @@ pub fn campaign(root: &Path, commit: &str, jobs: usize) -> Result<Value, String>
         )
         .collect();
     let report = json!({
-        "contract":CONTRACT, "candidate":commit, "roamSha256":host::digest(&exe)?,
+        "contract":CONTRACT, "candidate":commit, "roamSha256":worker_sha,
         "bound":{"maximumDepth":2,"operations":["generic helper","field projection"],"exits":EXITS,
             "shapes":SHAPES, "rule":"§8.1.2.2"},
         "status":if complete {"pass"} else {"fail"},

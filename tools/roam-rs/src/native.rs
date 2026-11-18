@@ -3,7 +3,6 @@ use crate::{byte_buffer, callable_composition, domain, host, protocol, resource_
 use serde_json::{Value, json};
 use std::{
     fs::{self, File},
-    io::Read,
     path::{Path, PathBuf},
     process::{Command, Output, Stdio},
     sync::atomic::{AtomicU64, Ordering},
@@ -63,52 +62,15 @@ fn resolve_clang() -> Result<PathBuf, String> {
 // Toolchain executables are inputs to the oracle, not Roam worker snapshots.
 // Pin their exact bytes while bounding the stream independently of the snapshot cap.
 fn clang_digest(path: &Path) -> Result<String, String> {
-    const MAX_CLANG_BYTES: u64 = 512 * 1024 * 1024;
-    let file = File::open(path).map_err(|e| format!("open clang for hashing: {e}"))?;
-    let metadata = file.metadata().map_err(|e| e.to_string())?;
-    if !metadata.is_file() || metadata.len() > MAX_CLANG_BYTES {
-        return Err("clang executable exceeds the toolchain byte quota".into());
+    host::digest_with_limit(path, 512 * 1024 * 1024).map_err(|error| format!("hash clang: {error}"))
+}
+
+fn check_toolchain(toolchain: &Value) -> Result<(), String> {
+    let clang = Path::new(toolchain["path"].as_str().ok_or("invalid clang identity")?);
+    if resolve_clang()? != clang || clang_digest(clang)? != toolchain["sha256"] {
+        return Err("clang changed during native execution".into());
     }
-    let mut input = file.take(MAX_CLANG_BYTES + 1);
-    // The shipped Clang can be hundreds of MiB. Use the host's SHA-256
-    // implementation when present to keep verification inside worker deadlines.
-    if let Ok(mut child) = Command::new("/usr/bin/sha256sum")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-    {
-        let copied = std::io::copy(
-            &mut input,
-            &mut child.stdin.take().ok_or("missing hash input")?,
-        );
-        let output = child.wait_with_output().map_err(|e| e.to_string())?;
-        if copied.map_err(|e| e.to_string())? > MAX_CLANG_BYTES {
-            return Err("clang executable grew beyond the toolchain byte quota".into());
-        }
-        let hash = std::str::from_utf8(&output.stdout)
-            .map_err(|e| e.to_string())?
-            .split_whitespace()
-            .next()
-            .and_then(Fingerprint::from_hex);
-        return match (output.status.success(), hash) {
-            (true, Some(hash)) => Ok(hash.to_hex()),
-            _ => Err("host SHA-256 failed for clang".into()),
-        };
-    }
-    let mut builder = zil_base::FingerprintBuilder::new();
-    let mut bytes = [0; 64 * 1024];
-    loop {
-        let count = input.read(&mut bytes).map_err(|e| e.to_string())?;
-        if count == 0 {
-            break;
-        }
-        builder.update(&bytes[..count]);
-    }
-    if input.limit() == 0 {
-        return Err("clang executable grew beyond the toolchain byte quota".into());
-    }
-    Ok(builder.digest().to_hex())
+    Ok(())
 }
 
 /// File capture bounds memory throughout execution, and a live size/deadline
@@ -399,10 +361,6 @@ fn observe(
 ) -> Result<(Value, Value), String> {
     let input_path = root.join("input.zil");
     fs::write(&input_path, source).map_err(|e| e.to_string())?;
-    let clang = PathBuf::from(toolchain["path"].as_str().ok_or("invalid clang identity")?);
-    if clang_digest(&clang)? != toolchain["sha256"] {
-        return Err("clang changed before compilation".into());
-    }
     host::durable(&root.join("clang-identity.json"), toolchain)?;
     let input = SourceUnit::new(FileId(0), ModuleId(0), input_path.to_string_lossy(), source);
     let mut options = CompileOptions {
@@ -448,6 +406,14 @@ fn observe(
             json!({"kind":"compile-result","category":status,"phase":compile["phase"],"diagnostics":compile["diagnostics"]})
         };
         return Ok((observed, detail));
+    }
+    // A successful native build must have a receipt from its own proxy.
+    // The proxy checks the full executable digest before and after invoking
+    // Clang. Rehashing here would repeat the same check in the parent.
+    if detail["clangProcess"]["clangSha256"] != toolchain["sha256"]
+        || protocol::integer(&detail["clangProcess"]["exit"]) != Some(0)
+    {
+        return Err("successful native compile lacks its checked clang process".into());
     }
     if rule_composition
         && (report.verification_runs != 1
@@ -505,9 +471,6 @@ fn observe(
     } else {
         json!({"kind":"unexpected-runtime","run":detail["run"]})
     };
-    if clang_digest(&clang)? != toolchain["sha256"] {
-        return Err("clang changed during compilation".into());
-    }
     Ok((observed, detail))
 }
 
@@ -933,6 +896,20 @@ pub fn execute(
             break;
         }
         result["steps"] = json!(steps);
+    }
+    // The initial identity anchors the worker, each proxy authenticates its
+    // own compile, and the final check covers the complete observed execution.
+    if matches!(result["status"].as_str(), Some("pass" | "fail"))
+        && let Err(error) = check_toolchain(&toolchain)
+    {
+        result = protocol::issue(
+            "error",
+            steps,
+            "native-toolchain",
+            -1,
+            "IdentityMismatch",
+            &error,
+        );
     }
     if result["status"] == "pass" && start.elapsed() >= Duration::from_millis(options.budget_ms) {
         result = incomplete(steps, "time-budget");

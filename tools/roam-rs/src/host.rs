@@ -10,7 +10,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use zil_base::Fingerprint;
+use zil_base::{Fingerprint, FingerprintBuilder};
 
 // The optional native backend links a second code generator. Its worker
 // snapshots and digest reads still have an explicit, finite byte limit.
@@ -63,9 +63,64 @@ pub fn read(path: &Path) -> Result<Value, String> {
     read_json_file(path, protocol::MAX_FRAME)
 }
 pub fn digest(path: &Path) -> Result<String, String> {
-    // Fingerprint currently exposes a one-shot digest; bound that separate input
-    // class explicitly rather than pretending the JSON quota covers executables.
-    Ok(Fingerprint::of(&file_bytes(path, MAX_BINARY_BYTES)?).to_hex())
+    digest_with_limit(path, MAX_BINARY_BYTES)
+}
+
+pub(crate) fn digest_with_limit(path: &Path, limit: usize) -> Result<String, String> {
+    if !fs::metadata(path).map_err(|e| e.to_string())?.is_file() {
+        return Err("input must be a regular file".into());
+    }
+    let file = fs::File::open(path).map_err(|e| e.to_string())?;
+    let metadata = file.metadata().map_err(|e| e.to_string())?;
+    if !metadata.is_file() {
+        return Err("input must be a regular file".into());
+    }
+    digest_reader(file, metadata.len(), limit)
+}
+
+fn digest_reader(reader: impl Read, length: u64, limit: usize) -> Result<String, String> {
+    if length > limit as u64 {
+        return Err("input byte quota exceeded".into());
+    }
+    let cap = limit.checked_add(1).ok_or("invalid byte quota")? as u64;
+    let mut input = reader.take(cap);
+    // Large binaries dominate by bytes hashed. Small artifacts keep the
+    // in-process path so their hashing does not start another process.
+    if length >= 8 * 1024 * 1024
+        && let Ok(mut child) = Command::new("/usr/bin/sha256sum")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+    {
+        let copied = io::copy(&mut input, &mut child.stdin.take().ok_or("missing hash input")?);
+        let output = child.wait_with_output().map_err(|e| e.to_string())?;
+        if copied.map_err(|e| e.to_string())? == cap {
+            return Err("input byte quota exceeded".into());
+        }
+        let digest = std::str::from_utf8(&output.stdout)
+            .map_err(|e| e.to_string())?
+            .split_whitespace()
+            .next()
+            .and_then(Fingerprint::from_hex);
+        return match (output.status.success(), digest) {
+            (true, Some(digest)) => Ok(digest.to_hex()),
+            _ => Err("host SHA-256 failed".into()),
+        };
+    }
+    let mut digest = FingerprintBuilder::new();
+    let mut buffer = [0; 64 * 1024];
+    loop {
+        let count = input.read(&mut buffer).map_err(|e| e.to_string())?;
+        if count == 0 {
+            break;
+        }
+        digest.update(&buffer[..count]);
+    }
+    if input.limit() == 0 {
+        return Err("input byte quota exceeded".into());
+    }
+    Ok(digest.digest().to_hex())
 }
 pub fn freeze(exe: &Path, root: &Path, commit: &str) -> Result<PathBuf, String> {
     let source = fs::File::open(exe).map_err(|e| e.to_string())?;
@@ -82,12 +137,14 @@ fn freeze_open_file(mut source: fs::File, root: &Path, commit: &str) -> Result<P
         return Err("input byte quota exceeded".into());
     }
     let bytes = bounded_bytes(&mut source, MAX_BINARY_BYTES)?;
-    let hash = Fingerprint::of(&bytes).to_hex();
+    let hash = digest_reader(bytes.as_slice(), bytes.len() as u64, MAX_BINARY_BYTES)?;
     fs::create_dir_all(root).map_err(|e| e.to_string())?;
     let target = root.join(&hash);
     if target.exists() {
         drop(bytes);
-        verify_snapshot(&target)?;
+        if verify_snapshot(&target)?["sha256"] != hash {
+            return Err("snapshot content does not match its frozen identity".into());
+        }
         return Ok(target);
     }
     let pending = root.join(format!(".pending-{}", std::process::id()));
@@ -105,7 +162,9 @@ fn freeze_open_file(mut source: fs::File, root: &Path, commit: &str) -> Result<P
         &json!({"format":"zil-roam-native-snapshot/1","sha256":hash,"platform":std::env::consts::OS,"arch":std::env::consts::ARCH,"sourceCommit":commit,"boundary":"Exact executable bytes only; source identified by Git commit. OS, CPU and dynamic libraries are not frozen."}),
     )?;
     fs::rename(&pending, &target).map_err(|e| e.to_string())?;
-    verify_snapshot(&target)?;
+    if verify_snapshot(&target)?["sha256"] != hash {
+        return Err("snapshot content does not match its frozen identity".into());
+    }
     Ok(target)
 }
 pub fn verify_snapshot(directory: &Path) -> Result<Value, String> {
@@ -564,6 +623,22 @@ pub fn supervise(trace: &Value, options: HostOptions<'_>) -> Result<Supervised, 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn digest_hashes_exact_bytes_and_keeps_the_limit_after_open() {
+        let limit = 8 * 1024 * 1024;
+        let mut bytes = vec![17; limit];
+        bytes[limit - 1] = 7;
+        assert_eq!(
+            digest_reader(bytes.as_slice(), limit as u64, limit).unwrap(),
+            Fingerprint::of(&bytes).to_hex()
+        );
+        bytes.push(0);
+        assert_eq!(
+            digest_reader(bytes.as_slice(), limit as u64, limit).unwrap_err(),
+            "input byte quota exceeded"
+        );
+    }
 
     #[test]
     #[cfg(unix)]
