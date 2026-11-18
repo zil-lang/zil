@@ -1198,7 +1198,8 @@ impl State {
         let mut owns_leaf_store = false;
         let mut requires_source_context = false;
         for capture in &mut checker.captures {
-            requires_source_context |= matches!(&capture.ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. }));
+            requires_source_context |= matches!(&capture.ty, Type::Address { inner, .. }
+                if matches!(inner.as_ref(), Type::BorrowedStorage { .. } | Type::Closure(_)));
             if let Type::BorrowedStorage { storage, life } = &capture.ty
                 && matches!(storage.as_ref(), Type::Package { .. })
             {
@@ -3368,7 +3369,18 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 "rebinding a captured address requires a nested address window",
             ));
         }
-        if let Type::Closure(id) = ty {
+        let callable_place = match ty {
+            Type::Closure(id) => Some((*id, None)),
+            Type::Address { mutable, inner } => match inner.as_ref() {
+                Type::Closure(id) => {
+                    self.graph.reserve_type(ty, 0, span)?;
+                    Some((*id, Some(*mutable)))
+                }
+                _ => None,
+            },
+            _ => None,
+        };
+        if let Some((id, address)) = callable_place {
             let moved = self.move_capture || nested_owned;
             if let Some(variable) = self.captured_variables.get(local) {
                 let capture = self
@@ -3377,6 +3389,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     .find(|c| c.source == *local)
                     .expect("capture");
                 capture.written |= write;
+                capture.address_written |= address.is_some() && nested_writeback;
                 capture.moved |= nested_owned;
                 capture.borrowed &= !nested_owned;
                 capture.consumed |= nested_consumed;
@@ -3391,14 +3404,17 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             } else {
                 None
             };
-            let value = LocalType::Closure(*id, None, declared_kind);
+            // An already borrowed environment contributes its address as
+            // the capture. The creator emits the actual local value (or its
+            // reborrow), so the parent field and child Fixed domain survive.
+            let value = LocalType::Closure(id, address, declared_kind);
             self.captures.push(Capture {
                 name: name.into(),
                 source: *local,
                 ty: ty.clone(),
-                borrowed: !moved,
+                borrowed: address.is_none() && !moved,
                 written: write,
-                address_written: false,
+                address_written: address.is_some() && nested_writeback,
                 moved,
                 consumed: nested_consumed,
                 declared_kind,
