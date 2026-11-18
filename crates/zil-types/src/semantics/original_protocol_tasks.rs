@@ -1092,6 +1092,20 @@ impl Engine<'_, '_> {
         let mut transported = reusable || exits.iter().any(|exit| !exit.phases.is_empty());
         for exit in &exits { transported |= self.callable_return_value(&exit.value, depth + 1)?; }
         if !transported { return Ok(None); }
+        // A generic body may return different input projections from different
+        // arms. A concrete argument rules out only arms whose original input
+        // tag is absent. Filter before merging their generation/cleanup effects.
+        self.pay(exits.len(), depth)?;
+        let mut applicable = Vec::with_capacity(exits.len());
+        for mut exit in exits {
+            if self.retain_return_sources(&mut exit.value, target, arguments, captures, depth + 1)? {
+                applicable.push(exit);
+            }
+        }
+        if applicable.is_empty() {
+            return Err(pending("no original return alternative applies to this invocation"));
+        }
+        let exits = applicable;
         // This summary transports Task generations and ordinary callable
         // occurrences. A registration-only result retains its independent
         // protocol consumer; do not invent a Task root for that carrier.
@@ -1182,6 +1196,55 @@ impl Engine<'_, '_> {
         }
         self.choice(values, depth + 1).map(Some)
     }
+    /// Remove alternatives contradicted by an actual enum/error discriminant.
+    /// A malformed field or unproved source is still an error in original_input.
+    fn retain_return_sources(
+        &mut self,
+        value: &mut Value,
+        target: SemanticDefinitionId,
+        arguments: &[Value],
+        captures: Option<&BTreeMap<String, Value>>,
+        depth: usize,
+    ) -> R<bool> {
+        self.pay(1, depth)?;
+        match value {
+            Value::Cleanup { source: Some(source), .. } => Ok(self
+                .original_input(*source, target, arguments, captures, depth + 1)?
+                .is_some()),
+            Value::Choice(values) => {
+                self.pay(values.len(), depth)?;
+                let mut active = Vec::with_capacity(values.len());
+                for mut branch in std::mem::take(values) {
+                    if self.retain_return_sources(&mut branch, target, arguments, captures, depth + 1)? {
+                        active.push(branch);
+                    }
+                }
+                *values = active;
+                Ok(!values.is_empty())
+            }
+            Value::Boxed(inner) | Value::Error { payload: inner, .. } => {
+                self.retain_return_sources(inner, target, arguments, captures, depth + 1)
+            }
+            Value::Tuple(fields) | Value::Variant { fields, .. } => {
+                for field in fields {
+                    if !self.retain_return_sources(field, target, arguments, captures, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Value::Fields(fields) | Value::Closure { captures: fields, .. } => {
+                for field in fields.values_mut() {
+                    if !self.retain_return_sources(field, target, arguments, captures, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            _ => Ok(true),
+        }
+    }
+
     fn task_rehome(
         &mut self,
         value: Value,
