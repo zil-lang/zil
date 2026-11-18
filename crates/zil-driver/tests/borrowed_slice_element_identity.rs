@@ -48,7 +48,7 @@ fn review_parametric_writes_and_range_bodies_are_checked_symbolically() {
         ),
         (
             "generic-range-body",
-            "fn tail<T>(p:&[T])->&[T]{return &p[1..];}fn result()->i32{let a=[1,2];return tail(&a[..])[0];}",
+            "fn tail<T:Copy>(p:&[T])->&[T]{return &p[1..];}fn result()->i32{let a=[1,2];return tail(&a[..])[0];}",
         ),
     ] {
         let report = check(name, text);
@@ -61,6 +61,10 @@ fn review_parametric_writes_and_range_bodies_are_checked_symbolically() {
         assert_eq!(report.phase, Phase::Verify);
         assert!(!report.artifacts.contains_key("llvm"));
     }
+}
+
+#[test]
+fn review_generic_writes_require_sync_drop_in_the_declaration() {
     for (name, text) in [
         (
             "generic-write-slice-concrete-call-without-sync-drop",
@@ -84,6 +88,32 @@ fn review_parametric_writes_and_range_bodies_are_checked_symbolically() {
         );
         assert_eq!(report.phase, Phase::Types);
         assert_eq!(report.diagnostics[0].code, "E-ORIGINAL-CLEANUP");
+        assert_eq!(report.verification_runs, 0);
+    }
+}
+
+#[test]
+fn review_generic_range_and_place_constraints_apply_to_original_definitions() {
+    for (name, text) in [
+        (
+            "generic-range-concrete-call-without-copy",
+            "fn tail<T>(p:&[T])->&[T]{return &p[1..];}fn result()->i32{let a=[1,2];return tail(&a[..])[0];}",
+        ),
+        (
+            "generic-range-unused-with-only-sync-drop",
+            "fn tail<T:SyncDrop>(p:&[T])->&[T]{return &p[1..];}fn main(){}",
+        ),
+    ] {
+        let report = check(name, text);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Analyze);
+        assert_eq!(report.diagnostics[0].code, "E-ANALYZE-IR");
+        assert!(report.diagnostics[0].message.contains("requires Copy"));
         assert_eq!(report.verification_runs, 0);
     }
     // Closest generic neighbours remain rejected even without instantiation.

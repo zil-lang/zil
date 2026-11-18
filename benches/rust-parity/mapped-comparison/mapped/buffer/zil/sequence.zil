@@ -1,9 +1,9 @@
 // The same generic algorithms accept fixed arrays and dynamic storage windows.
-pub fn tail<T>(items: &[T], start: i64) -> &[T] {
+pub fn tail<T: Copy>(items: &[T], start: i64) -> &[T] {
     return &items[start..]
 }
 
-pub fn tail_mut<T>(items: &mut [T], start: i64) -> &mut [T] {
+pub fn tail_mut<T: Copy>(items: &mut [T], start: i64) -> &mut [T] {
     return &mut items[start..]
 }
 
