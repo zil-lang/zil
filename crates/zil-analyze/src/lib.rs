@@ -177,9 +177,11 @@ fn analyze_budgeted_context(
     // Raw callers need not have passed through types. In particular, reject
     // oversized metadata and unsupported recursive types before encoding a hash.
     let (package_functions, store_profiles) = preflight(module, limits, budget)?;
+    let original_task_cleanup = !budget.semantic_cleanup_sites.is_empty()
+        || !budget.semantic_capture_cleanups.is_empty();
     if (budget.task_sources() || budget.task_origin_roots)
         && budget.task_input_scopes.is_none()
-        && !module.closures.is_empty()
+        && (!module.closures.is_empty() || original_task_cleanup)
     {
         budget.task_input_scopes = Some(tasks::input_scope::build(module, limits, budget)?);
     }

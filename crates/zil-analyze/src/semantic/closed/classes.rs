@@ -1535,10 +1535,20 @@ impl Check<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<bool> {
+        self.contains_nonzero_child(ty, false, b, depth)
+    }
+
+    fn contains_nonzero_child(
+        &self,
+        ty: &Type,
+        include_nominal: bool,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<bool> {
         b.spend(1, WORK)?;
         if depth > b.partial_depth {
             return Err(unknown(
-                "closure child inventory exceeds its finite type depth",
+                "retained child inventory exceeds its finite type depth",
             ));
         }
         match ty {
@@ -1552,6 +1562,7 @@ impl Check<'_, '_> {
                     .ok_or_else(|| unknown("closure child has no complete Fixed inventory"))?;
                 Ok(scope.fixed_binder_count != 0)
             }
+            Type::BorrowedStorage { life, .. } if include_nominal && life.binder_count != 0 => Ok(true),
             Type::BorrowedStorage { storage, .. }
             | Type::Managed(storage)
             | Type::Array {
@@ -1559,11 +1570,11 @@ impl Check<'_, '_> {
             }
             | Type::Slice { element: storage }
             | Type::Address { inner: storage, .. } => {
-                self.contains_nonzero_closure(storage, b, depth + 1)
+                self.contains_nonzero_child(storage, include_nominal, b, depth + 1)
             }
             Type::Tuple(fields) => {
                 for field in fields {
-                    if self.contains_nonzero_closure(field, b, depth + 1)? {
+                    if self.contains_nonzero_child(field, include_nominal, b, depth + 1)? {
                         return Ok(true);
                     }
                 }
@@ -1571,7 +1582,7 @@ impl Check<'_, '_> {
             }
             Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 for (_, field) in fields {
-                    if self.contains_nonzero_closure(field, b, depth + 1)? {
+                    if self.contains_nonzero_child(field, include_nominal, b, depth + 1)? {
                         return Ok(true);
                     }
                 }
@@ -1580,7 +1591,7 @@ impl Check<'_, '_> {
             Type::Enum { variants, .. } => {
                 for (_, fields) in variants {
                     for field in fields {
-                        if self.contains_nonzero_closure(field, b, depth + 1)? {
+                        if self.contains_nonzero_child(field, include_nominal, b, depth + 1)? {
                             return Ok(true);
                         }
                     }
@@ -1588,8 +1599,8 @@ impl Check<'_, '_> {
                 Ok(false)
             }
             Type::ErrorUnion { error, result } => {
-                Ok(self.contains_nonzero_closure(error, b, depth + 1)?
-                    || self.contains_nonzero_closure(result, b, depth + 1)?)
+                Ok(self.contains_nonzero_child(error, include_nominal, b, depth + 1)?
+                    || self.contains_nonzero_child(result, include_nominal, b, depth + 1)?)
             }
             _ => Ok(false),
         }
@@ -2093,7 +2104,7 @@ impl Check<'_, '_> {
             && self
                 .task_domain(ty, b)?
                 .is_none_or(|life| life.binder_count == 0)
-            && !self.contains_nonzero_closure(ty, b, 0)?
+            && !self.contains_nonzero_child(ty, true, b, 0)?
             && self.physical_byte_paths(ty, b)?.is_empty()
         {
             // A complete independent zero-domain reconstruction needs no
@@ -2343,7 +2354,8 @@ impl Check<'_, '_> {
                 }
                 Ok(result)
             }
-            InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. } => {
+            InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. }
+            | InstructionKind::TaskPoll { .. } | InstructionKind::TaskPollClose { .. } => {
                 self.task_result(instance, function, block, index, b)
             }
             InstructionKind::CallDynSlot { .. } => self
@@ -2558,7 +2570,7 @@ impl Check<'_, '_> {
                 value: parent,
                 is_error,
             } => {
-                if self.contains_nonzero_closure(ty, b, 0)? {
+                if self.contains_nonzero_child(ty, true, b, 0)? {
                     operations::available_before(
                         function,
                         (block, index, SemanticSiteEdge::Before),
@@ -2570,7 +2582,7 @@ impl Check<'_, '_> {
                         self.closure_child_value(&parent, PlaceProjection::ErrorArm(*is_error), b)?;
                     if !geometry::same_type(&selected.ty, ty, b)? {
                         return Err(fail(
-                            "actual error-arm projection changes its complete closure child",
+                            "actual error-arm projection changes its complete retained child",
                         ));
                     }
                     return Ok(selected);
@@ -4496,6 +4508,7 @@ impl Check<'_, '_> {
             {
                 Ok(value::dyn_domain(result, self.inventory, b)?.binder_count != 0)
             }
+            Type::ErrorUnion { .. } => self.contains_nonzero_child(ty, true, b, 0),
             Type::Closure(id) => self.has_ghost_capture(*id, b),
             _ => Ok(false),
         }

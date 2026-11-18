@@ -80,7 +80,76 @@ impl<'a> NominalWhere<'a> {
             .as_ref()
             .expect("completed original request directory");
         Self::fee(left, requests.len().saturating_add(1).ilog2() as usize + 2)?;
-        Ok(requests.get(&definition).cloned().unwrap_or_default())
+        let original = requests.get(&definition).cloned().unwrap_or_default();
+        Self::fee(left, self.proof.definition_positions.len().saturating_add(1).ilog2() as usize + 1)?;
+        let is_poll = self.proof.definition_positions.get(&definition)
+            .and_then(|index| self.program.definitions.get(*index))
+            .is_some_and(|row| matches!(row.body, SemanticDefinitionBody::Nominal { declaration, .. }
+                if declaration == zil_ir::builtin_life::POLL));
+        if !is_poll {
+            return Ok(original);
+        }
+        self.task_poll_requests(original, limits, left)
+    }
+    fn task_poll_requests(
+        &self,
+        original: std::rc::Rc<Vec<NominalRequest>>,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<std::rc::Rc<Vec<NominalRequest>>> {
+        let mut derived = Vec::new();
+        for ((caller, _), call) in &self.proof.intrinsics {
+            Self::fee(left, 1)?;
+            if !matches!(call.kind, IntrinsicKind::TaskCreate { owned: false, await_result: false, .. }) {
+                continue;
+            }
+            let SemanticTypeRecipe::ErrorUnion { result, .. } = &call.result else { continue; };
+            let SemanticTypeRecipe::Managed(task) = result.as_ref() else { continue; };
+            let SemanticTypeRecipe::Task { result: payload, .. } = task.as_ref() else { continue; };
+            if !matches!(payload.as_ref(), SemanticTypeRecipe::Address { mutable: false, .. }) {
+                continue;
+            }
+            Self::fee(left, call.parameters.len())?;
+            let mut ports = call.parameters.iter().filter(|ty| matches!(ty, SemanticTypeRecipe::Address { .. }));
+            if ports.next().is_none_or(|port| port != payload.as_ref()) || ports.next().is_some() {
+                continue;
+            }
+            // The current single-port constructor registers a Poll template
+            // even if the body only closes the owner. The original creation
+            // has already checked its worker, input and result inclusion. Its
+            // complete caller-local result is the sole derived Poll argument.
+            let recipe = borrowed_check(self.program, self.proof, *caller, limits, left)?
+                .poll_carrier(payload, 0)?;
+            let mut duplicate = false;
+            for request in original.iter().chain(&derived) {
+                Self::fee(left, 1)?;
+                if request.caller != *caller {
+                    continue;
+                }
+                crate::dyn_metadata::semantic_operand_snapshot(&request.recipe, limits, left, 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(&recipe, limits, left, 1)?;
+                if request.recipe == recipe {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if !duplicate {
+                if original.len().saturating_add(derived.len()) >= limits.max_nodes {
+                    return Err(Diagnostic::limit(Phase::Types, "original Task Poll request directory node limit exceeded", None));
+                }
+                Self::fee(left, std::mem::size_of::<NominalRequest>())?;
+                derived.push(NominalRequest { caller: *caller, recipe });
+            }
+        }
+        if derived.is_empty() {
+            return Ok(original);
+        }
+        for request in original.iter() {
+            Self::fee(left, std::mem::size_of::<NominalRequest>())?;
+            let recipe = copy_recipe(&request.recipe, limits, left)?;
+            derived.push(NominalRequest { caller: request.caller, recipe });
+        }
+        Ok(std::rc::Rc::new(derived))
     }
     fn fee(left: &mut usize, amount: usize) -> R<()> {
         *left = left.checked_sub(amount).ok_or_else(|| {

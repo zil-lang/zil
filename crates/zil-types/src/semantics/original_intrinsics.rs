@@ -812,7 +812,7 @@ impl Check<'_, '_> {
             arguments,
         })
     }
-    fn poll_carrier(
+    pub(super) fn poll_carrier(
         &mut self,
         payload: &SemanticTypeRecipe,
         depth: usize,
