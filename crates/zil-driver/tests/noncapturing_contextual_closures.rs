@@ -313,7 +313,7 @@ fn named_and_literal_function_addresses_keep_their_original_identity_on_raw_and_
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
     let unit = source(
-        "fn other(x:i32)->i32=>x-1 fn main()->i32{let n=7;let named:fn(i32)->i32=other;let literal:fn(i32)->i32=x=>x+1;return literal(named(n))}",
+        "fn other(x:i32)->i32=>x-1\nfn main()->i32{let n=7;let named:fn(i32)->i32=other;let literal:fn(i32)->i32=x=>x+1;return literal(named(n))}",
     );
     let ast = zil_syntax::parse(&unit).into_result().unwrap();
     let context = zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
