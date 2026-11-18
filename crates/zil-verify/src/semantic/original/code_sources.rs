@@ -89,6 +89,43 @@ impl CheckedOriginal {
         Ok(())
     }
 
+    fn named_invocation_code(&self,owner:SemanticDefinitionId,prototype:&Prototype,frame:FrameToken,b:&mut Budget)->Check<Ty>{
+        let mut inputs=Vec::new();
+        let mut declarations=Vec::<Life>::new();
+        let mut position=|ty:&Ty,mode:PassingMode,result:bool,b:&mut Budget|->Check<Ty>{
+            let ty=self.resolved(ty,b)?;
+            let Ty::Address{mutable,life,inner}=ty else{
+                if mode!=PassingMode::Infer{return Err(bad("thin code changes a value passing mode"));}
+                let mut scoped=false;
+                self.map_invocation_type(&ty,&mut |role,b|{b.spend(1)?;scoped=true;Ok(role.clone())},0,b)?;
+                if scoped{return Err(unsupported("named code has a non-root borrowed signature occurrence",None));}
+                return Ok(ty);
+            };
+            if mode!=PassingMode::Infer && mode!=if mutable{PassingMode::BorrowMut}else{PassingMode::Borrow}{
+                return Err(bad("named code address changes the declared passing mode"));
+            }
+            if !matches!(&life,Life::Implicit(id,_) if *id==owner) && !prototype.environment.invocation.contains(&life){
+                return Err(unsupported("named thin code needs a root address head owned by its exact declaration",None));
+            }
+            let mut nested=false;
+            self.map_invocation_type(&inner,&mut |role,b|{b.spend(1)?;nested=true;Ok(role.clone())},0,b)?;
+            if nested{return Err(unsupported("named thin address has nested borrowed or retained signature roles",None));}
+            b.spend(declarations.len().saturating_add(1))?;
+            let index=if let Some(i)=declarations.iter().position(|head|head==&life){i}else{
+                if result{return Err(unsupported("named code result has no proved identical input lifetime",None));}
+                let i=declarations.len();declarations.push(life);i
+            };
+            Ok(Ty::Address{mutable,life:Life::Invocation(frame,u32::try_from(index).map_err(|_|limit("named code invocation count exceeded"))?),inner})
+        };
+        b.spend(prototype.parameters.len().saturating_add(1))?;
+        for(ty,mode)in prototype.parameters.iter().zip(&prototype.modes){inputs.push(position(ty,*mode,false,b)?);}
+        let result=position(&prototype.result,prototype.result_mode,true,b)?;
+        if prototype.environment.invocation.iter().any(|head|!declarations.contains(head)){
+            return Err(bad("named thin code loses a declared invocation binder"));
+        }
+        Ok(Ty::Code{kind:SemanticCodeKind::FunctionPointer,modes:vec![PassingMode::Infer;inputs.len()],parameters:inputs,
+            result:Box::new(result),result_mode:PassingMode::Infer,call_kind:prototype.call_kind,bound_lifetimes:0,invocation_lifetimes:declarations.len() as u32})
+    }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn code_value(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,actual:&Ty,expected:Option<&Ty>,value_role:bool,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
         let actual=self.resolved(actual,b)?;
@@ -107,13 +144,15 @@ impl CheckedOriginal {
         if !self.checked.contains(&target)&&!self.active.contains(&target){self.definition(module,context,target,active,b)?;}
         let selected=self.environment(module,context,target,active,b)?;
         let prototype=self.signature(module,context,signature,&selected,active,b)?;
-        if prototype.bound_lifetimes!=0||prototype.invocation_lifetimes!=0{return Err(unsupported("ordinary thin code retains an unimplemented original quantified signature",Some(expression.span)));}
+        if prototype.bound_lifetimes!=0{return Err(unsupported("ordinary thin code retains an unimplemented original quantified signature",Some(expression.span)));}
         let mut scoped=false;
         let mut inspect=|life:&Life,b:&mut Budget|{b.spend(1)?;scoped=true;Ok(life.clone())};
         for ty in prototype.parameters.iter().chain(std::iter::once(&prototype.result)){self.map_invocation_type(ty,&mut inspect,0,b)?;}
-        if scoped{return Err(unsupported("ordinary thin code needs its complete borrowed signature-role coercion",Some(expression.span)));}
         for requirement in &definition.requirements{self.obligation(module,context,requirement,&selected,env,active,b)?;}
-        let code=Ty::Code{kind:SemanticCodeKind::FunctionPointer,parameters:prototype.parameters,result:Box::new(prototype.result),modes:prototype.modes,result_mode:prototype.result_mode,call_kind:prototype.call_kind,bound_lifetimes:0,invocation_lifetimes:0};
+        let code=if scoped{self.named_invocation_code(target,&prototype,active.fresh(b)?,b)?}else{
+            if prototype.invocation_lifetimes!=0{return Err(bad("named code loses an unused quantified domain"));}
+            Ty::Code{kind:SemanticCodeKind::FunctionPointer,parameters:prototype.parameters,result:Box::new(prototype.result),modes:prototype.modes,result_mode:prototype.result_mode,call_kind:prototype.call_kind,bound_lifetimes:0,invocation_lifetimes:0}
+        };
         if let Some(expected)=expected{self.unify(&code,expected,b)?;}
         b.spend(2)?;self.code_sources.insert((env.current()?,expression.id),target);self.expressions.insert((env.current()?,expression.id),code.clone());
         Ok(code)

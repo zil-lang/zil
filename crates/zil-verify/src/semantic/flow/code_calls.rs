@@ -78,7 +78,10 @@ impl CheckedContext{
         let selected=EvalEnv{lexical,assumptions:environment.assumptions.clone(),images:environment.images.clone(),bounds:vec![],invocations:vec![],at:environment.at};
         let worlds=self.call_worlds(module,function,source,&selected,environment,active,b)?;
         self.evaluate_requirements(module,&definition.requirements,&selected,RequirementMode::ActualObligation,external,active,b)?;
-        let signature=self.world_signature(module,signature,worlds,environment,external,active,b)?;
+        let mut signature=self.world_signature(module,signature,worlds,environment,external,active,b)?;
+        if !thin_site && signature.parameters.iter().any(|(value,_)|matches!(value.ty,Type::Address{..})){
+            self.named_invocation_signature(&mut signature,key,b)?;
+        }
         let value=self.ordinary_code(module,SemanticCodeKind::FunctionPointer,&signature,b)?;
         if let Type::BorrowedFunctionPointer{life,..}=&value.ty {
             let entry=module.functions.get(function.0 as usize).ok_or_else(||bad("borrowed code has no actual entry"))?;
@@ -93,6 +96,31 @@ impl CheckedContext{
         }
         if f.values.get(result.0 as usize)!=Some(&value.ty){return Err(bad("actual code reference changes the complete original code type"));}Ok(value)
     }
+    fn named_invocation_signature(&self,signature:&mut CheckedSignature,owner:ScopeKey,b:&mut Budget)->Check<()>{
+        let declared=signature.invocation.clone();
+        let mut invocation=Vec::new();
+        let mut bind=|value:&CheckedType,mode:&mut PassingMode,result:bool,b:&mut Budget|->Check<()>{
+            let Type::Address{mutable,..}=value.ty else{return Ok(());};
+            if *mode!=PassingMode::Infer && *mode!=if mutable{PassingMode::BorrowMut}else{PassingMode::Borrow}{
+                return Err(bad("named FunctionRef address changes its actual parameter responsibility"));
+            }
+            let [source]=value.classes.as_slice() else{return Err(unsupported("named thin code requires a whole root address invocation role",None));};
+            if !matches!(source,ClassKey::Implicit{scope,..} if *scope==owner) && !declared.contains(source){
+                return Err(bad("named FunctionRef address lifetime is outside its actual declaration"));
+            }
+            b.spend(invocation.len().saturating_add(1))?;
+            if !invocation.contains(source){
+                if result{return Err(unsupported("named FunctionRef result lacks its proved input source relation",None));}
+                invocation.push(source.clone());
+            }
+            *mode=PassingMode::Infer;Ok(())
+        };
+        for(value,mode)in &mut signature.parameters{bind(value,mode,false,b)?;}
+        bind(&signature.result,&mut signature.result_mode,true,b)?;
+        if declared.iter().any(|source|!invocation.contains(source)){return Err(bad("named FunctionRef drops an invocation lifetime"));}
+        signature.invocation=invocation;Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn indirect_call(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,callee:&CheckedType,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>>{
         let recipe=self.original.borrow().as_ref().ok_or_else(||bad("indirect code call has no universal original body proof"))?.indirect_signature_recipe(module,caller.definition,site.recipe,environment,b)?;
