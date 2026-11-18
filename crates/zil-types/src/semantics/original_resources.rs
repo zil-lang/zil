@@ -1287,7 +1287,7 @@ impl Check<'_, '_> {
             }
             SemanticTypeRecipe::Opaque { definition, arguments, hidden } => {
                 let source = self.definition(*definition)?;
-                if kind == SemanticBuiltinTrait::ClosedEnvironment
+                if matches!(kind, SemanticBuiltinTrait::ClosedEnvironment | SemanticBuiltinTrait::SyncDrop)
                     && source.parent.is_none() && source.environment.is_empty()
                     && self.proof.complete.contains(definition)
                     && matches!(&source.body, SemanticDefinitionBody::FunctionWithBody {

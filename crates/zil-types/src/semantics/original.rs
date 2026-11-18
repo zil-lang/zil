@@ -66,7 +66,7 @@ mod views;
 pub(super) use calls::{CallableCall, MethodCall};
 pub(super) use places::FieldReborrow;
 pub(super) use values::FunctionValue;
-pub(super) use views::{BorrowRole, ViewBorrowRoot, ViewBorrowStep, ViewBorrowStepKind};
+pub(super) use views::{BorrowRole, ViewBorrowRoot, ViewBorrowStep, ViewBorrowStepKind, local_source_copy};
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-ORIGINAL", Span::default(), message)
 }
@@ -2743,6 +2743,7 @@ impl<'a> Check<'a, '_> {
             variables,
             depth + 1,
         )?;
+        self.infer_callable_bounds(owner, formals, &mut solutions, depth + 1)?;
         self.pay(solutions.len(), depth)?;
         let mut actuals = solutions
             .into_iter()

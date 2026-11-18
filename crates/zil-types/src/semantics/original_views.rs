@@ -1589,3 +1589,29 @@ impl Check<'_, '_> {
         self.call_region_outlives(owner, source, target, &mut Vec::new(), depth)
     }
 }
+
+/// Only a transparent local-pointer read/alias transports the same referent.
+/// Group/ascription add no path step. Field/index/deref/borrow and call edges
+/// must form their own source receipt after the complete actual trace.
+pub(in crate::semantics) fn local_source_copy(
+    root: ViewBorrowRoot, steps: &[ViewBorrowStep],
+) -> bool {
+    let ViewBorrowRoot::Local(binding) = root else { return false; };
+    let mut read = false;
+    for step in steps {
+        match &step.kind {
+            ViewBorrowStepKind::ReadLocal { binding: selected } if *selected == binding => read = true,
+            ViewBorrowStepKind::Alias { .. } => {}
+            ViewBorrowStepKind::ReadLocal { .. }
+            | ViewBorrowStepKind::Parameter | ViewBorrowStepKind::ParameterStorage
+            | ViewBorrowStepKind::Slice | ViewBorrowStepKind::Index { .. }
+            | ViewBorrowStepKind::Dereference | ViewBorrowStepKind::CallResult { .. }
+            | ViewBorrowStepKind::CallInputs { .. } | ViewBorrowStepKind::CallableReceiver { .. }
+            | ViewBorrowStepKind::BytesBorrow { .. } | ViewBorrowStepKind::Capture { .. }
+            | ViewBorrowStepKind::ProjectedLocal { .. } | ViewBorrowStepKind::Local { .. }
+            | ViewBorrowStepKind::Field { .. } | ViewBorrowStepKind::StoreBorrow { .. }
+            | ViewBorrowStepKind::Borrow => return false,
+        }
+    }
+    read
+}

@@ -1164,7 +1164,7 @@ pub(in crate::semantics) fn complete_emitted_headers(
         complete.insert(instance);
         progress = true;
     }
-    if pending.is_empty() && nominal_dependencies.is_empty() { return Ok(()); }
+    if pending.is_empty() && nominal_dependencies.is_empty() && !progress { return Ok(()); }
     if !progress {
         let mut diagnostic = Diagnostic::unsupported(Phase::Types,
             "closure declaration directory has unresolved actual header dependencies", None);

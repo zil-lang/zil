@@ -305,6 +305,7 @@ fn clone_proof(
             .saturating_add(source.inferred_type_origins.len())
             .saturating_add(source.scope_calls.len())
             .saturating_add(source.local_roles.len())
+            .saturating_add(source.capture_writes.len().saturating_mul(4))
             .saturating_add(source.environments.len())
             .saturating_add(source.effective_call_kind.len())
             .saturating_add(source.borrowed_capture_heads.len())
@@ -422,6 +423,7 @@ fn clone_proof(
         .borrow_roles
         .values()
         .chain(source.return_borrows.values())
+        .chain(source.capture_writes.values().map(|write| &write.role))
     {
         spend(left, role.steps.len(), 0, limits)?;
         for step in &role.steps {

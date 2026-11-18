@@ -196,6 +196,99 @@ impl Check<'_, '_> {
             self.left,
         )
     }
+    /// A solved whole-Type actual can determine free mixed variables through
+    /// its original callable bounds. These are constraints on this invocation,
+    /// never premises imported from the target. Satisfaction still runs after
+    /// the complete vector is sealed.
+    pub(super) fn infer_callable_bounds(
+        &mut self, owner: SemanticDefinitionId, formals: &[SemanticFormal],
+        solutions: &mut [Option<SemanticActualRecipe>], depth: usize,
+    ) -> R<()> {
+        loop {
+            self.pay(solutions.len(), depth)?;
+            let before = solutions.iter().filter(|slot| slot.is_some()).count();
+            if before == solutions.len() { return Ok(()); }
+            for formal in formals {
+                if let SemanticFormal::Type { requirements } = formal {
+                    for requirement in requirements {
+                        self.infer_callable_bound(owner, requirement, formals, solutions, depth + 1)?;
+                    }
+                }
+            }
+            self.pay(solutions.len(), depth)?;
+            if solutions.iter().filter(|slot| slot.is_some()).count() == before { return Ok(()); }
+        }
+    }
+    fn infer_callable_bound(
+        &mut self, owner: SemanticDefinitionId, requirement: &SemanticRequirementRecipe,
+        formals: &[SemanticFormal], solutions: &mut [Option<SemanticActualRecipe>], depth: usize,
+    ) -> R<()> {
+        self.pay(solutions.len().saturating_add(1), depth)?;
+        if solutions.iter().all(Option::is_some) { return Ok(()); }
+        if let SemanticRequirementRecipe::ForAll { requirements, .. } = requirement {
+            for requirement in requirements {
+                self.infer_callable_bound(owner, requirement, formals, solutions, depth + 1)?;
+            }
+            return Ok(());
+        }
+        let SemanticRequirementRecipe::Callable {
+            ty: SemanticTypeRecipe::Formal(SemanticFormalRef {
+                scope: SemanticScopeRef::Ancestor(0), ordinal,
+            }), kind, signature,
+        } = requirement else { return Ok(()); };
+        let Some(Some(SemanticActualRecipe::Type(value))) = solutions.get(*ordinal as usize) else {
+            return Ok(());
+        };
+        let value = copy_recipe(value, self.limits, self.left)?;
+        let value = self.observation_type(owner, &value, depth + 1)?;
+        let mut selected = self.concrete_callable(&value, depth + 1)?;
+        if selected.is_none() {
+            for premise in self.original_requirements(owner, depth + 1)?.iter() {
+                for (_, candidate_kind, candidate, _) in
+                    self.callable_premises(premise, &value, &mut Vec::new(), depth + 1)? {
+                    if !compatible(candidate_kind, *kind) { continue; }
+                    if let Some((prior_kind, prior)) = &selected {
+                        crate::dyn_metadata::semantic_operand_snapshot(prior, self.limits, self.left, 1)?;
+                        crate::dyn_metadata::semantic_operand_snapshot(&candidate, self.limits, self.left, 1)?;
+                        if prior_kind != &candidate_kind || prior != &candidate {
+                            return Err(pending("original mixed inference has several distinct callable operation anchors"));
+                        }
+                    } else { selected = Some((candidate_kind, candidate)); }
+                }
+            }
+        }
+        let Some((actual_kind, actual)) = selected else { return Ok(()); };
+        // A candidate's own universally quantified call roles cannot uniquely
+        // determine a free target actual. Their instantiation remains with the
+        // existing complete callable satisfaction operation.
+        if actual.bound_lifetimes != 0 || actual.invocation_lifetimes != 0 { return Ok(()); }
+        if !compatible(actual_kind, *kind) { return Err(bad("original mixed callable actual lacks its required invocation kind")); }
+        let wanted = self.inference_template(signature, formals, false, depth + 1)?;
+        if actual.parameters.len() != wanted.parameters.len()
+            || actual.bound_lifetimes != wanted.bound_lifetimes
+            || actual.invocation_lifetimes != wanted.invocation_lifetimes
+            || actual.call_kind != wanted.call_kind
+                && !(*kind == CallableKind::FnOnce && actual.call_kind == CallKind::Direct && wanted.call_kind == CallKind::Suspend)
+            || actual.result_mode != wanted.result_mode {
+            return Err(bad("original mixed callable actual changes its complete operation scheme"));
+        }
+        let mut implicit = BTreeMap::new();
+        let mut invocation = BTreeMap::new();
+        for (parameter, source) in wanted.parameters.iter().zip(&actual.parameters) {
+            self.pay(1, depth)?;
+            if parameter.mode != source.mode { return Err(bad("original mixed callable actual changes its parameter mode")); }
+            self.unify(&parameter.ty, &source.ty, formals, solutions, &mut implicit, &mut invocation, depth + 1)?;
+        }
+        if let (SemanticTypeRecipe::Address { mutable: requested, inner, .. },
+            SemanticTypeRecipe::Address { mutable: available, lifetime: SemanticOuterLifeRecipe::Static, inner: source })
+            = (&wanted.result, &actual.result) {
+            if *requested && !available { return Err(bad("original mixed callable result strengthens shared access")); }
+            self.unify(inner, source, formals, solutions, &mut implicit, &mut invocation, depth + 1)?;
+        } else {
+            self.unify(&wanted.result, &actual.result, formals, solutions, &mut implicit, &mut invocation, depth + 1)?;
+        }
+        Ok(())
+    }
     fn method_name<'d>(
         &mut self,
         definition: &'d SemanticDefinition,
@@ -2351,6 +2444,43 @@ impl Check<'_, '_> {
         }
         Ok(false)
     }
+    /// Interpret a root capture-class query through its checked original
+    /// whole-Type substitution. The result is the creator's real class in the
+    /// current lexical domain, not a class chosen from a same-Type occurrence.
+    fn capture_life_source(
+        &mut self, owner: SemanticDefinitionId, life: &SemanticLifeRecipe, depth: usize,
+    ) -> R<SemanticLifeRecipe> {
+        self.pay(1, depth)?;
+        crate::dyn_metadata::semantic_operand_snapshot(life, self.limits, self.left, 1)?;
+        let SemanticLifeRecipe::OuterOccurrence {
+            operand: SemanticRecipeOperand::Environment { scope: SemanticScopeRef::Ancestor(hops), ordinal },
+            path, mode,
+        } = life else { return Ok(life.clone()); };
+        if !path.is_empty() { return Ok(life.clone()); }
+        let mut domain = owner;
+        for index in 0..*hops {
+            self.pay(1, depth + index as usize)?;
+            domain = self.definition(domain)?.parent.ok_or_else(|| bad("capture class query leaves its real lexical ancestry"))?;
+        }
+        self.pay(self.proof.environments.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+        let (parent, source) = self.proof.environments.get(&(domain, *ordinal))
+            .ok_or_else(|| bad("capture class query lacks its checked whole-Type substitution"))?;
+        let parent = *parent;
+        let source = copy_recipe(source, self.limits, self.left)?;
+        if self.definition(domain)?.parent != Some(parent) { return Err(bad("capture class query changes its true original creator")); }
+        let source = self.observation_type(parent, &source, depth + 1)?;
+        let source = self.rehome_role_type(parent, owner, &source, depth + 1)?;
+        let original = match (&source, mode) {
+            (SemanticTypeRecipe::Address { mutable: false, lifetime, .. }, StoredBorrowMode::SharedAddress)
+            | (SemanticTypeRecipe::Address { mutable: true, lifetime, .. }, StoredBorrowMode::ExclusiveAddress)
+            | (SemanticTypeRecipe::Desc { lifetime, .. }, StoredBorrowMode::WritableDescription) => lifetime,
+            _ => return Err(bad("capture class query changes its complete original outer mode")),
+        };
+        let SemanticOuterLifeRecipe::Class(source) = original else {
+            return Err(bad("capture class query replaces a real Static endpoint"));
+        };
+        self.capture_life_source(owner, source, depth + 1)
+    }
     pub(super) fn same_life(&mut self, a: &SemanticLifeRecipe, b: &SemanticLifeRecipe) -> R<bool> {
         crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
         crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
@@ -2360,13 +2490,16 @@ impl Check<'_, '_> {
         let Some(owner) = self.contexts.last().copied() else {
             return Ok(false);
         };
+        let a = self.capture_life_source(owner, a, 0)?;
+        let b = self.capture_life_source(owner, b, 0)?;
+        if a == b { return Ok(true); }
         let requirements = self.original_requirements(owner, 0)?;
         self.pay(requirements.len().saturating_mul(4).saturating_add(4), 0)?;
-        let mut frontier = vec![a];
+        let mut frontier = vec![&a];
         let mut seen: Vec<&SemanticLifeRecipe> = Vec::new();
         while let Some(current) = frontier.pop() {
             crate::dyn_metadata::semantic_operand_snapshot(current, self.limits, self.left, 1)?;
-            if current == b {
+            if current == &b {
                 return Ok(true);
             }
             let mut duplicate = false;

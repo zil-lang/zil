@@ -1064,7 +1064,11 @@ fn trace_steps(
             }
             ViewBorrowStepKind::Alias { binding } => {
                 let local = binding_local(world, instance, original, *binding, step.node)?;
-                if !input_referent {
+                // An immutable alias's returned Load carries the referent
+                // after ScopeExit retires only its pointer cell. Following
+                // the exact unique initializer still reaches and validates
+                // the real capture/input/local referent below.
+                if !return_boundary {
                     world.local(locals, local)?;
                 }
                 match cursor {
@@ -1259,6 +1263,8 @@ pub(super) fn capture_write(
     if !proof.local_roles.contains_key(&(write.creator_role_owner, write.creator_binding)) {
         return Err(bad("captured write loses its immutable creator declaration role"));
     }
+    crate::dyn_metadata::semantic_operand_snapshot(actual.as_ref(), world.limits, world.left, 1)?;
+    crate::dyn_metadata::semantic_operand_snapshot(expected.as_ref(), world.limits, world.left, 1)?;
     if World::type_of(actual)? != World::type_of(expected)? {
         return Err(bad("captured role write changes its complete actual pointer type"));
     }
@@ -2022,32 +2028,6 @@ fn original_read_value(
 
 }
 
-/// Only a transparent local-pointer read/alias transports the same referent.
-/// Group/ascription add no path step. Field/index/deref/borrow and call edges
-/// must form their own source receipt after the complete actual trace.
-fn local_source_copy(
-    root: ViewBorrowRoot, steps: &[crate::semantics::original::ViewBorrowStep],
-) -> bool {
-    let ViewBorrowRoot::Local(binding) = root else { return false; };
-    let mut read = false;
-    for step in steps {
-        match &step.kind {
-            ViewBorrowStepKind::ReadLocal { binding: selected } if *selected == binding => read = true,
-            ViewBorrowStepKind::Alias { .. } => {}
-            ViewBorrowStepKind::ReadLocal { .. }
-            | ViewBorrowStepKind::Parameter | ViewBorrowStepKind::ParameterStorage
-            | ViewBorrowStepKind::Slice | ViewBorrowStepKind::Index { .. }
-            | ViewBorrowStepKind::Dereference | ViewBorrowStepKind::CallResult { .. }
-            | ViewBorrowStepKind::CallInputs { .. } | ViewBorrowStepKind::CallableReceiver { .. }
-            | ViewBorrowStepKind::BytesBorrow { .. } | ViewBorrowStepKind::Capture { .. }
-            | ViewBorrowStepKind::ProjectedLocal { .. } | ViewBorrowStepKind::Local { .. }
-            | ViewBorrowStepKind::Field { .. } | ViewBorrowStepKind::StoreBorrow { .. }
-            | ViewBorrowStepKind::Borrow => return false,
-        }
-    }
-    read
-}
-
 /// Establish an original source receipt only at its real executed expression
 /// boundary, after the ordinary whole-type constraint has succeeded. The
 /// receipt travels with the existing incoming role fact; it never revives an
@@ -2097,7 +2077,7 @@ pub(super) fn record_source(
     // is not such a copy: its projection deliberately dropped the storage
     // origin and the full trace above now forms the leaf's own receipt below.
     world.pay(steps.len().saturating_add(index::search(world.value_role_sources.len())).saturating_add(1))?;
-    if local_source_copy(root, &steps) {
+    if super::super::original::local_source_copy(root, &steps) {
         if world.value_role_sources.get(&operand).and_then(|source| source.origin.as_ref()).is_none() {
             return Err(bad("local-pointer source copy has no transported original receipt"));
         }

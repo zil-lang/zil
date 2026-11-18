@@ -245,7 +245,7 @@ impl Check<'_, '_> {
         }
         Ok(())
     }
-    fn rehome_role_type(
+    pub(super) fn rehome_role_type(
         &mut self, source: SemanticDefinitionId, owner: SemanticDefinitionId,
         ty: &SemanticTypeRecipe, depth: usize,
     ) -> R<SemanticTypeRecipe> {
@@ -287,6 +287,11 @@ impl Check<'_, '_> {
         let child = self.definition(owner)?;
         let formal = child.environment.get(ordinal as usize)
             .ok_or_else(|| bad("captured role write leaves its complete original environment"))?;
+        if let SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
+            source: SemanticOriginalTypeSource::NameAt { name: original, .. }, ..
+        }) = &formal.source {
+            self.pay(original.len().saturating_add(name.len()), depth)?;
+        }
         if !matches!(&formal.source, SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
             scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::NameAt { name: original, .. },
         }) if original == name) {
@@ -409,6 +414,19 @@ impl Check<'_, '_> {
                 operand,
             } => return self.borrow_escape(owner, operand, variables, depth + 1),
             _ => {}
+        }
+        // A copied pointer still names its original referent. A local alias
+        // is not a borrow of the alias's storage. Only the complete transparent
+        // ReadLocal/Alias path can transport the declaration role this way.
+        if let Some((root, steps)) = self.proof.view_source_steps(owner, expression.id, self.limits, self.left)? {
+            self.pay(steps.len(), depth)?;
+            if views::local_source_copy(root, &steps) {
+                let ViewBorrowRoot::Local(binding) = root else { unreachable!() };
+                self.pay(self.proof.local_roles.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+                if self.proof.local_roles.contains_key(&(owner, binding)) {
+                    return Ok(OriginalRoleEscape::Role { owner, binding });
+                }
+            }
         }
         if let Some(parameter) = self.input_lifetime(owner, lifetime, depth + 1)? {
             return Ok(OriginalRoleEscape::Input { owner, parameter });
@@ -657,6 +675,36 @@ impl Check<'_, '_> {
                     ..
                 })
             ) {
+                let SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit { ordinal, .. }) = lifetime else { unreachable!() };
+                let original = self.definition(owner)?;
+                self.pay(original.implicit_lifetimes.len(), depth)?;
+                let source = original.implicit_lifetimes.iter().find(|row| row.ordinal == *ordinal)
+                    .ok_or_else(|| bad("escaping original borrow lacks its real lifetime occurrence"))?;
+                let SemanticDefinitionBody::FunctionWithBody { sites, site_nodes, .. } = &original.body else {
+                    return Err(bad("escaping original borrow has no complete definition body"));
+                };
+                self.pay(sites.len().saturating_mul(site_nodes.len().saturating_add(1)), depth)?;
+                for site in sites {
+                    self.pay(site.occurrence_path.len().saturating_add(source.occurrence_path.len()), depth)?;
+                    if site.occurrence_path != source.occurrence_path { continue; }
+                    for link in site_nodes {
+                        if link.site != site.id { continue; }
+                        let SemanticOriginalNode::Expression(node) = link.node else { continue; };
+                        if let Some((root, steps)) = self.proof.view_source_steps(owner, node, self.limits, self.left)? {
+                            self.pay(steps.len(), depth)?;
+                            let local_storage = match root {
+                                ViewBorrowRoot::Local(binding) => steps.iter().any(|step| matches!(step.kind,
+                                    ViewBorrowStepKind::Local { binding: selected } if selected == binding)
+                                    || matches!(step.kind, ViewBorrowStepKind::ProjectedLocal { statement, read: false, .. } if statement == binding)),
+                                ViewBorrowRoot::Parameter(_) => steps.iter().any(|step| matches!(step.kind, ViewBorrowStepKind::ParameterStorage)),
+                                _ => false,
+                            };
+                            if local_storage {
+                                return self.escape_source(&OriginalRoleEscape::LocalPlace { owner, node }, &mut BTreeSet::new(), depth + 1);
+                            }
+                        }
+                    }
+                }
                 return Err(bad(
                     "original result exposes an unbounded local borrow occurrence",
                 ));
