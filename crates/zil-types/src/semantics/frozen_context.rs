@@ -115,15 +115,24 @@ fn source_interface(
         Default::default(), limits, left,
     ) {
         Err(code_context::Failure::Missing { demand, diagnostic }) => {
-            // Only source syntax enters this pass and it never evaluates a CT
-            // expression. Gamma independently validates the proposed input.
-            let inferred = inference::infer_original_code_context(source, limits, left)
-                .map_err(|errors| errors.into_iter().next().unwrap_or_else(|| diagnostic.clone()))?;
-            pay(left, inferred.modules.len())?;
-            let cores: Vec<_> = inferred.modules.iter().map(|row| &row.core).collect();
-            let core = inference::original_code_context(&cores, limits, left)?;
-            let goals = code_context::bind(program, &core, limits, left)?;
-            if !demand.has_candidate(&goals) { return Err(diagnostic); }
+            // The ordinary driver already prepares the whole Source graph
+            // before building the immutable query directory. Its annotations
+            // are only proposed equations and Gamma still checks every call.
+            let core = inference::original_code_context(&modules, limits, left)?;
+            let mut goals = code_context::bind(program, &core, limits, left)?;
+            if !demand.has_candidate(&goals) {
+                // The raw frozen-context entry also accepts unprepared
+                // original Core. This solve never evaluates a CT expression.
+                let inferred = inference::infer_original_code_context(source, limits, left)
+                    .map_err(|errors| errors.into_iter().next().unwrap_or_else(|| diagnostic.clone()))?;
+                pay(left, inferred.modules.len())?;
+                let cores: Vec<_> = inferred.modules.iter().map(|row| &row.core).collect();
+                let core = inference::original_code_context(&cores, limits, left)?;
+                goals = code_context::bind(program, &core, limits, left)?;
+                if !demand.has_candidate(&goals) {
+                    return Err(diagnostic);
+                }
+            }
             super::original::check_at_with_declarations(
                 program, input.declarations.clone(), definition.id, binding.query.original,
                 goals, limits, left,

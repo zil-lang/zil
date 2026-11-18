@@ -14,6 +14,7 @@ pub(super) use cleanup::Source as CleanupSource;
 pub(super) use cleanup::Event as CleanupEvent;
 mod call_regions;
 mod captures;
+mod code_inputs;
 mod constructors;
 mod descriptions;
 mod dyn_owned;
@@ -335,6 +336,7 @@ struct Solver<'a, 'i> {
     loops: Vec<loops::LoopFrame>,
     trait_state: traits::State,
     capture_state: captures::CaptureState,
+    code_inputs: code_inputs::CodeInputs,
     receiving: Vec<(SemanticDefinitionId, NodeId, Term)>,
     field_needs: Vec<(Term, SemanticDefinitionId, u32)>,
     nominal_declaration: Option<SemanticDefinitionId>,
@@ -598,6 +600,12 @@ impl Solver<'_, '_> {
         }
         if matches!(self.state.arena[left], Kind::Infer(None)) {
             if self.occurs(left, right, 0, b)? {
+                // The same unresolved type may already be wrapped in its
+                // checked invocation result. Equating its hidden type with
+                // itself needs no arena edge or result provenance change.
+                if self.type_root(right, b)? == left {
+                    return Ok(());
+                }
                 return Err(fail("original type equation is recursive"));
             }
             self.state.arena[left] = Kind::Infer(Some(right));
@@ -1158,7 +1166,7 @@ impl Solver<'_, '_> {
                     ));
                 }
                 let result = self.recipe(frame, &signature.result, b, depth + 1)?;
-                self.term(
+                let code = self.term(
                     Kind::Code {
                         kind: *kind,
                         parameters,
@@ -1168,7 +1176,8 @@ impl Solver<'_, '_> {
                         call_kind: signature.call_kind,
                     },
                     b,
-                )
+                )?;
+                self.authored_code(code, b)
             }
             SemanticTypeRecipe::Managed(inner) => {
                 self.wrapper(frame, Wrapper::Managed, inner, b, depth + 1)
@@ -2319,6 +2328,7 @@ impl Solver<'_, '_> {
                                 "original generic callable needs its complete method instantiation",
                             ));
                         }
+                        self.demand_code_input(frame, head, local, arguments.len(), b, depth + 1)?;
                         if let Some((parameters, result)) =
                             self.abstract_scheme(frame, head, value.id, local, b, depth + 1)?
                         {
@@ -2791,6 +2801,9 @@ impl Solver<'_, '_> {
                         } else {
                             self.call_input_value(frame, argument, parameter, b, depth + 1)?
                         };
+                        if frame.alive {
+                            self.observe_code_argument(frame.definition, value.id, ordinal, actual, b)?;
+                        }
                         if let Some(input) = self.collect_call_input(frame, argument, actual, parameter, ordinal, b, depth + 1)? {
                             Self::push(&mut outer_inputs, input, b)?;
                         }
@@ -4448,6 +4461,7 @@ pub(super) fn check(
         loops: Vec::new(),
         trait_state: traits::State::default(),
         capture_state: captures::CaptureState::default(),
+        code_inputs: code_inputs::CodeInputs::default(),
         receiving: Vec::new(),
         field_needs: Vec::new(),
         nominal_declaration: None,
@@ -4523,6 +4537,7 @@ pub(super) fn check(
             ));
         }
     }
+    solver.complete_code_inputs(b)?;
     solver
         .original_provider_conformance(b)
         .map_err(|mut errors| {

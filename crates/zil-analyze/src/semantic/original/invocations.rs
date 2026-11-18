@@ -242,7 +242,7 @@ impl Solver<'_, '_> {
                     Self::push(&mut params, parameter, b)?;
                 }
                 let result = self.open_invocations(result, owner, actuals, b, depth + 1)?;
-                self.term(
+                let opened = self.term(
                     Kind::Code {
                         kind,
                         parameters: params,
@@ -252,7 +252,8 @@ impl Solver<'_, '_> {
                         call_kind,
                     },
                     b,
-                )
+                )?;
+                self.opened_code(opened, term, b)
             }
             Kind::CallResult {
                 caller,

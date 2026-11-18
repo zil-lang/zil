@@ -332,7 +332,7 @@ impl Solver<'_, '_> {
             b,
         )?;
         self.record_code_reference(owner, node, target, b)?;
-        self.term(
+        let code = self.term(
             Kind::Code {
                 kind: SemanticCodeKind::FunctionPointer,
                 parameters,
@@ -342,7 +342,8 @@ impl Solver<'_, '_> {
                 call_kind: signature.call_kind,
             },
             b,
-        )
+        )?;
+        self.authored_code(code, b)
     }
 
     fn code_projection_anchor(
