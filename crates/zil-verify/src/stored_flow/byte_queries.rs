@@ -406,10 +406,11 @@ fn seed_origin(base: HoldRoot, inline: Vec<PlaceProjection>, b: &mut Budget) -> 
     })
 }
 /// Sorted sparse rows use SSA indices first and local indices after them.
+/// A capture coordinate selects one actual field of a closure carrier.
 /// Every saved permission has a closed set of current-generation grants.
 #[derive(Default, PartialEq, Eq)]
 pub(super) struct Point {
-    rows: Vec<(usize, Vec<Permission>)>,
+    rows: Vec<((usize, Option<u32>), Vec<Permission>)>,
 }
 fn tracked(ty: &Type) -> bool {
     is_description(ty) || matches!(ty, Type::Address { .. })
@@ -426,25 +427,55 @@ fn point_work(p: &Point, b: &mut Budget) -> Check<()> {
 }
 impl Point {
     fn at(&self, index: usize, b: &mut Budget) -> Check<&[Permission]> {
+        self.at_key((index, None), b)
+    }
+    fn at_key(&self, key: (usize, Option<u32>), b: &mut Budget) -> Check<&[Permission]> {
         b.spend(self.rows.len().saturating_add(1))?;
         Ok(self
             .rows
             .iter()
-            .find(|(key, _)| *key == index)
+            .find(|(actual, _)| *actual == key)
             .map_or(&[], |(_, row)| row.as_slice()))
     }
     fn put(&mut self, index: usize, row: Vec<Permission>, b: &mut Budget) -> Check<()> {
+        self.put_key((index, None), row, b)
+    }
+    fn put_key(&mut self, key: (usize, Option<u32>), row: Vec<Permission>, b: &mut Budget) -> Check<()> {
         b.spend(self.rows.len().saturating_add(1))?;
-        match self.rows.binary_search_by_key(&index, |(key, _)| *key) {
+        match self.rows.binary_search_by_key(&key, |(actual, _)| *actual) {
             Ok(position) => self.rows[position].1 = row,
-            Err(position) => self.rows.insert(position, (index, row)),
+            Err(position) => self.rows.insert(position, (key, row)),
         }
         Ok(())
     }
     fn remove(&mut self, index: usize, b: &mut Budget) -> Check<()> {
         b.spend(self.rows.len().saturating_add(1))?;
-        if let Ok(position) = self.rows.binary_search_by_key(&index, |(key, _)| *key) {
-            self.rows.remove(position);
+        self.rows.retain(|((carrier, _), _)| *carrier != index);
+        Ok(())
+    }
+    fn capture_slots(
+        &mut self,
+        module: &TypedModule,
+        closure: ClosureId,
+        target: usize,
+        mut source: impl FnMut(&Self, usize, u32, &mut Budget) -> Check<Vec<Permission>>,
+        b: &mut Budget,
+    ) -> Check<()> {
+        let definition = crate::closures::definition(module, closure, None)?;
+        self.remove(target, b)?;
+        b.spend(definition.captures.len())?;
+        for (index, ty) in definition.captures.iter().enumerate() {
+            if !is_description(ty) {
+                continue;
+            }
+            let mut row = source(self, index, index as u32, b)?;
+            if row.is_empty() {
+                // Preserve unresolved live alternatives at CFG joins. An
+                // unknown creator cannot borrow another predecessor's proof.
+                b.spend(1)?;
+                row.push(Permission::default());
+            }
+            self.put_key((target, Some(index as u32)), row, b)?;
         }
         Ok(())
     }
@@ -463,9 +494,9 @@ impl Point {
 fn join_point(to: &mut Point, from: &Point, b: &mut Budget) -> Check<()> {
     b.spend(from.rows.len())?;
     for (key, row) in &from.rows {
-        let mut merged = clone_alternatives(to.at(*key, b)?, b)?;
+        let mut merged = clone_alternatives(to.at_key(*key, b)?, b)?;
         extend_alternatives(&mut merged, row, b)?;
-        to.put(*key, merged, b)?;
+        to.put_key(*key, merged, b)?;
     }
     Ok(())
 }
@@ -503,10 +534,43 @@ fn advance(
     if fresh {
         point.revoke(result.unwrap().0 as usize, b)?;
     }
+    if let Some(result) = operation.result
+        && let Type::Closure(closure) = *vt(f, result)?
+    {
+        let target = result.0 as usize;
+        match &operation.kind {
+            InstructionKind::MakeClosure { closure: actual, captures } if *actual == closure => {
+                let definition = crate::closures::definition(module, closure, Some(operation.span))?;
+                b.spend(captures.len().saturating_add(definition.captures.len()))?;
+                if captures.len() != definition.captures.len() {
+                    return Err(outside());
+                }
+                point.capture_slots(module, closure, target, |point,index,_,b| {
+                    clone_alternatives(point.at(captures[index].0 as usize, b)?, b)
+                }, b)?;
+            }
+            InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                let source = f.values.len() + local.0 as usize;
+                point.capture_slots(module, closure, target, |point,_,capture,b| {
+                    clone_alternatives(point.at_key((source, Some(capture)), b)?, b)
+                }, b)?;
+            }
+            _ => point.capture_slots(module, closure, target, |_,_,_,_| Ok(Vec::new()), b)?,
+
+        }
+    }
     match operation.kind {
         InstructionKind::Store { local, value } if tracked(&f.locals[local.0 as usize].ty) => {
             let row = clone_alternatives(point.at(value.0 as usize, b)?, b)?;
             point.put(f.values.len() + local.0 as usize, row, b)?;
+        }
+        InstructionKind::Store { local, value } => {
+            if let Type::Closure(closure) = f.locals[local.0 as usize].ty {
+                let target = f.values.len() + local.0 as usize;
+                point.capture_slots(module, closure, target, |point,_,capture,b| {
+                    clone_alternatives(point.at_key((value.0 as usize, Some(capture)), b)?, b)
+                }, b)?;
+            }
         }
         InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
             point.remove(f.values.len() + local.0 as usize, b)?
@@ -871,7 +935,11 @@ impl Flow {
         for source in &prior.byte_reads {
             let row = if matches!(source.base, HoldRoot::Capture(_)) {
                 let definition = closure.ok_or_else(outside)?;
-                if let Some(value) = captured_owner::consuming_value(&operation.kind) {
+                if let HoldRoot::Capture(index) = source.base
+                    && definition.captures.get(index as usize).is_some_and(is_description)
+                {
+                    weak_capture_read(caller, operation, source, index, actual, point, b)?
+                } else if let Some(value) = captured_owner::consuming_value(&operation.kind) {
                     if owning_byte_capture(definition, source, b)? {
                         continue;
                     }
@@ -918,6 +986,58 @@ impl Flow {
         Ok(out)
     }
 }
+fn weak_capture_read(
+    f: &TypedFunction,
+    operation: &Instruction,
+    source: &Source,
+    capture: u32,
+    values: &[Payload],
+    point: &Point,
+    b: &mut Budget,
+) -> Check<Vec<Permission>> {
+    if source.retained_port.is_some() || !source.leaf.is_empty() || !source.inline.is_empty()
+        || !source.heap_parents.is_empty() || source.heap_element.is_some()
+    {
+        return Err(outside());
+    }
+    let mut out = Vec::new();
+    let mut from = |carrier| {
+        let row = point.at_key((carrier, Some(capture)), b)?;
+        b.spend(row.len())?;
+        if row.is_empty() || row.iter().any(|permission| permission.sources.is_empty()) {
+            return Err(reject("E-VERIFY-STORED", Some(operation.span), format!(
+                "Byte query capture {capture} has no current weak owner origins on actual carrier {carrier}",
+            )));
+        }
+        extend_alternatives(&mut out, row, b)
+    };
+    match operation.kind {
+        InstructionKind::CallClosure { callee, .. } | InstructionKind::CallClosureOnce { callee, .. } => {
+            from(callee.0 as usize)?;
+        }
+        InstructionKind::CallClosureShared { callee, .. } | InstructionKind::CallClosureMut { callee, .. } => {
+            from(f.values.len() + callee.0 as usize)?;
+        }
+        InstructionKind::CallClosureBorrowed { callee, .. } => {
+            let permission = &values[callee.0 as usize].address;
+            if permission.sources.is_empty() {
+                return Err(outside());
+            }
+            for root in &permission.sources {
+                let HoldRoot::Local(local) = root.base else { return Err(outside()) };
+                if root.retained_port.is_some() || !root.leaf.is_empty() || !root.inline.is_empty()
+                    || !root.heap_parents.is_empty() || root.heap_element.is_some()
+                {
+                    return Err(outside());
+                }
+                from(f.values.len() + local.0 as usize)?;
+            }
+        }
+        _ => return Err(outside()),
+    }
+    Ok(out)
+}
+
 pub(super) fn record(out: &mut Vec<Source>, permission: &Permission, b: &mut Budget) -> Check<()> {
     b.spend(permission.sources.len())?;
     for source in &permission.sources {

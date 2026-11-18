@@ -381,7 +381,7 @@ pub(super) fn infer_program_closures_borrowed_with_frozen<'a>(
     frozen: Option<&semantics::frozen_context::FrozenSource>,
 ) -> CompileResult<Cow<'a, CoreProgram>> {
     let mut budget = Budget::new(limits);
-    infer_program_closures_with_budget(program, frozen, &mut budget)
+    infer_program_closures_with_budget(program, frozen, false, &mut budget)
 }
 
 pub(crate) fn infer_original_code_context<'a>(
@@ -391,7 +391,7 @@ pub(crate) fn infer_original_code_context<'a>(
 ) -> CompileResult<Cow<'a, CoreProgram>> {
     let mut budget = Budget::new(limits);
     budget.work = *left;
-    let result = infer_program_closures_with_budget(program, None, &mut budget);
+    let result = infer_program_closures_with_budget(program, None, true, &mut budget);
     *left = budget.work;
     result
 }
@@ -399,6 +399,7 @@ pub(crate) fn infer_original_code_context<'a>(
 fn infer_program_closures_with_budget<'a>(
     program: &'a CoreProgram,
     frozen: Option<&semantics::frozen_context::FrozenSource>,
+    shared_work: bool,
     mut budget: &mut Budget<'_>,
 ) -> CompileResult<Cow<'a, CoreProgram>> {
     let original = program;
@@ -532,12 +533,18 @@ fn infer_program_closures_with_budget<'a>(
                 .map_err(|e| vec![e])?,
         );
     }
-    names::check_modules(program.modules.iter().map(|m| &m.core), limits).map_err(|e| vec![e])?;
+    names::check_modules_with_work(
+        program.modules.iter().map(|m| &m.core), limits, shared_work.then_some(&mut budget.work),
+    ).map_err(|e| vec![e])?;
     let normalized = if flags.iter().flatten().any(|f| *f)
         || program.modules.iter().any(|m| {
             !m.core.aggregate_templates.is_empty() || !m.core.aggregate_applications.is_empty()
         }) {
-        let normalized = aggregates::resolve_program(program, limits)?;
+        let normalized = if shared_work {
+            aggregates::resolve_program_with_work(program, limits, &mut budget.work)?
+        } else {
+            aggregates::resolve_program(program, limits)?
+        };
         let mut offset = 0;
         for module in &normalized.modules {
             let exports = module.exports.iter().copied().collect();
@@ -597,7 +604,8 @@ fn infer_program_closures_with_budget<'a>(
         }
         let table = &tables[&module.core.module_id];
         validate_module_metadata(&module.core, &mut budget).map_err(|e| vec![e])?;
-        let enum_types = enums::project_definitions(program, &module.core, &mut enum_work, limits)?;
+        let charge = if shared_work { &mut budget.work } else { &mut enum_work };
+        let enum_types = enums::project_definitions(program, &module.core, charge, limits)?;
         let mut functions = Vec::new();
         budget.current_module = module.core.module_id;
         for (function, flag) in module.core.functions.iter().zip(flags) {

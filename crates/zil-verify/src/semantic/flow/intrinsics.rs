@@ -209,7 +209,7 @@ impl CheckedContext {
         if nodes.next().is_some() {
             return Err(bad("intrinsic source operation is ambiguous"));
         }
-        let recipe = self.original.borrow().as_ref().unwrap().type_recipe(
+        let recipe = self.original.borrow().as_ref().unwrap().construction_recipe(
             module,
             caller.definition,
             &SemanticOriginalTypeSource::Expression(node),
@@ -218,9 +218,12 @@ impl CheckedContext {
         )?;
         let expected = self.evaluate_type(module, &recipe, environment, external, active, b)?;
         if expected.ty != actual || !expected.classes.is_empty() || !expected.statics.is_empty() {
-            return Err(bad(
-                "closed byte result differs from its original complete scheme",
+            let mut diagnostic = bad("closed byte result differs from its original operation payload");
+            diagnostic.relate(DiagnosticRole::Result, Some(instruction.span), intrinsic_location(f, &site.at), format!(
+                "actual intrinsic result {actual:?}; original payload {:?} at expression {node:?}",
+                expected.ty
             ));
+            return Err(diagnostic);
         }
         Ok(Some(expected))
     }

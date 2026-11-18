@@ -382,6 +382,14 @@ pub(super) fn resolve_program(
     limits: &Limits,
 ) -> CompileResult<CoreProgram> {
     let mut remaining = limits.max_analysis_steps;
+    resolve_program_with_work(program, limits, &mut remaining)
+}
+
+pub(super) fn resolve_program_with_work(
+    program: &CoreProgram,
+    limits: &Limits,
+    remaining: &mut usize,
+) -> CompileResult<CoreProgram> {
     let modules = program.modules.iter().map(|m| &m.core).collect::<Vec<_>>();
     let mut normalized = Vec::new();
     for module in &program.modules {
@@ -389,21 +397,21 @@ pub(super) fn resolve_program(
         let work = inference::life_inventory_snapshot_work(
             &module.core,
             &Limits {
-                max_analysis_steps: remaining,
+                max_analysis_steps: *remaining,
                 ..limits.clone()
             },
         )
         .map_err(|e| vec![e])?;
-        remaining = remaining.checked_sub(work).ok_or_else(|| {
+        *remaining = remaining.checked_sub(work).ok_or_else(|| {
             vec![Diagnostic::limit(
                 Phase::Types,
                 "stored inventory snapshot budget exceeded",
                 None,
             )]
         })?;
-        let snapshot = inference::snapshot_context_module(&module.core, limits, &mut remaining)
+        let snapshot = inference::snapshot_context_module(&module.core, limits, remaining)
             .map_err(|e| vec![e])?;
-        let core = resolve_indexed(snapshot, &modules, limits, &mut remaining)?;
+        let core = resolve_indexed(snapshot, &modules, limits, remaining)?;
         normalized.push(ProgramModule {
             core,
             imports: module.imports.clone(),

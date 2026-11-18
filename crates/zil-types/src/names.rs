@@ -8,13 +8,23 @@ pub(super) fn check_modules<'a>(
     modules: impl IntoIterator<Item = &'a CoreModule>,
     limits: &Limits,
 ) -> R<()> {
-    let mut checker = Names { limits, visited: 0 };
+    check_modules_with_work(modules, limits, None)
+}
+
+pub(super) fn check_modules_with_work<'a>(
+    modules: impl IntoIterator<Item = &'a CoreModule>,
+    limits: &Limits,
+    remaining: Option<&mut usize>,
+) -> R<()> {
+    let mut checker = Names { limits, visited: 0, remaining };
     for module in modules {
         for f in &module.functions {
+            checker.work(f.name.len().saturating_add(1), f.span)?;
             if primitive_name(&f.name) {
                 return Err(primitive_reserved(&f.name, f.span));
             }
             for (index, p) in f.parameters.iter().enumerate() {
+                checker.work(p.name.len().saturating_add(1), p.span)?;
                 if primitive_name(&p.name) {
                     return Err(primitive_reserved(&p.name, p.span));
                 }
@@ -112,11 +122,21 @@ fn primitive_reserved(name: &str, span: Span) -> Diagnostic {
         "u8, u16, i32 and i64 are reserved bare integer conversion names",
     )
 }
-struct Names<'a> {
+struct Names<'a, 'b> {
     limits: &'a Limits,
     visited: usize,
+    remaining: Option<&'b mut usize>,
 }
-impl Names<'_> {
+impl Names<'_, '_> {
+    fn work(&mut self, amount: usize, span: Span) -> R<()> {
+        if let Some(remaining) = &mut self.remaining {
+            **remaining = remaining.checked_sub(amount).ok_or_else(|| Diagnostic::limit(
+                Phase::Types, "name resolution shared work exceeded", Some(span),
+            ))?;
+        }
+        Ok(())
+    }
+
     fn charge(&mut self, depth: usize, span: Span) -> R<()> {
         if depth > self.limits.max_call_depth || self.visited >= self.limits.max_nodes {
             return Err(Diagnostic::limit(
@@ -126,7 +146,7 @@ impl Names<'_> {
             ));
         }
         self.visited += 1;
-        Ok(())
+        self.work(1, span)
     }
     fn block(&mut self, b: &CoreBlock, receiver: bool, depth: usize) -> R<()> {
         self.charge(depth, b.span)?;
