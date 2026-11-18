@@ -334,6 +334,10 @@ impl generics::products::Products {
                             }
                         }
                     }
+                    // A standalone Core expansion has no whole-program ledger for
+                    // every monomorphized declaration. Only publish a generic
+                    // instance when this mint has its original mixed arguments.
+                    if selected.is_none() && self.semantic.is_none() { continue; }
                     let application = selected.ok_or_else(|| {
                         Diagnostic::unsupported(
                             Phase::Expand,
