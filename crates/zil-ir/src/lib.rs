@@ -12,6 +12,8 @@ mod value_operands;
 mod ct_frozen;
 mod semantic_scopes;
 mod original_pattern_rows;
+mod original_capture_syntax;
+pub use original_capture_syntax::{CaptureUse, original_capture_use};
 pub use original_pattern_rows::*;
 pub use ct_frozen::*;
 pub use semantic_scopes::*;

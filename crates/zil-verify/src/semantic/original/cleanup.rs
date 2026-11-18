@@ -80,7 +80,8 @@ impl CheckedOriginal {
                 // Filter here, after every original branch has been checked;
                 // filtering an early Return while discovering uses would erase
                 // a real capture that is used on a later branch.
-                if !self.used.get(definition).is_some_and(|used|used.contains(&cleanup.binding.identity)){continue;}
+                if !self.used.get(definition).is_some_and(|used|used.contains(&cleanup.binding.identity))
+                    || !self.capture_owns(&cleanup.binding.identity,b)? { continue; }
             }
             if cleanup.capture_exit&&matches!(cleanup.binding.identity,Binder::Capture{..}){
                 cleanup.binding.identity.charge_clone(b)?;
@@ -115,8 +116,11 @@ impl CheckedOriginal {
                 Ty::Tuple(fields)=>fields.iter().enumerate().map(|(index,field)|(index.to_string(),field.clone())).collect::<Vec<_>>(),
                 Ty::Nominal(id,arguments)=>{if self.custom_drop(module,*id,b)?{if !partial&&self.sync_drop(module,context,&ty,env,active,b)?{return Ok(());}return Err(bad("original field cleanup cannot replace a custom whole Drop"));}let definition=context.definition(module,*id,b)?;let SemanticDefinitionBody::Nominal{body:SemanticNominalBody::Product{fields},..}=&definition.body else{return Err(unsupported("original partial cleanup requires exact finite product fields",None));};let mut selected=self.environment(module,context,*id,active,b)?;selected.lexical[0].actuals=arguments.clone();let mut result=Vec::new();for field in fields{result.push((field.name.clone(),self.ty(module,context,&field.ty,&selected,active,b)?));}result},
                 Ty::Closure(definition,arguments,sealed)=>{
-                    if !self.creator_moves.get(definition).copied().ok_or_else(||bad("closure owner cleanup lacks its exact capture mode"))?{return Ok(());}
-                    self.closure_capture_fields(module,context,*definition,arguments,sealed,b)?
+                    let mut owned=Vec::new();
+                    for (name,ty) in self.closure_capture_fields(module,context,*definition,arguments,sealed,b)? {
+                        if self.capture_field_owns(*definition,&name,b)? { owned.push((name,ty)); }
+                    }
+                    owned
                 },
                 _=>return Err(unsupported("original partial cleanup needs its complete value/array debt ledger",None)),
             };
@@ -163,7 +167,6 @@ impl CheckedOriginal {
         for(definition,receiver,creator)in goals{
             b.spend(snapshots.len())?;
             if !matches!(receiver,Ty::Closure(id,..)if id==definition)||!self.checked.contains(&definition)||creator.lexical.first().is_none_or(|frame|frame.definition!=definition){return Err(bad("original Direct consuming provider loses its exact checked creator/receiver"));}
-            if !self.creator_moves.get(&definition).copied().ok_or_else(||bad("original consuming provider has no original capture mode"))?{continue;}
             for cleanup in snapshots.iter().filter(|cleanup|cleanup.definition==definition){
                 self.current=Some(definition);
                 let place=Place{binder:cleanup.binding.identity.clone(),fields:cleanup.path.clone()};
@@ -234,10 +237,11 @@ impl CheckedOriginal {
                 },
                 Ty::Opaque(owner,arguments)=>{let hidden=self.opaque_hidden(module,context,owner,&arguments,active,b)?;self.sync_drop(module,context,&hidden,env,active,b)?},
                 Ty::Closure(definition,arguments,sealed)=>{
-                    let captures=self.closure_capture_types(module,context,definition,&arguments,&sealed,b)?;
-                    let moves=*self.creator_moves.get(&definition).ok_or_else(||bad("closure cleanup lacks its original capture mode"))?;
-                    if !moves{return Ok(true);}
-                    for capture in captures{if !self.sync_drop(module,context,&capture,env,active,b)?{return Ok(false);}}true
+                    let captures=self.closure_capture_fields(module,context,definition,&arguments,&sealed,b)?;
+                    for (name,capture) in captures {
+                        if self.capture_field_owns(definition,&name,b)? && !self.sync_drop(module,context,&capture,env,active,b)? { return Ok(false); }
+                    }
+                    true
                 },
                 _=>self.has_sync_drop_premise(module,context,&ty,env,active,b)?,
             })

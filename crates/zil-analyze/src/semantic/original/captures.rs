@@ -74,13 +74,59 @@ impl Solver<'_, '_> {
         };
         Ok(move_capture)
     }
+    pub(super) fn infer_owner_captures(
+        &mut self, frame: &Frame, child: &SemanticDefinition, creator: NodeId, b: &mut Budget,
+    ) -> CompileResult<()> {
+        let mut owners = BTreeSet::new();
+        for environment in &child.environment {
+            crate::dyn_metadata::recipe(&environment.source, b)?;
+            let SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0),
+                source: SemanticOriginalTypeSource::NameAt { at: SemanticOriginalNode::Expression(at), name },
+            }) = &environment.source else { continue; };
+            if *at != creator { return Err(fail("given capture selects another lexical creation")); }
+            b.spend(frame.locals.iter().map(|local| local.name.len().saturating_add(name.len() + 1)).sum(), WORK)?;
+            let local = frame.locals.iter().rfind(|local| local.name == *name)
+                .ok_or_else(|| fail("given capture has no creator binding"))?;
+            if !matches!(self.state.arena[self.type_root(local.ty, b)?], Kind::Wrapped(Wrapper::Managed, _)) { continue; }
+            if zil_ir::original_capture_use(child, name, zil_ir::CaptureUse::Give,
+                |work, depth, _| {
+                    if depth > b.partial_depth { return Err(resource("original capture ownership depth exceeded")); }
+                    b.spend(work, WORK)
+                },
+                |message, _| unknown(message),
+            )?.is_some() {
+                if local.borrowed { return Err(fail("original give cannot capture an already borrowed owner")); }
+                b.spend(name.len().saturating_add(owners.len().saturating_add(1).ilog2() as usize + 1), WORK)?;
+                if !owners.insert(name.clone()) { return Err(fail("given capture repeats its original creator binding")); }
+            }
+        }
+        if !owners.is_empty() {
+            b.lookup(self.state.inferred_owner_captures.len(), WORK)?;
+            self.state.inferred_owner_captures.insert(child.id, owners);
+        }
+        Ok(())
+    }
+    pub(super) fn inferred_owner_capture(&self, definition: SemanticDefinitionId, name: &str, b: &mut Budget) -> CompileResult<bool> {
+        self.state.inferred_owner_capture(definition, name, b)
+    }
+    fn has_inferred_owner_capture(&self, definition: SemanticDefinitionId, b: &mut Budget) -> CompileResult<bool> {
+        if self.state.inferred_owner_captures.is_empty() { return Ok(false); }
+        b.lookup(self.state.inferred_owner_captures.len(), WORK)?;
+        Ok(self.state.inferred_owner_captures.contains_key(&definition))
+    }
+    pub(super) fn capture_owns_anchor(&self, definition: SemanticDefinitionId, ordinal: u32, b: &mut Budget) -> CompileResult<bool> {
+        if self.owns_captures(definition, b)? { return Ok(true); }
+        if self.state.inferred_owner_captures.is_empty() { return Ok(false); }
+        self.state.inferred_owner_capture_ordinal(definition, ordinal, self.inventory, b)
+    }
     pub(super) fn capture_read(
         &mut self,
         frame: &Frame,
         index: usize,
         b: &mut Budget,
     ) -> CompileResult<()> {
-        if !frame.alive || index >= frame.inherited || !self.owns_captures(frame.definition, b)? {
+        if !frame.alive || index >= frame.inherited || frame.locals[index].borrowed {
             return Ok(());
         }
         b.lookup(self.capture_state.reads.len(), WORK)?;
@@ -94,7 +140,8 @@ impl Solver<'_, '_> {
         Ok(())
     }
     pub(super) fn capture_exit(&mut self, frame: &Frame, b: &mut Budget) -> CompileResult<()> {
-        if !frame.alive || frame.inherited == 0 || !self.owns_captures(frame.definition, b)? {
+        if !frame.alive || frame.inherited == 0
+            || !(self.owns_captures(frame.definition, b)? || self.has_inferred_owner_capture(frame.definition, b)?) {
             return Ok(());
         }
         let mut exit = Vec::new();
@@ -118,7 +165,7 @@ impl Solver<'_, '_> {
         operation: CallKind,
         b: &mut Budget,
     ) -> CompileResult<()> {
-        if !self.owns_captures(definition, b)? {
+        if !(self.owns_captures(definition, b)? || self.has_inferred_owner_capture(definition, b)?) {
             return Ok(());
         }
         let frame = self
@@ -130,6 +177,7 @@ impl Solver<'_, '_> {
             if let Some(exits) = self.capture_state.exits.get(&definition) {
                 for exit in exits {
                     for index in frame.captured.keys() {
+                        if frame.locals[*index].borrowed { continue; }
                         let (_, _, _, possible) = exit.get(*index).ok_or_else(|| {
                             fail("original reusable capture exit omits its full availability state")
                         })?;
@@ -163,6 +211,7 @@ impl Solver<'_, '_> {
             if let Some(exits) = self.capture_state.exits.get(&definition) {
                 for exit in exits {
                     for index in frame.captured.keys() {
+                        if frame.locals[*index].borrowed { continue; }
                         let (live, _, vacant, _) = exit.get(*index).ok_or_else(|| {
                             fail("original capture exit omits a full live capture occurrence")
                         })?;
@@ -194,7 +243,7 @@ impl Solver<'_, '_> {
     ) -> CompileResult<bool> {
         self.step(depth, b)?;
         let declaration = self.inventory.definition(definition, b)?;
-        if declaration.kind != SemanticDefinitionKind::Closure { return Ok(false); }
+        if declaration.kind != SemanticDefinitionKind::Closure || self.has_inferred_owner_capture(definition, b)? { return Ok(false); }
         b.lookup(self.state.frames.len(), WORK)?;
         let frame = self.state.frames.get(&definition)
             .ok_or_else(|| fail("closure Copy needs its completed original capture inventory"))?;
@@ -240,7 +289,7 @@ impl Solver<'_, '_> {
         b: &mut Budget,
     ) -> CompileResult<bool> {
         let name = if let CoreExprKind::Name(name) = &callee.kind { Some(name) } else { None };
-        let mut once = requested_once;
+        let mut once = requested_once || self.has_inferred_owner_capture(definition, b)?;
         if let Some(reads) = self.capture_state.reads.get(&definition) {
             let body =
                 self.state.frames.get(&definition).ok_or_else(|| {
@@ -336,6 +385,23 @@ impl Solver<'_, '_> {
 }
 
 impl Checked {
+    fn inferred_owner_capture(&self, definition: SemanticDefinitionId, name: &str, b: &mut Budget) -> CompileResult<bool> {
+        if self.inferred_owner_captures.is_empty() { return Ok(false); }
+        b.lookup(self.inferred_owner_captures.len(), WORK)?;
+        let Some(names) = self.inferred_owner_captures.get(&definition) else { return Ok(false); };
+        b.spend(name.len().saturating_add(1).saturating_mul(names.len().saturating_add(1).ilog2() as usize + 1), WORK)?;
+        Ok(names.contains(name))
+    }
+    pub(in crate::semantic) fn inferred_owner_capture_ordinal(&self, definition: SemanticDefinitionId, ordinal: u32, inventory: &Inventory<'_>, b: &mut Budget) -> CompileResult<bool> {
+        if self.inferred_owner_captures.is_empty() { return Ok(false); }
+        let declaration = inventory.definition(definition, b)?;
+        let Some(environment) = declaration.environment.get(ordinal as usize) else { return Err(fail("given capture ordinal is absent")); };
+        let SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
+            scope: SemanticScopeRef::Ancestor(0),
+            source: SemanticOriginalTypeSource::NameAt { name, .. },
+        }) = &environment.source else { return Ok(false); };
+        self.inferred_owner_capture(definition, name, b)
+    }
     pub(in crate::semantic) fn capture_origin(
         &self,
         definition: SemanticDefinitionId,

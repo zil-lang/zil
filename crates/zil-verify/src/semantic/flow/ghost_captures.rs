@@ -17,7 +17,8 @@ impl CheckedContext {
             let expected=projected.as_ref().unwrap_or(original);
             if expected.ty!=actual.ty{continue;}
             complete_environment(module,original,b)?;
-            let source=self.original.borrow().as_ref().ok_or_else(||bad("logical capture has no checked original body"))?.ghost_capture_source(module,creator.definition,child.definition,ordinal,node,b)?;
+            let managed_mode = matches!(original.ty, Type::Managed(_)).then_some(values.is_some() && !owner_description);
+            let Some(source)=self.original.borrow().as_ref().ok_or_else(||bad("logical capture has no checked original body"))?.ghost_capture_source(module,creator.definition,child.definition,ordinal,node,managed_mode,b)? else { continue; };
             // Resolve every same-shaped original candidate by its real binder.
             // A different candidate cannot donate its class inventory.
             if !self.capture_creator_source(module,creator,f,value,source,b)?{continue;}

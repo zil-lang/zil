@@ -26,6 +26,67 @@ pub(super) struct Place {
     pub(super) binder: Binder,
     pub(super) fields: Vec<String>,
 }
+impl CheckedOriginal {
+    pub(super) fn infer_owner_captures(&mut self, child: &SemanticDefinition, bindings: &BTreeMap<String, Binding>, b: &mut Budget) -> Check<()> {
+        let mut inferred = BTreeSet::new();
+        for (name, binding) in bindings {
+            if !matches!(self.resolved(&binding.ty,b)?, Ty::Managed(_)) { continue; }
+            if zil_ir::original_capture_use(child, name, zil_ir::CaptureUse::Give,
+                |work, depth, _| {
+                    if depth > b.limits.max_call_depth { return Err(limit("original capture ownership depth exceeded")); }
+                    b.spend(work)
+                },
+                |message, span| unsupported(message, Some(span)),
+            )?.is_some() {
+                if matches!(binding.identity, Binder::Capture { .. }) && !self.capture_owns(&binding.identity, b)? {
+                    return Err(bad("original give cannot transfer an already borrowed creator capture"));
+                }
+                binding.identity.charge_clone(b)?;
+                b.spend(inferred.len().saturating_add(1).ilog2() as usize + 2)?;
+                inferred.insert(Binder::Capture {
+                    definition: child.id,
+                    source: Box::new(binding.identity.clone()),
+                });
+            }
+        }
+        if !inferred.is_empty() {
+            b.spend(self.inferred_owner_captures.len().saturating_add(1).ilog2() as usize + 1)?;
+            self.inferred_owner_captures.insert(child.id, inferred);
+        }
+        Ok(())
+    }
+    pub(super) fn capture_owns(&self, binder: &Binder, b: &mut Budget) -> Check<bool> {
+        let Binder::Capture { definition, .. } = binder else { return Ok(false); };
+        if self.capture_creator_moves(*definition)? { return Ok(true); }
+        if self.inferred_owner_captures.is_empty() { return Ok(false); }
+        b.spend(self.inferred_owner_captures.len().saturating_add(1).ilog2() as usize + 1)?;
+        let Some(rows) = self.inferred_owner_captures.get(definition) else { return Ok(false); };
+        for _ in 0..=rows.len().saturating_add(1).ilog2() {
+            binder.charge_clone(b)?;
+        }
+        Ok(rows.contains(binder))
+    }
+    pub(super) fn capture_field_owns(&self, definition: SemanticDefinitionId, field: &str, b: &mut Budget) -> Check<bool> {
+        if self.capture_creator_moves(definition)? { return Ok(true); }
+        if self.inferred_owner_captures.is_empty() { return Ok(false); }
+        let name = field.strip_prefix("$capture:")
+            .ok_or_else(|| bad("original owning capture field has no lexical namesake"))?;
+        b.spend(self.free_values.len().saturating_add(1).ilog2() as usize + 1)?;
+        let Some(rows) = self.free_values.get(&definition) else { return Ok(false); };
+        b.spend(name.len().saturating_add(1).saturating_mul(rows.len().saturating_add(1).ilog2() as usize + 1))?;
+        let Some(binding) = rows.get(name) else { return Ok(false); };
+        binding.identity.charge_clone(b)?;
+        self.capture_owns(&Binder::Capture {
+            definition,
+            source: Box::new(binding.identity.clone()),
+        }, b)
+    }
+    pub(super) fn capture_creator_moves(&self, definition: SemanticDefinitionId) -> Check<bool> {
+        self.creator_moves.get(&definition).copied()
+            .ok_or_else(|| bad("original capture has no exact creator mode"))
+    }
+}
+
 impl Binder {
     pub(super) fn charge_clone(&self, b: &mut Budget) -> Check<()> {
         let mut binder = self;

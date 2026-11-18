@@ -211,10 +211,10 @@ impl CheckedOriginal {
                 self.task_shape(module,context,&hidden,borrowed,active,b,depth+1)?
             },
             Ty::Closure(owner,arguments,sealed)=>{
-                let moves=self.creator_moves.get(&owner).copied().ok_or_else(||bad("Task closure shape lacks its original capture mode"))?;
                 let mut product=Vec::new();
                 for(name,ty)in self.closure_capture_fields(module,context,owner,&arguments,&sealed,b)?{
-                    product.push((name,self.task_shape(module,context,&ty,borrowed||!moves,active,b,depth+1)?));
+                    let borrowed = borrowed || !self.capture_field_owns(owner,&name,b)?;
+                    product.push((name,self.task_shape(module,context,&ty,borrowed,active,b,depth+1)?));
                 }
                 Shape::Product(product)
             },
@@ -820,12 +820,7 @@ impl<'a> Engine<'a> {
         state: &mut State,
         b: &mut Budget,
     ) -> Check<Value> {
-        let moves=self
-            .original
-            .creator_moves
-            .get(&child)
-            .copied()
-            .ok_or_else(||bad("Task capture lacks its exact original capture mode"))?;
+        self.original.capture_creator_moves(child)?;
         let mut fields=Vec::new();
         if let Some(free) = self.original.free_values.get(&child) {
             for(name,binding)in free {
@@ -842,6 +837,7 @@ impl<'a> Engine<'a> {
                     continue;
                 }
                 let value=state.values.get(&binding.identity).cloned().unwrap_or(Value::Plain);
+                let moves=self.original.capture_owns(&captured,b)?;
                 if moves{state.values.remove(&binding.identity);}
                 let value=if moves{value}else{task_borrow_value(value)};
                 fields.push((CheckedOriginal::capture_field(name,b)?,value));

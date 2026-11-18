@@ -156,6 +156,7 @@ pub(super) struct CheckedOriginal {
     live: BTreeMap<SemanticDefinitionId, BTreeMap<Binder, Binding>>,
     cleanups: Vec<cleanup::Cleanup>,
     creator_moves: BTreeMap<SemanticDefinitionId, bool>,
+    inferred_owner_captures: BTreeMap<SemanticDefinitionId, BTreeSet<Binder>>,
     value_bindings: BTreeMap<(SemanticDefinitionId, NodeId), Binder>,
     value_places: BTreeMap<(SemanticDefinitionId, NodeId), Place>,
     names_at: BTreeMap<(SemanticDefinitionId, bool, NodeId, String), Ty>,

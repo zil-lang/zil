@@ -5,6 +5,7 @@ use super::*;
 pub(super) struct Candidates {
     pub names: BTreeSet<String>,
     pub opaque_type_syntax: bool,
+    pub may_give: bool,
 }
 struct Collect<'a> {
     result: Candidates,
@@ -110,6 +111,7 @@ impl super::super::original_walk::Context for Collect<'_> {
         self.pay(1, depth)?;
         match kind {
             CoreExprKind::Name(name) => DynRecipeVisitor::text(self, name, depth)?,
+            CoreExprKind::Unary { op: UnaryOp::Give, .. } => self.result.may_give = true,
             // These contexts may introduce or resolve names through a stage or
             // inherited receiver. Keep the complete creator environment rather
             // than deriving their lexical semantics from a textual index.
@@ -145,6 +147,7 @@ pub(super) fn collect(
         result: Candidates {
             names: BTreeSet::new(),
             opaque_type_syntax: false,
+            may_give: false,
         },
         limits,
         left,

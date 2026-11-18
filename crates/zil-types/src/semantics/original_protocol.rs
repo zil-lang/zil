@@ -986,6 +986,13 @@ impl<'a> Engine<'a, '_> {
         self.record_cost("closure_creator", cost_before, cost_children);
         result
     }
+    fn inferred_capture_move(&mut self, definition: SemanticDefinitionId, name: &str, depth: usize) -> R<bool> {
+        if self.proof.inferred_capture_moves.is_empty() { return Ok(false); }
+        self.pay(lookup_work(self.proof.inferred_capture_moves.len()), depth)?;
+        let Some(count) = self.proof.inferred_capture_moves.get(&definition).map(BTreeSet::len) else { return Ok(false); };
+        self.pay(lookup_work(count).saturating_mul(name.len().saturating_add(1)), depth)?;
+        Ok(self.proof.inferred_capture_moves[&definition].contains(name))
+    }
     fn capture_type(
         &mut self,
         parent: SemanticDefinitionId,
@@ -1665,10 +1672,19 @@ impl<'a> Engine<'a, '_> {
                     self.task_drop(*root, state, Some(previous), depth + 1)?
                 }
                 Value::Root(root, true, true, _) => {
-                    if state.roots.get(root).copied() != Some(CLOSED) {
-                        return Err(failure(
-                            "original cleanup discards a live AsyncRegistration owner without a Closed fact for that root",
-                        ));
+                    self.pay(lookup_work(state.roots.len()), depth)?;
+                    let phase = state.roots.get(root).copied().unwrap_or(0);
+                    if phase != CLOSED {
+                        // The current owning generation remains in the parent
+                        // continuation until its actual drain reports Ready.
+                        // A stale owner, a retired generation, or an ordinary
+                        // Direct cleanup has no such execution edge.
+                        if phase == 0 || phase & !(OPEN | CLOSING | CLOSED) != 0
+                            || !self.suspend_root(state.owner, depth + 1)? {
+                            return Err(failure(
+                                "original cleanup discards a live AsyncRegistration owner without its current Closed fact or a Suspend execution root",
+                            ));
+                        }
                     }
                 }
                 Value::Root(_, false, true, prior) if *prior != Some(CLOSED) => {
@@ -2862,7 +2878,8 @@ impl<'a> Engine<'a, '_> {
                             })?;
                         let mut value = self.value_copy(source, depth + 1)?;
                         let ty = self.capture_type(owner, expr.id, &name, child, depth + 1)?;
-                        if *move_capture {
+                        let moved = *move_capture || self.inferred_capture_move(child.id, &name, depth + 1)?;
+                        if moved {
                             if !cleanup::copy(
                                 self.program,
                                 self.proof,
@@ -4460,6 +4477,7 @@ impl<'a> Engine<'a, '_> {
                         .ok_or_else(|| failure("original closure capture directory disappeared"))?
                         .clone();
                     for (index, name) in names.into_iter().enumerate() {
+                        let moved = moved || self.inferred_capture_move(owner, &name, depth + 1)?;
                         let ty =
                             self.capture_type(parent, creator, &name, definition, depth + 1)?;
                         let mut value = if let Some(mut value) = self.task_input(

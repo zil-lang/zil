@@ -90,9 +90,8 @@ impl CheckedOriginal {
                 Ty::Closure(definition,arguments,sealed)=>{
                     for argument in arguments.iter().chain(&sealed){match argument{Arg::Life(_)=>return Ok(false),Arg::Type(ty)=>if !self.closed_value(module,context,ty,env,active,b)?{return Ok(false);},Arg::Const(_)=>{}}}
                     if !self.checked.contains(&definition){return Ok(false);}
-                    let captures=self.closure_capture_types(module,context,definition,&arguments,&sealed,b)?;
-                    if !self.creator_moves.get(&definition).copied().unwrap_or(false)&&!captures.is_empty(){return Ok(false);}
-                    for capture in captures{if !self.closed_value(module,context,&capture,env,active,b)?{return Ok(false);}}true
+                    let captures=self.closure_capture_fields(module,context,definition,&arguments,&sealed,b)?;
+                    for (name,capture) in captures { if !self.capture_field_owns(definition,&name,b)? || !self.closed_value(module,context,&capture,env,active,b)? { return Ok(false); } } true
                 },
                 Ty::Nominal(id,arguments)=>self.nominal_capability(module,context,id,&arguments,SemanticBuiltinTrait::ClosedEnvironment,env,active,b)?,
             })
@@ -108,10 +107,19 @@ impl CheckedOriginal {
             Ty::ErrorUnion(a,c)=>self.transfer_value(module,context,&a,env,active,b)?&&self.transfer_value(module,context,&c,env,active,b)?,
             Ty::Nominal(id,arguments)=>{if self.custom_drop(module,id,b)?{return Ok(false);}self.nominal_capability(module,context,id,&arguments,SemanticBuiltinTrait::Transfer,env,active,b)?},
             Ty::Closure(definition,arguments,sealed)=>{
-                if !self.checked.contains(&definition)||!self.creator_moves.get(&definition).copied().unwrap_or(false){return Ok(false);}
+                    if !self.checked.contains(&definition)
+                        || !(self.creator_moves.get(&definition) == Some(&true)
+                            || self.inferred_owner_captures.contains_key(&definition)) {
+                        return Ok(false);
+                    }
                 for argument in arguments.iter().chain(&sealed){match argument{Arg::Life(_)=>return Ok(false),Arg::Type(ty)=>if !self.transfer_value(module,context,ty,env,active,b)?{return Ok(false);},Arg::Const(_)=>{}}}
-                let captures=self.closure_capture_types(module,context,definition,&arguments,&sealed,b)?;
-                for capture in captures{if !self.transfer_value(module,context,&capture,env,active,b)?{return Ok(false);}}true
+                    for (name, capture) in self.closure_capture_fields(module,context,definition,&arguments,&sealed,b)? {
+                        if !self.capture_field_owns(definition, &name, b)?
+                            || !self.transfer_value(module,context,&capture,env,active,b)? {
+                            return Ok(false);
+                        }
+                    }
+                    true
             },
             Ty::Opaque(owner,arguments)=>{
                 for argument in &arguments{match argument{Arg::Life(_)=>return Ok(false),Arg::Type(ty)=>if !self.transfer_value(module,context,ty,env,active,b)?{return Ok(false);},Arg::Const(_)=>{}}}

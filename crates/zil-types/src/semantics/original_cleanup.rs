@@ -501,7 +501,7 @@ impl Check<'_, '_> {
                 if !self.proof.complete.contains(definition) {
                     return Ok(false);
                 }
-                if !moved {
+                if !moved && !self.proof.inferred_capture_moves.contains_key(definition) {
                     return Ok(true);
                 }
                 let child = self.definition(*definition)?;
@@ -521,6 +521,7 @@ impl Check<'_, '_> {
                     .ok_or_else(|| bad("original closure capture directory disappeared"))?
                     .clone();
                 for name in names {
+                    if !moved && !self.proof.inferred_capture_moves.get(definition).is_some_and(|rows| rows.contains(&name)) { continue; }
                     self.pay(child.environment.len(), depth)?;
                     let mut selected = None;
                     for (slot, formal) in child.environment.iter().enumerate() {

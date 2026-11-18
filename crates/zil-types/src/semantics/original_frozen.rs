@@ -320,6 +320,9 @@ fn clone_proof(
             .saturating_add(source.associated_complete.len())
             .saturating_add(source.capture_names.len())
             .saturating_add(source.closure_move.len())
+            .saturating_add(source.inferred_capture_moves.values().fold(0usize, |work, names| {
+                names.iter().fold(work.saturating_add(1), |work, name| work.saturating_add(name.len()).saturating_add(1))
+            }))
             .saturating_add(source.injections.len())
             .saturating_add(source.kinds.len())
             .saturating_add(source.call_targets.len())

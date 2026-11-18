@@ -169,7 +169,7 @@ impl CheckedOriginal {
         if !place.fields.is_empty()||matches!(place.binder,Binder::Capture{..}|Binder::Pattern{..}){return Ok(Some(intrinsics::BufferSource::Place{definition,node:operand}));}
         Ok(Some(match &place.binder{Binder::Local{definition,node,..}=>intrinsics::BufferSource::Local{definition:*definition,node:*node},Binder::Parameter{definition,ordinal}=>intrinsics::BufferSource::Parameter{definition:*definition,ordinal:*ordinal},_=>return Err(unsupported("original address needs its complete captured/indirect Place boundary",None))}))
     }
-    pub(in crate::semantic) fn ghost_capture_source(&self,module:&TypedModule,creator:SemanticDefinitionId,child:SemanticDefinitionId,ordinal:usize,node:NodeId,b:&mut Budget)->Check<intrinsics::BufferSource>{
+    pub(in crate::semantic) fn ghost_capture_source(&self,module:&TypedModule,creator:SemanticDefinitionId,child:SemanticDefinitionId,ordinal:usize,node:NodeId,managed_mode:Option<bool>,b:&mut Budget)->Check<Option<intrinsics::BufferSource>>{
         let index=self.source_index(module,&[creator,child],b)?;
         let parent=index.definitions.get(&creator).ok_or_else(||bad("logical capture has no original creator body"))?;
         let function=index.definitions.get(&child).ok_or_else(||bad("logical capture has no original child body"))?;
@@ -181,7 +181,13 @@ impl CheckedOriginal {
         binding.identity.charge_clone(b)?;
         let captured=Binder::Capture{definition:child,source:Box::new(binding.identity.clone())};
         if !self.used.get(&child).is_some_and(|rows|rows.contains(&captured)){return Err(bad("physical logical capture is not a checked original free-value use"));}
-        match &binding.identity{Binder::Local{definition,node,..}=>Ok(intrinsics::BufferSource::Local{definition:*definition,node:*node}),Binder::Parameter{definition,ordinal}=>Ok(intrinsics::BufferSource::Parameter{definition:*definition,ordinal:*ordinal}),_=>Err(unsupported("nested logical capture needs its complete parent capture transport",None))}
+        if let Some(owned)=managed_mode
+            && self.capture_owns(&captured,b)?!=owned {
+            // Equal payload types may identify other lexical candidates. The
+            // caller still has to prove the actual creator of this operand.
+            return Ok(None);
+        }
+        match &binding.identity{Binder::Local{definition,node,..}=>Ok(Some(intrinsics::BufferSource::Local{definition:*definition,node:*node})),Binder::Parameter{definition,ordinal}=>Ok(Some(intrinsics::BufferSource::Parameter{definition:*definition,ordinal:*ordinal})),_=>Err(unsupported("nested logical capture needs its complete parent capture transport",None))}
     }
     pub(in crate::semantic) fn buffer_place(&self,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(intrinsics::BufferRoot,Vec<String>)>{
         b.spend(1)?;let place=self.value_places.get(&(definition,node)).ok_or_else(||bad("original buffer observation has no complete checked Place"))?;
@@ -226,6 +232,7 @@ impl CheckedOriginal {
             let CoreExprKind::Name(name)=&expression.kind else{return Err(bad("implicit captured head does not select its exact original free Name occurrence"));};
             let binding=self.free_values.get(&child).and_then(|bindings|bindings.get(name)).ok_or_else(||bad("implicit capture Name is not an original lexical free value"))?;
             let captured=Binder::Capture{definition:child,source:Box::new(binding.identity.clone())};
+            if self.capture_owns(&captured,b)? { return Err(bad("implicit borrowed capture selects its owned sibling")); }
             if self.value_bindings.get(&(child,expression.id))!=Some(&captured)||!self.used.get(&child).is_some_and(|used|used.contains(&captured)){return Err(bad("implicit capture occurrence does not name its checked original free binder"));}
             // occurrence_path is checked against the original AST by index.
             // Its lexicographic first Name use is a source position, not a

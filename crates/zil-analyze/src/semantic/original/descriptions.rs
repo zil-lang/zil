@@ -64,7 +64,7 @@ impl Solver<'_, '_> {
             })?;
         let capture = match anchor {
             LocalAnchor::Environment(ordinal)
-                if place.path.is_empty() && !self.owns_captures(frame.definition, b)? =>
+                if place.path.is_empty() && !self.capture_owns_anchor(frame.definition, ordinal, b)? =>
             {
                 Some((frame.definition, ordinal))
             }

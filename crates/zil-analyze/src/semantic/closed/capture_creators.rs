@@ -318,6 +318,9 @@ impl Check<'_, '_> {
             let Some(anchor) = self.original.capture_origin(definition.id, ordinal, b)? else {
                 continue;
             };
+            let moved = moved || self.original.inferred_owner_capture_ordinal(
+                definition.id, ordinal, &self.inventory, b,
+            )?;
             let Some(SemanticActual::Type(actual)) = environment.actuals.get(ordinal as usize)
             else {
                 return Err(fail("runtime capture changes its original value kind"));
@@ -375,6 +378,11 @@ impl Check<'_, '_> {
                         self.check_static_value_sources(&value, function, *operand, b)?;
                         if closure.captures.get(capture) != Some(&value.ty) {
                             return Err(fail("actual creator changes its physical capture type"));
+                        }
+                        if matches!(expected.ty, Type::Managed(_))
+                            && matches!(value.ty, Type::Managed(_)) != moved
+                        {
+                            return Err(fail("actual capture changes the original resource transfer mode"));
                         }
                         let value = if !moved && matches!((&expected.ty, &value.ty),
                             (Type::Managed(payload), Type::Desc(view)) if payload == view)

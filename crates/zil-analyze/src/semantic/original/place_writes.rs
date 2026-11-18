@@ -138,6 +138,7 @@ impl Solver<'_, '_> {
             ));
         }
         if path.is_empty() {
+            self.capture_read(frame, index, b)?;
             frame.locals[index].used = true;
             frame.locals[index].live = false;
         } else {
@@ -577,7 +578,7 @@ impl Solver<'_, '_> {
             let external_description = place.description
                 && match self.state.arena[self.type_root(local.ty, b)?] {
                     Kind::Desc { .. } => true,
-                    Kind::Wrapped(Wrapper::Managed, _) => !self.owns_captures(frame.definition, b)?,
+                    Kind::Wrapped(Wrapper::Managed, _) => local.borrowed,
                     _ => false,
                 };
             if index < frame.inherited && !external_description {

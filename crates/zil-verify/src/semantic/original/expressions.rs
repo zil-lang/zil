@@ -164,15 +164,18 @@ impl CheckedOriginal {
                     let child_definition=context.definition(module,child,b)?;
                     for formal in &child_definition.environment{if let SemanticFormal::Type{requirements}=&formal.kind{for requirement in requirements{self.obligation(module,context,requirement,env,env,active,b)?;}}}
                     let CoreExprKind::Closure{move_capture,..}=expression.kind else{unreachable!()};self.creator_moves.insert(child,move_capture);
+                    if !move_capture {
+                        self.infer_owner_captures(child_definition, bindings, b)?;
+                    }
                     self.contextual_opaque_closure(module,context,child,expected,env,active,b)?;
                     let thin=self.contextual_code_inputs(child_definition,expected,b)?;
                     self.definition(module,context,child,active,b)?;
-                    let CoreExprKind::Closure{move_capture,..}=&expression.kind else{unreachable!()};
                     let used=self.used.get(&child).cloned().unwrap_or_default();let consumed=self.uses.get(&child).cloned().unwrap_or_default();
                     for binding in bindings.values(){let child_key=Binder::Capture{definition:child,source:Box::new(binding.identity.clone())};if !used.contains(&child_key){continue;}
+                        let owned = self.capture_owns(&child_key, b)?;
                         let moved=consumed.moved.iter().any(|place|place.binder==child_key);
-                        if !*move_capture&&moved&&!self.is_copy(module,context,&binding.ty,env,active,b)?{return Err(unsupported("default closure capture cannot consume an unproved borrowed generic value",None));}
-                        self.read_original(module,context,&Place{binder:binding.identity.clone(),fields:vec![]},&binding.ty,env,*move_capture,active,b)?;
+                        if !owned&&moved&&!self.is_copy(module,context,&binding.ty,env,active,b)?{return Err(unsupported("default closure capture cannot consume an unproved borrowed generic value",None));}
+                        self.read_original(module,context,&Place{binder:binding.identity.clone(),fields:vec![]},&binding.ty,env,owned,active,b)?;
                     }
                     let child_env=self.environment(module,context,child,active,b)?;let frame=child_env.lexical.first().ok_or_else(||bad("original child scope absent"))?;
                     if let CoreExprKind::Closure{return_type:Some(annotation),..}=&expression.kind {
@@ -237,8 +240,8 @@ impl CheckedOriginal {
             let place=place.clone();
             self.read_original_parent(module,context,&place,&ty,env,active,b)?;
             let external_description = matches!(&ty, Ty::Desc { .. })
-                || matches!((&ty, &place.binder), (Ty::Managed(_), Binder::Capture { definition, .. })
-                    if self.creator_moves.get(definition) == Some(&false));
+                || matches!((&ty, &place.binder), (Ty::Managed(_), binder @ Binder::Capture { .. })
+                    if !self.capture_owns(binder, b)?);
             if !external_description {
                 self.written.entry(definition).or_default().insert(place.binder);
             }

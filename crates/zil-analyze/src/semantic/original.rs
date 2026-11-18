@@ -295,6 +295,7 @@ pub(super) struct Checked {
     borrows: BTreeMap<(SemanticDefinitionId, NodeId), Borrow>,
     descriptions: BTreeMap<(SemanticDefinitionId, NodeId), descriptions::Description>,
     temporary_descriptions: BTreeMap<(SemanticDefinitionId, NodeId, usize), descriptions::Temporary>,
+    inferred_owner_captures: BTreeMap<SemanticDefinitionId, BTreeSet<String>>,
     captured_descriptions: BTreeMap<(SemanticDefinitionId, u32), Term>,
     enum_constructors: BTreeMap<(SemanticDefinitionId, NodeId), enums::Constructor>,
     patterns: BTreeMap<(SemanticDefinitionId, NodeId, Vec<u32>), Term>,
@@ -2927,6 +2928,9 @@ impl Solver<'_, '_> {
                     }
                     // Until complete symbolic ownership/class domains are handled,
                     // abstract owning captures cannot become scalar environments.
+                    if !*move_capture {
+                        self.infer_owner_captures(frame, child, value.id, b)?;
+                    }
                     let mut inherited = self.copy_locals(&frame.locals, b)?;
                     if *move_capture {
                         for environment in &child.environment {
@@ -3042,7 +3046,7 @@ impl Solver<'_, '_> {
                             b.lookup(frame.captured.len(), WORK)?;
                             frame.captured.insert(index, ty);
                         }
-                        if *move_capture {
+                        if *move_capture || self.inferred_owner_capture(target, &frame.locals[index].name, b)? {
                             let local = frame.locals.get(index).ok_or_else(|| {
                                 fail("original move capture loses its parent lexical binding")
                             })?;
@@ -3856,9 +3860,9 @@ impl Solver<'_, '_> {
                 self.bind(&mut frame, &local.name, local.ty, local.mutable, b)?;
             }
             frame.inherited = frame.locals.len();
-            let owned = self.owns_captures(id, b)?;
+            let moved = self.owns_captures(id, b)?;
             for local in &mut frame.locals {
-                local.borrowed = !owned;
+                local.borrowed = !(moved || self.inferred_owner_capture(id, &local.name, b)?);
             }
         }
         if !definition.environment.is_empty() {
@@ -4435,6 +4439,7 @@ pub(super) fn check(
             descriptions: BTreeMap::new(),
             temporary_descriptions: BTreeMap::new(),
             captured_descriptions: BTreeMap::new(),
+            inferred_owner_captures: BTreeMap::new(),
             enum_constructors: BTreeMap::new(),
             patterns: BTreeMap::new(),
             pattern_origins: Vec::new(),

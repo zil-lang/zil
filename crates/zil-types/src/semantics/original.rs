@@ -214,6 +214,7 @@ pub(super) struct Proof {
     pub associated_complete: BTreeSet<LifeDeclarationId>,
     pub capture_names: BTreeMap<SemanticDefinitionId, Vec<String>>,
     pub closure_move: BTreeMap<SemanticDefinitionId, bool>,
+    inferred_capture_moves: BTreeMap<SemanticDefinitionId, BTreeSet<String>>,
     pub injections: BTreeMap<(SemanticDefinitionId, NodeId), Injection>,
     pub types: BTreeMap<(SemanticDefinitionId, Query), SemanticTypeRecipe>,
     // Request-local cost diagnostics; these fields supply no semantic fact.
@@ -4063,6 +4064,7 @@ impl<'a> Check<'a, '_> {
                     candidates
                 };
                 let mut captured = BTreeMap::new();
+                let mut given = BTreeSet::new();
                 for (name, value) in variables.iter() {
                     self.pay(
                         name.len().saturating_add(
@@ -4083,6 +4085,17 @@ impl<'a> Check<'a, '_> {
                     for field in &value.taken_fields {
                         self.pay(field.len(), depth)?;
                     }
+                    let inferred = !*move_capture && candidates.may_give && !value.borrowed
+                        && matches!(self.observation_type(owner, &value.ty, depth + 1)?, SemanticTypeRecipe::Managed(_))
+                        && zil_ir::original_capture_use(child, name, zil_ir::CaptureUse::Give,
+                            |work, search_depth, _| self.pay(work, depth.saturating_add(search_depth)),
+                            |message, span| Diagnostic::unsupported(Phase::Types, message, Some(span)),
+                        )?.is_some();
+                    if inferred {
+                        self.pay(name.len().saturating_add(given.len().saturating_add(1).ilog2() as usize + 1), depth)?;
+                        given.insert(name.clone());
+                    }
+                    let moved = *move_capture || inferred;
                     let mut value = Binding {
                         ty: copy_recipe(&value.ty, self.limits, self.left)?,
                         mutable: value.mutable,
@@ -4095,14 +4108,14 @@ impl<'a> Check<'a, '_> {
                         initialized: value.initialized,
                         written: value.written,
                         resource_root: self.capture_resource_root(
-                            owner, child.id, &value.ty, value.resource_root, *move_capture,
+                            owner, child.id, &value.ty, value.resource_root, moved,
                             depth + 1,
                         )?,
                         taken_fields: value.taken_fields.clone(),
                         shadowed: None,
                     };
                     value.capture = true;
-                    value.borrowed = !move_capture;
+                    value.borrowed = !moved;
                     value.observed = false;
                     // Writes before creation belong to the creator. The child
                     // independently records writes performed by its own body.
@@ -4171,69 +4184,45 @@ impl<'a> Check<'a, '_> {
                 let checked = self.function(child, Some(captured));
                 self.closure_result_goal = parent_goal;
                 checked?;
-                if !*move_capture {
-                    let cost = self
-                        .captures
-                        .get(definition)
-                        .ok_or_else(|| bad("original closure has no completed capture set"))?
-                        .iter()
-                        .map(|name| name.len().saturating_add(1))
-                        .sum::<usize>();
-                    self.pay(cost, depth)?;
-                    let names = self
-                        .captures
-                        .get(definition)
-                        .ok_or_else(|| bad("original closure has no completed capture set"))?
-                        .clone();
-                    for name in names {
-                        let source = variables.get(&name).ok_or_else(|| {
-                            bad("original borrowed capture loses its creator binder")
-                        })?;
-                        let ty = self.observation_type(owner, &source.ty, depth + 1)?;
-                        if !matches!(
-                            ty,
-                            SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }
-                        ) {
+                let captures = self.captures.get(definition).ok_or_else(|| {
+                    bad("original closure lacks a completed lexical capture set")
+                })?;
+                let cost = captures.iter().map(|name| name.len().saturating_add(1)).sum();
+                self.pay(cost, depth)?;
+                let captures = self.captures.get(definition).cloned().ok_or_else(|| {
+                    bad("original closure lacks a completed lexical capture set")
+                })?;
+                for name in captures {
+                    if !given.is_empty() {
+                        self.pay(name.len().saturating_add(1).saturating_mul(
+                            given.len().saturating_add(1).ilog2() as usize + 1,
+                        ), depth)?;
+                    }
+                    let value = variables.get_mut(&name)
+                        .ok_or_else(|| bad("original capture lost its creator binder"))?;
+                    if !*move_capture && !given.contains(&name) {
+                        let ty = self.observation_type(owner, &value.ty, depth + 1)?;
+                        if !matches!(ty, SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }) {
                             self.pay(1, depth)?;
-                            self.proof
-                                .proof_mut()?
-                                .borrowed_capture_heads
-                                .insert(child.id);
+                            self.proof.proof_mut()?.borrowed_capture_heads.insert(child.id);
                         }
+                        continue;
                     }
+                    if !self.copy_type(owner, &value.ty, depth + 1)? {
+                        if value.borrowed {
+                            return Err(bad("original move closure cannot transfer a non-Copy shared capture"));
+                        }
+                        if value.used || !value.initialized || !value.taken_fields.is_empty() {
+                            return Err(bad("original closure captures an already transferred affine value"));
+                        }
+                        value.used = true;
+                    }
+                    value.observed = true;
+                    self.observe_capture(owner, &name, value, depth + 1)?;
                 }
-                if *move_capture {
-                    let cost = self
-                        .captures
-                        .get(definition)
-                        .ok_or_else(|| bad("original closure has no completed capture set"))?
-                        .iter()
-                        .map(|name| name.len().saturating_add(1))
-                        .sum::<usize>();
-                    self.pay(cost, depth)?;
-                    let captures = self.captures.get(definition).cloned().ok_or_else(|| {
-                        bad("original closure lacks a completed lexical capture set")
-                    })?;
-                    for name in captures {
-                        let value = variables
-                            .get_mut(&name)
-                            .ok_or_else(|| bad("original capture lost its creator binder"))?;
-                        if !self.copy_type(owner, &value.ty, depth + 1)? {
-                            if value.borrowed {
-                                return Err(bad(
-                                    "original move closure cannot transfer a non-Copy shared capture",
-                                ));
-                            }
-                            if value.used || !value.initialized || !value.taken_fields.is_empty() {
-                                return Err(bad(
-                                    "original closure captures an already transferred affine value",
-                                ));
-                            }
-                            value.used = true;
-                        }
-                        value.observed = true;
-                        self.observe_capture(owner, &name, value, depth + 1)?;
-                    }
+                if !given.is_empty() {
+                    self.pay(self.proof.inferred_capture_moves.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+                    self.proof.proof_mut()?.inferred_capture_moves.insert(child.id, given);
                 }
                 let mut sealed_environment = Vec::new();
                 for actual in environment {

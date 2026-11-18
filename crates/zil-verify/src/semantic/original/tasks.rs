@@ -845,10 +845,9 @@ impl CheckedOriginal {
                     return Ok(false);
                 }
                 let selected=self.closure_creator_environment(module,context,owner,&arguments,&sealed,env,active,b)?;
-                let captures=self.closure_capture_types(module,context,owner,&arguments,&sealed,b)?;
-                if !captures.is_empty()&&!self.creator_moves.get(&owner).copied().unwrap_or(false) { return Ok(false); }
-                for capture in captures {
-                    if !self.task_zero_domain(module,context,&capture,&selected,active,b,depth+1)? { return Ok(false); }
+                let captures=self.closure_capture_fields(module,context,owner,&arguments,&sealed,b)?;
+                for (name,capture) in captures {
+                    if !self.capture_field_owns(owner,&name,b)? || !self.task_zero_domain(module,context,&capture,&selected,active,b,depth+1)? { return Ok(false); }
                 }
                 let Some(prototype)=self.prototypes.get(&owner) else { return Ok(false); };
                 // The complete raw prototype is substituted simultaneously

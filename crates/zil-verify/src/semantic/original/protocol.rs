@@ -103,7 +103,7 @@ impl CheckedOriginal {
                     module,
                     context,
                     &binding.ty,
-                    !self.creator_moves.get(&id).copied().unwrap_or(false),
+                    !self.capture_owns(&root,b)?,
                     active,
                     b,
                     0,

@@ -274,9 +274,9 @@ impl Solver<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<()> {
-        if !matches!(anchor, Some(LocalAnchor::Environment(_)))
-            || !matches!(self.state.arena[self.type_root(root, b)?], Kind::Wrapped(Wrapper::Managed, _))
-            || self.owns_captures(frame.definition, b)?
+        let Some(LocalAnchor::Environment(ordinal)) = anchor else { return Ok(()); };
+        if !matches!(self.state.arena[self.type_root(root, b)?], Kind::Wrapped(Wrapper::Managed, _))
+            || self.capture_owns_anchor(frame.definition, ordinal, b)?
         {
             return Ok(());
         }

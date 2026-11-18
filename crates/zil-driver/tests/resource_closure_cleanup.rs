@@ -5,7 +5,7 @@ use std::{
     process::Command,
     sync::atomic::{AtomicU64, Ordering},
 };
-use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
+use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, CompileReport, Stage, compile_source};
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -205,18 +205,20 @@ fn resource_closure_descriptor_capture_cannot_acquire_give_authority() {
 #[test]
 fn resource_closure_source_move_and_capture_liveness_are_independently_rejected() {
     let bodies = [
-        "let token=Token{code:65};let f=move ()=>token.code;consume(give token);return 0",
-        "let token=Token{code:65};let f=()=>consume(give token);f();f();return 0",
-        "let token=Token{code:65};let f=()=>token.code;consume(give token);return f()",
-        "let token=Token{code:65};let alias=token;let f=()=>consume(give token);return alias.code",
-        "let token=Token{code:65};let alias=token;let f=move ()=>token.code+alias.code;return f()",
-        "let token=Token{code:65};let alias=token;let f=move ()=>alias.code+token.code;return f()",
-        "let token=Token{code:65};let alias=token;let f=move ()=>alias.code;consume(give token);return f()",
-        "let token=Token{code:65};let f=move ()=>token.code;let moved=f;return f()",
+        ("let token=Token{code:65};let f=move ()=>token.code;consume(give token);return 0",
+            Some(("original give transfers an unavailable or borrowed value", "give token"))),
+        ("let token=Token{code:65};let f=()=>consume(give token);f();f();return 0",
+            Some(("original place was already transferred", "f()"))),
+        ("let token=Token{code:65};let f=()=>token.code;consume(give token);return f()", None),
+        ("let token=Token{code:65};let alias=token;let f=()=>consume(give token);return alias.code", None),
+        ("let token=Token{code:65};let alias=token;let f=move ()=>token.code+alias.code;return f()", None),
+        ("let token=Token{code:65};let alias=token;let f=move ()=>alias.code+token.code;return f()", None),
+        ("let token=Token{code:65};let alias=token;let f=move ()=>alias.code;consume(give token);return f()", None),
+        ("let token=Token{code:65};let f=move ()=>token.code;let moved=f;return f()",
+            Some(("original place was already transferred", "f()"))),
     ];
-    for body in bodies {
+    for (body, early) in bodies {
         let text = format!("{PRELUDE} fn main()->i32{{{body}}}");
-        success(&source_report(&text, Stage::Types));
         let report = source_report(&text, Stage::Verify);
         assert_eq!(
             report.status,
@@ -224,6 +226,24 @@ fn resource_closure_source_move_and_capture_liveness_are_independently_rejected(
             "{}",
             report.to_json()
         );
+        if let Some((message, occurrence)) = early {
+            let start = text.rfind(occurrence).unwrap();
+            assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
+            assert!(report.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == "E-SEMANTIC-ORIGINAL"
+                    && diagnostic.message == message
+                    && diagnostic.span.is_some_and(|span| {
+                        span.start as usize == start
+                            && span.end as usize == start + occurrence.len()
+                    })
+            }), "{}", report.to_json());
+        } else {
+            assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
+            assert!(report.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == "E-ANALYZE-IR"
+                    && diagnostic.message == "resource closure: head transition invalidates a description required later"
+            }), "{}", report.to_json());
+        }
         assert!(!report.artifacts.contains_key("executable"));
     }
 }
@@ -315,6 +335,10 @@ fn resource_closure_mixed_address_and_owner_capture_ends_loan_after_once_native(
         "{OBSERVABLE} fn main()->i32{{var n=7;let token=Token{{code:65}};let once=()=>{{consume(give token);n}};let observed=once();n=8;if observed==7 && n==8{{return 0}}return 1}}"
     );
     native(&text, "A");
+    let same_payload = format!(
+        "{OBSERVABLE} fn main()->i32{{let transferred=Token{{code:65}};let observed=Token{{code:66}};let work=()=>{{consume(give transferred);observed.code}};if work()==66 && observed.code==66{{return 0}}return 1}}"
+    );
+    native(&same_payload, "AB");
 }
 
 #[test]
