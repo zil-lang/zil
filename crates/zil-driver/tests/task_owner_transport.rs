@@ -407,6 +407,7 @@ fn closed_phase_keeps_both_same_type_capture_leaves_and_replacement_epochs() {
     assert_eq!(closed_replacement.status, ResultCategory::Success,
         "{}", closed_replacement.to_json());
     assert_eq!(closed_replacement.verification_runs, 1);
+    assert_stale_array_ready_rejected(&positive_direct);
     let report = compile_source(&source(&stale), &options);
     // The old Ready cannot close the replacement epoch. An implicit endpoint
     // can still suspend to dispose of it; only a Direct endpoint requires the
@@ -424,12 +425,136 @@ fn closed_phase_keeps_both_same_type_capture_leaves_and_replacement_epochs() {
         "fn main()->TaskCreateError!i32 contract{effects(io);}{", 1);
     let rejected = compile_source(&source(&stale_direct), &options);
     assert_eq!(rejected.status, ResultCategory::SafeReject, "{}", rejected.to_json());
+    assert_eq!(rejected.verification_runs, 0);
     assert!(rejected.diagnostics.iter().any(|d|
-        d.phase == zil_base::Phase::Analyze && d.category == ResultCategory::SafeReject
-        && d.code == "E-TASK-ABI"
-        && d.message == "pollable Task automatic Drop requires asynchronous continuation"),
+        d.phase == zil_base::Phase::Types && d.category == ResultCategory::SafeReject
+        && d.code == "E-ORIGINAL-CLEANUP"
+        && d.message == "live original Task default Drop cleanup may suspend and lacks a Closed fact or a Suspend execution root"
+        && d.notes.iter().any(|note| note == "original scope cleanup binding \"callback\", retained lexical depth 0")),
         "{}", rejected.to_json());
 }
+
+fn assert_stale_array_ready_rejected(text: &str) {
+    use zil_ir::{CallableKind, InstructionKind as I, Type};
+
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let mut module = typed_original(text);
+    let mut claim = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), claim.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &claim, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+
+    let main = module
+        .functions
+        .iter_mut()
+        .find(|function| function.name == "main")
+        .unwrap();
+    let callback = main.locals.iter().find(|local| local.name == "callback").unwrap();
+    assert!(matches!(&callback.ty, Type::Array { element, length: 1 }
+        if matches!(element.as_ref(), Type::Closure(_))));
+    let slot = callback.id;
+    let saved = main.locals.iter().find(|local| local.name == "saved").unwrap().id;
+    let instructions: Vec<_> = main
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .collect();
+    let borrowed: Vec<_> = instructions
+        .iter()
+        .filter_map(|instruction| match instruction.kind {
+            I::BorrowOwnedArrayElement {
+                local,
+                index: 0,
+                mutable: true,
+            } if local == slot => instruction.result,
+            _ => None,
+        })
+        .collect();
+    let [old_call, new_call] = instructions
+        .iter()
+        .filter_map(|instruction| match instruction.kind {
+            I::CallClosureBorrowed {
+                callee,
+                kind: CallableKind::FnMut,
+                ..
+            } if borrowed.contains(&callee) => Some(*instruction),
+            _ => None,
+        })
+        .collect::<Vec<_>>()[..]
+    else {
+        panic!("the original and replacement calls must both use the same array slot");
+    };
+    let old = old_call.result.unwrap();
+    let fresh = new_call.result.unwrap();
+    let [replacement] = instructions
+        .iter()
+        .filter(|instruction| {
+            matches!(
+                instruction.kind, I::StoreOwnedArrayElement { local, index: 0, .. } if local == slot
+            )
+        })
+        .collect::<Vec<_>>()[..]
+    else {
+        panic!("the same array slot must be refilled after the old call");
+    };
+    assert!(instructions.iter().any(|instruction| matches!(
+        instruction.kind, I::Store { local, value } if local == saved && value == old
+    )));
+    let saved_start = text.rfind("match saved{").unwrap() + "match ".len();
+    let stale = instructions
+        .iter()
+        .find_map(|instruction| {
+            (instruction.span.start == saved_start
+                && matches!(instruction.kind, I::Load(local) if local == saved))
+            .then_some(instruction.result)
+            .flatten()
+        })
+        .unwrap();
+    assert!(old_call.span.end <= replacement.span.start);
+    assert!(replacement.span.end <= saved_start && saved_start < new_call.span.start);
+    assert_eq!(main.values[stale.0 as usize], main.values[fresh.0 as usize]);
+
+    // Keep the new call and every tag/projection coherent. Only the saved
+    // result from the previous occupant now controls the new close loop.
+    let (mut tags, mut projections) = (0, 0);
+    for instruction in main
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+    {
+        match &mut instruction.kind {
+            I::VariantTag { value } if *value == fresh => {
+                *value = stale;
+                tags += 1;
+            }
+            I::ReadVariant { value, .. } if *value == fresh => {
+                *value = stale;
+                projections += 1;
+            }
+            _ => {}
+        }
+    }
+    assert_eq!((tags, projections), (2, 1));
+    claim.module_fingerprint = module.fingerprint();
+    let raw =
+        zil_verify::verify_module(module.clone(), claim.clone(), &target, &limits).unwrap_err();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &claim, &limits).unwrap();
+    let wire = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
+    for rejected in [raw, wire] {
+        assert!(
+            rejected
+                .iter()
+                .any(|diagnostic| diagnostic.phase == zil_base::Phase::Verify
+                    && diagnostic.category == ResultCategory::SafeReject
+                    && diagnostic.code == "E-VERIFY-TASK"
+                    && diagnostic.message
+                        == "pollable Task automatic Drop requires asynchronous continuation"),
+            "{rejected:?}"
+        );
+    }
+}
+
 #[test]
 fn closed_callable_drop_is_drained_before_destruction_native() {
     for (name, text) in [
