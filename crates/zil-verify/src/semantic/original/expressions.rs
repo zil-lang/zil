@@ -22,6 +22,17 @@ impl CheckedOriginal {
                         let numeric = self.injection_literal_context(expression,error,result,b)?;
                         let payload=self.expression(module,context,expression,env,bindings,numeric.as_ref(),active,b)?;
                         if self.same(&payload,&sum,b)?{return Ok(payload);}
+                        // A sum-valued argument cannot be an injected payload
+                        // when neither declared arm is a sum or an open type.
+                        // Its nested call lifetimes still have to unify in
+                        // their respective original type and declaration roles.
+                        if matches!(payload, Ty::ErrorUnion(..))
+                            && !matches!(error.as_ref(), Ty::ErrorUnion(..) | Ty::Infer(_))
+                            && !matches!(result.as_ref(), Ty::ErrorUnion(..) | Ty::Infer(_))
+                        {
+                            self.unify(&payload, &sum, b)?;
+                            return self.resolved(&payload, b);
+                        }
                         // The payload can be an untyped integer binding, even
                         // when the enclosing sum already has two rigid arms.
                         // Settle it with the other original return equations.

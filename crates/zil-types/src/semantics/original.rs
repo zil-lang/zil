@@ -5738,33 +5738,30 @@ impl<'a> Check<'a, '_> {
                             ));
                         }
                     }
-                    let actual = self.expr(owner, value, variables, Some(&expected), depth + 1)?;
-                    if let CoreExprKind::Name(name) = &target.kind {
-                        let binding = variables
-                            .get(name)
-                            .ok_or_else(|| bad("original assignment target disappeared"))?;
+                    let role = if let CoreExprKind::Name(name) = &target.kind {
+                        let binding = variables.get(name).ok_or_else(|| bad("original assignment target disappeared"))?;
                         if let Query::Binding(statement) = binding.origin {
-                            if self
-                                .proof
-                                .local_roles
-                                .contains_key(&(binding.origin_owner, statement))
-                            {
-                                self.view_bound(owner, value, variables, depth + 1)?;
-                                self.assign_role(
-                                    owner,
-                                    binding.origin_owner,
-                                    statement,
-                                    value,
-                                    &actual,
-                                    variables,
-                                    depth + 1,
-                                )?;
-                            } else {
-                                self.same(&actual, &expected)?;
-                            }
-                        } else {
-                            self.same(&actual, &expected)?;
+                            let key = (binding.origin_owner, statement);
+                            self.pay(self.proof.local_roles.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+                            self.proof.local_roles.contains_key(&key).then_some(key)
+                        } else { None }
+                    } else { None };
+                    // A replacement borrow contributes its own actual source
+                    // to an inferred local role. Checking it against the role's
+                    // previous sources would reject a different live referent.
+                    let direct_role_borrow = if role.is_some() {
+                        let mut source = value;
+                        while let CoreExprKind::Group(inner) = &source.kind {
+                            self.pay(1, depth)?;
+                            source = inner;
                         }
+                        matches!(source.kind, CoreExprKind::Unary { op: UnaryOp::Borrow | UnaryOp::BorrowMut, .. })
+                    } else { false };
+                    let context = (!direct_role_borrow).then_some(&expected);
+                    let actual = self.expr(owner, value, variables, context, depth + 1)?;
+                    if let Some((role_owner, statement)) = role {
+                        self.view_bound(owner, value, variables, depth + 1)?;
+                        self.assign_role(owner, role_owner, statement, value, &actual, variables, depth + 1)?;
                     } else {
                         self.same(&actual, &expected)?;
                     }
