@@ -134,6 +134,47 @@ pub(super) fn instance(
     Ok(())
 }
 
+fn authenticated_sum<'a>(
+    module: &'a TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<Option<&'a LifeNominalInstance>> {
+    if !shape(ty, b)? {
+        return Ok(None);
+    }
+    fee(b, module.life_instances.len())?;
+    let mut selected = None;
+    for instance in &module.life_instances {
+        b.type_work(&instance.ty, true, "Option complete instance identity")?;
+        b.type_work(ty, true, "Option operation complete identity")?;
+        if instance.ty == *ty {
+            self::instance(module, instance, b)?;
+            if selected.replace(instance).is_some() {
+                return Err(failure("Option operation lacks a unique complete instance"));
+            }
+        }
+    }
+    if selected.is_none() {
+        return Err(failure("Option operation lacks a unique complete instance"));
+    }
+    Ok(selected)
+}
+
+pub(super) fn writable_sum(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    if !candidate(ty) {
+        return Ok(false);
+    }
+    if enum_address::ordinary(module, ty, b)? {
+        return Ok(true);
+    }
+    let Some(instance) = authenticated_sum(module, ty, b)? else {
+        return Ok(false);
+    };
+    fee(b, module.life_declarations.len())?;
+    let mut declarations = module.life_declarations.iter().filter(|d| d.id == instance.declaration);
+    Ok(declarations.next().is_some_and(declaration) && declarations.next().is_none())
+}
+
 /// Authenticate the complete operation before either preflight or permission flow.
 /// This is private to this kernel; no proof is shared with another consumer.
 pub(super) fn types<'a>(
@@ -153,21 +194,8 @@ pub(super) fn types<'a>(
         }
         _ => return Ok(None),
     };
-    if !shape(ty, b)? {
+    if authenticated_sum(module, ty, b)?.is_none() {
         return Ok(None);
-    }
-    fee(b, module.life_instances.len())?;
-    let mut matches = 0usize;
-    for instance in &module.life_instances {
-        b.type_work(&instance.ty, true, "Option complete instance identity")?;
-        b.type_work(ty, true, "Option operation complete identity")?;
-        if instance.ty == *ty {
-            self::instance(module, instance, b)?;
-            matches += 1;
-        }
-    }
-    if matches != 1 {
-        return Err(failure("Option operation lacks a unique complete instance"));
     }
     fee(b, 4)?;
     let result = value_type(
@@ -241,6 +269,7 @@ pub(super) fn transfer(
     let path = &life.slots[0].path;
     match &i.kind {
         InstructionKind::MakeVariant { variant, fields } => {
+            out.enum_variants = enum_address::Variants::constructed(2, *variant, b)?;
             out.option_variants.constructed = 1u8
                 .checked_shl(*variant)
                 .ok_or_else(|| failure("Option variant bit is invalid"))?;

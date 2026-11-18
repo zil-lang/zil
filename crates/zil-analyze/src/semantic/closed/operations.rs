@@ -1802,7 +1802,8 @@ impl Check<'_, '_> {
                     self.inventory.profile_operation(block.id, index, b);
                     b.spend(1, WORK)?;
                     if let InstructionKind::WriteAddress { address, value } = instruction.kind
-                        && matches!(function.values.get(value.0 as usize), Some(Type::Address { .. })) {
+                        && function.values.get(value.0 as usize).is_some_and(|ty|
+                            matches!(ty, Type::Address { .. }) || crate::stored_flow::option_address::candidate(ty)) {
                         let destination = self.ssa_value(instance, function, address, b, 0)?;
                         if !matches!(destination.ty, Type::Address { mutable: true, .. }) {
                             return Err(fail("actual raw pointer replacement has no exclusive storage head"));

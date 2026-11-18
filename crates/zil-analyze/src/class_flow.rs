@@ -2478,6 +2478,26 @@ fn check_with(
                     }
                 }
                 InstructionKind::WriteAddress { address, value }
+                    if super::stored_flow::option_address::candidate(&f.values[value.0 as usize]) => {
+                    let incoming = &values[value.0 as usize];
+                    let destination = &values[address.0 as usize];
+                    b.lookup(b.semantic_raw_writes.len(), "original qualified sum write")?;
+                    if !b.semantic_raw_writes.contains(&(f.id, block.id, instruction_index))
+                        || !incoming.direct || !destination.direct
+                        || incoming.keys.len() != destination.keys.len()
+                    {
+                        return Err(bad("qualified sum write lacks its complete original destination domain"));
+                    }
+                    for (((source_path, source_class), source), ((path, class), target)) in
+                        incoming.keys.iter().zip(&incoming.classes).zip(destination.keys.iter().zip(&destination.classes)) {
+                        b.spend(2, "qualified sum write invariant child class")?;
+                        if !source_path.is_empty() || path.as_slice() != [LifeTypeProjection::Pointee] || source_class != class {
+                            return Err(bad("qualified sum write changes a pointee class coordinate"));
+                        }
+                        e.equal(*source, *target, b)?;
+                    }
+                }
+                InstructionKind::WriteAddress { address, value }
                     if raw_references::nested(&f.values[address.0 as usize]) => {
                     b.lookup(b.semantic_raw_writes.len(), "completed original raw replacement")?;
                     let directed = b.initialization.as_ref().is_some_and(|init| init.module == module as *const TypedModule as usize)

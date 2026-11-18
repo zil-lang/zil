@@ -5970,7 +5970,7 @@ fn transfer(
                 return Ok(out);
             }
             b.type_work(inner, true, "stored profile actual ordinary write payload")?;
-            if !inner.is_copy_value() {
+            if !inner.is_copy_value() && !option_address::writable_sum(module, inner, b)? {
                 return Err(failure(
                     "ordinary write cannot replace stored leaves or qualified carriers; use the checked slot protocol",
                 ));
@@ -9623,7 +9623,7 @@ fn actual_instructions(
     fee(b, f.values.len())?;
     let mut definitions = vec![false; f.values.len()];
     for block in &f.blocks {
-        for i in &block.instructions {
+        for (index, i) in block.instructions.iter().enumerate() {
             fee(b, 1)?;
             let callable_array = callable_arrays::instruction(module, f, i, b)?;
             if callable_array {
@@ -10097,8 +10097,13 @@ fn actual_instructions(
                         return Err(failure("write lacks exclusive actual Address"));
                     };
                     b.type_work(inner, true, "stored actual ordinary write payload")?;
-                    if (!inner.is_copy_value() && !matches!(inner.as_ref(), Type::Address { .. }))
-                        || value_type(f, *value)? != inner.as_ref()
+                    let mut admissible = inner.is_copy_value() || matches!(inner.as_ref(), Type::Address { .. });
+                    if !admissible && option_address::writable_sum(module, inner, b)? {
+                        b.lookup(b.semantic_raw_writes.len(), "qualified sum original write")?;
+                        admissible = module.semantic.is_some()
+                            && b.semantic_raw_writes.contains(&(f.id, block.id, index));
+                    }
+                    if !admissible || i.result.is_some() || value_type(f, *value)? != inner.as_ref()
                     {
                         return Err(failure(
                             "ordinary write changes actual slot state/type outside protocol",
