@@ -13,7 +13,7 @@ impl Numeric {
     fn from_type(ty:&Type)->Option<Self>{[Self::I8,Self::I16,Self::I32,Self::I64,Self::Isize,Self::U8,Self::U16,Self::U32,Self::U64,Self::Usize,Self::F32,Self::F64].into_iter().find(|value|value.ty()==*ty)}
 }
 #[derive(Clone,Copy,PartialEq,Eq)]
-pub(in crate::semantic) enum BufferSource {Local{definition:SemanticDefinitionId,node:NodeId},Parameter{definition:SemanticDefinitionId,ordinal:u32},Place{definition:SemanticDefinitionId,node:NodeId},Address{definition:SemanticDefinitionId,node:NodeId}}
+pub(in crate::semantic) enum BufferSource {Local{definition:SemanticDefinitionId,node:NodeId},Parameter{definition:SemanticDefinitionId,ordinal:u32},Place{definition:SemanticDefinitionId,node:NodeId},Address{definition:SemanticDefinitionId,node:NodeId},TemporaryOwner{definition:SemanticDefinitionId,node:NodeId}}
 #[derive(Clone,Copy)]
 pub(in crate::semantic) enum BufferRoot {Local{node:NodeId},Parameter{ordinal:u32},Capture,Pattern}
 #[derive(Clone,Copy)]
@@ -84,13 +84,31 @@ impl CheckedOriginal {
             Some(Place{binder:Binder::Local{definition,node,..},fields}) if fields.is_empty()=>BufferSource::Local{definition:*definition,node:*node},
             Some(Place{binder:Binder::Parameter{definition,ordinal},fields}) if fields.is_empty()=>BufferSource::Parameter{definition:*definition,ordinal:*ordinal},
             Some(_)=>BufferSource::Place{definition:env.current()?,node:arguments[0].id},
-            None=>return Err(unsupported("byte intrinsic needs its complete original projected/captured buffer identity",None)),
+            None=>{
+                self.temporary_byte_owner(&arguments[0],&buffer,env,b)?.ok_or_else(||unsupported(
+                    "byte intrinsic needs its complete original projected/captured buffer identity",
+                    Some(arguments[0].span),
+                ))?
+            },
         };
         if let Some(place)=place{self.read_original(module,context,&place,&buffer,env,false,active,b)?;}
         self.observed_argument(&arguments[0],&buffer,env,b)?;
         if arity==2{let expected=Ty::Atom(if intrinsic==Intrinsic::BytesPush{Type::U8}else{Type::I64});let value=self.expression(module,context,&arguments[1],env,bindings,Some(&expected),active,b)?;self.unify(&value,&expected,b)?;}
         self.intrinsic_calls.insert((env.current()?,site),Use{kind:intrinsic,buffer:Some(source),worker:None,providers:None});
         Ok(Ty::Atom(if matches!(intrinsic,Intrinsic::BytesLen|Intrinsic::BytesCapacity){Type::I64}else{Type::Bool}))
+    }
+    pub(super) fn temporary_byte_owner(&self,expression:&SemanticOriginalExpr,ty:&Ty,env:&Env,b:&mut Budget)->Check<Option<BufferSource>>{
+        if !matches!(self.resolved(ty,b)?,Ty::Managed(inner) if *inner==Ty::Atom(Type::ByteBuffer)){
+            return Ok(None);
+        }
+        let mut argument=expression;
+        while let CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=&argument.kind{
+            b.spend(1)?;
+            argument=inner;
+        }
+        Ok(matches!(argument.kind,CoreExprKind::Call{..}).then_some(
+            BufferSource::TemporaryOwner{definition:env.current()?,node:argument.id}
+        ))
     }
     pub(in crate::semantic) fn intrinsic(&self,definition:SemanticDefinitionId,site:SemanticSiteId,b:&mut Budget)->Check<Use>{b.spend(1)?;self.intrinsic_calls.get(&(definition,site)).copied().ok_or_else(||bad("actual intrinsic lacks its independently checked original closed scheme"))}
 }

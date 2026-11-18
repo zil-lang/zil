@@ -351,9 +351,33 @@ impl Check<'_, '_> {
                         .saturating_add(1),
                     WORK,
                 )?;
-                if recipe.occurrence_path != occurrence.occurrence_path
-                    || !matches!(recipe.kind, SemanticSiteRecipeKind::TypeUse { .. })
+                if recipe.occurrence_path != occurrence.occurrence_path {
+                    continue;
+                }
+                if let SemanticSiteRecipeKind::DeclareLocal {
+                    expected: SemanticTypeRecipe::OriginalType {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        source: SemanticOriginalTypeSource::Binding(_),
+                    },
+                } = &recipe.kind
                 {
+                    // Potential declaration roles are checked by the exact
+                    // DeclareLocal operation and its complete reference-role
+                    // proof. A declaration never supplies a capture head.
+                    for site in &self.program.sites {
+                        b.spend(1, WORK)?;
+                        if site.instance == instance.id && site.recipe == recipe.id {
+                            if !matches!(site.action, SemanticSiteAction::DeclareLocal {
+                                local: SemanticLocalTarget::Typed(_), ..
+                            }) || emitted {
+                                return Err(fail("implicit local role changes its exact declaration event"));
+                            }
+                            emitted = true;
+                        }
+                    }
+                    continue;
+                }
+                if !matches!(recipe.kind, SemanticSiteRecipeKind::TypeUse { .. }) {
                     continue;
                 }
                 if let SemanticSiteRecipeKind::TypeUse {

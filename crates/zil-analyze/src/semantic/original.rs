@@ -3354,7 +3354,11 @@ impl Solver<'_, '_> {
                     let receiving = frame.result;
                     let value = match value {
                         Some(value) => {
-                            if self.inferred_receiver_body(frame.definition, b)? {
+                            if self.inferred_receiver_body(frame.definition, b)?
+                                && matches!(self.state.arena[self.type_root(receiving, b)?],
+                                    Kind::Infer(None)
+                                    | Kind::Address { mutable: false, .. })
+                            {
                                 self.expression(frame, value, b, depth + 1)?
                             } else { self.expression_expected(frame, value, receiving, b, depth + 1)? }
                         }

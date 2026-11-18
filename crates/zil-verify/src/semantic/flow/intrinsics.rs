@@ -3,6 +3,7 @@
 //! semantic facts never replace the ordinary resource/loan/epoch kernels.
 use super::*;
 use original::intrinsics::{BufferSource, Intrinsic};
+use zil_base::{DiagnosticIrLocation, DiagnosticRole};
 #[path = "owner_fields.rs"]
 mod owner_fields;
 #[path = "owner_sources.rs"]
@@ -178,7 +179,12 @@ impl CheckedContext {
                         "byte intrinsic has no independently defined description value",
                     ));
                 }
-                self.intrinsic_buffer_source(module, caller, f, buffer, source, b)?;
+                self.intrinsic_buffer_source(module, caller, f, buffer, source, b).map_err(|mut error| {
+                    error.relate(DiagnosticRole::Input, Some(instruction.span), intrinsic_location(f, site.at), format!(
+                        "byte operation owner argument 0 uses descriptor SSA {:?}", buffer
+                    ));
+                    error
+                })?;
             }
             (None, None) => {}
             _ => {
@@ -233,6 +239,9 @@ impl CheckedContext {
         if let BufferSource::Address { definition, node } = source {
             return self.address_place_source(module, caller, f, value, definition, node, b);
         }
+        if let BufferSource::TemporaryOwner { definition, node } = source {
+            return self.temporary_buffer_source(module, caller, f, value, definition, node, b);
+        }
         let local = self.buffer_source_local(module, caller, f, source, b)?;
         let mut value = value;
         let mut seen = std::collections::BTreeSet::new();
@@ -273,6 +282,78 @@ impl CheckedContext {
             }
         }
     }
+    fn temporary_buffer_source(
+        &self,
+        module: &TypedModule,
+        caller: &SemanticInstance,
+        f: &TypedFunction,
+        descriptor: ValueId,
+        definition: SemanticDefinitionId,
+        node: zil_base::NodeId,
+        b: &mut Budget,
+    ) -> Check<()> {
+        if definition != caller.definition {
+            return Err(bad("temporary buffer belongs to another original scope"));
+        }
+        let (describe_block, describe_at, describe) = owner_sources::producer(f, descriptor, b)?;
+        let InstructionKind::DescribeLocal { local } = describe.kind else {
+            return Err(bad("temporary buffer operand does not describe the actual owner slot"));
+        };
+        let declaration = f.locals.get(local.0 as usize).ok_or_else(|| bad("temporary buffer owner slot is absent"))?;
+        b.spend(f.parameters.len().saturating_add(1))?;
+        if f.parameters.contains(&local)
+            || !matches!(&declaration.ty, Type::Managed(inner) if **inner == Type::ByteBuffer)
+        {
+            return Err(bad("temporary buffer operand selects another owner role"));
+        }
+        let mut initializer = None;
+        for block in &f.blocks {
+            b.spend(block.instructions.len().saturating_add(1))?;
+            for (at, instruction) in block.instructions.iter().enumerate() {
+                if let InstructionKind::Store { local: destination, value } = instruction.kind
+                    && destination == local
+                {
+                    if block.id != describe_block || at >= describe_at as usize || initializer.replace(value).is_some() {
+                        return Err(bad("temporary buffer does not have one dominating owner initializer"));
+                    }
+                }
+            }
+        }
+        let initializer = initializer.ok_or_else(|| bad("temporary buffer owner initializer is absent"))?;
+        let (producer_block, producer_at, producer) = owner_sources::producer(f, initializer, b)?;
+        let original = self.definition(module, definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
+            return Err(bad("temporary buffer lacks its original function body"));
+        };
+        let program = module.semantic.as_ref().ok_or_else(|| bad("temporary buffer lacks its semantic program"))?;
+        let mut matches = 0;
+        for site in &program.sites {
+            b.spend(1)?;
+            if site.instance != caller.id
+                || !matches!(site.at, SemanticSiteAddress::Typed { block, instruction, .. } if block == producer_block && instruction == producer_at)
+                || !matches!(site.action, SemanticSiteAction::Call { .. } | SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::CallableCall { .. })
+            {
+                continue;
+            }
+            b.spend(site_nodes.len())?;
+            matches += usize::from(site_nodes.iter().any(|row| row.site == site.recipe && row.node == SemanticOriginalNode::Expression(node)));
+        }
+        if matches != 1 {
+            let mut error = bad("temporary buffer initializer is not the exact original producer call").with_note(format!(
+                "original {:?} expression {:?}, candidate initializer {:?}", definition, node, initializer
+            ));
+            error.relate(DiagnosticRole::Input, Some(describe.span), Some(DiagnosticIrLocation {
+                function: f.id.0, block: Some(describe_block.0), instruction: Some(describe_at),
+            }), format!("description {:?} refers to owner slot {:?}", descriptor, local));
+            error.relate(DiagnosticRole::Result, Some(producer.span), Some(DiagnosticIrLocation {
+                function: f.id.0, block: Some(producer_block.0), instruction: Some(producer_at),
+            }), format!("actual producer of initializer {:?}", initializer));
+            return Err(error);
+        }
+        crate::check_instruction(module, f, producer, b)?;
+        Ok(())
+    }
+
     pub(super) fn buffer_source_local(
         &self,
         module: &TypedModule,
@@ -332,7 +413,7 @@ impl CheckedContext {
                     bad("intrinsic original buffer has no exact actual local declaration")
                 })?
             }
-            BufferSource::Place { .. } | BufferSource::Address { .. } => {
+            BufferSource::Place { .. } | BufferSource::Address { .. } | BufferSource::TemporaryOwner { .. } => {
                 return Err(bad(
                     "projected buffer source was reduced to an unqualified local",
                 ));
@@ -357,4 +438,11 @@ impl CheckedContext {
         }
         atomic(&Type::I64,b)
     }
+}
+
+fn intrinsic_location(f: &TypedFunction, at: SemanticSiteAddress) -> Option<DiagnosticIrLocation> {
+    let SemanticSiteAddress::Typed { block, instruction, .. } = at else {
+        return None;
+    };
+    Some(DiagnosticIrLocation { function: f.id.0, block: Some(block.0), instruction: Some(instruction) })
 }
