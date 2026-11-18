@@ -1108,6 +1108,8 @@ impl Engine<'_> {
                             };
                             if let (Some(result), Some(expected)) =
                                 (&function.return_type, expected)
+                                && callable::opaque_signature(result).is_none()
+                                && callable::opaque_signature(expected).is_none()
                                 && (!self.traits.has_associated
                                     || !trait_bounds::associated::contains(
                                         result,
@@ -1225,6 +1227,11 @@ impl Engine<'_> {
                             BTreeMap::new()
                         };
                         if let (Some(result), Some(expected)) = (&function.return_type, expected)
+                            // The factory and body checkers compare callable
+                            // bounds. Each opaque result has its own declaring
+                            // function and separately checked hidden body.
+                            && callable::opaque_signature(result).is_none()
+                            && callable::opaque_signature(expected).is_none()
                             && (!self.traits.has_associated
                                 || !trait_bounds::associated::contains(result, &mut self.budget)?)
                         {

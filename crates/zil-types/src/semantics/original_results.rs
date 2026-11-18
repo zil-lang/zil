@@ -772,6 +772,27 @@ impl Proof {
 }
 
 impl Proof {
+    pub(in crate::semantics) fn forwarded_opaque_boundaries(
+        &self,
+        owner: SemanticDefinitionId,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<Option<Vec<CalleeResultBoundary>>> {
+        *left = left.checked_sub(self.opaque_forwarded_returns.len().saturating_add(1).ilog2() as usize + 1)
+            .ok_or_else(|| Diagnostic::limit(Phase::Types, "forwarded opaque return lookup exceeded", None))?;
+        let Some(returns) = self.opaque_forwarded_returns.get(&owner) else { return Ok(None); };
+        let mut boundaries = Vec::new();
+        for expression in returns {
+            let Some(boundary) = self.call_result_boundary(owner, owner,
+                &SemanticOriginalTypeSource::Expression(*expression), limits, left)? else {
+                // A partially anchored family does not publish a result.
+                return Ok(None);
+            };
+            boundaries.push(boundary);
+        }
+        Ok(Some(boundaries))
+    }
+
     pub(in crate::semantics) fn call_actual_boundaries(
         &self,
         program: &SemanticModule,

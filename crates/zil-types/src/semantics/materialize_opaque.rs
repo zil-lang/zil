@@ -885,6 +885,36 @@ impl Eval<'_, '_, '_> {
             .map(|(value, _)| Some(value))
     }
 
+    pub(super) fn forwarded_opaque_result(
+        &mut self,
+        caller: SemanticInstanceId,
+        hint: Option<&Type>,
+        depth: usize,
+    ) -> R<Option<SemanticTypeValue>> {
+        self.node(depth)?;
+        let owner = self.instance(caller)?.definition;
+        let boundaries = {
+            let proof = self.ledger.original.borrow();
+            proof.as_ref().ok_or_else(|| bad("forwarded opaque result lacks its original proof"))?
+                .forwarded_opaque_boundaries(owner, self.limits, self.left)?
+        };
+        let Some(boundaries) = boundaries else { return Ok(None); };
+        let mut result = None;
+        for boundary in &boundaries {
+            let (value, _) = self.actual_result_boundary(caller, boundary, hint, false, depth + 1)?;
+            if let Some(previous) = &result {
+                crate::dyn_metadata::semantic_operand_snapshot(previous, self.limits, self.left, 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(&value, self.limits, self.left, 1)?;
+                if previous != &value {
+                    return Err(bad("forwarded opaque returns disagree on their complete original result"));
+                }
+            } else {
+                result = Some(value);
+            }
+        }
+        Ok(result)
+    }
+
     /// During actual Task preparation, an inner call can already be emitted
     /// while the original semantic directory still uses Core addresses. Use
     /// that completed occurrence's ledger receipt; publication independently
@@ -1036,7 +1066,13 @@ impl Eval<'_, '_, '_> {
             if !self.opaque_actuals_match(caller, boundary.call, candidate, &actuals, depth + 1)? {
                 continue;
             }
-            let mut value = self.ty(candidate.id, &boundary.result, hint, depth + 1)?;
+            let forwarded = if matches!(boundary.result, SemanticTypeRecipe::Opaque { .. }) {
+                self.forwarded_opaque_result(candidate.id, hint, depth + 1)?
+            } else { None };
+            let mut value = match forwarded {
+                Some(value) => value,
+                None => self.ty(candidate.id, &boundary.result, hint, depth + 1)?,
+            };
             self.explicit_result_images(
                 &mut value,
                 &actuals,

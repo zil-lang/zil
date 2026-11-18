@@ -200,6 +200,7 @@ pub(super) struct Proof {
     capture_candidates: BTreeMap<SemanticDefinitionId, std::rc::Rc<capture_candidates::Candidates>>,
     pub(super) definition_positions: std::rc::Rc<BTreeMap<SemanticDefinitionId, usize>>,
     view_bounds: BTreeMap<(SemanticDefinitionId, Query), views::ViewBorrowBound>,
+    opaque_forwarded_returns: BTreeMap<SemanticDefinitionId, BTreeSet<NodeId>>,
     pub borrow_roles: BTreeMap<(SemanticDefinitionId, NodeId), BorrowRole>,
     pub(super) capture_writes: BTreeMap<(SemanticDefinitionId, NodeId), CapturedRoleWrite>,
     // Exact original call input for an already-declared contextual outer role.
@@ -2600,6 +2601,14 @@ impl<'a> Check<'a, '_> {
         }
         let mut implicit = BTreeMap::new();
         let mut invocation = BTreeMap::new();
+        // This function's opaque result goal supplies a callable contract.
+        // Its hidden Type comes from the completed return, including an
+        // independently resolved factory call with its own opaque identity.
+        let wanted = wanted.filter(|ty| !matches!(ty, SemanticTypeRecipe::Opaque {
+            definition, hidden, ..
+        } if *definition == owner && matches!(hidden.as_ref(), SemanticTypeRecipe::OriginalType {
+            scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result,
+        })));
         if let Some(wanted) = wanted {
             let empty = BTreeMap::new();
             if let Some(context) = substitute::caller_context(
@@ -6233,6 +6242,14 @@ impl<'a> Check<'a, '_> {
                     .types
                     .insert((owner, Query::Result), copy);
             }
+        }
+        if infer && matches!(result, SemanticTypeRecipe::Opaque { definition, .. } if *definition == owner)
+            && matches!(value, SemanticTypeRecipe::Opaque { .. })
+        {
+            self.pay(self.proof.opaque_forwarded_returns.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+            let count = self.proof.opaque_forwarded_returns.get(&owner).map_or(0, BTreeSet::len);
+            self.pay(count.saturating_add(1).ilog2() as usize + 2, depth)?;
+            self.proof.proof_mut()?.opaque_forwarded_returns.entry(owner).or_default().insert(value_node.id);
         }
         let expected = self.resolve(owner, result, depth + 1)?;
         if let SemanticTypeRecipe::Opaque {

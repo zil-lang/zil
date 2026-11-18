@@ -1378,6 +1378,12 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                 if let SemanticTypeRecipe::Opaque { definition, .. } = recipe.as_ref()
                     && self.instance(scope)?.definition != *definition
                 {
+                    if matches!(source, SemanticOriginalTypeSource::Result)
+                        && matches!(selector, SemanticScopeRef::Ancestor(0))
+                        && let Some(value) = self.forwarded_opaque_result(scope, hint, depth + 1)?
+                    {
+                        return Ok(value);
+                    }
                     if let Some(value) =
                         self.closed_opaque_definition(scope, &recipe, hint, depth + 1)?
                     {
