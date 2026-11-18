@@ -304,18 +304,8 @@ pub(super) fn inventory(
     }
     for (index, function) in module.functions.iter().enumerate() {
         b.spend(1)?;
-        let companion = if function.storage_life.is_some() && !legacy_task_signature(function) {
-            b.spend(function.parameters.len())?;
-            function
-                .parameters
-                .iter()
-                .any(|p| is_description(&function.locals[p.0 as usize].ty))
-        } else {
-            false
-        };
-        if companion && covered(index) && !queries[index] {
-            return Err(outside());
-        }
+        // Only an actual query or a proved call edge schedules weak-read
+        // verification. A description parameter alone carries no such effect.
         if queries[index]
             && covered(index)
             && (function.foreign.is_some()
@@ -337,7 +327,7 @@ pub(super) fn inventory(
                 {
                     return Err(outside());
                 }
-                if covered(index) {
+                if covered(index) && queries[index] {
                     if let Some(arguments) = indirect_arguments(&operation.kind) {
                         b.spend(arguments.len())?;
                         if actual_callee(module, function, &operation.kind).is_none()
