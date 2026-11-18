@@ -1480,6 +1480,24 @@ impl Builder<'_, '_> {
             "@module{}:helper{}:env{}",
             template.context.module.0, function.id.0, label
         );
+        let aggregate_owner = forward.is_none()
+            && matches!(bounds, [bound] if matches!(
+                function.parameters[bound.index as usize].mode,
+                PassingMode::Infer | PassingMode::Move
+            ));
+        if owned_state
+            && let [bound] = bounds
+            && let Type::Closure(closure) =
+                typed.locals[typed.parameters[bound.index as usize].0 as usize].ty
+            && !matches!(&typed.return_type, Type::Package { fields, .. }
+                if fields.iter().any(|(_, field)| *field == Type::Closure(closure)))
+            && environment_origins(&typed, bounds, aggregate_owner, self.closures, span)?.is_some()
+        {
+            return Err(unsupported(
+                span,
+                "composed owning callable input requires a complete aggregate transfer",
+            ));
+        }
         if !owned_state && !owned_factory && !borrowed_registration {
             self.closures.snapshot(bounds.len(), span)?;
             let mut roles = Vec::new();
@@ -1544,11 +1562,6 @@ impl Builder<'_, '_> {
                     },
                 });
             }
-            let aggregate_owner = forward.is_none()
-                && matches!(bounds, [bound] if matches!(
-                    function.parameters[bound.index as usize].mode,
-                    PassingMode::Infer | PassingMode::Move
-                ));
             if let Some(traces) = flow::contract(
                 &typed,
                 bounds,

@@ -193,10 +193,9 @@ impl<'a> Check<'a, '_> {
             | Type::CWideString
             | Type::SyncCell(_)
             | Type::TaskI32 => Ok(0),
-            Type::Closure(_) => {
-                // A callable is opaque to physical field counting. Rebuild
-                // its actual definition/entry/capture directory instead of
-                // treating an empty visible layout or Some0 as zero.
+            Type::Closure(_) | Type::OwnedDyn { .. } => {
+                // Opaque runtime children need their actual persistent
+                // directory before they contribute a zero class count.
                 self.view
                     .ordinary_zero(ty, self.limits, self.left, &self.ledger.ordinary_stats)?;
                 Ok(0)
@@ -575,6 +574,66 @@ impl<'a> Check<'a, '_> {
             _ => None,
         }
     }
+    fn closed_dynamic_owner(
+        &mut self,
+        expected: &SemanticDynInterfaceRecipe,
+        id: DynInterfaceId,
+    ) -> R<()> {
+        self.pay(
+            self.module
+                .dyn_interfaces
+                .len()
+                .saturating_add(self.module.dyn_declarations.len())
+                .saturating_add(expected.application.arguments.len())
+                .saturating_add(expected.associated.len()),
+        )?;
+        let mut actual = self.module.dyn_interfaces.iter().filter(|row| row.id == id);
+        let row = actual
+            .next()
+            .ok_or_else(|| bad("nominal dynamic field has no complete actual interface"))?;
+        if actual.next().is_some()
+            || row.application.declaration != expected.application.declaration
+        {
+            return Err(bad(
+                "nominal dynamic field changes its exact original trait",
+            ));
+        }
+        if !matches!(expected.context, SemanticDynContextRecipe::Closed)
+            || !expected.application.arguments.is_empty()
+            || !expected.associated.is_empty()
+            || row.context.is_some()
+            || !row.application.actuals.is_empty()
+            || !row.inherited.is_empty()
+            || !row.associated_types.is_empty()
+            || !row.associated_constants.is_empty()
+        {
+            return Err(pending(
+                "nominal dynamic field requires its complete original Context and mixed application",
+            ));
+        }
+        let mut declarations = self
+            .module
+            .dyn_declarations
+            .iter()
+            .filter(|declaration| declaration.id == expected.application.declaration);
+        let declaration = declarations
+            .next()
+            .ok_or_else(|| bad("nominal dynamic field has no original trait declaration"))?;
+        if declarations.next().is_some()
+            || declaration.kind != DynDeclarationKind::Trait
+            || !declaration.parameters.is_empty()
+        {
+            return Err(bad(
+                "nominal dynamic field changes its original trait declaration kind or arity",
+            ));
+        }
+        self.view.ordinary_zero(
+            &Type::OwnedDyn { interface: id },
+            self.limits,
+            self.left,
+            &self.ledger.ordinary_stats,
+        )
+    }
     fn types(
         &mut self,
         owner: &LifeNominalInstance,
@@ -719,6 +778,10 @@ impl<'a> Check<'a, '_> {
                 }
                 self.row(child, depth + 1)
             }
+            (
+                SemanticTypeRecipe::Dyn { owned: true, interface: expected },
+                Type::OwnedDyn { interface },
+            ) => self.closed_dynamic_owner(expected, *interface),
             (SemanticTypeRecipe::Tuple(expected), Type::Tuple(actual))
                 if expected.len() == actual.len() =>
             {
