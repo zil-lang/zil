@@ -5,7 +5,11 @@ use std::{
     process::Command,
     sync::atomic::{AtomicU64, Ordering},
 };
-use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
+use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, TargetProfile};
+use zil_ir::{
+    CoreExprKind, CoreStatementKind, SemanticDefinitionBody, SemanticDefinitionKind,
+    SemanticOriginalBlock, SemanticOriginalFunctionBody, UnaryOp,
+};
 use zil_driver::{CompileOptions, CompileReport, Stage, compile_source};
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -86,6 +90,89 @@ fn native(text: &str, expected: &str) -> (String, String) {
         "concrete environment introduced implicit allocation"
     );
     (typed, llvm)
+}
+
+fn swap_capture_roles(body: &mut SemanticOriginalBlock) -> usize {
+    let mut changes = 0;
+    for statement in &mut body.statements {
+        let expression = match &mut statement.kind {
+            CoreStatementKind::Binding { initializer: Some(value), .. }
+            | CoreStatementKind::Expression(value)
+            | CoreStatementKind::Return(Some(value)) => value,
+            _ => continue,
+        };
+        match &mut expression.kind {
+            CoreExprKind::Closure { body, .. } => changes += swap_capture_roles(body),
+            CoreExprKind::Call { arguments, .. } => {
+                for argument in arguments {
+                    if let CoreExprKind::Unary { op: UnaryOp::Give, operand } = &mut argument.kind
+                        && let CoreExprKind::Name(name) = &mut operand.kind
+                        && name == "transferred"
+                    {
+                        *name = "observed".into();
+                        changes += 1;
+                    }
+                }
+            }
+            CoreExprKind::Member { object, .. } => {
+                if let CoreExprKind::Name(name) = &mut object.kind
+                    && name == "observed"
+                {
+                    *name = "transferred".into();
+                    changes += 1;
+                }
+            }
+            _ => {}
+        }
+    }
+    changes
+}
+
+fn verify_exact_capture_roles(text: &str) {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "closures.zil", text);
+    let ast = zil_syntax::parse(&source).into_result().unwrap();
+    let core = zil_expand::expand_with_map_semantics(
+        &source, &ast, &limits, &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    ).unwrap().core;
+    let mut module = zil_types::check(&core, &target, &limits).unwrap();
+    let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+
+    // The original closure occurs in its creator and in its own declaration.
+    // Swap both lexical uses in both copies, retaining the actual capture IR.
+    let mut edited_bodies = 0;
+    for definition in &mut module.semantic.as_mut().unwrap().definitions {
+        if matches!(definition.kind, SemanticDefinitionKind::Function | SemanticDefinitionKind::Closure)
+            && let SemanticDefinitionBody::FunctionWithBody {
+                body: SemanticOriginalFunctionBody::Defined(body), ..
+            } = &mut definition.body
+        {
+            let changes = swap_capture_roles(body);
+            if changes != 0 {
+                assert_eq!(changes, 2);
+                edited_bodies += 1;
+            }
+        }
+    }
+    assert_eq!(edited_bodies, 2);
+    plan.module_fingerprint = module.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    let raw = zil_verify::verify_module(module, plan, &target, &limits).unwrap_err();
+    let wire = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
+    assert_eq!(raw, wire);
+    assert!(raw.iter().any(|diagnostic| {
+        diagnostic.code == "E-VERIFY-SEMANTIC"
+            && diagnostic.message == "logical capture does not select its exact original free-value binding"
+    }), "{raw:#?}");
 }
 
 #[test]
@@ -339,6 +426,9 @@ fn resource_closure_mixed_address_and_owner_capture_ends_loan_after_once_native(
         "{OBSERVABLE} fn main()->i32{{let transferred=Token{{code:65}};let observed=Token{{code:66}};let work=()=>{{consume(give transferred);observed.code}};if work()==66 && observed.code==66{{return 0}}return 1}}"
     );
     native(&same_payload, "AB");
+    // Keep the Raw/Wire contrast at the creator: both exchanged bindings
+    // remain valid original bodies through the later call.
+    verify_exact_capture_roles(&same_payload.replace(" && observed.code==66", ""));
 }
 
 #[test]

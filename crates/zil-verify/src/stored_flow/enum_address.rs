@@ -1214,4 +1214,26 @@ mod substitution_tests {
         assert!(known && result.active(1));
         assert_eq!(result.project(&error, &mut b).unwrap().constructed, [2]);
     }
+
+    #[test]
+    fn independent_error_constructor_survives_an_inactive_input() {
+        let limits = zil_base::Limits::default();
+        let mut b = Budget::new(&limits);
+        let error = vec![PlaceProjection::ErrorArm(true)];
+        let summary = Variants {
+            domain: 2,
+            constructed: vec![1],
+            nested: vec![(error.clone(), Variants {
+                domain: 3,
+                constructed: vec![2],
+                inputs: vec![(option_address::Input::Parameter(0), error.clone())],
+                ..Variants::default()
+            })],
+            ..Variants::default()
+        };
+        let caller = Payload { enum_variants: Variants { domain: 2, constructed: vec![0], ..Variants::default() }, ..Payload::default() };
+        let (result, known) = summary.substitute_known(&[ValueId(0)], &[caller], &mut b).unwrap();
+        assert!(known && result.active(1));
+        assert_eq!(result.project(&error, &mut b).unwrap().constructed, [2]);
+    }
 }
