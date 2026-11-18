@@ -71,10 +71,35 @@ fn qualified_pointee_rows(
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::semantics) fn append(
-    value: &SemanticTypeValue,
-    base: StorageBase,
+    value: &SemanticTypeValue, base: StorageBase,
     bindings: &mut Vec<(StoragePosition, SemanticClassExpr)>,
     classes_out: &mut Vec<(SignatureLifeClass, SemanticClassExpr)>,
+    statics: &mut Vec<StoragePosition>, limits: &Limits, left: &mut usize,
+) -> R<()> {
+    let SemanticTypeValue::Resolved { classes, .. } = value else { return Err(bad("header retains an unresolved whole type")); };
+    let mut physical = Vec::new();
+    let mut intrinsic = Vec::new();
+    append_ordinals(value, base, &mut physical, &mut intrinsic, statics, limits, left)?;
+    pay(left, physical.len().saturating_add(intrinsic.len()))?;
+    for (position, ordinal) in physical {
+        let image = classes.get(ordinal as usize).ok_or_else(|| bad("header ordinal exceeds its complete class domain"))?;
+        crate::dyn_metadata::semantic_operand_snapshot(image, limits, left, 1)?;
+        bindings.push((position, image.clone()));
+    }
+    for (position, ordinal) in intrinsic {
+        let image = classes.get(ordinal as usize).ok_or_else(|| bad("header intrinsic ordinal exceeds its complete class domain"))?;
+        crate::dyn_metadata::semantic_operand_snapshot(image, limits, left, 1)?;
+        classes_out.push((position, image.clone()));
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(in crate::semantics) fn append_ordinals(
+    value: &SemanticTypeValue,
+    base: StorageBase,
+    bindings: &mut Vec<(StoragePosition, u32)>,
+    classes_out: &mut Vec<(SignatureLifeClass, u32)>,
     statics: &mut Vec<StoragePosition>,
     limits: &Limits,
     left: &mut usize,
@@ -85,6 +110,9 @@ pub(in crate::semantics) fn append(
     if life.binder_count as usize != classes.len() {
         return Err(bad("header omits a whole-Type intrinsic class"));
     }
+    pay(left, classes.len())?;
+    let indices = (0..life.binder_count).collect::<Vec<_>>();
+    let classes = indices.as_slice();
     let count = life
         .slots
         .len()
@@ -107,7 +135,7 @@ pub(in crate::semantics) fn append(
         let image = classes
             .get(slot.binder as usize)
             .ok_or_else(|| bad("header physical slot exceeds its entire domain"))?;
-        crate::dyn_metadata::semantic_operand_snapshot(image, limits, left, 1)?;
+        pay(left, 1)?;
         covered[slot.binder as usize] = true;
         bindings.push((
             StoragePosition {
@@ -146,7 +174,7 @@ pub(in crate::semantics) fn append(
     );
     if opaque && !task_root {
         for (class, image) in classes.iter().enumerate() {
-            crate::dyn_metadata::semantic_operand_snapshot(image, limits, left, 1)?;
+            pay(left, 1)?;
             covered[class] = true;
             classes_out.push((
                 SignatureLifeClass {
@@ -166,7 +194,7 @@ pub(in crate::semantics) fn append(
             let image = classes
                 .get(row.binder as usize)
                 .ok_or_else(|| bad("header retained child exceeds its entire domain"))?;
-            crate::dyn_metadata::semantic_operand_snapshot(image, limits, left, 1)?;
+            pay(left, 1)?;
             covered[row.binder as usize] = true;
             classes_out.push((
                 SignatureLifeClass {

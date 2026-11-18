@@ -917,7 +917,7 @@ pub(super) fn callable(
             world,
             &target,
             &[],
-            Some((header, child, closure_value)),
+            Some((header, child, closure_value, StorageBase::Parameter(ordinal as u32))),
             &invocation,
         )?;
         world.same(instance.id, &target, expected, implicit)?;
@@ -968,7 +968,7 @@ pub(super) fn callable(
         world,
         &target,
         &[],
-        Some((header, child, closure_value)),
+        Some((header, child, closure_value, StorageBase::Result)),
         &invocation,
     )?;
     if let Some(output) = directed {

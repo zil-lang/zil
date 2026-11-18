@@ -850,115 +850,124 @@ impl<'a> World<'a, '_> {
         }
         projection::pointee(self, value)
     }
+    /// Complete local κ -> signature binder map from the same occurrence
+    /// traversal used to form headers. Payload syntax and equal Life images do
+    /// not select the binder. All physical, retained and phantom rows remain.
+    fn boundary_binders(
+        &mut self, value: &SemanticTypeValue, base: StorageBase, header: &StorageLifeContract,
+    ) -> R<Vec<StorageBinder>> {
+        let SemanticTypeValue::Resolved { life, classes, .. } = value else { return Err(bad("call boundary retains an unresolved whole type")); };
+        let mut physical = Vec::new();
+        let mut intrinsic = Vec::new();
+        let mut statics = Vec::new();
+        super::creator_headers::rows::append_ordinals(value, base, &mut physical, &mut intrinsic, &mut statics, self.limits, self.left)?;
+        self.pay(header.bindings.len().saturating_add(header.classes.len()).saturating_add(header.static_bindings.len()).saturating_add(classes.len()))?;
+        if physical.len() != header.bindings.iter().filter(|row| row.position.base == base).count()
+            || intrinsic.len() != header.classes.iter().filter(|row| row.position.base == base).count()
+            || statics.len() != header.static_bindings.iter().filter(|position| position.base == base).count() {
+            return Err(bad("call boundary changes its complete original occurrence inventory"));
+        }
+        let mut mapped = vec![None; life.binder_count as usize];
+        let mut put = |ordinal: u32, binder: StorageBinder| -> R<()> {
+            let slot = mapped.get_mut(ordinal as usize).ok_or_else(|| bad("call occurrence exceeds its complete local class domain"))?;
+            if slot.is_some_and(|previous| previous != binder) { return Err(bad("one original local class has conflicting signature binders")); }
+            *slot = Some(binder);
+            Ok(())
+        };
+        for (position, ordinal) in physical {
+            let mut selected = None;
+            for row in &header.bindings {
+                self.pay(row.position.path.len().saturating_add(position.path.len()).saturating_add(1))?;
+                if row.position == position && selected.replace(row.binder).is_some() { return Err(bad("call physical occurrence repeats its original header binder")); }
+            }
+            put(ordinal, selected.ok_or_else(|| bad("call physical occurrence has no exact original header binder"))?)?;
+        }
+        for (position, ordinal) in intrinsic {
+            let mut selected = None;
+            for row in &header.classes {
+                self.pay(row.position.path.len().saturating_add(position.path.len()).saturating_add(1))?;
+                if row.position == position && selected.replace(row.binder).is_some() { return Err(bad("call intrinsic occurrence repeats its original header binder")); }
+            }
+            put(ordinal, selected.ok_or_else(|| bad("call intrinsic occurrence has no exact original header binder"))?)?;
+        }
+        for position in statics {
+            let mut count = 0;
+            for row in &header.static_bindings {
+                self.pay(row.path.len().saturating_add(position.path.len()).saturating_add(1))?;
+                if row == &position { count += 1; }
+            }
+            if count != 1 { return Err(bad("call Static occurrence changes its exact original header position")); }
+        }
+        mapped.into_iter().collect::<Option<Vec<_>>>().ok_or_else(|| bad("call boundary has an unrepresented local intrinsic class"))
+    }
     fn map_value(
         &mut self,
         value: &SemanticTypeValue,
         actuals: &[SemanticActual],
-        environment: Option<(&StorageLifeContract, &SemanticInstance, &SemanticTypeValue)>,
+        environment: Option<(&StorageLifeContract, &SemanticInstance, &SemanticTypeValue, StorageBase)>,
     ) -> R<SharedType> {
-        self.map_call_value(value, actuals, environment, &[])
+        self.map_call_value(value, actuals, environment, &[], None)
     }
     fn map_call_value(
         &mut self,
         value: &SemanticTypeValue,
         actuals: &[SemanticActual],
-        environment: Option<(&StorageLifeContract, &SemanticInstance, &SemanticTypeValue)>,
+        environment: Option<(&StorageLifeContract, &SemanticInstance, &SemanticTypeValue, StorageBase)>,
         invocation: &[(SemanticClassExpr, SemanticClassExpr)],
+        prepared_binders: Option<&[StorageBinder]>,
     ) -> R<SharedType> {
+        let mut owned_binders = None;
+        if let Some((header, _, actual, base)) = environment {
+            let SemanticTypeValue::Resolved { life, classes, .. } = actual else { return Err(bad("call environment retains an unresolved whole type")); };
+            if classes.len() != life.binder_count as usize || life.binder_count != header.fixed_binder_count {
+                return Err(bad("call environment loses its complete persistent class domain"));
+            }
+            if prepared_binders.is_none() { owned_binders = Some(self.boundary_binders(value, base, header)?); }
+        }
+        let binders = prepared_binders.or(owned_binders.as_deref());
         let mut value = self.copy(value)?;
         let SemanticTypeValue::Resolved { classes, .. } = Rc::get_mut(&mut value)
             .ok_or_else(|| bad("fresh class mapping unexpectedly shares its value"))?
         else {
             return Err(bad("Core type survives call interpretation"));
         };
-        for image in classes {
-            self.pay(invocation.len())?;
-            let mut mapped = invocation.iter().filter(|(source, _)| source == image);
-            if let Some((_, actual)) = mapped.next() {
-                if mapped.next().is_some() {
-                    return Err(bad(
-                        "one actual invocation class has repeated boundary images",
-                    ));
+        if let Some(binders) = binders {
+            self.pay(binders.len())?;
+            if binders.len() != classes.len() { return Err(bad("call boundary loses its complete local class ordinal map")); }
+        }
+        for (ordinal, image) in classes.iter_mut().enumerate() {
+            if let Some((header, child, SemanticTypeValue::Resolved { life, classes: actual_images, .. }, _)) = environment {
+                if actual_images.len() != life.binder_count as usize || life.binder_count != header.fixed_binder_count {
+                    return Err(bad("call environment loses its complete persistent class domain"));
                 }
+                let binder = *binders.and_then(|rows| rows.get(ordinal))
+                    .ok_or_else(|| bad("call boundary omits an original whole-Type class coordinate"))?;
+                let source = self.binding(child, binder)?;
+                // Position selects the binder. Equality in the original child
+                // Gamma checks that relation; it never chooses among equal κ.
+                self.same_class(child.id, &source, image, &BTreeMap::new())?;
+                let actual = match binder {
+                    StorageBinder::Fixed(fixed) => actual_images.get(fixed as usize)
+                        .ok_or_else(|| bad("call boundary truncates its actual Fixed environment domain"))?,
+                    StorageBinder::Invocation(_) => {
+                        self.pay(invocation.len())?;
+                        let mut mappings = invocation.iter().filter(|(origin, _)| origin == &source);
+                        let (_, target) = mappings.next().ok_or_else(|| pending("call boundary lacks its complete original Invocation substitution"))?;
+                        if mappings.next().is_some() { return Err(bad("one Invocation binder has repeated actual boundary images")); }
+                        target
+                    }
+                };
                 crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
                 *image = actual.clone();
                 continue;
             }
-            // Resolve a sealed proxy and its ancestor spelling in the child's
-            // original Gamma before selecting a real Fixed image. Concrete
-            // caller coincidences never select or merge captured classes.
-            let captured = match image {
-                SemanticClassExpr::Formal {
-                    scope: SemanticScopeRef::Ancestor(hops),
-                    ..
-                } => *hops != 0,
-                SemanticClassExpr::Implicit { .. } => true,
-                SemanticClassExpr::IntrinsicClass {
-                    operand:
-                        SemanticOperand::TypeArgument {
-                            scope: SemanticScopeRef::Ancestor(hops),
-                            ..
-                        },
-                    ..
-                } => *hops != 0,
-                SemanticClassExpr::Environment { .. }
-                | SemanticClassExpr::IntrinsicClass {
-                    operand: SemanticOperand::Environment(_),
-                    ..
-                }
-                | SemanticClassExpr::OuterOccurrence {
-                    operand: SemanticOperand::Environment(_),
-                    ..
-                } => true,
-                _ => false,
-            };
-            if captured
-                && let Some((
-                    header,
-                    child,
-                    SemanticTypeValue::Resolved {
-                        life,
-                        classes: actual_images,
-                        ..
-                    },
-                )) = environment
-            {
-                if actual_images.len() != life.binder_count as usize
-                    || life.binder_count != header.fixed_binder_count
-                {
-                    return Err(bad(
-                        "call environment loses its complete persistent class domain",
-                    ));
-                }
-                // Select the original whole occurrence before interpreting
-                // its image. Independent capture/child κ coordinates can have
-                // equal Life images; image equality never chooses a Fixed.
-                let mut selected = None;
-                for row in &child.header_embedding {
-                    self.pay(1)?;
-                    let StorageBinder::Fixed(fixed) = row.header else { continue; };
-                    if fixed >= header.fixed_binder_count {
-                        return Err(bad("captured header occurrence is outside its complete Fixed domain"));
-                    }
-                    crate::dyn_metadata::semantic_operand_snapshot(&row.actual, self.limits, self.left, 1)?;
-                    crate::dyn_metadata::semantic_operand_snapshot(&*image, self.limits, self.left, 1)?;
-                    if &row.actual == &*image && selected.replace(fixed).is_some() {
-                        return Err(bad("one original capture occurrence has multiple actual Fixed coordinates"));
-                    }
-                }
-                if let Some(fixed) = selected {
-                    let actual = actual_images
-                        .get(fixed as usize)
-                        .ok_or_else(|| bad("call truncates the actual captured class image"))?;
-                    crate::dyn_metadata::semantic_operand_snapshot(
-                        actual,
-                        self.limits,
-                        self.left,
-                        1,
-                    )?;
-                    *image = actual.clone();
-                    continue;
-                }
+            self.pay(invocation.len())?;
+            let mut mapped = invocation.iter().filter(|(source, _)| source == image);
+            if let Some((_, actual)) = mapped.next() {
+                if mapped.next().is_some() { return Err(bad("one actual invocation class has repeated boundary images")); }
+                crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
+                *image = actual.clone();
+                continue;
             }
             match image {
                 SemanticClassExpr::Formal {
@@ -2306,12 +2315,12 @@ impl World<'_, '_> {
         {
             let expected =
                 self.parameter_value(child.id, ordinal, &target.locals[local.0 as usize].ty)?;
-            let expected = self.map_value(&expected, &[], Some((header, child, value)))?;
+            let expected = self.map_value(&expected, &[], Some((header, child, value, StorageBase::Parameter(ordinal as u32))))?;
             let actual = self.get(values, *argument)?;
             self.same(instance.id, &actual, &expected, implicit)?;
         }
         let result = self.result_value(child.id, &target.return_type)?;
-        self.map_value(&result, &[], Some((header, child, value)))
+        self.map_value(&result, &[], Some((header, child, value, StorageBase::Result)))
     }
     fn run(&mut self, instance: &SemanticInstance) -> R<()> {
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) = instance.target
@@ -3559,12 +3568,10 @@ impl World<'_, '_> {
                                             ));
                                         }
                                     }
-                                    selected = Some(());
+                                    selected = Some(site);
                                 }
                             }
-                            if selected.is_none() {
-                                return Err(bad("actual closure lacks its original creation site"));
-                            }
+                            let creation_site = selected.ok_or_else(|| bad("actual closure lacks its original creation site"))?;
                             let header = d.storage_life.as_ref().ok_or_else(|| {
                                 pending("constructed closure full domain is unknown")
                             })?;
@@ -3719,10 +3726,10 @@ impl World<'_, '_> {
                                 let expected = self.map_value(
                                     &expected,
                                     &[],
-                                    Some((header, child, &closure_value)),
+                                    Some((header, child, &closure_value, StorageBase::Capture(capture as u32))),
                                 )?;
                                 let actual = self.get(&values, *source)?;
-                                self.same(instance.id, &actual, &expected, &implicit)?;
+                                arguments::capture(self, instance, child, creation_site, capture as u32, *source, &actual, &expected, &values, &locals, &implicit)?;
                             }
                             Some(closure_value)
                         }

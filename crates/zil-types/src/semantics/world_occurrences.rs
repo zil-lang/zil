@@ -217,8 +217,6 @@ pub(super) fn prepared_callee(
             "prepared callee selects another original callable operand",
         ));
     }
-    let original_callee = proof.call_callee(original.id, call.recipe, world.left)?
-        .ok_or_else(|| bad("prepared callee has no exact original Call operand occurrence"))?;
     let function = world.function(id)?;
     world.pay(function.blocks.len())?;
     let operation = function
@@ -237,28 +235,18 @@ pub(super) fn prepared_callee(
         .frames
         .get(&id)
         .ok_or_else(|| bad("prepared callee has no emission frame"))?;
-    world.pay(frame.expressions.len())?;
-    let mut selected = None;
-    for row in frame.expressions.values() {
-        let Some(address) = row.callee_place else {
-            continue;
-        };
-        world.pay(row.instructions.len())?;
-        if !row
-            .instructions
-            .iter()
-            .any(|point| point.block == block && point.instruction == instruction as usize)
-            || !row
-                .end
-                .is_some_and(|end| end.block == block && end.instruction > instruction as usize)
-        {
-            continue;
-        }
-        if row.callee != Some(original_callee) || address != callee || selected.replace(address).is_some() {
-            return Err(bad(
-                "prepared callee changes its exact selected address or call",
-            ));
-        }
+    let key = ledger.original_call_expression(id, original, call.recipe, world.left)?;
+    world.pay(index::search(frame.expressions.len()))?;
+    let row = frame.expressions.get(&key)
+        .ok_or_else(|| bad("prepared callee lacks its exact actual Core Call receipt"))?;
+    world.pay(row.instructions.len())?;
+    if !row.instructions.iter().any(|point| point.block == block && point.instruction == instruction as usize)
+        || !row.end.is_some_and(|end| end.block == block && end.instruction > instruction as usize) {
+        return Err(bad("prepared callee changes its exact actual Call instruction or end boundary"));
     }
-    Ok(selected)
+    let address = row.callee_place.ok_or_else(|| bad("borrowed whole callee lacks its exact prepared place receipt"))?;
+    if row.callee.is_none() || address != callee {
+        return Err(bad("prepared callee changes its exact selected address or call"));
+    }
+    Ok(Some(address))
 }

@@ -13,6 +13,8 @@ pub(super) struct Edge {
     pub parent: ValueId,
     pub source: roles::Source,
 }
+#[derive(Clone, Copy)]
+pub(super) enum Boundary { Parameter(u32), Capture(u32) }
 #[derive(Clone)]
 pub(super) struct Witness {
     pub caller: SemanticInstanceId,
@@ -20,7 +22,7 @@ pub(super) struct Witness {
     pub recipe: SemanticSiteId,
     pub block: BlockId,
     pub instruction: u32,
-    pub parameter: u32,
+    pub boundary: Boundary,
     pub operand: ValueId,
     pub parents: Vec<ValueId>,
     pub roots: BTreeSet<Root>,
@@ -91,6 +93,32 @@ pub(super) fn satisfy(
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<()> {
+    let parameter = u32::try_from(parameter).map_err(|_| bad("call parameter ordinal overflows"))?;
+    satisfy_boundary(world, caller, callee, site, Boundary::Parameter(parameter), operand, actual, expected, values, locals, implicit)
+}
+/// A constructor borrows from the same real reaching edge as a call argument.
+/// Its expected persistent source remains unchanged; this adapter checks only
+/// the actual capture operand's directed outer view at this exact mint.
+pub(super) fn capture(
+    world: &mut World<'_, '_>, caller: &SemanticInstance, child: &SemanticInstance,
+    site: &SemanticSite, ordinal: u32, operand: ValueId,
+    actual: &SemanticTypeValue, expected: &SemanticTypeValue,
+    values: &[Option<SharedType>], locals: &[Option<SharedType>],
+    implicit: &BTreeMap<u32, SemanticClassExpr>,
+) -> R<()> {
+    if child.parent != Some(caller.id) || site.instance != caller.id {
+        return Err(bad("capture role adaptation changes its exact creator world"));
+    }
+    satisfy_boundary(world, caller, Some(child), site, Boundary::Capture(ordinal), operand, actual, expected, values, locals, implicit)
+}
+fn satisfy_boundary(
+    world: &mut World<'_, '_>, caller: &SemanticInstance, callee: Option<&SemanticInstance>,
+    site: &SemanticSite, boundary: Boundary, operand: ValueId,
+    actual: &SemanticTypeValue, expected: &SemanticTypeValue,
+    values: &[Option<SharedType>], locals: &[Option<SharedType>],
+    implicit: &BTreeMap<u32, SemanticClassExpr>,
+) -> R<()> {
+    let parameter = match boundary { Boundary::Parameter(ordinal) | Boundary::Capture(ordinal) => ordinal as usize };
     let actual = world.normalized(caller.id, actual, implicit)?;
     let expected = world.normalized(caller.id, expected, implicit)?;
     world.pay(1)?;
@@ -158,8 +186,6 @@ pub(super) fn satisfy(
         else {
             return Err(bad("static argument has no exact actual Typed call site"));
         };
-        let parameter = u32::try_from(parameter)
-            .map_err(|_| bad("static argument parameter ordinal overflows"))?;
         world.pay(actual_roots.len().saturating_add(1))?;
         world.argument_witnesses.push(Witness {
             caller: caller.id,
@@ -167,19 +193,19 @@ pub(super) fn satisfy(
             recipe: site.recipe,
             block,
             instruction,
-            parameter,
+            boundary,
             operand,
             parents: Vec::new(),
             roots: actual_roots,
         });
         return Ok(());
     }
-    if super::receiver::permits(world, caller.id, site.recipe, operand, &source, &target)? {
+    if matches!(boundary, Boundary::Parameter(_)) && super::receiver::permits(world, caller.id, site.recipe, operand, &source, &target)? {
         // This exact source binding/field path and actual producer establish
         // only this receiver loan. Its whole pointee domain was checked above.
         return Ok(());
     }
-    if super::borrow_roles::call_region_argument(
+    if matches!(boundary, Boundary::Parameter(_)) && super::borrow_roles::call_region_argument(
         world, caller, site, parameter, operand, &expected, values, locals, implicit,
     )? {
         // The exact original input and reaching actual read/projection/borrow
@@ -213,7 +239,7 @@ pub(super) fn satisfy(
             recipe: site.recipe,
             block,
             instruction,
-            parameter: parameter as u32,
+            boundary,
             operand,
             parents,
             roots: actual_roots,
@@ -299,7 +325,7 @@ pub(super) fn satisfy(
         recipe: site.recipe,
         block,
         instruction,
-        parameter: parameter as u32,
+        boundary,
         operand,
         parents,
         roots: actual_roots,
@@ -316,7 +342,8 @@ pub(super) fn audit(world: &mut World<'_, '_>) -> R<()> {
         let block_id = witness.block;
         let instruction = witness.instruction;
         let recipe = witness.recipe;
-        let parameter = witness.parameter;
+        let boundary = witness.boundary;
+        let parameter = match boundary { Boundary::Parameter(ordinal) | Boundary::Capture(ordinal) => ordinal };
         let operand = witness.operand;
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(caller)) =
             world.instance(caller_id)?.target
@@ -345,6 +372,7 @@ pub(super) fn audit(world: &mut World<'_, '_>) -> R<()> {
             .get(instruction as usize)
             .ok_or_else(|| bad("argument role witness names an absent instruction"))?;
         let argument_cost = match &actual.kind {
+            InstructionKind::MakeClosure { captures, .. } => captures.len(),
             InstructionKind::Call { arguments, .. }
             | InstructionKind::ForeignCall { arguments, .. }
             | InstructionKind::SuspendCall { arguments, .. }
@@ -357,7 +385,23 @@ pub(super) fn audit(world: &mut World<'_, '_>) -> R<()> {
             _ => super::intrinsics::operand_work(&actual.kind),
         };
         world.pay(argument_cost)?;
-        let actual_arguments = if let Some(callee) = callee {
+        let actual_arguments = if let Boundary::Capture(_) = boundary {
+            let InstructionKind::MakeClosure { closure, captures } = &actual.kind else {
+                return Err(bad("capture role witness does not belong to its real MakeClosure"));
+            };
+            let child_id = callee_id.ok_or_else(|| bad("capture role witness has no actual child world"))?;
+            let (_, child) = world.child_at(*closure, child_id)?;
+            if child.parent != Some(caller_id) {
+                return Err(bad("capture role witness changes its true creator"));
+            }
+            let owner = world.instance(caller_id)?.definition;
+            let original = world.definition(owner)?;
+            if !matches!(world.original_recipe(original, recipe)?.kind,
+                SemanticSiteRecipeKind::Closure { definition, .. } if definition == child.definition) {
+                return Err(bad("capture role witness changes its original closure recipe"));
+            }
+            captures.clone()
+        } else if let Some(callee) = callee {
             match &actual.kind {
                 InstructionKind::Call {
                     function: target,
@@ -400,7 +444,15 @@ pub(super) fn audit(world: &mut World<'_, '_>) -> R<()> {
             return Err(bad("argument role witness changes the real argument SSA"));
         }
         world.pay(world.program.sites.len())?;
-        if !world.program.sites.iter().any(|site|site.instance==caller_id&&site.recipe==recipe&&matches!(site.at,SemanticSiteAddress::Typed{block,instruction:i,..}if block==block_id&&i==instruction)){return Err(bad("argument role witness has no exact original actual call site"));}
+        if !world.program.sites.iter().any(|site| {
+            site.instance == caller_id && site.recipe == recipe
+                && matches!(site.at, SemanticSiteAddress::Typed { block, instruction: i, .. } if block == block_id && i == instruction)
+                && match boundary {
+                    Boundary::Parameter(_) => true,
+                    Boundary::Capture(_) => matches!((&site.action, &actual.kind),
+                        (SemanticSiteAction::Closure { closure: SemanticClosureTarget::Typed(id), .. }, InstructionKind::MakeClosure { closure, .. }) if id == closure),
+                }
+        }) { return Err(bad("outer-role witness has no exact original actual boundary")); }
         let witness = &world.argument_witnesses[index];
         *world.left = world
             .left

@@ -48,9 +48,12 @@ pub(super) fn map(
     world: &mut World<'_, '_>,
     value: &SemanticTypeValue,
     actuals: &[SemanticActual],
-    environment: Option<(&StorageLifeContract, &SemanticInstance, &SemanticTypeValue)>,
+    environment: Option<(&StorageLifeContract, &SemanticInstance, &SemanticTypeValue, StorageBase)>,
     inputs: &Inputs,
 ) -> R<SharedType> {
+    let mut binders = if let Some((header, _, _, base)) = environment {
+        Some(world.boundary_binders(value, base, header)?)
+    } else { None };
     let mut value = world.copy(value)?;
     let SemanticTypeValue::Resolved { ty, life, classes } = Rc::get_mut(&mut value)
         .ok_or_else(|| bad("fresh class mapping unexpectedly shares its value"))?
@@ -65,18 +68,20 @@ pub(super) fn map(
                 .saturating_add(life.retained.len())
                 .saturating_add(life.nominal_arguments.len()),
         )?;
-        let mut positions = classes
-            .iter()
-            .enumerate()
-            .filter(|(_, candidate)| *candidate == source);
-        let Some((position, _)) = positions.next() else {
-            continue;
-        };
-        if positions.next().is_some() {
-            return Err(bad(
-                "static outer instantiation would merge distinct intrinsic class slots",
-            ));
+        let mut selected = None;
+        for (ordinal, candidate) in classes.iter().enumerate() {
+            let matches = if let Some((_, child, _, _)) = environment {
+                let binder = *binders.as_ref().and_then(|rows| rows.get(ordinal))
+                    .ok_or_else(|| bad("static invocation loses its original boundary coordinate"))?;
+                let original = world.binding(child, binder)?;
+                crate::dyn_metadata::semantic_operand_snapshot(source, world.limits, world.left, 1)?;
+                &original == source
+            } else { candidate == source };
+            if matches && selected.replace(ordinal).is_some() {
+                return Err(bad("static outer instantiation would merge distinct intrinsic class slots"));
+            }
         }
+        let Some(position) = selected else { continue; };
         let position =
             u32::try_from(position).map_err(|_| bad("static invocation class index overflows"))?;
         if !matches!(ty, Type::Address { mutable: false, .. })
@@ -119,6 +124,7 @@ pub(super) fn map(
             }
         }
         classes.remove(position as usize);
+        if let Some(binders) = &mut binders { binders.remove(position as usize); }
         life.binder_count = life
             .binder_count
             .checked_sub(1)
@@ -127,5 +133,5 @@ pub(super) fn map(
             return Err(bad("static invocation truncates the entire class domain"));
         }
     }
-    world.map_call_value(&value, actuals, environment, &inputs.classes)
+    world.map_call_value(&value, actuals, environment, &inputs.classes, binders.as_deref())
 }

@@ -43,12 +43,12 @@ fn transport_managed_rows(
 fn leaf(
     ty: &Type,
     images: &[usize],
-    source: &[SemanticClassExpr],
+    source: &[u32],
     base: StorageBase,
     physical: &mut Vec<ContractProjection>,
     intrinsic: &mut Vec<LifeTypeProjection>,
-    bindings: &mut Vec<(StoragePosition, SemanticClassExpr)>,
-    classes: &mut Vec<(SignatureLifeClass, SemanticClassExpr)>,
+    bindings: &mut Vec<(StoragePosition, u32)>,
+    classes: &mut Vec<(SignatureLifeClass, u32)>,
     covered: &mut [bool],
     life: &StorageLifeShape,
     expanded: &mut [bool],
@@ -96,7 +96,7 @@ fn leaf(
             .get(index)
             .ok_or_else(|| bad("Task header port leaves its original whole input"))?;
         path(left, limits, physical.len().saturating_add(1))?;
-        crate::dyn_metadata::semantic_operand_snapshot(image, limits, left, 1)?;
+        pay(left, 1)?;
         let mut position = physical.clone();
         position.push(ContractProjection::RetainedPort(
             u32::try_from(port).map_err(|_| bad("Task header port ordinal overflows"))?,
@@ -117,7 +117,7 @@ fn leaf(
             .get(index)
             .ok_or_else(|| bad("Task intrinsic class leaves its original whole input"))?;
         path(left, limits, intrinsic.len())?;
-        crate::dyn_metadata::semantic_operand_snapshot(image, limits, left, 1)?;
+        pay(left, 1)?;
         classes.push((
             SignatureLifeClass {
                 base,
@@ -150,10 +150,10 @@ fn child(
     projection: LifeTypeProjection,
     selector: Option<ContractProjection>,
     life: &StorageLifeShape,
-    source: &[SemanticClassExpr],
+    source: &[u32],
     base: StorageBase,
-    bindings: &mut Vec<(StoragePosition, SemanticClassExpr)>,
-    classes: &mut Vec<(SignatureLifeClass, SemanticClassExpr)>,
+    bindings: &mut Vec<(StoragePosition, u32)>,
+    classes: &mut Vec<(SignatureLifeClass, u32)>,
     covered: &mut [bool],
     expanded: &mut [bool],
     limits: &Limits,
@@ -215,10 +215,10 @@ fn child(
 pub(super) fn append(
     ty: &Type,
     life: &StorageLifeShape,
-    source: &[SemanticClassExpr],
+    source: &[u32],
     base: StorageBase,
-    bindings: &mut Vec<(StoragePosition, SemanticClassExpr)>,
-    classes: &mut Vec<(SignatureLifeClass, SemanticClassExpr)>,
+    bindings: &mut Vec<(StoragePosition, u32)>,
+    classes: &mut Vec<(SignatureLifeClass, u32)>,
     covered: &mut [bool],
     expanded: &mut [bool],
     limits: &Limits,
