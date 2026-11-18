@@ -1768,6 +1768,25 @@ impl Solver<'_, '_> {
                     }
                     self.capture_read(frame, index, b)?;
                     if frame.alive { self.local_available(&frame.locals[index], &[], b)?; }
+                    // An ordinary read of a managed place describes its current
+                    // occupant. Only explicit give transfers this owner's debt.
+                    let stored = frame.locals[index].ty;
+                    match self.state.arena[self.type_root(stored, b)?] {
+                        Kind::Wrapped(Wrapper::Managed, _) => {
+                            let place = self.place(frame, value, true, b, depth + 1)?
+                                .ok_or_else(|| fail("named managed observation has no initialized place"))?;
+                            return self.describe_argument(frame, value, &place, stored, b, depth + 1);
+                        }
+                        Kind::Desc { .. } => {
+                            if !frame.locals[index].initialized {
+                                return Err(fail("description read has no initialized occupant"));
+                            }
+                            b.lookup(frame.expressions.len(), WORK)?;
+                            frame.expressions.insert(value.id, stored);
+                            return Ok(stored);
+                        }
+                        _ => {}
+                    }
                     let local = &mut frame.locals[index];
                     if frame.alive {
                         if !local.initialized {
@@ -2018,7 +2037,27 @@ impl Solver<'_, '_> {
                     op: UnaryOp::Give,
                     operand,
                 } => {
-                    let value = self.expression(frame, operand, b, depth + 1)?;
+                    let mut inner = operand.as_ref();
+                    while let CoreExprKind::Group(next) = &inner.kind {
+                        self.step(depth, b)?;
+                        inner = next;
+                    }
+                    let manager = if let CoreExprKind::Name(name) = &inner.kind {
+                        match self.local(frame, name, b)? {
+                            Some(term) => matches!(self.state.arena[self.type_root(term, b)?],
+                                Kind::Wrapped(Wrapper::Managed, _)),
+                            None => false,
+                        }
+                    } else {
+                        false
+                    };
+                    let value = if manager {
+                        let place = self.borrow_place(frame, operand, b, depth + 1)?;
+                        self.consume_place(frame, &place, b)?;
+                        place.inner
+                    } else {
+                        self.expression(frame, operand, b, depth + 1)?
+                    };
                     let transferable = match self.state.arena[self.type_root(value, b)?] {
                         Kind::Wrapped(Wrapper::Managed, _) | Kind::Closure { .. } => true,
                         Kind::Rigid(owner, ordinal) => {
@@ -2037,7 +2076,7 @@ impl Solver<'_, '_> {
                             "original give requires its complete owning manager or callable category",
                         ));
                     }
-                    // expression() already moves this real source occurrence
+                    // The operand has already moved its real source occurrence
                     // through the ordinary availability/capture accounting.
                     // Keep its complete environment term: the enclosing call
                     // prepares it once and retains cleanup on every early exit.
