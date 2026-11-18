@@ -6123,6 +6123,12 @@ fn transfer(
         | InstructionKind::SliceLength { .. }
         | InstructionKind::ScopeEnter { .. }
         | InstructionKind::ScopeExit { .. } => {}
+        // The profile checked a class-free managed destination for this ticket.
+        // The ordinary pin and resource ledgers apply its commit and retirement.
+        InstructionKind::ReservePlaceLocal { .. }
+        | InstructionKind::ReservePlaceAddress { .. }
+        | InstructionKind::CommitPlaceReplace { .. }
+        | InstructionKind::AbortPlaceReservation { .. } if b.replacement_functions.contains(&f.id) => {}
         _ if owned::ordinary_enum_operation(module, f, i, b)? => {}
         _ => {
             return Err(vec![Diagnostic::unsupported(
@@ -9859,6 +9865,11 @@ fn actual_instructions(
             }
         }
     }
+    let owner_replacements = if b.replacement_functions.contains(&f.id) {
+        Some(crate::place_replacements::Definitions::new(module, f, b)?)
+    } else {
+        None
+    };
     let mut ordinary_observations = false;
     let mut scalar_ffi = false;
     let (preds, reachable) = graph;
@@ -9901,6 +9912,17 @@ fn actual_instructions(
             if !super::class_flow::pointer_instruction(f, i)
                 && !super::stored_callables::instruction(module, f, i)
                 && !owned_operation
+                && !match (&owner_replacements, &i.kind) {
+                    (Some(definitions), InstructionKind::ReservePlaceAddress { reservation, .. }
+                        | InstructionKind::ReservePlaceLocal { reservation, .. }
+                        | InstructionKind::CommitPlaceReplace { reservation, .. }
+                        | InstructionKind::AbortPlaceReservation { reservation }) => {
+                        let destination = &definitions.definition(*reservation, b)?.ty;
+                        matches!(destination, Type::Managed(_))
+                            && owned::ordinary_value(module, destination, b)?
+                    }
+                    _ => false,
+                }
                 && !task_capture_operation
                 && !enum_operation
                 && !byte_query

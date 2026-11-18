@@ -392,6 +392,16 @@ pub(super) fn ordinary_capture(
     t: &Type,
     b: &mut Budget,
 ) -> CompileResult<bool> {
+    if let Type::Desc(payload) = t {
+        if !resource_payload(payload, b)? {
+            return Ok(false);
+        }
+        super::stored_flow::owned::registered(module, payload, b)?;
+        // The description retains the captured resource head. Its actual
+        // roots and writes must reach the resource and callback call-site checks.
+        b.owning_environment_captures = true;
+        return Ok(true);
+    }
     let Type::Address { inner, .. } = t else {
         return Ok(false);
     };
