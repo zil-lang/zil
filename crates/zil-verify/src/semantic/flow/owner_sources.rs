@@ -102,7 +102,7 @@ impl CheckedContext{
         // path. It still returns to the exact original binder below.
         if read_value {loop{
             b.spend(1)?;
-            let(_,_,instruction)=producer(f,value,b)?;
+            let(_,_,instruction)=self.site_index.producers.get(f,value,b)?;
             let address=match instruction.kind{InstructionKind::ReadAddress{address}|InstructionKind::DescribeAddress{address}=>address,_=>break};
             if !seen.insert(value){return Err(bad("observed original root has a cyclic actual read/description chain"));}
             crate::check_instruction(module,f,instruction,b)?;value=address;
@@ -110,7 +110,7 @@ impl CheckedContext{
         for(ordinal,projection)in projections.iter().enumerate(){
             loop{
                 b.spend(1)?;if !seen.insert(value){return Err(bad("indirect borrow has a cyclic actual projection chain"));}
-                let(_,_,instruction)=producer(f,value,b)?;crate::check_instruction(module,f,instruction,b)?;
+                let(_,_,instruction)=self.site_index.producers.get(f,value,b)?;crate::check_instruction(module,f,instruction,b)?;
                 if let InstructionKind::ReborrowAddress{address,..}=instruction.kind{value=address;continue;}
                 if read_value&&let InstructionKind::ReadAddress{address}=instruction.kind{value=address;continue;}
                 if read_value&&let InstructionKind::DescribeAddress{address}=instruction.kind{value=address;continue;}
@@ -218,7 +218,7 @@ impl CheckedContext{
             }
             if !seen.insert(value){return Err(bad("address input has a cyclic actual preparation/reborrow chain"));}
             if let Some(source)=self.prepared_closure_source(module,caller,f,value,b)?{value=source;continue;}
-            let(block,at,instruction)=producer(f,value,b)?;
+            let(block,at,instruction)=self.site_index.producers.get(f,value,b)?;
             crate::check_instruction(module,f,instruction,b)?;
             if let InstructionKind::Load(local)=instruction.kind {
                 if let Some(source)=scalar_preparations::source(module,f,block,at,local,b)?{value=source;continue;}
@@ -233,7 +233,7 @@ impl CheckedContext{
         let original=self.original.borrow();
         let(expression,carrier)=original.as_ref().ok_or_else(||bad("scalar address input lacks its complete independent original proof"))?.scalar_input(module,caller.definition,node,b)?;
         if f.values.get(value.0 as usize)!=Some(&carrier){return Err(bad("address scalar input changes its complete original carrier"));}
-        let(_,_,instruction)=producer(f,value,b)?;crate::check_instruction(module,f,instruction,b)?;
+        let(_,_,instruction)=self.site_index.producers.get(f,value,b)?;crate::check_instruction(module,f,instruction,b)?;
         match(&expression.kind,&instruction.kind){
             (CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}|CoreExprKind::CompileTime(inner),_)=>self.exact_expression_value(module,caller,f,value,inner.id,b),
             (CoreExprKind::Sequence{bindings,value:inner},_)if bindings.is_empty()=>self.exact_expression_value(module,caller,f,value,inner.id,b),
@@ -266,7 +266,7 @@ impl CheckedContext{
         loop{
             b.spend(1)?;if !seen.insert(value){return Err(bad("projected buffer has a cyclic actual producer chain"));}
             if let Some(source)=self.prepared_closure_source(module,caller,f,value,b)?{value=source;continue;}
-            let(block,index,instruction)=producer(f,value,b)?;
+            let(block,index,instruction)=self.site_index.producers.get(f,value,b)?;
             match &instruction.kind{
                 InstructionKind::ReborrowAddress{address,..}|InstructionKind::AddressSlice{address,..}|InstructionKind::DescribeAddress{address}=>value=*address,
                 InstructionKind::AddressField{address,index}=>{let ty=f.values.get(address.0 as usize).ok_or_else(||bad("field address operand is absent"))?;consume_field(ty,*index,&mut fields,b)?;value=*address;},
@@ -313,7 +313,7 @@ impl CheckedContext{
         }Ok(())
     }
     pub(super) fn range_local_root(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,local:LocalId,range:&original::RangeBinding,b:&mut Budget)->Check<()> {
-        let(start,end)=range_bindings::check(module,f,local,range,b)?;
+        let(start,end)=range_bindings::check(&self.site_index.producers,module,f,local,range,b)?;
         self.exact_expression_value(module,caller,f,start,range.start,b)?;
         self.exact_expression_value(module,caller,f,end,range.end,b)
     }
@@ -339,7 +339,7 @@ impl CheckedContext{
                 }else{
                     if stores.is_empty(){return Err(bad("captured observation local has no complete actual environment source"));}
                     if stores.len() > 1
-                        && let Some(initial) = capture_mirrors::initial(module, f, local, b)?
+                        && let Some(initial) = capture_mirrors::initial(&self.site_index.producers, module, f, local, b)?
                     {
                         work.push((false, initial.0, false));
                     } else {
@@ -348,7 +348,7 @@ impl CheckedContext{
                     }
                 }
             }else{
-                let(block,at,instruction)=producer(f,ValueId(index),b)?;
+                let(block,at,instruction)=self.site_index.producers.get(f,ValueId(index),b)?;
                 match instruction.kind{
                     InstructionKind::ReadCapture{index:capture}|InstructionKind::TakeCapture{index:capture}|InstructionKind::DescribeCapture{index:capture}|InstructionKind::BorrowCapture{index:capture,..}=>{self.buffer_capture_use(module,caller,f,capture,node,block,at,instruction,b)?;rooted=true;},
                     InstructionKind::Load(local)|InstructionKind::TakeLocal{local}|InstructionKind::DescribeLocal{local}|InstructionKind::BorrowLocal{local}|InstructionKind::BorrowLocalMut{local}=>work.push((true,local.0,false)),
@@ -471,7 +471,7 @@ impl CheckedContext {
                 }}}
                 if !found{return Err(bad("pattern binding lacks its complete actual initializer source"));}
             }else{
-                let(_,_,instruction)=producer(f,ValueId(index),b)?;
+                let(_,_,instruction)=self.site_index.producers.get(f,ValueId(index),b)?;
                 crate::check_instruction(module,f,instruction,b)?;
                 match &instruction.kind{
                     InstructionKind::Load(source)|InstructionKind::TakeLocal{local:source}=>pending.push((true,source.0,path,false)),
@@ -503,17 +503,22 @@ impl CheckedContext {
     }
 }
 
-pub(in crate::semantic::flow) fn producer<'a>(f:&'a TypedFunction,value:ValueId,b:&mut Budget)->Check<(BlockId,u32,&'a Instruction)>{
-    let mut result=None;
-    for block in &f.blocks{b.spend(block.instructions.len())?;for(index,instruction)in block.instructions.iter().enumerate(){if instruction.result==Some(value)&&result.replace((block.id,index as u32,instruction)).is_some(){return Err(bad("buffer projection has several actual SSA producers"));}}}
-    result.ok_or_else(||bad("buffer projection lacks its actual SSA definition"))
-}
 fn consume_field(ty:&Type,index:u32,fields:&mut Vec<String>,b:&mut Budget)->Check<()>{
     dynamic_metadata::ty(ty,b)?;let name=fields.pop().ok_or_else(||bad("actual buffer projection adds a field absent from its original Place"))?;
     let mut storage=ty;
     loop{b.spend(1)?;match storage{Type::BorrowedStorage{storage:inner,..}|Type::Managed(inner)|Type::Address{inner,..}|Type::Desc(inner)=>storage=inner,_=>break,}}
     let correct=match storage{Type::Record{fields,..}|Type::Package{fields,..}=>fields.get(index as usize).is_some_and(|(actual,_)|actual==&name),Type::Tuple(fields)=>(index as usize)<fields.len()&&index.to_string()==name,_=>false};
-    if !correct{return Err(bad("actual field index differs from the original ordered nominal/tuple field"));}Ok(())
+    if !correct {
+        let actual = match storage {
+            Type::Record { fields, .. } | Type::Package { fields, .. } =>
+                fields.get(index as usize).map(|(name, _)| name.as_str()),
+            _ => None,
+        };
+        b.spend(name.len().saturating_add(actual.map_or(0, str::len)).saturating_add(1))?;
+        return Err(bad("actual field index differs from the original ordered nominal/tuple field")
+            .with_note(format!("original field {name:?}, actual field {actual:?} at ordinal {index}")));
+    }
+    Ok(())
 }
 
 fn consume_place_fields(ty:&Type,path:&[PlaceProjection],fields:&mut Vec<String>,b:&mut Budget)->Check<()>{
@@ -613,9 +618,7 @@ mod pattern_source_tests {
         // give an empty programme an executable original-body proof.
         let mut module=fixture::module();
         module.semantic=Some(SemanticModule{definitions:vec![],instances:vec![],sites:vec![],dyn_scopes:vec![]});
-        let limits=Limits::default();let mut budget=Budget::new(&limits);
-        let context=CheckedContext::catalogue(&module,&mut budget).unwrap();
-        *context.original.borrow_mut()=Some(Default::default());
+        let limits=Limits::default();
         let caller=SemanticInstance{
             id:SemanticInstanceId{module:zil_base::ModuleId(0),index:0},
             definition:SemanticDefinitionId{module:zil_base::ModuleId(0),index:0},
@@ -640,6 +643,8 @@ mod pattern_source_tests {
             instructions.push(fixture::instruction(Some(value.0),InstructionKind::ReadVariant{value:option_value,variant:1,index:0}));
             path.extend([LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)),LifeTypeProjection::Place(PlaceProjection::Variant(VariantProjection{variant:1,index:0}))]);
             f.values=values;f.blocks[0].instructions=instructions;f.blocks[0].terminator=Terminator::Return(Some(value));
+            let context = CheckedContext::catalogue(&module, &mut Budget::new(&limits)).unwrap();
+            *context.original.borrow_mut() = Some(Default::default());
             let anchors=BTreeSet::from([ValueId(0)]);
             context.pattern_projection_source(&module,&caller,&f,value,NodeId(100),&path,&anchors,&mut Budget::new(&limits)).unwrap();
             for attack in 0..5{
@@ -655,6 +660,8 @@ mod pattern_source_tests {
             }
             let mut changed=f;let index=option_value.0 as usize;
             changed.blocks[0].instructions[index].kind=InstructionKind::ReadErrorUnion{value:union_value,is_error:true};
+            let context = CheckedContext::catalogue(&module, &mut Budget::new(&limits)).unwrap();
+            *context.original.borrow_mut() = Some(Default::default());
             assert!(context.pattern_projection_source(&module,&caller,&changed,value,NodeId(100),&path,&anchors,&mut Budget::new(&limits)).is_err());
         }
     }

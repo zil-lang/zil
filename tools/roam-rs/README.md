@@ -31,6 +31,8 @@ tools/roam-rs/target/debug/roam callable-combinations --commit="$(git rev-parse 
 
 当使用 `CARGO_TARGET_DIR` 时从该目录运行 Roam。这个有限 campaign 全选两种组合操作在深度 0 至 2 的七种有序路径。各路径观察提前正常返回、成功替换、解码错误和替换右侧错误，同时配共享接收者与同布局不同名义错误类型两个单项反例。独立模型预测返回状态和析构顺序。正例运行 Clang 与 LLVM API 的 O0 和 O2；反例要求预期的拒绝且对应正例成立。按 §8.1–8.1.2.1，`hp` 和 `pp` 保留为边界探查，分别涉及含闭包的整个 Package 的可变借入和深层可变投影。报告对其他五种形态统计规范内的 20 个正例和 10 个反例。每行保留 `roam/1` case 与实际结果，可单独重放及缩减；随机 `hunt --profile=callable-composition-native` 只算探索样本。
 
+`targetSpace` 汇总全部 28 个正向观察项和 14 个 Source 反例。`status` 判断现行已准入的子集，`targetSpace.complete` 判断全目标空间。每条记录链接到[组合规则](../../spec/semantic-scopes.md#可调用值与失败出口的组合)，列明改动的前提、对应合法用例、预期、实际证据及首个失配阶段。预算耗尽、未到达、未支持及观测不符各有独立结果。缩减须保留原规则、首个失配阶段及诊断类别和代码。独立 Raw/Wire 的近邻反例由 `zil-driver` 的 `direct_callback_field_calls_callback_place_raw` 检查同型字段串换，单独报告其覆盖。
+
 ## 协议与行为
 
 - `steps` 的具体动作是重放权威，seed 只记录生成来源。Mulberry32 与原 TS 动作表顺序一致。

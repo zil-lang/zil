@@ -9,7 +9,7 @@ impl CheckedContext {
         instruction: &Instruction, fields: &[ValueId], state: &State, b: &mut Budget,
     ) -> Check<CheckedType> {
         let result = instruction.result.ok_or_else(|| bad("package repack has no actual result"))?;
-        let (block, ordinal, actual) = super::intrinsics::owner_sources::producer(f, result, b)?;
+        let (block, ordinal, actual) = self.site_index.producers.get(f, result, b)?;
         let body = f.blocks.get(block.0 as usize).filter(|body| body.id == block)
             .ok_or_else(|| bad("package repack selects an absent actual block"))?;
         if body.instructions.get(ordinal as usize).is_none_or(|row| !std::ptr::eq(row, actual)) {

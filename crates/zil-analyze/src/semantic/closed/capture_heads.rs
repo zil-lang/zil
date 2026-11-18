@@ -87,18 +87,8 @@ impl Check<'_, '_> {
         value: ValueId,
         b: &mut Budget,
     ) -> CompileResult<&'a InstructionKind> {
-        let mut found = None;
-        for block in &function.blocks {
-            b.spend(block.instructions.len().saturating_add(1), WORK)?;
-            for instruction in &block.instructions {
-                if instruction.result == Some(value) && found.replace(&instruction.kind).is_some() {
-                    return Err(fail(
-                        "implicit capture operand has competing actual definitions",
-                    ));
-                }
-            }
-        }
-        found.ok_or_else(|| fail("implicit capture operand has no actual definition"))
+        let (_, _, instruction) = self.defining(function, value, b)?;
+        Ok(&instruction.kind)
     }
 
     fn implicit_record_observation(
@@ -1659,20 +1649,8 @@ impl Check<'_, '_> {
         value: ValueId,
         b: &mut Budget,
     ) -> CompileResult<(BlockId, usize, SemanticSiteEdge)> {
-        let mut found = None;
-        for block in &function.blocks {
-            b.spend(block.instructions.len().saturating_add(1), WORK)?;
-            for (index, instruction) in block.instructions.iter().enumerate() {
-                if instruction.result == Some(value)
-                    && found
-                        .replace((block.id, index, SemanticSiteEdge::Before))
-                        .is_some()
-                {
-                    return Err(fail("implicit operand has competing actual emission sites"));
-                }
-            }
-        }
-        found.ok_or_else(|| fail("implicit operand has no actual emission site"))
+        let (block, instruction, _) = self.defining(function, value, b)?;
+        Ok((block, instruction, SemanticSiteEdge::Before))
     }
 
     fn heads(

@@ -13,7 +13,7 @@ impl CheckedContext{
     /// binder remains an independent source occurrence, even at the same type.
     pub(super) fn prepared_closure_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,b:&mut Budget)->Check<Option<ValueId>>{
         if !matches!(f.values.get(value.0 as usize),Some(Type::Closure(_))){return Ok(None);}
-        let(block,at,instruction)=super::intrinsics::owner_sources::producer(f,value,b)?;
+        let(block,at,instruction)=self.site_index.producers.get(f,value,b)?;
         let InstructionKind::TakeLocal{local}=instruction.kind else{return Ok(None);};
         if f.locals.get(local.0 as usize).is_none_or(|declaration|!declaration.mutable){return Ok(None);}
         let programme=module.semantic.as_ref().ok_or_else(||bad("owning preparation lacks its original programme"))?;
@@ -64,7 +64,7 @@ impl CheckedContext{
         let(block,at,array)=stored.ok_or_else(||bad("private callback cell has no actual initializing Store"))?;
         let SemanticSiteAddress::Typed{block:site_block,instruction:site_at,..}=site.at else{return Err(bad("private callback cell retains a nonactual declaration"));};
         if (site_block,site_at)!=(block,at)&&(site_block,site_at)!=live{return Err(bad("private callback declaration selects another storage epoch or Store"));}
-        let(_,_,producer)=super::intrinsics::owner_sources::producer(f,array,b)?;
+        let(_,_,producer)=self.site_index.producers.get(f,array,b)?;
         let InstructionKind::MakeOwnedArray{elements}=&producer.kind else{return Err(bad("private callback initializer is not its actual one-element constructor"));};
         let [input]=elements.as_slice()else{return Err(bad("private callback initializer changes its single original element"));};
         crate::check_instruction(module,f,producer,b)?;

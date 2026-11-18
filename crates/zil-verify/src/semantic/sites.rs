@@ -32,6 +32,88 @@ pub(super) struct Index {
     limits: Limits,
     by_recipe: BTreeMap<(SemanticInstanceId, SemanticSiteId, Action), Vec<usize>>,
     by_position: BTreeMap<(SemanticInstanceId, BlockId, u32), Vec<usize>>,
+    pub(super) producers: Producers,
+}
+
+/// Physical SSA definitions in the immutable body. The result gives an exact
+/// instruction coordinate. Callers still prove that it reaches the use and
+/// that the original operand, storage, permissions and generation agree.
+#[derive(Default)]
+pub(super) struct Producers(RefCell<BTreeMap<FunctionId, BodyProducers>>);
+
+#[derive(Clone, Copy)]
+enum Definition {
+    Missing,
+    Unique { block: usize, instruction: u32 },
+    Duplicate,
+}
+
+struct BodyProducers {
+    body: usize,
+    definitions: Vec<Definition>,
+}
+
+impl Producers {
+    pub(super) fn get<'a>(
+        &self,
+        function: &'a TypedFunction,
+        value: ValueId,
+        b: &mut Budget,
+    ) -> Check<(BlockId, u32, &'a Instruction)> {
+        let mut bodies = self.0.borrow_mut();
+        b.spend(lookup(bodies.len()).saturating_add(1))?;
+        let body = function as *const TypedFunction as usize;
+        let indexed = match bodies.entry(function.id) {
+            std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                b.spend(function.values.len().saturating_add(function.blocks.len()))?;
+                let mut definitions = vec![Definition::Missing; function.values.len()];
+                for (block, row) in function.blocks.iter().enumerate() {
+                    b.spend(row.instructions.len())?;
+                    for (instruction, op) in row.instructions.iter().enumerate() {
+                        if let Some(result) = op.result {
+                            let slot = definitions
+                                .get_mut(result.0 as usize)
+                                .ok_or_else(|| bad("actual SSA producer names an absent value"))?;
+                            *slot = match *slot {
+                                Definition::Missing => Definition::Unique {
+                                    block,
+                                    instruction: u32::try_from(instruction).map_err(|_| {
+                                        bad("actual SSA producer ordinal overflows")
+                                    })?,
+                                },
+                                Definition::Unique { .. } | Definition::Duplicate => {
+                                    Definition::Duplicate
+                                }
+                            };
+                        }
+                    }
+                }
+                entry.insert(BodyProducers { body, definitions })
+            }
+        };
+        if indexed.body != body {
+            return Err(bad("actual SSA directory selects another immutable body"));
+        }
+        match indexed.definitions.get(value.0 as usize) {
+            Some(Definition::Unique { block, instruction }) => {
+                let block = function
+                    .blocks
+                    .get(*block)
+                    .ok_or_else(|| bad("actual SSA coordinate loses its indexed block"))?;
+                let op = block
+                    .instructions
+                    .get(*instruction as usize)
+                    .filter(|op| op.result == Some(value))
+                    .ok_or_else(|| {
+                        bad("actual SSA coordinate no longer defines its indexed value")
+                    })?;
+                Ok((block.id, *instruction, op))
+            }
+            Some(Definition::Duplicate) => Err(bad("actual value has several SSA producers")),
+            Some(Definition::Missing) | None => Err(bad("actual value lacks its SSA definition")),
+        }
+    }
 }
 fn lookup(n: usize) -> usize {
     n.checked_ilog2().map_or(1, |n| n as usize + 2)
@@ -44,6 +126,7 @@ impl Index {
             limits: b.limits.clone(),
             by_recipe: BTreeMap::new(),
             by_position: BTreeMap::new(),
+            producers: Producers::default(),
         })
     }
     pub(super) fn insert(
@@ -201,6 +284,49 @@ impl CheckedContext {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn producer_index_scans_one_immutable_body_and_keeps_missing_and_duplicate_distinct() {
+        let (mut module, _) = crate::tests::baseline();
+        let f = &mut module.functions[0];
+        f.values = vec![Type::I32; 4];
+        let result = |id| Instruction {
+            result: Some(ValueId(id)),
+            kind: InstructionKind::Constant(Constant::I32(0)),
+            span: Span::default(),
+        };
+        f.blocks[0].instructions = vec![result(0), result(3), result(3)];
+        f.blocks[0]
+            .instructions
+            .extend((0..64).map(|_| Instruction {
+                result: None,
+                kind: InstructionKind::Unsupported("index test".into()),
+                span: Span::default(),
+            }));
+        let mut budget = Budget::new(&Limits::default());
+        let producers = Producers::default();
+        let before = budget.remaining;
+        for _ in 0..10 {
+            let (block, ordinal, _) = producers.get(f, ValueId(0), &mut budget).unwrap();
+            assert_eq!((block, ordinal), (f.blocks[0].id, 0));
+        }
+        assert!(before - budget.remaining < 2 * f.blocks[0].instructions.len());
+        assert!(
+            producers
+                .get(f, ValueId(1), &mut budget)
+                .unwrap_err()
+                .message
+                .contains("lacks")
+        );
+        assert!(
+            producers
+                .get(f, ValueId(3), &mut budget)
+                .unwrap_err()
+                .message
+                .contains("several")
+        );
+        assert!(producers.get(&f.clone(), ValueId(0), &mut budget).is_err());
+    }
     #[test]
     fn directories_preserve_duplicate_occurrences_edges_actions_and_instance_scope() {
         let (mut module, _) = crate::tests::baseline();

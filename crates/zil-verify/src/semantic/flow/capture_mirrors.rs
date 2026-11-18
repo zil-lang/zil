@@ -4,6 +4,7 @@
 use super::*;
 
 pub(super) fn initial(
+    producers: &sites::Producers,
     module: &TypedModule,
     f: &TypedFunction,
     local: LocalId,
@@ -74,11 +75,11 @@ pub(super) fn initial(
                     if (block.id, at) == (entry.id, start + 2) {
                         continue;
                     }
-                    let (update_block, update_at, update) = producer(f, value, b)?;
+                    let (update_block, update_at, update) = producers.get(f, value, b)?;
                     let InstructionKind::UpdateField { aggregate, .. } = update.kind else {
                         return Err(bad("capture mirror replacement has no projected update"));
                     };
-                    let (read_block, read_at, read) = producer(f, aggregate, b)?;
+                    let (read_block, read_at, read) = producers.get(f, aggregate, b)?;
                     if update_block != block.id
                         || update_at as usize + 1 != at
                         || read_block != block.id

@@ -41,7 +41,7 @@
   ],
   "rule_coverage": {
     "report": "For each rule family, pin its public premises, operation grammar, depth, state and exit boundaries, independent expected behavior, selected/completed counts and the first observed failure. Record admitted and boundary probes explicitly.",
-    "bounded_campaign": "Build tools/roam-rs with llvm-api and run roam callable-combinations at the same source commit as the candidate. The campaign enumerates ordered generic helper and field projection paths to depth two, plus reason-preserving negative controls. Broader families require their own declared bounds and independent observations.",
+    "bounded_campaign": "Build tools/roam-rs with llvm-api and run roam callable-combinations at the same source commit as the candidate. Enumerate seven ordered generic helper and field projection paths to depth two, four exits per path and two reason-preserving Source controls per path. Report the 28/14 target space and the currently admitted subset, with unsupported, budget-exhausted and unreached cases visible. A native backend or optimization level supplies observations for a case, not another case. Broader families require their own declared bounds and independent observations.",
     "same_candidate": "Rule exploration, real projects, raw/Wire controls and native behavior are jointly reported for the same source commit. Sampling and infrastructure failures do not count as completed coverage."
   },
   "safety": {

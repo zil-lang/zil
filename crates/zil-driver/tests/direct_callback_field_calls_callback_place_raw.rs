@@ -183,6 +183,103 @@ fn main() -> i32 {
     );
 }
 
+/// §8.1 and semantic-scopes §可调用值与失败出口的组合. The mutation keeps the
+/// original call and receiver identity while changing the physical field.
+#[cfg(all(feature = "llvm-api", target_os = "linux", target_arch = "x86_64"))]
+#[test]
+fn projected_callback_retains_its_field_through_a_generic_helper() {
+    use std::process::Command;
+    use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage};
+
+    let source = r#"
+resource Token { marker: i32 }
+impl Drop for Token { fn drop(self: Self) {} }
+package Pair<F: Value> { manages token: Token; left: F; right: F }
+fn hold<F: Value>(left: F, right: F) -> Pair<F> {
+    return Pair::<F> { token: Token { marker: 0 }, left: left, right: right }
+}
+fn make(start: i32) -> impl FnMut(i32) -> i32 {
+    var n = start
+    return move(delta: i32) => { n += delta; return n }
+}
+fn relay<F: FnMut(i32) -> i32>(f: &mut F, n: i32) -> i32 { return f(n) }
+fn main() -> i32 {
+    var pair = hold(make(40), make(10))
+    return relay(&mut pair.left, 2)
+}
+"#;
+    let input = SourceUnit::new(FileId(0), ModuleId(0), "projected-helper.zil", source);
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let core = zil_expand::expand_with_map_semantics(
+        &input,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: input.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let mut module = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    pair(
+        "projected-helper-positive",
+        source,
+        module.clone(),
+        plan.clone(),
+        None,
+    );
+    let borrow = first_borrow(main_function(&mut module));
+    let I::BorrowPackageField { index, .. } = &mut borrow.kind else {
+        unreachable!()
+    };
+    assert_eq!(*index, 1);
+    *index = 2;
+    pair(
+        "projected-helper-retarget",
+        source,
+        module,
+        plan,
+        Some("E-VERIFY-SEMANTIC"),
+    );
+
+    let case = Case::new("projected-helper-native");
+    for (field, expected) in [("left", 42), ("right", 12)] {
+        let source = source.replace("pair.left", &format!("pair.{field}"));
+        let input = SourceUnit::new(FileId(0), ModuleId(0), "projected-helper.zil", source);
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let executable = case.0.join(format!("{field}-{backend:?}-{optimization:?}"));
+                let report = zil_driver::compile_source(
+                    &input,
+                    &CompileOptions {
+                        stop_after: Stage::Build,
+                        output: Some(executable.clone()),
+                        backend,
+                        optimization,
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                let observed = Command::new(executable).output().unwrap();
+                assert_eq!(observed.status.code(), Some(expected));
+                assert!(observed.stdout.is_empty() && observed.stderr.is_empty());
+            }
+        }
+    }
+}
+
 fn first_borrow(function: &mut TypedFunction) -> &mut Instruction {
     function
         .blocks

@@ -298,7 +298,7 @@ impl CheckedContext {
         if definition != caller.definition {
             return Err(bad("temporary description belongs to another original scope"));
         }
-        let (describe_block, describe_at, describe) = owner_sources::producer(f, descriptor, b)?;
+        let (describe_block, describe_at, describe) = self.site_index.producers.get(f, descriptor, b)?;
         let InstructionKind::DescribeLocal { local } = describe.kind else {
             return Err(bad("temporary description operand does not describe the actual owner slot"));
         };
@@ -324,7 +324,7 @@ impl CheckedContext {
             }
         }
         let initializer = initializer.ok_or_else(|| bad("temporary description owner initializer is absent"))?;
-        let (producer_block, producer_at, producer) = owner_sources::producer(f, initializer, b)?;
+        let (producer_block, producer_at, producer) = self.site_index.producers.get(f, initializer, b)?;
         let original = self.definition(module, definition, b)?;
         let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
             return Err(bad("temporary description lacks its original function body"));
@@ -437,10 +437,17 @@ impl CheckedContext {
         if let Some(source)=source{self.intrinsic_buffer_source(module,caller,f,address,source,b)?;}
         else{
             let node=self.original.borrow().as_ref().ok_or_else(||bad("slice receiver has no completed original proof"))?.intrinsic_receiver(caller.definition,site.recipe,b)?;
-            let programme=module.semantic.as_ref().ok_or_else(||bad("slice receiver has no original operation ledger"))?;let definition=self.definition(module,caller.definition,b)?;let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&definition.body else{return Err(bad("slice receiver has no original body"));};
-            let mut producers=Vec::new();for block in &f.blocks{b.spend(block.instructions.len())?;for(index,instruction)in block.instructions.iter().enumerate(){if instruction.result==Some(address){producers.push((block.id,index as u32));}}}
-            let [(block,index)]=producers.as_slice() else{return Err(bad("slice receiver lacks its one exact actual SSA definition"));};
-            let mut matched=false;for actual in &programme.sites{b.spend(site_nodes.len().saturating_add(1))?;if actual.instance==caller.id&&matches!(actual.at,SemanticSiteAddress::Typed{block:id,instruction:at,..}if id==*block&&at==*index)&&matches!(actual.action,SemanticSiteAction::BodyCall{..}|SemanticSiteAction::Call{..})&&site_nodes.iter().any(|row|row.site==actual.recipe&&row.node==SemanticOriginalNode::Expression(node)){matched=true;}}
+            let definition=self.definition(module,caller.definition,b)?;let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&definition.body else{return Err(bad("slice receiver has no original body"));};
+            let (block, index, _) = self.site_index.producers.get(f, address, b)?;
+            let mut matched = false;
+            for actual in self.site_index.at(module, caller.id, block, index, b)? {
+                b.spend(site_nodes.len().saturating_add(1))?;
+                if matches!(actual.action, SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::Call { .. })
+                    && site_nodes.iter().any(|row| row.site == actual.recipe && row.node == SemanticOriginalNode::Expression(node))
+                {
+                    matched = true;
+                }
+            }
             if !matched{return Err(bad("slice length temporary receiver changes its exact original producer occurrence"));}
         }
         atomic(&Type::I64,b)

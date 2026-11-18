@@ -5,6 +5,7 @@ use std::{collections::BTreeMap, fs, path::Path};
 
 pub const CONTRACT: &str = "zil-callable-composition-native/1";
 pub const PROPERTY: &str = "callable.receiver-result-and-cleanup";
+const RULE_REFERENCE: &str = "spec/semantic-scopes.md#可调用值与失败出口的组合";
 pub const MAX_PROGRAMS: usize = 32;
 const SHAPES: [&str; 7] = ["", "h", "p", "hh", "hp", "ph", "pp"];
 const PUBLISHED_SHAPES: [&str; 5] = ["", "h", "p", "hh", "ph"];
@@ -240,70 +241,69 @@ pub fn observed(expected: &Value, observation: Value, compile: &Value) -> Value 
     if expected["kind"] != "safe-reject" || compile["status"] != "SafeReject" {
         return observation;
     }
-    let expected_codes: &[&str] = if expected["premise"] == "exclusive-receiver" {
-        &[
-            "E-CALL-MUTABLE-BINDING",
-            "E-TYPE-MISMATCH",
-            "E-ADDRESS-PERMISSION",
-        ]
-    } else {
-        &[
-            "E-GENERIC-REQUIREMENT",
-            "E-TRAIT-BOUND",
-            "E-TYPE-MISMATCH",
-            "E-VERIFY-SEMANTIC",
-        ]
+    let first = &compile["diagnostics"][0];
+    let code = first["code"].as_str().unwrap_or("");
+    let message = first["message"].as_str().unwrap_or("");
+    let matches = match expected["premise"].as_str() {
+        Some("exclusive-receiver") => matches!(
+            (code, message),
+            (
+                "E-SEMANTIC-ORIGINAL",
+                "original callable receiver does not grant its invocation mode"
+            ) | (
+                "E-TYPE-MISMATCH",
+                "helper requires its concrete environment passing mode"
+            ) | (
+                "E-ADDRESS-PERMISSION",
+                "a shared address cannot grant exclusive access"
+            ) | (
+                "E-ADDRESS-PERMISSION",
+                "shared address cannot be reborrowed exclusively"
+            )
+        ),
+        Some("nominal-error") => {
+            (code == "E-ERROR-INJECTION"
+                && message.contains("_OtherFault")
+                && message.contains("_Fault"))
+                || (code == "E-TYPE-MISMATCH" && message == "different concrete aggregate types")
+        }
+        _ => false,
     };
-    if compile["diagnostics"].as_array().is_some_and(|rows| {
-        rows.iter().any(|row| {
-            let code = row["code"].as_str().unwrap_or("");
-            let message = row["message"].as_str().unwrap_or("");
-            if expected_codes.contains(&code) {
-                return true;
-            }
-            match expected["premise"].as_str() {
-                Some("exclusive-receiver") => {
-                    code == "E-SEMANTIC-ORIGINAL"
-                        && message
-                            == "original callable receiver does not grant its invocation mode"
-                }
-                Some("nominal-error") => {
-                    code == "E-ERROR-INJECTION"
-                        && message.contains("_OtherFault")
-                        && message.contains("_Fault")
-                }
-                _ => false,
-            }
-        })
-    }) {
+    if matches {
         expected.clone()
     } else {
         observation
     }
 }
 
+pub(crate) fn first_compile_failure(evidence: &Value) -> Option<&Value> {
+    fn failed_compile(compile: &Value) -> Option<&Value> {
+        (!compile["status"].is_null() && compile["status"] != "Success").then_some(compile)
+    }
+    failed_compile(&evidence["compile"]).or_else(|| {
+        ["zil-O0", "zil-O2", "llvm-O0", "llvm-O2"]
+            .into_iter()
+            .find_map(|route| failed_compile(&evidence["variants"][route]["compile"]))
+    })
+}
+
+pub(crate) fn compile_location(compile: &Value) -> Value {
+    json!({"phase":compile["phase"], "code":compile["diagnostics"][0]["code"],
+        "source":compile["diagnostics"][0]["span"], "category":compile["status"]})
+}
+
 fn failure_location(result: &Value) -> Option<(&str, &str)> {
     if result["status"] == "pass" {
         return None;
     }
-    let evidence = &result["nativeEvidence"][0];
-    fn first_compile_failure(compile: &Value) -> Option<(&str, &str)> {
-        if compile["status"].is_null() || compile["status"] == "Success" {
-            return None;
-        }
-        Some((
-            compile["phase"].as_str().unwrap_or("compile"),
-            compile["diagnostics"][0]["code"]
-                .as_str()
-                .unwrap_or("unspecified"),
-        ))
-    }
-    first_compile_failure(&evidence["compile"])
-        .or_else(|| {
-            evidence["variants"]
-                .as_object()?
-                .values()
-                .find_map(|variant| first_compile_failure(&variant["compile"]))
+    first_compile_failure(&result["nativeEvidence"][0])
+        .map(|compile| {
+            (
+                compile["phase"].as_str().unwrap_or("compile"),
+                compile["diagnostics"][0]["code"]
+                    .as_str()
+                    .unwrap_or("unspecified"),
+            )
         })
         .or_else(|| {
             let issue = &result["issues"][0];
@@ -314,6 +314,27 @@ fn failure_location(result: &Value) -> Option<(&str, &str)> {
         })
         .or_else(|| (result["status"] == "fail").then_some(("runtime", "observation-mismatch")))
         .or_else(|| result["status"].as_str().map(|status| ("harness", status)))
+}
+
+fn outcome(result: &Value) -> &'static str {
+    if result["steps"] != 1 {
+        if result["status"] == "incomplete" {
+            "budget-exhausted"
+        } else {
+            "unreached"
+        }
+    } else if result["status"] == "pass" {
+        "matched"
+    } else if let Some(compile) = first_compile_failure(&result["nativeEvidence"][0]) {
+        match compile["status"].as_str() {
+            Some("ResourceLimit") => "budget-exhausted",
+            Some("Unsupported") => "unsupported",
+            Some("SafeReject") => "rejected-at-first-mismatch",
+            _ => "compiler-error",
+        }
+    } else {
+        "observation-mismatch"
+    }
 }
 
 fn run_case(
@@ -351,7 +372,8 @@ fn run_case(
     Ok(
         json!({"label":label,"expected":expected,"status":evidence["status"],
         "steps":evidence["steps"],"reason":evidence.get("reason"),
-        "shape":program["shape"],"property":property(program),
+        "shape":program["shape"],"property":property(program),"reference":RULE_REFERENCE,
+        "outcome":outcome(&evidence),"exit":program["exit"],"premise":program["premise"],
         "firstFailure":first_failure,"failure":evidence.get("failure")}),
     )
 }
@@ -398,23 +420,30 @@ pub fn campaign(root: &Path, commit: &str, jobs: usize) -> Result<Value, String>
     let mut positive_passed = 0;
     let mut negative_passed = 0;
     let mut boundary_observations = 0;
+    let mut target_positive_passed = 0;
+    let mut target_negative_passed = 0;
     for family in results.chunks_exact_mut(6) {
         let shape = family[0]["shape"].as_str().expect("generated shape");
         let in_published_scope = PUBLISHED_SHAPES.contains(&shape);
         for row in family.iter_mut() {
             row["publishedScope"] = json!(in_published_scope);
         }
-        if !in_published_scope {
-            boundary_observations += family.len();
-            continue;
-        }
-        positive_selected += 4;
-        negative_selected += 2;
-        positive_passed += family[..4].iter().filter(|row| passed(row)).count();
+        let positive_matches = family[..4].iter().filter(|row| passed(row)).count();
+        let mut negative_matches = 0;
         let baseline = passed(&family[0]);
         for negative in &mut family[4..] {
             negative["positiveControlPassed"] = json!(baseline);
-            negative_passed += usize::from(baseline && passed(negative));
+            negative_matches += usize::from(baseline && passed(negative));
+        }
+        target_positive_passed += positive_matches;
+        target_negative_passed += negative_matches;
+        if in_published_scope {
+            positive_selected += 4;
+            negative_selected += 2;
+            positive_passed += positive_matches;
+            negative_passed += negative_matches;
+        } else {
+            boundary_observations += family.len();
         }
     }
     let mut failures = BTreeMap::new();
@@ -451,10 +480,48 @@ pub fn campaign(root: &Path, commit: &str, jobs: usize) -> Result<Value, String>
             {"pass"} else {"fail"},
         "positive":{"selected":positive_selected,"passed":positive_passed},
         "negative":{"selected":negative_selected,"passed":negative_passed},
+        "targetSpace":{"selection":"exhaustive", "sampling":0,
+            "positive":{"selected":SHAPES.len()*EXITS.len(),"passed":target_positive_passed},
+            "negative":{"selected":SHAPES.len()*2,"passed":target_negative_passed},
+            "complete":target_positive_passed==SHAPES.len()*EXITS.len() && target_negative_passed==SHAPES.len()*2},
         "boundary":{"selected":boundary_observations},
         "failureGroups":failure_groups,
         "cases":results
     });
     host::durable(&root.join("report.json"), &report)?;
     Ok(report)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn negative_uses_the_first_diagnostic_and_its_receiver_rule() {
+        let expected = expected(&program("ph", "early", "exclusive-receiver")).unwrap();
+        let observation = json!({"kind":"compile-failure"});
+        let intended = json!({"code":"E-TYPE-MISMATCH",
+            "message":"helper requires its concrete environment passing mode"});
+        let unrelated =
+            json!({"code":"E-TYPE-MISMATCH", "message":"different concrete aggregate types"});
+        for (diagnostics, want) in [
+            (json!([intended.clone()]), &expected),
+            (json!([unrelated, intended]), &observation),
+        ] {
+            let compile = json!({"status":"SafeReject","diagnostics":diagnostics});
+            assert_eq!(&observed(&expected, observation.clone(), &compile), want);
+        }
+    }
+
+    #[test]
+    fn shrinking_cannot_replace_the_first_mismatch_with_another_stage() {
+        let mut first = protocol::failure(PROPERTY, 1, 0, json!(42), json!(null));
+        first["failure"]["firstMismatch"] = json!({"phase":"types","code":"E-TYPE-MISMATCH",
+            "source":{"start":18,"end":19},"category":"SafeReject"});
+        let mut next = first.clone();
+        next["failure"]["firstMismatch"]["source"]["start"] = json!(7);
+        assert_eq!(protocol::failure_key(&first), protocol::failure_key(&next));
+        next["failure"]["firstMismatch"]["phase"] = json!("analyze");
+        assert_ne!(protocol::failure_key(&first), protocol::failure_key(&next));
+    }
 }

@@ -12,7 +12,7 @@ impl CheckedContext {
             return self.copy_record_spread(module,caller,f,instruction,base,&fields,b);
         }
         let result=instruction.result.ok_or_else(||bad("Copy field update has no SSA result"))?;
-        let (block,at,_)=super::owner_sources::producer(f,result,b)?;
+        let (block,at,_)=self.site_index.producers.get(f,result,b)?;
         let block=f.blocks.get(block.0 as usize).ok_or_else(||bad("Copy field update has no actual block"))?;
         // Nested updates rebuild from the innermost child to the original
         // local, without evaluating or publishing any intermediate parent.
@@ -34,7 +34,7 @@ impl CheckedContext {
         }
         for _ in 0..b.limits.max_call_depth {
             b.spend(1)?;
-            let (_, _, update) = super::owner_sources::producer(f, selected, b)?;
+            let (_, _, update) = self.site_index.producers.get(f, selected, b)?;
             let (parent, child, projected_read) = match update.kind {
                 InstructionKind::UpdateField { aggregate, index, value } =>
                     (aggregate, value, InstructionKind::ExtractField { aggregate, index }),
@@ -42,11 +42,11 @@ impl CheckedContext {
                     (aggregate, value, InstructionKind::ExtractIndex { aggregate, index }),
                 _ => return Err(bad("Copy update chain omits its rebuilding operation")),
             };
-            let (_, _, read) = super::owner_sources::producer(f, parent, b)?;
+            let (_, _, read) = self.site_index.producers.get(f, parent, b)?;
             if read.kind != expected_read {
                 return Err(bad("nested Copy update changes its actual parent snapshot"));
             }
-            let (_, _, rhs) = super::owner_sources::producer(f, child, b)?;
+            let (_, _, rhs) = self.site_index.producers.get(f, child, b)?;
             if matches!(rhs.kind, InstructionKind::UpdateField { .. } | InstructionKind::UpdateIndex { .. })
                 && rhs.span == instruction.span {
                 expected_read = projected_read;
@@ -64,7 +64,7 @@ impl CheckedContext {
         base:zil_base::NodeId,fields:&[(String,zil_base::NodeId)],b:&mut Budget,
     )->Check<()> {
         let result=instruction.result.ok_or_else(||bad("record spread field has no SSA result"))?;
-        let (block,at,_)=super::owner_sources::producer(f,result,b)?;
+        let (block,at,_)=self.site_index.producers.get(f,result,b)?;
         let body=f.blocks.get(block.0 as usize).ok_or_else(||bad("record spread has no actual block"))?;
         let mut final_value=result;
         for next in body.instructions.iter().skip(at as usize+1) {
@@ -85,20 +85,20 @@ impl CheckedContext {
         let mut seen=BTreeSet::new();
         for _ in fields {
             b.spend(fields.len().saturating_add(seen.len()).saturating_add(1))?;
-            let (_,_,update)=super::owner_sources::producer(f,selected,b)?;
+            let (_,_,update)=self.site_index.producers.get(f,selected,b)?;
             let InstructionKind::UpdateField{aggregate,index,value}=update.kind else{return Err(bad("record spread omits an original explicit field"));};
             if update.span!=instruction.span||!seen.insert(index){return Err(bad("record spread changes or repeats an original field"));}
             let Some(Type::Record{fields:layout,..})=f.values.get(aggregate.0 as usize) else{return Err(bad("record spread has no exact Copy Record base"));};
             let (name,_)=layout.get(index as usize).ok_or_else(||bad("record spread publishes an absent field"))?;
             let (_,node)=fields.iter().find(|(field,_)|field==name).ok_or_else(||bad("record spread changes the original explicit field identity"))?;
-            let (at_block,at,operand)=super::owner_sources::producer(f,value,b)?;
+            let (at_block,at,operand)=self.site_index.producers.get(f,value,b)?;
             let value=if let InstructionKind::Load(local)=operand.kind {
                 super::owner_sources::scalar_preparations::copy_value_source(module,f,at_block,at,local,b)?.unwrap_or(value)
             }else{value};
             self.assignment_value_source(module,caller,f,value,*node,b)?;
             selected=aggregate;
         }
-        let (at_block,at,operand)=super::owner_sources::producer(f,selected,b)?;
+        let (at_block,at,operand)=self.site_index.producers.get(f,selected,b)?;
         if let InstructionKind::Load(local)=operand.kind {
             if let Some(source)=super::owner_sources::scalar_preparations::copy_value_source(module,f,at_block,at,local,b)? {
                 selected=source;
@@ -128,7 +128,7 @@ impl CheckedContext {
 
     fn field_assignment_rhs(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,original:&original::Assignment,b:&mut Budget)->Check<()> {
         if let Some(op)=original.compound {
-            let (_,_,actual)=super::owner_sources::producer(f,value,b)?;
+            let (_,_,actual)=self.site_index.producers.get(f,value,b)?;
             let InstructionKind::Binary{op:actual_op,left,right}=actual.kind else{return Err(bad("compound field assignment omits its original operator"));};
             if actual_op!=op{return Err(bad("compound field assignment changes its original operator"));}
             self.original_projection_source(module,caller,f,left,caller.definition,original.target,true,b)?;
@@ -164,7 +164,7 @@ impl CheckedContext {
                 crate::check_instruction(module,f,instruction,b)?;
                 self.original_projection_source(module,caller,f,address,caller.definition,original.target,false,b)?;
                 if let Some(op)=original.compound {
-                    let(_,_,actual)=super::owner_sources::producer(f,value,b)?;
+                    let(_,_,actual)=self.site_index.producers.get(f,value,b)?;
                     let InstructionKind::Binary{op:actual_op,left,right}=actual.kind else{return Err(bad("compound assignment omits its complete original operator"));};
                     if actual_op!=op{return Err(bad("compound assignment changes its original operator"));}
                     self.original_projection_source(module,caller,f,left,caller.definition,original.target,true,b)?;

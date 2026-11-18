@@ -924,6 +924,12 @@ pub fn execute(
                 property
             };
             result = protocol::failure(rule, steps, i as i64, expected, observed);
+            if composition_model {
+                let mismatch = callable_composition::first_compile_failure(evidence.last().unwrap())
+                    .map(callable_composition::compile_location)
+                    .unwrap_or_else(|| json!({"phase":"runtime","code":"observation-mismatch"}));
+                result["failure"]["firstMismatch"] = mismatch;
+            }
             break;
         }
         result["steps"] = json!(steps);
