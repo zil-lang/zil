@@ -2933,11 +2933,30 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     if dyn_return::register_output_obligations(module, f, b)? {
         return Ok(());
     }
+    let mut allow_callback = f.callable_contract.is_some() || f.callable_return_contract.is_some();
+    if !allow_callback && !b.semantic_closures_proven.is_empty() {
+        // A specialized ordinary signature can move a concrete original
+        // callable into a Package. Its binary layout and class rows alone
+        // grant no eligibility. Every concrete root must belong to the
+        // independently completed original, actual creator and finite frame.
+        for ty in parameters.iter().chain(std::iter::once(result)) {
+            let head = match ty {
+                Type::Address { inner, .. } => inner.as_ref(),
+                _ => ty,
+            };
+            if let Type::Closure(id) = head {
+                allow_callback = crate::callable_fields::environment(module, *id, b)?;
+                if !allow_callback {
+                    break;
+                }
+            }
+        }
+    }
     super::signature_life::function_relation_resource_scopes(
         &parameters,
         result,
         c,
-        f.callable_contract.is_some() || f.callable_return_contract.is_some(),
+        allow_callback,
         module,
         byte_signature,
         b,
