@@ -12,7 +12,7 @@ fn creator_input(
 ) -> R<Option<u32>> {
     let original = world.definition(child.definition)?;
     let SemanticDefinitionBody::FunctionWithBody {
-        sites, site_nodes, ..
+        sites, ..
     } = &original.body
     else {
         return Ok(None);
@@ -21,8 +21,7 @@ fn creator_input(
         original
             .implicit_lifetimes
             .len()
-            .saturating_add(sites.len())
-            .saturating_add(site_nodes.len()),
+            .saturating_add(sites.len()),
     )?;
     let occurrence = original
         .implicit_lifetimes
@@ -36,12 +35,8 @@ fn creator_input(
         {
             continue;
         }
-        world.pay(site_nodes.len())?;
-        for binding in site_nodes
-            .iter()
-            .filter(|binding| binding.site == recipe.id)
-        {
-            let SemanticOriginalNode::Expression(expression) = binding.node else {
+        if let Some(binding) = occurrences::original_node(world, original.id, recipe.id)? {
+            let SemanticOriginalNode::Expression(expression) = binding else {
                 return Err(bad(
                     "implicit capture occurrence is not its original expression",
                 ));

@@ -30,16 +30,8 @@ pub(super) fn reference(
                 scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Expression(node),
             } } => *node,
             SemanticSiteRecipeKind::Closure { environment, .. } if environment.is_empty() => {
-                let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
-                    return Err(bad("thin function value has no original body"));
-                };
-                world.pay(site_nodes.len())?;
-                let mut at = site_nodes.iter().filter(|row| row.site == site.recipe);
-                let Some(SemanticOriginalNode::Expression(node)) = at.next().map(|row| &row.node) else {
-                    return Err(bad("thin function value omits its creation expression"));
-                };
-                if at.next().is_some() { return Err(bad("thin function value repeats its creation expression")); }
-                *node
+                occurrences::node(world, original, site)?
+                    .ok_or_else(|| bad("thin function value omits its creation expression"))?
             }
             _ => continue,
         };

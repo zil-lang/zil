@@ -113,9 +113,6 @@ pub(super) fn seal_borrow(
     image: &SemanticClassExpr,
     implicit: &mut BTreeMap<u32, SemanticClassExpr>,
 ) -> R<()> {
-    let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
-        return Err(bad("dynamic receiver borrow has no original body"));
-    };
     let ledger = world.ledger;
     let proof = ledger.original.borrow();
     let proof = proof
@@ -202,17 +199,7 @@ pub(super) fn seal_borrow(
             if owner_local != Some(local) {
                 continue;
             }
-            world.pay(site_nodes.len())?;
-            let mut nodes = site_nodes.iter().filter(|row| row.site == site.recipe);
-            let Some(binding) = nodes.next() else {
-                continue;
-            };
-            if nodes.next().is_some() {
-                return Err(bad(
-                    "dynamic receiver observation repeats its original source",
-                ));
-            }
-            if binding.node != SemanticOriginalNode::Expression(*receiver_node) {
+            if occurrences::node(world, original, site)? != Some(*receiver_node) {
                 continue;
             }
             let recipe = world.original_recipe(original, site.recipe)?;
@@ -232,16 +219,10 @@ pub(super) fn seal_borrow(
                 entry.ordinal == *ordinal && entry.occurrence_path == recipe.occurrence_path
             });
             let call_region = if !observation {
-                world.pay(site_nodes.len().saturating_add(
-                    proof.call_regions.len().saturating_add(1).ilog2() as usize + 1,
-                ))?;
-                let mut nodes = site_nodes.iter().filter(|row| row.site == call_site.recipe);
-                let node = nodes.next().map(|row| row.node);
-                if nodes.next().is_some() {
-                    return Err(bad("dynamic receiver call repeats its original node"));
-                }
+                world.pay(index::search(proof.call_regions.len()))?;
+                let node = occurrences::node(world, original, call_site)?;
                 match (node, proof.call_regions.get(&(original.id, *ordinal))) {
-                    (Some(SemanticOriginalNode::Expression(node)), Some(region))
+                    (Some(node), Some(region))
                         if region.call == node && region.inputs.get(&0) == Some(receiver_node) =>
                     {
                         let call_recipe = world.original_recipe(original, call_site.recipe)?;
@@ -279,17 +260,8 @@ pub(super) fn seal_borrow(
         world.pay(128)?;
         diagnostic.notes.push(format!("original {:?}; actual function {:?}, block {:?}, instruction {}, local {:?}, result {:?}", original.id, function.id, block, index, local, result));
         for site in sites {
-            world.pay(
-                site_nodes
-                    .len()
-                    .saturating_add(proof.intrinsics.len())
-                    .saturating_add(64),
-            )?;
-            let nodes: Vec<_> = site_nodes
-                .iter()
-                .filter(|row| row.site == site.recipe)
-                .map(|row| row.node)
-                .collect();
+            world.pay(proof.intrinsics.len().saturating_add(64))?;
+            let node = occurrences::original_node(world, original.id, site.recipe)?;
             if let SemanticSiteAction::TypeUse { subject, .. } = &site.action {
                 crate::dyn_metadata::semantic_operand_snapshot(
                     subject,
@@ -298,8 +270,8 @@ pub(super) fn seal_borrow(
                     1,
                 )?;
                 diagnostic.notes.push(format!(
-                    "receiver type-use site {:?} nodes {:?}, at {:?}, subject {:?}",
-                    site.recipe, nodes, site.at, subject
+                    "receiver type-use site {:?} node {:?}, at {:?}, subject {:?}",
+                    site.recipe, node, site.at, subject
                 ));
             }
             if let Some(call) = proof.intrinsics.get(&(original.id, site.recipe)) {

@@ -1,6 +1,10 @@
 //! Immutable request-local metadata indices. Values are offsets, never proof
 //! of a type, source operation, permission, or original instance theorem.
 use super::*;
+pub(super) struct OriginalSite {
+    pub offset: usize,
+    pub node: Option<SemanticOriginalNode>,
+}
 #[derive(Default)]
 pub(super) struct Index {
     pub definitions: BTreeMap<SemanticDefinitionId, usize>,
@@ -10,7 +14,7 @@ pub(super) struct Index {
     pub frozen_instances: BTreeMap<SemanticInstanceId, usize>,
     pub points: BTreeMap<(SemanticInstanceId, BlockId, usize), Vec<usize>>,
     pub sites: BTreeMap<SemanticInstanceId, Vec<usize>>,
-    pub recipes: BTreeMap<(SemanticDefinitionId, SemanticSiteId), usize>,
+    pub recipes: BTreeMap<(SemanticDefinitionId, SemanticSiteId), OriginalSite>,
     pub expressions: BTreeMap<(FunctionId, ValueId), Vec<zil_base::NodeId>>,
 }
 pub(super) fn search(n: usize) -> usize {
@@ -162,10 +166,21 @@ impl Index {
             pay(left, search(self.recipes.len()).saturating_add(2))?;
             if self
                 .recipes
-                .insert((definition.id, site.id), offset)
+                .insert((definition.id, site.id), OriginalSite { offset, node: None })
                 .is_some()
             {
                 return Err(bad("original definition repeats a recipe identity"));
+            }
+        }
+        if let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body {
+            pay(left, site_nodes.len())?;
+            for row in site_nodes {
+                pay(left, search(self.recipes.len()))?;
+                let site = self.recipes.get_mut(&(definition.id, row.site))
+                    .ok_or_else(|| bad("original node has no recipe in its definition"))?;
+                if site.node.replace(row.node).is_some() {
+                    return Err(bad("original occurrence has multiple immutable source nodes"));
+                }
             }
         }
         Ok(())

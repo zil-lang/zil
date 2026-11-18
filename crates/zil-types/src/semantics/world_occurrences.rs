@@ -9,23 +9,20 @@ pub(super) fn node(
     original: &SemanticDefinition,
     site: &SemanticSite,
 ) -> R<Option<NodeId>> {
-    let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
-        return Ok(None);
-    };
-    world.pay(site_nodes.len())?;
-    let mut rows = site_nodes.iter().filter(|row| row.site == site.recipe);
-    let Some(row) = rows.next() else {
-        return Ok(None);
-    };
-    if rows.next().is_some() {
-        return Err(bad(
-            "original occurrence has multiple immutable source nodes",
-        ));
-    }
-    Ok(match row.node {
-        SemanticOriginalNode::Expression(node) => Some(node),
-        SemanticOriginalNode::Statement(_) => None,
+    Ok(match original_node(world, original.id, site.recipe)? {
+        Some(SemanticOriginalNode::Expression(node)) => Some(node),
+        _ => None,
     })
+}
+
+pub(super) fn original_node(
+    world: &mut World<'_, '_>,
+    definition: SemanticDefinitionId,
+    site: SemanticSiteId,
+) -> R<Option<SemanticOriginalNode>> {
+    world.pay(index::search(world.index.recipes.len()))?;
+    Ok(world.index.recipes.get(&(definition, site))
+        .ok_or_else(|| bad("actual operation has no original recipe"))?.node)
 }
 
 /// Select the exact value of a relocated site, including calls whose original

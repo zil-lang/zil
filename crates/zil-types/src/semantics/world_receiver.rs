@@ -259,13 +259,8 @@ pub(super) fn seal(
             .ok_or_else(|| bad("method region lost its original proof"))?;
         world.pay(index::search(proof.call_regions.len()))?;
         if let Some(region) = proof.call_regions.get(&(original.id, *ordinal)) {
-            let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
-                return Err(bad("method region has no original body"));
-            };
-            world.pay(site_nodes.len().saturating_add(region.sources.len()))?;
-            if !site_nodes.iter().any(|row| {
-                row.site == site.recipe && row.node == SemanticOriginalNode::Expression(region.call)
-            }) || !region
+            world.pay(region.sources.len())?;
+            if occurrences::node(world, original, site)? != Some(region.call) || !region
                 .sources
                 .iter()
                 .any(|source| source.at == SemanticOriginalNode::Expression(node))
@@ -299,34 +294,25 @@ pub(super) fn seal(
         });
         return Ok(());
     }
-    let SemanticDefinitionBody::FunctionWithBody {
-        sites, site_nodes, ..
-    } = &original.body
-    else {
-        return Err(bad(
-            "method borrow has no complete original occurrence directory",
-        ));
+    let SemanticDefinitionBody::FunctionWithBody { sites, .. } = &original.body else {
+        return Err(bad("method borrow has no complete original occurrence directory"));
     };
-    world.pay(
-        site_nodes.len().saturating_mul(
-            sites
-                .len()
-                .saturating_add(original.implicit_lifetimes.len())
-                .saturating_add(1),
-        ),
-    )?;
-    let fresh = site_nodes
-        .iter()
-        .filter(|row| row.node == SemanticOriginalNode::Expression(node))
-        .any(|row| {
-            sites.iter().any(|site| {
-                site.id == row.site
-                    && matches!(site.kind, SemanticSiteRecipeKind::TypeUse { .. })
-                    && original.implicit_lifetimes.iter().any(|head| {
-                        head.ordinal == *ordinal && head.occurrence_path == site.occurrence_path
-                    })
-            })
-        });
+    world.pay(sites.len().saturating_add(original.implicit_lifetimes.len()))?;
+    let Some(head) = original.implicit_lifetimes.iter().find(|head| head.ordinal == *ordinal) else {
+        return Ok(());
+    };
+    let mut fresh = false;
+    for site in sites {
+        world.pay(site.occurrence_path.len().min(head.occurrence_path.len()))?;
+        if matches!(site.kind, SemanticSiteRecipeKind::TypeUse { .. })
+            && head.occurrence_path == site.occurrence_path
+            && occurrences::original_node(world, original.id, site.id)?
+                == Some(SemanticOriginalNode::Expression(node))
+        {
+            fresh = true;
+            break;
+        }
+    }
     if !fresh {
         return Ok(());
     } // Existing address-parameter roles are never rebound.

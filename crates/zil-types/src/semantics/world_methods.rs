@@ -953,15 +953,8 @@ pub(super) fn callable(
         }), ..
     } if path.is_empty());
     let expected = if receiver {
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
-            return Err(bad("receiver call has no immutable original node directory"));
-        };
-        world.pay(site_nodes.len())?;
-        let mut nodes = site_nodes.iter().filter(|row| row.site == site.recipe);
-        let Some(SemanticOriginalNode::Expression(node)) = nodes.next().map(|row| row.node) else {
-            return Err(bad("receiver result is not its actual original Call"));
-        };
-        if nodes.next().is_some() { return Err(bad("receiver result repeats its original Call")); }
+        let node = occurrences::node(world, original, site)?
+            .ok_or_else(|| bad("receiver result is not its actual original Call"))?;
         world.physical_type(instance.id, &SemanticTypeRecipe::OriginalType {
             scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Expression(node),
         }, &function.return_type)?

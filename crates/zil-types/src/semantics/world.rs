@@ -1247,13 +1247,13 @@ impl World<'_, '_> {
             return Err(bad("operation is outside its original function"));
         };
         self.pay(index::search(self.index.recipes.len()))?;
-        let offset = self
+        let entry = self
             .index
             .recipes
             .get(&(original.id, id))
             .ok_or_else(|| bad("actual operation has no original recipe"))?;
         let recipe = sites
-            .get(*offset)
+            .get(entry.offset)
             .ok_or_else(|| bad("actual recipe index leaves its original definition"))?;
         if recipe.id != id {
             return Err(bad("actual recipe index changes its original identity"));
@@ -1509,17 +1509,9 @@ impl World<'_, '_> {
         site: SemanticSiteId,
         recipe: &SemanticTypeRecipe,
     ) -> R<SemanticTypeRecipe> {
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
-            crate::dyn_metadata::semantic_operand_snapshot(recipe, self.limits, self.left, 1)?;
-            return Ok(recipe.clone());
-        };
-        self.pay(site_nodes.len().saturating_add(1))?;
-        let mut nodes = site_nodes.iter().filter(|row| row.site == site);
-        let node = nodes.next().map(|row| row.node);
-        if nodes.next().is_some() {
-            return Err(bad("constructor has ambiguous original source occurrences"));
-        }
-        if let Some(SemanticOriginalNode::Expression(node)) = node {
+        if let Some(SemanticOriginalNode::Expression(node)) =
+            occurrences::original_node(self, original.id, site)?
+        {
             let ledger = self.ledger;
             let proof = ledger.original.borrow();
             let proof = proof

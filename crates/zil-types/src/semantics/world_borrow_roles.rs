@@ -469,50 +469,43 @@ fn binding_source_local(
             "loan observation does not name its exact original declaration",
         ));
     }
-    let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
-        return Err(bad("loan binding has no original observation directory"));
-    };
     let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) = instance.target
     else {
         return Err(bad("loan binding has no actual function"));
     };
     let function = world.function(function)?;
-    world.pay(site_nodes.len().saturating_add(world.program.sites.len()))?;
-    for node in site_nodes
-        .iter()
-        .filter(|row| row.node == SemanticOriginalNode::Expression(observed))
-    {
-        let recipe = world.original_recipe(original, node.site)?;
+    let program = world.program;
+    world.pay(program.sites.len())?;
+    for site in &program.sites {
+        if site.instance != instance.id || occurrences::node(world, original, site)? != Some(observed) {
+            continue;
+        }
+        let recipe = world.original_recipe(original, site.recipe)?;
         if !matches!(&recipe.kind, SemanticSiteRecipeKind::TypeUse { expected: SemanticTypeRecipe::OriginalType { scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Expression(actual) } } if *actual == observed)
         {
             continue;
         }
-        for site in &world.program.sites {
-            if site.instance != instance.id || site.recipe != node.site {
-                continue;
-            }
-            let SemanticSiteAction::TypeUse { subject, .. } = &site.action else {
-                continue;
-            };
-            let local = match subject {
-                SemanticOperand::Local(local) => Some(*local),
-                SemanticOperand::Value(value) => match producer(world, function, *value)?.0 {
-                    InstructionKind::Load(local)
-                    | InstructionKind::BorrowLocal { local }
-                    | InstructionKind::BorrowLocalMut { local }
-                    | InstructionKind::DescribeLocal { local } => Some(*local),
-                    _ => None,
-                },
+        let SemanticSiteAction::TypeUse { subject, .. } = &site.action else {
+            continue;
+        };
+        let local = match subject {
+            SemanticOperand::Local(local) => Some(*local),
+            SemanticOperand::Value(value) => match producer(world, function, *value)?.0 {
+                InstructionKind::Load(local)
+                | InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local }
+                | InstructionKind::DescribeLocal { local } => Some(*local),
                 _ => None,
-            };
-            if let Some(local) = local {
-                if found.is_some_and(|old| old != local) {
-                    return Err(bad(
-                        "one original binding observation selects several actual locals",
-                    ));
-                }
-                found = Some(local);
+            },
+            _ => None,
+        };
+        if let Some(local) = local {
+            if found.is_some_and(|old| old != local) {
+                return Err(bad(
+                    "one original binding observation selects several actual locals",
+                ));
             }
+            found = Some(local);
         }
     }
     found.ok_or_else(|| {
@@ -1397,20 +1390,7 @@ pub(super) fn apply(
             return Ok(None);
         }
     }
-    let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
-        return Ok(None);
-    };
-    world.pay(site_nodes.len())?;
-    let mut nodes = site_nodes.iter().filter(|row| row.site == site.recipe);
-    let Some(node) = nodes.next() else {
-        return Ok(None);
-    };
-    if nodes.next().is_some() {
-        return Err(bad(
-            "projected borrow role has ambiguous original node correspondence",
-        ));
-    }
-    let SemanticOriginalNode::Expression(node) = node.node else {
+    let Some(node) = occurrences::node(world, original, site)? else {
         return Ok(None);
     };
     let role = {
@@ -1766,9 +1746,6 @@ fn shared_view_value(
             "shared input view has no exact exclusive incoming source",
         ));
     }
-    let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
-        return Err(bad("shared input view has no original read directory"));
-    };
     let mut read = false;
     for site in sites {
         world.pay(1)?;
@@ -1778,10 +1755,7 @@ fn shared_view_value(
         {
             continue;
         }
-        world.pay(site_nodes.len())?;
-        if site_nodes.iter().any(|row| {
-            row.site == site.recipe && row.node == SemanticOriginalNode::Expression(source_node)
-        }) {
+        if occurrences::node(world, original, site)? == Some(source_node) {
             if read {
                 return Err(bad("shared input view has ambiguous original reads"));
             }
@@ -1879,18 +1853,7 @@ pub(super) fn shared_expression_view(
             return Ok(None);
         }
     }
-    let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
-        return Ok(None);
-    };
-    world.pay(site_nodes.len())?;
-    let mut rows = site_nodes.iter().filter(|row| row.site == site.recipe);
-    let Some(row) = rows.next() else {
-        return Ok(None);
-    };
-    if rows.next().is_some() {
-        return Err(bad("shared view repeats its original expression"));
-    }
-    let SemanticOriginalNode::Expression(node) = row.node else {
+    let Some(node) = occurrences::node(world, original, site)? else {
         return Ok(None);
     };
     shared_view_value(
@@ -2356,19 +2319,11 @@ pub(super) fn call_region_argument(
         let proof = proof
             .as_ref()
             .ok_or_else(|| bad("call region lost its complete original proof"))?;
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
-            return Err(bad("call region has no complete original body"));
-        };
+        let Some(call) = occurrences::node(world, original, site)? else { return Ok(false); };
         world.pay(index::search(proof.call_regions.len()))?;
         let node = if let Some(region) = proof.call_regions.get(&(original.id, ordinal)) {
-            world.pay(
-                site_nodes
-                    .len()
-                    .saturating_add(index::search(region.inputs.len())),
-            )?;
-            if !site_nodes.iter().any(|row| {
-                row.site == site.recipe && row.node == SemanticOriginalNode::Expression(region.call)
-            }) {
+            world.pay(index::search(region.inputs.len()))?;
+            if call != region.call {
                 return Ok(false);
             }
             *region
@@ -2379,7 +2334,7 @@ pub(super) fn call_region_argument(
             // A parameter may already be fixed to a mutable local's original
             // role by an invariant inner type. That role is not a fresh call
             // region: authenticate its own declaration and this exact input.
-            world.pay(proof.local_roles.len().saturating_add(site_nodes.len()))?;
+            world.pay(proof.local_roles.len())?;
             let lifetime = SemanticLifeRecipe::Implicit {
                 scope: SemanticScopeRef::Ancestor(0),
                 ordinal,
@@ -2396,16 +2351,6 @@ pub(super) fn call_region_argument(
                     "contextual call target has several original local roles",
                 ));
             }
-            let mut nodes = site_nodes.iter().filter(|row| row.site == site.recipe);
-            let Some(row) = nodes.next() else {
-                return Ok(false);
-            };
-            if nodes.next().is_some() {
-                return Err(bad("contextual call has several original occurrences"));
-            }
-            let SemanticOriginalNode::Expression(call) = row.node else {
-                return Ok(false);
-            };
             if !matches!(
                 world.original_recipe(original, site.recipe)?.kind,
                 SemanticSiteRecipeKind::OriginalCall | SemanticSiteRecipeKind::Construct { .. }
