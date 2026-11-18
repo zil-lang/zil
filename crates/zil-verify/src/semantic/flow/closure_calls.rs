@@ -461,6 +461,14 @@ impl CheckedContext {
             ));
         }
         let result = result.ok_or_else(|| bad("closure call omits its complete result domain"))?;
+        if crate::signature_life::outer(header, StorageBase::Receiver).is_some() {
+            // Only the completed actual call may expose its original directed
+            // publication bounds. The full callee/receiver, every entry world,
+            // argument and result above have been checked first. These edges
+            // serve both final Return and later observations of this result;
+            // they neither rename its inner domain nor grant a data target.
+            self.prepare_receiver_role_flows(module, caller, site, environment, b)?;
+        }
         Ok((result.ty != Type::Unit).then_some(result))
     }
 }
