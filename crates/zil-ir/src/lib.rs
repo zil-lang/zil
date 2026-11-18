@@ -747,6 +747,42 @@ impl Type {
     pub fn is_slice_address(&self) -> bool {
         matches!(self, Self::Address { inner, .. } if matches!(inner.as_ref(), Self::Slice { .. }))
     }
+    /// An inline scalar product copies only its logical numeric, bool or unit
+    /// leaves. It carries no loan, capability, variant state or cleanup duty.
+    /// An indirect assignment still has to prove the selected source and
+    /// destination and their live permissions at the actual write.
+    pub fn is_inline_scalar_product<E>(
+        &self, visit: &mut impl FnMut() -> Result<(), E>,
+    ) -> Result<bool, E> {
+        visit()?;
+        match self {
+            Self::Unit | Self::Bool | Self::I8 | Self::I16 | Self::I32 | Self::I64
+            | Self::U8 | Self::U16 | Self::U32 | Self::U64 | Self::Usize | Self::Isize
+            | Self::F32 | Self::F64 => Ok(true),
+            Self::Array { element, .. } => element.is_inline_scalar_product(visit),
+            Self::Record { fields, .. } => {
+                for (_, field) in fields {
+                    if !field.is_inline_scalar_product(visit)? { return Ok(false); }
+                }
+                Ok(true)
+            }
+            Self::Tuple(fields) => {
+                for field in fields {
+                    if !field.is_inline_scalar_product(visit)? { return Ok(false); }
+                }
+                Ok(true)
+            }
+            Self::Dyn { .. } | Self::OwnedDyn { .. } | Self::BorrowedStorage { .. }
+            | Self::ByteBuffer | Self::OwnedStore { .. } | Self::ForeignHandle | Self::SyncCell(_)
+            | Self::Mutex { .. } | Self::MutexGuard { .. } | Self::Registration { .. }
+            | Self::AsyncRegistration { .. } | Self::TaskI32 | Self::Task { .. } | Self::CWideString
+            | Self::ForeignCallback { .. } | Self::Slice { .. } | Self::Named(_) | Self::Package { .. }
+            | Self::Enum { .. } | Self::ErrorUnion { .. } | Self::Address { .. } | Self::Managed(_)
+            | Self::Desc(_) | Self::FunctionPointer { .. } | Self::BorrowedFunctionPointer { .. }
+            | Self::Closure(_) | Self::Opaque { .. } | Self::Unsupported(_) => Ok(false),
+        }
+    }
+
     pub fn is_copy_value(&self) -> bool {
         match self {
             Self::Unit

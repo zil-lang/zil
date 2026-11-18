@@ -11,6 +11,13 @@ pub(in crate::semantic) struct Assignment {
     pub(in crate::semantic) compound: Option<BinaryOp>,
 }
 fn nonnegative_index(value:&Constant)->Option<u64>{match value{Constant::I8(value)=>u64::try_from(*value).ok(),Constant::I16(value)=>u64::try_from(*value).ok(),Constant::I32(value)=>u64::try_from(*value).ok(),Constant::I64(value)|Constant::Isize(value)=>u64::try_from(*value).ok(),Constant::U8(value)=>Some(u64::from(*value)),Constant::U16(value)=>Some(u64::from(*value)),Constant::U32(value)=>Some(u64::from(*value)),Constant::U64(value)|Constant::Usize(value)=>Some(*value),_=>None}}
+type AddressPath = (intrinsics::AddressRoot, Vec<intrinsics::AddressProjection>);
+
+enum ProjectionSource {
+    Place(AddressPath),
+    Expression(Span),
+}
+
 impl CheckedOriginal {
     pub(in crate::semantic) fn callable_borrow_operand(
         &self,
@@ -53,7 +60,7 @@ impl CheckedOriginal {
         definition: SemanticDefinitionId,
         node: NodeId,
         b: &mut Budget,
-    ) -> Check<(NodeId, bool, bool)> {
+    ) -> Check<(NodeId, Option<AddressPath>, bool)> {
         if !self.checked.contains(&definition) {
             return Err(bad("assignment value source has no complete original body proof"));
         }
@@ -77,8 +84,13 @@ impl CheckedOriginal {
                 _ => break,
             }
         }
-        b.spend(self.value_places.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
-        Ok((current, self.value_places.contains_key(&(definition, current)), gives))
+        // Indices and reads through an address retain the original expression
+        // and parent even when no lexical ownership-map entry exists.
+        let path = match self.projection_source(syntax, definition, current, b)? {
+            ProjectionSource::Place(path) => Some(path),
+            ProjectionSource::Expression(_) => None,
+        };
+        Ok((current, path, gives))
     }
     pub(in crate::semantic) fn bound_value_name(&self,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<bool>{
         b.spend(self.value_bindings.len().checked_ilog2().map_or(1,|depth|depth as usize+1))?;
@@ -140,12 +152,24 @@ impl CheckedOriginal {
         definition: SemanticDefinitionId,
         node: NodeId,
         b: &mut Budget,
-    ) -> Check<(intrinsics::AddressRoot, Vec<intrinsics::AddressProjection>)> {
-        use index::PlaceOperation as Operation;
-        use intrinsics::{AddressProjection, AddressRoot};
+    ) -> Check<AddressPath> {
         let syntax = self.source_grammar.as_ref()
             .ok_or_else(|| bad("indirect address has no complete original owner body"))?
             .place_syntax(definition, b)?;
+        match self.projection_source(syntax, definition, node, b)? {
+            ProjectionSource::Place(path) => Ok(path),
+            ProjectionSource::Expression(span) => Err(unsupported(
+                "indirect address has no complete original Place/address-parent projection", Some(span),
+            )),
+        }
+    }
+
+    fn projection_source(
+        &self, syntax: &index::PlaceSyntax, definition: SemanticDefinitionId,
+        node: NodeId, b: &mut Budget,
+    ) -> Check<ProjectionSource> {
+        use index::PlaceOperation as Operation;
+        use intrinsics::{AddressProjection, AddressRoot};
         let mut current = node;
         let mut projections = Vec::new();
         loop {
@@ -156,9 +180,9 @@ impl CheckedOriginal {
                     .ok_or_else(|| bad("address parent has no independent original type"))?, b,
             )?, Ty::Address { .. }) {
                 if self.value_places.contains_key(&(definition, current)) {
-                    return Ok((AddressRoot::Place(current), projections));
+                    return Ok(ProjectionSource::Place((AddressRoot::Place(current), projections)));
                 }
-                return Ok((AddressRoot::Value(current), projections));
+                return Ok(ProjectionSource::Place((AddressRoot::Value(current), projections)));
             }
             current = match &expression.operation {
                 Operation::Group(inner) | Operation::Ascribed(inner) | Operation::Dereference(inner) => *inner,
@@ -181,15 +205,12 @@ impl CheckedOriginal {
                     })?;
                     b.spend(name.len())?;
                     projections.push(AddressProjection::Field(name.clone()));
-                    return Ok((AddressRoot::Parameter(ordinal), projections));
+                    return Ok(ProjectionSource::Place((AddressRoot::Parameter(ordinal), projections)));
                 }
                 _ if self.value_places.contains_key(&(definition, current)) => {
-                    return Ok((AddressRoot::Place(current), projections));
+                    return Ok(ProjectionSource::Place((AddressRoot::Place(current), projections)));
                 }
-                _ => return Err(unsupported(
-                    "indirect address has no complete original Place/address-parent projection",
-                    Some(expression.span),
-                )),
+                _ => return Ok(ProjectionSource::Expression(expression.span)),
             };
         }
     }

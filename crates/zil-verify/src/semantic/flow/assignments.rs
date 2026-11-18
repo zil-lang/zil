@@ -139,13 +139,14 @@ impl CheckedContext {
     }
 
     pub(crate) fn assignment_writes(
-        &self,module:&TypedModule,f:&TypedFunction,b:&mut Budget,
+        &self, module: &TypedModule, f: &TypedFunction, worlds: &[SemanticInstanceId], b: &mut Budget,
     )->Check<Vec<ValueId>> {
-        let program=module.semantic.as_ref().ok_or_else(||bad("assignment original programme is absent"))?;
         let mut complete=None::<Vec<ValueId>>;
-        b.spend(program.instances.len())?;
-        for caller in &program.instances {
-            if !matches!(caller.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id))if id==f.id){continue;}
+        for world in worlds {
+            let caller = self.instance(module, *world, b)?;
+            if caller.target != SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(f.id)) {
+                return Err(bad("original assignment world belongs to another actual function"));
+            }
             let originals=self.original.borrow().as_ref().ok_or_else(||bad("assignment has no independently checked original body"))?.assignments(module,caller.definition,b)?;
             let mut used=BTreeSet::new();
             let mut writes=Vec::new();
@@ -153,7 +154,7 @@ impl CheckedContext {
                 b.spend(1)?;
                 let InstructionKind::WriteAddress{address,value}=instruction.kind else{continue;};
                 let carrier=f.values.get(value.0 as usize).ok_or_else(||bad("assignment actual value is absent"))?;
-                if !carrier.is_integer()&&!carrier.is_float()&&!matches!(carrier,Type::Unit|Type::Bool){continue;}
+                if !carrier.is_inline_scalar_product(&mut || b.spend(1))? { continue; }
                 // Spans only find candidates. The exact original binder,
                 // ordered path, index/endpoints and RHS operations below are
                 // the correspondence proof; a span supplies no authority.

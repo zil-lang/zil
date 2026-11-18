@@ -356,6 +356,13 @@ impl CheckedOriginal {
             .ok_or_else(|| bad("original source query has no owned complete grammar"))?;
         index::select(source, definitions, b)
     }
+    pub(in crate::semantic) fn expression_sites(
+        &self, definition: SemanticDefinitionId, node: NodeId, b: &mut Budget,
+    ) -> Check<Vec<(usize, SemanticSiteId)>> {
+        let source = self.source_grammar.as_ref()
+            .ok_or_else(|| bad("expression has no completely checked source inventory"))?;
+        source.recipes(definition, SemanticOriginalNode::Expression(node), &index::Role::ALL, b)
+    }
     fn original_call_site(
         &self,
         definition: SemanticDefinitionId,

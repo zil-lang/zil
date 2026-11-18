@@ -276,10 +276,7 @@ impl CheckedContext{
     }
     pub(in crate::semantic::flow) fn assignment_value_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,node:NodeId,b:&mut Budget)->Check<()>{
         let(operand,place,gives)=self.original.borrow().as_ref().ok_or_else(||bad("assignment RHS lacks its complete original occurrence proof"))?.assignment_value_source(module,caller.definition,node,b)?;
-        let result=if place{
-            let (root, projections) = self.original.borrow().as_ref()
-                .ok_or_else(|| bad("assignment place lacks its complete original body proof"))?
-                .address_place(module, caller.definition, operand, b)?;
+        let result=if let Some((root, projections)) = place {
             let use_ = if gives { PlaceUse::Give } else { PlaceUse::Observe };
             self.original_projection_path(module, caller, f, value, caller.definition, root, &projections, use_, b)
         }else{
@@ -288,19 +285,33 @@ impl CheckedContext{
         result.map_err(|error|error.with_note(format!("original assignment RHS {:?} expression {:?}, transparent operand {:?}, actual {:?}",caller.definition,node,operand,value)))
     }
     pub(in crate::semantic::flow) fn exact_expression_value(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,node:NodeId,b:&mut Budget)->Check<()>{
-        let definition=self.definition(module,caller.definition,b)?;
-        let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&definition.body else{return Err(bad("address source occurrence has no complete original body"));};
-        let program=module.semantic.as_ref().ok_or_else(||bad("address source occurrence programme is absent"))?;
-        let mut sources=BTreeSet::new();
-        for original in site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(node)){
-            b.spend(program.sites.len())?;
-            for site in program.sites.iter().filter(|site|site.instance==caller.id&&site.recipe==original.site){match site.action{
-                SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(value),..}|SemanticSiteAction::Construct{result:SemanticOperand::Value(value),..}|SemanticSiteAction::Closure{result:SemanticOperand::Value(value),..}=>{sources.insert(value);},
-                SemanticSiteAction::BodyCall{..}|SemanticSiteAction::Call{..}=>{
-                    let SemanticSiteAddress::Typed{block,instruction,..}=site.at else{return Err(bad("address input retains a nonactual original call"));};
-                    if let Some(value)=f.blocks.get(block.0 as usize).and_then(|block|block.instructions.get(instruction as usize)).and_then(|instruction|instruction.result){sources.insert(value);}
-                },_=>{},
-            }}
+        let recipes = self.original.borrow().as_ref()
+            .ok_or_else(|| bad("address source occurrence has no complete original body"))?
+            .expression_sites(caller.definition, node, b)?;
+        let mut sources = BTreeSet::new();
+        for (_, recipe) in recipes {
+            for action in [sites::Action::TypeUse, sites::Action::Construct, sites::Action::Closure,
+                sites::Action::BodyCall, sites::Action::Call] {
+                for site in self.site_index.recipe(module, caller.id, recipe, action, b)? {
+                    let source = match site.action {
+                        SemanticSiteAction::TypeUse { subject: SemanticOperand::Value(value), .. }
+                        | SemanticSiteAction::Construct { result: SemanticOperand::Value(value), .. }
+                        | SemanticSiteAction::Closure { result: SemanticOperand::Value(value), .. } => Some(value),
+                        SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::Call { .. } => {
+                            let SemanticSiteAddress::Typed { block, instruction, .. } = site.at else {
+                                return Err(bad("address input retains a nonactual original call"));
+                            };
+                            f.blocks.get(block.0 as usize).and_then(|block| block.instructions.get(instruction as usize))
+                                .and_then(|instruction| instruction.result)
+                        }
+                        _ => None,
+                    };
+                    if let Some(value) = source {
+                        b.spend(sources.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
+                        sources.insert(value);
+                    }
+                }
+            }
         }
         let mut seen=BTreeSet::new();loop{
             b.spend(sources.len().saturating_add(1))?;
@@ -324,7 +335,8 @@ impl CheckedContext{
             }
             if sources.is_empty(){return self.scalar_expression_source(module,caller,f,value,node,b);}
             if let InstructionKind::ReborrowAddress{address,..}=instruction.kind{value=address;continue;}
-            return Err(bad("address input selects another same-typed original expression value").with_note(format!(
+            return Err(reject("E-VERIFY-SEMANTIC", Some(instruction.span),
+                "address input selects another same-typed original expression value").with_note(format!(
                 "original {:?} expression {:?}, exact source SSA {:?}; actual {:?} at {:?}:{at} has producer {:?}",caller.definition,node,sources,value,block,instruction.kind)));
         }
     }

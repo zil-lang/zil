@@ -1,4 +1,4 @@
-//! Select a real scalar WriteAddress using the complete original assignment
+//! Select a real inline Copy WriteAddress using the complete original assignment
 //! occurrence. Its reservation and memory authority are checked separately.
 use super::*;
 
@@ -9,8 +9,9 @@ impl Check<'_, '_> {
             for block in &function.blocks {
                 for instruction in &block.instructions {
                     b.spend(1, WORK)?;
-                    if matches!(instruction.kind, InstructionKind::WriteAddress { value, .. }
-                        if function.values.get(value.0 as usize).is_some_and(crate::stored_flow::scalar_assignment_value))
+                    if let InstructionKind::WriteAddress { value, .. } = instruction.kind
+                        && let Some(ty) = function.values.get(value.0 as usize)
+                        && ty.is_inline_scalar_product(&mut || b.spend(1, WORK))?
                     {
                         b.spend(1, WORK)?;
                         candidates.push(instruction);

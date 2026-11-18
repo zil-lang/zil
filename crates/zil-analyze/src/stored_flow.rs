@@ -33,7 +33,6 @@ pub(super) struct DynOutputClass {
 pub(super) mod enum_address;
 mod mutex;
 mod copy_assignments;
-pub(crate) use copy_assignments::scalar_assignment_value;
 mod nominal;
 mod nominal_zero;
 pub(crate) mod synchronous_abi;
@@ -4140,6 +4139,17 @@ fn seed_value(
         } else {
             value.slots = slots;
         }
+    }
+    // A slice parameter names actual external storage for each in-bounds
+    // element. Its Copy elements can share an empty permission tree only
+    // when their physical type has no per-element stored state.
+    if let Type::Address { inner, .. } = ty
+        && let Type::Slice { element } = inner.as_ref()
+        && pointee_memory::aggregate(element)
+        && element.is_inline_scalar_product(&mut || fee(b, 1))?
+    {
+        ordered(b, state.external.len(), 0)?;
+        state.external.entry(base).or_default();
     }
     if matches!(ty, Type::Address { .. }) && pointee_memory::aggregate(array) {
         let variants = enum_address::Variants::pointee(base, Vec::new(), array, b)?;
@@ -10737,6 +10747,32 @@ mod tests {
         f.return_type = address.clone();
         f.values = vec![address.clone(), Type::I32, tuple, address];
         module
+    }
+
+    #[test]
+    fn borrowed_slice_elements_keep_their_real_root_and_require_their_stored_channels() {
+        let module = raw_static_tuple_module(CallableKind::FnMut);
+        let root = HoldRoot::Parameter(0);
+        for (leaf, plain) in [
+            (Type::I32, true),
+            (Type::Address { mutable: false, inner: Box::new(Type::I32) }, false),
+        ] {
+            let record = Type::Record { name: "Entry".into(), fields: vec![("value".into(), leaf)] };
+            let input = Type::Address {
+                mutable: true,
+                inner: Box::new(Type::Slice { element: Box::new(record.clone()) }),
+            };
+            let mut state = State::default();
+            let mut budget = Budget::new(&Limits::default());
+            let value = seed_value(&module, &input, root, None, &mut state, &mut Vec::new(), &mut budget).unwrap();
+            assert!(value.pointer.targets.iter().any(|target| target.base == root));
+            assert_eq!(pointee_memory::read(&state, &value.pointer, Some(&record), true, &mut budget).is_ok(), plain);
+            assert_eq!(pointee_memory::write(&mut state, &value.pointer, &Value::default(), &record, true, &mut budget).is_ok(), plain);
+            if plain {
+                state.vacant.extend(value.pointer.targets.iter().cloned());
+                assert!(pointee_memory::read(&state, &value.pointer, Some(&record), true, &mut budget).is_err());
+            }
+        }
     }
 
     #[test]

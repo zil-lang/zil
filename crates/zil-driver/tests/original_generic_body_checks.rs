@@ -278,3 +278,45 @@ fn saved_store_element_preserves_its_actual_input_through_an_ordinary_view_call(
         );
     }
 }
+
+#[test]
+fn generic_copy_assignment_binds_both_dynamic_indices_of_the_original_slice() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "slice-copy-source.zil", r#"
+        struct Packet { value:u64; tag:i32 }
+        fn copy_at<T:Copy>(values:&mut[T],dst:i64,src:i64) {values[dst]=values[src]}
+        fn main()->i32 {
+            var values=[Packet{value:1u64,tag:2},Packet{value:3u64,tag:4}]
+            copy_at(&mut values[..],0,1)
+            return values[0].tag-4
+        }
+    "#);
+    let core = original_core(source, &limits, &target);
+    let mut module = zil_types::check(&core, &target, &limits).unwrap();
+    let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let wire = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+    let function = module.functions.iter_mut().find(|f| f.parameters.len() == 3).unwrap();
+    let mut indices = function.blocks.iter_mut().flat_map(|b| &mut b.instructions)
+        .filter_map(|i| match &mut i.kind {
+            InstructionKind::AddressIndex { index, .. } => Some(index),
+            _ => None,
+        });
+    let dst = *indices.next().unwrap();
+    let src = indices.next().unwrap();
+    assert_ne!(dst, *src);
+    assert_eq!(function.values[dst.0 as usize], function.values[src.0 as usize]);
+    *src = dst;
+    assert!(indices.next().is_none());
+
+    plan.module_fingerprint = module.fingerprint();
+    let bytes = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    let raw = zil_verify::verify_module(module, plan, &target, &limits).unwrap_err();
+    let decoded = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
+    assert_eq!(raw, decoded);
+    assert!(raw.iter().any(|d| d.category == ResultCategory::SafeReject
+        && d.code == "E-VERIFY-SEMANTIC" && d.notes.iter().any(|n| n.contains("assignment RHS"))), "{raw:?}");
+}

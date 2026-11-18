@@ -11,6 +11,9 @@ pub(crate) struct Session {
     context:semantic::CheckedContext,
     active:RefCell<semantic::ActiveQueries>,
     directory:semantic::completion::Completed,
+    // Only static assignment-to-SSA correspondence across all completed worlds.
+    // The stored CFG derives reservations, permissions and epochs at every use.
+    assignment_sites: RefCell<std::collections::BTreeMap<FunctionId, Vec<ValueId>>>,
 }
 impl Session {
     pub(crate) fn finish_late_closure_cursor(&self,module:&TypedModule,context:&semantic::CheckedContext,cursor:&semantic::ClosureCursor,b:&mut Budget)->Check<()>{
@@ -21,7 +24,7 @@ impl Session {
         context.finish_late_closure_cursor(module,cursor,self.directory.worlds(),b)
     }
     pub(crate) fn new(module:&TypedModule,context:semantic::CheckedContext,active:semantic::ActiveQueries,directory:semantic::completion::Completed)->Self{
-        Self{module:module as *const TypedModule as usize,frozen_execution:None,context,active:RefCell::new(active),directory}
+        Self{module:module as *const TypedModule as usize,frozen_execution:None,context,active:RefCell::new(active),directory,assignment_sites:RefCell::default()}
     }
 }
 
@@ -32,6 +35,7 @@ pub(crate) fn retain_frozen_execution_view(execution:&TypedModule,view:TypedModu
     let session=b.semantic_checked.as_mut().and_then(std::rc::Rc::get_mut).ok_or_else(||bad("frozen final obligations have no unique completed session"))?;
     if session.module!=checked_address||session.frozen_execution.is_some(){return Err(bad("frozen final obligations select another checked source view"));}
     let view=Box::new(view);session.module=view.as_ref() as *const TypedModule as usize;
+    session.assignment_sites.get_mut().clear();
     session.frozen_execution=Some((execution as *const TypedModule as usize,view));Ok(())
 }
 
@@ -139,14 +143,30 @@ pub(crate) fn local_role_transfers(module:&TypedModule,function:&TypedFunction,b
     session.context.checked_local_role_transfers(module,function,b)
 }
 
-/// Static source correspondence is recomputed against the immutable actual
-/// body. No cached W result or source class can activate an assignment loan.
+/// These SSA identities name writes whose two operands match the original
+/// assignment. Each caller independently checks the live access at that write.
 pub(crate) fn assignment_writes(module:&TypedModule,f:&TypedFunction,b:&mut Budget)->Check<Vec<ValueId>> {
     if module.semantic.is_none()||f.foreign.is_some(){return Ok(Vec::new());}
     b.spend(1)?;
     let session=b.semantic_checked.clone().ok_or_else(||bad("assignment lacks the completely checked original programme"))?;
     if session.module!=module as *const TypedModule as usize{return Err(bad("assignment interpreter belongs to another immutable module"));}
-    session.context.assignment_writes(module,f,b)
+    if !module.functions.get(f.id.0 as usize).is_some_and(|owner| std::ptr::eq(owner, f)) {
+        return Err(bad("assignment proof selects another physical body"));
+    }
+    {
+        let sites = session.assignment_sites.borrow();
+        b.spend(sites.len().checked_ilog2().map_or(1, |depth| depth as usize + 2))?;
+        if let Some(writes) = sites.get(&f.id) {
+            b.spend(writes.len())?;
+            return Ok(writes.clone());
+        }
+    }
+    let worlds = session.directory.entry(f.id, b)?;
+    let writes = session.context.assignment_writes(module, f, worlds, b)?;
+    let mut sites = session.assignment_sites.borrow_mut();
+    b.spend(writes.len().saturating_add(sites.len().checked_ilog2().map_or(1, |d| d as usize + 2)))?;
+    sites.insert(f.id, writes.clone());
+    Ok(writes)
 }
 
 pub(crate) fn provider(module:&TypedModule,table:&DynVtable,declaration:&DynDeclaration,interface:&DynInterface,b:&mut Budget)->Check<()>{
