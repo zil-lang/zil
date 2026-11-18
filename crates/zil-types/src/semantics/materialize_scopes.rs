@@ -607,10 +607,33 @@ impl<'a> Eval<'a, '_, '_> {
         let mut provider = None;
         for id in ids {
             let row = self.instance(id).map_err(SourceFailure::Invalid)?;
-            if row.parent == Some(holder)
-                && row.target
-                    == SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(*target))
+            if row.target
+                != SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(*target))
             {
+                continue;
+            }
+            let inherited = if row.parent != Some(holder)
+                && let Some(parent) = row.parent
+            {
+                let lexical = self
+                    .scope_source_instance(parent)
+                    .map_err(SourceFailure::Invalid)?;
+                matches!(&lexical.self_type, Some(SemanticTypeValue::Core { scope, .. }) if *scope == holder)
+                    && matches!(
+                        self.definition(lexical.definition)
+                            .map_err(SourceFailure::Invalid)?
+                            .body,
+                        SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { .. })
+                    )
+                    && self
+                        .default_provider_self(parent)
+                        .map_err(SourceFailure::Invalid)?
+                        .0
+                        == holder
+            } else {
+                false
+            };
+            if row.parent == Some(holder) || inherited {
                 if provider.replace(row.definition).is_some() {
                     return Err(SourceFailure::Invalid(bad(
                         "parent inference has several actual provider instances for its exact holder",
@@ -793,12 +816,34 @@ impl Eval<'_, '_, '_> {
             ));
         }
         self.fee(request.actuals.len())?;
+        let mut inferred_from = None;
         for (ordinal, actual) in request.actuals.iter().enumerate() {
-            if !matches!(actual, SemanticActual::CoreInferred { scope, call: actual_call, formal }
-                if *scope == caller && *actual_call == call && *formal == ordinal as u32)
-            {
+            let SemanticActual::CoreInferred {
+                scope,
+                call,
+                formal,
+            } = actual
+            else {
                 return Err(bad(
-                    "method parent boundary changes its full original request provenance",
+                    "method parent omits its original receiver call request",
+                ));
+            };
+            if *formal != ordinal as u32
+                || inferred_from
+                    .replace((*scope, *call))
+                    .is_some_and(|prior| prior != (*scope, *call))
+            {
+                return Err(bad("method parent changes its complete ordered request"));
+            }
+        }
+        if inferred_from.is_some_and(|source| source != (caller, call)) {
+            let bound = self
+                .scope_source_instance(caller)?
+                .parent
+                .ok_or_else(|| bad("method parent reuses a request outside its lexical default"))?;
+            if self.default_provider_self(bound)?.0 != holder {
+                return Err(bad(
+                    "default call reuses another receiver's implementation request",
                 ));
             }
         }

@@ -846,6 +846,46 @@ impl<'a> Engine<'a> {
         Ok(result)
     }
 
+    fn inherited_impl_origin(
+        &mut self,
+        item: &'a Item,
+        reference: &trait_instances::Reference,
+        implementation: &ImplBlock,
+    ) -> R<Option<zil_ir::SemanticDefinitionId>> {
+        let span = item.span;
+        if self.products.semantic.is_none() || !self.traits.has_defaults {
+            return Ok(None);
+        }
+        self.budget
+            .identity_work(implementation.members.len(), span)?;
+        if implementation.members.iter().any(|member| {
+            matches!(&member.kind,
+            ItemKind::Function(function) if function.semantic.raw_index().is_some())
+        }) {
+            return Ok(None);
+        }
+        let (_, declaration) = self.traits.declaration_item(reference);
+        self.budget.identity_work(declaration.members.len(), span)?;
+        if !declaration.members.iter().any(|member| matches!(&member.kind,
+            ItemKind::Function(method) if method.generics.is_empty() && !matches!(method.body, FunctionBody::Declaration))) {
+            return Ok(None);
+        }
+        let origin = self.template_origin(item)?.ok_or_else(|| {
+            error(
+                span,
+                "inherited implementation lacks its original declaration",
+            )
+        })?;
+        let origins = self
+            .origins
+            .ok_or_else(|| error(span, "implementation declaration directory is absent"))?;
+        let source = origins.identity(origin.declaration, &mut self.budget, span)?;
+        Ok(Some(zil_ir::SemanticDefinitionId {
+            module: origin.declaration.module,
+            index: source.declaration.0,
+        }))
+    }
+
     pub(super) fn realize_witness(&mut self, witness: trait_bounds::Witness<'a>) -> R<()> {
         for dependency in witness.dependencies {
             self.realize_witness(dependency)?;
@@ -882,9 +922,14 @@ impl<'a> Engine<'a> {
         let ItemKind::Impl(implementation) = &mut instance.kind else {
             unreachable!()
         };
+        let inherited_origin = self.inherited_impl_origin(witness.item, &witness.reference, implementation)?;
         if let Some(program) = self.products.semantic.as_mut()
-            && let Some(scope) =
-                program.realize_impl_scope(implementation, &mut self.budget, witness.item.span)?
+            && let Some(scope) = program.realize_impl_scope(
+                implementation,
+                inherited_origin,
+                &mut self.budget,
+                witness.item.span,
+            )?
         {
             let trait_key = trait_instances::copy_key(&key.0, &mut self.budget, witness.item.span)?;
             self.budget.text(&key.1, witness.item.span)?;

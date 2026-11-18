@@ -114,6 +114,7 @@ pub(super) fn expand(
     let mut owned = BTreeSet::new();
     for (base, count) in pending {
         let mut descendants = BTreeSet::new();
+        let mut inherited = BTreeSet::new();
         budget.lineage_bytes(12 * std::mem::size_of::<SemanticInstanceId>(), span)?;
         descendants.insert(*base);
         loop {
@@ -121,14 +122,25 @@ pub(super) fn expand(
             for (_, module) in modules.iter() {
                 for row in &module.instances {
                     budget.node(span, 0)?;
-                    if row
+                    let lexical_child = row
                         .parent
-                        .is_some_and(|parent| descendants.contains(&parent))
-                        && !descendants.contains(&row.id)
-                    {
+                        .is_some_and(|parent| descendants.contains(&parent));
+                    let default_scope = matches!(row.target, SemanticInstanceTarget::Scope)
+                        && matches!(&row.self_type, Some(SemanticTypeValue::Core { scope, source: SemanticCoreTypeSource::OriginalRecipe(_) })
+                            if *scope != row.id && descendants.contains(scope));
+                    if (lexical_child || default_scope) && !descendants.contains(&row.id) {
                         budget
                             .lineage_bytes(12 * std::mem::size_of::<SemanticInstanceId>(), span)?;
                         descendants.insert(row.id);
+                        if default_scope
+                            || row.parent.is_some_and(|parent| inherited.contains(&parent))
+                        {
+                            budget.lineage_bytes(
+                                12 * std::mem::size_of::<SemanticInstanceId>(),
+                                span,
+                            )?;
+                            inherited.insert(row.id);
+                        }
                     }
                 }
             }
@@ -157,7 +169,9 @@ pub(super) fn expand(
         }
         for request in requests {
             budget.node(span, 0)?;
-            if descendants.contains(&request.caller) {
+            if descendants.contains(&request.caller)
+                && !(request.callee == *base && inherited.contains(&request.caller))
+            {
                 push(&mut calls, *request, budget)?;
             }
         }

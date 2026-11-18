@@ -13,6 +13,7 @@ impl Program {
         &mut self,
         original: s::SemanticContextMarker,
         implementation: SemanticDefinitionId,
+        selected: Option<SemanticInstanceId>,
         budget: &mut Budget<'_>,
         span: Span,
     ) -> R<s::SemanticContextMarker> {
@@ -31,7 +32,22 @@ impl Program {
                 "generic default method requires its complete method substitution",
             ));
         }
-        let implementation_scope = self.closed_lexical_scope(implementation, budget, 0)?;
+        let implementation_scope = if let Some(selected) = selected {
+            budget.identity_work(self.scope_applications.len(), span)?;
+            if !self
+                .scope_applications
+                .iter()
+                .any(|scope| scope.id == selected && scope.definition == implementation)
+            {
+                return Err(error(
+                    span,
+                    "selected default method scope names another original implementation",
+                ));
+            }
+            selected
+        } else {
+            self.closed_lexical_scope(implementation, budget, 0)?
+        };
         let find = |id| {
             self.modules
                 .iter()
@@ -153,10 +169,10 @@ impl Program {
     pub(crate) fn realize_impl_scope(
         &mut self,
         implementation: &mut s::ImplBlock,
+        mut definition: Option<SemanticDefinitionId>,
         budget: &mut Budget<'_>,
         span: Span,
     ) -> R<Option<SemanticInstanceId>> {
-        let mut definition = None;
         for member in &implementation.members {
             budget.node(member.span, 0)?;
             let s::ItemKind::Function(function) = &member.kind else {

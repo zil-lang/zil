@@ -615,13 +615,50 @@ impl Proof {
             || self.call_targets.get(&(caller, call)) != Some(&method.declaration)
             || (provider != method.declaration
                 && self.providers.get(&provider) != Some(&method.declaration))
-            || check.definition(provider)?.parent != Some(holder)
         {
             return Err(bad(
                 "parent specialization changes its complete original provider boundary",
             ));
         }
         let parent = check.definition(holder)?;
+        let actual = check.definition(provider)?;
+        if actual.parent != Some(holder) {
+            let Some(lexical) = actual.parent else {
+                return Err(bad("default provider lacks its true lexical parent"));
+            };
+            let SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl {
+                trait_application,
+                ..
+            }) = &parent.body
+            else {
+                return Err(bad(
+                    "default provider did not select an actual implementation",
+                ));
+            };
+            if provider != method.declaration
+                || !matches!(
+                    actual.body,
+                    SemanticDefinitionBody::FunctionWithBody {
+                        body: SemanticOriginalFunctionBody::Defined(_),
+                        ..
+                    }
+                )
+                || !matches!(&check.definition(lexical)?.body, SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait{declaration}) if *declaration == trait_application.declaration)
+                || application.is_none_or(|app| app.declaration != trait_application.declaration)
+            {
+                return Err(bad(
+                    "default provider changes its original method or trait scope",
+                ));
+            }
+            check.pay(self.providers.len(), 0)?;
+            for (candidate, required) in &self.providers {
+                if *required == provider && check.definition(*candidate)?.parent == Some(holder) {
+                    return Err(bad(
+                        "default provider replaces the actual implementation override",
+                    ));
+                }
+            }
+        }
         crate::dyn_metadata::semantic_operand_snapshot(receiver, limits, check.left, 1)?;
         if let Some(application) = application {
             crate::dyn_metadata::semantic_operand_snapshot(application, limits, check.left, 1)?;

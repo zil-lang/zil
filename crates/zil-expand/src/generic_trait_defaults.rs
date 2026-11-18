@@ -493,6 +493,15 @@ impl Engine<'_> {
                 })
                 .transpose()?;
             if let Some(program) = self.products.semantic.as_mut() {
+                let selected = if self.semantic_impl_scopes.is_empty() {
+                    None
+                } else {
+                    let key = (
+                        trait_instances::copy_key(&reference.key, &mut self.budget, span)?,
+                        type_key(&implementation.target, &mut self.budget)?,
+                    );
+                    self.semantic_impl_scopes.get(&key).copied()
+                };
                 let ItemKind::Function(function) = &mut body.kind else {
                     unreachable!()
                 };
@@ -510,6 +519,7 @@ impl Engine<'_> {
                 function.semantic = program.default_method_template(
                     function.semantic,
                     definition,
+                    selected,
                     &mut self.budget,
                     span,
                 )?;

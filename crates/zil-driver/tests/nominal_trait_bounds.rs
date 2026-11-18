@@ -3183,6 +3183,32 @@ fn main()->i32{let p=Point{};if first(&p)!=17{return 1}if second(&p)!=29{return 
 }
 
 #[test]
+fn inherited_trait_body_uses_its_generic_impl_request() {
+    native_both(&[(
+        "main",
+        r#"
+trait Tag<A:Copy,B:Copy>{fn base(self:&Self)->i32;fn read(self:&Self)->i32{return self.base()}}
+struct Box<T:Copy>{value:T}
+impl<T:Copy> Tag<i32,bool> for Box<T>{fn base()->i32{return 17}}
+impl<T:Copy> Tag<bool,i32> for Box<T>{fn base()->i32{return 29}}
+fn left<K:Tag<i32,bool>>(p:&K)->i32{return p.read()}
+fn right<K:Tag<bool,i32>>(p:&K)->i32{return p.read()}
+fn main()->i32{let p=Box::<bool>{value:true};if left(&p)!=17{return 1}if right(&p)!=29{return 2}let q=Box::<i32>{value:7};if right(&q)!=29{return 3}return left(&q)-17}
+"#,
+    )]);
+    native_both(&[(
+        "main",
+        r#"
+trait Score{fn score(self:&Self)->i32{return 7}}
+struct Box<T:Copy>{value:T}
+impl<T:Copy> Score for Box<T>{}
+fn score<K:Score>(x:&K)->i32{return x.score()}
+fn main()->i32{let a=Box::<i32>{value:5};let b=Box::<bool>{value:true};if score(&a)!=7{return 1}return score(&b)-7}
+"#,
+    )]);
+}
+
+#[test]
 fn trait_default_default_body_keeps_private_helper_module_and_actual_host_dependencies() {
     native_both(&[
         (
