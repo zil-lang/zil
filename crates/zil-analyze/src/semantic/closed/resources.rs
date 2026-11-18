@@ -420,6 +420,61 @@ impl Check<'_, '_> {
         let value = self.resolved_raw(context, input, b, depth)?;
         self.capture_class_value(value, b)
     }
+    /// An original call can return another closure while transporting the
+    /// entire intrinsic directory of the closure it receives. Check that
+    /// exact operation and both whole values before reading its result map.
+    fn closure_call_claim(
+        &self,
+        context: &SemanticInstance,
+        function: &TypedFunction,
+        source: ValueId,
+        actual: &Value,
+        expected_ty: &Type,
+        expected_life: &StorageLifeShape,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Option<Value>> {
+        if !matches!((&actual.ty, expected_ty), (Type::Closure(a), Type::Closure(b)) if a != b)
+            || actual.classes.len() != actual.life.binder_count as usize
+            || actual.classes.len() != expected_life.binder_count as usize
+        {
+            return Ok(None);
+        }
+        let actual = self.capture_class_value(actual.copy(b)?, b)?;
+        let mut selected = None;
+        for block in &function.blocks {
+            for (index, instruction) in block.instructions.iter().enumerate() {
+                b.spend(1, WORK)?;
+                let (InstructionKind::Call { arguments, .. }
+                    | InstructionKind::SuspendCall { arguments, .. }) = &instruction.kind else {
+                        continue;
+                    };
+                let Some(result) = instruction.result else { continue; };
+                if function.values.get(result.0 as usize) != Some(expected_ty) {
+                    continue;
+                }
+                b.spend(arguments.len(), WORK)?;
+                if !arguments.contains(&source) {
+                    continue;
+                }
+                operations::available_before(
+                    function, (block.id, index, SemanticSiteEdge::Before), source, b,
+                )?;
+                let result = self.ssa_value(context, function, result, b, depth + 1)?;
+                let result = self.capture_class_value(result, b)?;
+                crate::dyn_metadata::shape(&result.life, b)?;
+                b.spend(actual.classes.len().saturating_add(result.classes.len()), WORK)?;
+                if result.life != *expected_life || result.classes != actual.classes {
+                    continue;
+                }
+                if selected.replace(result).is_some() {
+                    return Err(fail("closure call claim has competing original input/result occurrences"));
+                }
+            }
+        }
+        Ok(selected)
+    }
+
     fn resolved_raw(
         &self,
         context: &SemanticInstance,
@@ -480,14 +535,21 @@ impl Check<'_, '_> {
             let actual = self.ssa_value(context, function, *source, b, depth + 1)?;
             crate::dyn_metadata::shape(&actual.life, b)?;
             crate::dyn_metadata::shape(life, b)?;
-            if !geometry::same_type(&actual.ty, ty, b)?
-                || actual.life != *life
-                || actual.classes.len() != classes.len()
-                || classes.len() != life.binder_count as usize
+            if geometry::same_type(&actual.ty, ty, b)?
+                && actual.life == *life
+                && actual.classes.len() == classes.len()
+                && classes.len() == life.binder_count as usize
             {
-                return Err(fail("whole SSA claim changes its complete actual Type, domain or class directory"));
+                return Ok(actual);
             }
-            Ok(actual)
+            if classes.len() == life.binder_count as usize
+                && let Some(result) = self.closure_call_claim(
+                    context, function, *source, &actual, ty, life, b, depth + 1,
+                )?
+            {
+                return Ok(result);
+            }
+            Err(fail("whole SSA claim changes its complete actual Type, domain or class directory"))
             })();
             self.value_queries.borrow_mut().remove(&key);
             return result;
