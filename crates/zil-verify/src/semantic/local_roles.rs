@@ -1,4 +1,4 @@
-//! Directed shared-local transport after every original branch and actual
+//! Directed local pointer transport after every original branch and actual
 //! world has passed. These rows carry equations, never roots or permissions.
 use super::*;
 use std::collections::BTreeSet;
@@ -91,7 +91,12 @@ impl CheckedContext {
         let row = rows
             .next()
             .ok_or_else(|| bad("shared local transport has no complete outer role"))?;
-        if rows.next().is_some() || row.mode != StoredBorrowMode::SharedAddress {
+        let mode = match normalized.ty {
+            Type::Address { mutable: false, .. } => StoredBorrowMode::SharedAddress,
+            Type::Address { mutable: true, .. } => StoredBorrowMode::ExclusiveAddress,
+            _ => return Err(bad("local transport requires an actual address")),
+        };
+        if rows.next().is_some() || row.mode != mode {
             return Err(bad(
                 "shared local transport has another complete address mode",
             ));
@@ -419,7 +424,7 @@ impl CheckedContext {
                     .get(local.0 as usize)
                     .ok_or_else(|| bad("shared local export target is absent"))?
                     .ty;
-                if !matches!(ty, Type::Address { mutable: false, .. }) {
+                if !matches!(ty, Type::Address { .. }) {
                     return Err(bad(
                         "shared local export changes its actual address category",
                     ));
@@ -488,6 +493,11 @@ impl CheckedContext {
                         .saturating_add(1),
                 )?;
                 let creator = self.local_role_creator(module, instance, write.ordinal, b)?;
+                let original_type = &f.locals.get(creator.0 as usize)
+                    .ok_or_else(|| bad("local pointer role has no creating local"))?.ty;
+                dynamic_metadata::ty(ty, b)?;
+                dynamic_metadata::ty(original_type, b)?;
+                if ty != original_type { return Err(bad("local pointer transport changes its creating address mode or referent")); }
                 if !writes
                     .get(&(instance.id, creator))
                     .is_some_and(|row| row.ordinal == write.ordinal && !row.sites.is_empty())

@@ -1054,23 +1054,23 @@ fn trace_steps(
             }
             ViewBorrowStepKind::Alias { binding } => {
                 let local = binding_local(world, instance, original, *binding, step.node)?;
-                // An immutable alias's returned Load carries the referent
-                // after ScopeExit retires only its pointer cell. Following
-                // the exact unique initializer still reaches and validates
-                // the real capture/input/local referent below.
-                if !return_boundary {
-                    world.local(locals, local)?;
-                }
-                match cursor {
-                    Cursor::Value(value) if matches!(producer(world, function, value)?.0, InstructionKind::Load(actual) if *actual == local) =>
-                        {}
-                    Cursor::Local(actual) if actual == local => {}
-                    _ => {
-                        return Err(bad(
-                            "projected loan alias does not read its real original local",
-                        ));
+                // An actual load or move reads the previous occupant. At a
+                // later reborrow the pointer cell may already be empty.
+                let observed = match cursor {
+                    Cursor::Value(value) => {
+                        let (operation, block, index) = producer(world, function, value)?;
+                        if !matches!(operation, InstructionKind::Load(found) | InstructionKind::TakeLocal { local: found } if *found == local) {
+                            return Err(bad("projected loan alias does not read its real original local"));
+                        }
+                        world.get(values, value)?;
+                        Some((block, index))
                     }
-                }
+                    Cursor::Local(found) if found == local => {
+                        if !return_boundary { world.local(locals, local)?; }
+                        None
+                    }
+                    _ => return Err(bad("projected loan alias does not read its real original local")),
+                };
                 let mut incoming = None;
                 for block in &function.blocks {
                     world.pay(block.instructions.len())?;
@@ -1088,9 +1088,14 @@ fn trace_steps(
                         }
                     }
                 }
-                cursor = Cursor::Value(
-                    incoming.ok_or_else(|| bad("projected input alias has no real initializer"))?,
-                );
+                let incoming = incoming.ok_or_else(|| bad("projected input alias has no real initializer"))?;
+                if let Some(at) = observed {
+                    let reaching = reaching_values(world, function, local, at)?;
+                    if reaching.as_slice() != [ActivationSource::Value(incoming)] {
+                        return Err(bad("projected input alias read changes its original initializer"));
+                    }
+                }
+                cursor = Cursor::Value(incoming);
             }
             ViewBorrowStepKind::ReadLocal { binding } => {
                 if root != ViewBorrowRoot::Local(*binding) {

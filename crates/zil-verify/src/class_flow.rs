@@ -2017,16 +2017,12 @@ fn check_with(
                                     "shared local Store lacks its exact completed original/actual transition",
                                 ));
                             }
-                            if !matches!(
-                                f.locals[local.0 as usize].ty,
-                                Type::Address { mutable: false, .. }
-                            ) || !matches!(
-                                f.values[value.0 as usize],
-                                Type::Address { mutable: false, .. }
-                            ) {
-                                return Err(bad(
-                                    "shared local transport changes actual address mode",
-                                ));
+                            let target = &f.locals[local.0 as usize].ty;
+                            let source = &f.values[value.0 as usize];
+                            dynamic_metadata::ty(target, b)?;
+                            dynamic_metadata::ty(source, b)?;
+                            if !matches!(target, Type::Address { .. }) || source != target {
+                                return Err(bad("local pointer transport changes its actual address mode or referent"));
                             }
                             // The exact checked Store transports only its
                             // shared outer role. All complete referent classes

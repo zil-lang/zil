@@ -63,7 +63,7 @@ impl Check<'_, '_> {
         if write.anchor.is_some()
             && let InstructionKind::ReborrowAddress {
                 address,
-                mutable: false,
+                mutable,
             } = instruction.kind
         {
             operations::available_before(
@@ -81,10 +81,10 @@ impl Check<'_, '_> {
                 .get(id.0 as usize)
                 .ok_or_else(|| fail("reference reborrow has no complete result type"))?;
             if !crate::semantic::geometry::same_type(parent, output, b)?
-                || !matches!(parent, Type::Address { mutable: false, .. })
+                || !matches!(parent, Type::Address { mutable: mode, .. } if *mode == mutable)
             {
                 return Err(fail(
-                    "reference role reborrow changes its full shared parent type",
+                    "reference role reborrow changes its complete parent address type and mode",
                 ));
             }
             // This is a directed use of this real parent, never equality of
@@ -149,17 +149,19 @@ impl Check<'_, '_> {
             .ok_or_else(|| fail("reference role has no exact actual local"))?;
         if !actual.mutable
             || !crate::semantic::geometry::same_type(&actual.ty, &role.value.ty, b)?
-            || !matches!(actual.ty, Type::Address { mutable: false, .. })
+            || !matches!(actual.ty, Type::Address { .. })
         {
             return Err(fail(
-                "reference role changes its actual mutable shared-reference binding",
+                "reference role changes its actual mutable reference binding",
             ));
         }
         let [head] = role.value.life.slots.as_slice() else {
             return Err(fail("reference role has no unique complete outer head"));
         };
         if !head.path.is_empty()
-            || head.mode != StoredBorrowMode::SharedAddress
+            || head.mode != if matches!(actual.ty, Type::Address { mutable: true, .. }) {
+                StoredBorrowMode::ExclusiveAddress
+            } else { StoredBorrowMode::SharedAddress }
             || role.value.classes.get(head.binder as usize)
                 != Some(&Class::Implicit(instance.id, role.ordinal))
         {
@@ -269,7 +271,7 @@ impl Check<'_, '_> {
     ) -> CompileResult<Option<Value>> {
         if !matches!(
             function.locals.get(local.0 as usize).map(|row| &row.ty),
-            Some(Type::Address { mutable: false, .. })
+            Some(Type::Address { .. })
         ) {
             return Ok(None);
         }
@@ -291,7 +293,7 @@ impl Check<'_, '_> {
         b.spend(1, WORK)?;
         if !matches!(
             function.locals.get(local.0 as usize).map(|row| &row.ty),
-            Some(Type::Address { mutable: false, .. })
+            Some(Type::Address { .. })
         ) {
             return Ok(None);
         }

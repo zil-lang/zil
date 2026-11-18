@@ -1,4 +1,4 @@
-//! A mutable shared-reference binding has one original region role. Each
+//! A mutable reference binding has one original region role. Each
 //! write contributes its complete source separately; no RHS life is equated
 //! with this role or with another write's life.
 use super::*;
@@ -72,7 +72,7 @@ impl Solver<'_, '_> {
         if !self.same_original(local.ty, role.value, b, depth + 1)? {
             return Err(fail("moved capture changes its original lexical reference role"));
         }
-        let Kind::Address { mutable: false, inner, .. } =
+        let Kind::Address { mutable, inner, .. } =
             self.state.arena[self.type_root(role.value, b)?] else {
                 return Err(fail("moved reference capture changes its original pointer mode"));
             };
@@ -89,11 +89,11 @@ impl Solver<'_, '_> {
             if !self.same_original(write.value, declared, b, depth + 1)? {
                 return Err(fail("moved capture write disagrees with its exact original input"));
             }
-            let Kind::Address { mutable: false, life, inner: source_inner } =
+            let Kind::Address { mutable: source_mode, life, inner: source_inner } =
                 self.state.arena[self.type_root(declared, b)?] else {
                     return Err(fail("moved reference capture source changes its pointer mode"));
                 };
-            if !self.same_original(inner, source_inner, b, depth + 1)? {
+            if mutable != source_mode || !self.same_original(inner, source_inner, b, depth + 1)? {
                 return Err(fail("moved reference capture changes its complete pointee"));
             }
             if let Some(previous) = common {
@@ -105,7 +105,7 @@ impl Solver<'_, '_> {
             }
         }
         let life = common.ok_or_else(|| fail("moved reference capture has no original initializer"))?;
-        self.term(Kind::Address { mutable: false, life, inner }, b)
+        self.term(Kind::Address { mutable, life, inner }, b)
     }
 
     fn reference_binding_occurrence(
@@ -144,7 +144,7 @@ impl Solver<'_, '_> {
             return Ok(None);
         }
         let Kind::Address {
-            mutable: false,
+            mutable: mode,
             inner,
             ..
         } = self.state.arena[self.type_root(actual, b)?]
@@ -155,7 +155,7 @@ impl Solver<'_, '_> {
         let life = self.term(Kind::Life(Life::Implicit(frame.definition, ordinal)), b)?;
         let value = self.term(
             Kind::Address {
-                mutable: false,
+                mutable: mode,
                 life,
                 inner,
             },
@@ -212,9 +212,9 @@ impl Solver<'_, '_> {
             b.spend(1, WORK)?;
             if role.ordinal != ordinal { continue; }
             if selected.is_some() { return Err(fail("reference region has competing original declarations")); }
-            let Kind::Address { mutable: false, life, inner } =
+            let Kind::Address { mutable: mode, life, inner } =
                 self.state.arena[self.type_root(role.value, b)?] else {
-                return Err(fail("reference region changes its complete shared value constructor"));
+                return Err(fail("reference region changes its complete address constructor"));
             };
             if !matches!(self.state.arena[self.root(life, b)?], Kind::Life(Life::Implicit(at, index)) if at == owner && index == ordinal) {
                 return Err(fail("reference region leaves its exact original binding occurrence"));
@@ -224,11 +224,11 @@ impl Solver<'_, '_> {
             for write in &role.writes {
                 b.spend(1, WORK)?;
                 if self.reference_static_source(*scope, write.expression, b, depth + 1)? { continue; }
-                let Kind::Address { mutable: false, life: source, inner: child } =
+                let Kind::Address { mutable: source_mode, life: source, inner: child } =
                     self.state.arena[self.type_root(write.value, b)?] else {
                     return Err(fail("reference region source changes its full original constructor"));
                 };
-                if !self.same_original(inner, child, b, depth + 1)? {
+                if source_mode != mode || !self.same_original(inner, child, b, depth + 1)? {
                     return Err(fail("reference region source changes its invariant whole pointee domain"));
                 }
                 // A self-copy supplies no new bound. In particular it cannot
@@ -279,21 +279,22 @@ impl Solver<'_, '_> {
         let actual_root = self.type_root(actual, b)?;
         let (
             Kind::Address {
-                mutable: false,
+                mutable: target_mode,
                 inner: expected,
                 ..
             },
             Kind::Address {
-                mutable: false,
+                mutable: source_mode,
                 inner: actual_inner,
                 ..
             },
         ) = (&self.state.arena[expected], &self.state.arena[actual_root])
         else {
             return Err(fail(
-                "reference assignment changes its shared-address category",
+                "reference assignment changes its address category",
             ));
         };
+        if target_mode != source_mode { return Err(fail("reference assignment changes its original pointer mode")); }
         // The entire pointee domain, including phantom classes, is invariant.
         self.unify(*expected, *actual_inner, depth + 1, b)?;
         let role = self
@@ -418,7 +419,6 @@ impl Solver<'_, '_> {
                     continue;
                 }
                 let Kind::Address {
-                    mutable: false,
                     life: source,
                     ..
                 } = self.state.arena[self.type_root(write.value, b)?]

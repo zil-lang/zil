@@ -1,4 +1,4 @@
-//! A mutable shared-address local has one lexical outer role. Every original
+//! A mutable address local has one lexical outer role. Every original
 //! initializer/assignment contributes a directed dependency; none establishes
 //! equality between independent inputs or changes the referent's full type.
 use super::*;
@@ -20,7 +20,7 @@ impl CheckedOriginal{
     }
     pub(super) fn introduce_shared_local(&mut self,module:&TypedModule,context:&CheckedContext,node:NodeId,actual:&Ty,env:&Env,b:&mut Budget)->Check<Ty>{
         let actual=self.resolved(actual,b)?;
-        let Ty::Address{mutable:false,life,inner}=actual else{return Ok(actual);};
+        let Ty::Address{mutable,life,inner}=actual else{return Ok(actual);};
         let owner=env.current()?;let ordinal=self.local_role_ordinal(module,context,owner,node,b)?;
         let source=self.resolved_life(&life,b)?;
         if matches!(source,Life::Infer(_)){return Err(bad("shared local initializer has an unresolved original lifetime"));}
@@ -29,7 +29,7 @@ impl CheckedOriginal{
         let role=self.local_roles.entry((owner,node)).or_insert_with(||LocalRole{ordinal,sources:BTreeSet::new()});
         if role.ordinal!=ordinal{return Err(bad("shared local changes its original lifetime role"));}
         b.spend(role.sources.len().saturating_add(1))?;role.sources.insert(source);
-        Ok(Ty::Address{mutable:false,life:Life::Implicit(owner,ordinal),inner})
+        Ok(Ty::Address{mutable,life:Life::Implicit(owner,ordinal),inner})
     }
     pub(super) fn shared_local_assignment(&mut self,module:&TypedModule,context:&CheckedContext,target:&SemanticOriginalExpr,value:&SemanticOriginalExpr,expected:&Ty,place:Option<&Place>,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
         let Some(Place{binder:Binder::Local{definition,node,..},fields})=place else{return Ok(false);};
@@ -37,11 +37,12 @@ impl CheckedOriginal{
         let Some(role)=self.local_roles.get(&(*definition,*node))else{return Ok(false);};let ordinal=role.ordinal;
         b.spend(self.value_places.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
         if self.value_places.get(&(*definition,target.id))!=place{return Err(bad("shared local assignment loses its exact original target Place"));}
-        let Ty::Address{mutable:false,life,inner}=self.resolved(expected,b)? else{return Err(bad("shared local role changed its original address category"));};
+        let Ty::Address{mutable,life,inner}=self.resolved(expected,b)? else{return Err(bad("shared local role changed its original address category"));};
         if self.resolved_life(&life,b)?!=Life::Implicit(*definition,ordinal){return Err(bad("shared local assignment selects another lexical lifetime role"));}
-        let contextual=Ty::Address{mutable:false,life:self.fresh_life(b)?,inner};
+        let contextual=Ty::Address{mutable,life:self.fresh_life(b)?,inner};
         let actual=self.expression(module,context,value,env,bindings,Some(&contextual),active,b)?;
-        let Ty::Address{mutable:false,life:source,inner:actual_inner}=self.resolved(&actual,b)?else{return Err(bad("shared local assignment has another actual address mode"));};
+        let Ty::Address{mutable:source_mode,life:source,inner:actual_inner}=self.resolved(&actual,b)?else{return Err(bad("shared local assignment has another actual address mode"));};
+        if mutable != source_mode { return Err(bad("local pointer assignment changes its original address mode")); }
         let Ty::Address{inner:expected_inner,..}=expected else{return Err(bad("shared local expected type was not its original address"));};
         self.unify(&actual_inner,expected_inner,b)?;
         let source=self.resolved_life(&source,b)?;if matches!(source,Life::Infer(_)){return Err(bad("shared local assignment has an unresolved original lifetime"));}let role=self.local_roles.get_mut(&(*definition,*node)).unwrap();
