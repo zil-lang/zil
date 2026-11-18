@@ -404,3 +404,33 @@ pub(super) fn binding(
         .map(|row| row.binder)
         .ok_or_else(|| failure("signature omits actual external callable class"))
 }
+
+
+// A generic F parameter may expose distinct ABI binders for two fields whose
+// original lifetimes coincide. The equality belongs to this one occupant;
+// separate arguments of the same closure type can hold different borrows.
+pub(super) fn same_output_region(
+    module: &TypedModule,
+    f: &TypedFunction,
+    dest: u32,
+    path: &Path,
+    src: u32,
+    source_path: &Path,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if binding(module, f, dest, path, b)? == binding(module, f, src, source_path, b)? {
+        return Ok(true);
+    }
+    if src != dest || path.is_empty() || source_path.is_empty() {
+        return Ok(false);
+    }
+    let local = f.parameters[dest as usize];
+    let ty = &f.locals[local.0 as usize].ty;
+    let ty = match ty { Type::Address { inner, .. } => inner.as_ref(), ty => ty };
+    let Type::Closure(id) = ty else { return Ok(false) };
+    let left = fixed(module, *id, path, 0, b)?;
+    let right = fixed(module, *id, source_path, 0, b)?;
+    ordered(b, b.semantic_capture_classes.len(), 0)?;
+    let Some(groups) = b.semantic_capture_classes.get(id) else { return Ok(false) };
+    Ok(matches!((groups.get(left as usize), groups.get(right as usize)), (Some(a), Some(c)) if a == c))
+}

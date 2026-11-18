@@ -8399,14 +8399,7 @@ fn derive_cfg(
                                 )?;
                                 if !identity
                                     && let HoldRoot::Parameter(source) = target.base
-                                    && environment_memory::binding(module, f, *index, path, b)?
-                                        != environment_memory::binding(
-                                            module,
-                                            f,
-                                            source,
-                                            &target.stored,
-                                            b,
-                                        )?
+                                    && !environment_memory::same_output_region(module, f, *index, path, source, &target.stored, b)?
                                 {
                                     return Err(failure(
                                         "external after-state changes its complete original class relation",
@@ -8438,14 +8431,7 @@ fn derive_cfg(
                                     )?;
                                     if !identity
                                         && let HoldRoot::Parameter(source) = target.base
-                                        && environment_memory::binding(module, f, *index, &path, b)?
-                                            != environment_memory::binding(
-                                                module,
-                                                f,
-                                                source,
-                                                &target.stored,
-                                                b,
-                                            )?
+                                        && !environment_memory::same_output_region(module, f, *index, &path, source, &target.stored, b)?
                                     {
                                         return Err(failure(
                                             "referent after-state changes its original complete class relation",

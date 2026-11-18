@@ -1172,6 +1172,34 @@ pub(super) fn check(
         // directory, real constructors and original class images. Preserve the
         // nonzero domain; this table is never a zero/Copy/loan certificate.
         b.lookup(b.semantic_closures_proven.len(), WORK)?;
+        if let Some(header) = &closure.storage_life
+            && header.fixed_binder_count > 1
+            && closure.captures.iter().any(crate::stored_callables::mutable_context_capture)
+        {
+            let worlds = checker.function_worlds(closure.function, b)?;
+            if worlds.is_empty() {
+                return Err(fail("captured context has no original creator world"));
+            }
+            let count = header.fixed_binder_count;
+            b.spend(count as usize, WORK)?;
+            let mut groups = vec![0; count as usize];
+            for world in worlds {
+                if !world.environment.as_ref().is_some_and(|env|
+                    env.closure == SemanticClosureTarget::Typed(closure.id)) {
+                    return Err(fail("captured context selects another original creator"));
+                }
+                // Refine the partition at each world. Different Fixed slots
+                // stay distinct ABI positions even when their images coincide.
+                let mut representatives = BTreeMap::new();
+                for (ordinal, group) in (0..count).zip(&mut groups) {
+                    let image = checker.header_class(world, StorageBinder::Fixed(ordinal), b)?;
+                    b.lookup(representatives.len(), WORK)?;
+                    *group = *representatives.entry((*group, image)).or_insert(ordinal);
+                }
+            }
+            b.lookup(b.semantic_capture_classes.len(), WORK)?;
+            b.semantic_capture_classes.insert(closure.id, groups);
+        }
         b.semantic_closures_proven.insert(closure.id);
     }
     for declaration in &module.dyn_declarations {

@@ -86,6 +86,9 @@ pub(super) struct Budget {
     // Complete original/actual class relation for this immutable request,
     // including nonzero phantom domains. No memory/cleanup permission.
     pub(super) semantic_closures_proven: BTreeSet<zil_ir::ClosureId>,
+    // Fixed ordinals with equal original images in every checked creator
+    // world. Applies only to two paths through one actual closure occupant.
+    pub(super) semantic_capture_classes: BTreeMap<zil_ir::ClosureId, Vec<u32>>,
     // Completed original declaration/where/member/RHS and actual entry proof
     // for this immutable request. No runtime interface or vtable authority.
     pub(super) semantic_declarations_proven: BTreeSet<zil_ir::LifeDeclarationId>,
@@ -336,6 +339,7 @@ impl Budget {
             dyn_interfaces: BTreeSet::new(),
             semantic_zero_closures: BTreeSet::new(),
             semantic_closures_proven: BTreeSet::new(),
+            semantic_capture_classes: BTreeMap::new(),
             semantic_declarations_proven: BTreeSet::new(),
             semantic_dyn_tables_proven: BTreeSet::new(),
             semantic_dyn_functions_proven: BTreeSet::new(),
