@@ -302,7 +302,13 @@ pub(super) fn initialize(
             );
         }
         let flag_name = match owner {
-            TaskOwnerSlot::LocalField { index, .. } => format!("package.live.{}.{index}", local.0),
+            TaskOwnerSlot::LocalField { index, .. } => match enums::storage_shape(&function.locals[local.0 as usize].ty) {
+                Type::Array { length, .. } if index < *length => arrays::element_flag(local, index),
+                Type::Package { fields, .. } if (index as usize) < fields.len() => {
+                    format!("package.live.{}.{index}", local.0)
+                }
+                _ => return invalid("E-CODEGEN-TASK", "input owner field has no corresponding aggregate element", None),
+            },
             _ => format!("resource.live.{}", local.0),
         };
         if let Some(flag) = slots.get(&flag_name) {

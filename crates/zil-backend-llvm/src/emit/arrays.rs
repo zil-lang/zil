@@ -7,6 +7,10 @@ pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> boo
         if !element.is_copy_value() && drop_plan::value_type(element, resources))
 }
 
+pub(super) fn element_flag(local: LocalId, index: u32) -> String {
+    format!("array.live.{}.{index}", local.0)
+}
+
 impl FunctionEmitter<'_> {
     pub(super) fn owns_storage(&self, ty: &Type) -> bool {
         self.owns_resource(ty) || supported_type(ty, self.resources)
@@ -30,7 +34,7 @@ impl FunctionEmitter<'_> {
         for index in 0..length {
             if allocate {
                 self.event(m::Event::Instruction(m::Inst::new(
-                    Some(format!("array.live.{}.{}", local.0, index)),
+                    Some(element_flag(local, index)),
                     m::Op::Alloca {
                         ty: m::Ty::Int(1),
                         align: 1,
@@ -41,7 +45,7 @@ impl FunctionEmitter<'_> {
                 None,
                 m::Op::Store {
                     arg: m::Arg::new(m::Ty::Int(1), m::val(live)),
-                    ptr: m::local(format!("array.live.{}.{}", local.0, index)),
+                    ptr: m::local(element_flag(local, index)),
                     align: 1,
                 },
             )));
@@ -167,7 +171,7 @@ impl FunctionEmitter<'_> {
                     None,
                     m::Op::Store {
                         arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
-                        ptr: m::local(format!("array.live.{}.{}", local.0, index)),
+                        ptr: m::local(element_flag(local, index)),
                         align: 1,
                     },
                 )));
@@ -213,7 +217,7 @@ impl FunctionEmitter<'_> {
                     None,
                     m::Op::Store {
                         arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(true)),
-                        ptr: m::local(format!("array.live.{}.{}", local.0, index)),
+                        ptr: m::local(element_flag(local, index)),
                         align: 1,
                     },
                 )));
@@ -323,7 +327,7 @@ impl FunctionEmitter<'_> {
             Some(m::name((flag).clone())),
             m::Op::Load {
                 ty: m::Ty::Int(1),
-                ptr: m::local(format!("array.live.{}.{}", local.0, index)),
+                ptr: m::local(element_flag(local, index)),
                 align: 1,
             },
         )));
@@ -342,7 +346,7 @@ impl FunctionEmitter<'_> {
             None,
             m::Op::Store {
                 arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
-                ptr: m::local(format!("array.live.{}.{}", local.0, index)),
+                ptr: m::local(element_flag(local, index)),
                 align: 1,
             },
         )));
