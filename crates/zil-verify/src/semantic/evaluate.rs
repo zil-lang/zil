@@ -602,7 +602,9 @@ impl CheckedContext {
         // A whole child occurrence does not replace an ordinary wrapper's
         // own complete descendants. Keep every original local index under
         // the new prefix; an opaque child retains its own separate scope.
-        if !matches!(child.ty,Type::BorrowedStorage{..}|Type::Closure(_)|Type::Task{..}|Type::MutexGuard{..}|Type::Dyn{..}|Type::OwnedDyn{..}) {
+        let inline_nominal = matches!(child.ty, Type::BorrowedStorage { .. })
+            && matches!(physical, Some(PlaceProjection::ErrorArm(_)));
+        if inline_nominal || !matches!(child.ty,Type::BorrowedStorage{..}|Type::Closure(_)|Type::Task{..}|Type::MutexGuard{..}|Type::Dyn{..}|Type::OwnedDyn{..}) {
             for row in &child.life.retained {
                 b.spend(prefix.len().saturating_add(row.path.len()).saturating_add(1))?;
                 let mut path=prefix.clone();path.extend_from_slice(&row.path);

@@ -2305,13 +2305,14 @@ pub(super) fn call_region_argument(
         world.pay(index::search(proof.call_regions.len()))?;
         let node = if let Some(region) = proof.call_regions.get(&(original.id, ordinal)) {
             world.pay(index::search(region.inputs.len()))?;
-            if call != region.call {
-                return Ok(false);
+            if call == region.call {
+                *region.inputs.get(&parameter)
+                    .ok_or_else(|| bad("call region omits its original full-ordinal argument"))?
+            } else {
+                world.pay(index::search(proof.call_borrows.len()))?;
+                let Some(node) = proof.call_borrows.get(&(original.id, call, parameter)) else { return Ok(false); };
+                *node
             }
-            *region
-                .inputs
-                .get(&parameter)
-                .ok_or_else(|| bad("call region omits its original full-ordinal argument"))?
         } else {
             // A parameter may already be fixed to a mutable local's original
             // role by an invariant inner type. That role is not a fresh call

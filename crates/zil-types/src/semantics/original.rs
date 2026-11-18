@@ -2662,7 +2662,13 @@ impl<'a> Check<'a, '_> {
             let authenticates_context = contextual_callee
                 .and_then(|child| self.contextual_code_inputs.get(&child))
                 .is_some_and(|parameters| parameters.contains(&(parameter_ordinal as u32)));
-            let hint = if authenticates_context || matches!(parameter.ty, SemanticTypeRecipe::Desc { .. }) {
+            // A direct local borrow has its own source occurrence. A prior
+            // invariant argument can fix the formal's lifetime, but only the
+            // separate call-site reborrow may use that selected lifetime.
+            let direct_borrow = matches!(parameter.ty, SemanticTypeRecipe::Address { .. })
+                && matches!(&argument.kind, CoreExprKind::Unary { op: UnaryOp::Borrow | UnaryOp::BorrowMut, operand }
+                    if matches!(operand.kind, CoreExprKind::Name(_)));
+            let hint = if authenticates_context || direct_borrow || matches!(parameter.ty, SemanticTypeRecipe::Desc { .. }) {
                 // Describe receives the existing descriptor or an observation
                 // of a real freshly evaluated owner. An expected Desc cannot
                 // be imposed on the producer's Managed result.

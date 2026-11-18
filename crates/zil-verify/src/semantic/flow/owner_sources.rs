@@ -262,6 +262,7 @@ impl CheckedContext{
                 let expected=scalar::closed(&pattern,&carrier,module.target.pointer_width,b)?.ok_or_else(||bad("address signed scalar literal remains unresolved"))?;
                 if &expected!=actual{return Err(bad("address signed literal changes its exact original bits"));}Ok(())
             },
+            (CoreExprKind::Unary{op:UnaryOp::Dereference,operand},InstructionKind::ReadAddress{address})=>self.exact_expression_value(module,caller,f,*address,operand.id,b),
             (CoreExprKind::Unary{op,operand},InstructionKind::Unary{op:actual,operand:input})if op==actual=>self.exact_expression_value(module,caller,f,*input,operand.id,b),
             (CoreExprKind::Binary{op,left,right},InstructionKind::Binary{op:actual,left:a,right:z})if op==actual=>{self.exact_expression_value(module,caller,f,*a,left.id,b)?;self.exact_expression_value(module,caller,f,*z,right.id,b)},
             (CoreExprKind::NumericConvert{value:input,..}|CoreExprKind::IntegerConvert{value:input,..},InstructionKind::ConvertInteger{value:actual,target}|InstructionKind::ConvertNumber{value:actual,target})if target==&carrier=>self.exact_expression_value(module,caller,f,*actual,input.id,b),

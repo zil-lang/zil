@@ -371,16 +371,14 @@ impl Check<'_, '_> {
                         .call_regions
                         .get_mut(&key)
                         .ok_or_else(|| bad("call region lost its argument directory"))?;
-                    if row.call == call.id {
-                        if row
-                            .inputs
-                            .insert(input.parameter, input.expression.id)
-                            .is_some_and(|old| old != input.expression.id)
-                        {
-                            return Err(bad(
-                                "call region changes its exact original argument occurrence",
-                            ));
-                        }
+                    if row.call != call.id {
+                        // Another argument may have fixed this lifetime to a
+                        // prior call. Its source directory belongs to that call.
+                        continue;
+                    }
+                    if row.inputs.insert(input.parameter, input.expression.id)
+                        .is_some_and(|old| old != input.expression.id) {
+                        return Err(bad("call region changes its exact original argument occurrence"));
                     }
                 }
             }
@@ -426,6 +424,40 @@ impl Check<'_, '_> {
                 } => operand.as_ref(),
                 _ => input.expression,
             };
+            if let Some(key) = self.region_key(owner, target, depth + 1)? {
+                let region = self.proof.call_regions.get(&key)
+                    .ok_or_else(|| bad("inherited argument lost its original call"))?;
+                if region.call != call.id {
+                    let role = self.projected_borrow_role(owner, input.expression, operand, variables,
+                        inner, source, target, true, false, depth + 1)?
+                        .ok_or_else(|| bad("inherited call loan lacks its actual source role"))?;
+                    let outlives = match (source, target) {
+                        (SemanticOuterLifeRecipe::Class(source), SemanticOuterLifeRecipe::Class(target)) =>
+                            self.life_outlives(owner, source, target, depth + 1)?,
+                        _ => false,
+                    };
+                    if !outlives {
+                        let direct_local = |role: &BorrowRole| match (role.root, role.steps.as_slice()) {
+                            (ViewBorrowRoot::Local(root), [ViewBorrowStep { kind: ViewBorrowStepKind::Local { binding }, .. }])
+                                if *binding == root => Some(root),
+                            _ => None,
+                        };
+                        let current = direct_local(&role);
+                        let count = self.proof.call_regions[&key].inputs.len();
+                        self.pay(count.saturating_mul(self.proof.borrow_roles.len().saturating_add(1).ilog2() as usize + 1), depth)?;
+                        let region = &self.proof.call_regions[&key];
+                        if key.0 != owner || operand.id == input.expression.id || current.is_none()
+                            || !region.inputs.values().any(|prior| self.proof.borrow_roles.get(&(owner, *prior))
+                                .and_then(direct_local) == current) {
+                            return Err(bad("inherited call loan selects a different original storage cell"));
+                        }
+                    }
+                    let proof = self.proof.proof_mut()?;
+                    proof.borrow_roles.insert((owner, input.expression.id), role);
+                    proof.call_borrows.insert((owner, call.id, input.parameter), input.expression.id);
+                    continue;
+                }
+            }
             self.contextual_borrow_role(
                 owner,
                 input.expression,

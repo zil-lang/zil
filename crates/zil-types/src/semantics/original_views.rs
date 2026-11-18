@@ -1254,7 +1254,7 @@ impl Check<'_, '_> {
         depth: usize,
     ) -> R<SemanticOuterLifeRecipe> {
         if let Some(role) = self.projected_borrow_role(
-            owner, expression, operand, variables, inner, occurrence, wanted, true, depth,
+            owner, expression, operand, variables, inner, occurrence, wanted, true, true, depth,
         )? {
             self.pay(1, depth)?;
             self.proof
@@ -1319,6 +1319,7 @@ impl Check<'_, '_> {
             source,
             target,
             false,
+            false,
             depth + 1,
         )?
         else {
@@ -1345,7 +1346,7 @@ impl Check<'_, '_> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn projected_borrow_role(
+    pub(super) fn projected_borrow_role(
         &mut self,
         owner: SemanticDefinitionId,
         expression: &SemanticOriginalExpr,
@@ -1355,6 +1356,7 @@ impl Check<'_, '_> {
         occurrence: &SemanticOuterLifeRecipe,
         wanted: &SemanticOuterLifeRecipe,
         local_region: bool,
+        extend_region: bool,
         depth: usize,
     ) -> R<Option<BorrowRole>> {
         if wanted == occurrence {
@@ -1391,7 +1393,7 @@ impl Check<'_, '_> {
             snapshot_bound(bound, self.limits, self.left, depth + 1)?
         };
         let region = self.region_key(owner, wanted, depth + 1)?;
-        if local_region && region.is_some_and(|(region_owner, _)| region_owner == owner) {
+        if extend_region && region.is_some_and(|(region_owner, _)| region_owner == owner) {
             self.record_region_source(
                 owner,
                 wanted,
