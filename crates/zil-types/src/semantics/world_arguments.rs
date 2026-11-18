@@ -168,23 +168,23 @@ fn satisfy_boundary(
             ));
         }
     }
-    if matches!(actual_ty, Type::Address { mutable: false, .. })
+    let moved_capture = matches!(boundary, Boundary::Capture(_))
+        && roles::moved_capture(world, caller.id, operand, &actual, &expected, implicit)?;
+    if moved_capture || matches!(actual_ty, Type::Address { mutable: false, .. })
         && (matches!(source, roles::Source::Static)
             || matches!(
                 world.value_role_sources.get(&operand).map(|value| &value.source),
                 Some(roles::Source::Static)
             ))
     {
-        // The actual SSA retains a proved program-static source, including
-        // through a checked local role. It may satisfy this call's shorter
-        // shared outer region. The whole pointee was independently compared
-        // above, and the witness audit still pins the exact call/parameter/SSA.
-        // No class identity, root, epoch or exclusive permission is invented.
+        // The actual SSA retains the proved input image moved at this mint,
+        // or a program-static source that supplies a shorter shared view.
+        // The whole pointee and the reaching roots were checked above.
         let SemanticSiteAddress::Typed {
             block, instruction, ..
         } = site.at
         else {
-            return Err(bad("static argument has no exact actual Typed call site"));
+            return Err(bad("outer-role adaptation has no exact actual Typed site"));
         };
         world.pay(actual_roots.len().saturating_add(1))?;
         world.argument_witnesses.push(Witness {

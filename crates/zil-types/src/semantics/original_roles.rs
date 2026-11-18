@@ -127,6 +127,51 @@ impl Check<'_, '_> {
         );
         Ok(role_type)
     }
+    /// A moved capture may seal the real incoming class of its pointer.
+    /// Keep the local declaration role and every other class in its type.
+    pub(super) fn moved_capture_type(
+        &mut self,
+        owner: SemanticDefinitionId,
+        value: &Binding,
+        depth: usize,
+    ) -> R<Option<SemanticTypeRecipe>> {
+        let Query::Binding(binding) = value.origin else {
+            return Ok(None);
+        };
+        if value.origin_owner != owner || value.borrowed {
+            return Ok(None);
+        }
+        self.pay(self.proof.local_roles.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+        let Some(role) = self.proof.local_roles.get(&(owner, binding)) else {
+            return Ok(None);
+        };
+        let Some((first, rest)) = role.sources.split_first() else {
+            return Err(bad("moved local role has no complete original source"));
+        };
+        if !matches!(first.lifetime, SemanticOuterLifeRecipe::Class(_)) {
+            return Ok(None);
+        }
+        for source in std::iter::once(first).chain(rest) {
+            crate::dyn_metadata::semantic_operand_snapshot(&source.lifetime, self.limits, self.left, 1)?;
+            if source.lifetime != first.lifetime
+                || !matches!(source.escape, OriginalRoleEscape::Input { owner: scope, .. } if scope == owner)
+            {
+                return Ok(None);
+            }
+        }
+        let mut captured = copy_recipe(&value.ty, self.limits, self.left)?;
+        let lifetime = match &mut captured {
+            SemanticTypeRecipe::Address { lifetime, .. }
+            | SemanticTypeRecipe::Desc { lifetime, .. } => lifetime,
+            _ => return Err(bad("moved local role changes its original outer constructor")),
+        };
+        if !matches!(lifetime, SemanticOuterLifeRecipe::Class(image) if *image == role.lifetime) {
+            return Err(bad("moved local role changes its original declaration occurrence"));
+        }
+        *lifetime = first.lifetime.clone();
+        Ok(Some(captured))
+    }
+
     /// Existing sources establish only incoming directed bounds for a mutable
     /// local role. They never identify that role with an input, nor prove that
     /// the role outlives its sources (which later writes may extend).

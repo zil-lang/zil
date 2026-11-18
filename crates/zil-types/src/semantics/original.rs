@@ -3901,7 +3901,24 @@ impl<'a> Check<'a, '_> {
                                 }
                             };
                             if matches {
-                                let parent_type = copy_recipe(&value.ty, self.limits, self.left)?;
+                                let move_view = if *move_capture
+                                    && matches!(source, SemanticOriginalTypeSource::NameAt { .. })
+                                {
+                                    self.moved_capture_type(owner, &value, depth + 1)?
+                                } else {
+                                    None
+                                };
+                                let parent_type = if let Some(move_view) = move_view {
+                                    let snapshot = copy_recipe(&move_view, self.limits, self.left)?;
+                                    self.pay(name.len().saturating_add(1), depth)?;
+                                    self.proof.proof_mut()?.types.insert(
+                                        (owner, Query::from(source.clone())),
+                                        snapshot,
+                                    );
+                                    move_view
+                                } else {
+                                    copy_recipe(&value.ty, self.limits, self.left)?
+                                };
                                 self.proof
                                     .proof_mut()?
                                     .environments

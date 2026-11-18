@@ -414,6 +414,38 @@ pub(super) fn store(
     Ok(Some((expected, source)))
 }
 
+/// Recheck the exact incoming image of the pointer moved into a closure.
+pub(super) fn moved_capture(
+    world: &mut World<'_, '_>,
+    scope: SemanticInstanceId,
+    operand: ValueId,
+    actual: &SemanticTypeValue,
+    expected: &SemanticTypeValue,
+    implicit: &BTreeMap<u32, SemanticClassExpr>,
+) -> R<bool> {
+    if !matches!(World::type_of(expected)?, Type::Address { .. } | Type::Desc(_))
+        || World::type_of(actual)? != World::type_of(expected)?
+    {
+        return Ok(false);
+    }
+    world.pay(index::search(world.value_role_sources.len()))?;
+    let Some(Incoming { source: Source::Class(incoming), .. }) = world.value_role_sources.get(&operand) else {
+        return Ok(false);
+    };
+    crate::dyn_metadata::semantic_operand_snapshot(incoming, world.limits, world.left, 1)?;
+    let incoming = incoming.clone();
+    let Source::Class(target) = outer(world, expected)? else {
+        return Ok(false);
+    };
+    if world.class(scope, &incoming, implicit)? != world.class(scope, &target, implicit)? {
+        return Ok(false);
+    }
+    let pointee = world.pointee(actual)?;
+    let transported = world.address(World::type_of(actual)?, incoming, &pointee)?;
+    world.same(scope, &transported, expected, implicit)?;
+    Ok(true)
+}
+
 /// Source bounds remain attached to a live class even after an outer role has
 /// entered a nominal whole value. An unproved local origin cannot become a
 /// stable loop identity merely because the raw outer class was adapted.
