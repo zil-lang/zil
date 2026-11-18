@@ -490,6 +490,26 @@ impl CheckedOriginal {
                     b,
                 )
             }
+            Ty::Infer(_) if callee_place.is_some() => {
+                if written_types.is_some() || written_mixed.is_some() {
+                    return Err(bad("an inferred indirect invocation has a generic application"));
+                }
+                b.spend(arguments.len().saturating_add(1))?;
+                let mut inputs = Vec::with_capacity(arguments.len());
+                for argument in arguments {
+                    let slot = self.fresh(b)?;
+                    let value = self.argument(module, context, argument, &slot,
+                        PassingMode::Infer, env, bindings, active, b)?;
+                    inputs.push(value);
+                }
+                self.execute_effect(env, CallKind::Direct, b)?;
+                let result = self.fresh(b)?;
+                self.deferred_code_calls.push(DeferredCodeCall {
+                    owner: env.current()?, span: call.span, callee: callee_type,
+                    arguments: inputs, result: result.clone(),
+                });
+                Ok(result)
+            }
             Ty::Code {
                 parameters,
                 result,
@@ -500,6 +520,9 @@ impl CheckedOriginal {
                 invocation_lifetimes,
                 ..
             } => {
+                if written_types.is_some() || written_mixed.is_some() {
+                    return Err(bad("original function pointer invocation has a generic application"));
+                }
                 let mut code_environment=env.clone();
                 code_environment.invocation=Self::code_invocation_frame(&parameters,&result,invocation_lifetimes,b)?;
                 let prototype = Prototype {

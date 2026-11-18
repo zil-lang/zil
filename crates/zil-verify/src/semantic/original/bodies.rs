@@ -48,6 +48,7 @@ impl CheckedOriginal {
         }
         let inferred_result=self.results.get(&id).cloned().ok_or_else(||bad("original result inference slot absent"))?;
         if !matches!(&prototype.result,Ty::Opaque(owner,_)if *owner==id){self.unify(&inferred_result,&prototype.result,b)?;}
+        self.prepare_fallible_result(id,&prototype.result,b)?;
         self.prototypes.insert(id,prototype.clone());
         for binding in bindings.values(){self.declare(&prototype.environment,binding,b)?;}
         let mut equalities=Vec::new();
@@ -76,6 +77,7 @@ impl CheckedOriginal {
             },
             SemanticOriginalFunctionBody::Declaration=>self.abstract_method(module,context,definition,&prototype,active,b)?,
         }
+        self.finish_return_injections(id,b)?;
         self.check_opaque_result(module,context,id,&prototype.environment,active,b)?;
         if definition.kind==SemanticDefinitionKind::Closure {
             let consumes=self.uses.get(&id).is_some_and(|uses|uses.moved.iter().any(|place|matches!(place.binder,Binder::Capture{..})));
@@ -192,7 +194,38 @@ impl CheckedOriginal {
     }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn condition_original(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {let ty=self.expression(module,context,expression,env,bindings,Some(&Ty::Atom(Type::Bool)),active,b)?;self.unify(&ty,&Ty::Atom(Type::Bool),b)}
-    pub(super) fn numeric_binary_original(&mut self,op:BinaryOp,left:&Ty,right:&Ty,b:&mut Budget)->Check<Ty>{self.unify(left,right,b)?;let ty=self.resolved(left,b)?;let valid=if self.integer_variable(&ty){!matches!(op,BinaryOp::And|BinaryOp::Or)}else{let Ty::Atom(ref atom)=ty else{return Err(unsupported("original arithmetic needs a proved scalar operator contract",None));};match op{BinaryOp::And|BinaryOp::Or=>*atom==Type::Bool,BinaryOp::Equal|BinaryOp::NotEqual=>atom.is_integer()||atom.is_float()||matches!(atom,Type::Bool|Type::ForeignHandle),BinaryOp::Less|BinaryOp::LessEqual|BinaryOp::Greater|BinaryOp::GreaterEqual=>atom.is_integer()||atom.is_float(),BinaryOp::Add|BinaryOp::Subtract|BinaryOp::Multiply|BinaryOp::Divide|BinaryOp::Remainder=>atom.is_integer()||atom.is_float(),_=>atom.is_integer()}};if !valid{return Err(bad("original binary operator is invalid for its complete scalar carrier"));}Ok(if matches!(op,BinaryOp::And|BinaryOp::Or|BinaryOp::Equal|BinaryOp::NotEqual|BinaryOp::Less|BinaryOp::LessEqual|BinaryOp::Greater|BinaryOp::GreaterEqual){Ty::Atom(Type::Bool)}else{ty})}
+    pub(super) fn numeric_binary_original(&mut self, op: BinaryOp, left: &Ty, right: &Ty, b: &mut Budget) -> Check<Ty> {
+        self.unify(left, right, b)?;
+        let ty = self.resolved(left, b)?;
+        if matches!(ty, Ty::Infer(_)) && !self.integer_variable(&ty) {
+            b.spend(1)?;
+            self.deferred_binary.push((op, ty.clone()));
+        } else {
+            self.check_binary_carrier(op, &ty)?;
+        }
+        Ok(if matches!(op, BinaryOp::And | BinaryOp::Or | BinaryOp::Equal | BinaryOp::NotEqual | BinaryOp::Less | BinaryOp::LessEqual | BinaryOp::Greater | BinaryOp::GreaterEqual) {
+            Ty::Atom(Type::Bool)
+        } else { ty })
+    }
+
+    pub(super) fn check_binary_carrier(&self, op: BinaryOp, ty: &Ty) -> Check<()> {
+        use BinaryOp::*;
+        let valid = if self.integer_variable(ty) {
+            !matches!(op, And | Or)
+        } else {
+            let Ty::Atom(atom) = ty else {
+                return Err(unsupported("original arithmetic needs a proved scalar operator contract", None));
+            };
+            match op {
+                And | Or => *atom == Type::Bool,
+                Equal | NotEqual => atom.is_integer() || atom.is_float() || matches!(atom, Type::Bool | Type::ForeignHandle),
+                Less | LessEqual | Greater | GreaterEqual | Add | Subtract | Multiply | Divide | Remainder => atom.is_integer() || atom.is_float(),
+                _ => atom.is_integer(),
+            }
+        };
+        if !valid { return Err(bad("original binary operator is invalid for its complete scalar carrier")); }
+        Ok(())
+    }
 }
 
 impl CheckedOriginal {
@@ -237,7 +270,7 @@ impl CheckedOriginal {
     pub(super) fn contextual_numeric_literal(expression:&SemanticOriginalExpr,b:&mut Budget)->Check<bool>{
         Self::untyped_numeric_tree(expression,false,b)
     }
-    fn untyped_numeric_tree(expression:&SemanticOriginalExpr,integers_only:bool,b:&mut Budget)->Check<bool>{
+    pub(super) fn untyped_numeric_tree(expression:&SemanticOriginalExpr,integers_only:bool,b:&mut Budget)->Check<bool>{
         let mut pending=vec![expression];
         while let Some(expression)=pending.pop(){
             b.spend(1)?;

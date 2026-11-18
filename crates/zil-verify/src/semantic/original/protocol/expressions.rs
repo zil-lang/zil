@@ -170,21 +170,20 @@ impl Engine<'_> {
                     }
                     return Ok(Value::FreshTask(sources.clone()));
                 }
-                if let Value::FallibleTask(sources)=&value {
-                    b.spend(self.error_unwind.len())?;
-                    let deferred = self.error_unwind.clone();
-                    let error = self.unwind(state.copy(b)?, &deferred, 0, depth + 1, b)?;
-                    self.error_unwind = deferred;
-                    self.check_exit(error, Value::Plain, b)?;
-                    return Ok(Value::FreshTask(sources.clone()));
-                }
-                if !matches!(value, Value::Plain) {
-                    return Err(unsupported(
+                let success = match value {
+                    Value::FallibleTask(sources) => Value::FreshTask(sources),
+                    Value::Plain => Value::Plain,
+                    _ => return Err(unsupported(
                         "original protocol propagation needs its full error-exit cleanup relation",
                         Some(node.span),
-                    ));
-                }
-                Ok(Value::Plain)
+                    )),
+                };
+                b.spend(self.error_unwind.len())?;
+                let deferred = self.error_unwind.clone();
+                let failed = self.unwind(state.copy(b)?, &deferred, 0, depth + 1, b)?;
+                self.error_unwind = deferred;
+                self.check_exit(failed, Value::Plain, b)?;
+                Ok(success)
             }
             If {
                 condition,

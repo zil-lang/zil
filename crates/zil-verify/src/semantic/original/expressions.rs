@@ -19,8 +19,15 @@ impl CheckedOriginal {
                     if let Ty::ErrorUnion(error,result)=&sum {
                         // Elaborating a contextual injection never equates
                         // the payload with the sum or one arm with the other.
-                        let payload=self.expression(module,context,expression,env,bindings,None,active,b)?;
+                        let numeric = self.injection_literal_context(expression,error,result,b)?;
+                        let payload=self.expression(module,context,expression,env,bindings,numeric.as_ref(),active,b)?;
                         if self.same(&payload,&sum,b)?{return Ok(payload);}
+                        if matches!(error.as_ref(),Ty::Infer(_)) || matches!(result.as_ref(),Ty::Infer(_)) {
+                            b.spend(1)?;
+                            self.pending_injections.entry(id).or_default().push((expression.id,payload,sum.clone()));
+                            self.expressions.insert((id,expression.id),sum.clone());
+                            return Ok(sum);
+                        }
                         let failed=self.same(&payload,error,b)?;
                         let succeeded=self.same(&payload,result,b)?;
                         if failed==succeeded{
@@ -141,6 +148,7 @@ impl CheckedOriginal {
                     let child_definition=context.definition(module,child,b)?;
                     for formal in &child_definition.environment{if let SemanticFormal::Type{requirements}=&formal.kind{for requirement in requirements{self.obligation(module,context,requirement,env,env,active,b)?;}}}
                     let CoreExprKind::Closure{move_capture,..}=expression.kind else{unreachable!()};self.creator_moves.insert(child,move_capture);
+                    self.contextual_opaque_closure(module,context,child,expected,env,active,b)?;
                     let thin=self.contextual_code_inputs(child_definition,expected,b)?;
                     self.definition(module,context,child,active,b)?;
                     let CoreExprKind::Closure{move_capture,..}=&expression.kind else{unreachable!()};
@@ -151,17 +159,17 @@ impl CheckedOriginal {
                         self.read_original(module,context,&Place{binder:binding.identity.clone(),fields:vec![]},&binding.ty,env,*move_capture,active,b)?;
                     }
                     let child_env=self.environment(module,context,child,active,b)?;let frame=child_env.lexical.first().ok_or_else(||bad("original child scope absent"))?;
+                    if let CoreExprKind::Closure{return_type:Some(annotation),..}=&expression.kind {
+                        let declared=self.ty(module,context,annotation,&child_env,active,b)?;
+                        let result=self.results.get(&child).cloned().ok_or_else(||bad("closure literal has no proved original result"))?;
+                        self.unify(&declared,&result,b)?;
+                    }
                     if let Some(code)=thin {
-                        if let CoreExprKind::Closure{return_type:Some(annotation),..}=&expression.kind {
-                            let declared=self.ty(module,context,annotation,&child_env,active,b)?;
-                            let result=self.results.get(&child).cloned().ok_or_else(||bad("thin literal has no proved original result"))?;
-                            self.unify(&declared,&result,b)?;
-                        }
                         self.finish_contextual_code(id,expression.id,child,site,&code,b)?;
                         code
                     }else{Ty::Closure(child,frame.actuals.clone(),frame.environment.clone())}
                 },
-                CoreExprKind::Try(value)=>match self.expression(module,context,value,env,bindings,None,active,b)?{Ty::ErrorUnion(_,result)=>*result,_=>return Err(bad("original propagation has no ErrorUnion operand"))},
+                CoreExprKind::Try(value)=>{let source=self.expression(module,context,value,env,bindings,None,active,b)?;self.propagate_error(source,env,b)?},
                 _=>return Err(unsupported("original expression has no complete symbolic operation rule",Some(expression.span))),
             }};
             let actual=self.code_value(module,context,expression,&actual,expected,false,env,active,b)?;

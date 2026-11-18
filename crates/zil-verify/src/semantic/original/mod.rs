@@ -52,6 +52,9 @@ mod trait_methods;
 mod usage;
 pub(in crate::semantic) use trait_calls::{MethodActualRecipe, TraitCallRecipes};
 mod integer_inference;
+mod call_constraints;
+mod fallible_returns;
+use call_constraints::DeferredCodeCall;
 pub(super) mod intrinsics;
 mod opaque;
 mod raw_schemes;
@@ -124,6 +127,10 @@ pub(super) struct CheckedOriginal {
     substitutions: BTreeMap<u64, Ty>,
     integer_variables: BTreeSet<u64>,
     integer_literals: Vec<(Ty, String, bool)>,
+    deferred_code_calls: Vec<DeferredCodeCall>,
+    deferred_binary: Vec<(BinaryOp, Ty)>,
+    propagating_bodies: BTreeSet<SemanticDefinitionId>,
+    pending_injections: BTreeMap<SemanticDefinitionId, Vec<(NodeId, Ty, Ty)>>,
     life_substitutions: BTreeMap<u64, Life>,
     outer_inferences: BTreeMap<u64, Vec<Life>>,
     call_regions: BTreeMap<u64, (SemanticDefinitionId, NodeId, Vec<u32>, Vec<Life>)>,
@@ -183,6 +190,9 @@ impl CheckedOriginal {
             let mut required = BTreeSet::new();
             b.spend(function.expressions.len())?;
             for expression in function.expressions.values() {
+                if function.definition.kind == SemanticDefinitionKind::Closure && matches!(expression.kind, CoreExprKind::Try(_)) {
+                    result.propagating_bodies.insert(function.definition.id);
+                }
                 if matches!(expression.kind, CoreExprKind::Literal(Constant::NullHandle | Constant::NullWideString | Constant::WideString(_))) {
                     required.insert(expression.id);
                 }
@@ -256,7 +266,12 @@ impl CheckedOriginal {
             }
             result.definition(module, context, definition.id, active, b)?;
         }
+        result.solve_code_calls(b)?;
         result.finish_integer_literals(module, b)?;
+        for (op, operand) in std::mem::take(&mut result.deferred_binary) {
+            let operand = result.resolved(&operand, b)?;
+            result.check_binary_carrier(op, &operand)?;
+        }
         result.check_outer_flows(b)?;
         b.diagnostic_stage("original body obligations");
         let obligations = std::mem::take(&mut result.copy_obligations);

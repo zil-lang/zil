@@ -689,3 +689,165 @@ fn nominal_thin_inputs_and_results_keep_their_declaration_on_both_routes() {
         }
     }
 }
+
+#[test]
+fn original_returned_callable_checks_early_success_and_propagated_error_on_raw_and_wire() {
+    use zil_ir::*;
+    let target = TargetProfile::host_llvm();
+    let limits = Limits::default();
+    let raw = semantic_typed(
+        source(
+            r#"
+        enum Fault { Stop }
+        fn checked(n:i32)->Fault!i32 { if n==0 { return Fault.Stop }; return n }
+        fn maker()->impl FnMut(i32)->Fault!i32 {
+            var state:i32=1
+            return move (n)=>{
+                if n==0 { return state }
+                state+=checked(n)?
+                return state
+            }
+        }
+        fn main()->Fault!i32 { var f=maker(); return f(2) }
+    "#,
+        ),
+        &target,
+        &limits,
+    );
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+
+    for error_arm in [true, false] {
+        let mut changed = raw.clone();
+        let requirement = changed
+            .semantic
+            .as_mut()
+            .unwrap()
+            .definitions
+            .iter_mut()
+            .flat_map(|definition| definition.requirements.iter_mut())
+            .find_map(|requirement| match requirement {
+                SemanticRequirementRecipe::Callable {
+                    ty:
+                        SemanticTypeRecipe::OriginalType {
+                            scope: SemanticScopeRef::Ancestor(0),
+                            source: SemanticOriginalTypeSource::Result,
+                        },
+                    signature,
+                    ..
+                } => Some(signature),
+                _ => None,
+            })
+            .unwrap();
+        let SemanticTypeRecipe::ErrorUnion { error, result } = &mut requirement.result else {
+            panic!("factory must advertise a fallible callable result")
+        };
+        let arm = if error_arm { error } else { result };
+        **arm = SemanticTypeRecipe::Atom(Type::Bool);
+        let mut stale = plan.clone();
+        stale.module_fingerprint = changed.fingerprint();
+        let bytes = zil_ir::wire::encode_module_candidate(&changed, &stale, &limits).unwrap();
+        for errors in [
+            zil_verify::verify_module(changed, stale, &target, &limits).unwrap_err(),
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err(),
+        ] {
+            assert!(
+                errors.iter().any(|e| e.phase == Phase::Verify
+                    && e.category == ResultCategory::SafeReject
+                    && e.code == "E-VERIFY-SEMANTIC"),
+                "{errors:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn original_calls_constrain_a_higher_order_parameter_on_raw_and_wire() {
+    use zil_ir::*;
+    let target = TargetProfile::host_llvm();
+    let limits = Limits::default();
+    let raw = semantic_typed(
+        source(
+            r#"
+        fn inc(n:i64)->i64 { return n+1 }
+        fn main()->i32 {
+            let table:[fn(i64)->i64;1]=[inc]
+            let apply=(f,x)=>f(x)
+            let result:i64=apply(table[0],3i64)
+            return i32(result)
+        }
+    "#,
+        ),
+        &target,
+        &limits,
+    );
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+
+    // Change both authentic copies of the same closure body. Every node, site,
+    // caller and executable instruction retains its original identity.
+    let mut changed = raw;
+    let mut edits = 0;
+    fn replace_argument(block: &mut SemanticOriginalBlock) {
+        let argument = block
+            .statements
+            .iter_mut()
+            .find_map(|s| match &mut s.kind {
+                CoreStatementKind::Return(Some(e)) => match &mut e.kind {
+                    CoreExprKind::Call { arguments, .. } => arguments.first_mut(),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .unwrap();
+        let CoreExprKind::Name(name) = &mut argument.kind else {
+            panic!("expected parameter x")
+        };
+        assert_eq!(name, "x");
+        *name = "f".into();
+    }
+    for definition in &mut changed.semantic.as_mut().unwrap().definitions {
+        let SemanticDefinitionBody::FunctionWithBody {
+            body: SemanticOriginalFunctionBody::Defined(block),
+            ..
+        } = &mut definition.body
+        else {
+            continue;
+        };
+        if definition.kind == SemanticDefinitionKind::Closure {
+            replace_argument(block);
+            edits += 1;
+        } else {
+            for s in &mut block.statements {
+                if let CoreStatementKind::Binding {
+                    initializer: Some(e),
+                    ..
+                } = &mut s.kind
+                    && let CoreExprKind::Closure { body, .. } = &mut e.kind
+                {
+                    replace_argument(body);
+                    edits += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(edits, 2);
+    let mut stale = plan;
+    stale.module_fingerprint = changed.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&changed, &stale, &limits).unwrap();
+    for errors in [
+        zil_verify::verify_module(changed, stale, &target, &limits).unwrap_err(),
+        zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err(),
+    ] {
+        assert!(
+            errors.iter().any(|e| e.phase == Phase::Verify
+                && e.category == ResultCategory::SafeReject
+                && e.code == "E-VERIFY-SEMANTIC"),
+            "{errors:?}"
+        );
+    }
+}

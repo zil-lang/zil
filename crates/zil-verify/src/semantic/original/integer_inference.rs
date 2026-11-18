@@ -27,8 +27,9 @@ impl CheckedOriginal {
     ) -> Check<Ty> {
         if !floating && let Some(expected) = expected {
             let ty = self.resolved(expected, b)?;
-            if self.integer_variable(&ty) && !Self::numeric_suffix(text) {
+            if let Ty::Infer(id) = ty && !Self::numeric_suffix(text) {
                 b.spend(text.len().saturating_add(1))?;
+                self.integer_variables.insert(id);
                 self.integer_literals.push((ty.clone(), text.into(), negate));
                 return Ok(ty);
             }
