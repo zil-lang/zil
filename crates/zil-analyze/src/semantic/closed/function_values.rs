@@ -341,7 +341,7 @@ impl Check<'_, '_> {
             original::CodeCallAnchor::Projected { local, projections } => {
                 self.projected_code_operand(instance, function, *local, projections, *callee, b)?
             }
-            original::CodeCallAnchor::CallResult(node) => {
+            original::CodeCallAnchor::CallResult { node, indirect } => {
                 let recipe = self.inventory.call_anchor(instance.definition, *node, b)?;
                 let source = self.inventory.emitted_site(self.program, instance.id, recipe, b)?;
                 let SemanticSiteAddress::Typed {
@@ -360,7 +360,10 @@ impl Check<'_, '_> {
                     .filter(|actual| actual.id == producer_block)
                     .and_then(|block| block.instructions.get(producer_index as usize))
                     .ok_or_else(|| fail("original code result has no actual call instruction"))?;
-                if !matches!(producer.kind, InstructionKind::Call { .. }) {
+                if !matches!((&producer.kind, *indirect),
+                    (InstructionKind::Call { .. }, false)
+                    | (InstructionKind::CallIndirect { .. }, true))
+                {
                     return Err(fail("original code result changes its actual call family"));
                 }
                 let result = producer.result

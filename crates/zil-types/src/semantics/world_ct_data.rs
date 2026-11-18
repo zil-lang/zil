@@ -17,21 +17,31 @@ pub(super) fn constructors(
 ) -> R<Constructors> {
     let ledger = world.ledger;
     let proof = ledger.original.borrow();
-    let proof = proof.as_ref().ok_or_else(|| bad("reified CT data has no checked original program"))?;
+    let proof = proof
+        .as_ref()
+        .ok_or_else(|| bad("reified CT data has no checked original program"))?;
     world.pay(index::search(proof.compile_time_results.len()))?;
-    if !proof.compile_time_results.range((original.id, zil_base::NodeId(0))..)
-        .next().is_some_and(|(owner, _)| *owner == original.id)
+    if !proof
+        .compile_time_results
+        .range((original.id, zil_base::NodeId(0))..)
+        .next()
+        .is_some_and(|(owner, _)| *owner == original.id)
     {
         return Ok(BTreeMap::new());
     }
     let mut constructors = BTreeMap::new();
     let mut sources = BTreeSet::new();
+    let mut producers = BTreeSet::new();
     world.pay(sites.len())?;
     for site in sites {
-        let SemanticSiteAction::TypeUse { subject, .. } = &site.action else { continue; };
+        let SemanticSiteAction::TypeUse { subject, .. } = &site.action else {
+            continue;
+        };
         let Some(SemanticOriginalNode::Expression(query)) =
             occurrences::original_node(world, original.id, site.recipe)?
-        else { continue; };
+        else {
+            continue;
+        };
         world.pay(index::search(proof.compile_time_results.len()))?;
         if !proof.compile_time_results.contains(&(original.id, query)) {
             continue;
@@ -40,11 +50,17 @@ pub(super) fn constructors(
         if !sources.insert(query) {
             return Err(bad("one original CT result has multiple actual data roots"));
         }
-        let SemanticSiteRecipeKind::TypeUse { expected: recipe @ SemanticTypeRecipe::OriginalType {
-            scope: SemanticScopeRef::Ancestor(0),
-            source: SemanticOriginalTypeSource::Expression(node),
-        } } = &world.original_recipe(original, site.recipe)?.kind else {
-            return Err(bad("reified CT result loses its exact original expression recipe"));
+        let SemanticSiteRecipeKind::TypeUse {
+            expected:
+                recipe @ SemanticTypeRecipe::OriginalType {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    source: SemanticOriginalTypeSource::Expression(node),
+                },
+        } = &world.original_recipe(original, site.recipe)?.kind
+        else {
+            return Err(bad(
+                "reified CT result loses its exact original expression recipe",
+            ));
         };
         if *node != query {
             return Err(bad("reified CT result changes its original query identity"));
@@ -52,14 +68,24 @@ pub(super) fn constructors(
         let SemanticOperand::Value(value) = subject else {
             return Err(bad("reified CT result needs its actual value producer"));
         };
-        let SemanticSiteAddress::Typed { block, instruction, edge: SemanticSiteEdge::Before } = site.at else {
+        let SemanticSiteAddress::Typed {
+            block,
+            instruction,
+            edge: SemanticSiteEdge::Before,
+        } = site.at
+        else {
             return Err(bad("reified CT result needs its actual use boundary"));
         };
-        let physical = function.values.get(value.0 as usize)
+        let physical = function
+            .values
+            .get(value.0 as usize)
             .ok_or_else(|| bad("reified CT result selects an absent whole type"))?;
         let expected = world.physical_type(instance.id, recipe, physical)?;
         let ty = World::type_of(&expected)?;
-        if !matches!(ty, Type::Record { .. } | Type::Tuple(_) | Type::Array { .. } | Type::Enum { .. }) {
+        if !matches!(
+            ty,
+            Type::Record { .. } | Type::Tuple(_) | Type::Array { .. } | Type::Enum { .. }
+        ) {
             // Scalar TypeUse and any enclosing non-data adaptation are checked
             // by the ordinary world. They introduce no nominal data producer.
             continue;
@@ -68,12 +94,13 @@ pub(super) fn constructors(
         let zero = world.zero(ty)?;
         world.same(instance.id, &expected, &zero, implicit)?;
 
-        let mut seen = BTreeSet::new();
-        let (producer_block, producer, _) = cfg.producer(world, function, *value)?;
-        if producer_block != block || producer + 1 != instruction as usize {
-            return Err(bad("reified CT result does not immediately follow its actual producer"));
-        }
-        let mut tree = Tree { cfg, function, block, seen: &mut seen, constructors: &mut constructors };
+        let mut tree = Tree {
+            cfg,
+            function,
+            block,
+            seen: &mut producers,
+            constructors: &mut constructors,
+        };
         tree.visit(world, *value, ty, instruction as usize, 0)?;
     }
     Ok(constructors)
@@ -82,7 +109,11 @@ pub(super) fn constructors(
 fn serializable(world: &mut World<'_, '_>, ty: &Type, depth: usize) -> R<()> {
     world.pay(1)?;
     if depth > world.limits.max_call_depth {
-        return Err(Diagnostic::limit(Phase::Types, "reified CT result shape depth exceeded", None));
+        return Err(Diagnostic::limit(
+            Phase::Types,
+            "reified CT result shape depth exceeded",
+            None,
+        ));
     }
     match ty {
         Type::Unit | Type::Bool => {}
@@ -109,7 +140,11 @@ fn serializable(world: &mut World<'_, '_>, ty: &Type, depth: usize) -> R<()> {
                 }
             }
         }
-        _ => return Err(bad("reified CT result is outside the closed serializable value domain")),
+        _ => {
+            return Err(bad(
+                "reified CT result is outside the closed serializable value domain",
+            ));
+        }
     }
     Ok(())
 }
@@ -130,77 +165,121 @@ impl Tree<'_> {
         expected: &Type,
         before: usize,
         depth: usize,
-    ) -> R<()> {
+    ) -> R<usize> {
         world.pay(index::search(self.seen.len()))?;
         if depth > world.limits.max_call_depth {
-            return Err(Diagnostic::limit(Phase::Types, "reified CT producer depth exceeded", None));
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "reified CT producer depth exceeded",
+                None,
+            ));
         }
         if !self.seen.insert(value) {
             return Err(bad("reified CT data reuses an actual producer"));
         }
         let (block, ordinal, instruction) = self.cfg.producer(world, self.function, value)?;
-        if block != self.block || ordinal >= before {
-            return Err(bad("reified CT data producer is outside its result construction"));
+        // The reifier emits a fresh postorder tree. Taking its exact
+        // consecutive producers prevents an older, compatible SSA value
+        // from becoming a child of this original query's result occurrence.
+        if block != self.block || ordinal + 1 != before {
+            return Err(bad(
+                "reified CT data producer is outside its exact result construction",
+            ));
         }
         let actual = &self.function.values[value.0 as usize];
-        world.pay(inference::type_snapshot_work(expected, instruction.span, world.limits)?)?;
-        world.pay(inference::type_snapshot_work(actual, instruction.span, world.limits)?)?;
+        world.pay(inference::type_snapshot_work(
+            expected,
+            instruction.span,
+            world.limits,
+        )?)?;
+        world.pay(inference::type_snapshot_work(
+            actual,
+            instruction.span,
+            world.limits,
+        )?)?;
         if actual != expected {
-            return Err(bad("reified CT data changes an exact original field whole type"));
+            return Err(bad(
+                "reified CT data changes an exact original field whole type",
+            ));
         }
         match (expected, &instruction.kind) {
             (Type::Tuple(types), InstructionKind::MakeAggregate { fields }) => {
-                self.fields(world, fields, types.iter(), ordinal, depth)?;
+                self.fields(world, fields, types.iter(), ordinal, depth)
             }
-            (ty @ Type::Record { fields: types, .. }, InstructionKind::MakeAggregate { fields }) => {
-                self.fields(world, fields, types.iter().map(|(_, ty)| ty), ordinal, depth)?;
+            (
+                ty @ Type::Record { fields: types, .. },
+                InstructionKind::MakeAggregate { fields },
+            ) => {
+                let start = self.fields(
+                    world,
+                    fields,
+                    types.iter().map(|(_, ty)| ty),
+                    ordinal,
+                    depth,
+                )?;
                 self.record_nominal(world, value, ty)?;
+                Ok(start)
             }
             (Type::Array { element, length }, InstructionKind::MakeAggregate { fields })
                 if fields.len() == *length as usize =>
             {
-                self.fields(world, fields, std::iter::repeat_n(element.as_ref(), fields.len()), ordinal, depth)?;
+                self.fields(
+                    world,
+                    fields,
+                    std::iter::repeat_n(element.as_ref(), fields.len()),
+                    ordinal,
+                    depth,
+                )
             }
-            (ty @ Type::Enum { variants, .. }, InstructionKind::MakeVariant { variant, fields }) => {
-                let (_, types) = variants.get(*variant as usize)
+            (
+                ty @ Type::Enum { variants, .. },
+                InstructionKind::MakeVariant { variant, fields },
+            ) => {
+                let (_, types) = variants
+                    .get(*variant as usize)
                     .ok_or_else(|| bad("reified CT value selects an absent original variant"))?;
-                self.fields(world, fields, types.iter(), ordinal, depth)?;
+                let start = self.fields(world, fields, types.iter(), ordinal, depth)?;
                 self.record_nominal(world, value, ty)?;
+                Ok(start)
             }
-            (ty, InstructionKind::Constant(constant)) if constant.ty() == *ty => {}
-            _ => return Err(bad("reified CT result changes the serialized data producer")),
+            (ty, InstructionKind::Constant(constant)) if constant.ty() == *ty => Ok(ordinal),
+            _ => Err(bad(
+                "reified CT result changes the serialized data producer",
+            )),
         }
-        Ok(())
     }
 
     fn fields<'a>(
         &mut self,
         world: &mut World<'_, '_>,
         fields: &[ValueId],
-        types: impl ExactSizeIterator<Item = &'a Type>,
-        before: usize,
+        types: impl ExactSizeIterator<Item = &'a Type> + DoubleEndedIterator,
+        mut before: usize,
         depth: usize,
-    ) -> R<()> {
+    ) -> R<usize> {
         if fields.len() != types.len() {
-            return Err(bad("reified CT value changes the complete original constructor arity"));
+            return Err(bad(
+                "reified CT value changes the complete original constructor arity",
+            ));
         }
         world.pay(fields.len())?;
-        for (field, ty) in fields.iter().zip(types) {
-            self.visit(world, *field, ty, before, depth + 1)?;
+        for (field, ty) in fields.iter().zip(types).rev() {
+            before = self.visit(world, *field, ty, before, depth + 1)?;
         }
-        Ok(())
+        Ok(before)
     }
 
     fn record_nominal(&mut self, world: &mut World<'_, '_>, value: ValueId, ty: &Type) -> R<()> {
         world.pay(index::search(self.constructors.len()))?;
         let checked = world.zero(ty)?;
         if self.constructors.insert(value, checked).is_some() {
-            return Err(bad("reified CT nominal producer belongs to several original query results"));
+            return Err(bad(
+                "reified CT nominal producer belongs to several original query results",
+            ));
         }
         Ok(())
     }
 }
-
 
 pub(super) fn check_operands(
     world: &mut World<'_, '_>,
@@ -211,19 +290,45 @@ pub(super) fn check_operands(
     values: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<()> {
-    let inputs = match (World::type_of(root)?, variant) {
-        (Type::Record { fields, .. }, None) => fields.iter().map(|(_, ty)| ty).collect::<Vec<_>>(),
-        (Type::Enum { variants, .. }, Some(ordinal)) => variants
-            .get(ordinal as usize)
-            .ok_or_else(|| bad("reified CT world changes its selected variant"))?
-            .1.iter().collect(),
-        _ => return Err(bad("reified CT world changes its nominal constructor form")),
-    };
-    if fields.len() != inputs.len() {
-        return Err(bad("reified CT world changes its complete constructor arity"));
+    match (World::type_of(root)?, variant) {
+        (
+            Type::Record {
+                fields: declared, ..
+            },
+            None,
+        ) => check_fields(
+            world,
+            instance,
+            fields,
+            declared.iter().map(|(_, ty)| ty),
+            values,
+            implicit,
+        ),
+        (Type::Enum { variants, .. }, Some(ordinal)) => {
+            let (_, declared) = variants
+                .get(ordinal as usize)
+                .ok_or_else(|| bad("reified CT world changes its selected variant"))?;
+            check_fields(world, instance, fields, declared.iter(), values, implicit)
+        }
+        _ => Err(bad("reified CT world changes its nominal constructor form")),
+    }
+}
+
+fn check_fields<'a>(
+    world: &mut World<'_, '_>,
+    instance: SemanticInstanceId,
+    fields: &[ValueId],
+    types: impl ExactSizeIterator<Item = &'a Type>,
+    values: &[Option<SharedType>],
+    implicit: &BTreeMap<u32, SemanticClassExpr>,
+) -> R<()> {
+    if fields.len() != types.len() {
+        return Err(bad(
+            "reified CT world changes its complete constructor arity",
+        ));
     }
     world.pay(fields.len())?;
-    for (operand, ty) in fields.iter().zip(inputs) {
+    for (operand, ty) in fields.iter().zip(types) {
         let expected = world.zero(ty)?;
         let actual = world.get(values, *operand)?;
         world.same(instance, &actual, &expected, implicit)?;

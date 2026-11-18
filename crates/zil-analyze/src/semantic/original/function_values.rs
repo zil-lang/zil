@@ -224,16 +224,17 @@ impl Solver<'_, '_> {
                 ty: SemanticTypeRecipe::OriginalType {
                     scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result,
                 },
-                signature, ..
+                kind, signature, ..
             } = requirement
-                && selected.replace(signature).is_some_and(|prior| prior != signature)
+                && selected.replace((*kind, signature)).is_some_and(|prior| prior != (*kind, signature))
             {
                 return Ok(None);
             }
         }
-        let Some(signature) = selected else { return Ok(None) };
+        let Some((kind, signature)) = selected else { return Ok(None) };
         if signature.bound_lifetimes != 0 || signature.invocation_lifetimes != 0
             || signature.call_kind != CallKind::Direct
+            || roles::receiver_result(signature, kind)
         {
             return Ok(None);
         }
@@ -612,7 +613,20 @@ impl Solver<'_, '_> {
             {
                 // The enclosing expression already checked this exact Call.
                 // Rechecking it would duplicate its original call identity.
-                CodeCallAnchor::CallResult(head.id)
+                CodeCallAnchor::CallResult { node: head.id, indirect: false }
+            }
+            CoreExprKind::Call { .. } => {
+                // A checked indirect call returns its complete code term
+                // directly. Bind that term to the actual earlier instruction
+                // at its own call node before permitting this second call.
+                b.lookup(frame.expressions.len(), WORK)?;
+                b.lookup(self.state.code_calls.len(), WORK)?;
+                if frame.expressions.get(&head.id) != Some(&term)
+                    || !self.state.code_calls.contains_key(&(frame.definition, head.id))
+                {
+                    return Err(unknown("original indirect code producer has no complete earlier call"));
+                }
+                CodeCallAnchor::CallResult { node: head.id, indirect: true }
             }
             CoreExprKind::Member { .. } => {
                 let place = self.place(frame, head, true, b, depth + 1)?

@@ -1978,22 +1978,30 @@ impl Check<'_, '_> {
         if let CoreExprKind::Name(name) = &selected_place.kind {
             self.pay(name.len().saturating_add(variables.len().saturating_add(1).ilog2() as usize), depth)?;
             if let Some(binding) = variables.get(name)
-                && let SemanticTypeRecipe::OriginalType {
-                    scope: SemanticScopeRef::Ancestor(0),
-                    source: SemanticOriginalTypeSource::Parameter(ordinal),
-                } = &binding.ty
-                && binding.origin_owner == owner
-                && binding.origin == Query::Parameter(*ordinal)
-                && !self.proof.types.contains_key(&(owner, Query::Parameter(*ordinal)))
+                && let Query::Parameter(ordinal) = binding.origin
+                && binding.initialized && !binding.used && binding.taken_fields.is_empty()
             {
-                self.contextual_code_need = Some(code_context::Demand { child: owner, parameter: *ordinal });
-                return Err(zil_base::Diagnostic::new(
-                    Phase::Types,
-                    zil_base::ResultCategory::Unsupported,
-                    code_context::MISSING,
-                    "original callable parameter requires a complete source call context",
-                    Some(base.span),
-                ));
+                let origin = binding.origin_owner;
+                self.pay(
+                    self.active.len().saturating_add(1).ilog2() as usize
+                        + self.proof.types.len().saturating_add(1).ilog2() as usize + 2,
+                    depth,
+                )?;
+                // A sealed capture keeps the actual creator parameter as its
+                // origin. Only that still-active original child can receive
+                // the missing callable equation, never the observing child.
+                if (origin == owner || binding.capture && self.active.contains(&origin))
+                    && !self.proof.types.contains_key(&(origin, Query::Parameter(ordinal)))
+                {
+                    self.contextual_code_need = Some(code_context::Demand { child: origin, parameter: ordinal });
+                    return Err(zil_base::Diagnostic::new(
+                        Phase::Types,
+                        zil_base::ResultCategory::Unsupported,
+                        code_context::MISSING,
+                        "original callable parameter requires a complete source call context",
+                        Some(base.span),
+                    ));
+                }
             }
         }
         let evaluated_rvalue = !matches!(selected_place.kind,

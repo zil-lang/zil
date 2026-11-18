@@ -252,7 +252,7 @@ pub(super) enum CodeProjection {
 }
 pub(super) enum CodeCallAnchor {
     Local(LocalAnchor),
-    CallResult(NodeId),
+    CallResult { node: NodeId, indirect: bool },
     Projected {
         local: LocalAnchor,
         projections: Vec<CodeProjection>,
