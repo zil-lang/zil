@@ -462,13 +462,26 @@ fn owned_constructor_does_not_erase_a_live_owner_on_later_argument_early_return(
             "task_create_owned(worker,give owner,37)",
             "task_create_owned(worker,give owner,prepare(true)?)",
         );
-    let report = compile_source(
-        &source(&format!("{prepare}{text}")),
-        &CompileOptions {
-            stop_after: Stage::Verify,
-            ..CompileOptions::default()
-        },
+    let original = format!("{prepare}{text}");
+    let options = CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+    let report = compile_source(&source(&original), &options);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
     );
+    assert_eq!(report.verification_runs, 1);
+
+    let direct = original.replacen(
+        "fn main()->TaskCreateError!i32 {",
+        "fn main()->TaskCreateError!i32 contract { effects(alloc,ffi,panic); } {",
+        1,
+    );
+    let report = compile_source(&source(&direct), &options);
     assert_eq!(
         report.status,
         ResultCategory::SafeReject,
@@ -479,11 +492,137 @@ fn owned_constructor_does_not_erase_a_live_owner_on_later_argument_early_return(
         report
             .diagnostics
             .iter()
-            .any(|d| d.message.contains("registration")
-                || d.message.contains("asynchronous")
-                || d.message.contains("responsibility")),
+            .any(|d| d.phase == zil_base::Phase::Types
+                && d.code == "E-SEMANTIC-PROTOCOL"
+                && d.message.contains("live AsyncRegistration owner")),
         "{}",
         report.to_json()
+    );
+
+    // A bare Direct body has the same physical error edge. Both kernels must
+    // reject its prepared registration independently of the original source check.
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+    use zil_ir::{CallKind, InstructionKind};
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let typed = |text: &str, original: bool| {
+        let unit = source(text);
+        let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+        let core = if original {
+            zil_expand::expand_with_map_semantics(
+                &unit,
+                &syntax,
+                &limits,
+                &target,
+                SourceIdentityContext::ClosedSnapshot {
+                    root: unit.module_id,
+                    aliases: &std::collections::BTreeMap::new(),
+                    declarations: DeclarationPlacement::Original,
+                },
+            )
+            .unwrap()
+            .core
+        } else {
+            zil_expand::expand(&unit, &syntax).unwrap()
+        };
+        zil_types::check(&core, &target, &limits).unwrap()
+    };
+    let mut module = typed(&original, true);
+    let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let verify = |module: &zil_ir::TypedModule, plan: &zil_ir::CandidatePlan| {
+        let bytes = zil_ir::wire::encode_module_candidate(module, plan, &limits).unwrap();
+        [
+            zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).map(|_| ()),
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).map(|_| ()),
+        ]
+    };
+    for result in verify(&module, &plan) {
+        result.unwrap();
+    }
+    let direct = typed(&direct, false);
+    let errors = zil_analyze::analyze(&direct, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|e| e.code == "E-ANALYZE-IR"
+            && e.message
+                .contains("Direct automatic Drop cannot close an unknown pollable registration")),
+        "{errors:?}"
+    );
+    plan.module_fingerprint = direct.fingerprint();
+    for errors in verify(&direct, &plan).map(Result::unwrap_err) {
+        assert!(
+            errors.iter().any(|e| e.code == "E-VERIFY-RESOURCE"
+                && e.message.contains(
+                    "Direct automatic Drop cannot reclaim an unknown pollable registration"
+                )),
+            "{errors:?}"
+        );
+    }
+
+    // On the error edge replace the prepared temporary's Drop by a Drop
+    // of the now-vacant original. Initialization claims at block exit agree.
+    let main = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    assert_eq!(main.call_kind, CallKind::Suspend);
+    let mut changed = 0;
+    for block in &mut main.blocks {
+        if !block.instructions.iter().any(|i| {
+            matches!(
+                i.kind,
+                InstructionKind::ReadErrorUnion { is_error: true, .. }
+            )
+        }) {
+            continue;
+        }
+        let drops: Vec<_> = block
+            .instructions
+            .iter()
+            .enumerate()
+            .filter_map(|(index, i)| match i.kind {
+                InstructionKind::DropManaged { local } => Some((index, local)),
+                _ => None,
+            })
+            .collect();
+        if let [(first, temporary), (_, original)] = drops[..] {
+            assert_ne!(temporary, original);
+            block.instructions[first].kind = InstructionKind::DropManaged { local: original };
+            changed += 1;
+        }
+    }
+    assert_eq!(changed, 1);
+    let errors = zil_analyze::analyze(&module, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|e| e.code == "E-ANALYZE-IR"
+            && e.message
+                .contains("original cleanup occurrence has no exact actual cleanup site")),
+        "{errors:?}"
+    );
+    plan.module_fingerprint = module.fingerprint();
+    for errors in verify(&module, &plan).map(Result::unwrap_err) {
+        assert!(
+            errors.iter().any(|e| e.code == "E-VERIFY-RESOURCE"
+                && e.message.contains("outstanding resource responsibility")),
+            "{errors:?}"
+        );
+    }
+    native_outcomes(
+        "prepared-registration",
+        &[&original],
+        "create-owned-registration-observer.c",
+        b"prepared owner drained across Pending; no Task created; once free\n",
+        &[("ZIL_PREPARED_EARLY_RETURN", "1")],
+        &[(false, 1)],
+    );
+    let normal = original.replacen("give owner,prepare(true)?", "give owner,prepare(false)?", 1);
+    native_outcomes(
+        "prepared-registration-ready",
+        &[&normal],
+        "create-owned-registration-observer.c",
+        b"original active input drained after allocation outcome; once free\n",
+        &[],
+        &[(false, 0), (true, 2)],
     );
 }
 
@@ -503,6 +642,17 @@ fn failure_native_matrix(
     observer_file: &str,
     expected_stdout: &[u8],
     case_environment: &[(&str, &str)],
+) {
+    native_outcomes(tag, texts, observer_file, expected_stdout, case_environment, &[(false, 0), (true, 0)]);
+}
+
+fn native_outcomes(
+    tag: &str,
+    texts: &[&str],
+    observer_file: &str,
+    expected_stdout: &[u8],
+    case_environment: &[(&str, &str)],
+    outcomes: &[(bool, i32)],
 ) {
     use std::{
         fs,
@@ -577,7 +727,7 @@ fn failure_native_matrix(
                 );
                 assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
                 assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
-                for fail in [false, true] {
+                for &(fail, status) in outcomes {
                     let mut command = Command::new(&report.artifacts["executable"]);
                     command.envs(case_environment.iter().copied());
                     if fail {
@@ -586,14 +736,14 @@ fn failure_native_matrix(
                     let output = command.output().unwrap();
                     assert_eq!(
                         output.status.code(),
-                        Some(0),
+                        Some(status),
                         "{backend:?}/{optimization:?}/{fail}: {output:?}"
                     );
                     assert_eq!(output.stdout, expected_stdout);
                 }
                 fs::write(
                     dir.join("result.txt"),
-                    "two backends / optimization / allocation outcomes observed",
+                    "native exit status and observer output confirmed",
                 )
                 .unwrap();
             }

@@ -42,26 +42,24 @@ impl Check<'_, '_> {
                     instances += 1;
                     continue;
                 }
-                let (local, path) = match pending.source {
+                let (local, path, producer) = match pending.source {
                     original::CleanupSource::Local(anchor) => {
                         let root = self.anchored_local_at(instance, function, anchor, b, 0)?;
-                        self.cleanup_place(function, root, &pending.path, b)?
+                        let (local, path) = self.cleanup_place(function, root, &pending.path, b)?;
+                        (local, path, None)
                     }
                     original::CleanupSource::Expression(node) => {
-                        let value = self.original_subject_value(instance, function, node, b)?
+                        let value = self.cleanup_expression_value(instance, function, node, b)?
                             .ok_or_else(|| fail("original discarded cleanup has no exact emitted value"))?;
                         if !pending.path.is_empty() {
                             return Err(unknown("original indirect cleanup needs its complete selected actual source"));
                         }
                         let local = self.stored_pattern_value(function, value, b)?
                             .ok_or_else(|| fail("original discarded cleanup has no actual owning temporary"))?;
-                        (local, Vec::new())
+                        (local, Vec::new(), Some(value))
                     }
                     original::CleanupSource::Unknown => return Err(fail("original cleanup has no source occurrence")),
                 };
-                let producer = if let original::CleanupSource::Expression(node) = pending.source {
-                    self.original_subject_value(instance, function, node, b)?
-                } else { None };
                 let declaration = function.locals.get(local.0 as usize).filter(|declaration| declaration.id == local)
                     .ok_or_else(|| fail("original cleanup occurrence loses its exact actual local"))?;
                 let slot = self.persistent_slot(instance, function, local, b)?;
@@ -133,6 +131,43 @@ impl Check<'_, '_> {
             }
         }
         Ok(())
+    }
+
+    fn cleanup_expression_value(
+        &self, instance: &SemanticInstance, function: &TypedFunction, node: zil_base::NodeId,
+        b: &mut Budget,
+    ) -> CompileResult<Option<ValueId>> {
+        if let Some(value) = self.original_subject_value(instance, function, node, b)? {
+            return Ok(Some(value));
+        }
+        // A prepared "give local" may have no standalone site. The lexical
+        // transfer and its unique actual take identify the owned operand whose
+        // temporary must still be cleaned if a later argument exits early.
+        let Some(source) = self.original.prepared_owner_transfer(
+            instance, node, self.program, self.inventory, b, 0,
+        )? else { return Ok(None) };
+        let Some(anchor) = source.anchor else { return Ok(None) };
+        if source.indirect || source.index.is_some() || source.expression.is_some()
+            || !source.path.is_empty() || matches!(anchor, original::LocalAnchor::Environment(_)) {
+            return Ok(None);
+        }
+        let local = self.anchored_local(instance, function, anchor, b)?;
+        let mut selected = None;
+        for block in &function.blocks {
+            for instruction in &block.instructions {
+                b.spend(1, WORK)?;
+                if matches!(instruction.kind, InstructionKind::TakeLocal { local: actual } if actual == local) {
+                    let value = instruction.result.ok_or_else(|| fail("original owning argument has no actual move result"))?;
+                    if selected.replace(value).is_some() {
+                        return Err(unknown("original owning argument needs its exact transfer generation"));
+                    }
+                }
+            }
+        }
+        if let Some(value) = selected {
+            self.checked_owned_place(instance, function, value, &source, b)?;
+        }
+        Ok(selected)
     }
 
     // Reconstruct the destination of an indirect write from actual SSA.
