@@ -218,17 +218,60 @@ impl Solver<'_, '_> {
         }
         self.term(Kind::Life(Life::Implicit(frame.definition, ordinal)), b)
     }
+    pub(super) fn store_view_input(
+        &self, frame: &Frame, expr: &SemanticOriginalExpr, b: &mut Budget,
+    ) -> CompileResult<Option<u32>> {
+        if self.state.intrinsic_anchors.is_empty() && self.state.store_view_inputs.is_empty() {
+            return Ok(None);
+        }
+        let mut expr = expr;
+        while let CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } = &expr.kind {
+            b.spend(1, WORK)?;
+            expr = inner;
+        }
+        let key = (frame.definition, expr.id);
+        b.lookup(self.state.intrinsics.len(), WORK)?;
+        let anchor = if matches!(self.state.intrinsics.get(&key),
+            Some(sealed::Intrinsic::StoreAt | sealed::Intrinsic::StoreAtMut))
+        {
+            // The Store checker established this anchor from the original manager
+            // place, including its field projection, before publishing the borrow.
+            b.lookup(self.state.intrinsic_anchors.len(), WORK)?;
+            self.state.intrinsic_anchors.get(&key)
+        } else {
+            if self.state.store_view_inputs.is_empty() { return Ok(None); }
+            b.lookup(self.state.local_reads.len(), WORK)?;
+            let Some(LocalAnchor::Binding(binding)) = self.state.local_reads.get(&key) else {
+                return Ok(None);
+            };
+            b.lookup(self.state.store_view_inputs.len(), WORK)?;
+            return Ok(self.state.store_view_inputs.get(&(frame.definition, *binding)).copied());
+        };
+        match anchor {
+            Some(LocalAnchor::Parameter(input)) => Ok(Some(*input)),
+            Some(LocalAnchor::Binding(binding)) => {
+                b.lookup(self.state.store_view_inputs.len(), WORK)?;
+                Ok(self.state.store_view_inputs.get(&(frame.definition, *binding)).copied())
+            }
+            _ => Ok(None),
+        }
+    }
     fn original_input_source(
         &self,
         frame: &Frame,
         source: &Source,
+        expr: &SemanticOriginalExpr,
         b: &mut Budget,
     ) -> CompileResult<bool> {
         let Some(life) = source.life else {
             return Ok(false);
         };
-        let Some(LocalAnchor::Parameter(ordinal)) = source.anchor else {
-            return Ok(false);
+        let ordinal = match source.anchor {
+            Some(LocalAnchor::Parameter(ordinal)) => ordinal,
+            _ => match self.store_view_input(frame, expr, b)? {
+                Some(ordinal) => ordinal,
+                None => return Ok(false),
+            },
         };
         let Some(parameter) = frame.parameters.get(ordinal as usize) else {
             return Err(fail(
@@ -316,7 +359,7 @@ impl Solver<'_, '_> {
                 .place(frame, expression, false, b, depth + 1)?
                 .and_then(|place| place.anchor);
         }
-        source.input = self.original_input_source(frame, &source, b)?;
+        source.input = self.original_input_source(frame, &source, expression, b)?;
         let ordinal =
             u32::try_from(ordinal).map_err(|_| resource("call parameter ordinal overflow"))?;
         b.lookup(self.call_variables.len(), WORK)?;

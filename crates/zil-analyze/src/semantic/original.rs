@@ -285,6 +285,7 @@ pub(super) struct Checked {
     intrinsics: BTreeMap<(SemanticDefinitionId, NodeId), sealed::Intrinsic>,
     intrinsic_inputs: BTreeMap<(SemanticDefinitionId, NodeId), Vec<Term>>,
     intrinsic_anchors: BTreeMap<(SemanticDefinitionId, NodeId), LocalAnchor>,
+    store_view_inputs: BTreeMap<(SemanticDefinitionId, NodeId), u32>,
     native_targets: BTreeMap<(SemanticDefinitionId, NodeId), Vec<SemanticDefinitionId>>,
     scoped_foreign_operands: BTreeMap<(SemanticDefinitionId, NodeId), [NodeId; 2]>,
     task_worker_actuals: BTreeMap<(SemanticDefinitionId, NodeId), Vec<Term>>,
@@ -3359,11 +3360,11 @@ impl Solver<'_, '_> {
                             self.unify(local, expected, depth + 1, b)?;
                         }
                     }
-                    if let Some(value) = initializer {
-                        let initializer_node = value.id;
+                    if let Some(initializer) = initializer {
+                        let initializer_node = initializer.id;
                         let value = self.expression_expected(
                             frame,
-                            value,
+                            initializer,
                             family.unwrap_or(local),
                             b,
                             depth + 1,
@@ -3393,6 +3394,13 @@ impl Solver<'_, '_> {
                             )?
                             .unwrap_or(value);
                         self.unify(local, value, depth + 1, b)?;
+                        if !*mutable && !self.state.intrinsic_anchors.is_empty()
+                            && matches!(self.state.arena[self.type_root(value, b)?], Kind::Address { .. })
+                            && let Some(input) = self.store_view_input(frame, initializer, b)?
+                        {
+                            b.lookup(self.state.store_view_inputs.len(), WORK)?;
+                            self.state.store_view_inputs.insert((frame.definition, statement.id), input);
+                        }
                     } else if family.is_some() {
                         return Err(unknown(
                             "uninitialized raw resource family needs its later whole category constraint",
@@ -4501,6 +4509,7 @@ pub(super) fn check(
             intrinsics: BTreeMap::new(),
             intrinsic_inputs: BTreeMap::new(),
             intrinsic_anchors: BTreeMap::new(),
+            store_view_inputs: BTreeMap::new(),
             native_targets: BTreeMap::new(),
             scoped_foreign_operands: BTreeMap::new(),
             task_worker_actuals: BTreeMap::new(),
