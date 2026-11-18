@@ -694,7 +694,7 @@ fn creator_captures(
         .frames
         .get(&entry)
         .ok_or_else(|| bad("captured environment has no actual emitter origin"))?;
-    if frame.parent != Some((function, closure)) {
+    if frame.parent != Some((function, Some(closure))) {
         return Err(bad("captured environment changes its actual creator frame"));
     }
     let mut mint = None;

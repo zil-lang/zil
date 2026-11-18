@@ -390,7 +390,7 @@ fn bind_instance_at(
         crate::dyn_metadata::semantic_operand_snapshot(original, limits, left, 1)?;
         let mut row = original.clone();
         row.target = SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(actual));
-        if let Some((_, closure)) = frame.parent {
+        if let Some((_, Some(closure))) = frame.parent {
             let environment = row
                 .environment
                 .as_mut()

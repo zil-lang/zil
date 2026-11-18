@@ -160,7 +160,7 @@ fn created(
     let actual = lower.closures.get(&closure)
         .ok_or_else(|| bad("actual closure request has no definition"))?;
     let entry = actual.function;
-    if lower.frame(entry)?.origin != origin || lower.frame(entry)?.parent != Some((parent, closure))
+    if lower.frame(entry)?.origin != origin || lower.frame(entry)?.parent != Some((parent, Some(closure)))
     {
         return Err(bad(
             "closure request changes its actual creator or Core occurrence",

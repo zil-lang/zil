@@ -1357,6 +1357,7 @@ impl State {
                 "function pointer conversion requires a closure with no captures",
             ));
         }
+        self.semantic_emission.convert_to_function_ref(pending.function, id, &mut self.work_left, span)?;
         let pending = self.pending.pop().expect("checked fresh entry");
         let slot = self.thin.len();
         self.thin.push(None);

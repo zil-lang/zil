@@ -67,8 +67,9 @@ pub(crate) struct Frame {
     pub expressions: BTreeMap<NodeId, Expression>,
     pub declarations: BTreeMap<NodeId, Declaration>,
     pub closure_slots: BTreeMap<LocalId, ClosureSlot>,
-    /// Actual direct creator and both actual environment/entry identities.
-    pub parent: Option<(FunctionId, ClosureId)>,
+    /// Lexical creator and the runtime environment, when materialized. Thin
+    /// FunctionRefs retain the creator after their temporary closure slot is released.
+    pub parent: Option<(FunctionId, Option<ClosureId>)>,
     stack: Vec<NodeId>,
     live_locals: BTreeMap<LocalId, Point>,
 }
@@ -210,7 +211,7 @@ impl Ledger {
         pay(left, lookup_cost(self.closure_entries.len()), span)?;
         let Some(entry) = self.closure_entries.get(&closure) else { return Ok(None) };
         pay(left, lookup_cost(self.frames.len()), span)?;
-        self.frames.get(entry).filter(|frame| frame.parent.is_some_and(|(_, actual)| actual == closure))
+        self.frames.get(entry).filter(|frame| frame.parent.is_some_and(|(_, actual)| actual == Some(closure)))
             .map(Some).ok_or_else(|| invalid(span, "closure does not match its actual emitted entry"))
     }
 
@@ -443,7 +444,7 @@ impl Ledger {
             function,
             Frame {
                 origin,
-                parent,
+                parent: parent.map(|(creator, environment)| (creator, Some(environment))),
                 expressions: BTreeMap::new(),
                 declarations: BTreeMap::new(),
                 closure_slots: BTreeMap::new(),
@@ -451,6 +452,22 @@ impl Ledger {
                 live_locals: BTreeMap::new(),
             },
         );
+        Ok(())
+    }
+    pub(crate) fn convert_to_function_ref(
+        &mut self, entry: FunctionId, closure: ClosureId, left: &mut usize, span: Span,
+    ) -> R<()> {
+        pay(left, lookup_cost(self.frames.len()), span)?;
+        let Some(frame) = self.frames.get_mut(&entry) else { return Ok(()) };
+        let Some((creator, Some(actual))) = frame.parent else {
+            return Err(invalid(span, "thin conversion has no emitted closure environment"));
+        };
+        pay(left, lookup_cost(self.closure_entries.len()), span)?;
+        if actual != closure || self.closure_entries.get(&closure) != Some(&entry) {
+            return Err(invalid(span, "thin conversion changes the emitted closure entry"));
+        }
+        self.closure_entries.remove(&closure);
+        frame.parent = Some((creator, None));
         Ok(())
     }
     pub fn bind_closure(
@@ -499,7 +516,7 @@ impl Ledger {
             .get(&entry)
             .ok_or_else(|| invalid(span, "qualified capture has no actual closure frame"))?;
         if creator.foreign.is_some()
-            || child.parent != Some((creator.id, closure))
+            || child.parent != Some((creator.id, Some(closure)))
             || child.origin.module != parent.origin.module
             || child.origin.creator != parent.origin.creator
             || child.origin.closure != Some(expression)
@@ -1029,7 +1046,7 @@ impl Ledger {
         if let Some((parent, closure)) = frame.parent {
             pay(left, lookup_cost(self.frames.len()), span)?;
             if !self.frames.contains_key(&parent)
-                || function.environment.is_some_and(|actual| actual != closure)
+                || function.environment != closure
             {
                 return Err(invalid(
                     span,
@@ -1278,6 +1295,30 @@ impl Ledger {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn thin_entries_release_the_slot_and_keep_the_lexical_creator() {
+        let mut ledger = Ledger::default();
+        let mut left = 1000;
+        let span = Span::default();
+        let creator = FunctionId(0);
+        let slot = ClosureId(0);
+        let origin = Origin { module: ModuleId(0), creator: NodeId(1), closure: None };
+        ledger.bind(creator, origin, None, &mut left, span).unwrap();
+        for id in [1, 2] {
+            let entry = FunctionId(id);
+            ledger.bind_closure(creator, NodeId(id), slot, entry, &mut left, span).unwrap();
+            assert_eq!(ledger.closure_entries[&slot], entry);
+            ledger.convert_to_function_ref(entry, slot, &mut left, span).unwrap();
+            assert_eq!(ledger.frames[&entry].parent, Some((creator, None)));
+            assert!(!ledger.closure_entries.contains_key(&slot));
+        }
+        let retained = FunctionId(3);
+        ledger.bind_closure(creator, NodeId(3), slot, retained, &mut left, span).unwrap();
+        assert!(ledger.convert_to_function_ref(FunctionId(1), slot, &mut left, span).is_err());
+        assert_eq!(ledger.closure_entries[&slot], retained);
+        assert_eq!(ledger.frames[&retained].parent, Some((creator, Some(slot))));
+    }
 
     #[test]
     fn actual_creation_receipt_survives_a_distinct_contextual_result() {

@@ -240,7 +240,7 @@ impl<'a> World<'a, '_> {
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(creator_function)) = creator.target else {
             return Err(bad("actual child world creator is not its emitted function"));
         };
-        if frame.parent != Some((creator_function, id)) {
+        if frame.parent != Some((creator_function, Some(id))) {
             return Err(bad("actual child world changes its real creator emission"));
         }
         let proof = ledger.original.borrow();

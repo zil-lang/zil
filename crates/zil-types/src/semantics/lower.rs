@@ -92,6 +92,7 @@ impl<'a> Lower<'a, '_> {
         let (creator, closure) = frame
             .parent
             .ok_or_else(|| bad("closure entry has no actual direct creator"))?;
+        let closure = closure.ok_or_else(|| bad("thin function entry has no runtime closure environment"))?;
         let function = self.actual(id)?;
         pay(self.left, search(self.closures.len()))?;
         let actual = self.closures.get(&closure)
@@ -169,7 +170,7 @@ impl<'a> Lower<'a, '_> {
             let InstructionKind::FunctionRef { function } = op.kind else { continue; };
             if op.result.is_none() || op.result != receipt.value { continue; }
             let frame = self.frame(function)?;
-            if !frame.parent.is_some_and(|(owner, _)| owner == parent)
+            if frame.parent != Some((parent, None))
                 || frame.origin.closure != Some(expression) || self.actual(function)?.environment.is_some()
                 || child.replace(function).is_some()
             {

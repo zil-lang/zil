@@ -159,7 +159,7 @@ fn creator_input(
             _ => return Err(bad("implicit capture child has no actual function")),
         })
         .ok_or_else(|| bad("implicit capture entry has no actual emitter frame"))?;
-    if frame.parent != Some((function, closure)) {
+    if frame.parent != Some((function, Some(closure))) {
         return Err(bad(
             "implicit capture entry changes its actual creator/environment",
         ));

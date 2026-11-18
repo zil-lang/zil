@@ -1834,7 +1834,7 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                             let Some(frame) = self.ledger.frames.get(&entry) else {
                                 continue;
                             };
-                            if frame.parent != Some((creator, *id)) {
+                            if frame.parent != Some((creator, Some(*id))) {
                                 continue;
                             }
                             if found.replace(*id).is_some() {

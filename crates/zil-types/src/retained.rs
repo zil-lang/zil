@@ -780,7 +780,7 @@ impl Builder<'_, '_> {
                 span,
             )?;
             self.closures.semantic_emission.frames.get(&entry)
-                .is_some_and(|frame| frame.parent == Some((self.function.id, id)))
+                .is_some_and(|frame| frame.parent == Some((self.function.id, Some(id))))
         } else { false };
         if actual_kind != bound.kind && !contextual_once {
             return Err(error(
