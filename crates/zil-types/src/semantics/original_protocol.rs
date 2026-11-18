@@ -1915,8 +1915,17 @@ impl<'a> Engine<'a, '_> {
                 .get(&(owner, site))
                 .map(|c| c.kind.clone());
             if let Some(kind) = intrinsic {
-                if matches!(kind, IntrinsicKind::ThreadScope { .. }) {
-                    self.check_thread_consumption(values, state, depth + 1)?;
+                let body = match (&kind, values) {
+                    (IntrinsicKind::ThreadScope { .. }, [Value::Plain, _, body]) => Some(body),
+                    (IntrinsicKind::RegistrationStart { form: CallbackRegistration::Scoped, .. },
+                        [_, body]) => Some(body),
+                    (IntrinsicKind::ThreadScope { .. } | IntrinsicKind::RegistrationStart {
+                        form: CallbackRegistration::Scoped, ..
+                    }, _) => return Err(failure("scoped body lost its complete call operands")),
+                    _ => None,
+                };
+                if let Some(body) = body {
+                    self.check_scoped_body_consumption(body, state, depth + 1)?;
                 }
                 if let Some(value) =
                     self.task_call(owner, expression.id, site, &kind, values, state, depth + 1)?
@@ -1947,7 +1956,7 @@ impl<'a> Engine<'a, '_> {
                         );
                     }
                     IntrinsicKind::RegistrationStart {
-                        asynchronous: true, ..
+                        form: CallbackRegistration::AsyncOwned, ..
                     } => {
                         let root = Root::Created(owner, expression.id);
                         self.change(state, root, OPEN | CLOSED, true, depth)?;
@@ -2441,7 +2450,16 @@ impl<'a> Engine<'a, '_> {
                         self.pay(1, depth)?;
                         state.temporaries.push(callee_value);
                     }
-                    let mut values = self.items(owner, arguments, state, depth + 1)?;
+                    // Provider symbols were checked in the declaration namespace. Only
+                    // runtime operands can transfer values into the preparation inventory.
+                    let runtime_arguments = if let Some(IntrinsicCall {
+                        kind: IntrinsicKind::RegistrationStart { form, .. }, ..
+                    }) = site.and_then(|site| self.proof.intrinsics.get(&(owner, site))) {
+                        let operands = form.operands(arguments).ok_or_else(||
+                            failure("registration loses its declared operand roles"))?;
+                        &arguments[operands.providers.len()..]
+                    } else { arguments.as_slice() };
+                    let mut values = self.items(owner, runtime_arguments, state, depth + 1)?;
                     if let Some(value) = receiver_value {
                         let ordinal = receiver.as_ref().map_or(0, |(index, _, _)| *index);
                         if ordinal > values.len() {
@@ -4744,7 +4762,7 @@ pub(super) fn check(
         if matches!(
             intrinsic.kind,
             IntrinsicKind::RegistrationStart {
-                asynchronous: true,
+                form: CallbackRegistration::AsyncOwned,
                 ..
             } | IntrinsicKind::RegistrationOperation(
                 RegistrationOp::AsyncValid

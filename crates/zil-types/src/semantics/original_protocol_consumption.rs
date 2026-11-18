@@ -737,19 +737,11 @@ impl Engine<'_, '_> {
         self.add_consuming_requirements(state.owner, needed, depth + 1)
     }
 
-    pub(super) fn check_thread_consumption(
-        &mut self,
-        values: &[Value],
-        state: &State,
-        depth: usize,
+    pub(super) fn check_scoped_body_consumption(
+        &mut self, body: &Value, state: &State, depth: usize,
     ) -> R<()> {
-        let [Value::Plain, _, body] = values else {
-            return Err(failure(
-                "thread body cleanup loses its complete actual arguments",
-            ));
-        };
-        // Thread creation failure never invokes the body. Its prepared owner
-        // must also be synchronously destructible in that distinct branch.
+        // Failed setup drops the prepared body without invocation. Successful
+        // setup consumes it once inside the same synchronous scope.
         let Some(needed) = self.remaining_consumption(body, state, depth + 1)? else {
             return Err(self.consumption_failure());
         };

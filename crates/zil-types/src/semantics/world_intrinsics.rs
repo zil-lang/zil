@@ -342,16 +342,18 @@ pub(super) fn operand_ids(kind: &IntrinsicKind, instruction: &InstructionKind) -
             IntrinsicKind::TaskOperation(TaskOp::FinishDestroy),
             InstructionKind::TaskFinishDestroy { task },
         ) => vec![*task],
+        (IntrinsicKind::RegistrationStart { form: CallbackRegistration::Scoped, .. },
+            InstructionKind::WithForeignCallback { callback, body, .. }) => vec![*callback, *body],
         (
             IntrinsicKind::RegistrationStart {
-                asynchronous: false,
+                form: CallbackRegistration::Owned,
                 ..
             },
             InstructionKind::RegistrationStart { callback, .. },
         )
         | (
             IntrinsicKind::RegistrationStart {
-                asynchronous: true, ..
+                form: CallbackRegistration::AsyncOwned, ..
             },
             InstructionKind::AsyncRegistrationStart { callback, .. },
         ) => vec![*callback],
@@ -702,20 +704,12 @@ fn identity(
                 return Err(bad("Task await changes its real worker ABI or result"));
             }
         }
-        (
-            IntrinsicKind::RegistrationStart {
-                providers,
-                asynchronous,
-                threaded_capable,
-            },
-            InstructionKind::RegistrationStart {
-                register, close, ..
-            },
-        ) => {
-            if *asynchronous || providers.len() != 2 {
-                return Err(bad(
-                    "registration changes its synchronous original provider arity",
-                ));
+        (IntrinsicKind::RegistrationStart { providers, form: CallbackRegistration::Scoped, .. },
+            InstructionKind::WithForeignCallback { register, close, .. })
+        | (IntrinsicKind::RegistrationStart { providers, form: CallbackRegistration::Owned, .. },
+            InstructionKind::RegistrationStart { register, close, .. }) => {
+            if providers.len() != 2 {
+                return Err(bad("registration changes its synchronous original provider arity"));
             }
             for (id, definition, role) in [
                 (*register, providers[0], ScopedCallbackRole::Register),
@@ -734,12 +728,11 @@ fn identity(
                     ));
                 }
             }
-            let _ = threaded_capable;
         }
         (
             IntrinsicKind::RegistrationStart {
                 providers,
-                asynchronous,
+                form: CallbackRegistration::AsyncOwned,
                 threaded_capable,
             },
             InstructionKind::AsyncRegistrationStart {
@@ -749,7 +742,7 @@ fn identity(
                 ..
             },
         ) => {
-            if !*asynchronous || providers.len() != 3 {
+            if providers.len() != 3 {
                 return Err(bad(
                     "registration changes its asynchronous original provider arity",
                 ));

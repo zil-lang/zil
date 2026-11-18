@@ -23,7 +23,7 @@ pub(crate) enum IntrinsicKind {
     TaskOperation(TaskOp),
     RegistrationStart {
         providers: Vec<SemanticDefinitionId>,
-        asynchronous: bool,
+        form: CallbackRegistration,
         threaded_capable: bool,
     },
     RegistrationOperation(RegistrationOp),
@@ -1458,13 +1458,13 @@ impl Check<'_, '_> {
             );
             return Ok(Some(result));
         }
-        if let Some(form @ (CallbackRegistration::Owned | CallbackRegistration::AsyncOwned)) = CallbackRegistration::from_name(name) {
+        if let Some(form) = CallbackRegistration::from_name(name) {
             if !self.original_unsafe(owner, expression.id, depth + 1)? {
                 return Err(bad(
                     "registration construction lacks its real original unsafe region",
                 ));
             }
-            let asynchronous = name == "c_register_async";
+            let asynchronous = form == CallbackRegistration::AsyncOwned;
             let operands = form.operands(arguments).ok_or_else(|| bad(
                 "registration constructor changes its ordered actual provider/callback arity",
             ))?;
@@ -1605,6 +1605,28 @@ impl Check<'_, '_> {
                 result_mode: PassingMode::Infer,
                 call_kind: CallKind::Direct,
             };
+            if let Some(body) = operands.body {
+                let observed = self.observation_type(owner, &callback, depth + 1)?;
+                let SemanticTypeRecipe::Address { mutable: true, inner, .. } = observed else {
+                    return Err(bad("scoped registration requires an exclusive callable address"));
+                };
+                self.callable_requirement(owner, &inner, CallableKind::FnMut, &signature, depth + 1)?;
+                if self.sealed_capability(owner, &inner, SemanticBuiltinTrait::ClosedEnvironment, depth + 1)?
+                    != Some(true)
+                {
+                    return Err(bad("scoped registration callback lacks a closed environment"));
+                }
+                let body = self.expr(owner, body, variables, None, depth + 1)?;
+                let body_signature = SemanticSignatureRecipe { parameters: Vec::new(), ..signature };
+                self.callable_requirement(owner, &body, CallableKind::FnOnce, &body_signature, depth + 1)?;
+                let result = SemanticTypeRecipe::Tuple(vec![
+                    SemanticTypeRecipe::Atom(Type::Bool), SemanticTypeRecipe::Atom(Type::I32),
+                ]);
+                self.record_intrinsic(owner, site, IntrinsicKind::RegistrationStart {
+                    providers, form, threaded_capable: false,
+                }, vec![callback, body], &result, wanted, depth + 1)?;
+                return Ok(Some(result));
+            }
             self.callable_requirement(
                 owner,
                 &callback,
@@ -1660,7 +1682,7 @@ impl Check<'_, '_> {
                 site,
                 IntrinsicKind::RegistrationStart {
                     providers,
-                    asynchronous,
+                    form,
                     threaded_capable,
                 },
                 vec![callback],
