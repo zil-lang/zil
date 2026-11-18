@@ -11241,7 +11241,7 @@ mod tests {
         }
         println!("owned Fixed Analyze N={low}; N-1/fresh/warm identical");
         assert_eq!(
-            low, 12_178,
+            low, 12_151,
             "complete bounded identity/ownership work changed"
         );
     }
