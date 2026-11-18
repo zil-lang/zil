@@ -509,6 +509,15 @@ pub(super) fn inline_qualified_capture(
     let _complete_domain = super::dynamic_witness::intrinsic_domain(module, ty, b)?;
     Ok(true)
 }
+// Mutable inline product data may cross the capture slot as a complete Copy
+// value. A nested address, callable, owner or retained nominal class requires
+// its own transfer rules even when a value has the same physical size.
+pub(super) fn closed_inline_product(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    Ok(matches!(ty, Type::Record { .. } | Type::Tuple(_) | Type::Array { .. })
+        && super::dynamic_cleanup::closed_data(ty, b, 0)?
+        && super::dynamic_witness::intrinsic_domain(module, ty, b)?.0 == 0)
+}
+
 // An actual description head is checked by the complete closure relation.
 // Only the exact sealed manager definition can supply its Known0 pointee;
 // no missing capture row or equal physical shape substitutes for that proof.
@@ -925,10 +934,11 @@ pub(super) fn types(
                 if d.storage_life.is_some()
                     && !scalar(t)
                     && !constant_slot
+                    && !closed_inline_product(module, t, b)?
                     && !inline_qualified_capture(module, t, b)?
                 {
                     return Err(unsupported(
-                        "captured Fixed mutation is limited to inline scalar fields",
+                        "captured Fixed mutation requires a complete inline field or a proved static source",
                         Some(i.span),
                     ));
                 }

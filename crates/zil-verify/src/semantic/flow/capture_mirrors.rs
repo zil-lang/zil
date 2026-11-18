@@ -56,9 +56,7 @@ pub(super) fn initial(
     if !publishes {
         return Ok(None);
     }
-    if !crate::dynamic_cleanup::closed_data(&declaration.ty, b, 0)?
-        || crate::dynamic_witness::intrinsic_domain(module, &declaration.ty, b)?.0 != 0
-    {
+    if !crate::stored_callables::closed_inline_product(module, &declaration.ty, b)? {
         return Ok(None);
     }
 
