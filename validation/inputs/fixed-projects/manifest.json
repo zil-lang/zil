@@ -45,7 +45,9 @@
       "hex": "3020",
       "repeat": 1001
     },
-    "cf58981e4df28fa8f0ffd12b84d60c73d62457f896299b059896b456420569a3": null,
+    "cf58981e4df28fa8f0ffd12b84d60c73d62457f896299b059896b456420569a3": {
+      "hex": "5a696c20416c70686120615a2031320a"
+    },
     "136762bbd8fe45d62a5cb1e48c1343594e80999dacc01eed11ee11a75ca88d24": null
   },
   "projects": [
