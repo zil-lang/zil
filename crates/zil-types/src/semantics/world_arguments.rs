@@ -407,31 +407,15 @@ pub(super) fn audit(world: &mut World<'_, '_>) -> R<()> {
             None
         };
         let function = world.function(caller)?;
-        world.pay(function.blocks.len())?;
-        let block = function
-            .blocks
-            .iter()
-            .find(|block| block.id == block_id)
-            .ok_or_else(|| bad("argument role witness names an absent block"))?;
+        let shape = flow::Shape::for_function(world, function)?;
+        let (block, _) = shape.block_and_predecessors(world, function, block_id)?;
         let actual = block
             .instructions
             .get(instruction as usize)
             .ok_or_else(|| bad("argument role witness names an absent instruction"))?;
-        let argument_cost = match &actual.kind {
-            InstructionKind::MakeClosure { captures, .. } => captures.len(),
-            InstructionKind::Call { arguments, .. }
-            | InstructionKind::ForeignCall { arguments, .. }
-            | InstructionKind::SuspendCall { arguments, .. }
-            | InstructionKind::CallIndirect { arguments, .. }
-            | InstructionKind::CallClosure { arguments, .. }
-            | InstructionKind::CallClosureOnce { arguments, .. }
-            | InstructionKind::CallClosureBorrowed { arguments, .. }
-            | InstructionKind::CallClosureShared { arguments, .. }
-            | InstructionKind::CallClosureMut { arguments, .. } => arguments.len(),
-            _ => super::intrinsics::operand_work(&actual.kind),
-        };
-        world.pay(argument_cost)?;
-        let actual_arguments = if let Boundary::Capture(_) = boundary {
+        world.pay(1)?;
+        let parameter = parameter as usize;
+        let actual_argument = if let Boundary::Capture(_) = boundary {
             let InstructionKind::MakeClosure { closure, captures } = &actual.kind else {
                 return Err(bad("capture role witness does not belong to its real MakeClosure"));
             };
@@ -446,7 +430,7 @@ pub(super) fn audit(world: &mut World<'_, '_>) -> R<()> {
                 SemanticSiteRecipeKind::Closure { definition, .. } if definition == child.definition) {
                 return Err(bad("capture role witness changes its original closure recipe"));
             }
-            captures.clone()
+            captures.get(parameter).copied()
         } else if let Some(callee) = callee {
             match &actual.kind {
                 InstructionKind::Call {
@@ -461,12 +445,12 @@ pub(super) fn audit(world: &mut World<'_, '_>) -> R<()> {
                 | InstructionKind::SuspendCall {
                     function: target,
                     arguments,
-                } if *target == callee => arguments.clone(),
+                } if *target == callee => arguments.get(parameter).copied(),
                 InstructionKind::CallClosure { arguments, .. }
                 | InstructionKind::CallClosureOnce { arguments, .. }
                 | InstructionKind::CallClosureBorrowed { arguments, .. }
                 | InstructionKind::CallClosureShared { arguments, .. }
-                | InstructionKind::CallClosureMut { arguments, .. } => arguments.clone(),
+                | InstructionKind::CallClosureMut { arguments, .. } => arguments.get(parameter).copied(),
                 _ => {
                     return Err(bad(
                         "argument role witness does not belong to its actual call opcode",
@@ -492,23 +476,23 @@ pub(super) fn audit(world: &mut World<'_, '_>) -> R<()> {
                 {
                     return Err(bad("indirect argument role changes its original invocation frame"));
                 }
-                arguments.clone()
+                arguments.get(parameter).copied()
             } else {
                 let scheme = proof
                     .intrinsics
                     .get(&(owner, recipe))
                     .ok_or_else(|| bad("sealed argument role has no exact original call scheme"))?;
+                world.pay(super::intrinsics::operand_work(&actual.kind))?;
                 super::intrinsics::operand_ids(&scheme.kind, &actual.kind)?
+                    .get(parameter)
+                    .copied()
             }
         };
-        if actual_arguments.get(parameter as usize) != Some(&operand) {
+        if actual_argument != Some(operand) {
             return Err(bad("argument role witness changes the real argument SSA"));
         }
-        world.pay(world.program.sites.len())?;
-        if !world.program.sites.iter().any(|site| {
-            site.instance == caller_id && site.recipe == recipe
-                && matches!(site.at, SemanticSiteAddress::Typed { block, instruction: i, .. } if block == block_id && i == instruction)
-                && match boundary {
+        if !world.point_rows(caller_id, block_id, instruction as usize)?.any(|site| {
+            site.recipe == recipe && match boundary {
                     Boundary::Parameter(_) => true,
                     Boundary::Capture(_) => matches!((&site.action, &actual.kind),
                         (SemanticSiteAction::Closure { closure: SemanticClosureTarget::Typed(id), .. }, InstructionKind::MakeClosure { closure, .. }) if id == closure),
