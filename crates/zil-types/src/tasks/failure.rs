@@ -367,44 +367,85 @@ pub(crate) fn append_inventory(
             }
         }
     }
+    *left = left.checked_sub(actuals.len()).ok_or_else(|| {
+        limit("Task failure reason publication work exceeded", Span::default())
+    })?;
+    if actuals.iter().any(|(_, instance)| !matches!(instance.ty, Type::BorrowedStorage { .. })) {
+        let reason = zil_ir::builtin_life::TASK_CREATE_ERROR;
+        publish_nominal(
+            module,
+            zil_ir::LifeNominalDeclaration {
+                id: reason,
+                identity: zil_ir::LifeDeclarationIdentity {
+                    package: "@zil.builtin".into(),
+                    module_path: vec!["task".into()],
+                    declaration_path: vec!["enum".into(), "TaskCreateError".into()],
+                    generation_path: vec![],
+                },
+                kind: zil_ir::LifeNominalKind::Enum,
+                parameters: vec![],
+            },
+            zil_ir::LifeNominalInstance {
+                declaration: reason,
+                ty: super::create_error(),
+                arguments: vec![],
+            },
+            limits,
+            left,
+        )?;
+    }
     for (package, instance) in actuals {
-        let declared = declaration(package);
-        for earlier in &module.life_declarations {
-            *left = left.checked_sub(128).ok_or_else(|| {
-                limit(
-                    "Task failure declaration comparison work exceeded",
-                    Span::default(),
-                )
-            })?;
-            if earlier.id == declared.id && *earlier != declared {
+        publish_nominal(module, declaration(package), instance, limits, left)?;
+    }
+    Ok(())
+}
+
+fn publish_nominal(
+    module: &mut TypedModule,
+    declared: zil_ir::LifeNominalDeclaration,
+    instance: zil_ir::LifeNominalInstance,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    let mut declaration_exists = false;
+    for earlier in &module.life_declarations {
+        *left = left.checked_sub(128).ok_or_else(|| {
+            limit(
+                "Task failure declaration comparison work exceeded",
+                Span::default(),
+            )
+        })?;
+        if earlier.id == declared.id {
+            if *earlier != declared || declaration_exists {
                 return Err(error(
                     "E-TASK-CREATE-FAILURE",
                     Span::default(),
-                    "reserved Task failure declaration differs",
+                    "reserved Task failure declaration differs or is duplicated",
                 ));
             }
+            declaration_exists = true;
         }
-        if !module.life_declarations.iter().any(|d| d.id == declared.id) {
-            module.life_declarations.push(declared);
-        }
-        let mut exists = false;
-        for earlier in &module.life_instances {
-            inference::charge_type_snapshot(&earlier.ty, Span::default(), limits, left, 1)?;
-            inference::charge_type_snapshot(&instance.ty, Span::default(), limits, left, 1)?;
-            if earlier.ty == instance.ty {
-                if *earlier != instance {
-                    return Err(error(
-                        "E-TASK-CREATE-FAILURE",
-                        Span::default(),
-                        "failure type has conflicting actual retained context",
-                    ));
-                }
-                exists = true;
+    }
+    if !declaration_exists {
+        module.life_declarations.push(declared);
+    }
+    let mut exists = false;
+    for earlier in &module.life_instances {
+        inference::charge_type_snapshot(&earlier.ty, Span::default(), limits, left, 1)?;
+        inference::charge_type_snapshot(&instance.ty, Span::default(), limits, left, 1)?;
+        if earlier.ty == instance.ty {
+            if *earlier != instance {
+                return Err(error(
+                    "E-TASK-CREATE-FAILURE",
+                    Span::default(),
+                    "failure type has conflicting actual retained context",
+                ));
             }
+            exists = true;
         }
-        if !exists {
-            module.life_instances.push(instance);
-        }
+    }
+    if !exists {
+        module.life_instances.push(instance);
     }
     Ok(())
 }
