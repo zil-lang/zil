@@ -858,23 +858,10 @@ pub(super) fn instruction(module: &TypedModule, f: &TypedFunction, i: &Instructi
             .locals
             .get(local.0 as usize)
             .is_some_and(|l| value(module, &l.ty)),
-        InstructionKind::BorrowCapture {
-            index,
-            mutable: false,
-        } => f
+        InstructionKind::BorrowCapture { index, mutable } => f
             .environment
             .and_then(|id| module.closures.get(id.0 as usize))
-            .is_some_and(|d| {
-                lending(d)
-                    || (super::closures::inline_capture_lending_candidate(d)
-                        && d.captures.get(*index as usize).is_some_and(|ty| {
-                            scalar(ty)
-                                || matches!(
-                                    ty,
-                                    Type::Array { .. } | Type::Record { .. } | Type::Tuple(_)
-                                )
-                        }))
-            }),
+            .is_some_and(|d| super::closures::inline_capture_borrow_candidate(d, *index, *mutable)),
         _ => called(module, f, &i.kind).is_some(),
     }
 }
@@ -904,18 +891,15 @@ pub(super) fn types(
         return Ok(());
     }
     match &i.kind {
-        InstructionKind::BorrowCapture {
-            index,
-            mutable: false,
-        } => {
+        InstructionKind::BorrowCapture { index, mutable } => {
             let d = f
                 .environment
                 .and_then(|id| module.closures.get(id.0 as usize))
-                .ok_or_else(|| bad("capture address lacks a real lending environment"))?;
-            let payload = super::closures::inline_lending_capture(d, *index, b)?;
+                .ok_or_else(|| bad("capture address lacks its actual complete environment"))?;
+            let payload = super::closures::inline_capture_borrow(d, *index, *mutable, b)?;
             super::stored_flow::type_work(payload, &b.limits.clone(), b)?;
             let result = i.result.and_then(|id| f.values.get(id.0 as usize));
-            if !matches!(result,Some(Type::Address {mutable:false,inner}) if inner.as_ref()==payload)
+            if !matches!(result,Some(Type::Address {mutable:actual,inner}) if actual==mutable && inner.as_ref()==payload)
             {
                 return Err(bad(
                     "capture address actual result differs from its environment field",

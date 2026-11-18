@@ -120,6 +120,59 @@ impl CheckedOriginal {
             expression = object;
         }
     }
+    /// A view of a by-value captured sealed owner stays anchored in that
+    /// exact environment occupant. A borrowed descriptor or a local owner is
+    /// not such an anchor, even when its payload type is identical.
+    pub(super) fn record_owned_receiver_view(
+        &mut self,
+        module: &TypedModule,
+        owner: SemanticDefinitionId,
+        life: &Life,
+        b: &mut Budget,
+    ) -> Check<()> {
+        let Life::Local(definition, node) = self.resolved_life(life, b)? else {
+            return Ok(());
+        };
+        if definition != owner || self.creator_moves.get(&owner) != Some(&true) {
+            return Ok(());
+        }
+        b.spend(
+            self.value_places
+                .len()
+                .checked_ilog2()
+                .map_or(1, |n| n as usize + 1),
+        )?;
+        let Some(place) = self.value_places.get(&(owner, node)) else {
+            return Ok(());
+        };
+        place.binder.charge_clone(b)?;
+        if !matches!(place.binder, Binder::Capture { definition, .. } if definition == owner)
+            || !self
+                .used
+                .get(&owner)
+                .is_some_and(|used| used.contains(&place.binder))
+        {
+            return Ok(());
+        }
+        let Some(ty) = self.place_types.get(&(owner, node)) else {
+            return Ok(());
+        };
+        if !matches!(self.resolved(ty, b)?, Ty::Managed(inner) if inner.as_ref() == &Ty::Atom(Type::ByteBuffer))
+        {
+            return Ok(());
+        }
+        let index = self.source_index(module, &[owner], b)?;
+        let expression = index
+            .definitions
+            .get(&owner)
+            .and_then(|function| function.expressions.get(&node))
+            .ok_or_else(|| bad("owned Receiver view has no exact original source expression"))?;
+        if self.inline_capture_place(owner, expression, b)? {
+            b.spend(1)?;
+            self.receiver_borrows.insert((owner, node));
+        }
+        Ok(())
+    }
     pub(super) fn receiver_source_life(
         &self,
         owner: SemanticDefinitionId,
@@ -512,6 +565,7 @@ impl CheckedOriginal {
         _context: &CheckedContext,
         mut prototype: Prototype,
         node: NodeId,
+        borrowed_head: Option<&Life>,
         env: &Env,
         b: &mut Budget,
     ) -> Check<Prototype> {
@@ -535,7 +589,15 @@ impl CheckedOriginal {
             return Err(bad("Receiver result is not a real nonconsuming call"));
         }
         let owner = env.current()?;
-        let target = self.receiver_call_life(module, owner, node, b)?;
+        let access = self.receiver_call_life(module, owner, node, b)?;
+        // Calling through a real Address<F> enters the existing referenced
+        // environment, not the local pointer cell. Its checked outer life is
+        // a valid result upper for the Receiver contract. An owned/local F
+        // still publishes only this call's fresh access window.
+        let target = match borrowed_head {
+            Some(head) => self.resolved_life(head, b)?,
+            None => access.clone(),
+        };
         b.spend(2)?;
         if let Some(previous) = self
             .receiver_call_roles
@@ -549,8 +611,15 @@ impl CheckedOriginal {
         }
         self.outer_flows.entry(owner).or_default().push((
             Life::ReceiverRole(owner, node, StoredBorrowMode::SharedAddress),
-            target.clone(),
+            access.clone(),
         ));
+        if target != access {
+            b.spend(1)?;
+            self.outer_flows.entry(owner).or_default().push((
+                Life::ReceiverRole(owner, node, StoredBorrowMode::SharedAddress),
+                target.clone(),
+            ));
+        }
         *life = target;
         Ok(prototype)
     }

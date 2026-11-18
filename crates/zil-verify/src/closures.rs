@@ -8,42 +8,55 @@ pub(super) fn lending_result(ty: &Type) -> bool {
             || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value()))
 }
 
-pub(super) fn inline_capture_lending_candidate(closure: &ClosureDefinition) -> bool {
+pub(super) fn inline_capture_borrow_candidate(
+    closure: &ClosureDefinition,
+    index: u32,
+    _mutable: bool,
+) -> bool {
     closure.storage_life.is_some()
-        && !closure.lending_captures.is_empty()
-        && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
-        && matches!(closure.result, Type::Address { mutable: false, .. })
+        && matches!(
+            closure.kind,
+            CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
+        )
+        && closure.captures.get(index as usize).is_some_and(|ty| {
+            stored_callables::scalar(ty)
+                || matches!(
+                    ty,
+                    Type::Array { .. } | Type::Record { .. } | Type::Tuple(_)
+                )
+        })
 }
 
-pub(super) fn inline_lending_capture<'a>(
+pub(super) fn inline_capture_borrow<'a>(
     closure: &'a ClosureDefinition,
     index: u32,
+    mutable: bool,
     budget: &mut Budget,
 ) -> Check<&'a Type> {
     let invalid = || {
         reject(
             "E-VERIFY-LENDING",
             None,
-            "capture borrow requires an actual inline Copy field and lending entry",
+            "capture borrow requires actual inline Copy storage and a compatible complete entry",
         )
     };
-    if !inline_capture_lending_candidate(closure) {
+    if !inline_capture_borrow_candidate(closure, index, mutable) {
         return Err(invalid());
+    }
+    if mutable && closure.kind == CallableKind::Fn {
+        return Err(reject(
+            "E-VERIFY-CLOSURE-CALL",
+            None,
+            "exclusive capture borrow requires an exclusive or consuming entry",
+        ));
     }
     let payload = closure.captures.get(index as usize).ok_or_else(invalid)?;
-    if stored_callables::lending(closure) && stored_callables::scalar(payload) {
+    if !mutable && stored_callables::lending(closure) && stored_callables::scalar(payload) {
         return Ok(payload);
     }
-    let relation = closure.storage_life.as_ref().ok_or_else(invalid)?;
-    budget.spend(relation.bindings.len())?;
-    if !matches!(
-        signature_life::outer(relation, StorageBase::Receiver),
-        Some(StorageBinder::Invocation(_))
-    ) {
-        return Err(invalid());
-    }
-    // The stored solver must retain the actual invocation loan as well as
-    // the capture target through every projection, call, and return.
+    // This is an actual temporary field borrow. Whether a returned value may
+    // retain it is a separate original/Typed Return and Receiver obligation;
+    // an invocation need not publish a borrowed result to use its own field.
     stored_flow::type_bounds(payload, &budget.limits.clone(), budget)?;
     if !payload.is_copy_value() {
         return Err(invalid());
@@ -1120,11 +1133,8 @@ pub(super) fn check_resource_instruction(
                     "capture borrow requires actual inline Copy or Closure storage",
                 ));
             }
-            if ty.is_copy_value() && definition.lending_captures.is_empty() {
-                return Err(unsupported(
-                    "inline Copy environment addressing requires its lending entry protocol",
-                    span,
-                ));
+            if ty.is_copy_value() {
+                inline_capture_borrow(definition, *index, *mutable, budget)?;
             }
             if *mutable && definition.kind == CallableKind::Fn {
                 return Err(reject(
@@ -1359,5 +1369,73 @@ mod returned_closed_tests {
         );
         let errors = self_contained(&module, id, &mut Budget::new(&Limits::default())).unwrap_err();
         assert!(errors.message.contains("external address"));
+    }
+}
+
+#[cfg(test)]
+mod inline_capture_borrow_tests {
+    use super::*;
+    #[test]
+    fn temporary_inline_copy_capture_borrows_require_the_actual_entry_mode_raw_wire() {
+        let (mut module, plan) = crate::tests::baseline();
+        let relation = StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 0,
+            bindings: vec![],
+            classes: vec![],
+            static_bindings: vec![],
+        };
+        module.functions[0].environment = Some(ClosureId(0));
+        module.functions[0].storage_life = Some(relation.clone());
+        module.closures.push(ClosureDefinition {
+            id: ClosureId(0),
+            function: FunctionId(0),
+            captures: vec![Type::I32],
+            parameters: vec![],
+            result: Type::I32,
+            kind: CallableKind::FnMut,
+            storage_life: Some(relation),
+            lending_captures: vec![],
+        });
+        let limits = Limits::default();
+        let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+        let decoded = zil_ir::wire::decode_module_candidate(&bytes, &limits)
+            .unwrap()
+            .0;
+        // Predicate components, not a creator/body/loan proof. In particular
+        // a temporary borrow does not promise a returned receiver result.
+        for module in [&module, &decoded] {
+            let mut b = Budget::new(&limits);
+            let actual = &module.closures[0];
+            assert!(actual.lending_captures.is_empty());
+            assert_eq!(
+                inline_capture_borrow(actual, 0, true, &mut b).unwrap(),
+                &Type::I32
+            );
+            assert_eq!(
+                inline_capture_borrow(actual, 0, false, &mut b).unwrap(),
+                &Type::I32
+            );
+            let mut shared = actual.clone();
+            shared.kind = CallableKind::Fn;
+            let error = inline_capture_borrow(&shared, 0, true, &mut b).unwrap_err();
+            assert_eq!(error.code, "E-VERIFY-CLOSURE-CALL");
+            assert_eq!(
+                inline_capture_borrow(&shared, 0, false, &mut b).unwrap(),
+                &Type::I32
+            );
+            let mut owner = actual.clone();
+            owner.captures[0] = Type::Managed(Box::new(Type::I32));
+            assert!(
+                inline_capture_borrow(&owner, 0, true, &mut b).is_err(),
+                "owner fields remain in their separate actual resource namespace"
+            );
+            let mut unknown = actual.clone();
+            unknown.storage_life = None;
+            assert!(
+                inline_capture_borrow(&unknown, 0, true, &mut b).is_err(),
+                "missing full input scope is not Known0"
+            );
+        }
     }
 }

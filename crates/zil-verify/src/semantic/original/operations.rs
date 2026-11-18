@@ -38,7 +38,7 @@ impl CheckedOriginal {
             worker: None,
             providers: None,
         };
-        let mut mixed=Vec::new();
+        let mut mixed = Vec::new();
         if kind != Intrinsic::StoreNew && !written.is_empty() {
             return Err(bad("operational intrinsic has unexpected mixed actuals"));
         }
@@ -181,6 +181,7 @@ impl CheckedOriginal {
                 if payload != Ty::Atom(Type::ByteBuffer) {
                     return Err(bad("byte view has another actual resource payload"));
                 }
+                self.record_owned_receiver_view(module, env.current()?, &life, b)?;
                 Ty::Address {
                     mutable: kind == Intrinsic::BytesViewMut,
                     life,
@@ -317,7 +318,8 @@ impl CheckedOriginal {
                     return Err(bad("guard operation has another complete guard type"));
                 };
                 mixed.push(Arg::Type(*child.clone()));
-                use_.buffer = Some(self.operation_source(module,&arguments[0], env, bindings, b)?);
+                use_.buffer =
+                    Some(self.operation_source(module, &arguments[0], env, bindings, b)?);
                 if kind == Intrinsic::MutexValue {
                     Ty::Address {
                         mutable: true,
@@ -368,7 +370,8 @@ impl CheckedOriginal {
                     b,
                 )?;
                 mixed.push(Arg::Type(callback.clone()));
-                self.intrinsic_type_sources.insert((env.current()?,site,0),arguments[3].id);
+                self.intrinsic_type_sources
+                    .insert((env.current()?, site, 0), arguments[3].id);
                 let signature =
                     self.operation_callable(module, context, &callback, env, active, b)?;
                 if signature.parameters != [Ty::Atom(Type::I32)]
@@ -472,7 +475,12 @@ impl CheckedOriginal {
                 };
                 let (payload, _) =
                     self.operation_payload(&value, env.current()?, arguments[0].id, b)?;
-                if let Ty::Carrier{kind:CarrierKind::AsyncRegistration,child,..}=&payload {
+                if let Ty::Carrier {
+                    kind: CarrierKind::AsyncRegistration,
+                    child,
+                    ..
+                } = &payload
+                {
                     mixed.push(Arg::Type(*child.clone()));
                 } else {
                     return Err(bad(
@@ -491,12 +499,12 @@ impl CheckedOriginal {
                 }
             }
             Intrinsic::ThreadScope => {
-                self.scoped_thread(module,context,site,arguments,env,bindings,active,b)?
+                self.scoped_thread(module, context, site, arguments, env, bindings, active, b)?
             }
             _ => return Err(bad("operation entered another closed scheme")),
         };
         self.execute_effect(env, CallKind::Direct, b)?;
-        self.calls.entry((env.current()?,site)).or_insert(mixed);
+        self.calls.entry((env.current()?, site)).or_insert(mixed);
         b.spend(1)?;
         self.intrinsic_calls.insert((env.current()?, site), use_);
         Ok(Some(result))
@@ -541,7 +549,7 @@ impl CheckedOriginal {
     }
     pub(super) fn operation_source(
         &self,
-        module:&TypedModule,
+        module: &TypedModule,
         expression: &SemanticOriginalExpr,
         env: &Env,
         bindings: &BTreeMap<String, Binding>,
@@ -598,8 +606,11 @@ impl CheckedOriginal {
                     // has a complete observation path, but no movable Place.
                     // Its actual descriptor must separately prove that exact
                     // address/field chain and its original lexical root.
-                    self.address_place(module,env.current()?,node.id,b)?;
-                    return Ok(BufferSource::Address{definition:env.current()?,node:node.id});
+                    self.address_place(module, env.current()?, node.id, b)?;
+                    return Ok(BufferSource::Address {
+                        definition: env.current()?,
+                        node: node.id,
+                    });
                 }
             }
         }
@@ -619,9 +630,9 @@ impl CheckedOriginal {
         if let Some(place) = place {
             self.read_original(module, context, &place, &value, env, false, active, b)?;
         }
-        let source=self.operation_source(module,expression, env, bindings, b)?;
-        let effective=self.observed_argument(expression,&value,env,b)?;
-        Ok((effective,source))
+        let source = self.operation_source(module, expression, env, bindings, b)?;
+        let effective = self.observed_argument(expression, &value, env, b)?;
+        Ok((effective, source))
     }
     pub(super) fn operation_payload(
         &self,
@@ -680,11 +691,15 @@ impl CheckedOriginal {
         b: &mut Budget,
     ) -> Check<Prototype> {
         match self.resolved(ty, b)? {
-            Ty::Closure(id,arguments,sealed) => {
-                let prototype=self.prototypes.get(&id).cloned().ok_or_else(||bad("callback lacks its complete universally checked original entry"))?;
-                let selected=self.closure_creator_environment(module,context,id,&arguments,&sealed,env,active,b)?;
-                self.specialize_code_prototype(&prototype,&selected,b)
-            },
+            Ty::Closure(id, arguments, sealed) => {
+                let prototype = self.prototypes.get(&id).cloned().ok_or_else(|| {
+                    bad("callback lacks its complete universally checked original entry")
+                })?;
+                let selected = self.closure_creator_environment(
+                    module, context, id, &arguments, &sealed, env, active, b,
+                )?;
+                self.specialize_code_prototype(&prototype, &selected, b)
+            }
             ty => self
                 .callable_premise(module, context, &ty, env, active, b)?
                 .ok_or_else(|| {

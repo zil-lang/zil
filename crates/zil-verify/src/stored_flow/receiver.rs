@@ -85,6 +85,25 @@ pub(super) fn read(
         add_loans(&mut out.address.loans, &[head], b)?;
         return Ok(false);
     }
+    if matches!(
+        i.kind,
+        InstructionKind::ByteBufferBorrow { mutable: false, .. }
+    ) && let Some(definition) = entry(module, f).filter(|definition| declared(definition))
+    {
+        let mut captured_owner = false;
+        for source in &out.address.sources {
+            b.spend(1)?;
+            captured_owner |= byte_queries::owning_byte_capture(definition, source, b)?;
+        }
+        if captured_owner {
+            let head = state.receiver.ok_or_else(|| {
+                err("captured byte payload view lacks its actual invocation head")
+            })?;
+            // The manager remains the data target. The invocation head only
+            // protects access to this captured owning occupant across return.
+            add_loans(&mut out.address.loans, &[head], b)?;
+        }
+    }
     let InstructionKind::ReadCapture { index } = i.kind else {
         return Ok(false);
     };
@@ -337,4 +356,141 @@ pub(super) fn helper_head(callee: &TypedFunction, source: &Source) -> bool {
                 matches!(&local.ty, Type::Address { inner, .. }
                 if matches!(inner.as_ref(), Type::Closure(_)))
             })
+}
+
+#[cfg(test)]
+mod byte_capture_tests {
+    use super::*;
+    #[test]
+    fn captured_owned_byte_views_keep_their_data_and_add_only_the_real_receiver_parent_raw_wire() {
+        let (mut module, plan) = crate::tests::baseline();
+        let life = StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 1,
+            bindings: [StorageBase::Receiver, StorageBase::Result]
+                .into_iter()
+                .map(|base| StorageLifeBinding {
+                    position: StoragePosition { base, path: vec![] },
+                    binder: StorageBinder::Invocation(0),
+                })
+                .collect(),
+            classes: vec![],
+            static_bindings: vec![],
+        };
+        module.functions[0].environment = Some(ClosureId(0));
+        module.closures.push(ClosureDefinition {
+            id: ClosureId(0),
+            function: FunctionId(0),
+            captures: vec![
+                Type::Managed(Box::new(Type::ByteBuffer)),
+                Type::Desc(Box::new(Type::ByteBuffer)),
+            ],
+            parameters: vec![],
+            result: Type::Address {
+                mutable: false,
+                inner: Box::new(Type::Slice {
+                    element: Box::new(Type::U8),
+                }),
+            },
+            kind: CallableKind::Fn,
+            storage_life: Some(life),
+            lending_captures: vec![0],
+        });
+        let limits = Limits::default();
+        let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+        let decoded = zil_ir::wire::decode_module_candidate(&bytes, &limits)
+            .unwrap()
+            .0;
+        // This tests the ancestry adapter after the actual descriptor/data
+        // producer, not whole-body or creator admission from this component.
+        for module in [&module, &decoded] {
+            let mut b = Budget::new(&limits);
+            let state = Frame {
+                receiver: Some(7),
+                ..Frame::default()
+            };
+            let instruction = Instruction {
+                result: Some(ValueId(0)),
+                kind: InstructionKind::ByteBufferBorrow {
+                    buffer: ValueId(0),
+                    mutable: false,
+                },
+                span: Span::default(),
+            };
+            for root in [
+                HoldRoot::Capture(0),
+                HoldRoot::Capture(1),
+                HoldRoot::Parameter(0),
+                HoldRoot::Local(LocalId(0)),
+            ] {
+                let source = Source {
+                    static_dependency: StaticProvenance::NotStatic,
+                    retained_port: None,
+                    base: root,
+                    leaf: vec![],
+                    inline: vec![],
+                    heap_parents: vec![],
+                    heap_element: None,
+                };
+                let mut result = Payload {
+                    address: Permission {
+                        sources: vec![source.clone()],
+                        loans: vec![3],
+                    },
+                    ..Payload::default()
+                };
+                read(
+                    module,
+                    &module.functions[0],
+                    &instruction,
+                    &state,
+                    &mut result,
+                    &mut b,
+                )
+                .unwrap();
+                assert_eq!(
+                    result.address.sources,
+                    vec![source],
+                    "head ancestry is not another data target"
+                );
+                assert!(
+                    result.address.loans.contains(&3),
+                    "all actual preexisting parents survive"
+                );
+                assert_eq!(
+                    result.address.loans.contains(&7),
+                    root == HoldRoot::Capture(0),
+                    "a descriptor, parameter or activation owner is not this captured owned manager"
+                );
+            }
+            let mut output = Payload {
+                address: Permission {
+                    sources: vec![Source {
+                        static_dependency: StaticProvenance::NotStatic,
+                        retained_port: None,
+                        base: HoldRoot::Capture(0),
+                        leaf: vec![],
+                        inline: vec![],
+                        heap_parents: vec![],
+                        heap_element: None,
+                    }],
+                    loans: vec![3],
+                },
+                ..Payload::default()
+            };
+            assert!(
+                read(
+                    module,
+                    &module.functions[0],
+                    &instruction,
+                    &Frame::default(),
+                    &mut output,
+                    &mut b
+                )
+                .unwrap_err()
+                .message
+                .contains("actual invocation head")
+            );
+        }
+    }
 }

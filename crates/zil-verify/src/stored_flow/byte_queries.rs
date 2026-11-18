@@ -33,44 +33,122 @@ fn indirect_arguments(kind: &InstructionKind) -> Option<&[ValueId]> {
     }
 }
 
-fn actual_callee<'a>(module:&'a TypedModule,f:&TypedFunction,kind:&'a InstructionKind)->Option<(FunctionId,&'a [ValueId],Option<&'a ClosureDefinition>)>{
-    if let InstructionKind::Call{function,arguments}|InstructionKind::SuspendCall{function,arguments}=kind{return Some((*function,arguments,None));}
-    crate::stored_callables::called(module,f,kind).map(|(definition,arguments)|(definition.function,arguments,Some(definition)))
+fn actual_callee<'a>(
+    module: &'a TypedModule,
+    f: &TypedFunction,
+    kind: &'a InstructionKind,
+) -> Option<(FunctionId, &'a [ValueId], Option<&'a ClosureDefinition>)> {
+    if let InstructionKind::Call {
+        function,
+        arguments,
+    }
+    | InstructionKind::SuspendCall {
+        function,
+        arguments,
+    } = kind
+    {
+        return Some((*function, arguments, None));
+    }
+    crate::stored_callables::called(module, f, kind)
+        .map(|(definition, arguments)| (definition.function, arguments, Some(definition)))
 }
-fn checked_environment(module:&TypedModule,f:&TypedFunction,b:&mut Budget)->Check<()> {
-    let Some(id)=f.environment else{return Ok(());};
-    let definition=crate::closures::definition(module,id,Some(f.span))?;
-    let relation=definition.storage_life.as_ref().ok_or_else(outside)?;
-    if definition.function!=f.id||f.storage_life.as_ref()!=Some(relation){return Err(outside());}
-    crate::signature_life::closure_relation_resource_scopes(module,&definition.parameters,&definition.captures,definition.kind,&definition.result,relation,Some(f.span),b)
+fn checked_environment(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<()> {
+    let Some(id) = f.environment else {
+        return Ok(());
+    };
+    let definition = crate::closures::definition(module, id, Some(f.span))?;
+    let relation = definition.storage_life.as_ref().ok_or_else(outside)?;
+    if definition.function != f.id || f.storage_life.as_ref() != Some(relation) {
+        return Err(outside());
+    }
+    crate::signature_life::closure_relation_resource_scopes(
+        module,
+        &definition.parameters,
+        &definition.captures,
+        definition.kind,
+        &definition.result,
+        relation,
+        Some(f.span),
+        b,
+    )
 }
 // A package view is the same actual environment object. Its weak read root
 // must survive BindPackageCapture instead of becoming an unrelated local.
-fn package_origin(module:&TypedModule,f:&TypedFunction,local:LocalId,b:&mut Budget)->Check<HoldRoot>{
-    let mut selected=None;let mut stores=false;
-    for block in &f.blocks{b.spend(block.instructions.len())?;for instruction in &block.instructions{match instruction.kind{
-        InstructionKind::BindPackageCapture{local:actual,index}if actual==local=>{if selected.replace(index).is_some(){return Err(outside());}},
-        InstructionKind::Store{local:actual,..}if actual==local=>stores=true,_=>{},
-    }}}
-    let Some(index)=selected else{return Ok(HoldRoot::Local(local));};
-    if stores{return Err(outside());}
-    let id=f.environment.ok_or_else(outside)?;
-    let definition=crate::closures::definition(module,id,Some(f.span))?;
-    if definition.captures.get(index as usize)!=f.locals.get(local.0 as usize).map(|local|&local.ty){return Err(outside());}
+fn package_origin(
+    module: &TypedModule,
+    f: &TypedFunction,
+    local: LocalId,
+    b: &mut Budget,
+) -> Check<HoldRoot> {
+    let mut selected = None;
+    let mut stores = false;
+    for block in &f.blocks {
+        b.spend(block.instructions.len())?;
+        for instruction in &block.instructions {
+            match instruction.kind {
+                InstructionKind::BindPackageCapture {
+                    local: actual,
+                    index,
+                } if actual == local => {
+                    if selected.replace(index).is_some() {
+                        return Err(outside());
+                    }
+                }
+                InstructionKind::Store { local: actual, .. } if actual == local => stores = true,
+                _ => {}
+            }
+        }
+    }
+    let Some(index) = selected else {
+        return Ok(HoldRoot::Local(local));
+    };
+    if stores {
+        return Err(outside());
+    }
+    let id = f.environment.ok_or_else(outside)?;
+    let definition = crate::closures::definition(module, id, Some(f.span))?;
+    if definition.captures.get(index as usize)
+        != f.locals.get(local.0 as usize).map(|local| &local.ty)
+    {
+        return Err(outside());
+    }
     Ok(HoldRoot::Capture(index))
 }
 // Consuming an owning capture removes it from the caller. Its internal read
 // is checked in the entry and creates no borrowed outside dependency.
-fn owning_byte_capture(definition:&ClosureDefinition,source:&Source,b:&mut Budget)->Check<bool>{
-    let HoldRoot::Capture(index)=source.base else{return Ok(false);};
-    if source.retained_port.is_some()||!source.leaf.is_empty()||source.heap_element.is_some(){return Ok(false);}
-    let mut ty=definition.captures.get(index as usize).ok_or_else(outside)?;
-    for step in &source.inline{
-        b.spend(1)?;while let Type::BorrowedStorage{storage,..}=ty{ty=storage;}
-        ty=match(step,ty){
-            (PlaceProjection::Field(index),Type::Package{fields,..}|Type::Record{fields,..})=>&fields.get(*index as usize).ok_or_else(outside)?.1,
-            (PlaceProjection::Field(index),Type::Tuple(fields))=>fields.get(*index as usize).ok_or_else(outside)?,
-            _=>return Ok(false),
+pub(super) fn owning_byte_capture(
+    definition: &ClosureDefinition,
+    source: &Source,
+    b: &mut Budget,
+) -> Check<bool> {
+    let HoldRoot::Capture(index) = source.base else {
+        return Ok(false);
+    };
+    if source.retained_port.is_some()
+        || !source.leaf.is_empty()
+        || !source.heap_parents.is_empty()
+        || source.heap_element.is_some()
+    {
+        return Ok(false);
+    }
+    let mut ty = definition
+        .captures
+        .get(index as usize)
+        .ok_or_else(outside)?;
+    for step in &source.inline {
+        b.spend(1)?;
+        while let Type::BorrowedStorage { storage, .. } = ty {
+            ty = storage;
+        }
+        ty = match (step, ty) {
+            (
+                PlaceProjection::Field(index),
+                Type::Package { fields, .. } | Type::Record { fields, .. },
+            ) => &fields.get(*index as usize).ok_or_else(outside)?.1,
+            (PlaceProjection::Field(index), Type::Tuple(fields)) => {
+                fields.get(*index as usize).ok_or_else(outside)?
+            }
+            _ => return Ok(false),
         };
     }
     Ok(matches!(ty,Type::Managed(inner)if inner.as_ref()==&Type::ByteBuffer))
@@ -164,7 +242,8 @@ pub(super) fn inventory(
                 b.spend(block.instructions.len())?;
                 for operation in &block.instructions {
                     let found = query(&operation.kind).is_some()
-                        || actual_callee(module,function,&operation.kind).is_some_and(|(target,_,_)|queries[target.0 as usize]);
+                        || actual_callee(module, function, &operation.kind)
+                            .is_some_and(|(target, _, _)| queries[target.0 as usize]);
                     if found && !queries[index] {
                         queries[index] = true;
                         progressed = true;
@@ -192,10 +271,15 @@ pub(super) fn inventory(
                 }
                 b.spend(block.instructions.len())?;
                 for (instruction_index, instruction) in block.instructions.iter().enumerate() {
-                    if let Some((target,_,Some(_)))=actual_callee(module,function,&instruction.kind)
-                        && queries[target.0 as usize] && covered(caller)!=covered(target.0 as usize)
-                    {return Err(outside());}
-                    if let InstructionKind::Call { function, .. } | InstructionKind::SuspendCall { function, .. } = instruction.kind
+                    if let Some((target, _, Some(_))) =
+                        actual_callee(module, function, &instruction.kind)
+                        && queries[target.0 as usize]
+                        && covered(caller) != covered(target.0 as usize)
+                    {
+                        return Err(outside());
+                    }
+                    if let InstructionKind::Call { function, .. }
+                    | InstructionKind::SuspendCall { function, .. } = instruction.kind
                         && queries[function.0 as usize]
                         && covered(caller) != covered(function.0 as usize)
                     {
@@ -235,11 +319,14 @@ pub(super) fn inventory(
         if queries[index]
             && covered(index)
             && (function.foreign.is_some()
-                || function.call_kind != CallKind::Direct&&function.call_kind!=CallKind::Suspend)
+                || function.call_kind != CallKind::Direct
+                    && function.call_kind != CallKind::Suspend)
         {
             return Err(outside());
         }
-        if queries[index]&&covered(index){checked_environment(module,function,b)?;}
+        if queries[index] && covered(index) {
+            checked_environment(module, function, b)?;
+        }
         b.spend(function.blocks.len())?;
         for block in &function.blocks {
             b.spend(block.instructions.len())?;
@@ -253,14 +340,14 @@ pub(super) fn inventory(
                 if covered(index) {
                     if let Some(arguments) = indirect_arguments(&operation.kind) {
                         b.spend(arguments.len())?;
-                        if actual_callee(module,function,&operation.kind).is_none() && arguments
-                            .iter()
-                            .any(|id| is_description(&function.values[id.0 as usize]))
+                        if actual_callee(module, function, &operation.kind).is_none()
+                            && arguments
+                                .iter()
+                                .any(|id| is_description(&function.values[id.0 as usize]))
                         {
                             return Err(outside());
                         }
                     }
-
                 }
             }
         }
@@ -446,11 +533,21 @@ fn advance(
             InstructionKind::DescribeLocal { local } if matches!(&f.locals[local.0 as usize].ty,Type::Managed(p) if p.as_ref()==&Type::ByteBuffer) => {
                 produced.push(seed_origin(HoldRoot::Local(*local), Vec::new(), b)?)
             }
-            InstructionKind::DescribeCapture{index}|InstructionKind::ReadCapture{index}=>{
-                let definition=crate::closures::definition(module,f.environment.ok_or_else(outside)?,Some(operation.span))?;
-                let capture=definition.captures.get(*index as usize).ok_or_else(outside)?;
-                if !matches!(capture,Type::Managed(inner)|Type::Desc(inner)if inner.as_ref()==&Type::ByteBuffer){return Err(outside());}
-                produced.push(seed_origin(HoldRoot::Capture(*index),Vec::new(),b)?);
+            InstructionKind::DescribeCapture { index } | InstructionKind::ReadCapture { index } => {
+                let definition = crate::closures::definition(
+                    module,
+                    f.environment.ok_or_else(outside)?,
+                    Some(operation.span),
+                )?;
+                let capture = definition
+                    .captures
+                    .get(*index as usize)
+                    .ok_or_else(outside)?;
+                if !matches!(capture,Type::Managed(inner)|Type::Desc(inner)if inner.as_ref()==&Type::ByteBuffer)
+                {
+                    return Err(outside());
+                }
+                produced.push(seed_origin(HoldRoot::Capture(*index), Vec::new(), b)?);
             }
             InstructionKind::DescribePackageField { local, index } => {
                 let ty = &f.locals[local.0 as usize].ty;
@@ -469,7 +566,7 @@ fn advance(
                     return Err(outside());
                 }
                 produced.push(seed_origin(
-                    package_origin(module,f,*local,b)?,
+                    package_origin(module, f, *local, b)?,
                     vec![PlaceProjection::Field(*index)],
                     b,
                 )?);
@@ -494,8 +591,14 @@ fn advance(
                 | InstructionKind::AddressSlice { address, .. } => {
                     produced = retarget(point.at(address.0 as usize, b)?, sources, b)?
                 }
-                InstructionKind::Call { function, arguments }
-                | InstructionKind::SuspendCall { function, arguments } => {
+                InstructionKind::Call {
+                    function,
+                    arguments,
+                }
+                | InstructionKind::SuspendCall {
+                    function,
+                    arguments,
+                } => {
                     let summary = &summaries[function.0 as usize];
                     if summary.complete {
                         b.spend(summary.result.len())?;
@@ -761,7 +864,10 @@ impl Flow {
             }
             return Ok(row);
         }
-        let Some((function,arguments,closure))=actual_callee(module,caller,&operation.kind)else{return Ok(Vec::new());};
+        let Some((function, arguments, closure)) = actual_callee(module, caller, &operation.kind)
+        else {
+            return Ok(Vec::new());
+        };
         b.spend(1)?;
         if !b.byte_query_functions[function.0 as usize] {
             return Ok(Vec::new());
@@ -773,26 +879,50 @@ impl Flow {
         b.spend(prior.byte_reads.len())?;
         let mut out = Vec::new();
         for source in &prior.byte_reads {
-            let row=if matches!(source.base,HoldRoot::Capture(_)){
-                let definition=closure.ok_or_else(outside)?;
-                if let Some(value)=captured_owner::consuming_value(&operation.kind){
-                    if owning_byte_capture(definition,source,b)?{continue;}
-                    vec![captured_owner::substitute_value(module,caller,source,&definition.captures,&actual[value.0 as usize],arguments,actual,state,b)?]
-                }else{
-                    let receiver=captured_owner::receiver(caller,operation,actual,b)?;
-                    vec![captured_owner::substitute(module,caller,source,&definition.captures,&receiver,arguments,actual,state,b)?]
+            let row = if matches!(source.base, HoldRoot::Capture(_)) {
+                let definition = closure.ok_or_else(outside)?;
+                if let Some(value) = captured_owner::consuming_value(&operation.kind) {
+                    if owning_byte_capture(definition, source, b)? {
+                        continue;
+                    }
+                    vec![captured_owner::substitute_value(
+                        module,
+                        caller,
+                        source,
+                        &definition.captures,
+                        &actual[value.0 as usize],
+                        arguments,
+                        actual,
+                        state,
+                        b,
+                    )?]
+                } else {
+                    let receiver = captured_owner::receiver(caller, operation, actual, b)?;
+                    vec![captured_owner::substitute(
+                        module,
+                        caller,
+                        source,
+                        &definition.captures,
+                        &receiver,
+                        arguments,
+                        actual,
+                        state,
+                        b,
+                    )?]
                 }
-            }else{self.instantiate(
-                module,
-                caller,
-                source,
-                &module.functions[function.0 as usize],
-                arguments,
-                actual,
-                state,
-                point,
-                b,
-            )?};
+            } else {
+                self.instantiate(
+                    module,
+                    caller,
+                    source,
+                    &module.functions[function.0 as usize],
+                    arguments,
+                    actual,
+                    state,
+                    point,
+                    b,
+                )?
+            };
             extend_alternatives(&mut out, &row, b)?;
         }
         Ok(out)

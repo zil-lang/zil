@@ -4401,13 +4401,10 @@ static_dependency: StaticProvenance::NotStatic,
         InstructionKind::BorrowCapture { .. } if dyn_transfer.is_some() => {
             out = copy_payload(dyn_transfer.as_ref().unwrap(), b)?;
         }
-        InstructionKind::BorrowCapture {
-            index,
-            mutable: false,
-        } => {
+        InstructionKind::BorrowCapture { index, mutable } => {
             let definition = captured_definition(module, f, b)
-                .ok_or_else(|| err("capture loan has no qualified lender entry"))?;
-            super::closures::inline_lending_capture(definition, *index, b)?;
+                .ok_or_else(|| err("capture loan has no actual complete entry"))?;
+            super::closures::inline_capture_borrow(definition, *index, *mutable, b)?;
             b.spend(1)?;
             out.address.sources.push(Source {
 static_dependency: StaticProvenance::NotStatic,
