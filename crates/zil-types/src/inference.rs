@@ -4634,6 +4634,18 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         };
         let value = self.expr(operand, depth + 1, false)?;
         if *op == UnaryOp::Give {
+            if matches!(value, Term::Closure(_)) {
+                let mut place = operand.as_ref();
+                while let CoreExprKind::Group(inner) = &place.kind {
+                    self.budget.work(1, place.span)?;
+                    place = inner;
+                }
+                if matches!(place.kind, CoreExprKind::Name(_)) {
+                    // Source Original and concrete lowering still prove and
+                    // emit the move. Inference only carries the actual term.
+                    return Ok(value);
+                }
+            }
             if let CoreExprKind::Member { object, member, .. } = &operand.kind
                 && let CoreExprKind::Name(name) = &object.kind
                 && let Some(Binding {

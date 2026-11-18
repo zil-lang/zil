@@ -319,13 +319,52 @@ pub(super) fn specialize_all(function: &mut CoreFunction, bindings: &[(&str, Clo
 }
 
 pub(super) fn visit(function: &mut CoreFunction, replace: &mut impl FnMut(&mut Type)) {
+    fn pattern(p: &mut CorePattern, replace: &mut impl FnMut(&mut Type)) {
+        match &mut p.kind {
+            CorePatternKind::Variant { ty, fields, .. } => {
+                replace(ty);
+                for field in fields {
+                    pattern(field, replace);
+                }
+            }
+            CorePatternKind::Record { ty, fields } => {
+                replace(ty);
+                for (_, field) in fields {
+                    pattern(field, replace);
+                }
+            }
+            CorePatternKind::Reference { pattern: inner, .. }
+            | CorePatternKind::ErrorArm { pattern: inner, .. } => pattern(inner, replace),
+            CorePatternKind::Tuple(fields) | CorePatternKind::Constructor { fields, .. } => {
+                for field in fields {
+                    pattern(field, replace);
+                }
+            }
+            CorePatternKind::RecordConstructor { fields, .. } => {
+                for (_, field) in fields {
+                    pattern(field, replace);
+                }
+            }
+            CorePatternKind::Name(_)
+            | CorePatternKind::Wildcard
+            | CorePatternKind::Integer(_)
+            | CorePatternKind::Bool(_)
+            | CorePatternKind::Float(_)
+            | CorePatternKind::String(_)
+            | CorePatternKind::Character(_) => {}
+        }
+    }
     fn expr(e: &mut CoreExpr, replace: &mut impl FnMut(&mut Type)) {
         match &mut e.kind {
-            CoreExprKind::Unary { operand, .. } | CoreExprKind::Try(operand) => {
-                expr(operand, replace)
+            CoreExprKind::Unary { operand, .. }
+            | CoreExprKind::Try(operand)
+            | CoreExprKind::Group(operand) => expr(operand, replace),
+            CoreExprKind::IntegerConvert { value, target }
+            | CoreExprKind::NumericConvert { value, target }
+            | CoreExprKind::Ascribed { value, ty: target } => {
+                replace(target);
+                expr(value, replace);
             }
-            CoreExprKind::IntegerConvert { value, .. }
-            | CoreExprKind::NumericConvert { value, .. } => expr(value, replace),
             CoreExprKind::Binary { left, right, .. } => {
                 expr(left, replace);
                 expr(right, replace)
@@ -345,7 +384,12 @@ pub(super) fn visit(function: &mut CoreFunction, replace: &mut impl FnMut(&mut T
                     expr(a, replace)
                 }
             }
-            CoreExprKind::Member { object, .. } => expr(object, replace),
+            CoreExprKind::Member { object, owner, .. } => {
+                if let Some(owner) = owner {
+                    replace(owner);
+                }
+                expr(object, replace);
+            }
             CoreExprKind::Index { object, index } => {
                 expr(object, replace);
                 expr(index, replace)
@@ -374,6 +418,21 @@ pub(super) fn visit(function: &mut CoreFunction, replace: &mut impl FnMut(&mut T
                 replace(t);
                 for (_, f) in fields {
                     expr(f, replace)
+                }
+            }
+            CoreExprKind::RecordConstructor { fields, .. } => {
+                for (_, field) in fields {
+                    expr(field, replace);
+                }
+            }
+            CoreExprKind::MakeDynBorrow { source, .. }
+            | CoreExprKind::MakeDynOwned { source, .. } => expr(source, replace),
+            CoreExprKind::CallDynSlot {
+                callee, arguments, ..
+            } => {
+                expr(callee, replace);
+                for argument in arguments {
+                    expr(argument, replace);
                 }
             }
             CoreExprKind::RecordUpdate {
@@ -418,8 +477,12 @@ pub(super) fn visit(function: &mut CoreFunction, replace: &mut impl FnMut(&mut T
         for s in &mut b.statements {
             match &mut s.kind {
                 CoreStatementKind::TupleBinding {
-                    ty, initializer, ..
+                    pattern: binding,
+                    ty,
+                    initializer,
+                    ..
                 } => {
+                    pattern(binding, replace);
                     if let Some(t) = ty {
                         replace(t);
                     }
@@ -458,18 +521,25 @@ pub(super) fn visit(function: &mut CoreFunction, replace: &mut impl FnMut(&mut T
                     block(body, replace)
                 }
                 CoreStatementKind::IfLet {
+                    pattern: binding,
                     value,
                     then_body,
                     else_body,
                     ..
                 } => {
+                    pattern(binding, replace);
                     expr(value, replace);
                     block(then_body, replace);
                     if let Some(b) = else_body {
                         block(b, replace)
                     }
                 }
-                CoreStatementKind::WhileLet { value, body, .. } => {
+                CoreStatementKind::WhileLet {
+                    pattern: binding,
+                    value,
+                    body,
+                } => {
+                    pattern(binding, replace);
                     expr(value, replace);
                     block(body, replace)
                 }
@@ -483,10 +553,30 @@ pub(super) fn visit(function: &mut CoreFunction, replace: &mut impl FnMut(&mut T
                 CoreStatementKind::Match { value, arms } => {
                     expr(value, replace);
                     for a in arms {
+                        pattern(&mut a.pattern, replace);
                         block(&mut a.body, replace)
                     }
                 }
-                CoreStatementKind::Block(b)
+                CoreStatementKind::ForEach {
+                    pattern: binding,
+                    iterator,
+                    body,
+                } => {
+                    pattern(binding, replace);
+                    expr(iterator, replace);
+                    block(body, replace);
+                }
+                CoreStatementKind::With { value, body, .. } => {
+                    expr(value, replace);
+                    block(body, replace);
+                }
+                CoreStatementKind::Yield(value) => expr(value, replace),
+                CoreStatementKind::CompoundAssign { target, value, .. } => {
+                    expr(target, replace);
+                    expr(value, replace);
+                }
+                CoreStatementKind::Loop(b)
+                | CoreStatementKind::Block(b)
                 | CoreStatementKind::Unsafe(b)
                 | CoreStatementKind::Defer(b) => block(b, replace),
                 _ => {}
