@@ -627,7 +627,27 @@ impl Ledger {
             lookup_cost(frame.expressions.len()).saturating_add(1),
             span,
         )?;
-        if let Some(row) = frame.expressions.get(&expression) {
+        if let Some(row) = frame.expressions.get_mut(&expression) {
+            // A give/borrow can begin the real Name expression before it
+            // selects its initialized place. Attach that lookup to this one
+            // active operation; end() will publish its real SSA and boundary.
+            // A completed receipt, prior lookup or already emitted operation
+            // remains a distinct use and cannot be silently reused.
+            pay(left, 1, span)?;
+            if frame.stack.last() == Some(&expression)
+                && !row.complete
+                && row.value.is_none()
+                && row.place.is_none()
+                && row.end.is_none()
+                && row.instructions.is_empty()
+                && row.construction.is_none()
+                && row.callee.is_none()
+                && row.callee_place.is_none()
+                && row.dyn_receiver.is_none()
+            {
+                row.place = Some(place);
+                return Ok(());
+            }
             pay(left, frame.stack.len().saturating_add(1), span)?;
             return Err(invalid(
                 span,
