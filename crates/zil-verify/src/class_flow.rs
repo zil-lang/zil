@@ -1247,7 +1247,9 @@ fn check_with(
 ) -> Check<()> {
     let mut e = Equations {
         representative: Vec::new(),
-        members: None,
+        // Use actual component membership for ordinary stored Option flows.
+        // A merge rewrites only the paid members of the smaller component.
+        members: (b.store_option_results && !b.tasks && module.closures.is_empty()).then(Vec::new),
         rigid: Vec::new(),
         grounded: None,
         next_rigid: 0,

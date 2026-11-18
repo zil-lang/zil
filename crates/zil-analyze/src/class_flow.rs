@@ -289,8 +289,8 @@ fn dyn_class_keys(
 
 struct Equations {
     parent: Vec<usize>,
-    // Shared address arrays introduce one variable per ordinal. Balance their
-    // equations and charge actual ancestry instead of the whole arena bound.
+    // Shared address arrays and stored Option payloads can have many live
+    // class variables. Balance their equations and charge actual ancestry.
     sizes: Option<Vec<usize>>,
     rigid: Vec<Option<usize>>,
     next_rigid: usize,
@@ -307,7 +307,7 @@ impl Equations {
         )?;
         let i = self.parent.len();
         if let Some(sizes) = &mut self.sizes {
-            b.spend(1, "array class component allocation")?;
+            b.spend(1, "balanced class component allocation")?;
             sizes.push(1);
         }
         self.parent.push(i);
@@ -326,7 +326,7 @@ impl Equations {
     fn root(&self, mut i: usize, b: &mut Budget) -> CompileResult<usize> {
         if self.sizes.is_some() {
             loop {
-                b.spend(1, "actual array class ancestry")?;
+                b.spend(1, "actual balanced class ancestry")?;
                 let parent = self.parent[i];
                 if parent == i {
                     return Ok(i);
@@ -362,7 +362,7 @@ impl Equations {
             return Err(errors);
         }
         if let Some(sizes) = &mut self.sizes {
-            b.spend(3, "array class component merge")?;
+            b.spend(3, "balanced class component merge")?;
             if sizes[a] < sizes[z] {
                 std::mem::swap(&mut a, &mut z);
             }
@@ -1284,7 +1284,7 @@ fn check_with(
 ) -> CompileResult<()> {
     let mut e = Equations {
         parent: Vec::new(),
-        sizes: None,
+        sizes: (b.store_option_results && !b.tasks && module.closures.is_empty()).then(Vec::new),
         rigid: Vec::new(),
         next_rigid: 0,
         grounded: b.capture_relations.then(Vec::new),

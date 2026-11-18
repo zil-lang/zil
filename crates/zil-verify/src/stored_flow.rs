@@ -8088,6 +8088,102 @@ fn check_with_mask(
     }
     solve_check(module, graphs, plan, None, mask, b)
 }
+// Direct ordinary calls can consume the independently reconstructed callee
+// result immediately when all their physical call edges are acyclic. Calls
+// in every block are included because summary completeness inspects them.
+fn direct_dependency_postorder(
+    module: &TypedModule,
+    mask: Option<&[bool]>,
+    b: &mut Budget,
+) -> Check<Option<Vec<usize>>> {
+    if !b.store_option_results
+        || !b.ordinary_error_places
+        || b.tasks
+        || b.registrations
+        || b.async_registrations
+        || b.dyn_contexts
+        || !module.closures.is_empty()
+        || !module.dyn_interfaces.is_empty()
+        || !module.dyn_vtables.is_empty()
+    {
+        return Ok(None);
+    }
+    let count = module.functions.len();
+    b.spend(amount(
+        count,
+        std::mem::size_of::<Vec<usize>>()
+            + std::mem::size_of::<(usize, usize)>()
+            + std::mem::size_of::<usize>()
+            + std::mem::size_of::<u8>(),
+    )?)?;
+    let mut calls = vec![Vec::new(); count];
+    for (index, f) in module.functions.iter().enumerate() {
+        b.spend(1)?;
+        if mask.is_some_and(|members| !members[index]) {
+            continue;
+        }
+        b.spend(f.blocks.len())?;
+        for block in &f.blocks {
+            b.spend(block.instructions.len())?;
+            for operation in &block.instructions {
+                match operation.kind {
+                    InstructionKind::Call { function, .. } => {
+                        let callee = function.0 as usize;
+                        if callee >= count {
+                            return Err(err("actual direct stored dependency is absent"));
+                        }
+                        let outgoing = &mut calls[index];
+                        b.spend(amount(
+                            outgoing.len().saturating_add(2),
+                            std::mem::size_of::<usize>(),
+                        )?)?;
+                        outgoing.push(callee);
+                    }
+                    InstructionKind::SuspendCall { .. }
+                    | InstructionKind::CallIndirect { .. }
+                    | InstructionKind::CallDynSlot { .. }
+                    | InstructionKind::CallClosure { .. }
+                    | InstructionKind::CallClosureBorrowed { .. }
+                    | InstructionKind::CallClosureShared { .. }
+                    | InstructionKind::CallClosureMut { .. }
+                    | InstructionKind::CallClosureOnce { .. } => return Ok(None),
+                    _ => {}
+                }
+            }
+        }
+    }
+    let mut visit = vec![0u8; count];
+    let mut stack = Vec::with_capacity(count);
+    let mut order = Vec::with_capacity(count);
+    for start in (0..count).rev() {
+        b.spend(1)?;
+        if visit[start] != 0 {
+            continue;
+        }
+        visit[start] = 1;
+        stack.push((start, 0usize));
+        while let Some((index, next)) = stack.last_mut() {
+            b.spend(3)?;
+            if let Some(&callee) = calls[*index].get(*next) {
+                *next += 1;
+                match visit[callee] {
+                    0 => {
+                        visit[callee] = 1;
+                        stack.push((callee, 0));
+                    }
+                    1 => return Ok(None),
+                    _ => {}
+                }
+            } else {
+                visit[*index] = 2;
+                order.push(*index);
+                stack.pop();
+            }
+        }
+    }
+    Ok(Some(order))
+}
+
 fn solve_check(
     module: &TypedModule,
     graphs: &[FunctionGraph],
@@ -8097,6 +8193,7 @@ fn solve_check(
     b: &mut Budget,
 ) -> Check<()> {
     let pending_byte_edges = byte_queries::inventory(module, graphs, mask, b)?;
+    let order = direct_dependency_postorder(module, mask, b)?;
     b.spend(module.functions.len().saturating_mul(2))?;
     let recursion = if b.dyn_contexts && b.static_borrow_occurrences && mask.is_none() {
         Some(readonly_recursion::Inventory::build(module, graphs, b)?)
@@ -8128,7 +8225,10 @@ fn solve_check(
         let mut pending = Vec::new();
         round += 1;
         b.spend(module.functions.len())?;
-        for index in (0..module.functions.len()).rev() {
+        for position in 0..module.functions.len() {
+            let index = order
+                .as_ref()
+                .map_or(module.functions.len() - 1 - position, |order| order[position]);
             if mask.is_some_and(|mask| !mask[index]) {
                 continue;
             }
@@ -8255,6 +8355,11 @@ fn solve_check(
                 })?;
             }
             summary_work(&summary, b)?;
+            if order.is_some() {
+                summaries[index] = summary;
+                solved[index] = Some(solution);
+                continue;
+            }
             summary_work(&summaries[index], b)?;
             if summary != summaries[index] {
                 changed = true;
@@ -8271,7 +8376,7 @@ fn solve_check(
             changed |= recursive_assumptions != next;
             recursive_assumptions = next;
         }
-        if !changed {
+        if order.is_some() || !changed {
             break;
         }
     }

@@ -8105,6 +8105,91 @@ fn windows(
     Ok(())
 }
 
+// For this ordinary stored/owner lane the only interprocedural summary reads
+// follow actual direct Call operands. The graph includes calls in every block:
+// some completeness checks also inspect structurally unreachable calls.
+fn direct_summary_order(module: &TypedModule, b: &mut Budget) -> CompileResult<Option<Vec<usize>>> {
+    if !b.store_option_results
+        || !b.ordinary_error_places
+        || b.tasks
+        || b.registrations
+        || b.async_registrations
+        || b.scoped_foreign
+        || b.dyn_contexts
+        || !module.closures.is_empty()
+        || !module.dyn_interfaces.is_empty()
+        || !module.dyn_vtables.is_empty()
+    {
+        return Ok(None);
+    }
+    let count = module.functions.len();
+    b.spend(
+        count.saturating_mul(std::mem::size_of::<Vec<usize>>() + 3 * std::mem::size_of::<usize>()),
+        "stored summary direct call schedule allocation",
+    )?;
+    let mut users = vec![Vec::new(); count];
+    let mut outstanding = vec![0usize; count];
+    let mut ready = Vec::with_capacity(count);
+    let mut order = Vec::with_capacity(count);
+    for (caller, function) in module.functions.iter().enumerate() {
+        if !b.composition_stored.is_empty() && !b.composition_stored[caller] {
+            continue;
+        }
+        b.spend(
+            function.blocks.len().saturating_add(1),
+            "stored summary direct call inventory",
+        )?;
+        for block in &function.blocks {
+            b.spend(block.instructions.len(), "stored summary direct call inventory")?;
+            for operation in &block.instructions {
+                match operation.kind {
+                    InstructionKind::Call { function, .. } => {
+                        let callee = function.0 as usize;
+                        let users = users
+                            .get_mut(callee)
+                            .ok_or_else(|| failure("stored summary call target is absent"))?;
+                        b.spend(
+                            std::mem::size_of::<usize>().saturating_mul(users.len().saturating_add(2)),
+                            "stored summary direct call edge",
+                        )?;
+                        users.push(caller);
+                        outstanding[caller] = outstanding[caller]
+                            .checked_add(1)
+                            .ok_or_else(|| failure("stored summary call count overflow"))?;
+                    }
+                    InstructionKind::SuspendCall { .. }
+                    | InstructionKind::CallIndirect { .. }
+                    | InstructionKind::CallDynSlot { .. }
+                    | InstructionKind::CallClosure { .. }
+                    | InstructionKind::CallClosureBorrowed { .. }
+                    | InstructionKind::CallClosureShared { .. }
+                    | InstructionKind::CallClosureMut { .. }
+                    | InstructionKind::CallClosureOnce { .. } => return Ok(None),
+                    _ => {}
+                }
+            }
+        }
+    }
+    b.spend(count, "stored summary direct call root scan")?;
+    ready.extend(
+        outstanding.iter().enumerate().filter_map(|(index, degree)| (*degree == 0).then_some(index)),
+    );
+    while let Some(callee) = ready.pop() {
+        b.spend(
+            users[callee].len().saturating_mul(3).saturating_add(2),
+            "stored summary direct call schedule",
+        )?;
+        order.push(callee);
+        for &caller in &users[callee] {
+            outstanding[caller] -= 1;
+            if outstanding[caller] == 0 {
+                ready.push(caller);
+            }
+        }
+    }
+    Ok((order.len() == count).then_some(order))
+}
+
 /// Path-aware return solving is separate from the legacy parameter-only
 /// reference summaries. No declared life bound fabricates a nonempty result.
 pub(super) fn derive(
@@ -8124,12 +8209,15 @@ fn derive_cfg(
     let mut observed_none = false;
     fee(b, module.functions.len())?;
     let mut summaries = vec![Facts::default(); module.functions.len()];
+    let order = direct_summary_order(module, b)?;
     loop {
         let mut changed = false;
-        for (index, f) in module.functions.iter().enumerate() {
+        for position in 0..module.functions.len() {
+            let index = order.as_ref().map_or(position, |order| order[position]);
             if !b.composition_stored.is_empty() && !b.composition_stored[index] {
                 continue;
             }
+            let f = &module.functions[index];
             let (preds, reachable) = &graphs[index];
             // This solve builds a new function-local arena. Record mutable
             // loans at its existing paid creation/binding sites, including
@@ -9032,13 +9120,17 @@ fn derive_cfg(
                 )?;
             }
             facts_work(&actual, b)?;
+            if order.is_some() {
+                summaries[index] = actual;
+                continue;
+            }
             facts_work(&summaries[index], b)?;
             if actual != summaries[index] {
                 summaries[index] = actual;
                 changed = true;
             }
         }
-        if !changed {
+        if order.is_some() || !changed {
             break;
         }
     }
