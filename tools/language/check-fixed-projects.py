@@ -95,6 +95,26 @@ def verified(invocation, report):
             and report.get('verification_runs') == 1)
 
 
+def matches_native_build(report, backend, opt, work_profile):
+    codegen = report.get('native_codegen') or {}
+    if (report.get('phase') != 'link' or report.get('work_profile') != work_profile
+            or codegen.get('backend') != backend or 'fallback' not in codegen
+            or codegen['fallback'] is not None):
+        return False
+    if backend == 'llvm-api':
+        objects = codegen.get('object_reports', [])
+        return (len(objects) == codegen.get('actual_units') and len(objects) > 0
+                and all(obj.get('backend') == backend and obj.get('pipeline') == f'default<{opt}>'
+                        for obj in objects))
+    if backend == 'clang':
+        # A linker invocation can carry -O2 even when no IR was compiled at O2.
+        ir_commands = [cmd for cmd in report.get('commands', [])
+                       if ('-x', 'ir') in zip(cmd, cmd[1:])]
+        return bool(ir_commands) and all([flag for flag in cmd if flag.startswith('-O')] == [f'-{opt}']
+                                         for cmd in ir_commands)
+    return False
+
+
 def check_source(args, directory, source, expected=None, stem='check'):
     invocation, report = zil_command(args, directory, stem, 'check', source)
     passed = verified(invocation, report) and report.get('phase') == 'verify'
@@ -130,11 +150,12 @@ def run_native(args, directory, source, reference, entry, cases, source_passed, 
             invocation, report = zil_command(args, build_dir, 'zil-build', *build_args)
             build.update(zil=invocation, phase=report.get('phase'),
                          verification_runs=report.get('verification_runs'),
+                         native_configuration_matched=matches_native_build(report, backend, opt, args.work_profile),
                          diagnostics=report.get('diagnostics', []), status='build-failed')
             if reference is not None:
                 build['rust'] = execute(['rustc', '--edition=2024', f'-Copt-level={opt[1:]}',
                                          reference, '-o', rust], build_dir, 'rust-build')
-            can_run = (verified(invocation, report) and zil.is_file()
+            can_run = (verified(invocation, report) and build['native_configuration_matched'] and zil.is_file()
                        and (reference is None or (build['rust']['exit_code'] == 0 and rust.is_file())))
             if can_run:
                 build['status'] = 'pass'
