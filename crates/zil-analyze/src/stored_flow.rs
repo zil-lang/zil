@@ -67,7 +67,7 @@ pub(super) fn nominal_instance_index(
     nominal_zero::exact_index(module, ty, limits, b)
 }
 pub(super) mod option_address;
-mod retained;
+pub(super) mod retained;
 #[cfg(test)]
 mod snapshot_tests;
 mod task_address;

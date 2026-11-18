@@ -99,14 +99,17 @@ fn scan(
 }
 
 pub(super) fn pure(ty: &Type, b: &mut Budget) -> Check<bool> {
-    pure_profile(ty, b, true)
+    pure_profile(ty, b, true, true)
 }
 /// A fixed shared array element is a thin address to closed finite storage.
 /// Qualified pointees and fat Slice/dyn values do not enter this profile.
 pub(super) fn closed_copy(ty: &Type, b: &mut Budget) -> Check<bool> {
-    pure_profile(ty, b, false)
+    pure_profile(ty, b, false, true)
 }
-fn pure_profile(ty: &Type, b: &mut Budget, qualified: bool) -> Check<bool> {
+pub(crate) fn resource_field(ty: &Type, b: &mut Budget) -> Check<bool> {
+    pure_profile(ty, b, false, false)
+}
+fn pure_profile(ty: &Type, b: &mut Budget, qualified: bool, code_atoms: bool) -> Check<bool> {
     b.spend(1)?;
     let mut todo = vec![ty];
     while let Some(ty) = todo.pop() {
@@ -153,7 +156,11 @@ fn pure_profile(ty: &Type, b: &mut Budget, qualified: bool) -> Check<bool> {
             | Type::U32
             | Type::F32
             | Type::F64 => {}
-            Type::FunctionPointer{..}|Type::ForeignCallback{..}=>if !super::pure_copy::code_atom(ty,b)?{return Ok(false);},
+            Type::FunctionPointer { .. } | Type::ForeignCallback { .. } if code_atoms => {
+                if !super::pure_copy::code_atom(ty, b)? {
+                    return Ok(false);
+                }
+            }
             _ => return Ok(false),
         }
     }

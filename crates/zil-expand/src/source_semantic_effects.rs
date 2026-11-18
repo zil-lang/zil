@@ -1157,6 +1157,16 @@ impl<'a> Scan<'a, '_, '_, '_> {
     fn target(&mut self, expression: &'a SemanticOriginalExpr, depth: usize) -> R<Target> {
         self.budget.node(expression.span, depth)?;
         match &expression.kind {
+            CoreExprKind::If { then_value, else_value, .. } => {
+                let left = self.target(then_value, depth + 1)?;
+                let right = self.target(else_value, depth + 1)?;
+                if left == right {
+                    return Ok(left);
+                }
+                let index = self.alternatives.len();
+                self.budget.lineage_push(self.alternatives, (left, right), expression.span)?;
+                return Ok(Target::Alternatives(index));
+            }
             CoreExprKind::Tuple(fields) | CoreExprKind::Array(fields) => {
                 let mut values = Vec::new();
                 for field in fields {

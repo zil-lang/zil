@@ -117,7 +117,7 @@ pub(super) fn pure(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
 }
 /// A fixed shared array element is a thin address to closed finite storage.
 /// Qualified pointees and fat Slice/dyn values do not enter this profile.
-pub(super) fn closed_copy(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+pub(crate) fn closed_copy(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     pure_profile(ty, b, false)
 }
 fn pure_profile(ty: &Type, b: &mut Budget, qualified: bool) -> CompileResult<bool> {

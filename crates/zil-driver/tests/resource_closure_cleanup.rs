@@ -168,10 +168,13 @@ fn resource_closure_owned_write_requires_mutable_closure_position() {
         report.to_json()
     );
     assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.code == "E-CLOSURE-MUTABILITY"),
+        report.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "E-SEMANTIC-ORIGINAL"
+                && diagnostic.message == "original assignment targets an immutable binder"
+                && diagnostic.span.is_some_and(|span| {
+                    text.get(span.start as usize..span.end as usize) == Some("f")
+                })
+        }),
         "{}",
         report.to_json()
     );

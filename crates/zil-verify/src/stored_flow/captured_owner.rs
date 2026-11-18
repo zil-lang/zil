@@ -726,8 +726,8 @@ pub(super) fn substitute_access(
             .captures
             .get(index as usize)
             .ok_or_else(|| err("capture access selects an absent actual field"))?;
-        let scalar_field = match ty {
-            Type::Managed(inner) if super::super::stored_owned::owner(ty) => match inner.as_ref() {
+        let complete_field = match ty {
+            Type::Managed(inner) if super::super::stored_owned::owner(ty, b)? => match inner.as_ref() {
                 Type::Record { fields, .. } => {
                     source.inline.is_empty()
                         || matches!(source.inline.as_slice(),[PlaceProjection::Field(index)]if fields.get(*index as usize).is_some())
@@ -736,7 +736,7 @@ pub(super) fn substitute_access(
             },
             _ => false,
         };
-        if scalar_field
+        if complete_field
             && source.leaf.is_empty()
             && source.retained_port.is_none()
             && source.heap_element.is_none()
@@ -744,7 +744,7 @@ pub(super) fn substitute_access(
             && source.static_dependency == StaticProvenance::NotStatic
         {
             // No pointer, target or loan is manufactured. There is no outside
-            // memory requirement for a uniquely transferred private scalar
+            // memory requirement for a uniquely transferred private
             // owner; its body accesses are still checked at the entry itself.
             return Ok(Access::OwnedEnvironment);
         }

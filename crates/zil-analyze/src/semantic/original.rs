@@ -1831,7 +1831,6 @@ impl Solver<'_, '_> {
                         b.lookup(frame.captured.len(), WORK)?;
                         frame.captured.insert(index, frame.locals[index].ty);
                     }
-                    self.capture_read(frame, index, b)?;
                     if frame.alive { self.local_available(&frame.locals[index], &[], b)?; }
                     // An ordinary read of a managed place describes its current
                     // occupant. Only explicit give transfers this owner's debt.
@@ -1852,6 +1851,7 @@ impl Solver<'_, '_> {
                         }
                         _ => {}
                     }
+                    self.capture_read(frame, index, b)?;
                     let local = &mut frame.locals[index];
                     if frame.alive {
                         if !local.initialized {

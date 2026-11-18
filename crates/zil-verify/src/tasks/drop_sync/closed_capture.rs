@@ -93,7 +93,7 @@ fn synchronous_other(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<b
     let Type::Managed(payload) = ty else {
         return Ok(false);
     };
-    if !stored_owned::payload(payload) {
+    if !stored_owned::payload(payload, b)? {
         return Ok(false);
     }
     b.spend(module.resources.len())?;

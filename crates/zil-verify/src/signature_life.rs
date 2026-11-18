@@ -1029,7 +1029,6 @@ fn relation_inputs<P:InputType>(
                     )));
                 }
             }
-            t if (capture || allow_callback && !output) && super::stored_owned::owner(t) => {}
             t => {
                 if !(t.is_copy_value()
                     || ordinary_owned_value(t)

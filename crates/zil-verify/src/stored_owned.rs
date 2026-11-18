@@ -3,25 +3,33 @@
 //! proves every owner/description epoch, transfer, Once use and cleanup.
 use super::*;
 
-pub(super) fn payload(ty: &Type) -> bool {
-    matches!(ty, Type::Record { fields, .. } if fields.iter().all(|(_, ty)| stored_callables::scalar(ty)))
+pub(super) fn payload(ty: &Type, b: &mut Budget) -> Check<bool> {
+    let Type::Record { fields, .. } = ty else {
+        return Ok(false);
+    };
+    for (_, field) in fields {
+        if !stored_callables::scalar(field) && !stored_flow::retained::resource_field(field, b)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
-pub(super) fn owner(ty: &Type) -> bool {
-    matches!(ty, Type::Managed(inner) if payload(inner))
+pub(super) fn owner(ty: &Type, b: &mut Budget) -> Check<bool> {
+    Ok(matches!(ty, Type::Managed(inner) if payload(inner, b)?))
 }
-pub(super) fn description(ty: &Type) -> bool {
-    matches!(ty, Type::Desc(inner) if payload(inner))
+pub(super) fn description(ty: &Type, b: &mut Budget) -> Check<bool> {
+    Ok(matches!(ty, Type::Desc(inner) if payload(inner, b)?))
 }
 fn bad(span: Span, message: &str) -> Diagnostic {
     reject("E-VERIFY-STORED-OWNER", Some(span), message)
 }
 fn shape(ty: &Type, span: Span, b: &mut Budget) -> Check<()> {
     stored_flow::type_work(ty, &b.limits.clone(), b)?;
-    if owner(ty) || description(ty) {
+    if owner(ty, b)? || description(ty, b)? {
         Ok(())
     } else {
         Err(unsupported(
-            "Fixed/owner integration requires a class-free scalar Record carrier",
+            "Fixed/owner integration requires a class-free finite Copy Record carrier",
             Some(span),
         ))
     }
@@ -95,9 +103,9 @@ pub(super) fn operation(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&m
     };
     stored_flow::type_work(ty,&b.limits.clone(),b)?;
     let supported=match i.kind{
-        InstructionKind::ReadDesc{..}|InstructionKind::WriteDesc{..}=>description(ty),
-        InstructionKind::TakeCapture{..}=>owner(ty)||matches!(ty,Type::Closure(_)|Type::Address{mutable:true,..}),
-        _=>owner(ty),
+        InstructionKind::ReadDesc{..}|InstructionKind::WriteDesc{..}=>description(ty, b)?,
+        InstructionKind::TakeCapture{..}=>owner(ty, b)?||matches!(ty,Type::Closure(_)|Type::Address{mutable:true,..}),
+        _=>owner(ty, b)?,
     };
     if supported{types(module,f,i,b)?;}Ok(supported)
 }
@@ -122,18 +130,18 @@ pub(super) fn types(
             };
             b.spend(fields.len().saturating_add(expected.len()))?;
             if fields.len() != expected.len() {
-                return Err(bad(i.span, "MakeManaged omits an actual scalar field"));
+                return Err(bad(i.span, "MakeManaged omits an actual payload field"));
             }
             for (value, (_, ty)) in fields.iter().zip(expected) {
                 if actual(f, *value, i.span)? != ty {
-                    return Err(bad(i.span, "MakeManaged scalar operand type differs"));
+                    return Err(bad(i.span, "MakeManaged operand type differs from its actual field"));
                 }
             }
         }
         InstructionKind::TakeLocal { local: id } => {
             let ty = local(f, *id, i.span)?;
             shape(ty, i.span, b)?;
-            if !owner(ty) {
+            if !owner(ty, b)? {
                 return Err(bad(i.span, "TakeLocal requires an actual finite owner"));
             }
             same_result(f, i, ty, b)?;
@@ -168,7 +176,7 @@ pub(super) fn types(
                 return same_result(f, i, ty, b);
             }
             shape(ty, i.span, b)?;
-            if !owner(ty) {
+            if !owner(ty, b)? {
                 return Err(bad(i.span, "TakeCapture requires an actual owned capture"));
             }
             same_result(f, i, ty, b)?;
@@ -219,12 +227,12 @@ pub(super) fn types(
             let(_,field)=fields.get(*index as usize).ok_or_else(||bad(i.span,"description write field index absent"))?;
             let operand=actual(f,*value,i.span)?;
             stored_flow::type_work(field,&b.limits.clone(),b)?;stored_flow::type_work(operand,&b.limits.clone(),b)?;
-            if operand!=field||i.result.is_some(){return Err(bad(i.span,"description scalar write changes its exact field type or adds a result"));}
+            if operand!=field||i.result.is_some(){return Err(bad(i.span,"description write changes its exact field type or adds a result"));}
         }
         InstructionKind::DropManaged { local: id } => {
             let ty = local(f, *id, i.span)?;
             shape(ty, i.span, b)?;
-            if !owner(ty) || i.result.is_some() {
+            if !owner(ty, b)? || i.result.is_some() {
                 return Err(bad(
                     i.span,
                     "DropManaged requires actual owner and no result",
@@ -236,7 +244,7 @@ pub(super) fn types(
     Ok(())
 }
 /// A module cannot carry arbitrary resource profiles just because one closure
-/// has an allowed owner. Each declaration must be the exact scalar payload of
+/// has an allowed owner. Each declaration must be the exact Copy payload of
 /// an actual owning capture in a qualified concrete environment. Its mode
 /// separately controls whether the body may merely describe or consume it.
 pub(super) fn module(module: &TypedModule, b: &mut Budget) -> Check<()> {
@@ -251,7 +259,7 @@ pub(super) fn module(module: &TypedModule, b: &mut Budget) -> Check<()> {
             for ty in &d.captures {
                 stored_flow::type_work(ty, &b.limits.clone(), b)?;
                 if let Type::Managed(inner) = ty
-                    && payload(inner)
+                    && payload(inner, b)?
                 {
                     payloads.push(inner.as_ref());
                 }
@@ -262,9 +270,10 @@ pub(super) fn module(module: &TypedModule, b: &mut Budget) -> Check<()> {
     for resource in &module.resources {
         stored_flow::type_work(&resource.payload, &b.limits.clone(), b)?;
         // Canonical builtin heap definitions keep their own complete resource
-        // proof. They are not required to be scalar Record Fixed captures.
+        // proof. They are not required to be Record Fixed captures.
         if ordinary_store_value(module,&resource.payload,b)?||resource.payload==Type::ByteBuffer{continue;}
-        if payload(&resource.payload){
+        let finite_payload = payload(&resource.payload, b)?;
+        if finite_payload {
             let owner=Type::Managed(Box::new(resource.payload.clone()));
             // The complete actual definition has already passed resource
             // admission. A Known0 ordinary resource declaration need not be
@@ -275,7 +284,7 @@ pub(super) fn module(module: &TypedModule, b: &mut Budget) -> Check<()> {
                 continue;
             }
         }
-        if !payload(&resource.payload) {
+        if !finite_payload {
             return Err(unsupported(
                 "unrelated resource shape is outside owning Fixed integration",
                 None,
@@ -528,21 +537,59 @@ mod scalar_write_tests{
         }
     }
     #[test]
-    fn scalar_description_write_keeps_exact_field_type_and_no_owned_payload_raw_wire(){
-        let limits=Limits::default();
-        for attack in 0..5{
-            let(mut module,plan)=crate::tests::baseline();
-            let span=module.functions[0].span;
-            let field=if attack==4{Type::Managed(Box::new(Type::I32))}else{Type::I32};
-            module.functions[0].values=vec![Type::Desc(Box::new(Type::Record{name:"ScalarOwner".into(),fields:vec![("value".into(),field)]})),Type::I32,Type::I64];
-            let operation=Instruction{result:(attack==3).then_some(ValueId(1)),kind:InstructionKind::WriteDesc{desc:ValueId(0),index:if attack==1{99}else{0},value:ValueId(if attack==2{2}else{1})},span};
-            for wire in [false,true]{
-                let decoded;let current=if wire{let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();decoded=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0;&decoded}else{&module};
-                assert_eq!(description(&current.functions[0].values[0]),attack!=4);
-                let classified=super::operation(current,&current.functions[0],&operation,&mut Budget::new(&limits));
-                if attack==0{assert!(classified.unwrap());}else if attack==4{assert!(!classified.unwrap());}else{assert!(classified.is_err());}
-                let result=types(current,&current.functions[0],&operation,&mut Budget::new(&limits));
-                if attack==0{result.unwrap();}else{assert!(result.is_err(),"scalar field attack {attack}, wire {wire}");}
+    fn description_write_checks_the_complete_copy_field_in_raw_and_wire() {
+        let limits = Limits::default();
+        for aggregate in [false, true] {
+            let field_shape = |leaf| {
+                if aggregate {
+                    Type::Tuple(vec![Type::Array { element: Box::new(leaf), length: 2 }, Type::Bool])
+                } else {
+                    leaf
+                }
+            };
+            for attack in 0..5 {
+                let (mut module, plan) = crate::tests::baseline();
+                let f = &mut module.functions[0];
+                let field = field_shape(if attack == 4 {
+                    Type::Managed(Box::new(Type::I32))
+                } else {
+                    Type::I32
+                });
+                f.values = vec![
+                    Type::Desc(Box::new(Type::Record {
+                        name: "Owner".into(),
+                        fields: vec![("value".into(), field)],
+                    })),
+                    field_shape(Type::I32),
+                    field_shape(Type::U32),
+                ];
+                let operation = Instruction {
+                    result: (attack == 3).then_some(ValueId(1)),
+                    kind: InstructionKind::WriteDesc {
+                        desc: ValueId(0),
+                        index: if attack == 1 { 99 } else { 0 },
+                        value: ValueId(if attack == 2 { 2 } else { 1 }),
+                    },
+                    span: f.span,
+                };
+                let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+                let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+                for current in [&module, &decoded] {
+                    let f = &current.functions[0];
+                    assert_eq!(
+                        description(&f.values[0], &mut Budget::new(&limits)).unwrap(),
+                        attack != 4,
+                    );
+                    let classified =
+                        super::operation(current, f, &operation, &mut Budget::new(&limits));
+                    match attack {
+                        0 => assert!(classified.unwrap()),
+                        4 => assert!(!classified.unwrap()),
+                        _ => assert!(classified.is_err()),
+                    }
+                    let result = types(current, f, &operation, &mut Budget::new(&limits));
+                    assert_eq!(result.is_ok(), attack == 0, "aggregate {aggregate}, attack {attack}");
+                }
             }
         }
     }

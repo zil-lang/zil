@@ -370,7 +370,12 @@ pub(super) fn resource_payload(t: &Type, b: &mut Budget) -> CompileResult<bool> 
         fields.len().saturating_add(1),
         "class-free resource payload eligibility",
     )?;
-    Ok(fields.iter().all(|(_, t)| scalar(t)))
+    for (_, field) in fields {
+        if !scalar(field) && !super::stored_flow::retained::closed_copy(field, b)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 pub(super) fn owned_capture(t: &Type, b: &mut Budget) -> CompileResult<bool> {
     let Type::Managed(payload) = t else {

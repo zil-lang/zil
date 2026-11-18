@@ -212,7 +212,7 @@ pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
 mod readonly_recursion;
-mod retained;
+pub(super) mod retained;
 mod static_borrows;
 mod task_address;
 mod task_failure;
@@ -1889,7 +1889,7 @@ fn ordinary_owner_address(module: &TypedModule, ty: &Type, b: &mut Budget) -> Ch
     };
     if !(matches!(inner.as_ref(), Type::Package { .. })
         && pure_copy::complete_owned_value(module, inner, b)?
-        || super::stored_owned::owner(inner))
+        || super::stored_owned::owner(inner, b)?)
     {
         return Ok(false);
     }
@@ -2628,7 +2628,7 @@ fn header_inner(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Chec
             if !fixed_environment(module, ty, b)
                 && !super::stored_callables::borrowed_capture_input(ty)
                 && !super::stored_callables::complete_value_input(module, ty, b)?
-                && !super::stored_owned::owner(ty)
+                && !super::stored_owned::owner(ty, b)?
                 && !super::stored_owned::ordinary_byte_value(ty, b)?
                 && !super::stored_owned::ordinary_store_value(module, ty, b)?
             {
@@ -3104,7 +3104,7 @@ fn seed_payload(
     }
     if matches!(ty, Type::Desc(_)) {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
-        if super::stored_owned::description(ty) {
+        if super::stored_owned::description(ty, b)? {
             b.spend(1)?;
             p.address.sources.push(Source {
                 static_dependency: StaticProvenance::NotStatic,
@@ -4284,9 +4284,8 @@ static_dependency: StaticProvenance::NotStatic,
                 });
             }
         InstructionKind::DescribeLocal { local } => {
-            if f.locals
-                .get(local.0 as usize)
-                .is_some_and(|local| super::stored_owned::owner(&local.ty))
+            if let Some(local_ty) = f.locals.get(local.0 as usize)
+                && super::stored_owned::owner(&local_ty.ty, b)?
             {
                 b.spend(1)?;
                 out.address.sources.push(Source {
@@ -4361,7 +4360,8 @@ static_dependency: StaticProvenance::NotStatic,
         InstructionKind::TakeCapture { .. }
         | InstructionKind::MakeManaged { .. }
         | InstructionKind::ReadDesc { .. } => {}
-        InstructionKind::WriteDesc{desc,..} if f.values.get(desc.0 as usize).is_some_and(super::stored_owned::description)=>{}
+        InstructionKind::WriteDesc { desc, .. }
+            if super::stored_owned::description(vt(f, *desc)?, b)? => {}
         InstructionKind::DropTuple { local } if failure_tuple_drop(f, i, b)? => {
             state.locals[local.0 as usize] = Payload::default();
             clear_local_holes(state, *local, b)?;
@@ -6402,8 +6402,10 @@ fn windows(
                             }
                         })
                         .or(match i.kind {
-                            InstructionKind::ReadDesc{desc,..}if !f.values.get(desc.0 as usize).is_some_and(super::stored_owned::description)=>Some((desc,false)),
-                            InstructionKind::WriteDesc{desc,..}if !f.values.get(desc.0 as usize).is_some_and(super::stored_owned::description)=>Some((desc,true)),
+                            InstructionKind::ReadDesc { desc, .. }
+                                if !super::stored_owned::description(vt(f, desc)?, b)? => Some((desc, false)),
+                            InstructionKind::WriteDesc { desc, .. }
+                                if !super::stored_owned::description(vt(f, desc)?, b)? => Some((desc, true)),
                             _ => None,
                         });
                     if let Some((value, write)) = head {
@@ -8087,8 +8089,8 @@ fn check_with_mask(
                 || shared_array_shape(ty, b)?
                 || compound::slots(ty, b)?.is_some()
                 || matches!(ty, Type::Address { inner, .. } if shared_array_shape(inner, b)?)
-                || super::stored_owned::owner(ty)
-                || super::stored_owned::description(ty)
+                || super::stored_owned::owner(ty, b)?
+                || super::stored_owned::description(ty, b)?
                 || b.masked_stored_tasks()
                     && matches!(
                         ty,
@@ -11299,7 +11301,7 @@ pub(super) fn description_access(
         _ => return Ok(None),
     };
     let ty = vt(f, desc)?;
-    if !super::stored_owned::description(ty) {
+    if !super::stored_owned::description(ty, b)? {
         return Ok(None);
     }
     let Type::Desc(inner) = ty else {

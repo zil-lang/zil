@@ -39,7 +39,7 @@ fn legacy_profile(module: &TypedModule, d: &ClosureDefinition, b: &mut Budget) -
         || d.storage_life.is_none()
         || !d.lending_captures.is_empty()
         || !scalar(&d.result)
-        || !super::super::stored_owned::payload(payload)
+        || !super::super::stored_owned::payload(payload, b)?
         || life.binder_count != 1
         || !life.retained.is_empty()
         || !matches!(life.slots.as_slice(), [slot]

@@ -348,7 +348,7 @@ pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> CompileResult<boo
         b.type_work(&r.payload, true, "bounded resource definition payload")?;
         if !super::super::stored_callables::resource_payload(&r.payload, b)? {
             return Err(closed(
-                "owned Fixed requires class-free scalar-field resource payloads",
+                "owned Fixed requires class-free finite Copy resource payloads",
             ));
         }
         let Type::Record { name, .. } = &r.payload else {
@@ -485,7 +485,7 @@ fn payload<'a>(ty: &'a Type, managed: bool, b: &mut Budget) -> CompileResult<&'a
     };
     if !super::super::stored_callables::resource_payload(p, b)? {
         return Err(closed(
-            "resource operation needs a class-free scalar-field payload",
+            "resource operation needs a class-free finite Copy payload",
         ));
     }
     Ok(p)
