@@ -41,7 +41,7 @@ mod roles;
 pub(super) use roles::receiver_result;
 pub(super) mod sealed;
 pub(super) mod slice_borrows;
-mod slices;
+pub(super) mod slices;
 mod stores;
 pub(super) mod strings;
 mod ffi_literals;

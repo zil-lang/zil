@@ -44,13 +44,19 @@ impl Check<'_, '_> {
                 "actual slice length changes its whole borrowed-slice type",
             ));
         }
-        let anchor = self
-            .original
-            .intrinsic_anchor(instance, site, self.inventory, b)?;
-        let local = self.anchored_local(instance, function, anchor, b)?;
-        if self.receiver_local(function, address, b, 0)? != local {
+        let source = self.original.slice_length_receiver(instance, site, self.inventory, b)?;
+        let same_source = match source {
+            original::slices::LengthReceiver::Local(anchor) => {
+                let local = self.anchored_local(instance, function, anchor, b)?;
+                self.receiver_local(function, address, b, 0)? == local
+            }
+            original::slices::LengthReceiver::Expression(node) => {
+                self.original_subject_value(instance, function, node, b)? == Some(address)
+            }
+        };
+        if !same_source {
             return Err(fail(
-                "actual slice length reads another original reference binder",
+                "actual slice length reads another original reference occurrence",
             ));
         }
         let actual = self.ssa_value(instance, function, address, b, 0)?;

@@ -1,6 +1,12 @@
 //! Borrowed sequence places preserve the complete element type and reference
 //! occurrence. Reading an element does not consume its exclusive slice head.
 use super::*;
+
+pub(in crate::semantic) enum LengthReceiver {
+    Local(LocalAnchor),
+    Expression(NodeId),
+}
+
 impl Solver<'_, '_> {
     fn sequence_place(
         &mut self,
@@ -168,11 +174,20 @@ impl Solver<'_, '_> {
         if member != "len" {
             return Ok(None);
         }
-        let CoreExprKind::Name(name) = &object.kind else {
-            return Ok(None);
-        };
-        let Some(term) = self.local(frame, name, b)? else {
-            return Ok(None);
+        let (term, temporary) = if let CoreExprKind::Name(name) = &object.kind {
+            let Some(term) = self.local(frame, name, b)? else {
+                return Ok(None);
+            };
+            (term, false)
+        } else {
+            // These other receiver forms can resolve as lexical or trait
+            // member calls. Leave their original evaluation to that resolver.
+            if sealed::path(object, b, depth + 1)?.is_some()
+                || self.place(frame, object, false, b, depth + 1)?.is_some()
+            {
+                return Ok(None);
+            }
+            (self.borrowed_argument(frame, object, b, depth + 1)?, true)
         };
         let slice = match self.state.arena[self.type_root(term, b)?] {
             Kind::Address { inner, .. } => matches!(
@@ -183,6 +198,11 @@ impl Solver<'_, '_> {
             _ => false,
         };
         if !slice {
+            if temporary {
+                return Err(unknown(
+                    "original temporary length receiver is not a borrowed slice",
+                ));
+            }
             return Ok(None);
         }
         if !arguments.is_empty() {
@@ -190,8 +210,17 @@ impl Solver<'_, '_> {
                 "original borrowed-slice length has no value arguments",
             ));
         }
-        let input = self.borrowed_argument(frame, object, b, depth + 1)?;
-        let anchor = self.registration_anchor(frame, object, b, depth + 1)?;
+        let input = if temporary {
+            term
+        } else {
+            let input = self.borrowed_argument(frame, object, b, depth + 1)?;
+            let anchor = self.registration_anchor(frame, object, b, depth + 1)?;
+            b.lookup(self.state.intrinsic_anchors.len(), WORK)?;
+            self.state
+                .intrinsic_anchors
+                .insert((frame.definition, node), anchor);
+            input
+        };
         b.lookup(self.state.intrinsics.len(), WORK)?;
         if self
             .state
@@ -207,10 +236,47 @@ impl Solver<'_, '_> {
         self.state
             .intrinsic_inputs
             .insert((frame.definition, node), vec![input]);
-        b.lookup(self.state.intrinsic_anchors.len(), WORK)?;
-        self.state
-            .intrinsic_anchors
-            .insert((frame.definition, node), anchor);
         Ok(Some(self.atom(Type::I64, b)?))
+    }
+}
+
+impl Checked {
+    pub(in crate::semantic) fn slice_length_receiver(
+        &self,
+        instance: &SemanticInstance,
+        site: SemanticSiteId,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<LengthReceiver> {
+        let definition = inventory.definition(instance.definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
+            return Err(fail("original slice length has no declaration body"));
+        };
+        let mut selected = None;
+        for link in site_nodes {
+            b.spend(1, WORK)?;
+            if link.site != site {
+                continue;
+            }
+            let SemanticOriginalNode::Expression(node) = link.node else {
+                return Err(fail("slice length selects an original statement"));
+            };
+            if selected.replace(node).is_some() {
+                return Err(fail("slice length has competing original occurrences"));
+            }
+        }
+        let node = selected.ok_or_else(|| fail("slice length has no original occurrence"))?;
+        b.lookup(self.intrinsic_anchors.len(), WORK)?;
+        if let Some(anchor) = self.intrinsic_anchors.get(&(instance.definition, node)) {
+            return Ok(LengthReceiver::Local(*anchor));
+        }
+        let directory = inventory.original_index(instance.definition, b)?;
+        let CoreExprKind::Call { callee, .. } = &directory.get_expr(node, b)?.kind else {
+            return Err(fail("original slice length is not a call"));
+        };
+        let CoreExprKind::Member { object, .. } = &callee.kind else {
+            return Err(fail("original slice length has no receiver expression"));
+        };
+        Ok(LengthReceiver::Expression(object.id))
     }
 }
