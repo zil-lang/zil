@@ -7,7 +7,7 @@ pub fn tail_mut<T>(items: &mut [T], start: i64) -> &mut [T] {
     return &mut items[start..]
 }
 
-pub fn put<T>(items: &mut [T], index: i64, value: T) {
+pub fn put<T: SyncDrop>(items: &mut [T], index: i64, value: T) {
     items[index] = value
 }
 

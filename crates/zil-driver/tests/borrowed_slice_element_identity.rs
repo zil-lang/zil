@@ -40,11 +40,11 @@ fn review_parametric_writes_and_range_bodies_are_checked_symbolically() {
     for (name, text) in [
         (
             "generic-write-slice",
-            "fn put<T>(p:&mut[T],v:T){p[0]=v;}fn result()->i32{var a=[1,2];put(&mut a[..],3);return a[0];}",
+            "fn put<T:SyncDrop>(p:&mut[T],v:T){p[0]=v;}fn result()->i32{var a=[1,2];put(&mut a[..],3);return a[0];}",
         ),
         (
             "generic-write-no-slice",
-            "fn put<T>(p:&mut T,v:T){*p=v;}fn result()->i32{var a=1;put(&mut a,3);return a;}",
+            "fn put<T:SyncDrop>(p:&mut T,v:T){*p=v;}fn result()->i32{var a=1;put(&mut a,3);return a;}",
         ),
         (
             "generic-range-body",
@@ -60,6 +60,31 @@ fn review_parametric_writes_and_range_bodies_are_checked_symbolically() {
         );
         assert_eq!(report.phase, Phase::Verify);
         assert!(!report.artifacts.contains_key("llvm"));
+    }
+    for (name, text) in [
+        (
+            "generic-write-slice-concrete-call-without-sync-drop",
+            "fn put<T>(p:&mut[T],v:T){p[0]=v;}fn result()->i32{var a=[1,2];put(&mut a[..],3);return a[0];}",
+        ),
+        (
+            "generic-write-address-concrete-call-without-sync-drop",
+            "fn put<T>(p:&mut T,v:T){*p=v;}fn result()->i32{var a=1;put(&mut a,3);return a;}",
+        ),
+        (
+            "generic-write-unused-address-without-sync-drop",
+            "fn put<T>(p:&mut T,v:T){*p=v;}fn main(){}",
+        ),
+    ] {
+        let report = check(name, text);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Types);
+        assert_eq!(report.diagnostics[0].code, "E-ORIGINAL-CLEANUP");
+        assert_eq!(report.verification_runs, 0);
     }
     // Closest generic neighbours remain rejected even without instantiation.
     // A successful i32 instance is never used as evidence that arbitrary T is

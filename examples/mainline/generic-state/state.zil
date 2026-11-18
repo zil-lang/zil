@@ -8,7 +8,7 @@ pub fn pack<T: Copy, F: FnMut(&mut T) -> i32>(callback: F, value: T) -> State<T,
     return State::<T,F> { bytes: bytes_new(), callback: callback, value: value }
 }
 
-pub fn drive<T: Copy, G: FnMut(&mut T) -> i32>(state: State<T,G>, count: i32) -> i32 {
+pub fn drive<T: Copy, G: FnMut(&mut T) -> i32 + SyncDrop>(state: State<T,G>, count: i32) -> i32 {
     var current = state
     var index = 0
     while index < count {

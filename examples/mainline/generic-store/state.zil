@@ -7,7 +7,7 @@ pub fn make<F: FnMut() -> i32>(callback: F) -> State<F> {
     return State::<F> { items: collection.empty(), callback: callback }
 }
 
-pub fn run<F: FnMut() -> i32>(state: State<F>, count: i64) -> void!i32 {
+pub fn run<F: FnMut() -> i32 + SyncDrop>(state: State<F>, count: i64) -> void!i32 {
     var current = state
     if !collection.reserve(current.items, count) { return () }
     var index: i64 = 0

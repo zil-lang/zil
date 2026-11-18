@@ -172,7 +172,7 @@ fn factories_give_returns_and_parameter_origin_views_compose() {
 #[test]
 fn ordinary_generic_algorithms_apply_to_dynamic_and_fixed_windows() {
     expect(
-        "fn tail<T>(p:&[T],i:i64)->&[T]{return &p[i..]}fn put<T>(p:&mut[T],i:i64,v:T){p[i]=v}fn value()->i64{let b=bytes_new();bytes_reserve(b,4);bytes_push(b,7u8);bytes_push(b,9u8);put(bytes_view_mut(b),1,5u8);var fixed=[1u8,2u8];put(&mut fixed[..],0,8u8);return i64(tail(bytes_view(b),1)[0])+i64(tail(&fixed[..],0)[0])}",
+        "fn tail<T>(p:&[T],i:i64)->&[T]{return &p[i..]}fn put<T:SyncDrop>(p:&mut[T],i:i64,v:T){p[i]=v}fn value()->i64{let b=bytes_new();bytes_reserve(b,4);bytes_push(b,7u8);bytes_push(b,9u8);put(bytes_view_mut(b),1,5u8);var fixed=[1u8,2u8];put(&mut fixed[..],0,8u8);return i64(tail(bytes_view(b),1)[0])+i64(tail(&fixed[..],0)[0])}",
         "13\n",
         false,
     );

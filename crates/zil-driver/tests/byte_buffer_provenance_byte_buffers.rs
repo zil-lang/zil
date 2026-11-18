@@ -275,10 +275,10 @@ fn an_uncalled_local_byte_descriptor_capture_keeps_its_owner_in_scope() {
 #[test]
 fn parametric_windows_and_assignment_enter_full_production_verification() {
     passes(
-        "fn tail<T>(p:&[T])->&[T]{return &p[1..];}fn mutable_tail<T>(p:&mut[T])->&mut[T]{return &mut p[1..];}fn put<T>(p:&mut[T],v:T){p[0]=v;}fn replace<T>(p:&mut T,v:T){*p=v;}fn length<T>(p:&[T])->i64{return p.len();}fn result()->i64{var a=[1,2,3];put::<i32>(mutable_tail::<i32>(&mut a[..]),7);replace::<i32>(&mut a[0],8);return length(tail(&a[..]))+i64(a[0]+a[1]);}",
+        "fn tail<T>(p:&[T])->&[T]{return &p[1..];}fn mutable_tail<T>(p:&mut[T])->&mut[T]{return &mut p[1..];}fn put<T:SyncDrop>(p:&mut[T],v:T){p[0]=v;}fn replace<T:SyncDrop>(p:&mut T,v:T){*p=v;}fn length<T>(p:&[T])->i64{return p.len();}fn result()->i64{var a=[1,2,3];put::<i32>(mutable_tail::<i32>(&mut a[..]),7);replace::<i32>(&mut a[0],8);return length(tail(&a[..]))+i64(a[0]+a[1]);}",
     );
     passes(
-        "fn put<T>(p:&mut[T],v:T){p[0]=v;}fn length<T>(p:&[T])->i64{return p.len();}fn work<T>(p:&mut[T],v:T)->i64{put(p,v);return length(p)+p.len();}fn result()->i64{let b=bytes_new();bytes_reserve(b,2);bytes_push(b,5u8);let n=work(bytes_view_mut(b),9u8);return n+length(bytes_view(b));}",
+        "fn put<T:SyncDrop>(p:&mut[T],v:T){p[0]=v;}fn length<T>(p:&[T])->i64{return p.len();}fn work<T:SyncDrop>(p:&mut[T],v:T)->i64{put(p,v);return length(p)+p.len();}fn result()->i64{let b=bytes_new();bytes_reserve(b,2);bytes_push(b,5u8);let n=work(bytes_view_mut(b),9u8);return n+length(bytes_view(b));}",
     );
 }
 
@@ -295,7 +295,7 @@ fn reusable_storage_and_generic_sequence_modules_share_real_interfaces() {
         ),
         (
             "sequence.zil",
-            "pub fn tail_mut<T>(p:&mut[T])->&mut[T]{return &mut p[1..];}pub fn put<T>(p:&mut[T],v:T){p[0]=v;}pub fn count<T>(p:&[T])->i64{return p.len();}",
+            "pub fn tail_mut<T>(p:&mut[T])->&mut[T]{return &mut p[1..];}pub fn put<T:SyncDrop>(p:&mut[T],v:T){p[0]=v;}pub fn count<T>(p:&[T])->i64{return p.len();}",
         ),
     ];
     let recorded = std::env::var_os("ZIL_IMPL094_RECORD")
