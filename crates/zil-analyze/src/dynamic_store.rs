@@ -10,7 +10,7 @@ pub(super) struct CanonicalDefinitions {
     module: usize,
     limits: (usize, usize),
     proofs: std::collections::BTreeMap<u8, std::collections::BTreeMap<String, usize>>,
-    // These addresses belong only to the retained Arc<Geometry> registry.
+    // These addresses belong to immutable module inputs or retained geometry owners.
     // A temporary or a newly supplied same-named payload always takes full Eq.
     equal_payloads: std::collections::BTreeMap<(u8, usize), usize>,
     names: std::collections::BTreeMap<String, Vec<usize>>,
@@ -151,6 +151,24 @@ fn canonical_cached(
         return Ok(false);
     }
     prepare_canonical(module, b)?;
+    let address = payload as *const Type as usize;
+    let entries = b
+        .product_store_definitions
+        .as_ref()
+        .unwrap()
+        .equal_payloads
+        .len();
+    b.lookup(entries, "canonical Store complete payload equality query")?;
+    // Both callers obtain the name directly from this payload's actual element.
+    // Only fully compared immutable coordinates are admitted to this directory.
+    if b.product_store_definitions
+        .as_ref()
+        .unwrap()
+        .equal_payloads
+        .contains_key(&(kind, address))
+    {
+        return Ok(true);
+    }
     let owner = module as *const TypedModule as usize;
     let limits = (b.partial_depth, b.helper_nodes);
     let width = b
@@ -180,26 +198,6 @@ fn canonical_cached(
         .resources
         .get(index)
         .ok_or_else(|| super::bad("canonical Store declaration index leaves its exact module"))?;
-    let address = payload as *const Type as usize;
-    let retained = crate::semantic::geometry::bounded_work(payload, b)?.is_some();
-    if retained {
-        let width = b
-            .product_store_definitions
-            .as_ref()
-            .unwrap()
-            .equal_payloads
-            .len();
-        b.lookup(width, "canonical Store complete payload equality query")?;
-        if b.product_store_definitions
-            .as_ref()
-            .unwrap()
-            .equal_payloads
-            .get(&(kind, address))
-            == Some(&index)
-        {
-            return Ok(true);
-        }
-    }
     // Full preflight precedes both comparison and reuse. A newly supplied Type
     // is never trusted because its name happens to hit a successful directory.
     crate::dyn_metadata::ty(payload, b)?;
@@ -210,7 +208,10 @@ fn canonical_cached(
         "canonical Store declaration equality",
     )?;
     let equal = &definition.payload == payload;
-    if equal && retained {
+    if equal
+        && (b.immutable_input_type(module, payload)?
+            || crate::semantic::geometry::bounded_work(payload, b)?.is_some())
+    {
         let width = b
             .product_store_definitions
             .as_ref()
@@ -467,17 +468,19 @@ pub(super) fn ordinary_payload(
             "ordinary Product Store requires an actual Package element",
         ));
     };
-    budget.type_work(element, true, WORK)?;
-    if fields
+    budget.spend(fields.len(), "ordinary Product Store field kinds")?;
+    let callback = fields
         .iter()
-        .any(|(_, field)| matches!(field, Type::Closure(_)))
-    {
+        .any(|(_, field)| matches!(field, Type::Closure(_)));
+    if callback {
+        // This proof can query the current admission profile for a capture.
         callback_element(module, element, budget)?;
-    } else {
-        product_element(element, budget)?;
     }
     if canonical_cached(module, name, payload, 0, budget)? {
         return Ok(());
+    }
+    if !callback {
+        product_element(element, budget)?;
     }
     budget.spend(name.len().saturating_add(32), WORK)?;
     let canonical = format!("@builtin:OwnedStore<{name}>");
@@ -737,10 +740,10 @@ pub(super) fn owned_capture(
     let Type::Package { name, .. } = element.as_ref() else {
         unreachable!("Package capture branch")
     };
-    capture_element(element, budget)?;
     if canonical_cached(module, name, payload, 1, budget)? {
         return Ok(());
     }
+    capture_element(element, budget)?;
     budget.spend(name.len().saturating_add(32), WORK)?;
     let canonical = format!("@builtin:OwnedStore<{name}>");
     let mut found = 0;

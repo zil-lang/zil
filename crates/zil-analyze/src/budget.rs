@@ -47,6 +47,9 @@ pub(super) struct Budget {
     // retains its real immutable owners; no class, where or live loan enters.
     pub(super) geometry_epoch: std::sync::Arc<()>,
     pub(super) geometry_module: Option<usize>,
+    // Membership certifies only that an input coordinate lives for this
+    // immutable module. Consumers must establish their own structural proof.
+    pub(super) input_type_coordinates: Option<(usize, std::sync::Arc<BTreeSet<usize>>)>,
     pub(super) geometry_type_catalog:
         BTreeMap<(Option<usize>, (usize, usize), u64), Vec<crate::semantic::geometry::TypeRecord>>,
     pub(super) geometry_catalog: BTreeMap<
@@ -326,6 +329,7 @@ impl Budget {
             geometry_types: BTreeMap::new(),
             geometry_epoch: std::sync::Arc::new(()),
             geometry_module: None,
+            input_type_coordinates: None,
             geometry_type_catalog: BTreeMap::new(),
             geometry_catalog: BTreeMap::new(),
             geometry_next_type: 0,
@@ -537,6 +541,23 @@ impl Budget {
         Ok(self
             .ordinary_pod_store_roots
             .contains(&(ty as *const Type as usize)))
+    }
+    pub(super) fn immutable_input_type(
+        &mut self,
+        module: &TypedModule,
+        ty: &Type,
+    ) -> CompileResult<bool> {
+        let owner = module as *const TypedModule as usize;
+        let Some((_, roots)) = self
+            .input_type_coordinates
+            .as_ref()
+            .filter(|(id, _)| *id == owner)
+        else {
+            return Ok(false);
+        };
+        let roots = std::sync::Arc::clone(roots);
+        self.lookup(roots.len(), "immutable input type coordinate")?;
+        Ok(roots.contains(&(ty as *const Type as usize)))
     }
     pub(super) fn owned_store_package_type(&mut self, ty: &Type) -> CompileResult<bool> {
         if self.owned_store_package_roots.is_empty() {
@@ -2106,7 +2127,9 @@ pub(super) fn preflight(
                     && !super::stored_callables::exclusive_capture(ty)
                     && !super::stored_callables::owned_capture(ty, budget)?
                     && !super::stored_callables::ordinary_capture(module, ty, budget)?
-                    && !super::stored_callables::semantic_shared_callable_capture(module, closure, ty, budget)?
+                    && !super::stored_callables::semantic_shared_callable_capture(
+                        module, closure, ty, budget,
+                    )?
                     && !matches!(ty,Type::Closure(child) if super::stored_callables::finite(module,*child))
                 {
                     return Err(vec![Diagnostic::unsupported(
@@ -2889,10 +2912,8 @@ pub(super) fn preflight(
                     InstructionKind::ByteBufferLen { .. }
                         | InstructionKind::ByteBufferCapacity { .. }
                 );
-                budget.byte_borrow |= matches!(
-                    instruction.kind,
-                    InstructionKind::ByteBufferBorrow { .. }
-                );
+                budget.byte_borrow |=
+                    matches!(instruction.kind, InstructionKind::ByteBufferBorrow { .. });
                 match &instruction.kind {
                     InstructionKind::AsyncRegistrationStart {
                         register,

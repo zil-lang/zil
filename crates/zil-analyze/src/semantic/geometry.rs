@@ -108,11 +108,11 @@ pub(crate) struct TypeEntry {
 pub(super) struct Inputs {
     module: Option<usize>,
     raw_limits: (usize, usize),
-    types: BTreeSet<usize>,
+    types: Arc<BTreeSet<usize>>,
     lives: BTreeSet<usize>,
     empty: StorageLifeShape,
     scalars: std::cell::RefCell<Vec<Arc<Geometry>>>,
-    resolved: std::cell::RefCell<BTreeMap<(usize, usize), Arc<Geometry>>>,
+    resolved: std::cell::RefCell<BTreeMap<(usize, Option<usize>), Arc<Geometry>>>,
     // Exact immutable input Type coordinates. The owner's actual first domain
     // was fully bounded; it is not a domain premise for a later request.
     type_roots: std::cell::RefCell<BTreeMap<usize, Arc<Geometry>>>,
@@ -123,7 +123,7 @@ impl Default for Inputs {
         Self {
             module: None,
             raw_limits: (0, 0),
-            types: BTreeSet::new(),
+            types: Arc::default(),
             lives: BTreeSet::new(),
             empty: value::empty(),
             scalars: std::cell::RefCell::default(),
@@ -229,6 +229,17 @@ impl Inputs {
         for resource in &module.resources {
             inputs.register_type(&resource.payload, budget)?;
         }
+        if module
+            .semantic
+            .as_ref()
+            .is_some_and(|actual| std::ptr::eq(actual, program))
+        {
+            budget.spend(1, "immutable input type directory")?;
+            budget.input_type_coordinates = Some((
+                module as *const TypedModule as usize,
+                Arc::clone(&inputs.types),
+            ));
+        }
         Ok(inputs)
     }
     fn register_type(&mut self, ty: &Type, budget: &mut Budget) -> CompileResult<()> {
@@ -246,7 +257,11 @@ impl Inputs {
                 ));
             }
             budget.lookup(self.types.len(), "semantic geometry Type registration")?;
-            if !self.types.insert(ty as *const Type as usize) {
+            // Registration finishes before the directory is shared with other passes.
+            if !Arc::get_mut(&mut self.types)
+                .ok_or_else(|| fail("geometry input directory was already published"))?
+                .insert(ty as *const Type as usize)
+            {
                 // Every published input root was traversed by this same walk.
                 continue;
             }
@@ -421,9 +436,12 @@ impl Inputs {
         if self.module != budget.geometry_module {
             return Err(fail("geometry source changes its exact immutable module"));
         }
+        // The empty domain has no leaves, classes or nominal arguments. Its
+        // identity survives moves of Inputs and fresh empty values at call sites.
+        let empty_domain = life == &self.empty;
         let key = (
             ty as *const Type as usize,
-            life as *const StorageLifeShape as usize,
+            (!empty_domain).then_some(life as *const StorageLifeShape as usize),
         );
         // Only immutable input coordinates are ever published in this map.
         // A hit therefore already authenticates both roots and their limits;
@@ -432,7 +450,7 @@ impl Inputs {
             // Empty-domain scalar values have no declaration, member position,
             // loan or cleanup obligation. The same scalar from any source
             // coordinate has exactly the same immutable representation.
-            if ty.is_b0_scalar() && life == &self.empty {
+            if ty.is_b0_scalar() && empty_domain {
                 let mut values = self.scalars.borrow_mut();
                 for value in values.iter() {
                     budget.spend(1, "semantic scalar lookup")?;
@@ -441,7 +459,11 @@ impl Inputs {
                     }
                 }
                 let value = intern::borrowed(ty, life, budget)?;
-                let relocation = if values.len() == values.capacity() { values.len() } else { 0 };
+                let relocation = if values.len() == values.capacity() {
+                    values.len()
+                } else {
+                    0
+                };
                 budget.spend(1 + relocation, "semantic scalar publication")?;
                 values.push(Arc::clone(&value));
                 return Ok(value);
@@ -473,7 +495,7 @@ impl Inputs {
             })
             .map(|entry| Arc::clone(&entry.owner));
         if let Some(existing) = existing {
-            if std::ptr::eq(life, &existing.life) {
+            if std::ptr::eq(life, &existing.life) || (empty_domain && existing.life == self.empty) {
                 return Ok(existing);
             }
             return intern::with_life(&existing, life, budget);
@@ -483,7 +505,7 @@ impl Inputs {
         let registered_type = self.raw_limits == (budget.partial_depth, budget.helper_nodes)
             && self.types.contains(&key.0);
         let registered =
-            registered_type && (self.lives.contains(&key.1) || std::ptr::eq(life, &self.empty));
+            registered_type && key.1.is_none_or(|address| self.lives.contains(&address));
         let type_root = if registered_type {
             budget.lookup(
                 self.type_roots.borrow().len(),
@@ -738,12 +760,18 @@ mod tests {
             distinct
         );
         assert!(registered.resolved.borrow().is_empty());
+        let before_move = registered
+            .resolved(&input_type, &value::empty(), &mut budget)
+            .unwrap();
+        let moved = Box::new(registered);
+        let after_move = moved
+            .resolved(&input_type, &value::empty(), &mut budget)
+            .unwrap();
+        assert!(Arc::ptr_eq(&before_move, &after_move));
+        assert!(!Arc::ptr_eq(&before_move, &together));
+        assert_eq!(moved.resolved.borrow().len(), 1);
         budget.partial_depth = 0;
-        assert!(
-            registered
-                .resolved(&input_type, &merged, &mut budget)
-                .is_err()
-        );
+        assert!(moved.resolved(&input_type, &merged, &mut budget).is_err());
     }
     #[test]
     fn physical_field_equalities_keep_complete_coordinate_and_type_identity() {
