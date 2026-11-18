@@ -646,12 +646,10 @@ impl Check<'_, '_> {
         }
         if let Root::Local(local, block, index, true) = &origin.root
             && matches!(source.anchor, Some(original::LocalAnchor::Environment(_)))
-            && !source.indirect
         {
-            // A borrowed callable capture is spilled as Address<whole F>.
-            // Loading this compiler slot preserves the actual BorrowCapture;
-            // it is not a read of a pointer stored inside lexical F. The
-            // finite capture-origin proof checks every initialized CFG source.
+            // The compiler may spill either a borrow of the inline captured
+            // callable or the existing pointer stored as a capture. The
+            // producer and complete types distinguish those two boundaries.
             let capture =
                 self.capture_local_origin(function, *local, (*block, *index), b, depth + 1)?;
             let closure = function
@@ -668,17 +666,18 @@ impl Check<'_, '_> {
                 .filter(|item| item.id == *local)
                 .ok_or_else(|| fail("borrowed capture spill has no actual local"))?
                 .ty;
-            if !geometry::same_type(captured, &source.root.ty, b)?
-                || !matches!(local_type, Type::Address { inner, .. }
-                    if inner.as_ref() == captured)
-            {
+            let same_boundary = if source.indirect {
+                matches!(captured, Type::Address { .. }) && local_type == captured
+            } else {
+                matches!(local_type, Type::Address { inner, .. } if inner.as_ref() == captured)
+            };
+            if !geometry::same_type(captured, &source.root.ty, b)? || !same_boundary {
                 return Err(fail(
                     "borrowed capture spill changes its complete lexical value or physical pointer boundary",
                 ));
             }
-            // Normalize only the canonical capture-borrow spill. A copied
-            // value subsequently borrowed from another local is another
-            // physical root even when its capture-origin image is the same.
+            // Normalize only a uniquely initialized entry spill. A later
+            // copy or replacement cannot acquire the captured slot's root.
             let mut stores = 0usize;
             for actual_block in &function.blocks {
                 for item in &actual_block.instructions {
@@ -690,10 +689,14 @@ impl Check<'_, '_> {
                         } if target == local => {
                             stores = stores.saturating_add(1);
                             let (_, _, producer) = self.defining(function, *value, b)?;
-                            if actual_block.id != function.entry
-                                || !matches!(producer.kind, InstructionKind::BorrowCapture { index, .. }
-                                    if index == capture)
-                            {
+                            let emitted = match producer.kind {
+                                InstructionKind::BorrowCapture { index, .. } =>
+                                    !source.indirect && index == capture,
+                                InstructionKind::ReadCapture { index } =>
+                                    source.indirect && index == capture,
+                                _ => false,
+                            };
+                            if actual_block.id != function.entry || !emitted {
                                 return Err(fail(
                                     "borrowed capture spill is not its genuine entry capture borrow",
                                 ));
@@ -715,8 +718,8 @@ impl Check<'_, '_> {
                     "borrowed capture spill has no unique genuine capture borrow",
                 ));
             }
-            origin.root = Root::Capture(capture, false);
-            origin.fresh = true;
+            origin.root = Root::Capture(capture, source.indirect);
+            origin.fresh = !source.indirect;
         }
         b.spend(origin.path.len().saturating_add(source.path.len()), WORK)?;
         if origin.path != source.path || !(origin.fresh || outer_fresh) {
