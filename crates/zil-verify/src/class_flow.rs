@@ -2042,6 +2042,7 @@ fn check_with(
                         }
                     }
                     InstructionKind::BorrowPackageField { local, .. }
+                    | InstructionKind::BorrowPlaceLocal { local, .. }
                         if super::stored_flow::finite_field_borrow(module, f, i, b)? =>
                     {
                         if let Some(out) = out {

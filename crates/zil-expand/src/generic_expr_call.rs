@@ -936,7 +936,7 @@ impl Engine<'_> {
             ty
         };
         let opaque = state.opaque_inputs.binary_search(&index).is_ok()
-            && ty.as_ref().and_then(callable::opaque_signature).is_some();
+            && ty.as_ref().is_none_or(|ty| callable::opaque_signature(ty).is_some());
         let retained = if state.value_inference_allowed && let Some(ty) = &ty {
             self.inferred_state_value(ty, 0)?
         } else {

@@ -107,7 +107,7 @@ impl CheckedContext{
             if !seen.insert(value){return Err(bad("observed original root has a cyclic actual read/description chain"));}
             crate::check_instruction(module,f,instruction,b)?;value=address;
         }}
-        for(ordinal,projection)in projections.iter().enumerate(){
+        'projections: for(ordinal,projection)in projections.iter().enumerate(){
             loop{
                 b.spend(1)?;if !seen.insert(value){return Err(bad("indirect borrow has a cyclic actual projection chain"));}
                 let(_,_,instruction)=self.site_index.producers.get(f,value,b)?;crate::check_instruction(module,f,instruction,b)?;
@@ -118,6 +118,16 @@ impl CheckedContext{
                     (AddressProjection::Field(name),InstructionKind::AddressField{address,index})=>{
                         let ty=f.values.get(address.0 as usize).ok_or_else(||bad("indirect field parent has no actual type"))?;let mut field=vec![name.clone()];consume_field(ty,*index,&mut field,b)?;value=*address;
                     },
+                    (AddressProjection::Field(_), InstructionKind::BorrowPlaceLocal { local, path, .. }) => {
+                        let parent = &f.locals.get(local.0 as usize)
+                            .ok_or_else(|| bad("borrowed field path has no actual root local"))?.ty;
+                        let remaining = &projections[ordinal..];
+                        if consume_reserved_fields(parent, path, remaining, b)? != remaining.len() {
+                            return Err(bad("borrowed field path omits an original parent projection"));
+                        }
+                        fused = Some(*local);
+                        break 'projections;
+                    }
                     (AddressProjection::Field(name),InstructionKind::BorrowPackageField{local,index,..})if ordinal+1==projections.len()=>{
                         let ty=&f.locals.get(local.0 as usize).ok_or_else(||bad("borrowed Package field has no complete actual parent"))?.ty;let mut field=vec![name.clone()];consume_field(ty,*index,&mut field,b)?;fused=Some(*local);
                     },

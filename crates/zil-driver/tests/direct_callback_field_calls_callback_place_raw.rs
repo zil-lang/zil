@@ -183,6 +183,100 @@ fn main() -> i32 {
     );
 }
 
+#[test]
+fn nested_value_package_borrow_checks_the_complete_field_path() {
+    let source = r#"
+resource Tag { code: i32 }
+impl Drop for Tag { fn drop(self: Self) {} }
+package Pair<T: Value> { manages tag: Tag; left: T; right: T }
+fn pair<T: Value>(left: T, right: T) -> Pair<T> {
+    return Pair::<T> { tag: Tag { code: 0 }, left: left, right: right }
+}
+fn counter(start: i32) -> impl FnMut(i32) -> i32 {
+    var n = start
+    return move(delta: i32) => { n += delta; return n }
+}
+fn main() -> i32 {
+    var root = pair(pair(counter(1), counter(2)), pair(counter(3), counter(4)))
+    return (&mut root.right.left)(1)
+}
+"#;
+    let limits = Limits::default();
+    let module = value_package_module(source);
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    pair("nested-value-control", source, module.clone(), plan.clone(), None);
+    use zil_ir::PlaceProjection::Field;
+    for (position, sibling) in [(0, Field(1)), (1, Field(2))] {
+        let mut changed = module.clone();
+        let path = main_function(&mut changed).blocks.iter_mut()
+            .flat_map(|block| &mut block.instructions)
+            .find_map(|instruction| match &mut instruction.kind {
+                I::BorrowPlaceLocal { path, mutable: true, .. } if path == &[Field(2), Field(1)] => Some(path),
+                _ => None,
+            }).expect("complete original callback borrow");
+        path[position] = sibling;
+        assert!(zil_analyze::analyze(&changed, &limits).is_err());
+        pair("nested-value-sibling", source, changed, plan.clone(), Some("E-VERIFY-SEMANTIC"));
+    }
+}
+
+fn value_package_module(source: &str) -> TypedModule {
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "value-package-path.zil", source);
+    let target = TargetProfile::host_llvm();
+    let limits = Limits::default();
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand_with_map_semantics(
+        &unit, &syntax, &limits, &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    ).unwrap().core;
+    zil_types::check(&core, &target, &limits).unwrap()
+}
+
+#[test]
+fn borrowed_value_package_helper_preserves_the_original_receiver_field() {
+    let source = r#"
+resource Tag { code: i32 }
+impl Drop for Tag { fn drop(self: Self) {} }
+package Pair<T: Value> { manages tag: Tag; left: T; right: T }
+fn pair<T: Value>(left: T, right: T) -> Pair<T> {
+    return Pair::<T> { tag: Tag { code: 0 }, left: left, right: right }
+}
+fn counter(start: i32) -> impl FnMut(i32) -> i32 {
+    var n = start
+    return move(delta: i32) => { n += delta; return n }
+}
+fn relay<F: Value + FnMut(i32) -> i32>(root: &mut Pair<F>, n: i32) -> i32 {
+    return (root.left)(n)
+}
+fn main() -> i32 {
+    var value = pair(counter(1), counter(2))
+    return relay(&mut value, 3)
+}
+"#;
+    let limits = Limits::default();
+    let mut module = value_package_module(source);
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    pair("borrowed-helper-control", source, module.clone(), plan.clone(), None);
+    let helper = module.functions.iter_mut()
+        .find(|f| f.parameters.first().is_some_and(|id| matches!(
+            &f.locals[id.0 as usize].ty,
+            Type::Address { mutable: true, inner } if matches!(inner.as_ref(), Type::Package { .. })
+        ))).expect("helper borrowing the concrete Package");
+    let index = helper.blocks.iter_mut().flat_map(|block| &mut block.instructions)
+        .find_map(|op| match &mut op.kind {
+            I::AddressField { index, .. } => Some(index),
+            _ => None,
+        }).expect("field of actual borrowed Package");
+    assert_eq!(*index, 1);
+    *index = 2;
+    assert!(zil_analyze::analyze(&module, &limits).is_err());
+    pair("borrowed-helper-sibling", source, module, plan, Some("E-VERIFY-SEMANTIC"));
+}
+
 /// §8.1 and semantic-scopes §可调用值与失败出口的组合. The mutation keeps the
 /// original call and receiver identity while changing the physical field.
 #[cfg(all(feature = "llvm-api", target_os = "linux", target_arch = "x86_64"))]

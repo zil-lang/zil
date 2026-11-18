@@ -24,6 +24,17 @@ pub(super) fn placeholder_value(ty: &Type, name: &str) -> bool {
     ) && contains(ty, name)
 }
 
+pub(super) fn borrowed_package<'a>(ty: &'a Type, binder: &str) -> Option<(&'a Type, bool)> {
+    if let Type::Address { inner, mutable } = ty
+        && matches!(inner.as_ref(), Type::Package { .. })
+        && placeholder_value(inner, binder)
+    {
+        Some((inner, *mutable))
+    } else {
+        None
+    }
+}
+
 pub(super) fn normalize_placeholder(ty: &mut Type, binder: &str) {
     replace_composed(ty, binder, None);
 }
@@ -124,7 +135,8 @@ fn owning_profile<'a>(
     if bounds.len() == 1 {
         return returns_state
             || parameter(first.index as usize)
-                .is_some_and(|ty| placeholder_value(ty, &first.generic_name));
+                .is_some_and(|ty| placeholder_value(ty, &first.generic_name)
+                    || borrowed_package(ty, &first.generic_name).is_some());
     }
     returns_state
         && bounds.iter().all(|bound| {
@@ -207,6 +219,8 @@ pub(super) fn environment(pattern: &Type, actual: &Type, name: &str, span: Span)
                     ));
                 }
             }
+            (Type::Address { mutable: a, inner: wa }, Type::Address { mutable: b, inner: gb })
+                if a == b => bind(wa, gb, name, span, found)?,
             (Type::Tuple(a), Type::Tuple(b)) if a.len() == b.len() => {
                 for (a, b) in a.iter().zip(b) {
                     bind(a, b, name, span, found)?;

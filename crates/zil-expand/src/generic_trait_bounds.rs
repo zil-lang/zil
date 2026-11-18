@@ -880,7 +880,7 @@ impl<'a> Index<'a> {
             for bound in bounds {
                 // Callable roles consume their signature/capture qualifiers,
                 // but synchronous cleanup is a separate explicit premise.
-                if retained_callable && !callable::sync_drop_bound(bound) {
+                if retained_callable && value::bound(bound).is_none() {
                     continue;
                 }
                 if self.closed_environment_bound(bound) {
@@ -959,7 +959,7 @@ impl<'a> Index<'a> {
                                 .is_some_and(|roles| roles.contains_generic(&parameter.name));
                             let mut supplied = Vec::new();
                             for bound in bounds {
-                                if retained_callable && !callable::sync_drop_bound(bound) {
+                                if retained_callable && value::bound(bound).is_none() {
                                     continue;
                                 }
                                 budget.ty(bound)?;
@@ -1103,7 +1103,7 @@ impl<'a> Index<'a> {
                 continue;
             };
             for bound in bounds {
-                if retained_callable && !callable::sync_drop_bound(bound) {
+                if retained_callable && value::bound(bound).is_none() {
                     continue;
                 }
                 // This specialization deliberately leaves callable roles for

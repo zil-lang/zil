@@ -6454,8 +6454,8 @@ fn windows(
                             }
                         }
                     }
-                    InstructionKind::BorrowPlaceLocal { local, path, .. }
-                        if ordinary_error_borrow(module,f, i, b)? =>
+                    InstructionKind::BorrowPlaceLocal { local, path, mutable }
+                        if ordinary_error_borrow(module,f, i, b)? || finite_fields::operation(module, f, i, b)? =>
                     {
                         b.spend(path.len().saturating_add(1))?;
                         let actual = Permission {
@@ -6470,7 +6470,7 @@ fn windows(
                             }],
                             loans: Vec::new(),
                         };
-                        checks.check(&actual, false, requirements, b)?;
+                        checks.check(&actual, *mutable, requirements, b)?;
                     }
                     InstructionKind::VariantTagLocal { local, .. } | InstructionKind::ReadVariantLocal { local, .. }
                         | InstructionKind::TakeVariantField { local, .. } | InstructionKind::UnpackVariant { local, .. }

@@ -331,12 +331,12 @@ impl Engine<'_> {
                 element = Some(found);
             }
         }
-        let element = element.ok_or_else(|| {
-            error(
-                span,
-                "ordinary call has no complete element constraint from a real value argument",
-            )
-        })?;
+        // An inferred Value may itself come from a retained call. Expand has
+        // no source spelling for its instance. Types infers all its actuals
+        // together and checks the declared Value premise.
+        if element.is_none() && parameter_bound(parameter) != zil_ir::CoreTypeBound::Value {
+            return Err(error(span, "ordinary call has no complete element constraint from a real value argument"));
+        }
         // This is a source hint only. Types will extract every complete actual
         // T (including nominal/phantom data) and reject conflicting arguments.
         // Never manufacture TypeApply from the producer's out-of-scope F/G.
@@ -384,7 +384,7 @@ impl Engine<'_> {
         };
         self.budget.node(span, 0)?;
         self.budget.text(&parameter.name, span)?;
-        let bindings = BTreeMap::from([(parameter.name.clone(), element)]);
+        let bindings = BTreeMap::from([(parameter.name.clone(), element.expect("checked StoreElement constraint"))]);
         let mut result = enums::substituted(result, &bindings, &mut self.budget)?;
         self.ty(&mut result, 0)?;
         Ok(Some(result))

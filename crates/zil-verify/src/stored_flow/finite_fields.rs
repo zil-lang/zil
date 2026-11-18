@@ -38,19 +38,35 @@ fn has_callable(ty: &Type, b: &mut Budget) -> Check<bool> {
     }
     Ok(false)
 }
+enum FieldPath<'a> {
+    Direct([PlaceProjection; 1]),
+    Nested(&'a [PlaceProjection]),
+}
+impl FieldPath<'_> {
+    fn steps(&self) -> &[PlaceProjection] {
+        match self {
+            Self::Direct(step) => step,
+            Self::Nested(path) => path,
+        }
+    }
+}
 fn selected<'a>(
     module: &TypedModule,
     f: &'a TypedFunction,
-    i: &Instruction,
+    i: &'a Instruction,
     b: &mut Budget,
-) -> Check<Option<(LocalId, u32, bool, &'a Type, &'a Type)>> {
-    let InstructionKind::BorrowPackageField {
-        local,
-        index,
-        mutable,
-    } = i.kind
-    else {
-        return Ok(None);
+) -> Check<Option<(LocalId, FieldPath<'a>, bool, &'a Type, &'a Type)>> {
+    let (local, path, mutable) = match &i.kind {
+        InstructionKind::BorrowPackageField { local, index, mutable } => {
+            (*local, FieldPath::Direct([PlaceProjection::Field(*index)]), *mutable)
+        }
+        InstructionKind::BorrowPlaceLocal { local, path, mutable } if path.len() > 1 => {
+            if path.len() > b.limits.max_call_depth {
+                return Err(limit("finite field borrow path exceeds depth"));
+            }
+            (*local, FieldPath::Nested(path), *mutable)
+        }
+        _ => return Ok(None),
     };
     let declaration = f
         .locals
@@ -58,17 +74,21 @@ fn selected<'a>(
         .ok_or_else(|| err("finite field borrow local is absent"))?;
     let parent = &declaration.ty;
     let storage = qualified(parent).map_or(parent, |(storage, _)| storage);
-    let Type::Package { fields, .. } = storage else {
-        return Ok(None);
-    };
-    if !has_callable(parent, b)? {
+    if !matches!(storage, Type::Package { .. }) || !has_callable(parent, b)? {
         return Ok(None);
     }
-    let child = &fields
-        .get(index as usize)
-        .ok_or_else(|| err("finite field borrow selects no actual field"))?
-        .1;
-    if !matches!(child, Type::Closure(_)) && !child.is_copy_value() {
+    let mut child = storage;
+    for step in path.steps() {
+        b.spend(1)?;
+        let (Type::Package { fields, .. }, PlaceProjection::Field(index)) = (child, step) else {
+            return Ok(None);
+        };
+        child = &fields.get(*index as usize)
+            .ok_or_else(|| err("finite field borrow selects no actual field"))?.1;
+    }
+    if !matches!(child, Type::Closure(_))
+        && !(matches!(path, FieldPath::Direct(_)) && child.is_copy_value())
+    {
         return Ok(None);
     }
     if mutable && !declaration.mutable {
@@ -101,7 +121,7 @@ fn selected<'a>(
             "finite field borrow changes complete child type or access mode",
         ));
     }
-    Ok(Some((local, index, mutable, parent, child)))
+    Ok(Some((local, path, mutable, parent, child)))
 }
 pub(super) fn operation(
     module: &TypedModule,
@@ -120,20 +140,21 @@ pub(super) fn classes(
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<Vec<u32>> {
-    let (_, index, _, parent, child) = selected(module, f, i, b)?
+    let (_, path, _, parent, child) = selected(module, f, i, b)?
         .ok_or_else(|| err("finite field class query is not an admitted actual borrow"))?;
     let count = crate::dynamic_witness::intrinsic_domain(module, child, b)?.0;
     let life = crate::tasks::frame_shape::declared_life(module, parent, b)?;
-    class_indices(&life, index, count, b)
+    class_indices(&life, path.steps(), count, b)
 }
 fn class_indices(
     life: &StorageLifeShape,
-    index: u32,
+    path: &[PlaceProjection],
     count: u32,
     b: &mut Budget,
 ) -> Check<Vec<u32>> {
     b.spend((count as usize).saturating_mul(life.retained.len().saturating_add(2)))?;
-    let prefix = [LifeTypeProjection::Place(PlaceProjection::Field(index))];
+    b.spend(path.len().saturating_mul(1 + (count as usize).saturating_mul(life.retained.len())))?;
+    let prefix: Vec<_> = path.iter().copied().map(LifeTypeProjection::Place).collect();
     let mut out = Vec::with_capacity(count as usize);
     for class in 0..count {
         let mut rows = life
@@ -159,17 +180,17 @@ pub(super) fn transfer(
     state: &Frame,
     b: &mut Budget,
 ) -> Check<Payload> {
-    let (local, index, _, _, _) = selected(module, f, i, b)?
+    let (local, path, _, _, _) = selected(module, f, i, b)?
         .ok_or_else(|| err("finite field transfer is not an admitted actual borrow"))?;
     if state.locals.get(local.0 as usize).is_none() {
         return Err(err("finite field borrow actual holder is absent"));
     }
-    b.spend(3)?;
+    b.spend(2 + path.steps().len())?;
     let permission = Permission {
         sources: vec![Source {
             base: HoldRoot::Local(local),
             leaf: vec![],
-            inline: vec![PlaceProjection::Field(index)],
+            inline: path.steps().to_vec(),
             retained_port: None,
             heap_parents: vec![],
             heap_element: None,
@@ -382,13 +403,13 @@ mod tests {
             ],
             nominal_arguments: vec![],
         };
-        assert_eq!(class_indices(&life, 2, 2, &mut b).unwrap(), vec![1, 3]);
+        assert_eq!(class_indices(&life, &[PlaceProjection::Field(2)], 2, &mut b).unwrap(), vec![1, 3]);
         let mut missing = life.clone();
         missing.retained.pop();
-        assert!(class_indices(&missing, 2, 2, &mut b).is_err());
+        assert!(class_indices(&missing, &[PlaceProjection::Field(2)], 2, &mut b).is_err());
         let mut coalesced = life.clone();
         coalesced.retained[1].binder = 1;
-        assert!(class_indices(&coalesced, 2, 2, &mut b).is_err());
-        assert!(class_indices(&life, 1, 2, &mut b).is_err());
+        assert!(class_indices(&coalesced, &[PlaceProjection::Field(2)], 2, &mut b).is_err());
+        assert!(class_indices(&life, &[PlaceProjection::Field(1)], 2, &mut b).is_err());
     }
 }

@@ -697,7 +697,9 @@ impl Builder<'_, '_> {
         if product_head {
             let work = inference::type_snapshot_work(&decl.ty, span, self.limits)?;
             self.closures.snapshot(work, span)?;
-            if !packages::product::supported(&decl.ty) {
+            if !packages::product::supported(&decl.ty)
+                && !(callable_fields::has_fields(&decl.ty) && packages::supported(&decl.ty))
+            {
                 // Only the new inline Store owner enters the ordinary
                 // Product branch. Reserve both structural walks before
                 // inspecting its complete children; old accepted
@@ -811,6 +813,18 @@ impl Builder<'_, '_> {
                 member,
                 owner,
             } => {
+                if matches!(object.kind, CoreExprKind::Member { .. })
+                    && let Some((local, path, field @ Type::Closure(_))) = self.local_product_path(e)?
+                {
+                    if mutable && !self.function.locals[local.0 as usize].mutable {
+                        return Err(error("E-IMMUTABLE-ASSIGNMENT", e.span,
+                            "exclusive field borrow requires a mutable Package position"));
+                    }
+                    self.check_package_field_closure(&field, e.span)?;
+                    let ty = Type::Address { mutable, inner: Box::new(field) };
+                    let value = self.value(InstructionKind::BorrowPlaceLocal { local, path, mutable }, ty.clone(), e.span)?;
+                    return Ok((value, ty));
+                }
                 if !self.indirect_place(e)
                     && let Some((local, index, field)) = self.package_place(e)?
                     && !(mutable && packages::product::owned_supported(&field))

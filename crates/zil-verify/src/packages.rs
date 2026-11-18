@@ -186,6 +186,7 @@ pub(super) fn shared_product_head(ty: &Type) -> bool {
                 || matches!(field, Type::Managed(payload)
                     if **payload == Type::ByteBuffer
                         || (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()))
+                || matches!(field, Type::Closure(_))
                 || shared_product_head(field)))
 }
 
@@ -222,10 +223,17 @@ pub(super) fn check_shared_product_type(
             unreachable!("checked Package")
         };
         budget.spend(fields.len())?;
-        if !fields.iter().all(|(_, field)| field.is_copy_value()
-            || matches!(field, Type::Managed(payload) if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. })))
-        {
-            return Err(unsupported("shared ordinary Product heads require Copy and finite Managed leaves", span));
+        for (_, field) in fields {
+            if let Type::Closure(id) = field {
+                closures::definition(module, *id, span)?;
+                if !stored_callables::finite(module, *id) || !stored_callables::complete_value_input(module, field, budget)? {
+                    return Err(unsupported("borrowed Product callback requires its complete callable environment", span));
+                }
+            } else if !(field.is_copy_value()
+                || matches!(field, Type::Managed(payload) if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. })))
+            {
+                return Err(unsupported("borrowed Product heads require finite value fields", span));
+            }
         }
     }
     Ok(())

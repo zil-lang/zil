@@ -1690,6 +1690,28 @@ impl<'a> Engine<'a> {
             product_bounds.insert(name.clone(), vec![bound]);
             product_variables.insert(name.clone());
         }
+        if product && let Some(scope) = &self.product_owner
+            && let Some(function) = self.signatures.get(&scope.owner)
+        {
+            for name in scope.callable.iter().chain(scope.pair.iter().flatten()) {
+                for parameter in &function.generics {
+                    self.budget.node(parameter.span, 0)?;
+                    self.budget.text(name, span)?;
+                    if parameter.name == *name && let GenericParamKind::Type(bounds) = &parameter.kind {
+                        let mut structural = Vec::new();
+                        for bound in bounds {
+                            self.budget.ty(bound)?;
+                            if let Some(capability) = trait_bounds::value::bound(bound) {
+                                structural.push(capability);
+                            }
+                        }
+                        self.budget.text(name, span)?;
+                        product_variables.insert(name.clone());
+                        product_bounds.insert(name.clone(), structural);
+                    }
+                }
+            }
+        }
         let origin = self.template_origin(item)?;
         self.with_origin(origin, |engine| {
             engine.traits.check_arguments(

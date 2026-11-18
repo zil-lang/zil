@@ -883,13 +883,13 @@ fn template_with_state(
                 !closed_bound(bound)
                     && !transfer_bound(bound)
                     && !thread_callable_bound(bound)
-                    && !sync_drop_bound(bound)
+                    && trait_bounds::value::bound(bound).is_none()
             })
             .collect::<Vec<_>>();
         let [callable_bound] = callable_bounds.as_slice() else {
             return Err(unsupported(
                 parameter.span,
-                "one callable bound with optional ClosedEnvironment, Transfer, ThreadCallable and SyncDrop is implemented",
+                "one callable bound with optional Value, ClosedEnvironment, Transfer, ThreadCallable and SyncDrop is implemented",
             ));
         };
         let TypeKind::Named { path, args } = &bound_inner(callable_bound).kind else {
@@ -939,9 +939,18 @@ fn template_with_state(
             Some(ty) => is_state(ty, &parameter.name, dual, remaining)?,
             None => false,
         };
+        // A borrow changes the access permission, while its pointee still
+        // supplies the callable type from the concrete Package field.
+        let state_input = |input: &TypeRef, remaining: &mut usize| {
+            let ty = match &grouped(input).kind {
+                TypeKind::Reference { inner, .. } if !dual => inner.as_ref(),
+                _ => input,
+            };
+            is_state(ty, &parameter.name, dual, remaining)
+        };
         let mut takes_state = false;
         for input in &function.params {
-            if is_state(&input.ty, &parameter.name, dual, remaining)? {
+            if state_input(&input.ty, remaining)? {
                 takes_state = true;
                 break;
             }
@@ -974,7 +983,7 @@ fn template_with_state(
         let mut state_owner = None;
         let mut direct_owner = None;
         for (index, input) in function.params.iter().enumerate() {
-            let input_state = is_state(&input.ty, &parameter.name, dual, remaining)?;
+            let input_state = state_input(&input.ty, remaining)?;
             if !refers(&input.ty, &parameter.name) && !input_state {
                 continue;
             }
@@ -1035,7 +1044,10 @@ fn template_with_state(
                     "owning State constructors require direct by-value F inputs",
                 ));
             }
-            let mode = mode.unwrap_or(None);
+            let mode = mode.unwrap_or_else(|| match &grouped(&input.ty).kind {
+                TypeKind::Reference { mutable, .. } => Some(*mutable),
+                _ => None,
+            });
             if first_mode.is_some_and(|prior| prior != mode) {
                 return Err(unsupported(
                     input.span,
@@ -1107,7 +1119,7 @@ fn template_with_state(
                         !closed_bound(bound)
                             && !transfer_bound(bound)
                             && !thread_callable_bound(bound)
-                            && !sync_drop_bound(bound)
+                            && trait_bounds::value::bound(bound).is_none()
                     })
                     .unwrap() as u32,
                 generic_name: parameter.name.clone(),

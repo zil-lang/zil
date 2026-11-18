@@ -5048,6 +5048,18 @@ impl Check<'_, '_, '_> {
         let ExprKind::Call { callee, arguments } = &e.kind else {
             unreachable!("special call dispatcher")
         };
+        // Parentheses explicitly select the field value instead of method
+        // lookup. Resolve it against its original Package and callable binder.
+        if let ExprKind::Group(inner) = &callee.kind {
+            let mut place = inner.as_ref();
+            while let ExprKind::Group(inner) = &place.kind {
+                self.budget.node(place.span, 0)?;
+                place = inner;
+            }
+            if let Some(result) = self.state_field_call(place, arguments, state)? {
+                return Ok(Some(result));
+            }
+        }
         let (method_callee, method_explicit) = match &callee.kind {
             ExprKind::TypeApply { callee, arguments } => {
                 (callee.as_ref(), Some(arguments.as_slice()))

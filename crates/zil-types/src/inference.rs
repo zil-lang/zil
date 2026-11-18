@@ -2392,6 +2392,11 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         Rc::new(Term::Registration(Rc::new(Term::Closure(id)), true, true)),
                         true,
                     )
+                } else if let Some((shape, mutable)) =
+                    callable_fields::borrowed_package(&parameter.ty, &bound.generic_name)
+                {
+                    let package = this.state_term(shape, &bound.generic_name, id, parameter.span)?;
+                    Term::ValueAddress(Rc::new(package), mutable)
                 } else if callable_fields::placeholder_value(&parameter.ty, &bound.generic_name) {
                     this.state_term(&parameter.ty, &bound.generic_name, id, parameter.span)?
                 } else {
@@ -2505,6 +2510,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
         let mut shape = ty.clone();
         callable_fields::normalize_placeholder(&mut shape, generic);
+        if self.budget.products.is_some() && generic != "$callback" {
+            let products = self.budget.products.clone();
+            let marker = Type::Named("$callback".into());
+            aggregate_templates::rebind_type(
+                &mut shape, &[(generic, &marker)], &products, self.budget.limits, span,
+                &mut |n| self.budget.work(n, span),
+            )?;
+        }
         Ok(Term::ClosurePackage {
             shape: Rc::new(shape),
             environment,
@@ -2655,7 +2668,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             return Ok(id);
         }
         let state = callable_fields::placeholder_value(ty, &bound.generic_name);
-        let wanted = if state {
+        let borrowed = callable_fields::borrowed_package(ty, &bound.generic_name);
+        let wanted = if let Some((_, mutable)) = borrowed {
+            Some(mutable)
+        } else if state {
             None
         } else {
             helpers::parameter_mode(ty, &bound.generic_name).ok_or_else(|| {
@@ -2668,6 +2684,16 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         let term = self.expr(argument, depth, false)?;
         self.callable_hint = previous;
         let id = match (wanted, term) {
+            (Some(wanted), Term::ValueAddress(inner, available))
+                if borrowed.is_some() && wanted == available =>
+            {
+                let Term::ClosurePackage { environment, .. } = inner.as_ref() else {
+                    return Err(error("E-TYPE-MISMATCH", argument.span, "helper requires a concrete callable Package"));
+                };
+                let expected = self.state_term(borrowed.unwrap().0, &bound.generic_name, *environment, argument.span)?;
+                self.unify(&inner, &expected, argument.span)?;
+                *environment
+            }
             (None, Term::ClosurePackage { shape, environment }) if state => {
                 let expected =
                     self.state_term(ty, &bound.generic_name, environment, argument.span)?;
@@ -2993,6 +3019,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             {
                 return self.state_term(pattern, name, *environment, span);
             }
+            let environment = match actual {
+                Term::ClosurePackage { environment, .. } => Some(*environment),
+                _ => None,
+            };
             let actual = self.product_term_type(actual, span)?;
             let products = self.budget.products.clone();
             let limits = self.budget.limits;
@@ -3005,6 +3035,11 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 span,
                 &mut |n| self.budget.work(n, span),
             )?;
+            if let Some(environment) = environment
+                && callable_fields::placeholder_value(&ty, "$callback")
+            {
+                return self.state_term(&ty, "$callback", environment, span);
+            }
             return self.known_term(&ty, span);
         }
         self.known_term(pattern, span)
@@ -4826,6 +4861,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             ) {
                 return Err(unsupported(span, "shared borrow requires a place"));
             }
+            if matches!(value, Term::ClosurePackage { .. } | Term::StatePackage { .. }) {
+                return Ok(Term::ValueAddress(Rc::new(value), *op == UnaryOp::BorrowMut));
+            }
             if let Term::Closure(id) = value {
                 return Ok(Term::ClosureAddress(id, *op == UnaryOp::BorrowMut));
             }
@@ -6331,6 +6369,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             if let Some(id) = callback {
                 return Ok(Term::ClosureAddress(id, *mutable));
             }
+            if let Some(environment) = one
+                && callable_fields::placeholder_value(&field, "$callback")
+            {
+                let child = self.state_term(&field, "$callback", environment, span)?;
+                return Ok(Term::ValueAddress(Rc::new(child), *mutable));
+            }
             return self.known_term(&packages::projection_type(field), span);
         }
         if let Term::StatePackage { shape, fields } = &object_type {
@@ -6353,6 +6397,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             let field = aggregates::field(shape, member, span)?.1;
             if matches!(&field,Type::Named(n) if n=="$callback") {
                 return Ok(Term::Closure(*environment));
+            }
+            if callable_fields::placeholder_value(&field, "$callback") {
+                return self.state_term(&field, "$callback", *environment, span);
             }
             return self.known_term(
                 &if write {

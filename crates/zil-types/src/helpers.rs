@@ -375,6 +375,7 @@ pub(super) fn validate_template(
             return Err(reject());
         }
         if mode.is_none()
+            && callable_fields::borrowed_package(&parameter.ty, &bound.generic_name).is_none()
             && !(owned_state
                 && callable_fields::placeholder_value(&parameter.ty, &bound.generic_name))
         {
@@ -396,7 +397,9 @@ pub(super) fn validate_template(
                 return Err(reject());
             }
         }
-        match (bound.kind, mode.unwrap_or(None)) {
+        match (bound.kind, mode.flatten().or_else(|| {
+            callable_fields::borrowed_package(&parameter.ty, &bound.generic_name).map(|(_, mutable)| mutable)
+        })) {
             (CallableKind::FnMut, Some(false)) | (CallableKind::FnOnce, Some(_)) => {
                 return Err(error(
                     "E-CLOSURE-MODE",
@@ -842,7 +845,9 @@ impl Builder<'_, '_> {
                     parameter_mode(ty, &bound.generic_name)
                         .ok_or_else(|| unsupported(span, "invalid callable template parameter"))?
                 };
-                let (mut value, mut actual) = if owned_state && signature.callable.len() == 1 {
+                let (mut value, mut actual) = if callable_fields::borrowed_package(ty, &bound.generic_name).is_some() {
+                    self.expr(argument, None)?
+                } else if owned_state && signature.callable.len() == 1 {
                     self.owned_array_input(argument, None)?
                 } else if mode.is_none() {
                     // A constructor receives ordinary values. Structural Copy
@@ -859,7 +864,30 @@ impl Builder<'_, '_> {
                         inference::type_snapshot_work(&actual, argument.span, self.limits)?;
                     self.closures
                         .snapshot(pattern_work.saturating_add(actual_work), argument.span)?;
-                    callable_fields::environment(ty, &actual, &bound.generic_name, argument.span)?
+                    if let Some((pattern, wanted)) = callable_fields::borrowed_package(ty, &bound.generic_name)
+                        && let Type::Address { mutable, inner } = &actual
+                        && *mutable == wanted
+                        && let Some(pairs) = aggregate_templates::input_pairs(
+                            pattern, inner, &self.closures.products.clone(), self.limits, argument.span,
+                            &mut |work| self.closures.snapshot(work, argument.span),
+                        )?
+                    {
+                        let products = self.closures.products.clone();
+                        let mut inferred = None;
+                        for (formal, actual) in pairs {
+                            store_templates::infer_argument(&formal, &actual, &bound.generic_name, &mut inferred,
+                                (self.limits, &products), argument.span, &mut |work| self.closures.snapshot(work, argument.span))?;
+                        }
+                        let Some(Type::Closure(id)) = inferred else {
+                            return Err(error("E-TYPE-MISMATCH", argument.span, "Package actual has no concrete callable binding"));
+                        };
+                        let concrete = store_templates::substitute_type(pattern, &bound.generic_name, &Type::Closure(id),
+                            self.limits, &products, argument.span, &mut |n| self.closures.snapshot(n, argument.span))?;
+                        self.same(&concrete, inner, argument.span)?;
+                        id
+                    } else {
+                        callable_fields::environment(ty, &actual, &bound.generic_name, argument.span)?
+                    }
                 } else {
                     match (&actual, mode) {
                         (Type::Closure(id), None) => *id,
@@ -1223,6 +1251,13 @@ impl Builder<'_, '_> {
         let borrowed_registration =
             registration::borrowed_template(&function) || registration::owned_template(&function);
         let forward = forwarding::bound(&function).map(|bound| bound.index);
+        if bounds.iter().any(|bound| function.parameters.get(bound.index as usize)
+            .is_some_and(|p| callable_fields::borrowed_package(&p.ty, &bound.generic_name).is_some()))
+        {
+            aggregate_templates::rebind_callable_function(
+                &mut function, bounds, &bindings, self.closures, self.limits, span,
+            )?;
+        }
         if registration::template(&function) {
             for bound in bounds {
                 callable_fields::specialize_type(

@@ -1261,7 +1261,14 @@ impl Resolver<'_> {
         self.charge(depth, span)?;
         Ok(match ty {
             Type::Named(name) => {
-                self.ordinary_parameter.as_ref() == Some(name)
+                // The recorded lexical callable role resolves only to a concrete
+                // inline environment. Its captures and other bounds stay with
+                // the actual instance and are checked again after substitution.
+                let roles = self.current_owner.and_then(|owner| self.generic.owners.get(&owner));
+                let count = roles.map_or(0, |roles| roles.callable.len());
+                aggregate_templates::spend(&mut self.remaining, count.saturating_mul(name.len() + 1), span)?;
+                roles.is_some_and(|roles| roles.callable.iter().any(|(_, binder)| binder == name))
+                    || self.ordinary_parameter.as_ref() == Some(name)
                     || self.aggregate_parameters.get(name).is_some_and(|bound| {
                         matches!(bound, CoreTypeBound::Value | CoreTypeBound::StoreElement)
                     })
