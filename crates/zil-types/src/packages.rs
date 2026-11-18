@@ -129,6 +129,20 @@ impl Builder<'_, '_> {
         self.transfer_expr(expression, expected)
     }
 
+    pub(super) fn check_package_field_closure(&mut self, field: &Type, span: Span) -> R<()> {
+        if let Type::Closure(id) = field
+            && self.closures.has_source_context(*id)
+            && self.closures.semantic_emission.has_original_context()
+        {
+            // The Package field retains this complete environment. The
+            // transport check admits its actual representation; the original
+            // capture header and the actual place operation still account for
+            // every borrowed source and its live window.
+            return self.closures.factory_transportable(*id, span);
+        }
+        self.check_owned_array_closure(field, 1, span)
+    }
+
     pub(super) fn check_owned_array_closure(
         &mut self,
         element: &Type,
@@ -606,7 +620,7 @@ impl Builder<'_, '_> {
         // Resolve the static local and field before evaluating RHS. A real
         // temporary holds its new obligation until old-field cleanup commits.
         let (value, actual) = if matches!(ty, Type::Closure(_)) {
-            self.check_owned_array_closure(&ty, 1, rhs.span)?;
+            self.check_package_field_closure(&ty, rhs.span)?;
             self.owned_array_input(rhs, Some(&ty))?
         } else {
             self.transfer_expr(rhs, Some(&ty))?

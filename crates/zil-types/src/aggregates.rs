@@ -3361,7 +3361,7 @@ impl<'a> Builder<'a, '_> {
             }
             slots[i as usize] = Some(if matches!(stored::physical(ty), Type::Package { .. }) {
                 let (prepared, actual) = if matches!(t, Type::Closure(_)) {
-                    self.check_owned_array_closure(&t, 1, value.span)?;
+                    self.check_package_field_closure(&t, value.span)?;
                     self.owned_array_input(value, Some(&t))?
                 } else if self.affine_type(&t) {
                     self.transfer_expr(value, Some(&t))?

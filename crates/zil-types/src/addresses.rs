@@ -527,7 +527,7 @@ impl Builder<'_, '_> {
                 "exclusive field borrow requires a mutable Package position",
             ));
         }
-        self.check_owned_array_closure(&field, 1, span)?;
+        self.check_package_field_closure(&field, span)?;
         let ty = Type::Address {
             mutable,
             inner: Box::new(field),
@@ -884,7 +884,7 @@ impl Builder<'_, '_> {
                     ));
                 }
                 if matches!(field, Type::Closure(_)) {
-                    self.check_owned_array_closure(&field, 1, e.span)?;
+                    self.check_package_field_closure(&field, e.span)?;
                 }
                 let ty = Type::Address {
                     mutable,
