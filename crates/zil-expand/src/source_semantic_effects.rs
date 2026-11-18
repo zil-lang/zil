@@ -1432,7 +1432,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
                         return Ok(true);
                     }
                 }
-                let mut found = false;
+                let mut found = self.method_scope(owner, spelling, depth + 1, span)?;
                 for definition in self.definitions {
                     let self_type = match &definition.body {
                         SemanticDefinitionBody::Scope(
