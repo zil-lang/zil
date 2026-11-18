@@ -248,7 +248,7 @@ impl Check<'_, '_> {
         // contextual values so later rigid fields can determine their type.
         for contextual in [false, true] {
             for field in fields {
-                let bare = self.contextual_integer(&field.1, depth + 1)?
+                let bare = self.contextual_integer(&field.1, variables, depth + 1)?
                     || matches!(&field.1.kind, CoreExprKind::Float(text)
                         if !text.ends_with("f32") && !text.ends_with("f64"));
                 if bare == contextual {
