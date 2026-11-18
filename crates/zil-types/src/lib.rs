@@ -843,8 +843,6 @@ pub fn check(
     retained::populate_local_static_results(&mut module, &mut remaining, limits)
         .map_err(|e| vec![e])?;
     retained::populate_sources(&mut module, &mut remaining, limits).map_err(|e| vec![e])?;
-    retained::populate_return_lives(&mut module, &returned_life_bounds, &mut remaining, limits)
-        .map_err(|e| vec![e])?;
     mark_cost("single: local origins and protocol metadata", remaining);
     module.semantic = semantics::finish::program(
         &[core],
@@ -855,6 +853,10 @@ pub fn check(
         &mut remaining,
     )
     .map_err(|e| vec![e])?;
+    // A public callable bound refers to the creator's result rows. Its full
+    // signature and the creator's actual mappings are available after finish.
+    retained::populate_return_lives(&mut module, &returned_life_bounds, &mut remaining, limits)
+        .map_err(|e| vec![e])?;
     retained::check_contexts(&module, &mut remaining).map_err(|e| vec![e])?;
     let static_origins = retained::prove_static_origins(&module, &mut remaining, limits)
         .map_err(|e| vec![e])?;
