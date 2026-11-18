@@ -3431,78 +3431,10 @@ impl<'a> Check<'a, '_> {
             SemanticOriginalNode::Expression(expression.id),
             variables,
         )?;
-        if !matches!(
-            &expression.kind,
-            CoreExprKind::If { .. } | CoreExprKind::Sequence { .. }
-        ) {
-            if let Some(union @ SemanticTypeRecipe::ErrorUnion { error, result }) = wanted {
-                let raw_wanted = match &expression.kind {
-                    CoreExprKind::Call { callee, .. } => {
-                        let mut base = callee.as_ref();
-                        while let CoreExprKind::TypeApply { callee, .. }
-                        | CoreExprKind::GenericApply { callee, .. } = &base.kind
-                        {
-                            self.pay(1, depth)?;
-                            base = callee;
-                        }
-                        if matches!(&base.kind, CoreExprKind::Name(name) if name == "store_new") {
-                            Some(result.as_ref())
-                        } else {
-                            None
-                        }
-                    }
-                    _ => None,
-                };
-                let raw_wanted = if raw_wanted.is_some() {
-                    raw_wanted
-                } else {
-                    self.enum_injection_context(owner, expression, variables, error, result, depth + 1)?
-                };
-                let actual = self.expr(owner, expression, variables, raw_wanted, depth + 1)?;
-                let equal_union = match self.same(&actual, union) {
-                    Ok(()) => true,
-                    Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => {
-                        return Err(error);
-                    }
-                    Err(_) => false,
-                };
-                let value = if equal_union {
-                    actual
-                } else {
-                    let is_error = match self.same(&actual, error) {
-                        Ok(()) => true,
-                        Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => {
-                            return Err(error);
-                        }
-                        Err(_) => false,
-                    };
-                    let is_result = match self.same(&actual, result) {
-                        Ok(()) => true,
-                        Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => {
-                            return Err(error);
-                        }
-                        Err(_) => false,
-                    };
-                    if is_error == is_result {
-                        return Err(bad(
-                            "original implicit error injection is ambiguous or changes its payload type",
-                        ));
-                    }
-                    let payload = copy_recipe(&actual, self.limits, self.left)?;
-                    self.pay(1, depth)?;
-                    self.proof
-                        .proof_mut()?
-                        .injections
-                        .insert((owner, expression.id), Injection { is_error, payload });
-                    copy_recipe(union, self.limits, self.left)?
-                };
-                let copy = copy_recipe(&value, self.limits, self.left)?;
-                self.proof
-                    .proof_mut()?
-                    .types
-                    .insert((owner, Query::Expression(expression.id)), copy);
-                return Ok(value);
-            }
+        if !matches!(&expression.kind, CoreExprKind::If { .. } | CoreExprKind::Sequence { .. })
+            && let Some(union @ SemanticTypeRecipe::ErrorUnion { error, result }) = wanted
+        {
+            return self.expected_error_expression(owner, expression, variables, union, error, result, depth);
         }
         if matches!(
             &expression.kind,
@@ -3541,92 +3473,239 @@ impl<'a> Check<'a, '_> {
                 .insert((owner, Query::Expression(expression.id)), copy);
             return Ok(result);
         }
-        // Binary trees recurse through this small frame. Keep the unrelated
-        // constructor/call temporaries off the stack of each operand.
-        if let CoreExprKind::Binary { op, left, right } = &expression.kind {
-            let result = {
-                let boolean = matches!(op, BinaryOp::And | BinaryOp::Or);
-                let equality = matches!(op, BinaryOp::Equal | BinaryOp::NotEqual);
-                let comparison = equality
-                    || matches!(
-                        op,
-                        BinaryOp::Less
-                            | BinaryOp::LessEqual
-                            | BinaryOp::Greater
-                            | BinaryOp::GreaterEqual
-                    );
-                // A comparison's Bool result is not its operand context. Only
-                // arithmetic forwards its numeric result context; logical
-                // operators impose their own Bool operand scheme.
-                let bool_type = SemanticTypeRecipe::Atom(Type::Bool);
-                let operand_wanted = if boolean {
-                    Some(&bool_type)
-                } else if comparison {
-                    None
-                } else {
-                    wanted.filter(|ty| matches!(ty, SemanticTypeRecipe::Atom(ty) if ty.is_integer() || ty.is_float()))
-                };
-                // An untyped literal has no effects. Delaying it permits the
-                // other operand's independent type to supply its numeric
-                // context without evaluating or consuming that operand twice.
-                let (left, right) = if operand_wanted.is_none()
-                    && self.contextual_integer(left, variables, depth + 1)?
-                    && !self.contextual_integer(right, variables, depth + 1)?
-                {
-                    let right_ty = self.expr(owner, right, variables, None, depth + 1)?;
-                    let right_type = self.logical(owner, &right_ty, depth + 1)?;
-                    let left_ty =
-                        self.expr(owner, left, variables, Some(&right_type), depth + 1)?;
-                    (left_ty, right_ty)
-                } else {
-                    let left_ty = self.expr(owner, left, variables, operand_wanted, depth + 1)?;
-                    let left_type = self.logical(owner, &left_ty, depth + 1)?;
-                    let right_ty =
-                        self.expr(owner, right, variables, Some(&left_type), depth + 1)?;
-                    (left_ty, right_ty)
-                };
-                let left = self.logical(owner, &left, depth + 1)?;
-                let right = self.logical(owner, &right, depth + 1)?;
-                self.same(&left, &right)?;
-                let SemanticTypeRecipe::Atom(ty) = left else {
-                    return Err(bad(
-                        "original generic operation lacks a primitive type equality premise",
-                    ));
-                };
-                let integer_only = matches!(
-                    op,
-                    BinaryOp::BitAnd
-                        | BinaryOp::BitOr
-                        | BinaryOp::BitXor
-                        | BinaryOp::ShiftLeft
-                        | BinaryOp::ShiftRight
-                        | BinaryOp::AddWrapping
-                        | BinaryOp::SubtractWrapping
-                        | BinaryOp::MultiplyWrapping
-                );
-                let valid = if boolean {
-                    ty == Type::Bool
-                } else if equality {
-                    matches!(ty, Type::Bool | Type::ForeignHandle) || ty.is_integer() || ty.is_float()
-                } else if integer_only {
-                    ty.is_integer()
-                } else {
-                    ty.is_integer() || ty.is_float()
-                };
-                if !valid {
-                    return Err(bad(
-                        "original binary operator has incompatible primitive endpoint",
-                    ));
-                }
-                SemanticTypeRecipe::Atom(if boolean || comparison {
-                    Type::Bool
-                } else {
-                    ty
-                })
-            };
-            return self.record_expression_type(owner, expression.id, result);
+        // The operation's other alternatives can contain large checked values.
+        // Keep each operation's storage in its own active frame.
+        match &expression.kind {
+            CoreExprKind::Call { arguments, .. } => {
+                self.call_expression(owner, expression, arguments, variables, wanted, depth)
+            }
+            CoreExprKind::Closure { .. } => {
+                self.closure_expression(owner, expression, variables, wanted, depth)
+            }
+            CoreExprKind::Member { .. } => {
+                let result = self.observe_member(owner, expression, variables, depth + 1)?;
+                self.record_expression_type(owner, expression.id, result)
+            }
+            CoreExprKind::Group(value) => {
+                let result = self.expr(owner, value, variables, wanted, depth + 1)?;
+                self.record_expression_type(owner, expression.id, result)
+            }
+            CoreExprKind::Try(value) => {
+                let result = self.propagate_expression(owner, value, variables, depth)?;
+                self.record_expression_type(owner, expression.id, result)
+            }
+            CoreExprKind::Binary { .. } => {
+                self.binary_expression(owner, expression, variables, wanted, depth)
+            }
+            _ => self.nonbinary_expression(owner, expression, variables, wanted, depth),
         }
-        self.nonbinary_expression(owner, expression, variables, wanted, depth)
+    }
+
+    #[inline(never)]
+    fn expected_error_expression(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        variables: &mut BTreeMap<String, Binding>,
+        union: &SemanticTypeRecipe,
+        error: &SemanticTypeRecipe,
+        result: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        let raw_wanted = match &expression.kind {
+            CoreExprKind::Call { callee, .. } => {
+                let mut base = callee.as_ref();
+                while let CoreExprKind::TypeApply { callee, .. }
+                | CoreExprKind::GenericApply { callee, .. } = &base.kind
+                {
+                    self.pay(1, depth)?;
+                    base = callee;
+                }
+                if matches!(&base.kind, CoreExprKind::Name(name) if name == "store_new") {
+                    Some(result)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
+        let raw_wanted = if raw_wanted.is_some() {
+            raw_wanted
+        } else {
+            self.enum_injection_context(owner, expression, variables, error, result, depth + 1)?
+        };
+        let actual = self.expr(owner, expression, variables, raw_wanted, depth + 1)?;
+        let equal_union = match self.same(&actual, union) {
+            Ok(()) => true,
+            Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => {
+                return Err(error);
+            }
+            Err(_) => false,
+        };
+        let value = if equal_union {
+            actual
+        } else {
+            let is_error = match self.same(&actual, error) {
+                Ok(()) => true,
+                Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => {
+                    return Err(error);
+                }
+                Err(_) => false,
+            };
+            let is_result = match self.same(&actual, result) {
+                Ok(()) => true,
+                Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => {
+                    return Err(error);
+                }
+                Err(_) => false,
+            };
+            if is_error == is_result {
+                return Err(bad(
+                    "original implicit error injection is ambiguous or changes its payload type",
+                ));
+            }
+            let payload = copy_recipe(&actual, self.limits, self.left)?;
+            self.pay(1, depth)?;
+            self.proof
+                .proof_mut()?
+                .injections
+                .insert((owner, expression.id), Injection { is_error, payload });
+            copy_recipe(union, self.limits, self.left)?
+        };
+        let copy = copy_recipe(&value, self.limits, self.left)?;
+        self.proof
+            .proof_mut()?
+            .types
+            .insert((owner, Query::Expression(expression.id)), copy);
+        Ok(value)
+    }
+
+    #[inline(never)]
+    fn binary_expression(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        variables: &mut BTreeMap<String, Binding>,
+        wanted: Option<&SemanticTypeRecipe>,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        let CoreExprKind::Binary { op, left, right } = &expression.kind else {
+            unreachable!("original binary dispatch");
+        };
+        let result = {
+            let boolean = matches!(op, BinaryOp::And | BinaryOp::Or);
+            let equality = matches!(op, BinaryOp::Equal | BinaryOp::NotEqual);
+            let comparison = equality
+                || matches!(
+                    op,
+                    BinaryOp::Less
+                        | BinaryOp::LessEqual
+                        | BinaryOp::Greater
+                        | BinaryOp::GreaterEqual
+                );
+            // A comparison's Bool result is not its operand context. Only
+            // arithmetic forwards its numeric result context; logical
+            // operators impose their own Bool operand scheme.
+            let bool_type = SemanticTypeRecipe::Atom(Type::Bool);
+            let operand_wanted = if boolean {
+                Some(&bool_type)
+            } else if comparison {
+                None
+            } else {
+                wanted.filter(|ty| matches!(ty, SemanticTypeRecipe::Atom(ty) if ty.is_integer() || ty.is_float()))
+            };
+            // An untyped literal has no effects. Delaying it permits the
+            // other operand's independent type to supply its numeric
+            // context without evaluating or consuming that operand twice.
+            let (left, right) = if operand_wanted.is_none()
+                && self.contextual_integer(left, variables, depth + 1)?
+                && !self.contextual_integer(right, variables, depth + 1)?
+            {
+                let right_ty = self.expr(owner, right, variables, None, depth + 1)?;
+                let right_type = self.logical(owner, &right_ty, depth + 1)?;
+                let left_ty =
+                    self.expr(owner, left, variables, Some(&right_type), depth + 1)?;
+                (left_ty, right_ty)
+            } else {
+                let left_ty = self.expr(owner, left, variables, operand_wanted, depth + 1)?;
+                let left_type = self.logical(owner, &left_ty, depth + 1)?;
+                let right_ty =
+                    self.expr(owner, right, variables, Some(&left_type), depth + 1)?;
+                (left_ty, right_ty)
+            };
+            let left = self.logical(owner, &left, depth + 1)?;
+            let right = self.logical(owner, &right, depth + 1)?;
+            self.same(&left, &right)?;
+            let SemanticTypeRecipe::Atom(ty) = left else {
+                return Err(bad(
+                    "original generic operation lacks a primitive type equality premise",
+                ));
+            };
+            let integer_only = matches!(
+                op,
+                BinaryOp::BitAnd
+                    | BinaryOp::BitOr
+                    | BinaryOp::BitXor
+                    | BinaryOp::ShiftLeft
+                    | BinaryOp::ShiftRight
+                    | BinaryOp::AddWrapping
+                    | BinaryOp::SubtractWrapping
+                    | BinaryOp::MultiplyWrapping
+            );
+            let valid = if boolean {
+                ty == Type::Bool
+            } else if equality {
+                matches!(ty, Type::Bool | Type::ForeignHandle) || ty.is_integer() || ty.is_float()
+            } else if integer_only {
+                ty.is_integer()
+            } else {
+                ty.is_integer() || ty.is_float()
+            };
+            if !valid {
+                return Err(bad(
+                    "original binary operator has incompatible primitive endpoint",
+                ));
+            }
+            SemanticTypeRecipe::Atom(if boolean || comparison {
+                Type::Bool
+            } else {
+                ty
+            })
+        };
+        self.record_expression_type(owner, expression.id, result)
+    }
+
+    #[inline(never)]
+    fn propagate_expression(
+        &mut self,
+        owner: SemanticDefinitionId,
+        value: &SemanticOriginalExpr,
+        variables: &mut BTreeMap<String, Binding>,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        let value = self.expr(owner, value, variables, None, depth + 1)?;
+        let value = self.logical(owner, &value, depth + 1)?;
+        let SemanticTypeRecipe::ErrorUnion { error, result } = value else {
+            return Err(bad("original propagation operand is not an error union"));
+        };
+        let definition = self.definition(owner)?;
+        let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body
+        else {
+            unreachable!()
+        };
+        let declared = self.body_result_recipe(owner, &signature.result)?;
+        let function_result = self.resolve(owner, &declared, depth + 1)?;
+        let SemanticTypeRecipe::ErrorUnion {
+            error: expected, ..
+        } = function_result
+        else {
+            return Err(bad(
+                "original propagation escapes a function without an error result",
+            ));
+        };
+        self.same(&error, &expected)?;
+        self.capture_exit(owner, variables, depth + 1)?;
+        Ok(*result)
     }
 
     fn nonbinary_expression(
@@ -3728,7 +3807,6 @@ impl<'a> Check<'a, '_> {
                 self.proof.proof_mut()?.compile_time_results.insert((owner, expression.id));
                 result
             }
-            CoreExprKind::Group(value) => self.expr(owner, value, variables, wanted, depth + 1)?,
             CoreExprKind::Sequence { bindings, value } => {
                 for (name, initializer) in bindings {
                     if !name.starts_with('$') || variables.contains_key(name) {
@@ -3847,31 +3925,6 @@ impl<'a> Check<'a, '_> {
                 }
                 target
             }
-            CoreExprKind::Try(value) => {
-                let value = self.expr(owner, value, variables, None, depth + 1)?;
-                let value = self.logical(owner, &value, depth + 1)?;
-                let SemanticTypeRecipe::ErrorUnion { error, result } = value else {
-                    return Err(bad("original propagation operand is not an error union"));
-                };
-                let definition = self.definition(owner)?;
-                let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body
-                else {
-                    unreachable!()
-                };
-                let declared = self.body_result_recipe(owner, &signature.result)?;
-                let function_result = self.resolve(owner, &declared, depth + 1)?;
-                let SemanticTypeRecipe::ErrorUnion {
-                    error: expected, ..
-                } = function_result
-                else {
-                    return Err(bad(
-                        "original propagation escapes a function without an error result",
-                    ));
-                };
-                self.same(&error, &expected)?;
-                self.capture_exit(owner, variables, depth + 1)?;
-                *result
-            }
             CoreExprKind::Unary {
                 op: UnaryOp::Give,
                 operand,
@@ -3985,9 +4038,6 @@ impl<'a> Check<'a, '_> {
                 let field = self.field(owner, &receiver_ty, member, depth + 1)?;
                 self.observe_field(owner, expression, field, depth + 1)?
             }
-            CoreExprKind::Member { .. } => {
-                self.observe_member(owner, expression, variables, depth + 1)?
-            }
             CoreExprKind::Record { ty, fields } => {
                 self.record_constructor(owner, ty, fields, variables, wanted, depth + 1)?
             }
@@ -4010,9 +4060,6 @@ impl<'a> Check<'a, '_> {
                     wanted,
                     depth + 1,
                 )?,
-            CoreExprKind::Closure { .. } => {
-                return self.closure_expression(owner, expression, variables, wanted, depth);
-            }
             CoreExprKind::Tuple(fields) if fields.is_empty() => {
                 SemanticTypeRecipe::Atom(Type::Unit)
             }
@@ -4067,12 +4114,6 @@ impl<'a> Check<'a, '_> {
                 self.same(&a, &b)?;
                 self.merge_variables(variables, &[left, right])?;
                 a
-            }
-            CoreExprKind::Call {
-                callee: _,
-                arguments,
-            } => {
-                return self.call_expression(owner, expression, arguments, variables, wanted, depth);
             }
             _ => {
                 return Err(pending(
