@@ -47,6 +47,7 @@ fn steps<'a>(plan: &'a DropPlan, module: &TypedModule, path: &mut Vec<Edge<'a>>,
             return Ok(());
         }
         DropPlan::Array(layout, length, item) => {
+            if matches!(item.as_ref(), DropPlan::Empty) { return Ok(()); }
             for index in 0..*length {
                 child(Edge::Element(layout, index), item)?;
             }

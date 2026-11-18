@@ -396,6 +396,9 @@ mod tests {
         assert_eq!(closure(&module,&task,&meter).unwrap(),None,"the dedicated canonical Task route remains available");
         let borrowed=Type::Address{mutable:false,inner:Box::new(task.clone())};
         assert_eq!(closure(&module,&borrowed,&meter).unwrap(),None);
+        let heap = Type::Tuple(vec![Type::Managed(Box::new(Type::OwnedStore { element: Box::new(task.clone()) }))]);
+        let diagnostics = route(&module, &heap, &meter).unwrap_err();
+        assert!(diagnostics[0].message.contains("heap-owned payload needs its own cleanup protocol"));
         assert_eq!(closure(&module,&Type::Array{element:Box::new(task),length:0},&meter).unwrap(),None,"no runtime element exists in a zero-length owner");
     }
 }

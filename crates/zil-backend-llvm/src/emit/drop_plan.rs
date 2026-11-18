@@ -436,7 +436,12 @@ pub(super) fn contains_pending<'m>(
     Ok(match enums::storage_shape(ty) {
         Type::Managed(payload) => match payload.as_ref() {
             Type::Task { .. } | Type::TaskI32 | Type::AsyncRegistration { .. } => true,
-            Type::Mutex { payload } | Type::OwnedStore { element: payload } => contains_pending(payload, depth + 1, meter, closure)?,
+            Type::Mutex { payload } | Type::OwnedStore { element: payload } => {
+                if contains_pending(payload, depth + 1, meter, closure)? {
+                    return unsupported("asynchronous heap-owned payload needs its own cleanup protocol", None);
+                }
+                false
+            }
             _ => false,
         },
         Type::Closure(id) => children(&closure(*id)?.captures)?,
@@ -614,6 +619,9 @@ fn full_plan(layouts: &LayoutContext<'_>,
         Type::Address { .. } | Type::Desc(_) => DropPlan::Empty,
         t if t.is_copy_value() => DropPlan::Empty,
         Type::Managed(payload) if matches!(payload.as_ref(),Type::AsyncRegistration{..})=>DropPlan::AsyncRegistration,
+        Type::Managed(payload) if inline && matches!(payload.as_ref(), Type::Mutex { .. }) => {
+            return link(ty, resources, budget, depth);
+        }
         Type::Managed(inner) if matches!(inner.as_ref(),Type::Mutex{..})=>{
             let Type::Mutex{payload}=inner.as_ref()else{unreachable!()};
             DropPlan::Mutex(generic_mutex::layout(layouts,payload)?,Box::new(full_plan(layouts,payload,resources,budget,depth+1,inline)?))
@@ -706,22 +714,22 @@ impl Emitter<'_> {
         );
         Ok(name)
     }
+    fn destroy(&mut self, callee: String, ptr: &str) {
+        self.inst(None, m::Op::Call {
+            result: m::Ty::Void,
+            result_attrs: vec![],
+            callee: m::global(callee),
+            args: vec![m::Arg::new(m::Ty::Ptr, m::local(ptr.into()))],
+            vararg: None,
+        });
+    }
     fn emit(&mut self, plan: &DropPlan, ptr: &str) -> CompileResult<()> {
         self.layouts.meter().spend(64)?;
         match plan {
             DropPlan::Empty => {}
-            DropPlan::Leaf(callee) => self.inst(
-                None,
-                m::Op::Call {
-                    result: m::Ty::Void,
-                    result_attrs: vec![],
-                    callee: m::global(callee.clone()),
-                    args: vec![m::Arg::new(m::Ty::Ptr, m::local(ptr.into()))],
-                    vararg: None,
-                },
-            ),
-            DropPlan::Task => self.emit(&DropPlan::Leaf("zil.task.drop".into()), ptr)?,
-            DropPlan::Closure(id) => self.emit(&DropPlan::Leaf(format!("zil.closure.drop.{}", id.0)), ptr)?,
+            DropPlan::Leaf(callee) => self.destroy(callee.clone(), ptr),
+            DropPlan::Task => self.destroy("zil.task.drop".into(), ptr),
+            DropPlan::Closure(id) => self.destroy(format!("zil.closure.drop.{}", id.0), ptr),
             DropPlan::Product(ty, fields) => {
                 for (index, p) in fields {
                     if !matches!(p, DropPlan::Empty) {
