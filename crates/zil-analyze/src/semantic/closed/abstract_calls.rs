@@ -231,18 +231,28 @@ impl Check<'_, '_> {
             }
             if let Some(source) = &boundary.place {
                 if let Some(local) = local_callee {
-                    if source.indirect || !source.path.is_empty() || source.index.is_some() || source.expression.is_some()
-                        || self.anchored_local(instance, function, source.anchor
-                            .ok_or_else(|| fail("abstract local invocation has no original anchor"))?, b)? != local {
+                    if source.indirect || !source.path.is_empty() || source.index.is_some() || source.expression.is_some() {
                         return Err(fail("abstract local invocation changes its exact original place"));
                     }
-                    operations::initialized_local_before(function, (block, index), local, b)?;
+                    let anchor = source.anchor
+                        .ok_or_else(|| fail("abstract local invocation has no original anchor"))?;
+                    let original = self.anchored_local(instance, function, anchor, b)?;
+                    if kind != CallableKind::Fn && original != local {
+                        return Err(fail("abstract exclusive invocation changes its exact original place"));
+                    }
+                    let source_point = self.prepared_owner_source(function, original, local, (block, index), b)?;
                     let declaration = function.locals.get(local.0 as usize).filter(|item| item.id == local)
                         .ok_or_else(|| fail("abstract local receiver has no exact local declaration"))?;
                     if declaration.ty != boundary.subject.ty || kind == CallableKind::FnMut && !declaration.mutable {
                         return Err(fail("abstract local invocation changes its complete receiver type or mode"));
                     }
                     let actual = self.local_value(instance, function, local, (block, index), b, 0)?;
+                    if original != local {
+                        let origin = self.local_value(instance, function, original, source_point, b, 0)?;
+                        if !self.capture_values_equal(&actual, &origin, b)? {
+                            return Err(fail("abstract local preparation changes its complete source domain"));
+                        }
+                    }
                     if !self.capture_values_equal(&actual, &source.root, b)? {
                         return Err(fail("abstract local invocation changes its full original root domain"));
                     }

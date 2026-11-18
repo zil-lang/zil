@@ -409,40 +409,10 @@ impl Check<'_, '_> {
         if original == actual {
             return Ok(receiver);
         }
-        let initialization = crate::shared_initialization(function, b)?;
-        let mut source = None;
-        for block in &function.blocks {
-            b.spend(1, WORK)?;
-            if !initialization.reachable[block.id.0 as usize] {
-                continue;
-            }
-            for (index, instruction) in block.instructions.iter().enumerate() {
-                b.spend(1, WORK)?;
-                if !matches!(instruction.kind, InstructionKind::TakeLocal { local } if local == original)
-                {
-                    continue;
-                }
-                let producer = instruction.result.ok_or_else(|| {
-                    fail("dynamic receiver preparation omits its actual moved SSA")
-                })?;
-                if function.values.get(producer.0 as usize) != Some(&receiver.ty)
-                    || !self.operation_local_matches(function, actual, at, producer, b)?
-                {
-                    continue;
-                }
-                let original_value =
-                    self.live_dyn_owner(instance, function, original, (block.id, index), b, 0)?;
-                if !original_value.equal_paid(&receiver, b)? || source.replace(producer).is_some() {
-                    return Err(fail(
-                        "dynamic receiver preparation changes its exact original owner occurrence",
-                    ));
-                }
-            }
-        }
-        if source.is_none() {
-            return Err(fail(
-                "dynamic receiver preparation has no complete original owning transfer",
-            ));
+        let source = self.prepared_owner_source(function, original, actual, at, b)?;
+        let original_value = self.live_dyn_owner(instance, function, original, source, b, 0)?;
+        if !original_value.equal_paid(&receiver, b)? {
+            return Err(fail("dynamic receiver preparation changes its complete source domain"));
         }
         Ok(receiver)
     }

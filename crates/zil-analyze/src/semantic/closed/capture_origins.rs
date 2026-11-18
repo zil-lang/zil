@@ -519,7 +519,55 @@ impl Check<'_, '_> {
         graph.probe = true;
         Ok(graph.solve(Query::Value(value), b)? == 0)
     }
-    pub(super) fn operation_local_matches(
+    /// Prove one exact prepared owner from the actual original local transfer.
+    /// Equal types and classes do not select an originating move.
+    pub(super) fn prepared_owner_source(
+        &self,
+        function: &TypedFunction,
+        original: LocalId,
+        actual: LocalId,
+        at: (BlockId, usize),
+        b: &mut Budget,
+    ) -> CompileResult<(BlockId, usize)> {
+        operations::initialized_local_before(function, at, actual, b)?;
+        if original == actual {
+            return Ok(at);
+        }
+        let expected = &function.locals[actual.0 as usize].ty;
+        let initialization = crate::shared_initialization(function, b)?;
+        let mut source = None;
+        for block in &function.blocks {
+            b.spend(1, WORK)?;
+            if !initialization.reachable[block.id.0 as usize] {
+                continue;
+            }
+            for (index, instruction) in block.instructions.iter().enumerate() {
+                b.spend(1, WORK)?;
+                if !matches!(instruction.kind, InstructionKind::TakeLocal { local } if local == original)
+                {
+                    continue;
+                }
+                let producer = instruction
+                    .result
+                    .ok_or_else(|| fail("receiver preparation omits its actual moved SSA"))?;
+                if function.values.get(producer.0 as usize) != Some(expected)
+                    || !self.operation_local_matches(function, actual, at, producer, b)?
+                {
+                    continue;
+                }
+                let point = (block.id, index);
+                operations::initialized_local_before(function, point, original, b)?;
+                if source.replace(point).is_some() {
+                    return Err(fail(
+                        "receiver preparation has several complete original owner occurrences",
+                    ));
+                }
+            }
+        }
+        source.ok_or_else(|| fail("receiver preparation has no complete original owning transfer"))
+    }
+
+    fn operation_local_matches(
         &self,
         function: &TypedFunction,
         local: LocalId,
