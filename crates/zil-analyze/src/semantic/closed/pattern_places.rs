@@ -111,6 +111,38 @@ impl Check<'_, '_> {
         Ok(result)
     }
 
+    fn projected_pattern_subject(
+        &self, instance: &SemanticInstance, function: &TypedFunction,
+        node: zil_base::NodeId, success_projections: usize, b: &mut Budget, depth: usize,
+    ) -> CompileResult<Option<ValueId>> {
+        let Some(mut current) = self.original_subject_value(instance, function, node, b)? else {
+            return Ok(None);
+        };
+        for _ in 0..success_projections {
+            let mut selected = None;
+            for block in &function.blocks {
+                for instruction in &block.instructions {
+                    b.spend(1, WORK)?;
+                    if !matches!(instruction.kind, InstructionKind::ReadErrorUnion { is_error: false, .. }
+                        | InstructionKind::TakeErrorUnion { is_error: false, .. }) {
+                        continue;
+                    }
+                    let output = instruction.result.ok_or_else(|| fail("actual success projection has no SSA result"))?;
+                    if self.pattern_ssa_path(function, output, current, &[PlaceProjection::ErrorArm(false)], b, depth + 1)?
+                        && selected.replace(output).is_some()
+                    {
+                        return Err(fail("original try subject selects several actual success projections"));
+                    }
+                }
+            }
+            let Some(output) = selected else {
+                return Err(fail("original try subject loses its exact actual success projection"));
+            };
+            current = output;
+        }
+        Ok(Some(current))
+    }
+
     pub(super) fn stored_pattern_value(
         &self,
         function: &TypedFunction,
@@ -369,7 +401,8 @@ impl Check<'_, '_> {
             .anchor
             .map(|anchor| self.anchored_local_at(instance, function, anchor, b, depth + 1))
             .transpose()?;
-        let emitted = self.original_subject_value(instance, function, origin.subject.node, b)?;
+        let emitted = self.projected_pattern_subject(instance, function, origin.subject.node,
+            origin.subject.success_projections, b, depth + 1)?;
         let root = if let Some(value) = emitted {
             let (_, _, producer) = self.defining(function, value, b)?;
             if let Some(anchor) = anchored {
@@ -469,7 +502,11 @@ impl Check<'_, '_> {
                     .ok_or_else(|| unknown("pattern value lacks its actual storage temporary"))?
             }
         } else {
-            anchored.ok_or_else(|| unknown("pattern subject has no actual root or emission"))?
+            anchored.ok_or_else(|| unknown("pattern subject has no actual root or emission")
+                .into_iter().map(|diagnostic| diagnostic.with_note(format!(
+                    "Original {} expression {:?}, pattern path {:?}, actual function {:?}",
+                    function.name, origin.subject.node, origin.path, function.id,
+                ))).collect::<Vec<_>>())?
         };
         let mut selected = None;
         let mut accept = |local| -> CompileResult<()> {
