@@ -336,7 +336,7 @@ fn prove_impl(
     Ok(targets)
 }
 
-fn closed_data(ty: &Type, budget: &mut Budget, depth: usize) -> Check<bool> {
+pub(super) fn closed_data(ty: &Type, budget: &mut Budget, depth: usize) -> Check<bool> {
     if depth > budget.limits.max_call_depth {
         return Err(limit("owned dyn cleanup local type depth exceeded"));
     }

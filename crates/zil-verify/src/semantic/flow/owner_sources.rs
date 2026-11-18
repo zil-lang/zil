@@ -8,6 +8,8 @@ use zil_base::NodeId;
 pub(in crate::semantic::flow) mod scalar_preparations;
 #[path = "range_bindings.rs"]
 mod range_bindings;
+#[path = "capture_mirrors.rs"]
+mod capture_mirrors;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PatternStart { Value(ValueId), Unpack { local: LocalId, at: (BlockId, usize) } }
@@ -311,7 +313,14 @@ impl CheckedContext{
                     crate::packages::check_instruction(module,f,instruction,b)?;self.buffer_capture_use(module,caller,f,capture,node,block,at,instruction,b)?;rooted=true;
                 }else{
                     if stores.is_empty(){return Err(bad("captured observation local has no complete actual environment source"));}
-                    b.spend(stores.len())?;work.extend(stores.into_iter().map(|value|(false,value.0,false)));
+                    if stores.len() > 1
+                        && let Some(initial) = capture_mirrors::initial(module, f, local, b)?
+                    {
+                        work.push((false, initial.0, false));
+                    } else {
+                        b.spend(stores.len())?;
+                        work.extend(stores.into_iter().map(|value| (false, value.0, false)));
+                    }
                 }
             }else{
                 let(block,at,instruction)=producer(f,ValueId(index),b)?;
