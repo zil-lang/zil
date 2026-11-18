@@ -380,7 +380,7 @@ impl Check<'_, '_> {
                                 // captured origin or an additional head loan.
                                 let capture =
                                     self.environment_capture(instance, function, ordinal, b)?;
-                                if self.capture_value_origin(function, value, b, 0)? != capture {
+                                if self.spilled_capture_name(function, *local, value, capture, b)? != capture {
                                     return Err(fail(
                                         "implicit spilled capture read changes its original environment source",
                                     ));

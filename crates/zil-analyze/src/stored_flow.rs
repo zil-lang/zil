@@ -5505,7 +5505,8 @@ fn transfer(
             out.pointer.targets.insert(Target{base:HoldRoot::Capture(*index),stored:vec![],place:vec![],retained_port:None,heap_element:None,heap_parents:vec![]});
             out.pointer.loans.insert(state.receiver_loan.ok_or_else(||failure("owned capture borrow lacks its actual receiver invocation"))?);
         }
-        InstructionKind::BorrowCapture { index, mutable } => {
+        InstructionKind::BorrowCapture { index, mutable }
+                    if super::stored_callables::lending_borrow(module, f, *mutable) => {
             inline_capture_loan(module, f, i, *index, *mutable, b)?;
             fee(b, 1)?;
             out.pointer.targets.insert(Target {
@@ -9858,7 +9859,8 @@ fn actual_instructions(
                         [*index as usize];
                     address_result(f, i, *mutable, ty, b)?;
                 }
-                InstructionKind::BorrowCapture { index, mutable } => {
+                InstructionKind::BorrowCapture { index, mutable }
+                    if super::stored_callables::lending_borrow(module, f, *mutable) => {
                     inline_capture_loan(module, f, i, *index, *mutable, b)?;
                 }
                 InstructionKind::ExtractField { .. } => {}

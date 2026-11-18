@@ -32,6 +32,7 @@ struct Graph<'c, 'a, 'i, 'f> {
     producer: Option<ValueId>,
     producers: Option<BTreeSet<ValueId>>,
     probe: bool,
+    scalar_mirror: Option<(LocalId, u32)>,
     indices: BTreeMap<Query, usize>,
     nodes: Vec<Node>,
 }
@@ -59,6 +60,7 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
             producer: None,
             producers: None,
             probe: false,
+            scalar_mirror: None,
             indices: BTreeMap::new(),
             nodes: Vec::new(),
         })
@@ -248,6 +250,15 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
                         "capture provenance crosses an ended owning Package view",
                     ));
                 }
+                InstructionKind::WriteCapture { index, value }
+                    if self.scalar_mirror == Some((local, *index)) => {
+                    if instruction.checked_sub(1).and_then(|i| actual.instructions.get(i))
+                        .is_none_or(|i| !matches!(i.kind, InstructionKind::Store { local: dest, value: rhs }
+                            if dest == local && rhs == *value))
+                    {
+                        return Err(fail("captured scalar write and local mirror disagree"));
+                    }
+                }
                 InstructionKind::Store {
                     local: target,
                     value,
@@ -262,6 +273,18 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
                         return Err(fail(
                             "capture provenance whole store changes the complete local type",
                         ));
+                    }
+                    // A synchronized scalar assignment preserves the binding, even
+                    // when the new data is an arithmetic result. Keep scanning
+                    // for the original capture on every incoming path.
+                    if let Some((spill, capture)) = self.scalar_mirror
+                        && spill == local && instruction + 1 < end
+                        && matches!(actual.instructions[instruction + 1].kind,
+                            InstructionKind::WriteCapture { index, value: rhs }
+                            if index == capture && rhs == *value)
+                    {
+                        self.available(*value, Definition { block, instruction }, b)?;
+                        continue;
                     }
                     let dependency =
                         self.value_dependency(*value, Definition { block, instruction }, b)?;
@@ -517,6 +540,23 @@ impl Check<'_, '_> {
         graph.producer = Some(producer);
         graph.solve(Query::Local(local, at.0, at.1), b)?;
         Ok(())
+    }
+    pub(super) fn spilled_capture_name(
+        &self, function: &TypedFunction, local: LocalId, value: ValueId,
+        capture: u32, b: &mut Budget,
+    ) -> CompileResult<u32> {
+        let mut graph = Graph::new(self, function, b)?;
+        graph.capture(capture, b)?;
+        let definition = function.environment.and_then(|id| self.module.closures.get(id.0 as usize))
+            .ok_or_else(|| fail("spilled capture has no original environment"))?;
+        let field = definition.captures.get(capture as usize)
+            .ok_or_else(|| fail("spilled capture has no physical field"))?;
+        if definition.kind != CallableKind::Fn && field.is_b0_scalar()
+            && function.locals.get(local.0 as usize).is_some_and(|l| l.id == local && l.ty == *field)
+        {
+            graph.scalar_mirror = Some((local, capture));
+        }
+        graph.solve(Query::Value(value), b)
     }
     pub(super) fn capture_origin_value(
         &self,

@@ -31,6 +31,13 @@ pub(super) fn scalar_foreign(f: &TypedFunction, b: &mut Budget) -> CompileResult
     foreign::declaration(f, b)
 }
 
+/// A mutable borrow can also belong to a Task or another owner kernel.
+pub(super) fn lending_borrow(module: &TypedModule, f: &TypedFunction, mutable: bool) -> bool {
+    !mutable || f.environment
+        .and_then(|id| module.closures.get(id.0 as usize))
+        .is_some_and(lending)
+}
+
 pub(super) fn lending(d: &ClosureDefinition) -> bool {
     d.storage_life.is_some()
         && !d.lending_captures.is_empty()
@@ -910,7 +917,7 @@ pub(super) fn types(
         return Ok(());
     }
     match &i.kind {
-        InstructionKind::BorrowCapture { index, mutable } => {
+        InstructionKind::BorrowCapture { index, mutable } if lending_borrow(module, f, *mutable) => {
             super::stored_flow::inline_capture_loan(module, f, i, *index, *mutable, b)?;
             return Ok(());
         }
