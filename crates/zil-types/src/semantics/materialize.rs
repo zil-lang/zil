@@ -203,6 +203,8 @@ mod opaque;
 pub(super) use opaque::call_result_at;
 #[path = "materialize_domains.rs"]
 mod domains;
+#[path = "materialize_formal_receipts.rs"]
+mod formal_receipts;
 #[path = "materialize_emitter.rs"]
 mod emitter;
 #[path = "creator_invocations.rs"]
@@ -925,6 +927,42 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
         depth: usize,
     ) -> R<SemanticTypeValue> {
         self.node(depth)?;
+        let module = self.module;
+        let Some(receipts) = module.formal_receipts(
+            self.input, self.ledger.original.context(), self.limits,
+        )? else {
+            return self.form_type_actual(scope, ordinal, depth);
+        };
+        let key = (scope, ordinal);
+        let generation = module.nominal_proposals.borrow().len();
+        let stable_mode = self.invocation_probe.is_none() && self.pending_header.is_none();
+        let mark = receipts.begin(key, stable_mode, self.limits, self.left)?;
+        let result = (|| {
+            if stable_mode
+                && let Some(value) = receipts.load(
+                    key, generation, depth, &self.active, self.limits, self.left,
+                )?
+            {
+                return Ok((value, true));
+            }
+            self.form_type_actual(scope, ordinal, depth).map(|value| (value, false))
+        })();
+        let checked = match result.as_ref() {
+            Ok((value, false)) if stable_mode && self.pending_header.is_none()
+                && generation == module.nominal_proposals.borrow().len() => Some(value),
+            _ => None,
+        };
+        let publish = receipts.finish(mark, key, generation, depth, checked, self.limits, self.left);
+        let (value, _) = result?;
+        publish?;
+        Ok(value)
+    }
+    fn form_type_actual(
+        &mut self,
+        scope: SemanticInstanceId,
+        ordinal: u32,
+        depth: usize,
+    ) -> R<SemanticTypeValue> {
         // Prepay both insertion and removal: a NotReady return is resumed by
         // the same evaluator and must not retain an abandoned active query.
         self.fee((self.active.len().saturating_add(1).ilog2() as usize + 1).saturating_mul(2))?;

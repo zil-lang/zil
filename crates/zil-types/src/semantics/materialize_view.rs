@@ -18,6 +18,7 @@ struct SourceDirectory<'a> {
     functions: BTreeMap<FunctionId, usize>,
     nominals: BTreeMap<LifeDeclarationId, Vec<usize>>,
     parents: std::cell::RefCell<BTreeMap<ParentKey, ParentSolution>>,
+    formal_receipts: Option<(Limits, formal_receipts::Directory)>,
 }
 pub(in crate::semantics) struct ActualDirectory<'a> {
     complete: Option<&'a TypedModule>,
@@ -105,7 +106,13 @@ impl<'a> ActualDirectory<'a> {
             }
         }
         let mut positions = BTreeMap::new();
+        let mut unformed = false;
         for (offset, row) in program.instances.iter().enumerate() {
+            if !unformed {
+                Self::source_fee(left, row.actuals.len())?;
+                unformed = row.actuals.iter().any(|value| matches!(value,
+                    SemanticActual::CoreRecipe { .. } | SemanticActual::CoreInferred { .. }));
+            }
             if positions.insert(row.id, offset).is_some() {
                 return Err(bad(
                     "immutable materialization directory repeats an instance",
@@ -134,6 +141,7 @@ impl<'a> ActualDirectory<'a> {
             functions,
             nominals,
             parents: Default::default(),
+            formal_receipts: unformed.then(|| (limits.clone(), formal_receipts::Directory::default())),
         });
         Ok(directory)
     }
@@ -233,6 +241,23 @@ impl<'a> ActualDirectory<'a> {
         }
         Ok(Some(source))
     }
+    pub(super) fn formal_receipts(
+        &self,
+        input: &SemanticModule,
+        context: Option<&std::rc::Rc<super::super::original_context::OriginalContext>>,
+        limits: &Limits,
+    ) -> R<Option<&formal_receipts::Directory>> {
+        if !self.stable_invocation_inputs() {
+            return Ok(None);
+        }
+        let Some(source) = self.parent_context(input, context)? else {
+            return Ok(None);
+        };
+        Ok(source.formal_receipts.as_ref().and_then(|(checked_limits, receipts)| {
+            (checked_limits == limits).then_some(receipts)
+        }))
+    }
+
     pub(super) fn parent_solution(
         &self,
         program: &SemanticModule,
