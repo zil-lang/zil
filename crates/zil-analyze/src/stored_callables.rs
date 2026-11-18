@@ -243,10 +243,63 @@ pub(super) fn task_result(d: &ClosureDefinition) -> bool {
         && d.lending_captures.is_empty()
         && matches!(&d.result,Type::Managed(task) if matches!(task.as_ref(),Type::Task{..}))
 }
+fn copy_product(ty: &Type) -> bool {
+    matches!(ty, Type::Record { .. } | Type::Array { .. } | Type::Tuple(_))
+}
+
+// This only schedules the mandatorily checked original and actual signature
+// path. Preflight proves the complete closed result before the body can run.
+fn copy_product_result(module: &TypedModule, definition: &ClosureDefinition) -> bool {
+    module.semantic.is_some()
+        && definition.storage_life.is_some()
+        && definition.lending_captures.is_empty()
+        && matches!(definition.kind, CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce)
+        && copy_product(&definition.result)
+}
+
+fn original_copy_product(
+    definition: &ClosureDefinition,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !copy_product(ty) || definition.storage_life.is_none() {
+        return Ok(false);
+    }
+    b.lookup(b.semantic_closures_proven.len(), "original inline callback data")?;
+    Ok(b.semantic_closures_proven.contains(&definition.id)
+        && super::stored_flow::inline_capture_data(ty, b)?
+        && ty.is_copy_value())
+}
+
+pub(super) fn validate_copy_product_result(
+    module: &TypedModule,
+    definition: &ClosureDefinition,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    if !copy_product_result(module, definition) {
+        return Ok(());
+    }
+    let life = definition.storage_life.as_ref()
+        .ok_or_else(|| bad("copy callback result omits its complete signature"))?;
+    b.spend(
+        life.bindings.len().saturating_add(life.static_bindings.len()).saturating_add(life.classes.len()),
+        "complete copy callback result positions",
+    )?;
+    if life.bindings.iter().any(|row| row.position.base == StorageBase::Result)
+        || life.static_bindings.iter().any(|row| row.base == StorageBase::Result)
+        || life.classes.iter().any(|row| row.position.base == StorageBase::Result)
+        || !original_copy_product(definition, &definition.result, b)?
+    {
+        return Err(bad("callback Copy result lacks its complete original target-free product type"));
+    }
+    Ok(())
+}
+
 pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
     module.closures.get(id.0 as usize).is_some_and(|d| {
         (d.lending_captures.is_empty()
             && (scalar(&d.result) || super::tasks::is_close_poll(&d.result)))
+            || copy_product_result(module, d)
             || lending(d)
             || transferred(d)
             || constant_result(d)
@@ -841,6 +894,7 @@ pub(super) fn types(
         // they do not borrow the receiver being consumed by this operation.
         } else if !matches!(d.kind, CallableKind::Fn | CallableKind::FnMut)
             || !(scalar(&d.result)
+                || copy_product_result(module, d)
                 || super::tasks::is_close_poll(&d.result)
                 || fixed_result(d)
                 || invocation_result(d)
@@ -986,7 +1040,7 @@ pub(super) fn types(
                 // access. Its constant contents are independently checked at
                 // every module constructor and write before planning.
                 if d.kind == zil_ir::CallableKind::Fn
-                    || !(scalar(t) || constant_slot)
+                    || !(scalar(t) || constant_slot || original_copy_product(d, t, b)?)
                     || i.result.is_some()
                     || f.values.get(value.0 as usize) != Some(t)
                 {

@@ -2194,6 +2194,7 @@ pub(super) fn preflight(
                 legacy_value(ty, Span::default(), module)?;
             }
         }
+        super::stored_callables::validate_copy_product_result(module, closure, budget)?;
         let mut owned_signature = false;
         for ty in closure
             .parameters
