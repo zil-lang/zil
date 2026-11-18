@@ -339,7 +339,13 @@ pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> CompileResult<boo
     for closure in &module.closures {
         fee(b, closure.captures.len())?;
         for capture in &closure.captures {
-            if value(capture, b)? {
+            // An actual managed byte capture keeps its owning field identity.
+            // DescribeCapture seeds that exact field, and ByteBufferBorrow
+            // joins its invocation loan before a caller can retain the view.
+            if value(capture, b)?
+                && !(super::super::stored_callables::byte_capture_head(capture)
+                    && super::super::stored_callables::semantic_owned_capture(module, closure, capture, b)?)
+            {
                 return Err(closed(Span::default()));
             }
         }
