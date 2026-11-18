@@ -314,7 +314,15 @@ impl Check<'_, '_> {
     ) -> R<()> {
         self.pay(1, depth)?;
         self.record_task_name_source(owner, expression, variables, depth + 1)?;
-        self.view_bound(owner, expression, variables, depth + 1)?;
+        if matches!(result, SemanticTypeRecipe::Desc { .. })
+            && matches!(expression.kind, CoreExprKind::Name(_))
+        {
+            // An implicit description takes its source from the live owning
+            // place. An existing descriptor instead transports its prior loan.
+            self.place_borrow_bound(owner, expression, variables, depth + 1)?;
+        } else {
+            self.view_bound(owner, expression, variables, depth + 1)?;
+        }
         if let CoreExprKind::Call { callee, .. } = &expression.kind {
             if let Some(site) = self.site(owner, SemanticOriginalNode::Expression(expression.id))? {
                 self.pay(1, depth)?;
