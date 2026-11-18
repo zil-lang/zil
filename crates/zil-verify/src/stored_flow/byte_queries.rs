@@ -434,28 +434,57 @@ impl Point {
     fn at(&self, index: usize, b: &mut Budget) -> Check<&[Permission]> {
         self.at_key((index, None), b)
     }
+    fn row_index(&self, key: (usize, Option<u32>), b: &mut Budget) -> Check<Result<usize, usize>> {
+        b.spend(self.rows.len().saturating_add(1).ilog2() as usize + 1)?;
+        Ok(self.rows.binary_search_by_key(&key, |(actual, _)| *actual))
+    }
     fn at_key(&self, key: (usize, Option<u32>), b: &mut Budget) -> Check<&[Permission]> {
-        b.spend(self.rows.len().saturating_add(1))?;
         Ok(self
-            .rows
-            .iter()
-            .find(|(actual, _)| *actual == key)
-            .map_or(&[], |(_, row)| row.as_slice()))
+            .row_index(key, b)?
+            .map_or(&[], |index| self.rows[index].1.as_slice()))
+    }
+    fn insert_row(
+        &mut self,
+        position: usize,
+        key: (usize, Option<u32>),
+        row: Vec<Permission>,
+        b: &mut Budget,
+    ) -> Check<()> {
+        let len = self.rows.len();
+        b.spend(len - position + 1)?;
+        if len == self.rows.capacity() {
+            b.spend(len)?;
+        }
+        self.rows.insert(position, (key, row));
+        Ok(())
     }
     fn put(&mut self, index: usize, row: Vec<Permission>, b: &mut Budget) -> Check<()> {
         self.put_key((index, None), row, b)
     }
     fn put_key(&mut self, key: (usize, Option<u32>), row: Vec<Permission>, b: &mut Budget) -> Check<()> {
-        b.spend(self.rows.len().saturating_add(1))?;
-        match self.rows.binary_search_by_key(&key, |(actual, _)| *actual) {
+        match self.row_index(key, b)? {
+            Ok(position) if row.is_empty() => {
+                b.spend(self.rows.len() - position)?;
+                self.rows.remove(position);
+            }
             Ok(position) => self.rows[position].1 = row,
-            Err(position) => self.rows.insert(position, (key, row)),
+            Err(position) if !row.is_empty() => self.insert_row(position, key, row, b)?,
+            Err(_) => {}
         }
         Ok(())
     }
     fn remove(&mut self, index: usize, b: &mut Budget) -> Check<()> {
-        b.spend(self.rows.len().saturating_add(1))?;
-        self.rows.retain(|((carrier, _), _)| *carrier != index);
+        b.spend(self.rows.len().saturating_add(1).ilog2() as usize + 1)?;
+        let first = self.rows.partition_point(|((carrier, _), _)| *carrier < index);
+        let mut end = first;
+        while self.rows.get(end).is_some_and(|((carrier, _), _)| *carrier == index) {
+            b.spend(1)?;
+            end += 1;
+        }
+        if end != first {
+            b.spend(self.rows.len() - first)?;
+            self.rows.drain(first..end);
+        }
         Ok(())
     }
     fn capture_slots(
@@ -499,9 +528,12 @@ impl Point {
 fn join_point(to: &mut Point, from: &Point, b: &mut Budget) -> Check<()> {
     b.spend(from.rows.len())?;
     for (key, row) in &from.rows {
-        let mut merged = clone_alternatives(to.at_key(*key, b)?, b)?;
-        extend_alternatives(&mut merged, row, b)?;
-        to.put_key(*key, merged, b)?;
+        match to.row_index(*key, b)? {
+            Ok(index) => {
+                extend_alternatives(&mut to.rows[index].1, row, b)?;
+            }
+            Err(index) => to.insert_row(index, *key, clone_alternatives(row, b)?, b)?,
+        }
     }
     Ok(())
 }
@@ -763,13 +795,8 @@ impl Flow {
             initial,
             exits: (0..f.blocks.len()).map(|_| Point::default()).collect(),
         };
-        // In this new domain a DAG has final predecessor point states before
-        // each instruction. Cycles retain the complete original fixed point,
-        // including every fresh execution's full grant revocation.
-        if b.ordinary_error_places
-            && b.store_option_results
-            && let Some(order) = super::acyclic_order(graph, b)?
-        {
+        // In a DAG every predecessor is final before its successor runs.
+        if let Some(order) = super::acyclic_order(graph, b)? {
             for block in order {
                 let mut point = flow.input(f, block, graph, b)?;
                 b.spend(f.blocks[block].instructions.len())?;
@@ -780,34 +807,36 @@ impl Flow {
             }
             return Ok(Some(flow));
         }
-        loop {
-            b.spend(flow.exits.len())?;
-            let mut next = Vec::new();
-            for exit in &flow.exits {
-                let mut copy = Point::default();
-                join_point(&mut copy, exit, b)?;
-                next.push(copy);
+        // For a loop, replay a block when a real predecessor changes. Every
+        // reachable block runs once even if its first exit has no permissions.
+        let count = f.blocks.len();
+        b.spend(amount(count, 3)?)?;
+        let entry = f.entry.0 as usize;
+        let mut seen = vec![false; count];
+        let mut scheduled = vec![false; count];
+        let mut queue = std::collections::VecDeque::with_capacity(count);
+        queue.push_back(entry);
+        scheduled[entry] = true;
+        while let Some(block) = queue.pop_front() {
+            scheduled[block] = false;
+            b.spend(f.blocks[block].instructions.len().saturating_add(1))?;
+            let mut point = flow.input(f, block, graph, b)?;
+            for instruction in &f.blocks[block].instructions {
+                advance(module, f, instruction, actual, summaries, &mut point, b)?;
             }
-            let mut changed = false;
-            for bi in (0..f.blocks.len()).rev() {
-                if !graph.reachable[bi] {
-                    continue;
-                }
-                let mut point = flow.input(f, bi, graph, b)?;
-                b.spend(f.blocks[bi].instructions.len())?;
-                for operation in &f.blocks[bi].instructions {
-                    advance(module, f, operation, actual, summaries, &mut point, b)?;
-                }
-                point_work(&point, b)?;
-                point_work(&flow.exits[bi], b)?;
-                if point != flow.exits[bi] {
-                    next[bi] = point;
-                    changed = true;
-                }
+            point_work(&point, b)?;
+            point_work(&flow.exits[block], b)?;
+            if seen[block] && point == flow.exits[block] {
+                continue;
             }
-            flow.exits = next;
-            if !changed {
-                break;
+            flow.exits[block] = point;
+            seen[block] = true;
+            b.spend(graph.successors[block].len())?;
+            for &child in &graph.successors[block] {
+                if graph.reachable[child] && !scheduled[child] {
+                    scheduled[child] = true;
+                    queue.push_back(child);
+                }
             }
         }
         Ok(Some(flow))
