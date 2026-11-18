@@ -44,8 +44,8 @@ pub(super) fn shape(t: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
     let Some((raw, classes)) = qualified(t) else {
         return Ok(false);
     };
-    let (elements, whole) = match raw {
-        Type::Tuple(elements) => (elements, false),
+    let (elements, whole, input_life) = match raw {
+        Type::Tuple(elements) => (elements, false, None),
         Type::Record { name, fields } | Type::Package { name, fields }
             if name.starts_with("@std.task:v1:TaskCreateFailure:") =>
         {
@@ -58,10 +58,15 @@ pub(super) fn shape(t: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
                         variants,
                     },
                 ),
-                (inputs, Type::Tuple(elements)),
+                (inputs, field),
             ] = fields.as_slice()
             else {
                 return Err(err("Task failure physical fields differ"));
+            };
+            let (tuple, input_life) = qualified(field)
+                .map_or((field, None), |(tuple, life)| (tuple, Some(life)));
+            let Type::Tuple(elements) = tuple else {
+                return Err(err("Task failure has no ordered input Tuple"));
             };
             if reason != "reason"
                 || inputs != "inputs"
@@ -92,7 +97,7 @@ pub(super) fn shape(t: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
                     "failure carrier shell must match its actual input responsibilities",
                 ));
             }
-            (elements, true)
+            (elements, true, input_life)
         }
         _ => return Ok(false),
     };
@@ -112,6 +117,14 @@ pub(super) fn shape(t: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
         return Err(err(
             "Task failure/view has no physical slots or forged nominal classes",
         ));
+    }
+    if let Some(child) = input_life {
+        b.spend(child.retained.len().saturating_add(child.nominal_arguments.len()))?;
+        if child.binder_count != classes.binder_count || child.slots.len() != classes.slots.len()
+            || !child.retained.is_empty() || !child.nominal_arguments.is_empty()
+        {
+            return Err(err("Task failure input field changes its complete storage domain"));
+        }
     }
     let mut cursor = 0usize;
     let mut ordering = Vec::new();
@@ -149,6 +162,15 @@ pub(super) fn shape(t: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
             if !exact || slot.mode != mode || slot.binder >= classes.binder_count {
                 return Err(err("Task failure slot has a different path, mode or class"));
             }
+            if let Some(child) = input_life {
+                let field = &child.slots[cursor];
+                b.spend(field.path.len().saturating_add(1))?;
+                if field.path.as_slice() != [PlaceProjection::Field(position as u32)]
+                    || field.mode != slot.mode || field.binder != slot.binder
+                {
+                    return Err(err("Task failure input field changes its exact physical slot"));
+                }
+            }
             if !ordering.contains(&slot.binder) {
                 if slot.binder as usize != ordering.len() {
                     return Err(err(
@@ -157,7 +179,7 @@ pub(super) fn shape(t: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
                 }
                 ordering.push(slot.binder);
             }
-            if whole {
+            if whole && input_life.is_none() {
                 let row = classes
                     .retained
                     .get(retained)
@@ -181,7 +203,20 @@ pub(super) fn shape(t: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
     if cursor != classes.slots.len() || ordering.len() != classes.binder_count as usize {
         return Err(err("Task failure/view has excess slots or classes"));
     }
-    if whole {
+    if input_life.is_some() {
+        use zil_ir::LifeTypeProjection as L;
+        for projection in [L::Place(PlaceProjection::Field(1)), L::TypeArgument(0), L::TypeArgument(1)] {
+            for class in 0..classes.binder_count {
+                let row = classes.retained.get(retained)
+                    .ok_or_else(|| err("Task failure omits an input/context class occurrence"))?;
+                b.spend(row.path.len().saturating_add(1))?;
+                if row.path.as_slice() != [projection] || row.class != class || row.binder != class {
+                    return Err(err("Task failure changes an input/context class occurrence"));
+                }
+                retained += 1;
+            }
+        }
+    } else if whole {
         for class in 0..classes.binder_count {
             let row = classes
                 .retained
@@ -337,14 +372,20 @@ pub(super) fn instance(i: &LifeNominalInstance, limits: &Limits, b: &mut Budget)
             "failure nominal declaration kind differs from its actual shell",
         ));
     }
-    let [
-        LifeNominalActual::Type(inputs),
-        LifeNominalActual::Type(context),
-    ] = i.arguments.as_slice()
+    let [LifeNominalActual::Type(inputs), actual_context] = i.arguments.as_slice()
     else {
         return Err(err(
             "Task failure nominal has no exact Inputs and Context actuals",
         ));
+    };
+    let full_inputs = qualified(inputs).is_some();
+    let context = match actual_context {
+        LifeNominalActual::Type(context) if !full_inputs => context,
+        LifeNominalActual::QualifiedType { ty, life: context }
+            if full_inputs && context.binder_count == life.binder_count
+                && context.slots.is_empty() && context.retained.is_empty()
+                && context.nominal_arguments.is_empty() => ty,
+        _ => return Err(err("Task failure Context changes its complete class domain")),
     };
     type_work(inputs, limits, b)?;
     type_work(context, limits, b)?;
@@ -362,7 +403,7 @@ pub(super) fn instance(i: &LifeNominalInstance, limits: &Limits, b: &mut Budget)
     {
         return Err(err("Task failure ordered input/context identity differs"));
     }
-    let Type::Tuple(inputs) = inputs else {
+    let Type::Tuple(inputs) = qualified(inputs).map_or(inputs, |(tuple, _)| tuple) else {
         unreachable!()
     };
     let leaves = inputs
@@ -373,7 +414,7 @@ pub(super) fn instance(i: &LifeNominalInstance, limits: &Limits, b: &mut Budget)
     if leaves.clone().count() != retained_life.ports.len() {
         return Err(err("Task failure actual context port count differs"));
     }
-    let explicit = !retained_life.retained.is_empty();
+    let explicit = full_inputs || !retained_life.retained.is_empty();
     if explicit && retained_life.retained.len() != retained_life.ports.len() {
         return Err(err(
             "Task failure context omits or adds an original input occurrence",
@@ -454,6 +495,9 @@ pub(super) fn projection(
         return Err(err("failure input view has no complete parent"));
     }
     type_work(inner, &limits, b)?;
+    if qualified(&fields[1].1).is_some() {
+        return Ok(Some(fields[1].1.clone()));
+    }
     let mut originals = Vec::new();
     let mut rows = Vec::new();
     for slot in &parent.slots {

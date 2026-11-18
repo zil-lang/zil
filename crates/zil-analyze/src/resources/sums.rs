@@ -2173,8 +2173,11 @@ impl Plan {
                     Type::Package { name, fields } => (name, fields, false),
                     _ => return Err(error("Task owned failure has no actual ordered product")),
                 };
-                let [(reason_name, reason), (inputs_name, inputs @ Type::Tuple(types))] = fields.as_slice() else {
+                let [(reason_name, reason), (inputs_name, inputs)] = fields.as_slice() else {
                     return Err(error("Task owned failure omits its complete reason/input Tuple"));
+                };
+                let Type::Tuple(types) = package_storage(inputs) else {
+                    return Err(error("Task owned failure omits its complete ordered input Tuple"));
                 };
                 budget.spend(name.len().saturating_add(arguments.len()).saturating_add(32),
                     "Task owned complete failure product")?;

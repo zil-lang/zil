@@ -2320,6 +2320,16 @@ impl Check<'_, '_> {
                 }
                 Ok(expected)
             }
+            InstructionKind::TakePackageField { local, index: 1 }
+                if function.locals.get(local.0 as usize).is_some_and(|local|
+                    matches!(&local.ty, Type::BorrowedStorage { storage, .. }
+                        if matches!(storage.as_ref(), Type::Package { .. })))
+                    && value::task_failure_domain(&function.locals[local.0 as usize].ty, b)?.is_some() =>
+            {
+                operations::initialized_local_before(function, (block, index), *local, b)?;
+                let parent = self.local_value(instance, function, *local, (block, index), b, depth + 1)?;
+                self.projected_child(function, id, &parent, PlaceProjection::Field(1), b, depth + 1)
+            }
             InstructionKind::ReadPackageField {
                 local,
                 index: field,
@@ -2540,6 +2550,10 @@ impl Check<'_, '_> {
                         "stored reference read has no actual addressed aggregate source",
                     ));
                 };
+                let task_inputs = *mode == StoredBorrowLoad::Take
+                    && matches!(root.ty, Type::Address { mutable: true, .. })
+                    && path.as_slice() == [PlaceProjection::Field(1)]
+                    && value::task_failure_domain(&selected.ty, b)?.is_some();
                 for projection in path {
                     let PlaceProjection::Field(field) = projection else {
                         return Err(unknown(
@@ -2555,6 +2569,8 @@ impl Check<'_, '_> {
                     StoredBorrowLoad::CopyDescription => matches!(selected.ty, Type::Desc(_)),
                     StoredBorrowLoad::Take => {
                         matches!(selected.ty, Type::Address { .. } | Type::Desc(_))
+                            || task_inputs && matches!(&selected.ty,
+                                Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Tuple(_)))
                     }
                     StoredBorrowLoad::Reborrow { .. } => false,
                 };
@@ -2590,7 +2606,9 @@ impl Check<'_, '_> {
             }
             InstructionKind::TakeVariantField { local, path }
                 if path.len() == 1 && (self.task_domain(ty, b)?.is_some()
-                    || matches!(ty, Type::Address { mutable: false, .. })) =>
+                    || matches!(ty, Type::Address { mutable: false, .. })
+                    || path.as_slice() == [PlaceProjection::ErrorArm(true)]
+                        && value::task_failure_domain(ty, b)?.is_some()) =>
             {
                 operations::initialized_local_before(function, (block, index), *local, b)?;
                 let parent = self.local_value(instance, function, *local, (block, index), b, depth + 1)?;

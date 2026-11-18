@@ -274,7 +274,7 @@ pub(super) fn failure_borrow_only_unpack(
     }
     task_failure::unpack(f, i, b)
 }
-fn failure_tuple_drop(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check<bool> {
+pub(super) fn failure_tuple_drop(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check<bool> {
     let InstructionKind::DropTuple { local } = i.kind else {
         return Ok(false);
     };
@@ -2281,6 +2281,32 @@ pub(super) fn instruction_work(f: &TypedFunction, i: &Instruction, b: &mut Budge
     }
     Ok(())
 }
+
+/// The semantic body pass checks actual opcodes before the full stored
+/// inventory pass. A checked compiler carrier makes that physical profile
+/// available without admitting an arbitrary nested Record field.
+pub(super) fn prepare_task_failure(module: &TypedModule, limits: &Limits, b: &mut Budget) -> Check<()> {
+    for id in [
+        zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD,
+        zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE,
+    ] {
+        let declarations = dynamic_metadata::nominal_declarations(module, id, b)?;
+        let [declaration] = declarations.as_slice() else { continue };
+        if !task_failure::declaration(declaration) {
+            continue;
+        }
+        for instance in dynamic_metadata::nominal_instances(module, id, b)? {
+            if matches!(instance.ty, Type::BorrowedStorage { .. }) {
+                if b.task_input_scopes.is_none() && !module.closures.is_empty() {
+                    b.task_input_scopes = Some(crate::tasks::input_scope::build(module, limits, b)?);
+                }
+                return nominal::rows(module, instance, limits, b);
+            }
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn inventory(module: &TypedModule, limits: &Limits, b: &mut Budget) -> Check<()> {
     if module.life_declarations.len() > limits.max_nodes
         || module.life_instances.len() > limits.max_nodes

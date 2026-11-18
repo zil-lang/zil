@@ -98,7 +98,7 @@ pub(super) fn failure_borrow_only_unpack(
     }
     task_failure::unpack(f, i, b)
 }
-fn failure_tuple_drop(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> CompileResult<bool> {
+pub(super) fn failure_tuple_drop(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> CompileResult<bool> {
     let InstructionKind::DropTuple { local } = i.kind else {
         return Ok(false);
     };

@@ -221,10 +221,16 @@ pub(super) fn check_type_for(
             if owned_leaf(storage) {
                 let input_fields = match storage.as_ref() {
                     Type::Tuple(fields) => fields.as_slice(),
-                    Type::Package { fields, .. } => match &fields[1].1 {
-                        Type::Tuple(fields) => fields.as_slice(),
-                        _ => unreachable!(),
-                    },
+                    Type::Package { fields, .. } => {
+                        let inputs = match &fields[1].1 {
+                            Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                            inputs => inputs,
+                        };
+                        let Type::Tuple(fields) = inputs else {
+                            return Err(bad(span, "owning qualified failure input field is not a Tuple"));
+                        };
+                        fields.as_slice()
+                    }
                     _ => {
                         return Err(bad(
                             span,

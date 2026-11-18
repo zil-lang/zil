@@ -281,7 +281,10 @@ impl Check<'_, '_> {
         if matches!(storage, Type::Tuple(_)) && !empty(&parent.life) {
             return self.closure_child_value(parent, selector, b);
         }
-        if self.task_domain(child, b)?.is_some() {
+        if self.task_domain(child, b)?.is_some()
+            || selector == PlaceProjection::ErrorArm(true)
+                && value::task_failure_domain(child, b)?.is_some()
+        {
             return self.task_projection(parent, child, selector, b);
         }
         let Type::Address {

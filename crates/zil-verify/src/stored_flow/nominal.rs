@@ -34,7 +34,6 @@ fn walk(
         active.pop();
         return Ok(Vec::new());
     }
-    physical(&instance.ty, limits, b)?;
     let Type::BorrowedStorage { storage, life } = &instance.ty else {
         return Err(err("nominal metadata has no qualified type"));
     };
@@ -69,9 +68,11 @@ fn walk(
     )?;
     if task_failure::declaration(decl) {
         task_failure::instance(instance, limits, b)?;
+        b.task_failure_carriers = true;
         active.pop();
         return Ok(Vec::new());
     }
+    physical(&instance.ty, limits, b)?;
     if decl.id.compiler && enum_address::poll_declaration(decl) {
         enum_address::poll_instance(instance, b)?;
         active.pop();

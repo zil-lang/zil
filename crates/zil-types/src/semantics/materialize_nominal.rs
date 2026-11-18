@@ -160,6 +160,8 @@ impl Eval<'_, '_, '_> {
         self.fee(life.binder_count as usize)?;
         let mut images = vec![None; life.binder_count as usize];
         let mut type_owners = std::collections::BTreeMap::new();
+        let task_failure = matches!(declaration,
+            zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD | zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE);
         for (ordinal, (expected, actual)) in expected.iter().zip(&instance.arguments).enumerate() {
             match (expected, actual) {
                 (SemanticActual::Life(image), LifeNominalActual::Lifetime(binder)) => {
@@ -196,6 +198,9 @@ impl Eval<'_, '_, '_> {
                 ) => {
                     if child.binder_count as usize != classes.len() {
                         return Err(bad("nominal Type actual omits intrinsic classes"));
+                    }
+                    if task_failure && ordinal == 1 && classes.len() != type_owners.len() {
+                        return Err(bad("Task failure input and context class counts differ"));
                     }
                     self.fee(classes.len())?;
                     let mut selected = Vec::new();
@@ -251,11 +256,15 @@ impl Eval<'_, '_, '_> {
                         }
                         selected.push(binder);
                         self.fee(type_owners.len().saturating_add(1).ilog2() as usize + 1)?;
-                        if type_owners.insert(binder, ordinal).is_some() {
+                        let expected = (task_failure && ordinal == 1).then_some((0, class));
+                        if type_owners.insert(binder, (ordinal, class)) != expected {
                             return Err(bad(
                                 "distinct nominal Type actual slots collapse their intrinsic anchors",
                             ));
                         }
+                        // The builtin failure carrier projects the same worker
+                        // class into its Inputs and Context. Equality of the
+                        // original images remains mandatory in both views.
                         self.nominal_image(&mut images, binder, image)?;
                     }
                 }

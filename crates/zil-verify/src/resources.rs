@@ -2414,6 +2414,9 @@ impl Transfer<'_> {
                         state.desc[dst] = state.desc[src].clone();
                     }
                 }
+                InstructionKind::DropTuple { local }
+                    if slots.managed_local[local.0 as usize].is_none()
+                        && crate::stored_flow::failure_tuple_drop(f, instruction, budget)? => {}
                 InstructionKind::DropManaged { local }
                 | InstructionKind::DropDynOwned { local }
                 | InstructionKind::DropMutexGuard { local }

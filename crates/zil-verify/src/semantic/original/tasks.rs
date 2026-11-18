@@ -580,6 +580,28 @@ impl CheckedOriginal {
         Ok(Ty::Nominal(row.id, vec![]))
     }
 
+    fn task_failure_record_inputs(
+        &mut self, module: &TypedModule, context: &CheckedContext, input: &Ty,
+        env: &Env, active: &mut ActiveQueries, b: &mut Budget,
+    ) -> Check<bool> {
+        let mut pending = vec![self.resolved(input, b)?];
+        while let Some(input) = pending.pop() {
+            b.spend(1)?;
+            match input {
+                Ty::Address { .. } | Ty::Desc { .. } => {}
+                Ty::Tuple(fields) => {
+                    b.spend(fields.len())?;
+                    pending.extend(fields.into_iter().rev());
+                }
+                Ty::Array(element, _) => pending.push(*element),
+                Ty::ErrorUnion(error, result) => pending.extend([*result, *error]),
+                other if !self.is_copy(module, context, &other, env, active, b)? => return Ok(false),
+                _ => {}
+            }
+        }
+        Ok(true)
+    }
+
     fn task_failure_type(
         &mut self,
         module: &TypedModule,
@@ -590,8 +612,8 @@ impl CheckedOriginal {
         active: &mut ActiveQueries,
         b: &mut Budget,
     ) -> Check<Ty> {
-        let copy = self.is_copy(module, context, &inputs, env, active, b)?;
-        let wanted = if copy {
+        let record = self.task_failure_record_inputs(module, context, &inputs, env, active, b)?;
+        let wanted = if record {
             zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD
         } else {
             zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE
@@ -628,7 +650,7 @@ impl CheckedOriginal {
             return Err(bad("Task failure has another complete original product"));
         };
         if *kind
-            != if copy {
+            != if record {
                 LifeNominalKind::Record
             } else {
                 LifeNominalKind::Package

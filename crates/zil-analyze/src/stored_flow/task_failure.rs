@@ -171,12 +171,17 @@ pub(super) fn shape(t: &Type, b: &mut Budget) -> CompileResult<bool> {
     let Some((storage, life)) = carrier(t) else {
         return Ok(false);
     };
-    let (inputs, outer) = match storage {
+    let (inputs, outer, inputs_life) = match storage {
         Type::Record { name, fields } | Type::Package { name, fields }
             if name.starts_with("@std.task:v1:TaskCreateFailure:") =>
         {
             fee(b, name.len().saturating_add(fields.len()))?;
-            let [(r, ty), (i, Type::Tuple(inputs))] = fields.as_slice() else {
+            let [(r, ty), (i, field)] = fields.as_slice() else {
+                return Err(failure("failure carrier has no ordered input Tuple"));
+            };
+            let (tuple, inputs_life) = carrier(field)
+                .map_or((field, None), |(tuple, life)| (tuple, Some(life)));
+            let Type::Tuple(inputs) = tuple else {
                 return Err(failure("failure carrier has no ordered input Tuple"));
             };
             if r != "reason" || i != "inputs" || !reason(ty) {
@@ -202,9 +207,9 @@ pub(super) fn shape(t: &Type, b: &mut Budget) -> CompileResult<bool> {
                     "failure carrier shell must match its actual input responsibilities",
                 ));
             }
-            (inputs, true)
+            (inputs, true, inputs_life)
         }
-        Type::Tuple(inputs) => (inputs, false),
+        Type::Tuple(inputs) => (inputs, false, None),
         _ => return Ok(false),
     };
     if !complete_inputs(inputs, b)? {
@@ -222,6 +227,14 @@ pub(super) fn shape(t: &Type, b: &mut Budget) -> CompileResult<bool> {
     )?;
     if life.slots.is_empty() || !life.nominal_arguments.is_empty() {
         return Err(failure("failure/view class domain lacks its actual slots"));
+    }
+    if let Some(child) = inputs_life {
+        fee(b, child.retained.len().saturating_add(child.nominal_arguments.len()))?;
+        if child.binder_count != life.binder_count || child.slots.len() != life.slots.len()
+            || !child.retained.is_empty() || !child.nominal_arguments.is_empty()
+        {
+            return Err(failure("failure input field changes its complete storage domain"));
+        }
     }
     let mut slot = 0;
     let mut classes = BTreeSet::new();
@@ -258,13 +271,22 @@ pub(super) fn shape(t: &Type, b: &mut Budget) -> CompileResult<bool> {
             if row.path != path || row.mode != mode || row.binder >= life.binder_count {
                 return Err(failure("failure input slot path/mode/class differs"));
             }
+            if let Some(child) = inputs_life {
+                let field = &child.slots[slot];
+                fee(b, field.path.len().saturating_add(1))?;
+                if field.path.as_slice() != [PlaceProjection::Field(index as u32)]
+                    || field.mode != row.mode || field.binder != row.binder
+                {
+                    return Err(failure("failure input field changes its exact physical slot"));
+                }
+            }
             if !classes.contains(&row.binder) && row.binder as usize != classes.len() {
                 return Err(failure(
                     "failure view classes are not dense by actual first occurrence",
                 ));
             }
             classes.insert(row.binder);
-            if outer {
+            if outer && inputs_life.is_none() {
                 expected.push(zil_ir::StorageRetainedBinding {
                     path: vec![
                         zil_ir::LifeTypeProjection::TypeArgument(0),
@@ -282,7 +304,15 @@ pub(super) fn shape(t: &Type, b: &mut Budget) -> CompileResult<bool> {
             "failure/view has an extra slot or ungrounded class",
         ));
     }
-    if outer {
+    if inputs_life.is_some() {
+        use zil_ir::LifeTypeProjection as L;
+        for projection in [L::Place(PlaceProjection::Field(1)), L::TypeArgument(0), L::TypeArgument(1)] {
+            for class in 0..life.binder_count {
+                fee(b, 1)?;
+                expected.push(zil_ir::StorageRetainedBinding { path: vec![projection], class, binder: class });
+            }
+        }
+    } else if outer {
         for class in 0..life.binder_count {
             fee(b, 1)?;
             expected.push(zil_ir::StorageRetainedBinding {
@@ -321,17 +351,23 @@ pub(super) fn instance(i: &LifeNominalInstance, b: &mut Budget) -> CompileResult
             "failure nominal declaration kind differs from its actual shell",
         ));
     }
-    let [
-        LifeNominalActual::Type(inputs),
-        LifeNominalActual::Type(Type::Task {
-            result,
-            retained_life: context,
-        }),
-    ] = i.arguments.as_slice()
+    let [LifeNominalActual::Type(inputs), actual_context] = i.arguments.as_slice()
     else {
         return Err(failure(
             "failure nominal instance omitted ordered Inputs/Context actuals",
         ));
+    };
+    let full_inputs = carrier(inputs).is_some();
+    let context_type = match actual_context {
+        LifeNominalActual::Type(context) if !full_inputs => context,
+        LifeNominalActual::QualifiedType { ty, life: context }
+            if full_inputs && context.binder_count == life.binder_count
+                && context.slots.is_empty() && context.retained.is_empty()
+                && context.nominal_arguments.is_empty() => ty,
+        _ => return Err(failure("failure nominal Context changes its complete class domain")),
+    };
+    let Type::Task { result, retained_life: context } = context_type else {
+        return Err(failure("failure nominal Context has another original type"));
     };
     b.type_work(inputs, true, "failure nominal input equality")?;
     if inputs != &fields[1].1
@@ -341,11 +377,11 @@ pub(super) fn instance(i: &LifeNominalInstance, b: &mut Budget) -> CompileResult
     {
         return Err(failure("failure nominal Inputs/Context differs"));
     }
-    let Type::Tuple(inputs) = inputs else {
+    let Type::Tuple(inputs) = carrier(inputs).map_or(inputs, |(tuple, _)| tuple) else {
         unreachable!()
     };
     let mut index = 0;
-    let has_parameter_map = !context.retained.is_empty();
+    let has_parameter_map = full_inputs || !context.retained.is_empty();
     for (parameter, input) in inputs.iter().enumerate() {
         if let Type::Address { .. } = input {
             fee(b, 1)?;
@@ -431,6 +467,9 @@ pub(super) fn projection(
         return Err(failure("failure input projection parent is not complete"));
     }
     b.type_work(inner, true, "failure selected child clone and class map")?;
+    if carrier(&fields[1].1).is_some() {
+        return Ok(Some(fields[1].1.clone()));
+    }
     let mut classes = BTreeMap::new();
     let mut selected = Vec::new();
     for row in &life.slots {

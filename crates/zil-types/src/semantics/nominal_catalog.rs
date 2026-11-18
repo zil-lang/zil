@@ -1381,14 +1381,22 @@ impl<'a> Check<'a, '_> {
         // remain independent anchors; current outside images cannot coalesce
         // their intrinsic classes.
         let mut type_owners = std::collections::BTreeMap::new();
+        let task_failure = matches!(instance.declaration,
+            zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD | zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE);
         for (ordinal, actual) in instance.arguments.iter().enumerate() {
             if let LifeNominalActual::Type(ty) | LifeNominalActual::QualifiedType { ty, .. } =
                 actual
             {
                 let images = self.type_images(instance, ordinal as u32, ty, depth + 1)?;
-                for binder in images {
+                if task_failure && ordinal == 1 && images.len() != type_owners.len() {
+                    return Err(bad("Task failure input and context class counts differ"));
+                }
+                for (class, binder) in images.into_iter().enumerate() {
                     self.pay(type_owners.len().saturating_add(1).ilog2() as usize + 1)?;
-                    if type_owners.insert(binder, ordinal).is_some() {
+                    // Both builtin Type actuals describe the same worker input
+                    // context. Check each carrier-to-context pair by ordinal.
+                    let expected = (task_failure && ordinal == 1).then_some((0, class));
+                    if type_owners.insert(binder, (ordinal, class)) != expected {
                         return Err(bad(
                             "distinct nominal Type formal anchors share an intrinsic class",
                         ));

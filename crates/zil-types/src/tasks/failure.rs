@@ -113,6 +113,10 @@ pub(super) fn carrier_full(
     if life.binder_count == 0 {
         return Ok(physical);
     }
+    let physical = match physical {
+        Type::Package { name, fields } if !owns(inputs) => Type::Record { name, fields },
+        other => other,
+    };
     let mut shape = zil_ir::StorageLifeShape {
         binder_count: life.binder_count,
         slots: vec![],
@@ -127,14 +131,10 @@ pub(super) fn carrier_full(
             ..slot.clone()
         });
     }
-    for class in 0..life.binder_count {
-        for path in [
-            vec![L::Place(P::Field(1))],
-            vec![L::TypeArgument(0)],
-            vec![L::TypeArgument(1)],
-        ] {
+    for projection in [L::Place(P::Field(1)), L::TypeArgument(0), L::TypeArgument(1)] {
+        for class in 0..life.binder_count {
             shape.retained.push(zil_ir::StorageRetainedBinding {
-                path,
+                path: vec![projection],
                 class,
                 binder: class,
             });
@@ -246,8 +246,9 @@ pub(crate) fn append_inventory(
                 else {
                     continue;
                 };
-                let Type::BorrowedStorage { storage, .. } = failure.as_ref() else {
-                    continue;
+                let storage = match failure.as_ref() {
+                    Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                    storage => storage,
                 };
                 let Type::Managed(task) = result.as_ref() else {
                     return Err(unsupported(
@@ -283,7 +284,7 @@ pub(crate) fn append_inventory(
                     .iter()
                     .map(|local| target.locals[local.0 as usize].ty.clone())
                     .collect();
-                let fields = match storage.as_ref() {
+                let fields = match storage {
                     Type::Record { fields, .. } | Type::Package { fields, .. } => fields,
                     _ => return Err(unsupported(i.span, "actual failure has no physical fields")),
                 };
@@ -322,15 +323,44 @@ pub(crate) fn append_inventory(
                         "failure carrier differs from its actual worker input/context",
                     ));
                 }
+                let context = context_actual(retained_life);
+                let Type::Task { retained_life: failure_context, .. } = &context else {
+                    unreachable!();
+                };
+                if !matches!(failure.as_ref(), Type::BorrowedStorage { .. })
+                    && (failure_context.binder_count != 0
+                        || !failure_context.ports.is_empty()
+                        || !failure_context.retained.is_empty()
+                        || !failure_context.nominal_arguments.is_empty())
+                {
+                    return Err(error(
+                        "E-TASK-CREATE-FAILURE",
+                        i.span,
+                        "plain failure changes its empty input context",
+                    ));
+                }
+                let context = if input_life.is_some() {
+                    zil_ir::LifeNominalActual::QualifiedType {
+                        ty: context,
+                        life: zil_ir::StorageLifeShape {
+                            binder_count: retained_life.binder_count,
+                            slots: vec![],
+                            retained: vec![],
+                            nominal_arguments: vec![],
+                        },
+                    }
+                } else {
+                    zil_ir::LifeNominalActual::Type(context)
+                };
                 actuals.push((
-                    matches!(storage.as_ref(), Type::Package { .. }),
+                    matches!(storage, Type::Package { .. }),
                     zil_ir::LifeNominalInstance {
-                        declaration: declaration(matches!(storage.as_ref(), Type::Package { .. }))
+                        declaration: declaration(matches!(storage, Type::Package { .. }))
                             .id,
                         ty: (**failure).clone(),
                         arguments: vec![
                             zil_ir::LifeNominalActual::Type(input.clone()),
-                            zil_ir::LifeNominalActual::Type(context_actual(retained_life)),
+                            context,
                         ],
                     },
                 ));

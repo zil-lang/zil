@@ -85,6 +85,41 @@ impl CheckedContext {
             classes.push(key.clone());origins.push(origin.clone());
         }
         let mut child=self.checked_value(module,ty,&life,classes,b)?;
+        if path == [LifeTypeProjection::Place(PlaceProjection::Field(1))]
+            && matches!(&parent.ty, Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Record { .. } | Type::Package { .. }))
+            && matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Tuple(_)))
+            && crate::stored_flow::failure_shape(&parent.ty, b)?
+        {
+            for (ordinal, origin) in origins.iter_mut().enumerate() {
+                let IntrinsicOrigin::Nominal { source, class } = origin else { continue };
+                if !matches!(source.declaration, zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD
+                    | zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE)
+                {
+                    continue;
+                }
+                let [CheckedActual::Type(inputs), _] = source.actuals.as_slice() else {
+                    return Err(bad("Task failure projection has no complete original Inputs actual"));
+                };
+                dynamic_metadata::ty(&inputs.ty, b)?;
+                dynamic_metadata::life_shape(&inputs.life, b)?;
+                if &inputs.ty != ty || inputs.life != life {
+                    return Err(bad("Task failure projection changes its ordered input domain"));
+                }
+                for role in [path[0], LifeTypeProjection::TypeArgument(0)] {
+                    b.spend(source.domain.retained.len())?;
+                    let mut rows = source.domain.retained.iter().filter(|row|
+                        row.path.as_slice() == [role] && row.class as usize == ordinal);
+                    if rows.next().is_none_or(|row| row.binder != *class) || rows.next().is_some() {
+                        return Err(bad("Task failure projection changes the original input class occurrence"));
+                    }
+                }
+                let original = source.class_sources.get(*class as usize)
+                    .ok_or_else(|| bad("Task failure projection has no original input class"))?;
+                charge_intrinsic_origin(original, b)?;
+                *origin = original.clone();
+            }
+        }
         if let Type::Closure(id)=ty && physical.is_some() {
             for (index,origin) in origins.iter_mut().enumerate(){
                 let IntrinsicOrigin::Nominal{source,class}=origin else{continue;};

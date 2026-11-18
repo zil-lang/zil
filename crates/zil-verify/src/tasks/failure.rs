@@ -61,9 +61,9 @@ pub(super) fn check(
             return Err(bad("owning Task failure substitutes a worker input type"));
         }
     }
-    if record && !copy_inputs(module, inputs, b, 0)? {
+    if record && !record_inputs(module, inputs, b, 0)? {
         return Err(bad(
-            "owning Task failure cannot grant Copy to an affine input",
+            "Task failure Record cannot carry an owning input responsibility",
         ));
     }
     if name != &format!("@std.task:v1:TaskCreateFailure:{}", inputs.fingerprint()) {
@@ -139,6 +139,41 @@ pub(super) fn check(
             "owning Task failure has no exact complete builtin nominal instance",
         ));
     }
+    let tuple_life = if module.semantic.is_none()
+        && !matches!(inputs, Type::BorrowedStorage { .. })
+        && !error_life.slots.is_empty()
+        && crate::stored_flow::failure_shape(error, b)?
+    {
+        // The legacy field stores its physical tuple. Rebuild the tuple's
+        // complete loan slots from the checked worker input context and match
+        // each one against the actual containing failure field.
+        let mut ports = frame.shape.ports.iter();
+        let mut slots = Vec::new();
+        for (index, parameter) in parameters.iter().enumerate() {
+            b.spend(1)?;
+            if !matches!(parameter, Type::Address { .. }) {
+                continue;
+            }
+            let port = ports.next().ok_or_else(|| bad("Task failure omits a worker input port"))?;
+            let slot = error_life.slots.get(slots.len())
+                .ok_or_else(|| bad("Task failure omits an actual input slot"))?;
+            dynamic_metadata::ty(&port.leaf, b)?;
+            b.spend(slot.path.len().saturating_add(1))?;
+            let field = PlaceProjection::Field(index as u32);
+            if &port.leaf != parameter || slot.path.as_slice() != [PlaceProjection::Field(1), field]
+                || slot.mode != port.mode || slot.binder != port.binder
+            {
+                return Err(bad("Task failure changes its actual worker input slot"));
+            }
+            slots.push(StorageLifeSlot { path: vec![field], binder: port.binder, mode: port.mode });
+        }
+        if ports.next().is_some() || slots.len() != error_life.slots.len() || error_life.binder_count != frame.shape.binder_count {
+            return Err(bad("Task failure changes its complete worker input slot directory"));
+        }
+        StorageLifeShape { binder_count: frame.shape.binder_count, slots, retained: vec![], nominal_arguments: vec![] }
+    } else {
+        tuple_life
+    };
     full_type(module, inputs, &tuple_life, b)?;
     full_type(module, error, &error_life, b)?;
     // Input SSA values, actual error/success ownership, and every failure
@@ -199,17 +234,19 @@ fn create_error() -> Type {
         variants: vec![("Allocation".into(), vec![])],
     }
 }
-fn copy_inputs(module: &TypedModule, ty: &Type, b: &mut Budget, depth: usize) -> Check<bool> {
+fn record_inputs(module: &TypedModule, ty: &Type, b: &mut Budget, depth: usize) -> Check<bool> {
     dynamic_metadata::ty(ty, b)?;
     if depth > b.limits.max_call_depth.min(128) {
-        return Err(limit("Task Copy input depth exceeded"));
+        return Err(limit("Task failure Record input depth exceeded"));
     }
     Ok(match ty {
-        Type::BorrowedStorage { storage, .. } => copy_inputs(module, storage, b, depth + 1)?,
-        Type::Address { mutable: false, .. } | Type::Desc(_) => true,
+        Type::BorrowedStorage { storage, .. } => record_inputs(module, storage, b, depth + 1)?,
+        // A borrowed slot carries its original loan but no resource debt.
+        // The checked slot and consuming operation still prevent copying it.
+        Type::Address { .. } | Type::Desc(_) => true,
         Type::Tuple(fields) => {
             for field in fields {
-                if !copy_inputs(module, field, b, depth + 1)? {
+                if !record_inputs(module, field, b, depth + 1)? {
                     return Ok(false);
                 }
             }
@@ -225,7 +262,7 @@ fn copy_inputs(module: &TypedModule, ty: &Type, b: &mut Budget, depth: usize) ->
                 return Ok(false);
             }
             for (_, field) in fields {
-                if !copy_inputs(module, field, b, depth + 1)? {
+                if !record_inputs(module, field, b, depth + 1)? {
                     return Ok(false);
                 }
             }
@@ -234,7 +271,7 @@ fn copy_inputs(module: &TypedModule, ty: &Type, b: &mut Budget, depth: usize) ->
         Type::Enum { variants, .. } => {
             for (_, fields) in variants {
                 for field in fields {
-                    if !copy_inputs(module, field, b, depth + 1)? {
+                    if !record_inputs(module, field, b, depth + 1)? {
                         return Ok(false);
                     }
                 }
@@ -242,9 +279,9 @@ fn copy_inputs(module: &TypedModule, ty: &Type, b: &mut Budget, depth: usize) ->
             true
         }
         Type::ErrorUnion { error, result } => {
-            copy_inputs(module, error, b, depth + 1)? && copy_inputs(module, result, b, depth + 1)?
+            record_inputs(module, error, b, depth + 1)? && record_inputs(module, result, b, depth + 1)?
         }
-        Type::Array { element, .. } => copy_inputs(module, element, b, depth + 1)?,
+        Type::Array { element, .. } => record_inputs(module, element, b, depth + 1)?,
         _ => ty.is_copy_value(),
     })
 }

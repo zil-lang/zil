@@ -1008,6 +1008,9 @@ fn check_module_budget(
         }
         budget.stored_context = true;
         budget.diagnostic_stage("semantic program");
+        if frozen.is_some() || module.semantic.is_some() {
+            stored_flow::prepare_task_failure(module, limits, budget)?;
+        }
         if let Some(frozen) = frozen {
             frozen.check_executable(module, &mut budget)?;
         } else if module.semantic.is_some() {
@@ -1896,9 +1899,16 @@ fn check_type_shape(
             Type::Record { name, fields } | Type::Package { name, fields } => {
                 // This only schedules an actual-opcode inventory. The QName
                 // grants no origin, protocol state or ownership capability.
-                budget.owned_task_input_inventory |= name
-                    .starts_with("@std.task:v1:TaskCreateFailure:")
-                    && matches!(fields.as_slice(),[(r,_),(i,Type::Tuple(_))] if r=="reason" && i=="inputs");
+                if name.starts_with("@std.task:v1:TaskCreateFailure:")
+                    && let [(reason, _), (inputs, ty)] = fields.as_slice()
+                    && reason == "reason" && inputs == "inputs"
+                {
+                    let input = match ty {
+                        Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                        other => other,
+                    };
+                    budget.owned_task_input_inventory |= matches!(input, Type::Tuple(_));
+                }
                 budget.spend(name.len())?;
                 budget.spend(fields.len())?;
                 let context = context

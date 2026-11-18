@@ -554,6 +554,11 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 description: false,
             }
         }
+        Type::Tuple(_) if crate::stored_flow::failure_shape(ty, budget)? => {
+            budget.type_work(ty, false, "Task input Tuple owner inventory")?;
+            // Stored flow proves which exclusive slots must be consumed.
+            Shape { owned: sums::owned(ty), description: false }
+        }
         Type::Enum { .. } | Type::Tuple(_) if budget.sum_type(ty)? => Shape {
             owned: true,
             description: false,
@@ -3338,6 +3343,9 @@ impl Flow<'_> {
                         replace(state, Place::Local(*local), source, budget)?;
                     }
                 }
+                InstructionKind::DropTuple { local }
+                    if !self.shapes.contains_key(&Place::Local(*local))
+                        && crate::stored_flow::failure_tuple_drop(f, i, budget)? => {}
                 InstructionKind::DropTuple { local }
                 | InstructionKind::DropEnum { local }
                 | InstructionKind::DropManaged { local }

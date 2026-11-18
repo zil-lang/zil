@@ -165,6 +165,10 @@ impl Check<'_, '_> {
                 self.definition(*definition)?.body,
                 SemanticDefinitionBody::Nominal { kind: LifeNominalKind::Package, .. },
             ) => false,
+            SemanticTypeRecipe::Nominal { definition, .. } if member == "inputs" && matches!(
+                self.definition(*definition)?.body,
+                SemanticDefinitionBody::Nominal { declaration: zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD, .. },
+            ) => false,
             SemanticTypeRecipe::Tuple(_) if allow_tuple => true,
             _ => return Ok(None),
         };

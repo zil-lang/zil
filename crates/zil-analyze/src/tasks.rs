@@ -356,6 +356,7 @@ fn owned_create_type(
     result: &Type,
     retained: zil_ir::RetainedLifeShape,
     parameters: Vec<Type>,
+    complete: bool,
     budget: &mut Budget,
 ) -> CompileResult<Type> {
     budget.spend(
@@ -377,6 +378,7 @@ fn owned_create_type(
     }
     let mut slots = Vec::new();
     let mut bindings = Vec::new();
+    let mut input_slots = Vec::new();
     if qualify {
         let mut port = 0;
         for (index, t) in parameters.iter().enumerate() {
@@ -401,14 +403,23 @@ fn owned_create_type(
                     binder: actual.binder,
                     mode: actual.mode,
                 });
-                bindings.push(zil_ir::StorageRetainedBinding {
-                    path: vec![
-                        zil_ir::LifeTypeProjection::TypeArgument(0),
-                        zil_ir::LifeTypeProjection::Place(PlaceProjection::Field(index as u32)),
-                    ],
-                    class: 0,
-                    binder: actual.binder,
-                });
+                if complete {
+                    budget.spend(1, "owned failure exact input slot")?;
+                    input_slots.push(zil_ir::StorageLifeSlot {
+                        path: vec![PlaceProjection::Field(index as u32)],
+                        binder: actual.binder,
+                        mode: actual.mode,
+                    });
+                } else {
+                    bindings.push(zil_ir::StorageRetainedBinding {
+                        path: vec![
+                            zil_ir::LifeTypeProjection::TypeArgument(0),
+                            zil_ir::LifeTypeProjection::Place(PlaceProjection::Field(index as u32)),
+                        ],
+                        class: 0,
+                        binder: actual.binder,
+                    });
+                }
                 port += 1;
             }
         }
@@ -418,24 +429,41 @@ fn owned_create_type(
                 "failure context has an extra port",
             ));
         }
-        for class in 0..retained.binder_count {
-            bindings.push(zil_ir::StorageRetainedBinding {
-                path: vec![zil_ir::LifeTypeProjection::TypeArgument(1)],
-                class,
-                binder: class,
-            });
+        use zil_ir::LifeTypeProjection as Projection;
+        let roles = if complete {
+            &[Projection::Place(PlaceProjection::Field(1)), Projection::TypeArgument(0), Projection::TypeArgument(1)][..]
+        } else {
+            &[Projection::TypeArgument(1)]
+        };
+        for &role in roles {
+            for class in 0..retained.binder_count {
+                budget.spend(1, "owned failure whole class occurrence")?;
+                bindings.push(zil_ir::StorageRetainedBinding {
+                    path: vec![role],
+                    class,
+                    binder: class,
+                });
+            }
         }
     }
+    let record = parameters.iter()
+        .all(|t| t.is_copy_value() || matches!(t, Type::Address { .. }));
     let inputs = Type::Tuple(parameters);
+    let inputs = if qualify && complete {
+        Type::BorrowedStorage {
+            storage: Box::new(inputs),
+            life: zil_ir::StorageLifeShape {
+                binder_count: retained.binder_count,
+                slots: input_slots,
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+        }
+    } else {
+        inputs
+    };
     budget.type_work(&inputs, true, "failure exact original input type identity")?;
     let name = format!("@std.task:v1:TaskCreateFailure:{}", inputs.fingerprint());
-    let record = if let Type::Tuple(fields) = &inputs {
-        fields
-            .iter()
-            .all(|t| t.is_copy_value() || matches!(t, Type::Address { .. }))
-    } else {
-        false
-    };
     let reason = Type::Enum {
         name: "@std.task:v1:TaskCreateError".into(),
         variants: vec![("Allocation".into(), vec![])],
@@ -1001,7 +1029,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                                 )?;
                                 inputs.push(t.clone());
                             }
-                            owned_create_type(&target.return_type, retained_life, inputs, budget)?
+                            owned_create_type(&target.return_type, retained_life, inputs, module.semantic.is_some(), budget)?
                         } else {
                             task_create_type(&target.return_type, retained_life)
                         };

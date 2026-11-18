@@ -271,6 +271,46 @@ fn inherited_domain(child: &StorageLifeShape, prefix: LifeTypeProjection, b: &mu
     }
     Ok(StorageLifeShape { binder_count: child.binder_count, slots, retained, nominal_arguments })
 }
+
+fn task_outcome_domain(
+    error: &StorageLifeShape, result: &StorageLifeShape, b: &mut Budget,
+) -> CompileResult<StorageLifeShape> {
+    let mut outcome = inherited_domain(error, LifeTypeProjection::Place(PlaceProjection::ErrorArm(true)), b)?;
+    let result = inherited_domain(result, LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)), b)?;
+    let offset = outcome.binder_count;
+    outcome.binder_count = offset.checked_add(result.binder_count)
+        .ok_or_else(|| fail("Task outcome intrinsic class domain overflows"))?;
+    // Each alternative keeps its complete intrinsic domain. Equal caller
+    // images do not merge the recovered inputs with the separately owned Task.
+    for mut slot in result.slots {
+        slot.binder += offset;
+        put(&mut outcome.slots, slot, b)?;
+    }
+    for mut row in result.retained {
+        row.binder += offset;
+        put(&mut outcome.retained, row, b)?;
+    }
+    for mut row in result.nominal_arguments {
+        row.binder += offset;
+        put(&mut outcome.nominal_arguments, row, b)?;
+    }
+    Ok(outcome)
+}
+
+pub(super) fn task_failure_domain<'a>(
+    ty: &'a Type, b: &mut Budget,
+) -> CompileResult<Option<&'a StorageLifeShape>> {
+    let Type::BorrowedStorage { storage, life } = ty else {
+        return Ok(None);
+    };
+    if matches!(storage.as_ref(), Type::Record { name, .. } | Type::Package { name, .. }
+        if name.starts_with("@std.task:v1:TaskCreateFailure:"))
+        && crate::stored_flow::failure_shape(ty, b)?
+    {
+        return Ok(Some(life));
+    }
+    Ok(None)
+}
 /// An inline sum carries the complete checked domain of its qualified success
 /// child across either tag. The declaration's zero-domain error is independent.
 pub(super) fn qualified_sum_domain(
@@ -307,9 +347,13 @@ pub(super) fn task_domain(ty: &Type, b: &mut Budget) -> CompileResult<Option<Sto
             let child = task_domain(inner, b)?.ok_or_else(|| fail("Task owner changes its child family"))?;
             Ok(Some(inherited_domain(&child, LifeTypeProjection::Pointee, b)?))
         }
-        Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::Managed(inner) if matches!(inner.as_ref(), Type::Task { .. })) => {
+        Type::ErrorUnion { error, result } if matches!(result.as_ref(), Type::Managed(inner) if matches!(inner.as_ref(), Type::Task { .. })) => {
             let child = task_domain(result, b)?.ok_or_else(|| fail("Task result carrier changes its child family"))?;
-            Ok(Some(inherited_domain(&child, LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)), b)?))
+            if let Some(life) = task_failure_domain(error, b)? {
+                task_outcome_domain(life, &child, b).map(Some)
+            } else {
+                inherited_domain(&child, LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)), b).map(Some)
+            }
         }
         _ => Ok(None),
     }
@@ -398,26 +442,33 @@ fn qualified_tuple(fields: Vec<Value>, b: &mut Budget) -> CompileResult<Value> {
     let ty = Type::BorrowedStorage { storage: Box::new(Type::Tuple(storage)), life: life.clone() };
     Ok(Value::new(ty, life, classes))
 }
-/// A sum retains the entire success domain even while its error arm is
-/// active. This whole-child directory is a type map, never an active-tag proof.
+/// A sum retains its complete arm domains. This directory says nothing about
+/// the active tag.
 pub(super) fn error_union(error: Value, result: Value, b: &mut Budget) -> CompileResult<Value> {
-    if !error.classes.is_empty() || error.life != empty() {
-        return Err(unknown(
-            "ErrorUnion needs its complete nonzero error-arm domain",
-        ));
+    if error.classes.len() != error.life.binder_count as usize
+        || result.classes.len() != result.life.binder_count as usize
+    {
+        return Err(fail("ErrorUnion arm omits a complete intrinsic class"));
     }
-    if result.classes.len() != result.life.binder_count as usize {
-        return Err(fail("ErrorUnion success omits a complete intrinsic class"));
-    }
-    let life = inherited_domain(&result.life,
-        LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)), b)?;
+    let (life, classes) = if empty_shape(&error.life) {
+        (inherited_domain(&result.life, LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)), b)?, result.classes)
+    } else if matches!(&result.ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::Task { .. }))
+        && task_failure_domain(&error.ty, b)? == Some(&error.life)
+    {
+        let life = task_outcome_domain(&error.life, &result.life, b)?;
+        let mut classes = error.classes;
+        for class in result.classes { put(&mut classes, class, b)?; }
+        (life, classes)
+    } else {
+        return Err(unknown("ErrorUnion needs its complete nonzero error-arm domain"));
+    };
     let geometry = geometry::construct(
         geometry::Constructor::ErrorUnion,
         &[&error.geometry, &result.geometry],
         life,
         b,
     )?;
-    Ok(Value::from_geometry(geometry, result.classes))
+    Ok(Value::from_geometry(geometry, classes))
 }
 pub(super) fn intern(rows: &mut Vec<Class>, class: Class, b: &mut Budget) -> CompileResult<u32> {
     b.spend(rows.len().saturating_add(1), WORK)?;
@@ -804,9 +855,11 @@ fn actual_equal(actual: &LifeNominalActual, expected: &ExpectedActual<'_>) -> bo
             actual == expected
         }
         (LifeNominalActual::Const(actual), ExpectedActual::Const(expected)) => actual == *expected,
-        (LifeNominalActual::Type(actual), ExpectedActual::Type { ty, life }) => {
-            actual == *ty && life.is_none_or(empty_shape)
-        }
+        (LifeNominalActual::Type(actual), ExpectedActual::Type { ty, life }) =>
+            actual == *ty && match actual {
+                Type::BorrowedStorage { life: embedded, .. } => life == &Some(embedded),
+                _ => life.is_none_or(empty_shape),
+            },
         (
             LifeNominalActual::QualifiedType {
                 ty: actual,
@@ -831,6 +884,7 @@ fn actual_equal_paid(
     b: &mut Budget,
 ) -> CompileResult<bool> {
     let (ty, life) = match actual {
+        LifeNominalActual::Type(ty @ Type::BorrowedStorage { life, .. }) => (ty, Some(life)),
         LifeNominalActual::Type(ty) => (ty, None),
         LifeNominalActual::QualifiedType { ty, life } => (ty, Some(life)),
         _ => return Ok(actual_equal(actual, expected)),
@@ -1122,15 +1176,27 @@ fn qualified_nominal_domain<'a>(
     let mut expected = Vec::new();
     let mut named = Vec::new();
     let mut shape = empty();
+    let task_failure = matches!(declaration,
+        zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD | zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE);
     for (index, ((formal, kind), arg)) in source.parameters.iter().zip(&declared.parameters).zip(args).enumerate() {
         let index = u32::try_from(index).map_err(|_| fail("nominal argument ordinal overflow"))?;
         let (coordinate, actual) = match (formal, kind, arg) {
             (SemanticFormal::Type { .. }, LifeParameterKind::Type, Argument::Type(value)) => {
                 let mut local = Vec::new();
-                for class in &value.classes {
-                    let index = u32::try_from(classes.len()).map_err(|_| fail("nominal class domain overflow"))?;
-                    put(&mut classes, class.clone(), b)?;
-                    put(&mut local, Class::Local(index), b)?;
+                let context = task_failure && index == 1;
+                if context {
+                    b.spend(classes.len().saturating_add(value.classes.len()), WORK)?;
+                    if classes != value.classes {
+                        return Err(fail("Task failure Inputs and Context change their shared worker classes"));
+                    }
+                }
+                for (ordinal, class) in value.classes.iter().enumerate() {
+                    let coordinate = if context { ordinal } else { classes.len() };
+                    let coordinate = u32::try_from(coordinate).map_err(|_| fail("nominal class domain overflow"))?;
+                    if !context {
+                        put(&mut classes, class.clone(), b)?;
+                    }
+                    put(&mut local, Class::Local(coordinate), b)?;
                 }
                 inherit_qualified_rows(&mut shape, value, &local, LifeTypeProjection::TypeArgument(index), b)?;
                 (Argument::Type(value.with_classes(local, b)?), ExpectedActual::Value(value))
@@ -1624,20 +1690,13 @@ pub(super) fn class(
                     "fresh outer occurrence changes its actual producer mode",
                 ));
             }
-            let mut producer = None;
-            for block in &function.blocks {
-                b.spend(block.instructions.len().saturating_add(1), WORK)?;
-                for instruction in &block.instructions {
-                    if instruction.result == Some(*id)
-                        && producer.replace(&instruction.kind).is_some()
-                    {
-                        return Err(fail(
-                            "fresh outer occurrence has competing actual producers",
-                        ));
-                    }
-                }
-            }
-            let producer = producer.ok_or_else(|| fail("fresh outer occurrence has no actual producer"))?;
+            let producer = crate::shared_definition(function, *id, b)?;
+            let producer = function.blocks.get(producer.block.0 as usize)
+                .filter(|block| block.id == producer.block)
+                .and_then(|block| block.instructions.get(producer.instruction))
+                .filter(|instruction| instruction.result == Some(*id))
+                .map(|instruction| &instruction.kind)
+                .ok_or_else(|| fail("fresh outer occurrence has no exact actual producer"))?;
             if let Type::Desc(payload) = ty {
                 description_producer(function, inventory.module, producer, payload, b)?;
                 return Ok(Class::Reborrow(function.id, *id));
@@ -2042,7 +2101,9 @@ fn resolved_parts(
             if task_domain(ty, b)?.is_some() => {
                 let expected = task_domain(ty, b)?.ok_or_else(|| fail("Task domain vanished"))?;
                 if expected != *life { return Err(fail("semantic Task carrier changes its complete child-domain forest")); }
-                if let Type::ErrorUnion { error, .. } = ty {
+                if let Type::ErrorUnion { error, .. } = ty
+                    && task_failure_domain(error, b)?.is_none()
+                {
                     crate::stored_flow::validate_plain_nominal_zero(inventory.module, error, inventory.limits, b)?;
                 }
             }

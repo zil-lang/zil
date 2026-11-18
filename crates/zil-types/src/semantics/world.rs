@@ -4487,9 +4487,12 @@ impl World<'_, '_> {
                             mode,
                         } => {
                             let storage = self.get(&values, *source_storage)?;
-                            if !matches!(Self::type_of(&storage)?, Type::Address { .. }) {
+                            let Type::Address { mutable, inner } = Self::type_of(&storage)? else {
                                 return Err(bad("stored leaf read has no actual storage address"));
-                            }
+                            };
+                            let task_inputs = *mutable
+                                && path.as_slice() == [PlaceProjection::Field(1)]
+                                && crate::tasks::failure::is_carrier(inner);
                             let mut selected = self.pointee(&storage)?;
                             for step in path {
                                 selected = projection::place(self, &selected, *step)?;
@@ -4533,6 +4536,8 @@ impl World<'_, '_> {
                                 | (StoredBorrowLoad::CopyDescription, Type::Desc(_))
                                 | (StoredBorrowLoad::Take, Type::Address { .. } | Type::Desc(_)) => {
                                 }
+                                (StoredBorrowLoad::Take, ty)
+                                    if task_inputs && matches!(crate::stored::physical(ty), Type::Tuple(_)) => {}
                                 (
                                     StoredBorrowLoad::Reborrow { mutable },
                                     Type::Address {

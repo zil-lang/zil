@@ -31,7 +31,15 @@ impl Check<'_, '_> {
     }
     pub(super) fn task_projection(&self, parent: &Value, child: &Type, selector: PlaceProjection,
         b: &mut Budget) -> CompileResult<Value> {
-        let life = self.task_domain(child, b)?.ok_or_else(|| fail("Task projection changes its child family"))?;
+        let task;
+        let life = if selector == PlaceProjection::ErrorArm(true)
+            && let Some(life) = value::task_failure_domain(child, b)?
+        {
+            life
+        } else {
+            task = self.task_domain(child, b)?.ok_or_else(|| fail("Task projection changes its child family"))?;
+            &task
+        };
         if self.task_domain(&parent.ty, b)?.as_ref() != Some(&parent.life)
             || parent.classes.len() != parent.life.binder_count as usize {
             return Err(fail("Task projection has another complete parent domain"));
@@ -50,7 +58,7 @@ impl Check<'_, '_> {
             self.push_value(&mut classes, parent.classes.get(binder as usize)
                 .ok_or_else(|| fail("Task sum class exceeds its complete parent domain"))?.clone(), b)?;
         }
-        value::borrowed_full(child, &life, classes, self.inventory, b)
+        value::borrowed_full(child, life, classes, self.inventory, b)
     }
     /// Physical retained ports select the independently preserved opaque
     /// classes. No port is created for a phantom class.
@@ -85,6 +93,11 @@ impl Check<'_, '_> {
         if self.task_domain(&value.ty, b)?.as_ref() != Some(&value.life) {
             return Err(fail("Task retained port value changes its complete domain forest"));
         }
+        let offset = if let Type::ErrorUnion { error, .. } = &value.ty {
+            value::task_failure_domain(error, b)?.map_or(0, |life| life.binder_count)
+        } else {
+            0
+        };
         let Type::Task { retained_life, .. } = task else { unreachable!() };
         let mut rows = Vec::new();
         for (ordinal, port) in retained_life.ports.iter().enumerate() {
@@ -92,7 +105,9 @@ impl Check<'_, '_> {
             for step in &prefix { self.push_value(&mut path, step.clone(), b)?; }
             self.push_value(&mut path, ContractProjection::RetainedPort(
                 u32::try_from(ordinal).map_err(|_| fail("Task retained port ordinal overflows"))?), b)?;
-            self.push_value(&mut rows, (path, port.binder), b)?;
+            let binder = port.binder.checked_add(offset)
+                .ok_or_else(|| fail("Task outcome retained port exceeds its whole domain"))?;
+            self.push_value(&mut rows, (path, binder), b)?;
         }
         Ok(rows)
     }

@@ -64,7 +64,6 @@ fn walk(
     }
     fee(b, 1)?;
     active.push(identity);
-    physical(module, &instance.ty, b)?;
     let Type::BorrowedStorage { storage, life } = &instance.ty else {
         return Err(failure("nominal metadata has no qualified type"));
     };
@@ -103,10 +102,15 @@ fn walk(
             .saturating_add(life.nominal_arguments.len()),
     )?;
     if task_failure::declaration(decl) {
+        if b.task_input_scopes.is_none() && !module.closures.is_empty() {
+            b.task_input_scopes = Some(crate::tasks::input_scope::build(module, limits, b)?);
+        }
         task_failure::instance(instance, b)?;
+        b.task_failure_carriers = true;
         active.pop();
         return Ok(Vec::new());
     }
+    physical(module, &instance.ty, b)?;
     if decl.id.compiler && enum_address::poll_declaration(decl) {
         enum_address::poll_instance(instance, b)?;
         active.pop();
