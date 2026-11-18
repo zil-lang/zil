@@ -23,6 +23,52 @@ fn path(left: &mut usize, limits: &Limits, n: usize) -> R<()> {
     }
     Ok(())
 }
+/// A reference to a qualified pointee exports one map of its intrinsic
+/// classes. Descendant occurrences still belong to the pointee's own shape.
+fn qualified_pointee_rows(
+    ty: &Type, outer: &StorageLifeShape, expanded: &mut [bool], limits: &Limits, left: &mut usize,
+) -> R<()> {
+    let (Type::Address { inner, .. } | Type::Desc(inner)) = ty else { return Ok(()) };
+    let Type::BorrowedStorage { life: child, .. } = inner.as_ref() else { return Ok(()) };
+    let width = child.binder_count as usize;
+    if width > limits.max_nodes { return Err(Diagnostic::limit(Phase::Types, "qualified pointee class limit exceeded", None)); }
+    pay(left, width.saturating_add(outer.retained.len()))?;
+    let mut map = vec![None; width];
+    for row in &outer.retained {
+        if row.path.as_slice() == [LifeTypeProjection::Pointee] {
+            let binder = map.get_mut(row.class as usize)
+                .ok_or_else(|| bad("qualified pointee header exceeds its class domain"))?;
+            if row.binder >= outer.binder_count || binder.replace(row.binder).is_some() {
+                return Err(bad("qualified pointee header repeats or loses a class"));
+            }
+        }
+    }
+    if map.iter().any(Option::is_none) { return Err(bad("qualified pointee header omits a class")); }
+    let mut descendants = std::collections::BTreeMap::new();
+    for row in &child.retained {
+        path(left, limits, row.path.len())?;
+        pay(left, (row.path.len() + 1).saturating_mul((descendants.len() + 1).ilog2() as usize + 1))?;
+        if descendants.insert((row.path.as_slice(), row.class), row.binder).is_some() {
+            return Err(bad("qualified pointee repeats a descendant occurrence"));
+        }
+    }
+    for (row, omit) in outer.retained.iter().zip(expanded) {
+        let Some((LifeTypeProjection::Pointee, rest)) = row.path.split_first() else {
+            return Err(bad("qualified pointee class leaves its actual address boundary"));
+        };
+        if rest.is_empty() { continue; }
+        path(left, limits, rest.len())?;
+        pay(left, (rest.len() + 1).saturating_mul((descendants.len() + 1).ilog2() as usize + 1))?;
+        let child_class = descendants.get(&(rest, row.class))
+            .ok_or_else(|| bad("qualified pointee header adds an unknown descendant"))?;
+        if map.get(*child_class as usize).copied().flatten() != Some(row.binder) {
+            return Err(bad("qualified pointee descendant changes its class embedding"));
+        }
+        *omit = true;
+    }
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(in crate::semantics) fn append(
     value: &SemanticTypeValue,
@@ -88,6 +134,7 @@ pub(in crate::semantics) fn append(
         limits,
         left,
     )?;
+    qualified_pointee_rows(ty, life, &mut expanded, limits, left)?;
     let opaque = matches!(
         ty,
         Type::BorrowedStorage { .. }
