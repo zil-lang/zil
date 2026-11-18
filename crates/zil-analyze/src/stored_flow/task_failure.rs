@@ -337,7 +337,6 @@ pub(super) fn instance(i: &LifeNominalInstance, b: &mut Budget) -> CompileResult
     if inputs != &fields[1].1
         || result.as_ref() != &Type::Unit
         || context.binder_count != life.binder_count
-        || !context.retained.is_empty()
         || !context.nominal_arguments.is_empty()
     {
         return Err(failure("failure nominal Inputs/Context differs"));
@@ -346,7 +345,8 @@ pub(super) fn instance(i: &LifeNominalInstance, b: &mut Budget) -> CompileResult
         unreachable!()
     };
     let mut index = 0;
-    for input in inputs {
+    let has_parameter_map = !context.retained.is_empty();
+    for (parameter, input) in inputs.iter().enumerate() {
         if let Type::Address { .. } = input {
             fee(b, 1)?;
             let p = context
@@ -358,10 +358,25 @@ pub(super) fn instance(i: &LifeNominalInstance, b: &mut Budget) -> CompileResult
             if p.leaf != *input || p.mode != slot.mode || p.binder != slot.binder {
                 return Err(failure("failure actual context port differs"));
             }
+            if has_parameter_map {
+                let row = context
+                    .retained
+                    .get(index)
+                    .ok_or_else(|| failure("failure context omitted a retained input occurrence"))?;
+                fee(b, row.path.len().saturating_add(1))?;
+                if row.path.as_slice() != [LifeTypeProjection::Parameter(parameter as u32)]
+                    || row.class != 0
+                    || row.binder != p.binder
+                {
+                    return Err(failure(
+                        "failure context changes its exact retained input occurrence",
+                    ));
+                }
+            }
             index += 1;
         }
     }
-    if index != context.ports.len() {
+    if index != context.ports.len() || has_parameter_map && index != context.retained.len() {
         return Err(failure("failure context has an extra retained port"));
     }
     Ok(())

@@ -442,7 +442,7 @@ fn anonymous_tuple_verification_has_exact_fresh_work_boundaries() {
 
 #[test]
 fn a_real_task_failure_family_does_not_authorize_copying_an_affine_tuple() {
-    use zil_ir::{InstructionKind as I, Type};
+    use zil_ir::{InstructionKind as I, LifeNominalActual, LifeTypeProjection, Type};
     let combined = format!(
         "{EXCLUSIVE}\n{}",
         r#"
@@ -470,6 +470,29 @@ fn dormant_task<life p>(pointer:&'p i32)->i32 {
                 || d.id == zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE)
     );
     verify(module.clone(), candidate.clone());
+    let mut wrong_input = module.clone();
+    let failure = wrong_input
+        .life_instances
+        .iter_mut()
+        .find(|row| row.declaration == zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD)
+        .unwrap();
+    let LifeNominalActual::Type(Type::Task { retained_life, .. }) = &mut failure.arguments[1]
+    else {
+        panic!("TaskCreateFailure must retain its actual worker input context");
+    };
+    let [row] = retained_life.retained.as_mut_slice() else {
+        panic!("the original worker has one retained input");
+    };
+    assert_eq!(row.path, [LifeTypeProjection::Parameter(0)]);
+    row.path[0] = LifeTypeProjection::Parameter(1);
+    assert_raw_wire_reject(
+        wrong_input,
+        candidate.clone(),
+        "task-other-retained-input",
+        "E-VERIFY-STORED",
+        "Task failure context changes its exact original retained input occurrence",
+    );
+
     let mut changed = module;
     let mut replaced = false;
     for f in &mut changed.functions {
@@ -715,6 +738,7 @@ fn nested_anonymous_headers_preserve_each_actual_child_boundary() {
             changed,
             candidate.clone(),
             &format!("nested-boundary-{attack}"),
+            "E-VERIFY-STORED",
             match attack {
                 0 => "omits actual address or child-domain slots",
                 1 => "differs from complete actual retained boundary",
@@ -750,6 +774,7 @@ fn nested_affine_children_cannot_alias_and_byte_views_keep_the_owner_alive() {
         module,
         candidate,
         "nested-exclusive-duplicate-child",
+        "E-VERIFY-STORED",
         "unpack aliases or retags an actual child",
     );
 
@@ -793,6 +818,7 @@ fn nested_affine_children_cannot_alias_and_byte_views_keep_the_owner_alive() {
         module,
         candidate,
         "byte-view-parent-retired",
+        "E-BORROW-CONFLICT",
         "intersects a live incompatible loan",
     );
 }
@@ -801,24 +827,25 @@ fn assert_raw_wire_reject(
     module: TypedModule,
     mut candidate: CandidatePlan,
     label: &str,
+    code: &str,
     reason: &str,
 ) {
     candidate.module_fingerprint = module.fingerprint();
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
     for decoded in [false, true] {
-        let (raw, plan) = if decoded {
+        let verified = if decoded {
             let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
-            zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap()
+            zil_verify::verify_module_bytes(&wire, &target, &limits)
         } else {
-            (module.clone(), candidate.clone())
+            zil_verify::verify_module(module.clone(), candidate.clone(), &target, &limits)
         };
-        let errors = zil_verify::verify_module(raw, plan, &target, &limits).unwrap_err();
+        let errors = verified.unwrap_err();
         assert!(
             errors
                 .iter()
                 .any(|e| e.category == ResultCategory::SafeReject
-                    && e.code == "E-VERIFY-STORED"
+                    && e.code == code
                     && e.message.contains(reason)),
             "{label} Wire={decoded}: {errors:?}"
         );
@@ -891,6 +918,7 @@ fn anonymous_phantom_child_keeps_a_nonempty_semantic_domain() {
             changed,
             candidate.clone(),
             &format!("phantom-child-{attack}"),
+            "E-VERIFY-STORED",
             if attack == 0 {
                 "omits or fabricates a physical child occurrence"
             } else {

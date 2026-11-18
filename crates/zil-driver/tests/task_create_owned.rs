@@ -28,6 +28,56 @@ fn owning_task_creation_source_keeps_complete_ordered_failure_inputs() {
         report.to_json()
     );
     assert_eq!(report.verification_runs, 1);
+
+    use zil_ir::{LifeNominalActual, LifeTypeProjection, StorageRetainedBinding, Type};
+    let input = source(SOURCE);
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand_with_map_semantics(
+        &input,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: input.module_id,
+            aliases: &std::collections::BTreeMap::new(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let mut module = zil_types::check(&core, &target, &limits).unwrap();
+    let mut candidate = zil_analyze::analyze(&module, &limits).unwrap();
+    let failure = module
+        .life_instances
+        .iter_mut()
+        .find(|row| row.declaration == zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD)
+        .unwrap();
+    let LifeNominalActual::Type(Type::Task { retained_life, .. }) = &mut failure.arguments[1]
+    else {
+        panic!("TaskCreateFailure's second actual must be its complete Task Context");
+    };
+    assert_eq!(retained_life.binder_count, 0);
+    assert!(retained_life.ports.is_empty() && retained_life.retained.is_empty());
+    retained_life.retained.push(StorageRetainedBinding {
+        path: vec![LifeTypeProjection::Parameter(0)],
+        class: 0,
+        binder: 0,
+    });
+    candidate.module_fingerprint = module.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    for errors in [
+        zil_verify::verify_module(module, candidate, &target, &limits).unwrap_err(),
+        zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err(),
+    ] {
+        assert!(
+            errors.iter().any(|error| error.category == ResultCategory::SafeReject
+                && error.code == "E-VERIFY-TASK"
+                && error.message.contains("loses the complete phantom input-context actual")),
+            "{errors:?}"
+        );
+    }
 }
 
 const OWNERS: &str = r#"

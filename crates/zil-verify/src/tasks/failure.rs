@@ -123,7 +123,11 @@ pub(super) fn check(
             nominal_arguments: vec![],
         };
         b.spend(frame.shape.binder_count as usize)?;
-        if task != &context || task_life != full_context {
+        // The legacy inventory embeds the complete context in the Task type.
+        // Both encodings must still identify the exact independently rebuilt frame.
+        let embedded_context = module.semantic.is_none()
+            && matches!(&instance.arguments[1], LifeNominalActual::Type(Type::Task { .. }));
+        if task != &context || (!embedded_context && task_life != full_context) {
             return Err(bad(
                 "owning Task failure loses the complete phantom input-context actual",
             ));

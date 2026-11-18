@@ -358,7 +358,6 @@ pub(super) fn instance(i: &LifeNominalInstance, limits: &Limits, b: &mut Budget)
     if inputs != &fields[1].1
         || result.as_ref() != &Type::Unit
         || retained_life.binder_count != life.binder_count
-        || !retained_life.retained.is_empty()
         || !retained_life.nominal_arguments.is_empty()
     {
         return Err(err("Task failure ordered input/context identity differs"));
@@ -366,15 +365,40 @@ pub(super) fn instance(i: &LifeNominalInstance, limits: &Limits, b: &mut Budget)
     let Type::Tuple(inputs) = inputs else {
         unreachable!()
     };
-    let leaves = inputs.iter().filter(|t| matches!(t, Type::Address { .. }));
+    let leaves = inputs
+        .iter()
+        .enumerate()
+        .filter(|(_, ty)| matches!(ty, Type::Address { .. }));
     b.spend(inputs.len().saturating_add(retained_life.ports.len()))?;
     if leaves.clone().count() != retained_life.ports.len() {
         return Err(err("Task failure actual context port count differs"));
     }
-    for ((input, port), slot) in leaves.zip(&retained_life.ports).zip(&life.slots) {
+    let explicit = !retained_life.retained.is_empty();
+    if explicit && retained_life.retained.len() != retained_life.ports.len() {
+        return Err(err(
+            "Task failure context omits or adds an original input occurrence",
+        ));
+    }
+    for (ordinal, (((parameter, input), port), slot)) in leaves
+        .zip(&retained_life.ports)
+        .zip(&life.slots)
+        .enumerate()
+    {
         type_work(&port.leaf, limits, b)?;
         if input != &port.leaf || port.mode != slot.mode || port.binder != slot.binder {
             return Err(err("Task failure actual context port leaf/class differs"));
+        }
+        if explicit {
+            let row = &retained_life.retained[ordinal];
+            b.spend(row.path.len().saturating_add(1))?;
+            if row.path.as_slice() != [LifeTypeProjection::Parameter(parameter as u32)]
+                || row.class != 0
+                || row.binder != slot.binder
+            {
+                return Err(err(
+                    "Task failure context changes its exact original retained input occurrence",
+                ));
+            }
         }
     }
     Ok(())

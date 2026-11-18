@@ -1010,7 +1010,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let worker_life = if f.storage_life.is_none()
             && effective_call_kind == CallKind::Suspend
             && f.life.as_ref().is_some_and(|life| {
-                life.parameter_lives.iter().flatten().count() > 1
+                life.parameter_lives.iter().any(Option::is_some)
                     || (life.result_life.is_some()
                         && matches!(f.return_type, Type::Address { mutable: false, .. }))
             }) {
@@ -1364,7 +1364,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 .signatures
                 .get(&self.function.name)
                 .and_then(|s| s.life.as_ref())
-            && (life.parameter_lives.iter().flatten().count() > 1
+            && (life.parameter_lives.iter().any(Option::is_some)
                 || (life.result_life.is_some()
                     && matches!(
                         self.function.result()?,
@@ -1857,6 +1857,9 @@ impl<'a, 'c> Builder<'a, 'c> {
             && let CoreStatementKind::Assign { target, .. } = &s.kind
             && let CoreExprKind::Name(name) = &target.kind
             && let Some(local) = self.lookup(name)
+            // A borrowed capture already selected its place while forming the
+            // write address. Only a direct assignment initializes a local here.
+            && !self.borrowed_captures.contains_key(&local)
         {
             // A plain local target has no evaluation effects. Its type-use
             // witness is the real post-store occupant, including the first

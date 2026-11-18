@@ -2154,7 +2154,12 @@ impl Plan {
                 if !matches!(result.as_ref(), Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. })) {
                     return Err(error("Task owned success does not contain its actual Task owner"));
                 }
-                let storage = package_storage(failure);
+                let storage = match failure.as_ref() {
+                    Type::BorrowedStorage { storage, .. }
+                        if matches!(storage.as_ref(), Type::Record { .. })
+                            && crate::stored_flow::failure_shape(failure, budget)? => storage.as_ref(),
+                    _ => package_storage(failure),
+                };
                 let (name, fields, record) = match storage {
                     Type::Record { name, fields } => (name, fields, true),
                     Type::Package { name, fields } => (name, fields, false),

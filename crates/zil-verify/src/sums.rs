@@ -1731,7 +1731,11 @@ fn allocation_content(ty:&Type,inputs:Option<Content>,b:&mut Budget)->Check<Cont
         b.spend(reason.len().saturating_add(input_name.len()))?;
         if reason!="reason"||input_name!="inputs"{return Err(bad(None,"Task allocation failure changes its actual field identities"));}
         if copy{
-            if !input_type.is_copy_value()||!inputs.no_cleanup_debt(b)?{return Err(bad(None,"Copy allocation failure cannot erase an affine input responsibility"));}
+            let copy_inputs = input_type.is_copy_value()
+                || stored_flow::failure_shape(error, b)?;
+            if !copy_inputs || !inputs.no_cleanup_debt(b)? {
+                return Err(bad(None,"Copy allocation failure cannot erase an affine input responsibility"));
+            }
             Content::Copy
         }else{
             Content::Product(vec![content(reason_type,None,&mut vec![],false,b)?,inputs])
