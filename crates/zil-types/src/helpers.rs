@@ -1545,11 +1545,10 @@ impl Builder<'_, '_> {
                 });
             }
             let aggregate_owner = forward.is_none()
-                && let [bound] = bounds
-                && matches!(
+                && matches!(bounds, [bound] if matches!(
                     function.parameters[bound.index as usize].mode,
                     PassingMode::Infer | PassingMode::Move
-                );
+                ));
             if let Some(traces) = flow::contract(
                 &typed,
                 bounds,
