@@ -477,6 +477,41 @@ pub(super) fn semantic_owned_capture(
     }
     super::stored_flow::owned::ordinary_value(module, ty, b)
 }
+
+/// An actual Direct entry must carry the same receiver relation as its
+/// definition. The stored flow independently proves the return sources.
+pub(super) fn receiver_entry(
+    module: &TypedModule,
+    closure: &ClosureDefinition,
+) -> CompileResult<bool> {
+    if !receiver_access_head(closure) || !result_is_receiver(closure) {
+        return Ok(false);
+    }
+    let entry = module
+        .functions
+        .get(closure.function.0 as usize)
+        .filter(|entry| entry.id == closure.function && entry.environment == Some(closure.id))
+        .ok_or_else(|| bad("receiver relation has no actual closure entry"))?;
+    if entry.call_kind != CallKind::Direct || entry.storage_life != closure.storage_life {
+        return Err(bad("receiver relation changes its actual entry signature"));
+    }
+    Ok(true)
+}
+
+/// A complete receiver result may come from an actual owned capture. Owner
+/// qualification leaves actual descriptor access and cleanup to their kernels.
+pub(super) fn receiver_owned_capture(
+    module: &TypedModule,
+    closure: &ClosureDefinition,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !matches!(ty, Type::Managed(_)) || !receiver_entry(module, closure)? {
+        return Ok(false);
+    }
+    super::stored_flow::owned::ordinary_value(module, ty, b)
+}
+
 /// Copy nominal data with phantom classes is an ordinary environment value,
 /// not an Address capture. Eligibility here requires the completed independent
 /// original/creator/header proof, then the full actual nominal qualification.
@@ -654,6 +689,9 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
                     || semantic_copy_capture(module, d, t, b)?
                     || owned_capture(t, b)?
                     || semantic_owned_capture(module, d, t, b)?
+                    || result_is_receiver(d)
+                        && super::stored_flow::inline_capture_data(t, b)?
+                    || receiver_owned_capture(module, d, t, b)?
                     || ordinary_capture(module, t, b)?
                     || semantic_shared_callable_capture(module, d, t, b)?
                     || super::forward::nested_capture(module, d, t, b)?

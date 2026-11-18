@@ -14,6 +14,7 @@ use zil_ir::{
 };
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 const PREFIX: &str = "resource R{code:i32}package State<F>{manages r:R;callback:F;value:i32}fn pack<F:FnMut(i32)->i32>(callback:F)->State<F>{return State::<F>{r:R{code:84},callback:callback,value:0}}fn make()->impl FnMut(i32)->i32{let r=R{code:65};var n=0;return move(delta:i32)=>{r.code;n+=delta;return n}}";
+const LENDING_SOURCE: &str = "fn make()->impl FnMut(i32)->&[u8]{let b=bytes_new();return move(n:i32)=>{bytes_reserve(b,bytes_len(b)+1);bytes_push(b,u8(n));return bytes_view(b)}}package State<F>{manages storage:ByteBuffer;callback:F}fn pack<F:FnMut(i32)->&[u8]>(callback:F)->State<F>{return State::<F>{storage:bytes_new(),callback:callback}}fn main()->i32{var state=pack(make());let view=state.callback(7);let value=i32(view[0]);let next=state.callback(value);return i32(next.len())-2}";
 struct Case(PathBuf, bool);
 impl Case {
     fn new(label: &str) -> Self {
@@ -384,6 +385,107 @@ fn first_borrow(function: &mut TypedFunction) -> &mut Instruction {
 }
 
 #[test]
+fn single_source_receiver_lending_matches_the_complete_semantic_entry() {
+    use zil_ir::{StorageBase, StorageBinder};
+
+    let source = LENDING_SOURCE;
+    let (core, module, plan) = candidate(source);
+    assert!(core.semantic.is_none());
+    let semantic = value_package_module(source);
+    let closure = &module.closures[0];
+    let life = closure.storage_life.as_ref().unwrap();
+    assert_eq!(closure.storage_life, semantic.closures[0].storage_life);
+    assert_eq!(closure.lending_captures, [0]);
+    assert_eq!(life.fixed_binder_count, 0);
+    assert_eq!(life.invocation_binder_count, 1);
+    assert_eq!(
+        life.bindings
+            .iter()
+            .map(|row| (row.position.base, row.binder))
+            .collect::<Vec<_>>(),
+        [
+            (StorageBase::Receiver, StorageBinder::Invocation(0)),
+            (StorageBase::Result, StorageBinder::Invocation(0)),
+        ],
+    );
+    assert_eq!(
+        module.functions[closure.function.0 as usize]
+            .storage_life
+            .as_ref(),
+        Some(life)
+    );
+    let returned = module
+        .functions
+        .iter()
+        .find_map(|f| f.callable_return_contract.as_ref())
+        .unwrap();
+    assert_eq!(returned.life.as_ref(), Some(life));
+    assert_eq!(returned.lending_captures, [0]);
+    assert_eq!(returned.cleanup, [0]);
+
+    let limits = Limits::default();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    let verified = zil_verify::verify_module_bytes(&bytes, &module.target, &limits).unwrap();
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    {
+        use std::{os::unix::fs::PermissionsExt, path::Path, process::Command};
+        use zil_backend_llvm::{BuildOptions, NativeBackend, Optimization};
+
+        let lir = zil_lower::lower(&verified).unwrap();
+        let case = Case::new("single-source-receiver-lending");
+        fs::write(case.0.join("source.zil"), source).unwrap();
+        let clang = std::env::var_os("ZIL_CLANG")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| "clang".into());
+        let probe = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tools/language/composed-store-closures/allocator_probe.c");
+        let quote = |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
+        let wrapper = case.0.join("link-observer.sh");
+        fs::write(&wrapper, format!(
+            "#!/bin/sh\nset -eu\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) exec {} \"$@\" ;; esac\ndone\nexec {} \"$@\" -x c {} -Wl,--wrap=realloc -Wl,--wrap=free\n",
+            quote(&clang), quote(&clang), quote(&probe),
+        )).unwrap();
+        fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+        let backends = [
+            NativeBackend::Clang,
+            #[cfg(feature = "llvm-api")]
+            NativeBackend::LlvmApi,
+        ];
+        for backend in backends {
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let name = format!("{backend:?}-{optimization:?}");
+                let mut options = BuildOptions::new(case.0.join(&name));
+                options.clang = wrapper.clone();
+                options.backend = backend;
+                options.optimization = optimization;
+                let artifact = zil_backend_llvm::build(&verified, &lir, &options).unwrap();
+                assert_eq!(artifact.codegen.backend, backend);
+                assert!(artifact.codegen.fallback.is_none());
+                let observed = Command::new(artifact.executable)
+                    .env_remove("ZIL_TEST_FAIL_AT")
+                    .output()
+                    .unwrap();
+                fs::write(case.0.join(format!("{name}.stdout")), &observed.stdout).unwrap();
+                fs::write(case.0.join(format!("{name}.stderr")), &observed.stderr).unwrap();
+                assert_eq!(
+                    observed.status.code(),
+                    Some(0),
+                    "{backend:?} {optimization:?}: {observed:?}"
+                );
+                assert!(observed.stdout.is_empty());
+                let cleanup = std::str::from_utf8(&observed.stderr).unwrap();
+                assert_eq!(
+                    cleanup.trim_end(),
+                    "{\"alloc_calls\":2,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":2}"
+                );
+            }
+        }
+    }
+    #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+    drop(verified);
+}
+
+#[test]
 fn actual_direct_place_has_no_take_and_untrusted_field_mode_changes_reject() {
     let source = format!(
         "{PREFIX}fn main()->i32{{var state=pack(make());return state.callback(1)+state.callback(1)-3}}"
@@ -656,7 +758,7 @@ fn generic_modes_are_preserved_when_actual_environment_is_fn() {
 
 #[test]
 fn actual_last_lending_use_cannot_be_reordered_after_the_next_callee_borrow() {
-    let source = "fn make()->impl FnMut(i32)->&[u8]{let b=bytes_new();return move(n:i32)=>{bytes_reserve(b,bytes_len(b)+1);bytes_push(b,u8(n));return bytes_view(b)}}package State<F>{manages storage:ByteBuffer;callback:F}fn pack<F:FnMut(i32)->&[u8]>(callback:F)->State<F>{return State::<F>{storage:bytes_new(),callback:callback}}fn main()->i32{var state=pack(make());let view=state.callback(7);let value=i32(view[0]);let next=state.callback(value);return i32(next.len())-2}";
+    let source = LENDING_SOURCE;
     let (_, original, plan) = candidate(source);
     pair(
         "last-lending-control",

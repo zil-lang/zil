@@ -18,7 +18,7 @@ pub(crate) struct ReturnedLifeBound {
     pub source_scope: Option<CoreFunctionSourceScope>,
 }
 pub(super) use return_life::populate as populate_return_lives;
-pub(super) use sources::check_contexts;
+pub(super) use sources::{check_contexts, complete_receivers};
 pub(super) use sources::{StaticOrigins, prove_static_origins};
 pub(super) use sources::populate as populate_sources;
 

@@ -14,6 +14,164 @@ fn candidate(d: &ClosureDefinition) -> bool {
             .any(|ty| matches!(ty, Type::Address { .. }))
 }
 
+fn inferred_receiver(d: &ClosureDefinition) -> bool {
+    d.storage_life.is_none()
+        && !d.lending_captures.is_empty()
+        && matches!(d.kind, CallableKind::Fn | CallableKind::FnMut)
+}
+
+fn composed_closures(module: &TypedModule, left: &mut usize) -> R<BTreeSet<ClosureId>> {
+    let mut composed = BTreeSet::new();
+    for f in &module.functions {
+        if let Some(contract) = &f.callable_contract {
+            for role in &contract.roles {
+                spend(left, helpers::plan::tree_work(composed.len()), f.span)?;
+                composed.insert(role.closure);
+            }
+        }
+        if let Some(returned) = &f.callable_return_contract
+            && matches!(returned.source, CallableReturnSource::Parameter(_))
+        {
+            spend(left, helpers::plan::tree_work(composed.len()), f.span)?;
+            composed.insert(returned.closure);
+        }
+        // A borrow or an actual aggregate carrier exposes the concrete entry
+        // to another place. Inspect actual type trees, including uninvoked
+        // fields that can cross the function's ordinary value boundary.
+        for ty in f.locals.iter().map(|local| &local.ty).chain(&f.values) {
+            let mut pending = vec![(ty, false)];
+            while let Some((ty, nested)) = pending.pop() {
+                spend(left, 1, f.span)?;
+                match ty {
+                    Type::Closure(id) if nested => {
+                        spend(left, helpers::plan::tree_work(composed.len()), f.span)?;
+                        composed.insert(*id);
+                    }
+                    Type::Address { inner, .. }
+                    | Type::Managed(inner)
+                    | Type::OwnedStore { element: inner }
+                    | Type::Array { element: inner, .. } => pending.push((inner, true)),
+                    Type::BorrowedStorage { storage, .. } => pending.push((storage, nested)),
+                    Type::Tuple(fields) => {
+                        spend(left, fields.len(), f.span)?;
+                        pending.extend(fields.iter().map(|field| (field, true)));
+                    }
+                    Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                        spend(left, fields.len(), f.span)?;
+                        pending.extend(fields.iter().map(|(_, field)| (field, true)));
+                    }
+                    Type::Enum { variants, .. } => {
+                        spend(left, variants.len(), f.span)?;
+                        for (_, fields) in variants {
+                            spend(left, fields.len(), f.span)?;
+                            pending.extend(fields.iter().map(|field| (field, true)));
+                        }
+                    }
+                    Type::ErrorUnion { error, result } => {
+                        spend(left, 2, f.span)?;
+                        pending.extend([(error.as_ref(), true), (result.as_ref(), true)]);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    Ok(composed)
+}
+
+/// Form the complete receiver signature for an unannotated closure after
+/// lending has classified the actual CFG's captured return roots.
+pub(crate) fn complete_receivers(
+    module: &mut TypedModule,
+    left: &mut usize,
+    limits: &Limits,
+) -> R<()> {
+    spend(left, module.closures.len(), Span::default())?;
+    if !module.closures.iter().any(inferred_receiver) {
+        return Ok(());
+    }
+    // Local direct calls have their own complete lending and loan proof. A
+    // receiver directory transports that relation across a composition.
+    let composed = composed_closures(module, left)?;
+    let mut updates = Vec::new();
+    'closures: for d in &module.closures {
+        let entry = &module.functions[d.function.0 as usize];
+        let span = entry.span;
+        spend(left, helpers::plan::tree_work(composed.len()), span)?;
+        if !inferred_receiver(d)
+            || !composed.contains(&d.id)
+            || entry.storage_life.is_some()
+            || entry.call_kind != CallKind::Direct
+        {
+            continue;
+        }
+        let Type::Address {
+            mutable: false,
+            inner,
+        } = &d.result
+        else {
+            continue;
+        };
+        let result = match inner.as_ref() {
+            Type::Slice { element } => element,
+            _ => inner,
+        };
+        // A capture's owned storage may lend, but an external target needs
+        // its original Fixed directory instead of an inferred receiver head.
+        for ty in d.captures.iter().chain(std::iter::once(result.as_ref())) {
+            inference::charge_type_snapshot(ty, span, limits, left, 1)?;
+            if !local_scopes::closed(ty, module, left, span, 0, limits.max_call_depth)? {
+                continue 'closures;
+            }
+        }
+        let mut life = StorageLifeContract {
+            static_bindings: Vec::new(),
+            fixed_binder_count: 0,
+            invocation_binder_count: 0,
+            bindings: Vec::new(),
+            classes: Vec::new(),
+        };
+        for (index, ty) in d.parameters.iter().enumerate() {
+            inference::charge_type_snapshot(ty, span, limits, left, 1)?;
+            if !local_scopes::add(
+                ty,
+                StorageBase::Parameter(index as u32),
+                &mut life,
+                module,
+                left,
+                span,
+                limits,
+            )? {
+                continue 'closures;
+            }
+        }
+        let receiver = StorageBinder::Invocation(life.invocation_binder_count);
+        life.invocation_binder_count = life
+            .invocation_binder_count
+            .checked_add(1)
+            .ok_or_else(|| unsupported(span, "receiver invocation count overflow"))?;
+        for base in [StorageBase::Receiver, StorageBase::Result] {
+            life.bindings.push(StorageLifeBinding {
+                position: StoragePosition {
+                    base,
+                    path: Vec::new(),
+                },
+                binder: receiver,
+            });
+        }
+        borrowed_fp::charge_contract(&life, |work| spend(left, work, span), 2)?;
+        updates.push((d.id, d.function, life));
+    }
+    if updates.is_empty() {
+        return Ok(());
+    }
+    for (id, entry, life) in updates {
+        module.closures[id.0 as usize].storage_life = Some(life.clone());
+        module.functions[entry.0 as usize].storage_life = Some(life);
+    }
+    helper_classes::populate(module, left, limits)
+}
+
 pub(super) fn prepare_creators(
     module: &mut TypedModule,
     left: &mut usize,

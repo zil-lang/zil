@@ -43,6 +43,31 @@ impl<'step> Access<'step> {
         requirements: &mut Vec<(Source, Source)>,
         b: &mut Budget,
     ) -> Check<()> {
+        self.check_access(permission, write, None, requirements, b)
+    }
+
+    /// Callable-place overlap has the same borrow diagnostic in both kernels.
+    pub(super) fn check_place(
+        &mut self,
+        permission: &Permission,
+        write: bool,
+        ty: Option<&Type>,
+        span: Span,
+        requirements: &mut Vec<(Source, Source)>,
+        b: &mut Budget,
+    ) -> Check<()> {
+        let callable = matches!(ty, Some(Type::Closure(_))).then_some(span);
+        self.check_access(permission, write, callable, requirements, b)
+    }
+
+    fn check_access(
+        &mut self,
+        permission: &Permission,
+        write: bool,
+        callable_place: Option<Span>,
+        requirements: &mut Vec<(Source, Source)>,
+        b: &mut Budget,
+    ) -> Check<()> {
         access_head(permission, write, b)?;
         let loans = self.loans;
         let delegated = ancestry(&permission.loans, loans, b)?;
@@ -51,12 +76,13 @@ impl<'step> Access<'step> {
         } else {
             self.read_candidates(b)?
         };
-        access_tail(
+        access_tail_for(
             permission,
             write,
             active,
             loans,
             &delegated,
+            callable_place,
             requirements,
             b,
         )

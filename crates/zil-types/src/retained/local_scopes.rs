@@ -97,7 +97,7 @@ pub(super) fn closed(
 }
 
 #[allow(clippy::too_many_arguments)] // Complete carrier and scope inventory share one bounded traversal.
-fn add(
+pub(super) fn add(
     ty: &Type,
     base: StorageBase,
     life: &mut StorageLifeContract,

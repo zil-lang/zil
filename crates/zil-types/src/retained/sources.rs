@@ -7,6 +7,7 @@ mod helper_classes;
 mod mutable_sources;
 #[path = "receiver_contracts.rs"]
 mod receiver_contracts;
+pub(crate) use receiver_contracts::complete_receivers;
 type Path = Vec<ContractProjection>;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Origins {

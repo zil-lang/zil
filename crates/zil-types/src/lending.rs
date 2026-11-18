@@ -313,9 +313,15 @@ fn sources(
 
 /// Complete-module placement permits ordinary parameter-origin forwarding
 /// without treating source names or source annotations as provenance shortcuts.
-pub(super) fn populate(module: &mut TypedModule, static_origins: &retained::StaticOrigins, remaining: &mut usize) -> R<()> {
+pub(super) fn populate(
+    module: &mut TypedModule,
+    static_origins: &retained::StaticOrigins,
+    limits: &Limits,
+    remaining: &mut usize,
+) -> R<()> {
     let mut work = Work(*remaining);
     let result = populate_inner(module, static_origins, &mut work)
+        .and_then(|()| retained::complete_receivers(module, &mut work.0, limits))
         .and_then(|()| check_actual_calls(module, &mut work));
     *remaining = work.0;
     result
@@ -476,11 +482,16 @@ fn populate_inner(module: &mut TypedModule, static_origins: &retained::StaticOri
             && summaries[closure.function.0 as usize]
                 .iter()
                 .all(|source| matches!(source, Source::Parameter(_)));
+        work.spend(closure.storage_life.as_ref().map_or(0, |life| life.bindings.len().saturating_mul(2)), f.span)?;
         let declared_invocation = closure.storage_life.as_ref().is_some_and(|life| {
-            life.bindings.iter().any(|row| {
-                row.position.base == StorageBase::Result
-                    && matches!(row.binder, StorageBinder::Invocation(_))
-            })
+            let outer = |base| {
+                life.bindings.iter().find(|row| {
+                    row.position.base == base && row.position.path.is_empty()
+                }).map(|row| row.binder)
+            };
+            let result = outer(StorageBase::Result);
+            matches!(result, Some(StorageBinder::Invocation(_)))
+                && result != outer(StorageBase::Receiver)
         });
         if borrowed_fp::invocation(&closure.parameters, &closure.result)
             && !qualified_result(closure)

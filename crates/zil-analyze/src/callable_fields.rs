@@ -10,9 +10,20 @@ pub(super) fn environment(
 ) -> CompileResult<bool> {
     budget.lookup(budget.semantic_closures_proven.len(), "complete inline callback environment")?;
     budget.spend(1, "actual inline callback identity")?;
-    Ok(budget.semantic_closures_proven.contains(&id)
-        && module.closures.get(id.0 as usize).is_some_and(|d| d.id == id)
-        && crate::stored_callables::finite(module, id))
+    let Some(definition) = module.closures.get(id.0 as usize).filter(|d| d.id == id) else {
+        return Ok(false);
+    };
+    if budget.semantic_closures_proven.contains(&id) {
+        return Ok(crate::stored_callables::finite(module, id));
+    }
+    if definition.storage_life.as_ref().is_none_or(|life| life.fixed_binder_count != 0)
+        || !crate::stored_callables::receiver_entry(module, definition)?
+        || !crate::stored_callables::finite(module, id)
+    {
+        return Ok(false);
+    }
+    self_contained(module, id, budget)?;
+    Ok(true)
 }
 
 pub(super) fn inline(

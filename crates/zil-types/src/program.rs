@@ -744,15 +744,13 @@ fn check_resolved_program_in_context(
         // discharge when no original semantic program was supplied.
         stored::ordinary_inventory(&module, limits, &mut remaining).map_err(|e| vec![e])?;
     }
-    // A public callable bound refers to the creator's result rows. Its full
-    // signature and the creator's actual mappings are available after finish.
-    retained::populate_return_lives(&mut module, &returned_life_bounds, &mut remaining, limits)
-        .map_err(|e| vec![e])?;
     // Actual headers and materialized CFGs are now complete. No class-free
     // candidate or least-fixed-point bottom may decide Static/lending/CE.
     let static_origins = retained::prove_static_origins(&module, &mut remaining, limits)
         .map_err(|e| vec![e])?;
-    lending::populate(&mut module, &static_origins, &mut remaining).map_err(|e| vec![e])?;
+    lending::populate(&mut module, &static_origins, limits, &mut remaining).map_err(|e| vec![e])?;
+    retained::populate_return_lives(&mut module, &returned_life_bounds, &mut remaining, limits)
+        .map_err(|e| vec![e])?;
     retained::check_deferred_closed(&module, &deferred_closed, &static_origins, &mut remaining, limits)
         .map_err(|e| vec![e])?;
     registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)

@@ -2782,10 +2782,21 @@ fn apart(
     requirements: &mut Vec<(Source, Source)>,
     b: &mut Budget,
 ) -> Check<()> {
+    apart_for_access(a, z, None, requirements, b)
+}
+fn apart_for_access(
+    a: &Source,
+    z: &Source,
+    callable_place: Option<Span>,
+    requirements: &mut Vec<(Source, Source)>,
+    b: &mut Budget,
+) -> Check<()> {
     if overlap(a, z, b)? {
-        return Err(err(&format!(
-            "actual target intersects a live incompatible loan: {a:?} against {z:?}"
-        )));
+        let message = format!("actual target intersects a live incompatible loan: {a:?} against {z:?}");
+        return Err(match callable_place {
+            Some(span) => reject("E-BORROW-CONFLICT", Some(span), message),
+            None => err(&message),
+        });
     }
     if matches!(
         (a.base, z.base),
@@ -2830,6 +2841,19 @@ fn access_tail(
     requirements: &mut Vec<(Source, Source)>,
     b: &mut Budget,
 ) -> Check<()> {
+    access_tail_for(p, write, active, loans, delegated, None, requirements, b)
+}
+#[allow(clippy::too_many_arguments)]
+fn access_tail_for(
+    p: &Permission,
+    write: bool,
+    active: &[usize],
+    loans: &[Loan],
+    delegated: &[usize],
+    callable_place: Option<Span>,
+    requirements: &mut Vec<(Source, Source)>,
+    b: &mut Budget,
+) -> Check<()> {
     for id in active {
         b.spend(delegated.len().saturating_add(1))?;
         if delegated.contains(id) {
@@ -2839,7 +2863,7 @@ fn access_tail(
         if write || loan.exclusive {
             for a in &p.sources {
                 for z in &loan.sources {
-                    apart(a, z, requirements, b).map_err(|error| {
+                    apart_for_access(a, z, callable_place, requirements, b).map_err(|error| {
                         error.with_note(format!(
                             "actual live loan {id}, parents {:?}; access loans {:?}",
                             loan.parents, p.loans
@@ -6490,7 +6514,11 @@ fn windows(
                             }],
                             loans: Vec::new(),
                         };
-                        checks.check(&actual, *mutable, requirements, b)?;
+                        let pointee = i.result.and_then(|value| match &f.values[value.0 as usize] {
+                            Type::Address { inner, .. } => Some(inner.as_ref()),
+                            _ => None,
+                        });
+                        checks.check_place(&actual, *mutable, pointee, i.span, requirements, b)?;
                     }
                     InstructionKind::VariantTagLocal { local, .. } | InstructionKind::ReadVariantLocal { local, .. }
                         | InstructionKind::TakeVariantField { local, .. } | InstructionKind::UnpackVariant { local, .. }
@@ -6627,7 +6655,11 @@ fn windows(
                             }],
                             loans: Vec::new(),
                         };
-                        checks.check(&actual, *mutable, requirements, b)?;
+                        let field = zil_ir::source_projection::physical_child(
+                            &f.locals[local.0 as usize].ty,
+                            PlaceProjection::Field(*index),
+                        );
+                        checks.check_place(&actual, *mutable, field, i.span, requirements, b)?;
                     }
                     InstructionKind::ReadPackageField { local, index }
                         if pure_copy::ordinary_package_read(f, i, b)? =>
@@ -6672,7 +6704,11 @@ fn windows(
                             loans: Vec::new(),
                         };
                         b.spend(1)?;
-                        checks.check(&actual, true, requirements, b)?;
+                        let field = zil_ir::source_projection::physical_child(
+                            &f.locals[local.0 as usize].ty,
+                            PlaceProjection::Field(*index),
+                        );
+                        checks.check_place(&actual, true, field, i.span, requirements, b)?;
                     }
                     InstructionKind::Load(local) => {
                         b.spend(state.vacant.len())?;
@@ -6760,12 +6796,9 @@ fn windows(
                             sources: vec![source],
                             loans: Vec::new(),
                         };
-                        checks.check(
-                            &actual,
-                            !matches!(i.kind, InstructionKind::BorrowLocal { .. }),
-                            requirements,
-                            b,
-                        )?;
+                        let write = !matches!(i.kind, InstructionKind::BorrowLocal { .. });
+                        let ty = &f.locals[local.0 as usize].ty;
+                        checks.check_place(&actual, write, Some(ty), i.span, requirements, b)?;
                     }
                     InstructionKind::ExtractIndex { aggregate, .. }
                         if array_index::candidate(f, i) =>

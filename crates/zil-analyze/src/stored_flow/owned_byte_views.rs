@@ -372,10 +372,11 @@ pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> CompileResult<boo
         fee(b, closure.captures.len())?;
         for capture in &closure.captures {
             // An owning capture can contain the physical byte manager as
-            // a Package field. Qualify the complete original environment;
-            // access still resolves the exact field and its live loan.
+            // a Package field or as a complete receiver capture. Access
+            // still resolves the actual field, descriptor and live loan.
             if value(capture, b)?
                 && !super::super::stored_callables::semantic_owned_capture(module, closure, capture, b)?
+                && !super::super::stored_callables::receiver_owned_capture(module, closure, capture, b)?
             {
                 return Err(closed(Span::default()));
             }
