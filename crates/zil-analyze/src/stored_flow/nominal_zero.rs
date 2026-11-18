@@ -593,15 +593,29 @@ fn type_zero_at(
                     .get(id.0 as usize)
                     .filter(|closure| closure.id == *id)
                     .ok_or_else(|| failure("zero closure has no exact actual environment"))?;
-                if !closure
-                    .storage_life
-                    .as_ref()
-                    .is_some_and(|life| life.fixed_binder_count == 0)
-                    || !closure.lending_captures.is_empty()
-                {
-                    return Err(failure(
-                        "zero closure retains an unknown or nonzero complete domain",
-                    ));
+                let Some(header) = closure.storage_life.as_ref() else {
+                    return Err(failure("zero closure omits its complete class directory"));
+                };
+                if header.fixed_binder_count != 0 {
+                    return Err(failure("zero closure retains a nonzero fixed class domain"));
+                }
+                if !closure.lending_captures.is_empty() {
+                    // A returned view may depend on the fresh invocation even
+                    // when every value stored in this environment has N=0.
+                    // Require the actual matching entry. Its access, return
+                    // provenance and live loans are checked by the call proof.
+                    let entry = module.functions.get(closure.function.0 as usize)
+                        .filter(|f| f.id == closure.function && f.environment == Some(*id))
+                        .ok_or_else(|| failure("zero lending closure lacks its actual entry"))?;
+                    crate::signature_life::charge(header, b)?;
+                    if let Some(actual) = &entry.storage_life {
+                        crate::signature_life::charge(actual, b)?;
+                    }
+                    if entry.storage_life.as_ref() != Some(header)
+                        || !crate::stored_callables::result_is_receiver(closure)
+                    {
+                        return Err(failure("zero lending closure lacks its matched invocation result bound"));
+                    }
                 }
                 fee(b, closure.captures.len())?;
                 for capture in &closure.captures {
