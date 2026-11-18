@@ -2835,21 +2835,12 @@ fn apart(
     requirements: &mut Vec<(Source, Source)>,
     b: &mut Budget,
 ) -> Check<()> {
-    apart_for_access(a, z, None, requirements, b)
-}
-fn apart_for_access(
-    a: &Source,
-    z: &Source,
-    callable_place: Option<Span>,
-    requirements: &mut Vec<(Source, Source)>,
-    b: &mut Budget,
-) -> Check<()> {
     if overlap(a, z, b)? {
-        let message = format!("actual target intersects a live incompatible loan: {a:?} against {z:?}");
-        return Err(match callable_place {
-            Some(span) => reject("E-BORROW-CONFLICT", Some(span), message),
-            None => err(&message),
-        });
+        return Err(reject(
+            "E-BORROW-CONFLICT",
+            None,
+            format!("actual target intersects a live incompatible loan: {a:?} against {z:?}"),
+        ));
     }
     if matches!(
         (a.base, z.base),
@@ -2894,19 +2885,6 @@ fn access_tail(
     requirements: &mut Vec<(Source, Source)>,
     b: &mut Budget,
 ) -> Check<()> {
-    access_tail_for(p, write, active, loans, delegated, None, requirements, b)
-}
-#[allow(clippy::too_many_arguments)]
-fn access_tail_for(
-    p: &Permission,
-    write: bool,
-    active: &[usize],
-    loans: &[Loan],
-    delegated: &[usize],
-    callable_place: Option<Span>,
-    requirements: &mut Vec<(Source, Source)>,
-    b: &mut Budget,
-) -> Check<()> {
     for id in active {
         b.spend(delegated.len().saturating_add(1))?;
         if delegated.contains(id) {
@@ -2916,11 +2894,14 @@ fn access_tail_for(
         if write || loan.exclusive {
             for a in &p.sources {
                 for z in &loan.sources {
-                    apart_for_access(a, z, callable_place, requirements, b).map_err(|error| {
-                        error.with_note(format!(
-                            "actual live loan {id}, parents {:?}; access loans {:?}",
-                            loan.parents, p.loans
-                        ))
+                    apart(a, z, requirements, b).map_err(|mut error| {
+                        if error.code == "E-BORROW-CONFLICT" {
+                            error.notes.push(format!(
+                                "actual live loan {id}, exclusive={}, parents {:?}; access write={write}, loans {:?}",
+                                loan.exclusive, loan.parents, p.loans
+                            ));
+                        }
+                        error
                     })?;
                 }
             }
@@ -6400,6 +6381,23 @@ fn windows(
                     .map(|v| &v.address)
                     .ok_or_else(|| err("address operand absent"))
             };
+            let at_instruction = |mut error: Diagnostic| {
+                if error.code == "E-BORROW-CONFLICT" {
+                    let span = (i.span.start < i.span.end).then_some(i.span);
+                    error.span = span;
+                    error.relate(
+                        zil_base::DiagnosticRole::ConflictingAccess,
+                        span,
+                        Some(zil_base::DiagnosticIrLocation {
+                            function: f.id.0,
+                            block: Some(block.id.0),
+                            instruction: u32::try_from(at).ok(),
+                        }),
+                        "This access conflicts with the live borrow.",
+                    );
+                }
+                error
+            };
             if let Some(flow) = &byte_flow {
                 for permission in flow.reads(
                     module,
@@ -6411,7 +6409,8 @@ fn windows(
                     summaries,
                     b,
                 )? {
-                    query_access(&permission, &active, &solution.loans, requirements, b)?;
+                    query_access(&permission, &active, &solution.loans, requirements, b)
+                        .map_err(at_instruction)?;
                     byte_queries::record(byte_reads, &permission, b)?;
                 }
             }
@@ -6431,7 +6430,7 @@ fn windows(
                 &solution.loans,
                 requirements,
                 b,
-            )? {
+            ).map_err(at_instruction)? {
                 if write { store_paths::writable(&permission, &solution.loans, b)?; }
                 descriptor_access::record(module, f, head_accesses, description_accesses,
                     &permission, write, b)?;
@@ -6571,11 +6570,7 @@ fn windows(
                             }],
                             loans: Vec::new(),
                         };
-                        let pointee = i.result.and_then(|value| match &f.values[value.0 as usize] {
-                            Type::Address { inner, .. } => Some(inner.as_ref()),
-                            _ => None,
-                        });
-                        checks.check_place(&actual, *mutable, pointee, i.span, requirements, b)?;
+                        checks.check(&actual, *mutable, requirements, b)?;
                     }
                     InstructionKind::VariantTagLocal { local, .. } | InstructionKind::ReadVariantLocal { local, .. }
                         | InstructionKind::TakeVariantField { local, .. } | InstructionKind::UnpackVariant { local, .. }
@@ -6714,11 +6709,7 @@ fn windows(
                             }],
                             loans: Vec::new(),
                         };
-                        let field = zil_ir::source_projection::physical_child(
-                            &f.locals[local.0 as usize].ty,
-                            PlaceProjection::Field(*index),
-                        );
-                        checks.check_place(&actual, *mutable, field, i.span, requirements, b)?;
+                        checks.check(&actual, *mutable, requirements, b)?;
                     }
                     InstructionKind::ReadPackageField { local, index }
                         if pure_copy::ordinary_package_read(f, i, b)? =>
@@ -6763,11 +6754,7 @@ fn windows(
                             loans: Vec::new(),
                         };
                         b.spend(1)?;
-                        let field = zil_ir::source_projection::physical_child(
-                            &f.locals[local.0 as usize].ty,
-                            PlaceProjection::Field(*index),
-                        );
-                        checks.check_place(&actual, true, field, i.span, requirements, b)?;
+                        checks.check(&actual, true, requirements, b)?;
                     }
                     InstructionKind::Load(local) => {
                         b.spend(state.vacant.len())?;
@@ -6856,8 +6843,7 @@ fn windows(
                             loans: Vec::new(),
                         };
                         let write = !matches!(i.kind, InstructionKind::BorrowLocal { .. });
-                        let ty = &f.locals[local.0 as usize].ty;
-                        checks.check_place(&actual, write, Some(ty), i.span, requirements, b)?;
+                        checks.check(&actual, write, requirements, b)?;
                     }
                     InstructionKind::ExtractIndex { aggregate, .. }
                         if array_index::candidate(f, i) =>
@@ -7307,7 +7293,7 @@ fn windows(
                 }
                 Ok(())
             })()
-            .map_err(|error| error.with_note(format!("actual instruction {:?}", i.kind)))?;
+            .map_err(|error| at_instruction(error).with_note(format!("actual instruction {:?}", i.kind)))?;
             dyn_providers::observe(
                 module,
                 f,

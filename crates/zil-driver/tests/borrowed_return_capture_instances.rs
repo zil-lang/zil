@@ -91,19 +91,27 @@ fn independent_capture_instances_keep_their_actual_loans_through_forwarding() {
     instructions.splice(first_call..first_call, write_pair);
     let mut forged = plan.clone();
     forged.module_fingerprint = changed.fingerprint();
-    for decoded in [false, true] {
-        let (raw, candidate) = if decoded {
-            let wire = zil_ir::wire::encode_module_candidate(&changed, &forged, &limits).unwrap();
-            zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap()
-        } else {
-            (changed.clone(), forged.clone())
-        };
-        let errors = zil_verify::verify_module(raw, candidate, &target, &limits).unwrap_err();
-        assert!(
-            errors.iter().any(|e| e.code == "E-VERIFY-STORED"
-                && e.message
-                    == "stored target proof: actual target intersects a live incompatible loan"),
-            "Wire={decoded}: {errors:?}"
-        );
+    let expected_location = zil_base::DiagnosticIrLocation {
+        function: f.id.0,
+        block: Some(f.blocks[block].id.0),
+        instruction: Some((first_call + 1) as u32),
+    };
+    let write_span = changed.functions[main].blocks[block].instructions[first_call + 1].span;
+    let wire = zil_ir::wire::encode_module_candidate(&changed, &forged, &limits).unwrap();
+    let raw = zil_verify::verify_module(changed.clone(), forged, &target, &limits).unwrap_err();
+    let decoded = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert_eq!(raw, decoded);
+    for (phase, errors) in [
+        (zil_base::Phase::Analyze, zil_analyze::analyze(&changed, &limits).unwrap_err()),
+        (zil_base::Phase::Verify, raw),
+    ] {
+        assert!(errors.iter().any(|e| e.phase == phase
+            && e.category == zil_base::ResultCategory::SafeReject
+            && e.code == "E-BORROW-CONFLICT"
+            && e.span == Some(write_span)
+            && e.related.iter().any(|site| site.role == zil_base::DiagnosticRole::ConflictingAccess
+                && site.ir == Some(expected_location) && site.span == Some(write_span))
+            && e.notes.iter().any(|note| note.starts_with("actual live loan "))),
+            "{phase:?}: {errors:?}");
     }
 }

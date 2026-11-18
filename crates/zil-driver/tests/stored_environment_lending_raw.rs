@@ -453,12 +453,7 @@ fn task_multiport_result_ready_hold_and_selected_parent_are_required() {
     );
     let invalid = typed_stored(&invalid);
     assert!(zil_analyze::analyze(&invalid, &Limits::default()).is_err());
-    reject(
-        "multiport-result-parent-write",
-        invalid,
-        plan,
-        "E-VERIFY-STORED",
-    );
+    reject_live_access("multiport-result-parent-write", invalid, plan, |i| matches!(i, InstructionKind::Load(_)));
 }
 
 #[test]
@@ -1189,7 +1184,7 @@ fn task_borrowed_result_rejects_frame_local_with_unchanged_result_metadata() {
                 .any(|d| d.phase == Phase::Analyze && d.category == ResultCategory::SafeReject),
             "{errors:?}"
         );
-        reject("task-result-frame-local", module, plan, "E-VERIFY-STORED");
+        reject_live_access("task-result-frame-local", module, plan, |i| matches!(i, InstructionKind::StorageDead(_)));
     }
 }
 
@@ -1369,16 +1364,12 @@ fn task_borrowed_result_helper_access_preserves_ports_and_requires_native_invent
                 .any(|d| d.phase == Phase::Analyze && d.category == ResultCategory::SafeReject),
             "{errors:?}"
         );
-        reject(
-            &format!("task-port-alias-empty-inventory-{clear_resources}"),
-            bad,
-            plan,
-            if clear_resources {
-                "E-VERIFY-TASK"
-            } else {
-                "E-VERIFY-STORED"
-            },
-        );
+        let name = format!("task-port-alias-empty-inventory-{clear_resources}");
+        if clear_resources {
+            reject(&name, bad, plan, "E-VERIFY-TASK");
+        } else {
+            reject_live_access(&name, bad, plan, |i| matches!(i, InstructionKind::BorrowLocalMut { .. }));
+        }
     }
 }
 
@@ -1430,7 +1421,7 @@ fn task_borrowed_result_rejects_external_reborrow_write_before_ready_read() {
             .any(|d| d.phase == Phase::Analyze && d.category == ResultCategory::SafeReject),
         "{errors:?}"
     );
-    reject("task-ready-parent-write", module, plan, "E-VERIFY-STORED");
+    reject_live_access("task-ready-parent-write", module, plan, |i| matches!(i, InstructionKind::Load(_)));
 }
 
 #[test]
@@ -1611,13 +1602,13 @@ fn task_borrowed_result_mixed_profile_preserves_exclusive_port_access() {
         include_str!("../../../tests/fixtures/task-borrow-results/mixed-task-profiles.zil");
     let valid = typed_stored(source);
     let plan = zil_analyze::analyze(&valid, &Limits::default()).unwrap();
-    for (old, new, code) in [
+    for (old, new, write) in [
         (
             "let safe_read=scalar_input",
             "let safe_read=scalar_output",
-            "E-BORROW-CONFLICT",
+            false,
         ),
-        ("unrelated=13", "scalar_output=13", "E-VERIFY-STORED"),
+        ("unrelated=13", "scalar_output=13", true),
     ] {
         let source = source.replace(old, new);
         let invalid = typed_stored(&source);
@@ -1628,12 +1619,12 @@ fn task_borrowed_result_mixed_profile_preserves_exclusive_port_access() {
                 .any(|d| d.phase == Phase::Analyze && d.category == ResultCategory::SafeReject),
             "{errors:?}"
         );
-        reject(
-            "scalar-task-exclusive-input-access",
-            invalid,
-            plan.clone(),
-            code,
-        );
+        if write {
+            reject_live_access("scalar-task-exclusive-input-access", invalid, plan.clone(),
+                |i| matches!(i, InstructionKind::Store { .. }));
+        } else {
+            reject("scalar-task-exclusive-input-access", invalid, plan.clone(), "E-BORROW-CONFLICT");
+        }
     }
     for reverse in [false, true] {
         let mut invalid = valid.clone();
@@ -1746,7 +1737,7 @@ fn task_borrowed_result_local_parent_overwrites_and_joins_cannot_delegate_to_sib
                 .any(|d| d.phase == Phase::Analyze && d.category == ResultCategory::SafeReject),
             "{name}: {errors:?}"
         );
-        reject(name, invalid, plan, "E-VERIFY-STORED");
+        reject_live_access(name, invalid, plan, |i| matches!(i, InstructionKind::Load(_)));
     }
 }
 #[test]
@@ -2950,6 +2941,27 @@ fn reject(name: &str, m: TypedModule, p: CandidatePlan, code: &str) {
             "{name}: {ds:?}"
         );
     }
+}
+fn reject_live_access(
+    name: &str,
+    module: TypedModule,
+    plan: CandidatePlan,
+    operation: impl Fn(&InstructionKind) -> bool,
+) {
+    let [raw, wire] = rejected_channels(name, &module, plan);
+    assert_eq!(raw, wire, "{name}");
+    let error = raw.iter().find(|error| error.phase == Phase::Verify
+        && error.category == ResultCategory::SafeReject && error.code == "E-BORROW-CONFLICT")
+        .unwrap_or_else(|| panic!("{name}: {raw:?}"));
+    let conflict = error.related.iter().find(|r| r.role == zil_base::DiagnosticRole::ConflictingAccess).unwrap();
+    let site = conflict.ir.unwrap();
+    let instruction = &module.functions[site.function as usize].blocks[site.block.unwrap() as usize]
+        .instructions[site.instruction.unwrap() as usize];
+    assert!(operation(&instruction.kind), "{name}: {instruction:?}");
+    assert_eq!(error.span, conflict.span);
+    assert_eq!(error.span, (instruction.span.start < instruction.span.end).then_some(instruction.span));
+    assert!(error.message.contains("actual target intersects a live incompatible loan"));
+    assert!(error.notes.iter().any(|n| n.starts_with("actual live loan ")));
 }
 fn synchronize(m: &mut TypedModule) {
     for f in &mut m.functions {

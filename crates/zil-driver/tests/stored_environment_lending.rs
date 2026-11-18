@@ -105,18 +105,18 @@ fn assert_lending_conflict(bad: &str, good: &str) {
         "{}",
         report.to_json()
     );
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.phase == zil_base::Phase::Analyze
-                && diagnostic.code == "E-BORROW-CONFLICT"
-                && diagnostic
-                    .message
-                    .contains("actual stored target/parent loan")),
-        "{}",
-        report.to_json()
-    );
+    let analyze = report.diagnostics.iter().find(|diagnostic|
+        diagnostic.phase == zil_base::Phase::Analyze
+            && diagnostic.code == "E-BORROW-CONFLICT"
+            && diagnostic.message.contains("actual stored target/parent loan")
+            && diagnostic.notes.iter().any(|note| note.starts_with("actual live loan ")))
+        .unwrap_or_else(|| panic!("{}", report.to_json()));
+    let site = analyze.related.iter()
+        .find(|site| site.role == zil_base::DiagnosticRole::ConflictingAccess)
+        .expect("Analyze must identify the conflicting operation");
+    let point = site.ir.unwrap();
+    let span = site.span.unwrap();
+    assert_eq!(analyze.span, Some(span));
 
     let limits = zil_base::Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
@@ -129,6 +129,9 @@ fn assert_lending_conflict(bad: &str, good: &str) {
     // Present the legal neighbor's plan as an untrusted candidate for the
     // original illegal source. A stale fingerprint must not mask the loan check.
     let illegal = lending_module(bad, &target, &limits);
+    let operation = &illegal.functions[point.function as usize].blocks[point.block.unwrap() as usize]
+        .instructions[point.instruction.unwrap() as usize];
+    assert_eq!(operation.span, span);
     plan.module_fingerprint = illegal.fingerprint();
     let wire = zil_ir::wire::encode_module_candidate(&illegal, &plan, &limits).unwrap();
     let raw_errors = zil_verify::verify_module(illegal, plan, &target, &limits)
@@ -142,7 +145,13 @@ fn assert_lending_conflict(bad: &str, good: &str) {
         raw_errors
             .iter()
             .any(|diagnostic| diagnostic.phase == zil_base::Phase::Verify
-                && diagnostic.code == "E-VERIFY-STORED"
+                && diagnostic.category == ResultCategory::SafeReject
+                && diagnostic.code == "E-BORROW-CONFLICT"
+                && diagnostic.span == Some(span)
+                && diagnostic.related.iter().any(|site|
+                    site.role == zil_base::DiagnosticRole::ConflictingAccess
+                        && site.ir == Some(point)
+                        && site.span == Some(span))
                 && diagnostic
                     .message
                     .contains("actual target intersects a live incompatible loan")
