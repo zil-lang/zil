@@ -4414,22 +4414,34 @@ fn analyze_function_program_inner(
         queued[b] = false;
         let mut state = clone_state(input[b].as_ref().unwrap(), budget)?;
         flow.run(b, &mut state, &mut effect, false, budget)?;
-        for successor in next(&f.blocks[b]) {
+        let mut successors = next(&f.blocks[b]).into_iter().peekable();
+        let mut outgoing = Some(state);
+        while let Some(successor) = successors.next() {
             budget.spend(1, "resource diagnostic edge")?;
-            let edge_state = if let Some(plan) = &sums {
-                let mut edge = clone_state(&state, budget)?;
-                if !plan.edge(f, b, successor, &mut edge.sums, budget)? {
-                    continue;
-                }
-                Some(edge)
+            // The final successor owns the transferred state. A sibling only
+            // needs a separate copy when its edge narrows the actual Sum facts
+            // or publishes a new incoming state. Each join still sees its
+            // own complete permissions, owner births and cleanup obligations.
+            let mut edge = if successors.peek().is_none() {
+                outgoing.take()
+            } else if sums.is_some() {
+                Some(clone_state(outgoing.as_ref().expect("live outgoing state"), budget)?)
             } else {
                 None
             };
-            let state = edge_state.as_ref().unwrap_or(&state);
+            if let (Some(plan), Some(state)) = (&sums, &mut edge)
+                && !plan.edge(f, b, successor, &mut state.sums, budget)?
+            {
+                continue;
+            }
             let changed = if let Some(previous) = &mut input[successor] {
-                join(previous, state, budget)?
+                let incoming = edge.as_ref().or(outgoing.as_ref()).expect("live edge state");
+                join(previous, incoming, budget)?
             } else {
-                input[successor] = Some(clone_state(state, budget)?);
+                input[successor] = Some(match edge {
+                    Some(owned) => owned,
+                    None => clone_state(outgoing.as_ref().expect("live outgoing state"), budget)?,
+                });
                 true
             };
             if changed && !queued[successor] {
