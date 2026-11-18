@@ -645,6 +645,27 @@ impl<'a> Check<'a, '_> {
         self.node(depth)?;
         match (recipe, actual) {
             (SemanticTypeRecipe::Atom(expected), _) => self.same(expected, actual),
+            (SemanticTypeRecipe::Code { kind, signature }, Type::FunctionPointer { parameters, result })
+                if *kind == SemanticCodeKind::FunctionPointer =>
+            {
+                if signature.call_kind != CallKind::Direct
+                    || signature.bound_lifetimes != 0
+                    || signature.invocation_lifetimes != 0
+                    || signature.parameters.len() != parameters.len()
+                    || !matches!(signature.result_mode, PassingMode::Infer | PassingMode::Copy)
+                {
+                    return Err(bad("function pointer field changes its original signature"));
+                }
+                self.pay(parameters.len())?;
+                for (parameter, actual) in signature.parameters.iter().zip(parameters) {
+                    if !matches!(parameter.mode, PassingMode::Infer | PassingMode::Copy) {
+                        return Err(bad("function pointer field changes its parameter transfer mode"));
+                    }
+                    self.code_slot(owner, &parameter.ty, actual, depth + 1)?;
+                }
+                self.code_slot(owner, &signature.result, result, depth + 1)
+            }
+
             (SemanticTypeRecipe::Exact(value), _) => {
                 self.same(&value.ty, actual)?;
                 self.shape_work(&value.life)?;
@@ -902,6 +923,22 @@ impl<'a> Check<'a, '_> {
                 "nominal actual field needs its complete original type/opaque/context equation",
             )),
         }
+    }
+    fn code_slot(
+        &mut self,
+        owner: &LifeNominalInstance,
+        expected: &SemanticTypeRecipe,
+        actual: &Type,
+        depth: usize,
+    ) -> R<()> {
+        if !functions::closed_code_slot(SemanticCodeKind::FunctionPointer, actual, self.limits, self.left, depth)?
+            || self.domain(actual, depth)? != 0
+        {
+            return Err(pending("function pointer field needs its full parameter or result lifetime contract"));
+        }
+        // ABI types live in the signature. They are not stored subfields of
+        // the object holding the code address.
+        self.types(owner, expected, actual, &[], depth)
     }
     fn outer(
         &mut self,

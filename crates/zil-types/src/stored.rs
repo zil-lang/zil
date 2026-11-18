@@ -617,7 +617,7 @@ pub(super) fn project_option_enum(
     Ok(candidate)
 }
 
-fn closed_copy(ty: &Type, left: &mut usize, depth: usize, limit: usize, span: Span) -> R<bool> {
+pub(super) fn closed_copy(ty: &Type, left: &mut usize, depth: usize, limit: usize, span: Span) -> R<bool> {
     fee(left, 1, span)?;
     if depth > limit {
         return Err(Diagnostic::limit(

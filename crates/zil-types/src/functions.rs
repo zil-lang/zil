@@ -1,6 +1,24 @@
 //! Ordinary function values preserve the exact, environment-free signature.
 use super::*;
 
+/// Data transported by one non-borrowing code ABI slot. Copying the code
+/// address itself supplies no evidence about a parameter or result.
+pub(super) fn closed_code_slot(
+    kind: SemanticCodeKind,
+    ty: &Type,
+    limits: &Limits,
+    left: &mut usize,
+    depth: usize,
+) -> R<bool> {
+    if ty.is_b0_scalar() || *ty == Type::ForeignHandle {
+        return Ok(true);
+    }
+    if kind != SemanticCodeKind::FunctionPointer {
+        return Ok(false);
+    }
+    stored::closed_copy(ty, left, depth, limits.max_call_depth, Span::default())
+}
+
 impl Signature {
     pub(super) fn pointer_type(&self) -> Option<Type> {
         if self.retained_return_sources.is_some()

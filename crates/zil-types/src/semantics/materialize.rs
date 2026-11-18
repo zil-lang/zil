@@ -2138,9 +2138,9 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                     else {
                         unreachable!()
                     };
-                    if life.binder_count != 0
+                    if life != empty()
                         || !classes.is_empty()
-                        || !(ty.is_b0_scalar() || ty == Type::ForeignHandle)
+                        || !functions::closed_code_slot(*kind, &ty, self.limits, self.left, depth + 1)?
                     {
                         return Err(unknown(
                             "code pointer parameter needs its full class/signature relation",
@@ -2156,9 +2156,9 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                 else {
                     unreachable!()
                 };
-                if life.binder_count != 0
+                if life != empty()
                     || !classes.is_empty()
-                    || !(result.is_b0_scalar() || result == Type::ForeignHandle)
+                    || !functions::closed_code_slot(*kind, &result, self.limits, self.left, depth + 1)?
                 {
                     return Err(unknown(
                         "code pointer result needs its full class/signature relation",
