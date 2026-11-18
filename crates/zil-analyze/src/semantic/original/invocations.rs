@@ -630,6 +630,20 @@ impl Solver<'_, '_> {
         if self.static_byte_role(actual, expected, b, depth + 1)? {
             return Ok(());
         }
+        if let Kind::ErrorUnion { error, result } = self.state.arena[expected_root]
+            && !self.same_original(actual_root, expected_root, b, depth + 1)?
+        {
+            // A direct operand can select one exact original arm. Keep the
+            // checked expression's own term and classes as the raw payload.
+            let matches_error = self.same_original(actual_root, error, b, depth + 1)?;
+            let matches_result = self.same_original(actual_root, result, b, depth + 1)?;
+            match (matches_error, matches_result) {
+                (true, false) => return self.unify(actual, error, depth + 1, b),
+                (false, true) => return self.unify(actual, result, depth + 1, b),
+                (true, true) => return Err(fail("implicit original call injection matches both error alternatives")),
+                (false, false) => {}
+            }
+        }
         let actual = match (
             &self.state.arena[expected_root],
             &self.state.arena[actual_root],
