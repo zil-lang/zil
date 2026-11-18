@@ -49,7 +49,11 @@ impl Rows {
                 self.retained.push((semantic.to_vec(), class as u32, *term));
             }
         }
-        if !boundary {
+        // An actual Address/Desc/Managed wrapper also transports the exact
+        // descendants of an embedded BorrowedStorage pointee. These selectors
+        // use its whole map and contribute no new intrinsic class.
+        let storage_pointee = !inline && matches!(child.ty, Type::BorrowedStorage { .. });
+        if !boundary || storage_pointee {
             for row in &child.life.retained {
                 b.spend(
                     semantic

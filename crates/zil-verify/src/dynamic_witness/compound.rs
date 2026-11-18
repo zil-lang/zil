@@ -18,17 +18,7 @@ impl<'a,'m> Walk<'a,'m> {
         let (life, domain) = self.inventory.raw_scope(ty, b)?;
         self.pending |= domain.pending_sources;
         let map = self.boundary(semantic, domain.count, b)?;
-        for child in &life.retained {
-            b.spend(self.life.retained.len().saturating_add(semantic.len()).saturating_add(child.path.len()))?;
-            let mut path = semantic.to_vec(); path.extend_from_slice(&child.path);
-            let binder = *map.get(child.binder as usize)
-                .ok_or_else(|| bad("raw pointee descendant escapes its complete local domain"))?;
-            let mut rows = self.life.retained.iter().filter(|row| row.path == path && row.class == child.class);
-            if rows.next().map(|row| row.binder) != Some(binder) || rows.next().is_some() {
-                return Err(bad("raw pointee descendant changes its original intrinsic class map"));
-            }
-            self.retained.push((path, child.class));
-        }
+        self.retained_descendants(&life, semantic, &map, b)?;
         for child in &life.nominal_arguments {
             b.spend(semantic.len().saturating_add(child.path.len()).saturating_add(1))?;
             let mut row = child.clone();
@@ -36,6 +26,40 @@ impl<'a,'m> Walk<'a,'m> {
             row.binder = *map.get(row.binder as usize)
                 .ok_or_else(|| bad("raw pointee nominal escapes its complete local domain"))?;
             self.nominal.push(row);
+        }
+        Ok(())
+    }
+    fn retained_descendants(
+        &mut self,
+        child: &StorageLifeShape,
+        prefix: &[LifeTypeProjection],
+        map: &[u32],
+        b: &mut Budget,
+    ) -> Check<()> {
+        for descendant in &child.retained {
+            b.spend(
+                self.life
+                    .retained
+                    .len()
+                    .saturating_add(prefix.len())
+                    .saturating_add(descendant.path.len()),
+            )?;
+            let mut path = prefix.to_vec();
+            path.extend_from_slice(&descendant.path);
+            let binder = *map
+                .get(descendant.binder as usize)
+                .ok_or_else(|| bad("pointee descendant escapes its complete local domain"))?;
+            let mut rows = self
+                .life
+                .retained
+                .iter()
+                .filter(|row| row.path == path && row.class == descendant.class);
+            if rows.next().map(|row| row.binder) != Some(binder) || rows.next().is_some() {
+                return Err(bad(
+                    "pointee descendant changes its original intrinsic class map",
+                ));
+            }
+            self.retained.push((path, descendant.class));
         }
         Ok(())
     }
@@ -89,6 +113,12 @@ impl<'a,'m> Walk<'a,'m> {
                 let domain = self.inventory.domain(ty, b)?;
                 self.pending |= domain.pending_sources;
                 let map = self.boundary(semantic, domain.count, b)?;
+                // A complete wrapper value carries the pointee's declared
+                // TypeArgument and other retained selectors through its whole
+                // map. Physical slots stay in the embedded pointee type.
+                if semantic.last() == Some(&LifeTypeProjection::Pointee) {
+                    self.retained_descendants(life, semantic, &map, b)?;
+                }
                 for row in &life.nominal_arguments {
                     b.spend(
                         semantic

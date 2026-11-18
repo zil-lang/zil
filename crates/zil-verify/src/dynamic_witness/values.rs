@@ -1086,6 +1086,144 @@ mod tests {
     }
 
     #[test]
+    fn qualified_option_pointee_keeps_its_complete_type_argument_occurrence_raw_wire() {
+        let (mut module, _) = crate::tests::baseline();
+        let limits = Limits::default();
+        let element = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        };
+        let element_life = StorageLifeShape {
+            binder_count: 1,
+            slots: vec![StorageLifeSlot {
+                path: vec![],
+                binder: 0,
+                mode: StoredBorrowMode::SharedAddress,
+            }],
+            retained: vec![],
+            nominal_arguments: vec![],
+        };
+        let some_field = PlaceProjection::Variant(VariantProjection {
+            variant: 1,
+            index: 0,
+        });
+        let option = Type::BorrowedStorage {
+            storage: Box::new(Type::Enum {
+                name: "OptionItem".into(),
+                variants: vec![
+                    ("None".into(), vec![]),
+                    ("Some".into(), vec![element.clone()]),
+                ],
+            }),
+            life: StorageLifeShape {
+                binder_count: 1,
+                slots: vec![StorageLifeSlot {
+                    path: vec![some_field],
+                    ..element_life.slots[0].clone()
+                }],
+                retained: vec![StorageRetainedBinding {
+                    path: vec![LifeTypeProjection::TypeArgument(0)],
+                    class: 0,
+                    binder: 0,
+                }],
+                nominal_arguments: vec![],
+            },
+        };
+        module.life_declarations.push(LifeNominalDeclaration {
+            id: zil_ir::builtin_life::OPTION,
+            identity: LifeDeclarationIdentity {
+                package: "@zil.builtin".into(),
+                module_path: vec!["option".into()],
+                declaration_path: vec!["enum".into(), "Option".into()],
+                generation_path: vec![],
+            },
+            kind: LifeNominalKind::Enum,
+            parameters: vec![LifeParameterKind::Type],
+        });
+        module.life_instances.push(LifeNominalInstance {
+            declaration: zil_ir::builtin_life::OPTION,
+            ty: option.clone(),
+            arguments: vec![LifeNominalActual::QualifiedType {
+                ty: element,
+                life: element_life,
+            }],
+        });
+        module.functions[0].values.push(Type::Address {
+            mutable: true,
+            inner: Box::new(option),
+        });
+        let bytes = zil_ir::wire::encode_module_candidate(
+            &module,
+            &CandidatePlan::empty_for(&module),
+            &limits,
+        )
+        .unwrap();
+        let (wire, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        for module in [&module, &wire] {
+            let mut budget = Budget::new(&limits);
+            let ty = module.functions[0].values.last().unwrap();
+            let Type::Address { inner, .. } = ty else {
+                unreachable!()
+            };
+            let Type::BorrowedStorage { life, .. } = inner.as_ref() else {
+                unreachable!()
+            };
+            let child = terms::Value::anchored(
+                &DynTypeValue {
+                    ty: inner.as_ref().clone(),
+                    life: life.clone(),
+                    classes: vec![StorageBinder::Fixed(0)],
+                },
+                terms::Owner::Function(FunctionId(0)),
+                terms::Root::Receiver,
+                &mut budget,
+            )
+            .unwrap();
+            let head = terms::LifeTerm {
+                origin: terms::Origin {
+                    owner: terms::Owner::Function(FunctionId(0)),
+                    root: terms::Root::Lexical(StorageBinder::Fixed(1)),
+                    class: 0,
+                },
+                image: StorageBinder::Fixed(1),
+            };
+            let actual = constructors::address(
+                &child,
+                head,
+                StoredBorrowMode::ExclusiveAddress,
+                &mut budget,
+            )
+            .unwrap();
+            assert_eq!(&actual.ty, ty);
+            assert_eq!(
+                actual.life,
+                crate::tasks::frame_shape::declared_life(module, ty, &mut budget).unwrap(),
+            );
+            assert_eq!(run(module, &actual.raw).unwrap().count, 2);
+            assert_eq!(actual.life.slots.len(), 1);
+            for attack in 0..4 {
+                let mut forged = actual.raw.clone();
+                match attack {
+                    0 => {
+                        forged.life.retained.pop();
+                    }
+                    1 => forged.life.retained.swap(0, 1),
+                    2 => forged.life.retained[1].binder = 0,
+                    _ => forged.life.slots.push(StorageLifeSlot {
+                        path: vec![some_field],
+                        binder: 1,
+                        mode: StoredBorrowMode::SharedAddress,
+                    }),
+                }
+                assert!(
+                    run(module, &forged).is_err(),
+                    "pointee directory attack {attack}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn address_keeps_outer_borrow_and_the_whole_opaque_pointee_domain() {
         let module = closure(2);
         let mut actual = value(
