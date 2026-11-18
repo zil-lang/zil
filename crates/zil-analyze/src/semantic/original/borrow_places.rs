@@ -29,6 +29,25 @@ pub(in crate::semantic) struct Source {
 }
 
 impl Solver<'_, '_> {
+    /// Reuse the checked production of an explicit receiver address. Its
+    /// lexical root and physical path are the borrow's, even when the
+    /// resulting address is an SSA temporary.
+    pub(super) fn explicit_callable_borrow(
+        &self,
+        frame: &Frame,
+        callee: &SemanticOriginalExpr,
+        b: &mut Budget,
+    ) -> CompileResult<Option<Borrow>> {
+        if !matches!(callee.kind, CoreExprKind::Unary { op: UnaryOp::Borrow | UnaryOp::BorrowMut, .. }) {
+            return Ok(None);
+        }
+        b.lookup(self.state.borrows.len(), WORK)?;
+        let source = self.state.borrows.get(&(frame.definition, callee.id))
+            .ok_or_else(|| fail("original callable borrow has no checked receiver source"))?;
+        b.spend(source.path.len().saturating_add(8), WORK)?;
+        Ok(Some(source.clone()))
+    }
+
     pub(super) fn borrow_place(
         &mut self,
         frame: &mut Frame,

@@ -2313,7 +2313,8 @@ impl Solver<'_, '_> {
                     let evaluated_head = matches!(head.kind,
                         CoreExprKind::Call { .. } | CoreExprKind::Closure { .. }
                         | CoreExprKind::If { .. } | CoreExprKind::Sequence { .. }
-                        | CoreExprKind::Index { .. });
+                        | CoreExprKind::Index { .. }
+                        | CoreExprKind::Unary { op: UnaryOp::Borrow | UnaryOp::BorrowMut, .. });
                     let local = if evaluated_head {
                         Some(self.expression(frame, head, b, depth + 1)?)
                     } else if let CoreExprKind::Name(name) = &head.kind {
@@ -2346,14 +2347,7 @@ impl Solver<'_, '_> {
                             call
                         } else {
                             let callee_value = local;
-                            let mut local = self.root(local, b)?;
-                            for _ in 0..=b.partial_depth {
-                                if let Kind::CallResult { hidden, .. } = self.state.arena[local] {
-                                    local = self.root(hidden, b)?;
-                                } else {
-                                    break;
-                                }
-                            }
+                            let mut local = self.type_root(local, b)?;
                             let borrowed = if let Kind::Address { mutable, inner, .. } = self.state.arena[local] {
                                 local = self.type_root(inner, b)?;
                                 Some((mutable, inner))
@@ -2385,7 +2379,9 @@ impl Solver<'_, '_> {
                             // field projection, not a Name/temporary reconstruction.
                             let receiver_place = if evaluated_head { None }
                                 else { Some(self.borrow_place(frame, head, b, depth + 1)?) };
-                            let receiver = if let Some(place) = &receiver_place {
+                            let receiver = if let Some(source) = self.explicit_callable_borrow(frame, head, b)? {
+                                source
+                            } else if let Some(place) = &receiver_place {
                                 b.spend(place.path.len().saturating_add(8), WORK)?;
                                 let inner = if let Some((_, inner)) = borrowed { inner } else { place.inner };
                                 if borrowed.is_some() && (place.indirect || !place.path.is_empty()) {

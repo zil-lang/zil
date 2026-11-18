@@ -175,9 +175,10 @@ pub(crate) fn build(module: &TypedModule, limits: &Limits, b: &mut Budget) -> Ch
                 "actual scope closure entry is absent",
             )
         })?;
+        // Reconstruct the data scope of both Direct and Suspend entries.
+        // This lookup grants no permission to invoke the entry.
         if d.id.0 as usize != ordinal
             || f.foreign.is_some()
-            || f.call_kind != CallKind::Direct
             || f.id != d.function
             || f.environment != Some(d.id)
             || d.parameters.len() != f.parameters.len()

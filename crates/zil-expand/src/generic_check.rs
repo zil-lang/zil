@@ -4736,7 +4736,16 @@ impl Check<'_, '_, '_> {
         if let Some(result) = self.expr_call_special(e, state, expected)? {
             return Ok(result);
         }
-        let (target, explicit) = match &callee.kind {
+        let mut head = callee.as_ref();
+        while let ExprKind::Group(inner) = &head.kind {
+            self.tick(head.span)?;
+            head = inner;
+        }
+        if matches!(head.kind, ExprKind::Unary { op: UnaryOp::Borrow | UnaryOp::BorrowMut, .. }) {
+            let receiver = self.expr(head, state, None, true)?;
+            return self.expr_call_callable(e, head, state, &receiver, None, None);
+        }
+        let (target, explicit) = match &head.kind {
             ExprKind::Name(n) => (n, None),
             ExprKind::TypeApply { callee, arguments } => match &callee.kind {
                 ExprKind::Name(n) => (n, Some(arguments.as_slice())),
@@ -4755,8 +4764,13 @@ impl Check<'_, '_, '_> {
             }
         };
 
-        if let Some(result) = self.expr_call_local(e, state, expected, target, explicit)? {
-            return Ok(result);
+        if let Some(local) = state.locals.get(target) {
+            if local.description_reference_depth.is_some() {
+                return Err(error(e.span, "a declared resource description is not a callable parameter"));
+            }
+            self.budget.ty(&local.ty)?;
+            let local = local.clone();
+            return self.expr_call_callable(e, head, state, &local.ty, Some(&local), explicit);
         }
         if let Some(result) = self.expr_call_foreign(e, state, target, explicit)? {
             return Ok(result);
@@ -5304,182 +5318,144 @@ impl Check<'_, '_, '_> {
     }
 
     #[inline(never)]
-    fn expr_call_local(
+    fn expr_call_callable(
         &mut self,
         e: &Expr,
+        head: &Expr,
         state: &mut State,
-        _expected: Option<&TypeRef>,
-        target: &str,
+        receiver: &TypeRef,
+        local: Option<&Local>,
         explicit: Option<&[GenericArg]>,
-    ) -> R<Option<TypeRef>> {
-        let ExprKind::Call { callee, arguments } = &e.kind else {
+    ) -> R<TypeRef> {
+        let ExprKind::Call { arguments, .. } = &e.kind else {
             unreachable!("call dispatcher")
         };
-        if let Some(local) = state.locals.get(target) {
-            if local.description_reference_depth.is_some() {
-                return (Err(error(
-                    e.span,
-                    "a declared resource description is not a callable parameter",
-                )))
-                .map(Some);
+        let Some(bounds) = self.callable.as_ref() else {
+            return Err(unsupported(e.span, "generic callable parameter requires a Fn bound"));
+        };
+        let bound = bounds
+            .bindings()
+            .find(|bound| callable::parameter_mode(receiver, &bound.generic_name).is_some());
+        // Flat callable headers have no role binders to look up.
+        // Use the actual header shape, not the direct-address life
+        // relation, which does not describe nested storage classes.
+        let mut role_frame = if let Some(bound) = bound.filter(|b| b.has_role_binders) {
+            role_check::Frame::new(
+                &bound.generic_name,
+                self.class_scope.source,
+                self.budget,
+                e.span,
+            )?
+        } else {
+            None
+        };
+        let (kind, mode, parameters, mut result) = if let Some(bound) = bound {
+            for parameter in &bound.parameters {
+                self.budget.ty(parameter)?;
             }
-            // A factory's visible signature may itself be large. Pay
-            // its full type before cloning the symbolic local.
-            self.budget.ty(&local.ty)?;
-            let local = local.clone();
-            let Some(bounds) = self.callable.as_ref() else {
-                return (Err(unsupported(
-                    e.span,
-                    "generic callable parameter requires a Fn bound",
-                )))
-                .map(Some);
-            };
-            let bound = bounds
-                .bindings()
-                .find(|bound| callable::parameter_mode(&local.ty, &bound.generic_name).is_some());
-            // Flat callable headers have no role binders to look up.
-            // Use the actual header shape, not the direct-address life
-            // relation, which does not describe nested storage classes.
-            let mut role_frame = if let Some(bound) = bound.filter(|b| b.has_role_binders) {
-                role_check::Frame::new(
-                    &bound.generic_name,
-                    self.class_scope.source,
-                    self.budget,
-                    e.span,
-                )?
-            } else {
-                None
-            };
-            let (kind, mode, parameters, mut result) = if let Some(bound) = bound {
-                for parameter in &bound.parameters {
-                    self.budget.ty(parameter)?;
-                }
-                self.budget.ty(&bound.result)?;
-                (
-                    bound.kind,
-                    callable::parameter_mode(&local.ty, &bound.generic_name).unwrap(),
-                    bound.parameters.clone(),
-                    bound.result.clone(),
-                )
-            } else if let Some((kind, parameters, result)) = callable::opaque_signature(&local.ty) {
-                for parameter in parameters {
-                    self.budget.ty(parameter)?;
-                }
-                self.budget.ty(result)?;
-                (kind, None, parameters.to_vec(), result.clone())
-            } else {
-                return (Err(error(
-                            e.span,
-                            "called generic local is neither the callable parameter nor a direct opaque factory result",
-                        ))).map(Some);
-            };
-            if explicit.is_some() || arguments.len() != parameters.len() {
-                return (Err(error(e.span, "callable bound argument count differs"))).map(Some);
+            self.budget.ty(&bound.result)?;
+            (
+                bound.kind,
+                callable::parameter_mode(receiver, &bound.generic_name).unwrap(),
+                bound.parameters.clone(),
+                bound.result.clone(),
+            )
+        } else if let Some((kind, parameters, result)) = callable::opaque_signature(receiver) {
+            for parameter in parameters {
+                self.budget.ty(parameter)?;
             }
+            self.budget.ty(result)?;
+            (kind, None, parameters.to_vec(), result.clone())
+        } else {
+            return Err(error(e.span, "callee lacks a declared callable bound or opaque signature"));
+        };
+        if explicit.is_some() || arguments.len() != parameters.len() {
+            return Err(error(e.span, "callable bound argument count differs"));
+        }
+        if let Some(local) = local {
             if state.moved.contains(&local.id) {
-                return (Err(error(
-                    e.span,
-                    "generic callable used after its environment was consumed",
-                )))
-                .map(Some);
+                return Err(error(e.span, "generic callable used after its environment was consumed"));
             }
-            self.defer_use(local.id, kind == zil_ir::CallableKind::FnOnce, callee.span)?;
-            self.defer_held(
-                state,
-                local.id,
-                kind != zil_ir::CallableKind::Fn,
-                callee.span,
-            )?;
+            self.defer_use(local.id, kind == zil_ir::CallableKind::FnOnce, head.span)?;
+            self.defer_held(state, local.id, kind != zil_ir::CallableKind::Fn, head.span)?;
             self.factory_use(
                 local.id,
                 kind == zil_ir::CallableKind::FnMut,
                 kind == zil_ir::CallableKind::FnOnce,
-                callee.span,
+                head.span,
             )?;
-            self.alias_use_local(state, local.id, callee.span)?;
-            match kind {
-                zil_ir::CallableKind::Fn => {}
-                zil_ir::CallableKind::FnMut if mode == Some(true) => {}
-                zil_ir::CallableKind::FnMut if mode.is_none() && local.mutable => {}
-                zil_ir::CallableKind::FnMut if mode.is_none() => {
-                    return (Err(error(e.span, "local FnMut call requires a mutable binding")))
-                        .map(Some);
-                }
-                zil_ir::CallableKind::FnOnce if mode.is_none() => {
-                    self.alias_invalidate(state, local.id, None, callee.span)?;
-                    state.moved.insert(local.id);
-                }
-                _ => {
-                    return (Err(unsupported(
-                        e.span,
-                        "callable bound requires its matching environment passing mode",
-                    )))
-                    .map(Some);
-                }
+            self.alias_use_local(state, local.id, head.span)?;
+        }
+        match kind {
+            zil_ir::CallableKind::Fn => {}
+            zil_ir::CallableKind::FnMut if mode == Some(true) => {}
+            zil_ir::CallableKind::FnMut if mode.is_none() && local.is_some_and(|local| local.mutable) => {}
+            zil_ir::CallableKind::FnMut => {
+                return Err(error(head.span, "FnMut call requires an exclusive receiver"));
             }
-            if kind != zil_ir::CallableKind::FnOnce {
-                if mode.is_none() {
-                    self.alias_borrow(callee, state, kind == zil_ir::CallableKind::FnMut)?;
-                }
-                self.alias_hold_result(
-                    state,
-                    kind == zil_ir::CallableKind::FnMut,
-                    callee.span,
-                    None,
-                )?;
+            zil_ir::CallableKind::FnOnce if mode.is_none() && local.is_some() => {
+                let local = local.expect("unborrowed local");
+                self.alias_invalidate(state, local.id, None, head.span)?;
+                state.moved.insert(local.id);
             }
-            for (index, (argument, parameter)) in arguments.iter().zip(&parameters).enumerate() {
-                if argument.spread {
-                    return (Err(unsupported(argument.span, "callable helper tuple spread")))
-                        .map(Some);
-                }
-                let actual = self.argument(
+            _ => {
+                return Err(unsupported(e.span, "callable bound requires its matching environment passing mode"));
+            }
+        }
+        if kind != zil_ir::CallableKind::FnOnce {
+            if mode.is_none() {
+                self.alias_borrow(head, state, kind == zil_ir::CallableKind::FnMut)?;
+            }
+            self.alias_hold_result(state, kind == zil_ir::CallableKind::FnMut, head.span, None)?;
+        }
+        for (index, (argument, parameter)) in arguments.iter().zip(&parameters).enumerate() {
+            if argument.spread {
+                return Err(unsupported(argument.span, "callable helper tuple spread"));
+            }
+            let actual = self.argument(
+                &argument.value,
+                state,
+                parameter,
+                if role_frame.is_some() {
+                    None
+                } else {
+                    Some(parameter)
+                },
+                index,
+            )?;
+            if let Some(frame) = &mut role_frame {
+                frame.argument(
+                    parameter,
+                    &actual,
                     &argument.value,
                     state,
-                    parameter,
-                    if role_frame.is_some() {
-                        None
-                    } else {
-                        Some(parameter)
-                    },
-                    index,
+                    self.class_scope.source,
+                    self.budget,
+                    0,
                 )?;
-                if let Some(frame) = &mut role_frame {
-                    frame.argument(
-                        parameter,
-                        &actual,
-                        &argument.value,
-                        state,
-                        self.class_scope.source,
-                        self.budget,
-                        0,
-                    )?;
-                    let parameter =
-                        frame.substitute(parameter, self.class_scope.source, self.budget)?;
-                    role_check::same(
-                        &actual,
-                        &parameter,
-                        argument.span,
-                        self.class_scope,
-                        self.budget,
-                    )?;
-                } else {
-                    role_check::same(
-                        &actual,
-                        parameter,
-                        argument.span,
-                        self.class_scope,
-                        self.budget,
-                    )?;
-                }
+                let parameter =
+                    frame.substitute(parameter, self.class_scope.source, self.budget)?;
+                role_check::same(
+                    &actual,
+                    &parameter,
+                    argument.span,
+                    self.class_scope,
+                    self.budget,
+                )?;
+            } else {
+                role_check::same(
+                    &actual,
+                    parameter,
+                    argument.span,
+                    self.class_scope,
+                    self.budget,
+                )?;
             }
-            if let Some(frame) = role_frame {
-                result = frame.substitute(&result, self.class_scope.source, self.budget)?;
-            }
-            return Ok(Some(result));
         }
-
-        Ok(None)
+        if let Some(frame) = role_frame {
+            result = frame.substitute(&result, self.class_scope.source, self.budget)?;
+        }
+        Ok(result)
     }
 
     #[inline(never)]

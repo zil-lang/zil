@@ -126,14 +126,15 @@ impl Check<'_, '_> {
             let Some(call) = self.original.abstract_boundary(instance, site.recipe, self.program, self.inventory, b)? else {
                 continue;
             };
-            if call.place.is_some() || kind != call.kind || !original::receiver_result(&call.signature, kind)
+            let Some(parameter) = call.parameter else { continue; };
+            if kind != call.kind || !original::receiver_result(&call.signature, kind)
                 || !self.capture_values_equal(actual, &call.result, b)?
-                || !self.anchored_value(instance, function, original::LocalAnchor::Parameter(call.parameter), callee, b, 0)?
+                || !self.anchored_value(instance, function, original::LocalAnchor::Parameter(parameter), callee, b, 0)?
             {
                 continue;
             }
             b.spend(header.bindings.len(), WORK)?;
-            if crate::signature_life::outer(header, StorageBase::Parameter(call.parameter)) != Some(result) {
+            if crate::signature_life::outer(header, StorageBase::Parameter(parameter)) != Some(result) {
                 return Ok(false);
             }
             // The same borrowed receiver and argument roles have already been
@@ -295,7 +296,9 @@ impl Check<'_, '_> {
                 let parameter = self.anchored_local(
                     instance,
                     function,
-                    original::LocalAnchor::Parameter(boundary.parameter),
+                    original::LocalAnchor::Parameter(boundary.parameter.ok_or_else(|| {
+                        fail("abstract receiver has neither an original parameter nor a checked place")
+                    })?),
                     b,
                 )?;
                 operations::available_before(

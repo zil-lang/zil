@@ -799,9 +799,16 @@ pub(super) fn callable(
         )
     };
     if !compatible(scheme.kind, requested) || !compatible(definition.kind, requested) {
-        return Err(bad(
+        world.pay(32)?;
+        let mut diagnostic = bad(
             "actual callable opcode or entry lacks the original calling capability",
+        );
+        diagnostic.notes.push(format!(
+            "original declaration {:?}, callee expression {:?}, site {:?}, actual occurrence {:?}, operand {:?}, closure {:?}; original capability {:?}, emitted invocation {:?}, actual entry capability {:?}",
+            original.id, scheme.callee_node, site.recipe, site.at, operand, definition.id,
+            scheme.kind, requested, definition.kind,
         ));
+        return Err(diagnostic);
     }
     if matches!(
         World::type_of(raw_value)?,

@@ -131,8 +131,9 @@ pub(crate) fn build(module: &TypedModule, limits: &Limits, b: &mut Budget) -> Co
             .functions
             .get(d.function.0 as usize)
             .ok_or_else(|| fail(Span::default(), "Task closure scope entry is absent"))?;
+        // The scope describes retained classes for either entry ABI.
+        // Actual invocation and cleanup enforce their own calling conventions.
         if d.id.0 as usize != index
-            || f.call_kind != CallKind::Direct
             || f.foreign.is_some()
             || f.id != d.function
             || f.environment != Some(d.id)
