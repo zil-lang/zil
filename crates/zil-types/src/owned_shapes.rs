@@ -40,7 +40,7 @@ fn shape(ty: &Type) -> Option<bool> {
         // structural classification chooses transfer/cleanup operations only;
         // it never infers Copy or a synchronous destructor from an empty or
         // unknown capture directory. The actual closure is checked separately.
-        Type::Closure(_) | Type::MutexGuard { .. } => Some(true),
+        Type::Closure(_) | Type::MutexGuard { .. } | Type::OwnedDyn { .. } => Some(true),
         Type::Managed(_) => resources::supported(ty).then_some(true),
         Type::Tuple(fields) => {
             let mut owns = false;
@@ -151,7 +151,7 @@ pub(super) fn error_union(ty: &Type) -> bool {
 pub(super) fn field(ty: &Type) -> bool {
     matches!(
         ty,
-        Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
+        Type::Managed(_) | Type::Closure(_) | Type::Package { .. } | Type::OwnedDyn { .. }
     ) || sum(ty)
 }
 
@@ -172,6 +172,10 @@ pub(super) fn validate(ty: &Type, remaining: &mut usize, depth_limit: usize, spa
             "ordinary owning composition requires complete Copy, Managed, Product or Sum values",
         ));
     }
+    validate_names(ty, remaining, span)
+}
+
+pub(super) fn validate_names(ty: &Type, remaining: &mut usize, span: Span) -> R<()> {
     fn row<'a>(
         names: impl Iterator<Item = &'a str>,
         count: usize,

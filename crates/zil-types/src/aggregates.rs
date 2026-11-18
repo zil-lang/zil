@@ -718,6 +718,7 @@ fn resolve_indexed(
         aggregate_parameters: BTreeMap::new(),
         active_callable_parameters: &[],
         active_state_parameters: &[],
+        has_originals: core.semantic.is_some(),
         callable_names: core
             .functions
             .iter()
@@ -1124,6 +1125,7 @@ struct Resolver<'a> {
     current_owner: Option<aggregate_templates::Owner>,
     metadata_context: bool,
     generic_limits: Limits,
+    has_originals: bool,
     callable_names: BTreeSet<String>,
     ordinary_parameter: Option<String>,
     aggregate_parameters: BTreeMap<String, CoreTypeBound>,
@@ -1317,6 +1319,58 @@ impl Resolver<'_> {
             other => other.is_copy_value(),
         })
     }
+    // Identify unresolved layout, not a complete Value qualification. The
+    // concrete helper must replace these leaves using its actual callable
+    // role. Original Source validation then checks the full nominal identity
+    // and all physical operands independently.
+    fn deferred_callable_layout(&mut self, ty: &Type, depth: usize, span: Span) -> R<Option<bool>> {
+        self.charge(depth, span)?;
+        if let Type::Named(name) = ty {
+            let work = self.callable_names.len().saturating_add(1).ilog2() as usize + 1;
+            aggregate_templates::spend(
+                &mut self.remaining,
+                work.saturating_mul(name.len() + 1),
+                span,
+            )?;
+            return Ok(self.callable_names.contains(name).then_some(true));
+        }
+        let mut unresolved = false;
+        let mut visit = |field: &Type| -> R<bool> {
+            if let Some(child) = self.deferred_callable_layout(field, depth + 1, span)? {
+                unresolved |= child;
+                Ok(true)
+            } else {
+                Ok(false)
+            }
+        };
+        match ty {
+            Type::Tuple(fields) => {
+                for field in fields {
+                    if !visit(field)? {
+                        return Ok(None);
+                    }
+                }
+            }
+            Type::Package { fields, .. } => {
+                for (_, field) in fields {
+                    if !visit(field)? {
+                        return Ok(None);
+                    }
+                }
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    for field in fields {
+                        if !visit(field)? {
+                            return Ok(None);
+                        }
+                    }
+                }
+            }
+            other => return Ok(owned_shapes::value(other).then_some(false)),
+        }
+        Ok(Some(unresolved))
+    }
     fn store_element_shape(&mut self, ty: &Type, depth: usize, span: Span) -> R<bool> {
         if let Type::Named(name) = ty
             && (self.ordinary_parameter.as_ref() == Some(name)
@@ -1460,6 +1514,7 @@ impl Resolver<'_> {
             let stored_instance = self.stored_instances.get(name).copied();
             let mut variants = Vec::new();
             let mut owns = false;
+            let mut deferred = false;
             for (variant, raw_fields) in &declaration.variants {
                 let mut fields = Vec::new();
                 for field in raw_fields {
@@ -1485,10 +1540,16 @@ impl Resolver<'_> {
                             )?);
                     owns |= !copy;
                     if !copy && !owned_shapes::value(&ty) {
-                        return Err(unsupported(
-                            declaration.span,
-                            "enum payload requires finite Copy or an ordinary complete owned value",
-                        ));
+                        if !self.has_originals
+                            || !name.starts_with("$generic_")
+                            || self.deferred_callable_layout(&ty, depth + 1, span)? != Some(true)
+                        {
+                            return Err(unsupported(
+                                declaration.span,
+                                "enum payload requires finite Copy or an ordinary complete owned value",
+                            ));
+                        }
+                        deferred = true;
                     }
                     fields.push(ty);
                 }
@@ -1542,7 +1603,9 @@ impl Resolver<'_> {
                 name: nominal,
                 variants,
             };
-            if owns {
+            if deferred {
+                owned_shapes::validate_names(&ty, &mut self.remaining, span)?;
+            } else if owns {
                 owned_shapes::validate(&ty, &mut self.remaining, self.depth_limit, span)?;
             }
             if let Some(instance) = stored_instance {
@@ -1581,6 +1644,7 @@ impl Resolver<'_> {
             let stored_instance = self.stored_instances.get(name).copied();
             let mut fields = Vec::new();
             let mut new_shape = false;
+            let mut deferred = false;
             for f in &d.fields {
                 let ty = self.field_type(f, depth + 1)?;
                 if !(ty.is_copy_value()
@@ -1632,6 +1696,13 @@ impl Resolver<'_> {
                             || owned_shapes::sum(&ty))
                     {
                         new_shape = true;
+                    } else if self.has_originals
+                        && d.name.starts_with("$generic_")
+                        && d.kind == AggregateKind::Package
+                        && !f.manages
+                        && self.deferred_callable_layout(&ty, depth + 1, f.span)? == Some(true)
+                    {
+                        deferred = true;
                     } else {
                         return Err(unsupported(
                             f.span,
@@ -1644,7 +1715,9 @@ impl Resolver<'_> {
             let name = format!("@module{}:{}", self.owners[name], name);
             if d.kind == AggregateKind::Package {
                 let ty = Type::Package { name, fields };
-                if new_shape {
+                if deferred {
+                    owned_shapes::validate_names(&ty, &mut self.remaining, span)?;
+                } else if new_shape {
                     owned_shapes::validate(&ty, &mut self.remaining, self.depth_limit, span)?;
                 }
                 if packages::product::nested(&ty) && packages::product::owned_supported(&ty) {
@@ -1654,7 +1727,10 @@ impl Resolver<'_> {
                         self.depth_limit,
                         span,
                     )?;
-                } else if !d.fields.iter().any(|f| f.manages) && !owned_shapes::value(&ty) {
+                } else if !deferred
+                    && !d.fields.iter().any(|f| f.manages)
+                    && !owned_shapes::value(&ty)
+                {
                     return Err(unsupported(
                         span,
                         "package requires at least one manages field or complete owning child",

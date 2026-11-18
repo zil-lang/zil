@@ -2331,7 +2331,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         Rc::new(Term::Registration(Rc::new(Term::Closure(id)), true, true)),
                         true,
                     )
-                } else if callable_fields::placeholder_package(&parameter.ty, &bound.generic_name) {
+                } else if callable_fields::placeholder_value(&parameter.ty, &bound.generic_name) {
                     this.state_term(&parameter.ty, &bound.generic_name, id, parameter.span)?
                 } else {
                     match helpers::parameter_mode(&parameter.ty, &bound.generic_name) {
@@ -2436,34 +2436,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
 
     fn state_term(&mut self, ty: &Type, generic: &str, environment: usize, span: Span) -> R<Term> {
         validate_type(ty, 0, span, self.budget)?;
-        let Type::Package { name, fields } = ty else {
+        if !callable_fields::placeholder_value(ty, generic) {
             return Err(unsupported(
                 span,
-                "callable State requires an owning Package",
+                "callable value lacks its actual environment occurrence",
             ));
-        };
-        if !fields
-            .iter()
-            .any(|(_, t)| matches!(t,Type::Named(n) if n==generic))
-        {
-            return Err(unsupported(span, "callable State has no direct F field"));
         }
-        let shape = Type::Package {
-            name: callable_fields::nominal_base(name).to_owned(),
-            fields: fields
-                .iter()
-                .map(|(n, t)| {
-                    (
-                        n.clone(),
-                        if matches!(t,Type::Named(n) if n==generic) {
-                            Type::Named("$callback".into())
-                        } else {
-                            t.clone()
-                        },
-                    )
-                })
-                .collect(),
-        };
+        let mut shape = ty.clone();
+        callable_fields::normalize_placeholder(&mut shape, generic);
         Ok(Term::ClosurePackage {
             shape: Rc::new(shape),
             environment,
@@ -2513,7 +2493,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             if matches!(ty,Type::Named(n) if n==name) {
                 return Ok(Term::Closure(*id));
             }
-            if callable_fields::placeholder_package(ty, name) {
+            if callable_fields::placeholder_value(ty, name) {
                 let (name, id) = (name.clone(), *id);
                 return self.state_term(ty, &name, id, span);
             }
@@ -2613,7 +2593,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             self.bind_source_bound(id, bound, argument.span)?;
             return Ok(id);
         }
-        let state = callable_fields::placeholder_package(ty, &bound.generic_name);
+        let state = callable_fields::placeholder_value(ty, &bound.generic_name);
         let wanted = if state {
             None
         } else {
@@ -3419,7 +3399,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             return self.bind_term(result, wanted, span);
         }
         if self.helper_environments.keys().any(|name| {
-            matches!(ty,Type::Named(n) if n==name) || callable_fields::placeholder_package(ty, name)
+            matches!(ty,Type::Named(n) if n==name) || callable_fields::placeholder_value(ty, name)
         }) {
             let expected = self.known_term(ty, span)?;
             return self.unify(term, &expected, span);
@@ -5974,7 +5954,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 }
                 if let (Some(environment), Some(bound)) =
                     (state_environment, signature.callable.first())
-                    && callable_fields::placeholder_package(&signature.result, &bound.generic_name)
+                    && callable_fields::placeholder_value(&signature.result, &bound.generic_name)
                 {
                     return self.state_term(
                         &signature.result,
@@ -6048,7 +6028,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 }
                 if let (Some(environment), Some(bound)) =
                     (state_environment, signature.callable.first())
-                    && callable_fields::placeholder_package(&signature.result, &bound.generic_name)
+                    && callable_fields::placeholder_value(&signature.result, &bound.generic_name)
                 {
                     return self.state_term(
                         &signature.result,

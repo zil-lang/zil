@@ -315,10 +315,7 @@ pub(super) fn validate_template(
         || invocation_result
         || (bounds.len() == 1 && lending::supported_result(&function.return_type))
         || (owned_state
-            && callable_fields::placeholder_package(
-                &function.return_type,
-                &bounds[0].generic_name,
-            )))
+            && callable_fields::placeholder_value(&function.return_type, &bounds[0].generic_name)))
     {
         return Err(reject());
     }
@@ -379,7 +376,7 @@ pub(super) fn validate_template(
         }
         if mode.is_none()
             && !(owned_state
-                && callable_fields::placeholder_package(&parameter.ty, &bound.generic_name))
+                && callable_fields::placeholder_value(&parameter.ty, &bound.generic_name))
         {
             return Err(reject());
         }
@@ -1377,6 +1374,33 @@ impl Builder<'_, '_> {
                 "actual helper repeats its preparation bindings",
             ));
         }
+        let mut instance_enums = None;
+        if owned_state && bounds.len() == 1 {
+            let bound = &bounds[0];
+            let nested = template
+                .function
+                .parameters
+                .iter()
+                .map(|parameter| &parameter.ty)
+                .chain(std::iter::once(&template.function.return_type))
+                .any(|ty| {
+                    callable_fields::placeholder_value(ty, &bound.generic_name)
+                        && !callable_fields::placeholder_package(ty, &bound.generic_name)
+                });
+            if nested {
+                let closure = bindings.get(bound.generic_index, span)?;
+                let mut enums = BTreeMap::new();
+                for (name, ty) in &template.context.enums {
+                    let work = inference::type_snapshot_work(ty, span, self.limits)?;
+                    self.closures
+                        .snapshot(work.saturating_mul(3).saturating_add(name.len()), span)?;
+                    let mut ty = ty.clone();
+                    callable_fields::specialize_type(&mut ty, &bound.generic_name, closure);
+                    enums.insert(name.clone(), ty);
+                }
+                instance_enums = Some(enums);
+            }
+        }
         let mut builder = Builder::new(
             &function,
             id,
@@ -1428,7 +1452,7 @@ impl Builder<'_, '_> {
                 Some((bindings.get(bound.generic_index, span)?, bound.kind));
         }
         builder.imports = Some(&imports);
-        builder.enums = Some(&template.context.enums);
+        builder.enums = Some(instance_enums.as_ref().unwrap_or(&template.context.enums));
         let typed_result = builder.finish(&function.body);
         self.closures.active_helpers.remove(&key);
         let mut typed = typed_result?;

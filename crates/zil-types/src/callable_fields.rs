@@ -6,6 +6,78 @@ pub(super) fn placeholder_package(ty: &Type, name: &str) -> bool {
     matches!(ty, Type::Package { fields, .. } if fields.iter().any(|(_, t)| matches!(t, Type::Named(n) if n == name)))
 }
 
+pub(super) fn placeholder_value(ty: &Type, name: &str) -> bool {
+    fn contains(ty: &Type, name: &str) -> bool {
+        match ty {
+            Type::Named(actual) => actual == name,
+            Type::Package { fields, .. } => fields.iter().any(|(_, field)| contains(field, name)),
+            Type::Tuple(fields) => fields.iter().any(|field| contains(field, name)),
+            Type::Enum { variants, .. } => variants
+                .iter()
+                .any(|(_, fields)| fields.iter().any(|field| contains(field, name))),
+            _ => false,
+        }
+    }
+    matches!(
+        ty,
+        Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. }
+    ) && contains(ty, name)
+}
+
+pub(super) fn normalize_placeholder(ty: &mut Type, binder: &str) {
+    replace_composed(ty, binder, None);
+}
+
+// None is the inference-only placeholder. A concrete closure supplies a
+// real environment identity and a nominal name shared across helper scopes.
+fn replace_composed(ty: &mut Type, binder: &str, actual: Option<ClosureId>) -> bool {
+    fn replace_name(name: &mut String, actual: Option<ClosureId>) {
+        let base = nominal_base(name);
+        *name = actual.map_or_else(|| base.to_owned(), |id| format!("{base}:closure{}", id.0));
+    }
+    match ty {
+        Type::Named(name) if name == binder => {
+            *ty = actual.map_or_else(|| Type::Named("$callback".into()), Type::Closure);
+            true
+        }
+        Type::Package { name, fields } => {
+            let mut found = false;
+            for (_, field) in fields {
+                found |= replace_composed(field, binder, actual);
+            }
+            if found {
+                replace_name(name, actual);
+            }
+            found
+        }
+        Type::Tuple(fields) => {
+            let mut found = false;
+            for field in fields {
+                found |= replace_composed(field, binder, actual);
+            }
+            found
+        }
+        Type::Enum { name, variants } => {
+            let mut found = false;
+            for (_, fields) in variants {
+                for field in fields {
+                    found |= replace_composed(field, binder, actual);
+                }
+            }
+            if found {
+                replace_name(name, actual);
+            }
+            found
+        }
+        _ => {
+            if let Some(id) = actual {
+                specialize_other(ty, binder, id);
+            }
+            false
+        }
+    }
+}
+
 pub(super) fn template(function: &CoreFunction) -> bool {
     if !function.state_parameters.is_empty() {
         return true;
@@ -48,11 +120,11 @@ fn owning_profile<'a>(
     {
         return false;
     }
-    let returns_state = placeholder_package(result, &first.generic_name);
+    let returns_state = placeholder_value(result, &first.generic_name);
     if bounds.len() == 1 {
         return returns_state
             || parameter(first.index as usize)
-                .is_some_and(|ty| placeholder_package(ty, &first.generic_name));
+                .is_some_and(|ty| placeholder_value(ty, &first.generic_name));
     }
     returns_state
         && bounds.iter().all(|bound| {
@@ -111,100 +183,96 @@ pub(super) fn has_fields(ty: &Type) -> bool {
 /// Match the written ordinary owning shape. Exactly one concrete F identity is
 /// inferred, even when more than one declared field refers to F.
 pub(super) fn environment(pattern: &Type, actual: &Type, name: &str, span: Span) -> R<ClosureId> {
-    let mut found = None;
-    let pairs: Vec<(&Type, &Type)> = match (pattern, actual) {
-        (Type::Named(n), Type::Closure(_)) if n == name => vec![(pattern, actual)],
-        (
-            Type::Package {
-                name: a,
-                fields: af,
-            },
-            Type::Package {
-                name: b,
-                fields: bf,
-            },
-        ) if nominal_base(a) == nominal_base(b) && af.len() == bf.len() => af
-            .iter()
-            .zip(bf)
-            .map(|((an, at), (bn, bt))| {
-                if an == bn {
-                    Ok((at, bt))
-                } else {
-                    Err(error(
+    fn bind(
+        want: &Type,
+        got: &Type,
+        name: &str,
+        span: Span,
+        found: &mut Option<ClosureId>,
+    ) -> R<()> {
+        let mismatch = || {
+            error(
+                "E-TYPE-MISMATCH",
+                span,
+                "callable value has a different complete shape",
+            )
+        };
+        match (want, got) {
+            (Type::Named(n), Type::Closure(id)) if n == name => {
+                if found.replace(*id).is_some_and(|prior| prior != *id) {
+                    return Err(error(
                         "E-TYPE-MISMATCH",
                         span,
-                        "callable State field names differ",
-                    ))
+                        "callable value has several differing environment identities",
+                    ));
                 }
-            })
-            .collect::<R<_>>()?,
-        _ => {
-            return Err(error(
-                "E-TYPE-MISMATCH",
-                span,
-                "expected the complete callable State or its owned environment",
-            ));
-        }
-    };
-    for (want, got) in pairs {
-        if matches!(want, Type::Named(n) if n == name) {
-            let Type::Closure(id) = got else {
-                return Err(error(
-                    "E-TYPE-MISMATCH",
-                    span,
-                    "State F must be a concrete closure environment",
-                ));
-            };
-            if found.replace(*id).is_some_and(|prior| prior != *id) {
-                return Err(error(
-                    "E-TYPE-MISMATCH",
-                    span,
-                    "State fields require one concrete F identity",
-                ));
             }
-        } else if want != got {
-            return Err(error(
-                "E-TYPE-MISMATCH",
-                span,
-                "callable State ordinary field shape differs",
-            ));
+            (Type::Tuple(a), Type::Tuple(b)) if a.len() == b.len() => {
+                for (a, b) in a.iter().zip(b) {
+                    bind(a, b, name, span, found)?;
+                }
+            }
+            (
+                Type::Package {
+                    name: a,
+                    fields: af,
+                },
+                Type::Package {
+                    name: b,
+                    fields: bf,
+                },
+            ) if nominal_base(a) == nominal_base(b) && af.len() == bf.len() => {
+                for ((an, a), (bn, b)) in af.iter().zip(bf) {
+                    if an != bn {
+                        return Err(mismatch());
+                    }
+                    bind(a, b, name, span, found)?;
+                }
+            }
+            (
+                Type::Enum {
+                    name: a,
+                    variants: av,
+                },
+                Type::Enum {
+                    name: b,
+                    variants: bv,
+                },
+            ) if nominal_base(a) == nominal_base(b) && av.len() == bv.len() => {
+                for ((an, av), (bn, bv)) in av.iter().zip(bv) {
+                    if an != bn || av.len() != bv.len() {
+                        return Err(mismatch());
+                    }
+                    for (a, b) in av.iter().zip(bv) {
+                        bind(a, b, name, span, found)?;
+                    }
+                }
+            }
+            _ if want == got => {}
+            _ => return Err(mismatch()),
         }
+        Ok(())
     }
-    found.ok_or_else(|| error("E-TYPE-MISMATCH", span, "State has no concrete F field"))
+    let mut found = None;
+    bind(pattern, actual, name, span, &mut found)?;
+    found.ok_or_else(|| {
+        error(
+            "E-TYPE-MISMATCH",
+            span,
+            "callable value has no concrete environment",
+        )
+    })
 }
 
-pub(super) fn specialize_type(t: &mut Type, name: &str, id: ClosureId) {
+pub(super) fn specialize_type(ty: &mut Type, name: &str, id: ClosureId) {
+    replace_composed(ty, name, Some(id));
+}
+
+fn specialize_other(t: &mut Type, name: &str, id: ClosureId) {
     match t {
-        Type::Named(n) if n == name => *t = Type::Closure(id),
-        Type::Package {
-            name: nominal,
-            fields,
-        } => {
-            let contains = fields
-                .iter()
-                .any(|(_, t)| matches!(t,Type::Named(n) if n==name));
-            for (_, t) in fields {
-                specialize_type(t, name, id)
-            }
-            if contains {
-                *nominal = format!("{}:closure{}", nominal_base(nominal), id.0)
-            }
-        }
         Type::Record { fields, .. } => {
             for (_, t) in fields {
                 specialize_type(t, name, id)
-            }
-        }
-        Type::Tuple(fields) => {
-            for t in fields {
-                specialize_type(t, name, id)
-            }
-        }
-        Type::Enum { variants, .. } => {
-            for (_, fields) in variants {
-                for t in fields {
-                    specialize_type(t, name, id)
-                }
             }
         }
         Type::Task {
