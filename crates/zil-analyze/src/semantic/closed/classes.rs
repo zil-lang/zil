@@ -1977,7 +1977,8 @@ impl Check<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Option<Value>> {
-        let Type::Package { fields: declaration, .. } = ty else { return Ok(None); };
+        let Type::Package { fields: declaration, .. } = crate::resources::package_storage(ty)
+        else { return Ok(None); };
         let Some(start) = index.checked_sub(fields.len()) else { return Ok(None); };
         if fields.is_empty() || fields.len() != declaration.len() {
             return Ok(None);
@@ -1997,7 +1998,9 @@ impl Check<'_, '_> {
             };
             if instruction.result != Some(*operand)
                 || selected as usize != ordinal
-                || take == field.is_copy_value()
+                || take && field.is_copy_value()
+                || !take && !field.is_copy_value()
+                    && !crate::callable_fields::copy_value(self.module, field, b, 0)?
                 || local.is_some_and(|local| local != source)
             {
                 return Ok(None);

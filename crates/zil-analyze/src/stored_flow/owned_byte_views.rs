@@ -113,13 +113,11 @@ impl Heads {
                         .ok_or_else(|| failure("byte owner local is absent"))?
                         .ty;
                     let ty = if let Some(index) = field {
-                        let Type::Package { fields, .. } = ty else {
+                        if !matches!(resources::package_storage(ty), Type::Package { .. }) {
                             continue;
-                        };
-                        &fields
-                            .get(index as usize)
+                        }
+                        zil_ir::source_projection::physical_child(ty, PlaceProjection::Field(index))
                             .ok_or_else(|| failure("byte owner field is absent"))?
-                            .1
                     } else {
                         ty
                     };

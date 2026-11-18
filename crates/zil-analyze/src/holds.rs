@@ -1404,11 +1404,11 @@ fn contains_owned_store(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
     if dynamic_store::is_owned_carrier(ty) {
         return Ok(true);
     }
-    if let Type::Package { fields, .. } = ty {
+    if let Type::Package { fields, .. } = resources::package_storage(ty) {
         budget.spend(fields.len(), "captured Store whole-position classification")?;
         for (_, field) in fields {
             if dynamic_store::is_owned_carrier(field)
-                || (matches!(field, Type::Package { .. }) && contains_owned_store(field, budget)?)
+                || (matches!(resources::package_storage(field), Type::Package { .. }) && contains_owned_store(field, budget)?)
             {
                 return Ok(true);
             }
@@ -1466,7 +1466,7 @@ fn store_window_transition(
                     matches!(ty, Type::OwnedDyn { .. })
                         || dynamic_store::is_owned_carrier(ty)
                         || (callback_windows
-                            && matches!(ty, Type::Managed(_) | Type::Package { .. }))
+                            && matches!(resources::package_storage(ty), Type::Managed(_) | Type::Package { .. }))
                         || (forward_windows && matches!(ty, Type::Closure(_)))
                 }) =>
         {
@@ -1493,19 +1493,15 @@ fn store_window_transition(
         InstructionKind::TakePackageField { local, index }
         | InstructionKind::DropPackageField { local, index }
         | InstructionKind::StorePackageField { local, index, .. }
-            if match &f.locals[local.0 as usize].ty {
-                Type::Package { fields, .. } => match fields.get(index as usize) {
-                    Some((_, ty)) => {
-                        (forward_windows && matches!(ty, Type::Closure(_)))
-                            || (callback_windows && boundary_owner(ty, true, budget)?)
-                            || dynamic_store::is_owned_carrier(ty)
-                            || (matches!(ty, Type::Package { .. })
-                                && contains_owned_store(ty, budget)?)
-                    }
-                    None => false,
-                },
-                _ => false,
-            } =>
+            if matches!(resources::package_storage(&f.locals[local.0 as usize].ty), Type::Package { .. })
+                && let Some(ty) = zil_ir::source_projection::physical_child(
+                    &f.locals[local.0 as usize].ty, PlaceProjection::Field(index),
+                )
+                && ((forward_windows && matches!(ty, Type::Closure(_)))
+                    || (callback_windows && boundary_owner(ty, true, budget)?)
+                    || dynamic_store::is_owned_carrier(ty)
+                    || (matches!(resources::package_storage(ty), Type::Package { .. })
+                        && contains_owned_store(ty, budget)?)) =>
         {
             Some(Root::Field(local, index))
         }
@@ -2083,11 +2079,16 @@ fn infer_with_private(
                                 .result
                                 .is_some_and(|value| tracked_desc(&f.values[value.0 as usize])) =>
                         {
-                            let root = match &f.locals[local.0 as usize].ty {
-                            Type::Package { fields, .. } if fields.get(*index as usize)
-                                .is_some_and(|(_, ty)| matches!(ty, Type::Managed(inner) if **inner == Type::ByteBuffer || matches!(inner.as_ref(), Type::OwnedStore { .. }))) => Root::Field(*local, *index),
-                            _ => Root::Local(*local),
-                        };
+                            let parent = &f.locals[local.0 as usize].ty;
+                            let field = zil_ir::source_projection::physical_child(parent, PlaceProjection::Field(*index));
+                            let root = if matches!(resources::package_storage(parent), Type::Package { .. })
+                                && matches!(field, Some(Type::Managed(inner))
+                                    if inner.as_ref() == &Type::ByteBuffer || matches!(inner.as_ref(), Type::OwnedStore { .. }))
+                            {
+                                Root::Field(*local, *index)
+                            } else {
+                                Root::Local(*local)
+                            };
                             found.insert(root);
                         }
                         InstructionKind::ProjectOwnedArrayField { local, .. }
@@ -3149,7 +3150,7 @@ fn parameter_product_windows(
                     local_known[local] = true;
                     changed = true;
                 }
-                let fields = match &f.locals[local].ty {
+                let fields = match resources::package_storage(&f.locals[local].ty) {
                     Type::Package { fields, .. } => fields,
                     _ => continue,
                 };

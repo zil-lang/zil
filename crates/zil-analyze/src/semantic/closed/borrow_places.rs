@@ -316,27 +316,15 @@ impl Check<'_, '_> {
     ) -> CompileResult<&'a Type> {
         for index in path {
             b.spend(1, WORK)?;
-            if let Type::BorrowedStorage { storage, .. } = ty {
-                ty = storage;
-            }
-            ty = match ty {
-                Type::Record { fields, .. } | Type::Package { fields, .. } => {
-                    &fields
-                        .get(*index as usize)
-                        .ok_or_else(|| {
-                            fail("actual borrowed field exceeds complete nominal arity")
-                        })?
-                        .1
-                }
-                Type::Tuple(fields) => fields
-                    .get(*index as usize)
-                    .ok_or_else(|| fail("actual borrowed field exceeds complete tuple arity"))?,
-                _ => {
-                    return Err(fail(
-                        "actual borrowed field crosses a pointer, owner or opaque boundary",
-                    ));
-                }
+            let physical = match ty {
+                Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                _ => ty,
             };
+            if !matches!(physical, Type::Record { .. } | Type::Package { .. } | Type::Tuple(_)) {
+                return Err(fail("actual borrowed field crosses a pointer, owner or opaque boundary"));
+            }
+            ty = zil_ir::source_projection::physical_child(ty, PlaceProjection::Field(*index))
+                .ok_or_else(|| fail("actual borrowed field exceeds its complete product arity"))?;
         }
         Ok(ty)
     }

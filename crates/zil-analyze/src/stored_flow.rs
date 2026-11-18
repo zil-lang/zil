@@ -475,22 +475,15 @@ fn ordinary_inline_package_target(
     .ok_or_else(|| failure("ordinary Package source root absent"))?;
     for step in &target.place {
         fee(b, 1)?;
-        if let Type::BorrowedStorage { storage, .. } = ty {
-            ty = storage;
+        if !matches!((step, resources::package_storage(ty)),
+            (PlaceProjection::Field(_), Type::Package { .. }))
+        {
+            return Ok(false);
         }
-        ty = match (step, ty) {
-            (PlaceProjection::Field(index), Type::Package { fields, .. }) => {
-                &fields
-                    .get(*index as usize)
-                    .ok_or_else(|| failure("ordinary Package source path absent"))?
-                    .1
-            }
-            _ => return Ok(false),
-        };
+        ty = zil_ir::source_projection::physical_child(ty, *step)
+            .ok_or_else(|| failure("ordinary Package source path absent"))?;
     }
-    if let Type::BorrowedStorage { storage, .. } = ty {
-        ty = storage;
-    }
+    let ty = resources::package_storage(ty);
     b.type_work(ty, false, "actual inline Package source equality")?;
     b.type_work(expected, false, "actual inline Package endpoint equality")?;
     Ok(matches!(ty, Type::Package { .. }) && ty == expected)
@@ -6105,15 +6098,17 @@ fn transfer(
                 Some((HoldRoot::Local(local), vec![]))
             }
             InstructionKind::DescribePackageField { local, index } => {
-                let Some(Type::Package { fields, .. }) =
-                    f.locals.get(local.0 as usize).map(|local| &local.ty)
-                else {
+                let owner = f.locals.get(local.0 as usize)
+                    .filter(|owner| owner.id == local)
+                    .ok_or_else(|| failure("Store description field lacks its actual local"))?;
+                let Type::Package { fields, .. } = resources::package_storage(&owner.ty) else {
                     return Err(failure("Store description field lacks an actual Package"));
                 };
                 fee(b, fields.len())?;
-                if fields.get(index as usize).map(|(_, field)| field)
-                    != Some(&Type::Managed(payload.clone()))
-                {
+                if !matches!(
+                    zil_ir::source_projection::physical_child(&owner.ty, PlaceProjection::Field(index)),
+                    Some(Type::Managed(child)) if child == payload
+                ) {
                     return Err(failure(
                         "Store description differs from its actual managed field",
                     ));
@@ -10226,14 +10221,12 @@ fn actual_instructions(
                         .get(local.0 as usize)
                         .ok_or_else(|| failure("package field local is absent"))?
                         .ty;
-                    let parent = carrier(parent).map_or(parent, |(storage, _)| storage);
-                    let Type::Package { fields, .. } = parent else {
+                    if !matches!(resources::package_storage(parent), Type::Package { .. }) {
                         return Err(failure("package field operation lacks actual shell"));
-                    };
-                    let field = &fields
-                        .get(*index as usize)
-                        .ok_or_else(|| failure("package field index is absent"))?
-                        .1;
+                    }
+                    let field = zil_ir::source_projection::physical_child(
+                        parent, PlaceProjection::Field(*index),
+                    ).ok_or_else(|| failure("package field index is absent"))?;
                     b.type_work(field, true, "package field operation actual child")?;
                     match &i.kind {
                         InstructionKind::TakePackageField { .. } => {
