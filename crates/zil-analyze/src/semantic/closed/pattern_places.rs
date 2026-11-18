@@ -421,6 +421,126 @@ impl Check<'_, '_> {
             _ => None,
         }
     }
+    fn pattern_subject_root(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        node: zil_base::NodeId,
+        value: ValueId,
+        anchor: LocalId,
+        path: &[u32],
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<bool> {
+        if depth > b.partial_depth {
+            return Err(unknown(
+                "original pattern subject exceeds its finite field depth",
+            ));
+        }
+        let (block, index, producer) = self.defining(function, value, b)?;
+        let direct = match &producer.kind {
+            InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                path.is_empty() && *local == anchor
+            }
+            InstructionKind::TakePackageField { local, index }
+            | InstructionKind::ReadPackageField { local, index } => {
+                *local == anchor && path == [*index]
+            }
+            InstructionKind::TakeTupleField {
+                local,
+                path: selected,
+            }
+            | InstructionKind::TakeVariantField {
+                local,
+                path: selected,
+            } => {
+                *local == anchor
+                    && selected
+                        .iter()
+                        .copied()
+                        .eq(path.iter().copied().map(PlaceProjection::Field))
+            }
+            _ => false,
+        };
+        if direct {
+            return Ok(true);
+        }
+        let (local, field) = match producer.kind {
+            InstructionKind::TakePackageField { local, index }
+            | InstructionKind::ReadPackageField { local, index } => (local, index),
+            _ => return Ok(false),
+        };
+        let Some((&last, prefix)) = path.split_last() else {
+            return Ok(false);
+        };
+        if last != field {
+            return Ok(false);
+        }
+
+        // A consuming field access can move its original receiver into a
+        // temporary first. Reconstruct each actual receiver at its exact read.
+        let original = self.inventory.original_index(instance.definition, b)?;
+        let CoreExprKind::Member { object, .. } = &original.get_expr(node, b)?.kind else {
+            return Ok(false);
+        };
+        let parent = match self.original_subject_value(instance, function, object.id, b)? {
+            Some(value) => value,
+            None if prefix.is_empty() && matches!(object.kind, CoreExprKind::Name(_)) => {
+                // A plain moved name need not have a separate semantic site.
+                // Its latest actual use here must consume this very binding.
+                let mut moved = None;
+                for instruction in function.blocks[block.0 as usize].instructions[..index].iter().rev() {
+                    b.spend(1, WORK)?;
+                    if let InstructionKind::TakeLocal { local } = instruction.kind
+                        && local == anchor
+                    {
+                        moved = instruction.result;
+                        break;
+                    }
+                    let touches = match crate::incremental::Operation::of(&instruction.kind) {
+                        crate::incremental::Operation::Read(local)
+                        | crate::incremental::Operation::Store(local)
+                        | crate::incremental::Operation::Take(local)
+                        | crate::incremental::Operation::Kill(local) => local == anchor,
+                        crate::incremental::Operation::Unpack { source, fields } => {
+                            b.spend(fields.len(), WORK)?;
+                            source == anchor || fields.contains(&anchor)
+                        }
+                        crate::incremental::Operation::Other => false,
+                    };
+                    if touches { break; }
+                }
+                let Some(value) = moved else { return Ok(false) };
+                value
+            }
+            None => return Ok(false),
+        };
+        let actual = function
+            .locals
+            .get(local.0 as usize)
+            .filter(|entry| entry.id == local)
+            .ok_or_else(|| fail("pattern field has no actual receiver local"))?;
+        let ty = function
+            .values
+            .get(parent.0 as usize)
+            .ok_or_else(|| fail("pattern receiver has no emitted SSA type"))?;
+        if !geometry::same_type(&actual.ty, ty, b)?
+            || !self.local_holds_operand_at(function, local, block, index, parent, b)?
+        {
+            return Ok(false);
+        }
+        self.pattern_subject_root(
+            instance,
+            function,
+            object.id,
+            parent,
+            anchor,
+            prefix,
+            b,
+            depth + 1,
+        )
+    }
+
     pub(super) fn pattern_local(
         &self,
         instance: &SemanticInstance,
@@ -461,36 +581,9 @@ impl Check<'_, '_> {
         let emitted = self.projected_pattern_subject(instance, function, origin.subject.node,
             origin.subject.success_projections, b, depth + 1)?;
         let root = if let Some(value) = emitted {
-            let (_, _, producer) = self.defining(function, value, b)?;
             if let Some(anchor) = anchored {
-                // A source name/field still has to read the original root;
-                // a forged same-typed SSA cannot provide another subject.
-                let valid = match &producer.kind {
-                    InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
-                        origin.subject.path.is_empty() && *local == anchor
-                    }
-                    InstructionKind::TakePackageField { local, index }
-                    | InstructionKind::ReadPackageField { local, index } => {
-                        *local == anchor && origin.subject.path.as_slice() == [*index]
-                    }
-                    InstructionKind::TakeTupleField {
-                        local,
-                        path: selected,
-                    }
-                    | InstructionKind::TakeVariantField {
-                        local,
-                        path: selected,
-                    } => {
-                        *local == anchor
-                            && selected.iter().copied().eq(origin
-                                .subject
-                                .path
-                                .iter()
-                                .copied()
-                                .map(PlaceProjection::Field))
-                    }
-                    _ => false,
-                };
+                let valid = self.pattern_subject_root(instance, function, origin.subject.node, value,
+                    anchor, &origin.subject.path, b, depth + 1)?;
                 if !valid {
                     return Err(fail(
                         "pattern subject reads another original root or field path",

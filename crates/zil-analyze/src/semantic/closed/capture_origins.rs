@@ -32,6 +32,7 @@ struct Graph<'c, 'a, 'i, 'f> {
     producer: Option<ValueId>,
     producers: Option<BTreeSet<ValueId>>,
     probe: bool,
+    untouched_whole: bool,
     scalar_mirror: Option<(LocalId, u32)>,
     indices: BTreeMap<Query, usize>,
     nodes: Vec<Node>,
@@ -60,6 +61,7 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
             producer: None,
             producers: None,
             probe: false,
+            untouched_whole: false,
             scalar_mirror: None,
             indices: BTreeMap::new(),
             nodes: Vec::new(),
@@ -317,6 +319,19 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
                     ));
                 }
                 kind => match crate::incremental::Operation::of(kind) {
+                    // An intermediate whole-owner spill must retain the exact
+                    // occupant. A projected replacement or a new writable view
+                    // cannot be justified by the earlier whole Store alone.
+                    crate::incremental::Operation::Read(target)
+                        if self.untouched_whole && target == local &&
+                            !matches!(kind, InstructionKind::PlaceTagLocal { .. }
+                                | InstructionKind::VariantTagLocal { .. }
+                                | InstructionKind::ReadVariantLocal { .. }
+                                | InstructionKind::ReadPackageField { .. }
+                                | InstructionKind::BorrowLocal { .. }) =>
+                    {
+                        return Ok((Some(1), Vec::new()));
+                    }
                     crate::incremental::Operation::Take(target)
                     | crate::incremental::Operation::Kill(target)
                         if target == local =>
@@ -511,6 +526,22 @@ impl Check<'_, '_> {
         graph.probe=true;
         Ok(graph.solve(Query::Value(value),b)?==0)
     }
+    pub(super) fn local_holds_operand_at(
+        &self,
+        function: &TypedFunction,
+        local: LocalId,
+        block: BlockId,
+        index: usize,
+        producer: ValueId,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        let mut graph = Graph::new(self, function, b)?;
+        graph.producer = Some(producer);
+        graph.probe = true;
+        graph.untouched_whole = true;
+        Ok(graph.solve(Query::Local(local, block, index), b)? == 0)
+    }
+
     pub(super) fn operation_operands_cover(&self, function: &TypedFunction,
         value: ValueId, producers: &BTreeSet<ValueId>, b: &mut Budget) -> CompileResult<bool> {
         let mut graph = Graph::new(self, function, b)?;
