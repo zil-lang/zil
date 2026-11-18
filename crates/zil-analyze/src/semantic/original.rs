@@ -5302,11 +5302,14 @@ impl Solver<'_, '_> {
             }
             Kind::Associated { .. } => self.associated_satisfies(term, predicate, b, depth + 1),
             Kind::SelfType(_) => self.associated_satisfies(term, predicate, b, depth + 1),
-            Kind::Array { element, .. } => {
+            Kind::Array { element, length } => {
                 if matches!(predicate, Predicate::StoreElement) {
-                    return Err(unknown(
-                        "original array Store qualification requires its full layout and cleanup proof",
-                    ));
+                    let length = self.root(*length, b)?;
+                    match self.state.arena[length] {
+                        Kind::ConstValue(Constant::Usize(0)) => return Ok(false),
+                        Kind::ConstValue(Constant::Usize(_)) => {}
+                        _ => return Err(unknown("array Store element requires its original concrete length")),
+                    }
                 }
                 self.satisfies(*element, predicate, b, depth + 1)
             }
