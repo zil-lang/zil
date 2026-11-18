@@ -261,8 +261,9 @@ impl CheckedOriginal {
                 Ty::Managed(inner)=>{
                     self.unify(&inner,&payload,b)?;
                     let owner=env.current()?;
-                    if let Some((call,ordinal))=call && place.is_none()
-                        && self.temporary_description_producer(expression,b)?.is_some()
+                    if let Some((call,ordinal))=call && (
+                        self.prepared_source(owner, expression.id, b)?.is_some()
+                        || place.is_none() && self.temporary_description_producer(expression,b)?.is_some())
                     {
                         let life=self.declare_temporary_description(owner,call,ordinal,b)?;
                         self.relate_outer(&life,&expected_life,b)?;

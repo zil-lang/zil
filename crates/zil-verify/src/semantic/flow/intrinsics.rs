@@ -317,7 +317,18 @@ impl CheckedContext {
                 if let InstructionKind::Store { local: destination, value } = instruction.kind
                     && destination == local
                 {
-                    if block.id != describe_block || at >= describe_at as usize || initializer.replace(value).is_some() {
+                    let store = SitePoint {
+                        function: f.id,
+                        block: block.id,
+                        instruction: u32::try_from(at).map_err(|_| limit("temporary owner instruction exceeds the actual point domain"))?,
+                        after: false,
+                    };
+                    let observation = SitePoint {
+                        function: f.id, block: describe_block, instruction: describe_at, after: false,
+                    };
+                    if initializer.replace(value).is_some()
+                        || !closure_boundaries::creation_dominates(f, store, observation, b)?
+                    {
                         return Err(bad("temporary description does not have one dominating owner initializer"));
                     }
                 }

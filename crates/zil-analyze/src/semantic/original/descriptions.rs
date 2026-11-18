@@ -151,17 +151,35 @@ impl Solver<'_, '_> {
         if !matches!(self.state.arena[self.type_root(expected, b)?], Kind::Desc { .. }) {
             return Ok(None);
         }
+        let mut staged = None;
+        if let CoreExprKind::Name(name) = &argument.kind {
+            for local in frame.locals.iter().rev() {
+                b.spend(local.name.len().saturating_add(name.len()).saturating_add(1), WORK)?;
+                if &local.name == name {
+                    if let Some(producer) = local.prepared_at
+                        && matches!(self.state.arena[self.type_root(local.ty, b)?],
+                            Kind::Wrapped(Wrapper::Managed, _))
+                    {
+                        self.local_available(local, &[], b)?;
+                        staged = Some((producer, local.ty));
+                    }
+                    break;
+                }
+            }
+        }
         b.lookup(self.call_parameters.len(), WORK)?;
         if !self.call_parameters.contains(&expected)
-            || prepared.is_none() && self.place(frame, argument, false, b, depth + 1)?.is_some()
+            || staged.is_none() && prepared.is_none() && self.place(frame, argument, false, b, depth + 1)?.is_some()
         {
             return Ok(None);
         }
-        let source = match prepared {
+        let source = match staged.map(|(_, ty)| ty).or(prepared) {
             Some(source) => source,
             None => self.expression(frame, argument, b, depth + 1)?,
         };
-        self.prepare_call_value(frame.definition, argument.id, source, b)?;
+        if staged.is_none() {
+            self.prepare_call_value(frame.definition, argument.id, source, b)?;
+        }
         let deferred = self.deferred_call_type(expected, b)?;
         let Kind::Wrapped(Wrapper::Managed, payload) =
             self.state.arena[self.type_root(source, b)?]
@@ -181,9 +199,17 @@ impl Solver<'_, '_> {
             b.spend(1, WORK)?;
             producer = inner;
         }
+        if staged.is_some() {
+            b.lookup(frame.expressions.len(), WORK)?;
+            if frame.expressions.insert(argument.id, view).is_some() {
+                return Err(fail("prepared description repeats its exact argument"));
+            }
+        }
         b.lookup(self.state.temporary_descriptions.len(), WORK)?;
         if self.state.temporary_descriptions.insert(
-            (frame.definition, call, ordinal), Temporary { producer: producer.id, source, view },
+            (frame.definition, call, ordinal), Temporary {
+                producer: staged.map_or(producer.id, |(producer, _)| producer), source, view
+            },
         ).is_some() {
             return Err(fail("original temporary description repeats one argument occurrence"));
         }

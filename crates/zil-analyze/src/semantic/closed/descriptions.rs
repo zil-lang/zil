@@ -212,20 +212,9 @@ impl Check<'_, '_> {
                 }
                 let original_value = self.original_subject_value(instance, function, original.producer, b)?
                     .ok_or_else(|| fail("temporary description lacks its exact original owning producer"))?;
-                let store = index.checked_sub(1)
-                    .ok_or_else(|| fail("temporary description lacks actual owner initialization"))?;
-                let (source_block, source_index, _) = self.defining(function, original_value, b)?;
-                if source_block != block || source_index >= store {
-                    return Err(fail("temporary description owner is outside its actual call preparation"));
-                }
-                let stored = caller.instructions.get(store)
-                    .ok_or_else(|| fail("temporary description has no actual owner Store"))?;
-                if !matches!(stored.kind, InstructionKind::Store { local: target, value }
-                    if target == local && value == original_value)
-                {
-                    return Err(fail("temporary description selects a different prepared owner"));
-                }
-                operations::available_before(function, (block, store, SemanticSiteEdge::Before), original_value, b)?;
+                operations::available_before(function, (block, index, SemanticSiteEdge::Before), original_value, b)?;
+                operations::initialized_local_before(function, (block, index), local, b)?;
+                self.original_producer_local(function, local, (block, index), original_value, b)?;
                 operations::initialized_local_before(function, (block, call_at), local, b)?;
                 self.original_producer_local(function, local, (block, call_at), original_value, b)?;
                 let (owner, view) = self.original.temporary_description_values(

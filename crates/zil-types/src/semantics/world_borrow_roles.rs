@@ -2480,16 +2480,8 @@ fn temporary_description(
     }
     let source = occurrences::owning_expression_value(world, instance, original, producer_node)?
         .ok_or_else(|| pending("temporary description requires an exact original owning value producer"))?;
-    let (_, source_block, produced_at) = producer(world, function, source)?;
-    let Some(stored_at) = at.checked_sub(1) else {
-        return Err(bad("temporary description has no actual staged owner initialization"));
-    };
-    world.pay(function.blocks.len().saturating_add(1))?;
-    let staged = function.blocks.iter().find(|row| row.id == block)
-        .and_then(|row| row.instructions.get(stored_at))
-        .ok_or_else(|| bad("temporary description has no staged owner instruction"))?;
-    if source_block != block || produced_at >= stored_at
-        || !matches!(staged.kind, InstructionKind::Store { local: target, value } if target == *local && value == source)
+    if reaching_values(world, function, *local, (block, at))?.as_slice()
+            != [ActivationSource::Value(source)]
         || reaching_values(world, function, *local, (call_block, call_at as usize))?.as_slice()
             != [ActivationSource::Value(source)]
     {

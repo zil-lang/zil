@@ -95,8 +95,20 @@ impl CheckedOriginal {
                 Ok(self.call_targets.contains_key(&(owner,site))||self.trait_calls.contains_key(&(owner,site))||self.callable_nodes.contains_key(&(owner,expression.id))||self.intrinsic_calls.contains_key(&(owner,site)))
             },
             CoreExprKind::Record{..}|CoreExprKind::RecordConstructor{..}=>Ok(self.created.contains(&(owner,expression.id))&&matches!(self.original_type(owner,&SemanticOriginalTypeSource::Expression(expression.id),b)?,Ty::Managed(_))),
+            CoreExprKind::Name(_) => Ok(self.prepared_source(owner, expression.id, b)?.is_some()),
             _=>Ok(false),
         }
+    }
+    pub(super) fn prepared_source(&self, owner: SemanticDefinitionId, argument: NodeId, b: &mut Budget) -> Check<Option<NodeId>> {
+        if self.prepared_locals.is_empty() {
+            return Ok(None);
+        }
+        b.spend(self.value_places.len().saturating_add(1).ilog2() as usize
+            + self.prepared_locals.len().saturating_add(1).ilog2() as usize + 2)?;
+        let Some(place) = self.value_places.get(&(owner, argument))
+            .filter(|place| place.fields.is_empty()) else { return Ok(None); };
+        place.binder.charge_clone(b)?;
+        Ok(self.prepared_locals.get(&place.binder).copied())
     }
     pub(super) fn creation(&self,definition:SemanticDefinitionId,expression:&SemanticOriginalExpr,bindings:&BTreeMap<String,Binding>,b:&mut Budget)->Check<bool>{
         b.spend(1)?;

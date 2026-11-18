@@ -181,6 +181,7 @@ struct Borrow {
 }
 struct Local {
     anchor: Option<LocalAnchor>,
+    prepared_at: Option<NodeId>,
     name: String,
     ty: Term,
     mutable: bool,
@@ -896,6 +897,7 @@ impl Solver<'_, '_> {
             &mut frame.locals,
             Local {
                 anchor: None,
+                prepared_at: None,
                 name: name.to_owned(),
                 ty,
                 mutable,
@@ -1252,6 +1254,7 @@ impl Solver<'_, '_> {
                 &mut locals,
                 Local {
                     anchor: local.anchor,
+                    prepared_at: local.prepared_at,
                     name: local.name.clone(),
                     ty: local.ty,
                     mutable: local.mutable,
@@ -1836,13 +1839,28 @@ impl Solver<'_, '_> {
                         frame.captured.insert(index, frame.locals[index].ty);
                     }
                     if frame.alive { self.local_available(&frame.locals[index], &[], b)?; }
-                    // An ordinary read of a managed place describes its current
-                    // occupant. Only explicit give transfers this owner's debt.
+                    // Ordinary managed names describe their occupants. A
+                    // prepared slot carries the result of an already checked
+                    // initialization and transfers it only to an owning input.
                     let stored = frame.locals[index].ty;
                     match self.state.arena[self.type_root(stored, b)?] {
                         Kind::Wrapped(Wrapper::Managed, _) => {
                             let place = self.place(frame, value, true, b, depth + 1)?
                                 .ok_or_else(|| fail("named managed observation has no initialized place"))?;
+                            if frame.locals[index].prepared_at.is_some()
+                                && let Some(wanted) = self.receiving_for(frame, value.id, b)?
+                                && matches!(self.state.arena[self.type_root(wanted, b)?],
+                                    Kind::Wrapped(Wrapper::Managed, _))
+                            {
+                                if frame.alive {
+                                    self.capture_read(frame, index, b)?;
+                                    frame.locals[index].used = true;
+                                    frame.locals[index].live = false;
+                                }
+                                b.lookup(frame.expressions.len(), WORK)?;
+                                frame.expressions.insert(value.id, stored);
+                                return Ok(stored);
+                            }
                             return self.describe_argument(frame, value, &place, stored, b, depth + 1);
                         }
                         Kind::Desc { .. } => {
@@ -1955,13 +1973,16 @@ impl Solver<'_, '_> {
                             return Err(fail("original sequence repeats or exposes a generated temporary"));
                         }
                         let ty = self.expression(frame, initializer, b, depth + 1)?;
-                        Self::push(&mut self.needs, Need { term: ty, predicate: Predicate::Copy }, b)?;
                         self.bind(frame, name, ty, false, b)?;
+                        frame.locals.last_mut().expect("prepared local").prepared_at = Some(initializer.id);
                     }
                     let result = match self.receiving_for(frame, value.id, b)? {
                         Some(expected) => self.expression_expected(frame, result, expected, b, depth + 1)?,
                         None => self.expression(frame, result, b, depth + 1)?,
                     };
+                    if frame.alive {
+                        self.cleanup(frame.definition, &frame.locals[scope..], b)?;
+                    }
                     frame.locals.truncate(scope);
                     result
                 }
@@ -4848,6 +4869,7 @@ impl Solver<'_, '_> {
                 &mut output,
                 Local {
                     anchor: local.anchor,
+                    prepared_at: local.prepared_at,
                     name: local.name.clone(),
                     ty: local.ty,
                     mutable: local.mutable,
@@ -4955,7 +4977,10 @@ impl Solver<'_, '_> {
         for local in locals {
             b.spend(1, WORK)?;
             if local.live && !local.borrowed {
-                let origin = cleanup::Origin::local(definition, local.anchor, cleanup::Event::Scope);
+                let origin = local.prepared_at.map_or_else(
+                    || cleanup::Origin::local(definition, local.anchor, cleanup::Event::Scope),
+                    |producer| cleanup::Origin::expression(definition, producer),
+                );
                 self.cleanup_partial(local.ty, &[], &local.vacant, &origin, b, 0)?;
             }
         }

@@ -28,7 +28,9 @@ impl CheckedOriginal {
             while let CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=&expression.kind{b.spend(1)?;expression=inner;}
             let ty=self.resolved(&ty,b)?;
             let source=if self.temporary_description_region(definition,call.id,ordinal+usize::from(receiver),b)?.is_some(){
-                let node=self.temporary_description_producer(argument,b)?.ok_or_else(||bad("temporary description argument has no exact original owning producer"))?;
+                let node = self.prepared_source(definition, argument.id, b)?
+                    .or(self.temporary_description_producer(argument,b)?)
+                    .ok_or_else(||bad("temporary description argument has no exact original owning producer"))?;
                 if !matches!(ty,Ty::Managed(_)){
                     return Err(bad("temporary description argument no longer carries its exact original owner"));
                 }

@@ -141,7 +141,33 @@ impl CheckedOriginal {
                 CoreExprKind::Record{ty,fields}=>{let ty=self.ty(module,context,ty,env,active,b)?;self.record(module,context,&ty,fields,None,env,bindings,active,b)?;self.constructed_resource(module,context,ty,expression,env,b)?},
                 CoreExprKind::RecordConstructor{definition,fields}=>self.record_constructor(module,context,expression,*definition,fields,env,bindings,expected,active,b)?,
                 CoreExprKind::RecordUpdate{ty,base,fields}=>{let annotation=ty.as_ref().map(|ty|self.ty(module,context,ty,env,active,b)).transpose()?;let base=self.expression(module,context,base,env,bindings,annotation.as_ref().or(expected),active,b)?;self.record(module,context,&base,fields,Some(&base),env,bindings,active,b)?;base},
-                CoreExprKind::Sequence{bindings:initializers,value}=>{let before=self.live_keys(env,b)?;let mut locals=bindings.clone();for(name,initializer)in initializers{let actual=self.expression(module,context,initializer,env,&locals,None,active,b)?;let binding=Binding{ty:actual,mutable:false,identity:Binder::Local{definition:id,node:initializer.id,name:name.clone()}};self.declare(env,&binding,b)?;locals.insert(name.clone(),binding);}let value=self.expression(module,context,value,env,&locals,expected,active,b)?;self.exit_scope(env,&before,b)?;value},
+                CoreExprKind::Sequence { bindings:initializers, value } => {
+                    let before = self.live_keys(env,b)?;
+                    let mut locals = bindings.clone();
+                    for (name, initializer) in initializers {
+                        b.spend(name.len().saturating_add(1))?;
+                        if !name.starts_with('$') || locals.contains_key(name) {
+                            return Err(bad("original sequence repeats or exposes a generated temporary"));
+                        }
+                        let actual = match self.description_binding(module, context, initializer,
+                            None, env, &locals, active, b)? {
+                            Some(description) => description,
+                            None => self.expression(module,context,initializer,env,&locals,None,active,b)?,
+                        };
+                        let binding = Binding { ty:actual, mutable:false,
+                            identity:Binder::Local { definition:id, node:initializer.id, name:name.clone() } };
+                        if matches!(self.resolved(&binding.ty, b)?, Ty::Managed(_)) {
+                            binding.identity.charge_clone(b)?;
+                            b.spend(1)?;
+                            self.prepared_locals.insert(binding.identity.clone(), initializer.id);
+                        }
+                        self.declare(env,&binding,b)?;
+                        locals.insert(name.clone(),binding);
+                    }
+                    let value = self.expression(module,context,value,env,&locals,expected,active,b)?;
+                    self.exit_scope(env,&before,b)?;
+                    value
+                },
                 CoreExprKind::If{condition,then_value,else_value}=>{
                     self.condition_original(module,context,condition,env,bindings,active,b)?;let before=self.use_snapshot(env,b)?;
                     let(yes,yes_uses,no,no_uses)=if Self::contextual_numeric_literal(then_value,b)?{

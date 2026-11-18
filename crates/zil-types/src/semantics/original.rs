@@ -2679,10 +2679,32 @@ impl<'a> Check<'a, '_> {
                     matches!(parameter.ty, SemanticTypeRecipe::Atom(_)).then_some(&parameter.ty)
                 })
             };
+            let prepared = match (&argument.kind, &parameter.ty) {
+                (CoreExprKind::Name(name), SemanticTypeRecipe::Desc { .. } | SemanticTypeRecipe::Managed(_)) => {
+                    self.pay(name.len().saturating_add(variables.len().saturating_add(1).ilog2() as usize + 1), depth)?;
+                    if let Some(binding) = variables.get(name)
+                        && let Query::Expression(initializer) = binding.origin
+                        && binding.origin_owner == owner
+                        && matches!(
+                            self.observation_type(owner, &binding.ty, depth + 1)?,
+                            SemanticTypeRecipe::Managed(_)
+                        )
+                    {
+                        Some(initializer)
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            };
             self.pay(roles.len(), depth)?;
             let actual =
                 if let Some((_, role)) = roles.iter().find(|(node, _)| *node == argument.id) {
                     copy_recipe(role, self.limits, self.left)?
+                } else if prepared.is_some() && matches!(parameter.ty, SemanticTypeRecipe::Desc { .. }) {
+                    self.place(owner, argument, variables, depth + 1)?
+                } else if prepared.is_some() && matches!(parameter.ty, SemanticTypeRecipe::Managed(_)) {
+                    self.give_place(owner, argument, variables, depth + 1)?
                 } else if matches!(
                     &parameter.ty,
                     SemanticTypeRecipe::Formal(SemanticFormalRef {
@@ -2741,7 +2763,10 @@ impl<'a> Check<'a, '_> {
                         self.pay(1, depth)?;
                         producer = value;
                     }
-                    let receipt = TemporaryDescription { argument: argument.id, producer: producer.id };
+                    let receipt = TemporaryDescription {
+                        argument: argument.id,
+                        producer: prepared.unwrap_or(producer.id),
+                    };
                     self.pay(self.proof.temporary_descriptions.len().saturating_add(1).ilog2() as usize + 1, depth)?;
                     if self.proof.proof_mut()?.temporary_descriptions
                         .insert((owner, call.id, parameter), receipt)
@@ -3676,9 +3701,6 @@ impl<'a> Check<'a, '_> {
                         return Err(bad("original sequence repeats or exposes a generated temporary"));
                     }
                     let ty = self.expr(owner, initializer, variables, None, depth + 1)?;
-                    if !self.copy_type(owner, &ty, depth + 1)? {
-                        return Err(pending("original sequence temporary needs a complete Copy payload"));
-                    }
                     self.pay(name.len().saturating_add(1), depth)?;
                     self.insert_binding(variables, name.clone(), Binding {
                         ty, mutable: false, used: false, observed: false, capture: false,

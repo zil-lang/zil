@@ -159,6 +159,7 @@ pub(super) struct CheckedOriginal {
     inferred_owner_captures: BTreeMap<SemanticDefinitionId, BTreeSet<Binder>>,
     value_bindings: BTreeMap<(SemanticDefinitionId, NodeId), Binder>,
     value_places: BTreeMap<(SemanticDefinitionId, NodeId), Place>,
+    prepared_locals: BTreeMap<Binder, NodeId>,
     names_at: BTreeMap<(SemanticDefinitionId, bool, NodeId, String), Ty>,
     name_binders_at: BTreeMap<(SemanticDefinitionId, bool, NodeId, String), Binder>,
     pattern_types: BTreeMap<(SemanticDefinitionId, NodeId, Vec<u32>), Ty>,
