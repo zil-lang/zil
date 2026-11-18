@@ -150,14 +150,8 @@ fn buffered_float_foreign_resource_handles_use_the_original_field_raw_wire() {
     use zil_base::{Limits, TargetProfile};
     use zil_ir::{InstructionKind, Type};
 
-    let source = include_str!("../../../tests/fixtures/buffered-io/float_and_file.zil")
-        .replace("TEST_FILE_PATH", "buffered-float.bin");
-    let module = typed_stdlib(&[
-        ("main", &source),
-        ("float", include_str!("../../../lib/std/float.zil")),
-        ("io", include_str!("../../../lib/std/io.zil")),
-        ("buffered_io", include_str!("../../../lib/std/buffered_io.zil")),
-    ]);
+    let module = float_buffer_typed(true);
+    assert!(module.semantic.is_some());
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
     let plan = zil_analyze::analyze(&module, &limits).unwrap();
@@ -570,8 +564,8 @@ fn buffered_short_io_and_retry_preserve_progress_and_close_once() {
     fs::remove_dir_all(dir).unwrap();
 }
 
-fn float_buffer_typed() -> zil_ir::TypedModule {
-    typed_stdlib(&[
+fn float_buffer_typed(original_semantics: bool) -> zil_ir::TypedModule {
+    typed_stdlib_with_semantics(&[
         (
             "main",
             include_str!("../../../tests/fixtures/buffered-io/float_and_file.zil"),
@@ -582,10 +576,14 @@ fn float_buffer_typed() -> zil_ir::TypedModule {
             "buffered_io",
             include_str!("../../../lib/std/buffered_io.zil"),
         ),
-    ])
+    ], original_semantics)
 }
 
 fn typed_stdlib(sources: &[(&str, &str)]) -> zil_ir::TypedModule {
+    typed_stdlib_with_semantics(sources, false)
+}
+
+fn typed_stdlib_with_semantics(sources: &[(&str, &str)], original_semantics: bool) -> zil_ir::TypedModule {
     use zil_base::{FileId, Fingerprint, Limits, ModuleId, SourceUnit, TargetProfile};
     let units: Vec<_> = sources
         .iter()
@@ -604,6 +602,7 @@ fn typed_stdlib(sources: &[(&str, &str)]) -> zil_ir::TypedModule {
         .map(|unit| zil_syntax::parse(unit).into_result().unwrap())
         .collect();
     let syntax: Vec<_> = parsed.iter().collect();
+    let mut aliases = std::collections::BTreeMap::new();
     let imports: Vec<Vec<_>> = syntax
         .iter()
         .map(|module| {
@@ -615,11 +614,13 @@ fn typed_stdlib(sources: &[(&str, &str)]) -> zil_ir::TypedModule {
                         return None;
                     };
                     let name = import.path.last().unwrap();
+                    let module = ModuleId(sources.iter().position(|(key, _)| *key == name).unwrap() as u32);
+                    if original_semantics {
+                        aliases.insert(import.path.clone(), module);
+                    }
                     Some(zil_ir::CoreImport {
                         alias: import.alias.clone().unwrap_or_else(|| name.clone()),
-                        module: ModuleId(
-                            sources.iter().position(|(key, _)| *key == name).unwrap() as u32
-                        ),
+                        module,
                         span: item.span,
                     })
                 })
@@ -628,12 +629,17 @@ fn typed_stdlib(sources: &[(&str, &str)]) -> zil_ir::TypedModule {
         .collect();
     let target = TargetProfile::host_llvm();
     let limits = Limits::default();
-    let modules =
+    let modules = if original_semantics {
+        zil_expand::expand_program_with_semantics(&units, &syntax, &imports, &limits, &target,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &aliases,
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+        )
+    } else {
         zil_expand::expand_program_with_limits_target(&units, &syntax, &imports, &limits, &target)
-            .unwrap()
-            .into_iter()
-            .map(|(module, _)| module)
-            .collect();
+    }.unwrap().into_iter().map(|(module, _)| module).collect();
     zil_types::check_program(
         &zil_ir::CoreProgram {
             root: ModuleId(0),
@@ -650,7 +656,7 @@ fn typed_stdlib(sources: &[(&str, &str)]) -> zil_ir::TypedModule {
 #[test]
 fn complete_float_buffer_consumer_has_fresh_exact_analysis_and_verifier_boundaries() {
     use zil_base::{Limits, TargetProfile};
-    let module = float_buffer_typed();
+    let module = float_buffer_typed(false);
     let target = TargetProfile::host_llvm();
     let limits = Limits::default();
     let plan = zil_analyze::analyze(&module, &limits).unwrap();
