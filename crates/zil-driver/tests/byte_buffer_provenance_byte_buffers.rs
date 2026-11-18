@@ -399,6 +399,89 @@ fn main()->i32 {
 }
 
 #[test]
+fn prepared_assignment_cannot_select_another_same_type_parameter() {
+    let source = input(
+        "package Buffer { manages data:ByteBuffer }
+         fn view(value:&Buffer)->&[u8] {return bytes_view(value.data)}
+         fn copy_slice(dest:&mut [u8],other:&mut [u8],i:i64,j:i64) {
+             dest[i]=other[j]
+         }
+         fn main()->i32 {
+             let owner=Buffer{data:bytes_new()}
+             if view(&owner).len()!=0 {return 76}
+             var dest:[u8;2]=[19u8,17u8]
+             var other:[u8;2]=[31u8,42u8]
+             copy_slice(&mut dest[..],&mut other[..],0,1)
+             return i32(dest[0])-42
+         }",
+    );
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let syntax = zil_syntax::parse(&source).into_result().unwrap();
+    let expanded = zil_expand::expand_with_map_semantics(
+        &source,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &BTreeMap::new(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap();
+    let module = zil_types::check(&expanded.core, &target, &limits).unwrap();
+    let candidate = zil_analyze::analyze(&module, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+    let mut changed = module;
+    let function = changed
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "copy_slice")
+        .unwrap();
+    let [destination, other, ..] = function.parameters[..] else {
+        panic!("expected two original slice parameters");
+    };
+    assert_eq!(
+        function.locals[destination.0 as usize].ty,
+        function.locals[other.0 as usize].ty
+    );
+    let mut uses = function
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .filter(|row| row.kind == InstructionKind::Load(destination));
+    uses.next().unwrap().kind = InstructionKind::Load(other);
+    assert!(uses.next().is_none());
+    let diagnostics = zil_analyze::analyze(&changed, &limits).unwrap_err();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|d| d.category == ResultCategory::SafeReject && d.code == "E-BORROW-CONFLICT"),
+        "{diagnostics:?}"
+    );
+
+    let mut forged = candidate;
+    forged.module_fingerprint = changed.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&changed, &forged, &limits).unwrap();
+    for diagnostics in [
+        zil_verify::verify_module(changed, forged, &target, &limits).unwrap_err(),
+        zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err(),
+    ] {
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.category == ResultCategory::SafeReject
+                    && d.message.contains("another original parameter")),
+            "{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
 fn create_give_and_description_parameter_window_returns_compose() {
     passes(
         "fn fresh()->ByteBuffer contract{result(create);}{return bytes_new();}fn relay(give b:ByteBuffer)->ByteBuffer contract{result(give);}{return give b;}fn fill(b:ByteBuffer)->bool{return bytes_reserve(b,3)&&bytes_push(b,8u8);}fn view(b:ByteBuffer)->&[u8]{return bytes_view(b);}fn consume(give b:ByteBuffer)->i32{return i32(bytes_len(b));}fn main()->i32{let a=fresh();let b=relay(give a);if !fill(b){return 5;}let s=view(b);let value=i32(s[0]);return value+consume(give b);}",
