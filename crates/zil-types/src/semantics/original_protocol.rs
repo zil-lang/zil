@@ -1598,15 +1598,21 @@ impl<'a> Engine<'a, '_> {
                 CoreExprKind::Member { object, member, .. } => {
                     let value = self.observe(owner, object, state, depth + 1)?;
                     match value {
-                        Value::Fields(mut fields) => {
-                            Ok(fields.remove(member).unwrap_or(Value::Plain))
+                        Value::Choice(alternatives) => {
+                            // Only complete products authorize distributing this read.
+                            // Keep each selected child's actual root and generation.
+                            self.pay(alternatives.len().saturating_add(1), depth)?;
+                            let mut projected = Vec::with_capacity(alternatives.len());
+                            for alternative in alternatives {
+                                self.pay(alternative.work().saturating_add(member.len()), depth)?;
+                                let child = Self::product_member(alternative, member)
+                                    .ok_or_else(|| pending("original cleanup observation requires its complete projected owner relation"))?;
+                                projected.push(child);
+                            }
+                            self.choice(projected, depth + 1)
                         }
-                        Value::Tuple(mut values) => Ok(member
-                            .parse::<usize>()
-                            .ok()
-                            .filter(|index| *index < values.len())
-                            .map(|index| values.remove(index))
-                            .unwrap_or(Value::Plain)),
+                        value @ (Value::Fields(_) | Value::Tuple(_)) =>
+                            Ok(Self::product_member(value, member).unwrap_or(Value::Plain)),
                         Value::Cleanup { .. } | Value::Root(..) | Value::Plain => Ok(Value::Plain),
                         _ => Err(pending(
                             "original cleanup observation requires its complete projected owner relation",
@@ -1618,6 +1624,14 @@ impl<'a> Engine<'a, '_> {
         })();
         self.record_cost("observe", cost_before, cost_children);
         result
+    }
+    fn product_member(value: Value, member: &str) -> Option<Value> {
+        match value {
+            Value::Fields(mut fields) => fields.remove(member),
+            Value::Tuple(mut fields) => member.parse::<usize>().ok()
+                .filter(|index| *index < fields.len()).map(|index| fields.remove(index)),
+            _ => None,
+        }
     }
     fn drop_value(&mut self, value: &Value, state: &State, depth: usize) -> R<()> {
         let cost_before = *self.left;
