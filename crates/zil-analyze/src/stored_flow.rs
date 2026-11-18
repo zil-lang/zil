@@ -8858,14 +8858,13 @@ fn derive_cfg(
                                 let d = module.closures.get(id.0 as usize).ok_or_else(|| {
                                     failure("external callable definition absent")
                                 })?;
-                                grounded &= capture_after::complete_frame(
-                                    module,
-                                    d,
-                                    summary.external_after.get(&(position as u32)).ok_or_else(
-                                        || failure("external callable after-state absent"),
-                                    )?,
-                                    b,
-                                )?;
+                                // A missing callee summary is bottom until the interprocedural
+                                // solve converges. Only complete frames can ground the caller.
+                                if let Some(effect) = summary.external_after.get(&(position as u32)) {
+                                    grounded &= capture_after::complete_frame(module, d, effect, b)?;
+                                } else {
+                                    grounded = false;
+                                }
                             } else if let Type::Closure(id) = &callee.locals[local.0 as usize].ty
                                 && capture_after::has_context(
                                     module,
@@ -8873,14 +8872,11 @@ fn derive_cfg(
                                     b,
                                 )?
                             {
-                                grounded &= capture_after::complete_frame(
-                                    module,
-                                    &module.closures[id.0 as usize],
-                                    summary.external_after.get(&(position as u32)).ok_or_else(
-                                        || failure("consumed callable after-state absent"),
-                                    )?,
-                                    b,
-                                )?;
+                                if let Some(effect) = summary.external_after.get(&(position as u32)) {
+                                    grounded &= capture_after::complete_frame(module, &module.closures[id.0 as usize], effect, b)?;
+                                } else {
+                                    grounded = false;
+                                }
                             }
                         }
                     }
