@@ -117,10 +117,22 @@ impl Builder<'_, '_> {
         let program = self.collector.program;
         let mut application = None;
         for module in &program.modules {
+            let emitted = if let Type::Named(name) = ty {
+                self.emitted_nominal(&module.core, name, depth)?
+            } else {
+                None
+            };
             for instance in &module.core.life_instances {
                 self.node(depth)?;
                 self.collector.ty(&instance.ty, depth)?;
-                if instance.ty == *ty {
+                let emitted_application = match (emitted, &instance.ty) {
+                    (Some((declared, LifeNominalKind::Record)), Type::Record { name, .. })
+                    | (Some((declared, LifeNominalKind::Enum)), Type::Enum { name, .. }) => {
+                        named(module.core.module_id, declared, module.core.module_id, name)
+                    }
+                    _ => false,
+                };
+                if instance.ty == *ty || emitted_application {
                     if application.as_ref().is_some_and(|old| *old != instance) {
                         return Err(invalid(
                             "CT nominal annotation has conflicting complete actual applications",
@@ -252,6 +264,35 @@ impl Builder<'_, '_> {
             definition: definition.id,
             arguments,
         })
+    }
+
+    fn emitted_nominal<'a>(
+        &mut self,
+        module: &'a CoreModule,
+        annotation: &str,
+        depth: usize,
+    ) -> CompileResult<Option<(&'a str, LifeNominalKind)>> {
+        // An imported signature may retain its unresolved emitted type name.
+        // Its declaration is carried by the original application's directory.
+        // The emitted header's own NodeId is a different namespace.
+        let declarations = module.aggregates.iter()
+            .filter(|row| row.kind == AggregateKind::Struct)
+            .map(|row| (row.name.as_str(), LifeNominalKind::Record))
+            .chain(module.enums.iter().map(|row| (row.name.as_str(), LifeNominalKind::Enum)));
+        let mut emitted = None;
+        for (declared, kind) in declarations {
+            self.node(depth)?;
+            self.collector.text_len(declared.len().saturating_add(annotation.len()))?;
+            if named(module.module_id, declared, module.module_id, annotation)
+                && emitted.replace((declared, kind)).is_some()
+            {
+                return Err(invalid(
+                    "CT nominal annotation selects multiple emitted headers",
+                    Span::default(),
+                ));
+            }
+        }
+        Ok(emitted)
     }
 }
 fn named(owner: ModuleId, declaration: &str, current: ModuleId, actual: &str) -> bool {
