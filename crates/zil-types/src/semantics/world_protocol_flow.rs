@@ -208,11 +208,13 @@ fn cleanup_roots(
     state: &State,
     value: &Value,
     roots: &mut BTreeSet<Root>,
+    resumable: bool,
 ) -> R<()> {
     world.pay(value.work())?;
     match value {
         Value::Root(root, true, true, _) => {
-            if state.phases.get(root).copied() != Some(CLOSED) {
+            let phase = state.phases.get(root).copied().unwrap_or(RETIRED);
+            if phase != CLOSED && !(resumable && phase != 0 && phase & !UNKNOWN == 0) {
                 return Err(bad(
                     "actual lexical registration cleanup lacks Closed for this owning generation",
                 ));
@@ -225,7 +227,7 @@ fn cleanup_roots(
             ));
         }
         Value::Tuple(values) | Value::Choice(values) | Value::Variant { fields: values, .. } => {
-            for value in values { cleanup_roots(world, state, value, roots)?; }
+            for value in values { cleanup_roots(world, state, value, roots, resumable)?; }
         }
         _ => {}
     }
@@ -479,7 +481,7 @@ fn instruction(
                 carrier::drop_array_element(world, state, *local, *index)?
             } else { carrier::take_local(world, state, *local, &[PlaceProjection::Field(*index)])? };
             let mut roots = BTreeSet::new();
-            cleanup_roots(world, state, &old, &mut roots)?;
+            cleanup_roots(world, state, &old, &mut roots, false)?;
             for root in roots { state.change(world, root, RETIRED, true)?; }
             Value::Plain
         }
@@ -760,14 +762,13 @@ fn instruction(
         | InstructionKind::DropErrorUnion { local } => {
             let mut roots = BTreeSet::new();
             if let Some(value) = state.locals.get(local.0 as usize).and_then(Option::as_ref) {
-                cleanup_roots(world, state, value, &mut roots)?;
+                let resumable = f.call_kind == CallKind::Suspend
+                    && matches!(instruction.kind, InstructionKind::DropManaged { .. })
+                    && f.locals.get(local.0 as usize).is_some_and(|slot| matches!(&slot.ty,
+                        Type::Managed(head) if matches!(head.as_ref(), Type::AsyncRegistration { .. })));
+                cleanup_roots(world, state, value, &mut roots, resumable)?;
             }
             for root in roots {
-                if state.phases[&root] != CLOSED {
-                    return Err(bad(
-                        "actual lexical registration cleanup lacks Closed for this generation",
-                    ));
-                }
                 state.change(world, root, RETIRED, true)?;
             }
             *state

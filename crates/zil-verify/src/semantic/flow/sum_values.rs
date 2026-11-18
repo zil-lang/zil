@@ -4,6 +4,20 @@ use super::*;
 impl CheckedContext {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn sum_instruction(&self,module:&TypedModule,instance:&SemanticInstance,f:&TypedFunction,instruction:&Instruction,sites:&[&SemanticSite],state:&mut State,values:&[Option<CheckedType>],signature:&CheckedSignature,environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>> {
+        // Semantic sites are checked before the module's general shape pass.
+        // Derive the owning Sum profile from the actual full union before
+        // classifying a Take or Drop of a nested affine arm.
+        if !b.sums {
+            let union = match instruction.kind {
+                InstructionKind::TakeErrorUnion { value, .. } => Some(value_type(f, value, Some(instruction.span))?),
+                InstructionKind::DropErrorUnion { local } => Some(local_type(f, local, Some(instruction.span))?),
+                _ => None,
+            };
+            if let Some(ty) = union && !crate::errors::owned(ty, false) {
+                let limits = b.limits.clone();
+                crate::check_type_shape(ty, &module.target, &limits, b)?;
+            }
+        }
         crate::check_instruction(module,f,instruction,b)?;
         let project=|parent:&CheckedType,path:&[PlaceProjection],b:&mut Budget|{
             b.spend(path.len())?;

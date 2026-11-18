@@ -197,8 +197,15 @@ impl Solver<'_, '_> {
                 Event::CaptureExit(operation) => operation == CallKind::Suspend,
                 _ => signature.call_kind == CallKind::Suspend,
             };
+            let registration = if suspend {
+                match self.state.arena[self.root(term, b)?] {
+                    Kind::Wrapped(Wrapper::Managed, payload) => matches!(self.state.arena[self.root(payload, b)?],
+                        Kind::Wrapped(Wrapper::AsyncRegistration, _)),
+                    _ => false,
+                }
+            } else { false };
             if !matches!(origin.source, Source::Unknown)
-                && (self.task_cleanup_environment(term, b, 0)?
+                && (registration || self.task_cleanup_environment(term, b, 0)?
                     || suspend && self.satisfies(term,
                         Predicate::Capability(SemanticBuiltinTrait::ClosedEnvironment), b, 0)?)
             {
@@ -255,13 +262,15 @@ pub(super) fn finish(module: &TypedModule, b: &mut Budget) -> CompileResult<()> 
                     | InstructionKind::DropOwnedArray { local: actual } if actual == local),
             _ => false,
         };
+        let registration = function.call_kind == CallKind::Suspend && matches!(&declaration.ty,
+            Type::Managed(head) if matches!(head.as_ref(), Type::AsyncRegistration { .. }));
         let exact = slot || match closure {
             Some(closure) => matches!(instruction.kind, InstructionKind::DropClosure { local: actual } if actual == local)
                 && declaration.ty == Type::Closure(closure),
             None => matches!(instruction.kind, InstructionKind::DropManaged { local: actual } if actual == local)
-                && matches!(&declaration.ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. })),
+                && (registration || matches!(&declaration.ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }))),
         };
-        if !exact || !crate::tasks::needs_synchronous_proof(module, &declaration.ty, b)? {
+        if !exact || !(registration || crate::tasks::needs_synchronous_proof(module, &declaration.ty, b)?) {
             return Err(fail("original concrete cleanup changes its exact actual Task-bearing site"));
         }
         b.spend(function.name.len().saturating_add(128), WORK)?;

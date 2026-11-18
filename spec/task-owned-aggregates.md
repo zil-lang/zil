@@ -85,6 +85,19 @@ request-cancel, ordinary poll Ready and an equal-shaped constructed Ready do
 not. Result loans and retained parent ports remain live until destruction.
 Replacing the slot invalidates facts about the previous occupant.
 
+Explicit `task_finish_destroy(give task)` consumes the unique current head.
+Its runtime Closed check precedes release. An early call faults with the frame
+and its loans still live. Only the successful return retires the head.
+Direct automatic destruction requires a Closed fact
+for this occupant or a complete independent synchronous cleanup proof.
+
+A worker with a genuine Suspend execution root can retain a live
+`AsyncRegistration<F>` during lexical cleanup. The frame keeps the current
+owning generation, the prepared result, and its exit reason while the
+registration drains. Installation failure, successful completion, and
+cancellation settle their own live responsibilities. The constructor’s
+reference to a worker cannot itself change its Direct ABI to Suspend.
+
 A consuming callable invocation destroys only the environment responsibility
 remaining after its actual body returns. Captures moved out by that body are
 transported with their original frame and protocol state. In addition to the

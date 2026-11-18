@@ -129,7 +129,7 @@ impl CheckedOriginal {
         // This exact-place set is published only after the phase engine has
         // proved every cleanup edge, including all old loop generations.
         if !direct&&self.task_closed_cleanups.contains(&(env.current()?,place.clone()))&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
-        if !direct&&self.task_async_cleanups.contains(&(env.current()?,place.clone()))&&self.prototypes.get(&env.current()?).is_some_and(|prototype|prototype.call_kind==CallKind::Suspend)&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
+        if !direct&&self.task_async_cleanups.contains(&(env.current()?,place.clone()))&&self.prototypes.get(&env.current()?).is_some_and(|prototype|prototype.call_kind==CallKind::Suspend)&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task|CarrierKind::AsyncRegistration,..})){return Ok(());}
         // This is a proved source/occupant relation, not Task<T>:SyncDrop.
         // The actual worker/source graph and every real cleanup remain required.
         if !direct&&self.task_synchronous_cleanups.contains(&(env.current()?,place.clone()))&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}

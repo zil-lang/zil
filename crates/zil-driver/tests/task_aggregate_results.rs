@@ -138,6 +138,51 @@ fn aggregate_result_queued_nested_capture_source() {
 }
 
 #[test]
+fn queued_registration_drains_before_explicit_destruction() {
+    let queued = include_str!(
+        "../../../tests/language-readiness/task-aggregate-results/queued-nested-result.zil"
+    );
+    let (setup, _) = queued.split_once("    unsafe {if async_pump()!=0").unwrap();
+    let drained = format!("{setup}
+        unsafe {{let observed=async_pump();}}
+        drive(&mut task);
+        while true {{
+            match task_poll_close(&mut task) {{
+                std.task.Poll.Pending()=>{{}},
+                std.task.Poll.Ready(_)=>{{task_finish_destroy(give task);unsafe{{return async_complete();}}}}
+            }}
+        }}
+    }}");
+    let report = compile_source(&source(&drained), &CompileOptions {
+        stop_after: Stage::Verify, ..CompileOptions::default()
+    });
+    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn queued_registration_cleanup_requires_the_actual_suspend_frame() {
+    let queued = include_str!(
+        "../../../tests/language-readiness/task-aggregate-results/queued-nested-result.zil"
+    );
+    let direct = queued.replace("fn worker(seed:i32)->Packet {",
+        "fn worker(seed:i32)->Packet contract{effects(ffi);} {");
+    for (text, code, message) in [
+        (direct.replace("task_yield();", ""), "E-SEMANTIC-PROTOCOL", "live AsyncRegistration owner"),
+        (direct, "E-SEMANTIC-ORIGINAL", "Direct ABI upper bound"),
+        (queued.replace("task_yield();", "async_registration_finish_destroy_checked(give owner);task_yield();"),
+            "E-SEMANTIC-PROTOCOL", "not dominated by Closed"),
+    ] {
+        let report = compile_source(&source(&text), &CompileOptions {
+            stop_after: Stage::Verify, ..CompileOptions::default()
+        });
+        assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+        assert!(report.diagnostics.iter().any(|d| d.code == code && d.message.contains(message)),
+            "{}", report.to_json());
+    }
+}
+
+#[test]
 fn aggregate_result_native_once_transfer_and_cancel() {
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
         if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {

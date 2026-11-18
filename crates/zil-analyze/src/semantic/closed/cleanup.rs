@@ -78,7 +78,9 @@ impl Check<'_, '_> {
                 let replacements = self.cleanup_replacement_values(instance, function,
                     pending.source, &pending.path, pending.event, b)?;
                 let closure = match &expected.ty {
-                    Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }) => None,
+                    Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. })
+                        || function.call_kind == CallKind::Suspend
+                            && matches!(payload.as_ref(), Type::AsyncRegistration { .. }) => None,
                     Type::Closure(id) => Some(*id),
                     _ => return Err(unknown("original cleanup occurrence needs its complete actual owning Task frame proof")),
                 };

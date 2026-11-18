@@ -3769,6 +3769,19 @@ fn async_registration_native_allocation_failure_drop_and_closed_destroy() {
                     Some(10),
                     "AN",
                 ),
+                (
+                    4,
+                    "fn worker(seed:i32)->i32 {task_yield();return seed}
+                     fn main()->std.task.TaskCreateError!i32 {
+                         var task=task_create(worker,7)?;
+                         task_poll(&mut task);
+                         task_finish_destroy(give task);
+                         return 11
+                     }",
+                    false,
+                    None,
+                    "A",
+                ),
             ] {
                 let dir = std::env::temp_dir().join(format!(
                     "zil-async-registration-task-failure-{}-{backend:?}-{optimization:?}-{index}",

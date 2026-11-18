@@ -529,11 +529,7 @@ impl Proof<'_, '_> {
                             sealed::Intrinsic::AsyncFinish
                             | sealed::Intrinsic::AsyncFinishChecked
                             | sealed::Intrinsic::TaskFinish => {
-                                if matches!(
-                                    id,
-                                    sealed::Intrinsic::AsyncFinishChecked
-                                        | sealed::Intrinsic::TaskFinish
-                                ) && old != CLOSED
+                                if id == sealed::Intrinsic::AsyncFinishChecked && old != CLOSED
                                 {
                                     return Err(fail(
                                         "original checked destroy needs the same current Closed parameter",

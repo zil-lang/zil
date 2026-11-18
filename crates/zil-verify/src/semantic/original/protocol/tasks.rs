@@ -449,7 +449,7 @@ impl<'a> Engine<'a> {
         let Some(owner) = state.owners.get(root).cloned() else {
             return Ok(());
         };
-        if !owner.task || !owner.owned || owner.states == DEAD {
+        if !owner.owned || owner.states == DEAD {
             return Ok(());
         }
         if owner.states == 0 {
@@ -461,7 +461,14 @@ impl<'a> Engine<'a> {
         b.spend(root.fields.iter().fold(1usize, |n, field| {
             n.saturating_add(field.len()).saturating_add(1)
         }))?;
-        if owner.states & !(CLOSED | DEAD) == 0 {
+        if !owner.task {
+            // Only this frame may retain the live occupant through drain. A
+            // join with a vacant edge has no registration debt on that edge.
+            if !self.original.prototypes.get(&self.current).is_some_and(|p| p.call_kind == CallKind::Suspend) {
+                return Ok(());
+            }
+            self.async_tasks.insert(root.clone());
+        } else if owner.states & !(CLOSED | DEAD) == 0 {
             if !self.async_tasks.contains(root) {
                 self.closed_tasks.insert(root.clone());
             }
@@ -546,7 +553,8 @@ impl<'a> Engine<'a> {
         let roots = state
             .owners
             .iter()
-            .filter(|(root, owner)| owner.task && owner.owned && owner.states != DEAD
+            .filter(|(root, owner)| owner.owned && owner.states != DEAD
+                && (owner.task || self.original.prototypes.get(&self.current).is_some_and(|p| p.call_kind == CallKind::Suspend))
                 // Nonconsuming activations retain the persistent environment.
                 // Its owning slots still require real cleanup on replacement;
                 // only invocation exit leaves those same occupants in place.
@@ -651,11 +659,10 @@ impl<'a> Engine<'a> {
                 }
             }
             Intrinsic::TaskFinish => {
-                if *borrowed || !owner.owned || owner.states != CLOSED {
-                    return Err(bad(
-                        "Task destruction lacks its owning current-generation canonical Closed proof",
-                    ));
+                if *borrowed || !owner.owned {
+                    return Err(bad("Task destruction lacks its live current-generation owning head"));
                 }
+                // A nonclosed machine state traps before release. Returning consumes the head.
                 self.update(state, root, DEAD, b)?;
                 Value::Plain
             }

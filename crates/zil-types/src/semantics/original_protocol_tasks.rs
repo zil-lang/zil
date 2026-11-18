@@ -808,12 +808,11 @@ impl Engine<'_, '_> {
                 match op {
                     TaskOp::Valid => Ok(Some(Value::Plain)),
                     TaskOp::FinishDestroy => {
-                        if !matches!(value, Value::Root(_, true, true, _)) || phase != CLOSED {
-                            return Err(failure(
-                                "Task destruction lacks its unique owning occurrence and Closed fact",
-                            ));
+                        if !matches!(value, Value::Root(_, true, true, _)) {
+                            return Err(failure("Task destruction lacks its current unique owning occurrence"));
                         }
-                        self.change(state, root, CLOSED, true, depth + 1)?;
+                        // Only the successful runtime Closed check returns and consumes the head.
+                        self.change(state, root, RETIRED, true, depth + 1)?;
                         Ok(Some(Value::Plain))
                     }
                     TaskOp::RequestCancel => {

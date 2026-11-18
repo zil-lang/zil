@@ -355,7 +355,8 @@ impl<'a> Engine<'a> {
             pattern,
             state,
             deferred,
-            condition.is_some(),
+            condition.is_some_and(|expr| !matches!(expr.kind,
+                CoreExprKind::Bool(true) | CoreExprKind::Literal(Constant::Bool(true)))),
             depth,
             b,
         )
