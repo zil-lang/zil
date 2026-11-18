@@ -9,7 +9,7 @@ impl CheckedContext {
         instruction: &Instruction, fields: &[ValueId], state: &State, b: &mut Budget,
     ) -> Check<CheckedType> {
         let result = instruction.result.ok_or_else(|| bad("package repack has no actual result"))?;
-        let (block, ordinal, _) = super::owner_sources::producer(f, result, b)?;
+        let (block, ordinal, _) = super::intrinsics::owner_sources::producer(f, result, b)?;
         let program = module.semantic.as_ref().ok_or_else(|| bad("package repack has no original operation ledger"))?;
         let definition = self.definition(module, instance.definition, b)?;
         let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {

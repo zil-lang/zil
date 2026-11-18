@@ -300,7 +300,7 @@ impl CheckedContext{
             }
         }
     }
-    pub(super) fn projected_local_root(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,local:LocalId,root:BufferRoot,node:NodeId,b:&mut Budget)->Check<()>{
+    pub(in crate::semantic::flow) fn projected_local_root(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,local:LocalId,root:BufferRoot,node:NodeId,b:&mut Budget)->Check<()>{
         let range=self.original.borrow().as_ref().ok_or_else(||bad("local source lacks its complete original binder proof"))?.range_name(module,caller.definition,node,b)?;
         if let Some(range)=range{return self.range_local_root(module,caller,f,local,&range,b);}
         match root{
