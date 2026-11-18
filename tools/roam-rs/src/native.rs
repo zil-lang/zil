@@ -866,7 +866,12 @@ pub fn execute(
                 .push(json!({"phase":"complete","step":i,"expected":expected,"observed":observed}));
         }
         if expected != observed {
-            result = protocol::failure(property, steps, i as i64, expected, observed);
+            let rule = if composition_model {
+                callable_composition::property(&action["program"])
+            } else {
+                property
+            };
+            result = protocol::failure(rule, steps, i as i64, expected, observed);
             break;
         }
         result["steps"] = json!(steps);

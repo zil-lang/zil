@@ -293,6 +293,7 @@ pub(super) struct Checked {
     dyn_templates: Vec<dyn_types::Template>,
     borrows: BTreeMap<(SemanticDefinitionId, NodeId), Borrow>,
     descriptions: BTreeMap<(SemanticDefinitionId, NodeId), descriptions::Description>,
+    temporary_descriptions: BTreeMap<(SemanticDefinitionId, NodeId, usize), descriptions::Temporary>,
     enum_constructors: BTreeMap<(SemanticDefinitionId, NodeId), enums::Constructor>,
     patterns: BTreeMap<(SemanticDefinitionId, NodeId, Vec<u32>), Term>,
     pattern_origins: Vec<pattern_places::PatternOrigin>,
@@ -2796,7 +2797,12 @@ impl Solver<'_, '_> {
                     let mut outer_inputs = Vec::new();
                     for (ordinal, (argument, parameter)) in arguments.iter().zip(parameters).enumerate() {
                         b.lookup(prepared_arguments.len(), WORK)?;
-                        let actual = if let Some(actual) = prepared_arguments.remove(&argument.id) {
+                        let prepared = prepared_arguments.remove(&argument.id);
+                        let actual = if let Some(actual) = self.temporary_description_argument(
+                            frame, value.id, ordinal, argument, parameter, prepared, b, depth + 1,
+                        )? {
+                            actual
+                        } else if let Some(actual) = prepared {
                             actual
                         } else {
                             self.call_input_value(frame, argument, parameter, b, depth + 1)?
@@ -4423,6 +4429,7 @@ pub(super) fn check(
             dyn_templates: Vec::new(),
             borrows: BTreeMap::new(),
             descriptions: BTreeMap::new(),
+            temporary_descriptions: BTreeMap::new(),
             enum_constructors: BTreeMap::new(),
             patterns: BTreeMap::new(),
             pattern_origins: Vec::new(),

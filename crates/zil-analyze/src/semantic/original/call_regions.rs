@@ -8,6 +8,7 @@ pub(super) enum Role {
     Life(u32),
     Implicit(u32),
     Head(u32),
+    TemporaryDescription(u32),
     Invocation(u32),
     Bound(u32, u32),
     ConstructorLife(u32),
@@ -18,6 +19,7 @@ impl Role {
             Self::Life(n) => ([u32::MAX, 0, n, 0], 3),
             Self::Implicit(n) => ([u32::MAX, 1, n, 0], 3),
             Self::Head(n) => ([u32::MAX, 2, n, 0], 3),
+            Self::TemporaryDescription(n) => ([u32::MAX, 5, n, 0], 3),
             Self::Invocation(n) => ([u32::MAX, 3, n, 0], 3),
             Self::Bound(d, n) => ([u32::MAX, 4, d, n], 4),
             Self::ConstructorLife(n) => ([u32::MAX - 1, 0, n, 0], 3),
@@ -118,7 +120,7 @@ impl Solver<'_, '_> {
             None => Ok(expected),
         }
     }
-    fn call_occurrence(
+    pub(super) fn call_occurrence(
         &mut self,
         frame: &Frame,
         call: NodeId,

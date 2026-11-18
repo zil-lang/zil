@@ -21,6 +21,7 @@ impl CheckedContext {
         let original_regions=self.original.borrow().as_ref().ok_or_else(||bad("Call inputs have no original region proof"))?.call_region_parameter_recipes(module,caller.definition,site.recipe,environment,b)?;
         let mut adapted=Vec::new();
         let mut code_arguments=Vec::new();
+        let mut descriptions=Vec::new();
         for(index,argument)in arguments.iter().enumerate(){
             let actual=value_at(values,*argument)?;
             actual.charge_clone(b)?;checked.push(actual.clone());
@@ -34,6 +35,10 @@ impl CheckedContext {
                 b.spend(1)?;
                 code_arguments.push(index);
             }
+            if matches!(actual.ty,Type::Desc(_)) && matches!(signature.parameters[index].0.ty,Type::Desc(_)){
+                b.spend(1)?;
+                descriptions.push(index);
+            }
             if !matches!(actual.ty,Type::Address{..}){continue;}
             b.spend(original_regions.len())?;if original_regions.iter().any(|(ordinal,_)|*ordinal as usize==index){b.spend(1)?;adapted.push(index);continue;}
             let exported=returned_input_head(signature,key,index,b)?;
@@ -44,7 +49,7 @@ impl CheckedContext {
             crate::check_instruction(module,f,producer,b)?;
             if matches!(producer.kind,InstructionKind::ReborrowAddress{..}){b.spend(1)?;adapted.push(index);}
         }
-        if adapted.is_empty()&&code_arguments.is_empty(){return Ok((checked,exact_sources));}
+        if adapted.is_empty()&&code_arguments.is_empty()&&descriptions.is_empty(){return Ok((checked,exact_sources));}
         let recipes=self.original.borrow().as_ref().ok_or_else(||bad("Call inputs have no universal original body proof"))?.call_input_recipes(module,caller.definition,site.recipe,b)?;
         if recipes.len()!=arguments.len(){return Err(bad("actual Call inputs change the exact original argument arity"));}
         for index in code_arguments {
@@ -53,6 +58,36 @@ impl CheckedContext {
             };
             self.call_input_source(module,caller,f,arguments[index],*node,*origin,b)
                 .map_err(|error|error.with_note(format!("actual code argument {index} in original call {:?}, SSA {:?}",site.recipe,arguments[index])))?;
+        }
+        for index in descriptions{
+            let Some((node,_,origin@Some(original::intrinsics::BufferSource::TemporaryOwner{..})))=&recipes[index] else{continue;};
+            let argument=arguments[index];
+            self.call_input_source(module,caller,f,argument,*node,*origin,b).map_err(|mut error|{
+                error.relate(zil_base::DiagnosticRole::Input,None,environment.at.map(|point| zil_base::DiagnosticIrLocation{
+                    function:point.function.0,block:Some(point.block.0),instruction:Some(point.instruction),
+                }),format!("actual temporary description argument {index}, SSA {argument:?}, original call {:?}",site.recipe));
+                error
+            })?;
+            let role=self.original.borrow().as_ref().ok_or_else(||bad("temporary description lacks its original call scope"))?
+                .temporary_call_description(module,caller.definition,site.recipe,index,*node,environment,b)?;
+            let class=self.life(module,&role,environment,b)?;
+            let actual=&checked[index];
+            b.spend(actual.life.slots.len().saturating_add(actual.life.retained.len()).saturating_add(actual.life.nominal_arguments.len()))?;
+            let mut roots=actual.life.slots.iter().filter(|row|row.path.is_empty());
+            let head=roots.next().filter(|row|row.mode==StoredBorrowMode::WritableDescription).ok_or_else(||bad("temporary description has no exact outer descriptor occurrence"))?;
+            if roots.next().is_some()
+                || actual.life.slots.iter().any(|row|!row.path.is_empty()&&row.binder==head.binder)
+                || actual.life.retained.iter().any(|row|row.binder==head.binder)
+                || actual.life.nominal_arguments.iter().any(|row|row.binder==head.binder){
+                return Err(bad("temporary description outer role overlaps its underlying resource domain"));
+            }
+            let head=head.binder as usize;
+            actual.charge_clone(b)?;
+            let mut transported=actual.clone();
+            *transported.classes.get_mut(head).ok_or_else(||bad("temporary description outer class is absent"))?=class.clone();
+            *transported.origins.get_mut(head).ok_or_else(||bad("temporary description outer origin is absent"))?=IntrinsicOrigin::DerivedClass{source:class};
+            checked[index]=transported;
+            exact_sources[index]=true;
         }
         for index in adapted{
             let Some((node,recipe,origin))=&recipes[index]else{continue;};let argument=arguments[index];

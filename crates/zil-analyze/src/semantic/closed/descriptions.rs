@@ -98,6 +98,97 @@ impl Check<'_, '_> {
             }
             selected = Some(expected);
         }
+        match selected {
+            Some(value) => Ok(Some(value)),
+            None => self.temporary_description_source(instance, function, id, b, depth + 1),
+        }
+    }
+
+    pub(super) fn temporary_description_source(
+        &self, instance: &SemanticInstance, function: &TypedFunction, id: ValueId,
+        b: &mut Budget, depth: usize,
+    ) -> CompileResult<Option<Value>> {
+        let (block, index, actual) = self.defining(function, id, b)?;
+        let InstructionKind::DescribeLocal { local } = actual.kind else { return Ok(None); };
+        let mut selected = None;
+        for (call, ordinal, original) in self.original.temporary_descriptions(instance.definition, b)? {
+            for site in self.inventory.sites_for_expression(self.program, instance, call, b)? {
+                b.spend(1, WORK)?;
+                if !matches!(site.action,
+                    SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::Call { .. }
+                    | SemanticSiteAction::CallableCall { .. }) {
+                    continue;
+                }
+                let SemanticSiteAddress::Typed {
+                    block: call_block, instruction: call_at, edge: SemanticSiteEdge::After,
+                } = site.at else { return Err(fail("temporary description needs the exact actual call boundary")); };
+                let call_at = call_at as usize;
+                let caller = function.blocks.get(call_block.0 as usize)
+                    .filter(|row| row.id == call_block)
+                    .ok_or_else(|| fail("temporary description has no actual call block"))?;
+                let call_op = caller.instructions.get(call_at)
+                    .ok_or_else(|| fail("temporary description has no actual call"))?;
+                let operand = match &call_op.kind {
+                    InstructionKind::Call { arguments, .. }
+                    | InstructionKind::SuspendCall { arguments, .. }
+                    | InstructionKind::ForeignCall { arguments, .. }
+                    | InstructionKind::CallClosure { arguments, .. }
+                    | InstructionKind::CallClosureOnce { arguments, .. }
+                    | InstructionKind::CallClosureShared { arguments, .. }
+                    | InstructionKind::CallClosureMut { arguments, .. }
+                    | InstructionKind::CallClosureBorrowed { arguments, .. }
+                    | InstructionKind::CallIndirect { arguments, .. } => arguments.get(ordinal),
+                    InstructionKind::CallDynSlot { arguments, .. } =>
+                        ordinal.checked_sub(1).and_then(|index| arguments.get(index)),
+                    _ => None,
+                }.copied();
+                let Some(operand) = operand else {
+                    return Err(fail("temporary description has no exact actual argument ordinal"));
+                };
+                if operand != id {
+                    let (_, _, op) = self.defining(function, operand, b)?;
+                    if !matches!(op.kind, InstructionKind::Load(_) | InstructionKind::TakeLocal { .. })
+                        || self.call_operand_origins(function, operand, b)?.as_slice() != [id]
+                    {
+                        continue;
+                    }
+                }
+                if call_block != block || index >= call_at || selected.is_some() {
+                    return Err(fail("temporary description changes its unique actual call preparation"));
+                }
+                let original_value = self.original_subject_value(instance, function, original.producer, b)?
+                    .ok_or_else(|| fail("temporary description lacks its exact original owning producer"))?;
+                let store = index.checked_sub(1)
+                    .ok_or_else(|| fail("temporary description lacks actual owner initialization"))?;
+                let (source_block, source_index, _) = self.defining(function, original_value, b)?;
+                if source_block != block || source_index >= store {
+                    return Err(fail("temporary description owner is outside its actual call preparation"));
+                }
+                let stored = caller.instructions.get(store)
+                    .ok_or_else(|| fail("temporary description has no actual owner Store"))?;
+                if !matches!(stored.kind, InstructionKind::Store { local: target, value }
+                    if target == local && value == original_value)
+                {
+                    return Err(fail("temporary description selects a different prepared owner"));
+                }
+                operations::available_before(function, (block, store, SemanticSiteEdge::Before), original_value, b)?;
+                operations::initialized_local_before(function, (block, call_at), local, b)?;
+                self.original_producer_local(function, local, (block, call_at), original_value, b)?;
+                let (owner, view) = self.original.temporary_description_values(
+                    instance, original, self.program, self.inventory, b, depth + 1,
+                )?;
+                if !matches!((&owner.ty, &view.ty), (Type::Managed(actual), Type::Desc(expected))
+                    if actual == expected)
+                    || function.locals.get(local.0 as usize).filter(|row| row.id == local)
+                        .is_none_or(|row| row.ty != owner.ty)
+                    || function.values.get(id.0 as usize) != Some(&view.ty)
+                    || !self.capture_values_equal(&self.ssa_value(instance, function, original_value, b, depth + 1)?, &owner, b)?
+                {
+                    return Err(fail("temporary description changes the complete type or domain of its owning source"));
+                }
+                selected = Some(view);
+            }
+        }
         Ok(selected)
     }
 }

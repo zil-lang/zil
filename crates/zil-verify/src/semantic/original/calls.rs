@@ -764,7 +764,7 @@ impl CheckedOriginal {
                     module,
                     context,
                     requirement,
-                    ty,
+                    Some(ty),
                     &lexical,
                     &[],
                     consuming,
@@ -780,7 +780,7 @@ impl CheckedOriginal {
                             module,
                             context,
                             requirement,
-                            ty,
+                            Some(ty),
                             &lexical,
                             &[],
                             consuming,
@@ -795,12 +795,12 @@ impl CheckedOriginal {
         Ok(result)
     }
     #[allow(clippy::too_many_arguments)]
-    fn callable_premise_row(
+    pub(super) fn callable_premise_row(
         &mut self,
         module: &TypedModule,
         context: &CheckedContext,
         requirement: &SemanticRequirementRecipe,
-        ty: &Ty,
+        subject: Option<&Ty>,
         env: &Env,
         quantifiers: &[Vec<Life>],
         consuming: bool,
@@ -840,7 +840,7 @@ impl CheckedOriginal {
                         }
                         for row in requirements {
                             self.callable_premise_row(
-                                module, context, row, ty, &selected, &owned, consuming, result,
+                                module, context, row, subject, &selected, &owned, consuming, result,
                                 active, b,
                             )?;
                         }
@@ -855,9 +855,18 @@ impl CheckedOriginal {
                         if consuming && *kind != CallableKind::FnOnce {
                             return Ok(());
                         }
-                        let receiver = self.ty(module, context, receiver, env, active, b)?;
-                        if !self.same(&receiver, ty, b)? {
-                            return Ok(());
+                        if let Some(subject) = subject {
+                            let receiver = self.ty(module, context, receiver, env, active, b)?;
+                            if !self.same(&receiver, subject, b)? {
+                                return Ok(());
+                            }
+                        } else {
+                            if !matches!(receiver, SemanticTypeRecipe::OriginalType {
+                                scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result,
+                            }) { return Ok(()); }
+                            if result.is_some() {
+                                return Err(unsupported("opaque Callable overload requires its exact original role selection", None));
+                            }
                         }
                         let mut prototype = self.callable_signature(
                             module, context, signature, *kind, env, active, b,

@@ -243,7 +243,7 @@ impl CheckedContext {
             return self.address_place_source(module, caller, f, value, definition, node, b);
         }
         if let BufferSource::TemporaryOwner { definition, node } = source {
-            return self.temporary_buffer_source(module, caller, f, value, definition, node, b);
+            return self.temporary_description_source(module, caller, f, value, definition, node, b);
         }
         let local = self.buffer_source_local(module, caller, f, source, b)?;
         let mut value = value;
@@ -285,7 +285,7 @@ impl CheckedContext {
             }
         }
     }
-    fn temporary_buffer_source(
+    fn temporary_description_source(
         &self,
         module: &TypedModule,
         caller: &SemanticInstance,
@@ -296,18 +296,19 @@ impl CheckedContext {
         b: &mut Budget,
     ) -> Check<()> {
         if definition != caller.definition {
-            return Err(bad("temporary buffer belongs to another original scope"));
+            return Err(bad("temporary description belongs to another original scope"));
         }
         let (describe_block, describe_at, describe) = owner_sources::producer(f, descriptor, b)?;
         let InstructionKind::DescribeLocal { local } = describe.kind else {
-            return Err(bad("temporary buffer operand does not describe the actual owner slot"));
+            return Err(bad("temporary description operand does not describe the actual owner slot"));
         };
-        let declaration = f.locals.get(local.0 as usize).ok_or_else(|| bad("temporary buffer owner slot is absent"))?;
+        let declaration = f.locals.get(local.0 as usize).ok_or_else(|| bad("temporary description owner slot is absent"))?;
         b.spend(f.parameters.len().saturating_add(1))?;
         if f.parameters.contains(&local)
-            || !matches!(&declaration.ty, Type::Managed(inner) if **inner == Type::ByteBuffer)
+            || !matches!((f.values.get(descriptor.0 as usize), &declaration.ty),
+                (Some(Type::Desc(desc)), Type::Managed(inner)) if desc == inner)
         {
-            return Err(bad("temporary buffer operand selects another owner role"));
+            return Err(bad("temporary description operand selects another owner role"));
         }
         let mut initializer = None;
         for block in &f.blocks {
@@ -317,24 +318,27 @@ impl CheckedContext {
                     && destination == local
                 {
                     if block.id != describe_block || at >= describe_at as usize || initializer.replace(value).is_some() {
-                        return Err(bad("temporary buffer does not have one dominating owner initializer"));
+                        return Err(bad("temporary description does not have one dominating owner initializer"));
                     }
                 }
             }
         }
-        let initializer = initializer.ok_or_else(|| bad("temporary buffer owner initializer is absent"))?;
+        let initializer = initializer.ok_or_else(|| bad("temporary description owner initializer is absent"))?;
         let (producer_block, producer_at, producer) = owner_sources::producer(f, initializer, b)?;
         let original = self.definition(module, definition, b)?;
         let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
-            return Err(bad("temporary buffer lacks its original function body"));
+            return Err(bad("temporary description lacks its original function body"));
         };
-        let program = module.semantic.as_ref().ok_or_else(|| bad("temporary buffer lacks its semantic program"))?;
+        let program = module.semantic.as_ref().ok_or_else(|| bad("temporary description lacks its semantic program"))?;
         let mut matches = 0;
         for site in &program.sites {
             b.spend(1)?;
             if site.instance != caller.id
                 || !matches!(site.at, SemanticSiteAddress::Typed { block, instruction, .. } if block == producer_block && instruction == producer_at)
-                || !matches!(site.action, SemanticSiteAction::Call { .. } | SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::CallableCall { .. })
+                || !(matches!(site.action, SemanticSiteAction::Call { .. } | SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::CallableCall { .. })
+                    || matches!(site.action, SemanticSiteAction::Construct {
+                        result: SemanticOperand::Value(result), ..
+                    } if result == initializer))
             {
                 continue;
             }
@@ -342,7 +346,7 @@ impl CheckedContext {
             matches += usize::from(site_nodes.iter().any(|row| row.site == site.recipe && row.node == SemanticOriginalNode::Expression(node)));
         }
         if matches != 1 {
-            let mut error = bad("temporary buffer initializer is not the exact original producer call").with_note(format!(
+            let mut error = bad("temporary description initializer is not its exact original owning producer").with_note(format!(
                 "original {:?} expression {:?}, candidate initializer {:?}", definition, node, initializer
             ));
             error.relate(DiagnosticRole::Input, Some(describe.span), Some(DiagnosticIrLocation {

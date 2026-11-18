@@ -94,6 +94,13 @@ impl Check<'_, '_> {
             for call in self.inventory.sites_at(self.program, instance.id, at.0, at.1, SemanticSiteEdge::After, b)? {
                 let nodes = self.original.call_region_nodes(instance, call.recipe, ordinal, target, &source, self.inventory, b)?;
                 if nodes.is_empty() { continue; }
+                if matches!(actual.ty, Type::Desc(_))
+                    && self.original.has_temporary_description(instance, call.recipe, ordinal as usize, self.inventory, b)?
+                    && self.temporary_description_source(instance, function, source_operand, b, depth + 1)?
+                        .is_some_and(|view| view == *actual)
+                {
+                    return Ok(true);
+                }
                 // An implicit method reborrow may have no separate TypeUse.
                 // Bind the original Name to its actual Load/Take/Borrow local;
                 // equal Types or lifetime uppers never select this identity.

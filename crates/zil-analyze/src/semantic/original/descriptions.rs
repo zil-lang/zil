@@ -101,3 +101,106 @@ impl Solver<'_, '_> {
         Ok(output)
     }
 }
+
+#[derive(Clone, Copy)]
+pub(in crate::semantic) struct Temporary {
+    pub(in crate::semantic) producer: NodeId,
+    source: Term,
+    view: Term,
+}
+
+impl Solver<'_, '_> {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn temporary_description_argument(
+        &mut self,
+        frame: &mut Frame,
+        call: NodeId,
+        ordinal: usize,
+        argument: &SemanticOriginalExpr,
+        expected: Term,
+        prepared: Option<Term>,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Option<Term>> {
+        if !matches!(self.state.arena[self.type_root(expected, b)?], Kind::Desc { .. }) {
+            return Ok(None);
+        }
+        b.lookup(self.call_parameters.len(), WORK)?;
+        if !self.call_parameters.contains(&expected)
+            || prepared.is_none() && self.place(frame, argument, false, b, depth + 1)?.is_some()
+        {
+            return Ok(None);
+        }
+        let source = match prepared {
+            Some(source) => source,
+            None => self.expression(frame, argument, b, depth + 1)?,
+        };
+        self.prepare_call_value(frame.definition, argument.id, source, b)?;
+        let deferred = self.deferred_call_type(expected, b)?;
+        let Kind::Wrapped(Wrapper::Managed, payload) =
+            self.state.arena[self.type_root(source, b)?]
+        else {
+            self.call_argument_value(source, deferred, b, depth + 1)?;
+            return Ok(Some(source));
+        };
+        let ordinal_u32 = u32::try_from(ordinal)
+            .map_err(|_| resource("original temporary description parameter ordinal overflows"))?;
+        let life = self.call_occurrence(
+            frame, call, call_regions::Role::TemporaryDescription(ordinal_u32), None, b,
+        )?;
+        let view = self.term(Kind::Desc { life, inner: payload }, b)?;
+        self.call_argument_value(view, deferred, b, depth + 1)?;
+        let mut producer = argument;
+        while let CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } = &producer.kind {
+            b.spend(1, WORK)?;
+            producer = inner;
+        }
+        b.lookup(self.state.temporary_descriptions.len(), WORK)?;
+        if self.state.temporary_descriptions.insert(
+            (frame.definition, call, ordinal), Temporary { producer: producer.id, source, view },
+        ).is_some() {
+            return Err(fail("original temporary description repeats one argument occurrence"));
+        }
+        Ok(Some(view))
+    }
+}
+
+impl Checked {
+    pub(in crate::semantic) fn has_temporary_description(
+        &self, context: &SemanticInstance, site: SemanticSiteId, ordinal: usize,
+        inventory: &Inventory<'_>, b: &mut Budget,
+    ) -> CompileResult<bool> {
+        if self.temporary_descriptions.is_empty() { return Ok(false); }
+        let node = self.intrinsic_node(context, site, inventory, b)?;
+        b.lookup(self.temporary_descriptions.len(), WORK)?;
+        Ok(self.temporary_descriptions.contains_key(&(context.definition, node, ordinal)))
+    }
+
+    pub(in crate::semantic) fn temporary_descriptions(
+        &self,
+        owner: SemanticDefinitionId,
+        b: &mut Budget,
+    ) -> CompileResult<Vec<(NodeId, usize, Temporary)>> {
+        b.lookup(self.temporary_descriptions.len(), WORK)?;
+        let mut rows = Vec::new();
+        for (&(definition, call, ordinal), &source) in self.temporary_descriptions
+            .range((owner, NodeId(0), 0)..)
+        {
+            if definition != owner {
+                break;
+            }
+            Solver::push(&mut rows, (call, ordinal, source), b)?;
+        }
+        Ok(rows)
+    }
+
+    pub(in crate::semantic) fn temporary_description_values(
+        &self, context: &SemanticInstance, description: Temporary, program: &SemanticModule,
+        inventory: &Inventory<'_>, b: &mut Budget, depth: usize,
+    ) -> CompileResult<(value::Value, value::Value)> {
+        Ok((
+            self.value(description.source, context, program, inventory, b, depth + 1)?,
+            self.value(description.view, context, program, inventory, b, depth + 1)?,
+        ))
+    }
+}

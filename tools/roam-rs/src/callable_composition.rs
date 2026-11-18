@@ -7,6 +7,7 @@ pub const CONTRACT: &str = "zil-callable-composition-native/1";
 pub const PROPERTY: &str = "callable.receiver-result-and-cleanup";
 pub const MAX_PROGRAMS: usize = 32;
 const SHAPES: [&str; 7] = ["", "h", "p", "hh", "hp", "ph", "pp"];
+const PUBLISHED_SHAPES: [&str; 5] = ["", "h", "p", "hh", "ph"];
 const EXITS: [&str; 4] = ["early", "ok", "decode", "replace"];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -84,14 +85,22 @@ fn invocation(
             let rest = std::str::from_utf8(rest).expect("ASCII path");
             let name = format!("relay{}", shape.len());
             let param = slot_type(rest.bytes().filter(|b| *b == b'p').count());
-            let nested = invocation(rest, "root", "&mut ", "input", helpers);
+            let nested = invocation(rest, "root", "", "input", helpers);
             helpers.push(format!(
-                "fn {name}<F:FnMut(i32)->Fault!i32>(root:&mut {param},input:i32)->Fault!i32{{return {nested}}}"
+                "fn {name}<F:Value + FnMut(i32)->Fault!i32>(root:&mut {param},input:i32)->Fault!i32{{return {nested}}}"
             ));
             format!("{name}({receiver}{place},{input})")
         }
         None => format!("({receiver}{place})({input})"),
         _ => unreachable!(),
+    }
+}
+
+pub fn property(program: &Value) -> &'static str {
+    match program["premise"].as_str() {
+        Some("exclusive-receiver") => "callable.exclusive-receiver",
+        Some("nominal-error") => "callable.nominal-error",
+        _ => PROPERTY,
     }
 }
 
@@ -125,7 +134,7 @@ pub fn source(program: &Value, fault: bool) -> Result<String, String> {
         factory = format!("hold({factory})");
     }
     let slot = if p.shape.contains('p') {
-        "resource SlotTag{marker:i32}\npackage Slot<F>{manages marker:SlotTag;callback:F}\nimpl Drop for SlotTag{fn drop(self:Self){}}\nfn hold<F>(callback:F)->Slot<F>{return Slot::<F>{marker:SlotTag{marker:0},callback:callback}}"
+        "resource SlotTag{marker:i32}\npackage Slot<F:Value>{manages marker:SlotTag;callback:F}\nimpl Drop for SlotTag{fn drop(self:Self){}}\nfn hold<F:Value>(callback:F)->Slot<F>{return Slot::<F>{marker:SlotTag{marker:0},callback:callback}}"
     } else {
         ""
     };
@@ -136,17 +145,18 @@ fn emit(code:i32){{unsafe{{putchar(code);}}}}
 enum Fault{{Decode,Prepare}}
 enum OtherFault{{Decode,Prepare}}
 resource Token{{code:i32}}
+package State{{manages token:Token}}
 impl Drop for Token{{fn drop(self:Self){{emit(.code);}}}}
 {slot}
 fn decode(n:i32)->{constructor_error}!i32{{if n==2{{return {constructor_error}.Decode}}return n}}
 fn prepare(n:i32)->{constructor_error}!i32{{if n==3{{return {constructor_error}.Prepare}}return 66}}
 fn make()->impl FnMut(i32)->{constructor_error}!i32{{
-    var state=Token{{code:65}}
+    var state=State{{token:Token{{code:65}}}}
     return move(n)=>{{
-        if n==0{{return state.code}}
+        if n==0{{return state.token.code}}
         let command=decode(n)?
-        state=Token{{code:prepare(command)?}}
-        return state.code
+        state.token=Token{{code:prepare(command)?}}
+        return state.token.code
     }}
 }}
 {}
@@ -156,7 +166,7 @@ fn main()->i32{{
     match result{{
         .ok(value)=>{{emit(value);return 0}},
         .err(error)=>{{
-            match error{{Fault.Decode=>{{emit(68);return 2}},Fault.Prepare=>{{emit(80);return 3}}}}
+            match error{{Fault.Decode()=>{{emit(68);return 2}},Fault.Prepare()=>{{emit(80);return 3}}}}
         }}
     }}
 }}
@@ -255,61 +265,114 @@ pub fn observed(expected: &Value, observation: Value, compile: &Value) -> Value 
     }
 }
 
-pub fn campaign(root: &Path, commit: &str) -> Result<Value, String> {
+fn run_case(
+    root: &Path,
+    snapshot: &Path,
+    toolchain: &Value,
+    label: &str,
+    case: &Value,
+) -> Result<Value, String> {
+    let mut case = case.clone();
+    crate::native::bind_identity(&mut case, toolchain)?;
+    let expected = expected(&case["steps"][0]["program"])?;
+    let attempt = root.join(label);
+    let run = host::supervise(
+        &case,
+        host::HostOptions {
+            command: &snapshot.join("roam"),
+            args: vec!["worker".into(), "--budget-ms=22000".into()],
+            timeout_ms: 24_000,
+            max_output: protocol::MAX_FRAME,
+            attempt: &attempt,
+        },
+    );
+    let evidence = match run {
+        Ok(run) => run.result,
+        Err(error) => json!({"status":"error","reason":error}),
+    };
+    fs::create_dir_all(&attempt).map_err(|e| e.to_string())?;
+    let proof = json!({"label":label,"expected":expected,"result":evidence});
+    host::durable(&attempt.join("rule-result.json"), &proof)?;
+    // Per-case evidence retains the complete diagnostic and codegen receipts.
+    Ok(
+        json!({"label":label,"expected":expected,"status":evidence["status"],
+        "steps":evidence["steps"],"reason":evidence.get("reason"),
+        "failure":evidence.get("failure")}),
+    )
+}
+
+pub fn campaign(root: &Path, commit: &str, jobs: usize) -> Result<Value, String> {
     fs::create_dir(root).map_err(|e| e.to_string())?;
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let snapshot = host::freeze(&exe, &root.join("snapshots"), commit)?;
     let toolchain = crate::native::identity()?;
     let cases = fixed();
-    let mut results = Vec::with_capacity(cases.len());
-    for (label, mut case) in cases {
-        crate::native::bind_identity(&mut case, &toolchain)?;
-        let expected = expected(&case["steps"][0]["program"])?;
-        let run = host::supervise(
-            &case,
-            host::HostOptions {
-                command: &snapshot.join("roam"),
-                args: vec!["worker".into(), "--budget-ms=22000".into()],
-                timeout_ms: 24_000,
-                max_output: protocol::MAX_FRAME,
-                attempt: &root.join(&label),
-            },
-        );
-        let evidence = match run {
-            Ok(run) => run.result,
-            Err(error) => json!({"status":"error","reason":error}),
-        };
-        let proof = json!({"label":label,"expected":expected,"result":evidence});
-        host::durable(&root.join(&label).join("rule-result.json"), &proof)?;
-        // Keep the summary compact while per-case evidence retains diagnostics
-        // and all four real backend/optimization observations.
-        results.push(
-            json!({"label":label,"expected":expected,"status":evidence["status"],
-            "steps":evidence["steps"],"reason":evidence.get("reason")}),
-        );
-    }
+    let mut results = std::thread::scope(|scope| {
+        let snapshot = &snapshot;
+        let toolchain = &toolchain;
+        let cases = &cases;
+        let workers: Vec<_> = (0..jobs)
+            .map(|worker| {
+                scope.spawn(move || {
+                    cases
+                        .iter()
+                        .enumerate()
+                        .skip(worker)
+                        .step_by(jobs)
+                        .map(|(index, (label, case))| {
+                            run_case(root, snapshot, toolchain, label, case).map(|row| (index, row))
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                })
+            })
+            .collect();
+        let mut rows = Vec::with_capacity(cases.len());
+        for worker in workers {
+            rows.extend(
+                worker
+                    .join()
+                    .map_err(|_| "callable combination worker panicked")??,
+            );
+        }
+        rows.sort_by_key(|(index, _)| *index);
+        Ok::<Vec<_>, String>(rows.into_iter().map(|(_, row)| row).collect())
+    })?;
     let passed = |row: &Value| row["status"] == "pass" && row["steps"] == 1;
+    let mut positive_selected = 0;
+    let mut negative_selected = 0;
+    let mut positive_passed = 0;
     let mut negative_passed = 0;
-    for (index, family) in results.chunks_exact_mut(6).enumerate() {
+    let mut boundary_observations = 0;
+    for family in results.chunks_exact_mut(6) {
+        let shape = family[0]["shape"].as_str().expect("generated shape");
+        let in_published_scope = PUBLISHED_SHAPES.contains(&shape);
+        for row in family.iter_mut() {
+            row["publishedScope"] = json!(in_published_scope);
+        }
+        if !in_published_scope {
+            boundary_observations += family.len();
+            continue;
+        }
+        positive_selected += 4;
+        negative_selected += 2;
+        positive_passed += family[..4].iter().filter(|row| passed(row)).count();
         let baseline = passed(&family[0]);
         for negative in &mut family[4..] {
             negative["positiveControlPassed"] = json!(baseline);
             negative_passed += usize::from(baseline && passed(negative));
         }
-        debug_assert_eq!(
-            family[0]["label"],
-            format!(
-                "{}-early",
-                if index == 0 { "direct" } else { SHAPES[index] }
-            )
-        );
     }
     let report = json!({
         "contract":CONTRACT, "candidate":commit, "roamSha256":host::digest(&exe)?,
-        "bound":{"maximumDepth":2,"operations":["generic helper","field projection"],"exits":EXITS},
-        "status": if results.iter().all(passed) {"pass"} else {"fail"},
-        "positive":{"selected":28,"passed":results.iter().filter(|row| row["expected"]["kind"] == "lifecycle" && passed(row)).count()},
-        "negative":{"selected":14,"passed":negative_passed},
+        "bound":{"maximumDepth":2,"operations":["generic helper","field projection"],"exits":EXITS,
+            "boundaryReason":"Deep mutable projection and mutable borrowing an entire Package containing a closure lack published admission in §8.1–8.1.2.1"},
+        "status": if positive_selected == positive_passed && negative_selected == negative_passed
+            && boundary_observations == 12
+            && results.iter().all(|row| row["steps"] == 1)
+            {"pass"} else {"fail"},
+        "positive":{"selected":positive_selected,"passed":positive_passed},
+        "negative":{"selected":negative_selected,"passed":negative_passed},
+        "boundary":{"selected":boundary_observations},
         "cases":results
     });
     host::durable(&root.join("report.json"), &report)?;

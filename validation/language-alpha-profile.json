@@ -39,6 +39,11 @@
     "Task inputs/results/captures through Pending, Ready, replacement, cancellation and close",
     "Language-defined collections, text and I/O used through the ordinary project workflow"
   ],
+  "rule_coverage": {
+    "report": "For each rule family, pin its public premises, operation grammar, depth, state and exit boundaries, independent expected behavior, selected/completed counts and the first observed failure. Record admitted and boundary probes explicitly.",
+    "bounded_campaign": "Build tools/roam-rs with llvm-api and run roam callable-combinations at the same source commit as the candidate. The campaign enumerates ordered generic helper and field projection paths to depth two, plus reason-preserving negative controls. Broader families require their own declared bounds and independent observations.",
+    "same_candidate": "Rule exploration, real projects, raw/Wire controls and native behavior are jointly reported for the same source commit. Sampling and infrastructure failures do not count as completed coverage."
+  },
   "safety": {
     "accepted_safe_ub": 0,
     "independent_verifier_required": true,

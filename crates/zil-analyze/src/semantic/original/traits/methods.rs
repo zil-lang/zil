@@ -577,7 +577,13 @@ impl Solver<'_, '_> {
         }
         let offset = usize::from(anchor.is_some());
         for (ordinal, (argument, expected)) in arguments.iter().zip(parameters.iter().skip(offset)).enumerate() {
-            let actual = self.call_input_value(frame, argument, *expected, b, depth + 1)?;
+            let actual = if let Some(actual) = self.temporary_description_argument(
+                frame, node, ordinal + offset, argument, *expected, None, b, depth + 1,
+            )? {
+                actual
+            } else {
+                self.call_input_value(frame, argument, *expected, b, depth + 1)?
+            };
             if let Some(input) = self.collect_call_input(frame, argument, actual, *expected, ordinal + offset, b, depth + 1)? {
                 Self::push(&mut outer_inputs, input, b)?;
             }

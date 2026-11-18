@@ -26,10 +26,10 @@ cargo run --locked --offline --manifest-path tools/roam-rs/Cargo.toml --bin roam
 
 ```sh
 cargo build --locked --offline --manifest-path tools/roam-rs/Cargo.toml --features llvm-api --bin roam
-target/debug/roam callable-combinations --commit="$(git rev-parse HEAD)" --out=out/runs/callable-combinations
+tools/roam-rs/target/debug/roam callable-combinations --commit="$(git rev-parse HEAD)" --out=out/runs/callable-combinations
 ```
 
-当使用 `CARGO_TARGET_DIR` 时从该目录运行 Roam。这个有限 campaign 全选两种组合操作在深度 0 至 2 的七种有序路径。各路径观察提前正常返回、成功替换、解码错误和替换右侧错误，同时配共享接收者与同布局不同名义错误类型两个单项反例。独立模型预测返回状态和析构顺序。正例运行 Clang 与 LLVM API 的 O0 和 O2；反例要求预期的拒绝且对应正例成立。每行保留 `roam/1` case 与实际结果，可单独重放及缩减；随机 `hunt --profile=callable-composition-native` 只算探索样本。
+当使用 `CARGO_TARGET_DIR` 时从该目录运行 Roam。这个有限 campaign 全选两种组合操作在深度 0 至 2 的七种有序路径。各路径观察提前正常返回、成功替换、解码错误和替换右侧错误，同时配共享接收者与同布局不同名义错误类型两个单项反例。独立模型预测返回状态和析构顺序。正例运行 Clang 与 LLVM API 的 O0 和 O2；反例要求预期的拒绝且对应正例成立。按 §8.1–8.1.2.1，`hp` 和 `pp` 保留为边界探查，分别涉及含闭包的整个 Package 的可变借入和深层可变投影。报告对其他五种形态统计规范内的 20 个正例和 10 个反例。每行保留 `roam/1` case 与实际结果，可单独重放及缩减；随机 `hunt --profile=callable-composition-native` 只算探索样本。
 
 ## 协议与行为
 

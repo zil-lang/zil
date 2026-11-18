@@ -40,7 +40,7 @@ fn run() -> Result<u8, String> {
     let command = args.remove(0);
     let allowed = match command.as_str() {
         "worker" => &["fault", "max-steps", "budget-ms"][..],
-        "callable-combinations" => &["out", "commit"][..],
+        "callable-combinations" => &["out", "commit", "jobs"][..],
         "campaign" => &["out", "commit", "allow-dirty"][..],
         "replay" => &[
             "case",
@@ -149,7 +149,11 @@ fn run() -> Result<u8, String> {
                 if !cfg!(feature = "llvm-api") {
                     return Err("callable-combinations requires the llvm-api feature".into());
                 }
-                let report = callable_composition::campaign(&out, &commit)?;
+                let jobs = number(&args, "jobs", 2)?;
+                if !(1..=4).contains(&jobs) {
+                    return Err("callable-combinations jobs must be in 1..=4".into());
+                }
+                let report = callable_composition::campaign(&out, &commit, jobs as usize)?;
                 println!(
                     "{}",
                     json!({"status":report["status"],"report":out.join("report.json"),

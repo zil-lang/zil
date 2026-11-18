@@ -30,7 +30,12 @@ impl CheckedOriginal {
             let source=if matches!(ty,Ty::Address{..}|Ty::Desc{..}){
                 if let Some(source)=self.original_address_source(module,definition,&SemanticOriginalTypeSource::Expression(argument.id),b)?{Some(source)}
                 else if self.value_places.contains_key(&(definition,expression.id)){Some(intrinsics::BufferSource::Place{definition,node:expression.id})}
-                else{None}
+                else if matches!(ty,Ty::Desc{..})
+                    && matches!(expression.kind,CoreExprKind::Call{..}|CoreExprKind::Record{..}|CoreExprKind::RecordConstructor{..})
+                    && self.place_types.get(&(definition,argument.id)).is_some_and(|ty|matches!(ty,Ty::Managed(_)))
+                {
+                    Some(intrinsics::BufferSource::TemporaryOwner{definition,node:expression.id})
+                }else{None}
             }else if matches!(ty,Ty::Code{kind:SemanticCodeKind::FunctionPointer,..})
                 && self.value_places.contains_key(&(definition,expression.id))
             {
@@ -39,6 +44,33 @@ impl CheckedOriginal {
             recipes.push(Some((expression.id,SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Expression(argument.id)},source)));
         }
         Ok(recipes)
+    }
+    pub(in crate::semantic) fn temporary_call_description(
+        &self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,ordinal:usize,
+        node:NodeId,environment:&EvalEnv,b:&mut Budget,
+    )->Check<SemanticLifeRecipe>{
+        let index=self.source_index(module,&[definition],b)?;
+        let function=index.definitions.get(&definition).ok_or_else(||bad("temporary description lacks its original call body"))?;
+        let Some(index::Node::Expression(call))=function.nodes.get(&site).copied()else{
+            return Err(bad("temporary description has no exact original Call occurrence"));
+        };
+        let (position,identity)=self.original_call_site(definition,call.id,b)?;
+        let SemanticDefinitionBody::FunctionWithBody{sites,..}=&function.definition.body else{unreachable!()};
+        let anchor=sites.get(position).filter(|row|row.id==identity&&row.id==site).ok_or_else(||bad("temporary description selects another original call"))?;
+        let ordinal=u32::try_from(ordinal).map_err(|_|limit("temporary description argument exceeds the full ordinal domain"))?;
+        b.spend(anchor.occurrence_path.len().saturating_add(3))?;
+        let mut path=anchor.occurrence_path.clone();
+        path.extend([u32::MAX,5,ordinal]);
+        let mut matched=None;
+        for row in &function.definition.implicit_lifetimes{
+            b.spend(row.occurrence_path.len().saturating_add(1))?;
+            if row.occurrence_path==path && matched.replace(row.ordinal).is_some(){
+                return Err(bad("temporary description has multiple exact original call-only lifetime roles"));
+            }
+        }
+        let lifetime=matched.ok_or_else(||bad("temporary description lacks its exact original call-only lifetime role")
+            .with_note(format!("original call {site:?}, argument {ordinal}, producer expression {node:?}")))?;
+        Ok(SemanticLifeRecipe::Implicit{scope:self.scope(definition,environment,b)?,ordinal:lifetime})
     }
     // Select a proved original call by its lexical node or its inferred local
     // binding. Explicit type ascriptions remain separate invariant obligations.

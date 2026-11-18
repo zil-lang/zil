@@ -533,9 +533,17 @@ impl CheckedContext {
             if let Some(head)=self.capture_implicit(module,child,index as u32,b)? {
                 let ClassKey::Implicit{ordinal,..}=&head else{return Err(bad("capture head does not select an original implicit occurrence"));};
                 self.capture_local_source(module,creator,child,*ordinal,*capture,b)?;
-                if !matches!(&value.ty,Type::Address{..}){return Err(bad("implicit captured head has another complete borrow carrier"));}
+                let owner_description=matches!(&value.ty,Type::Desc(_));
+                if owner_description{
+                    let original_producer=call_borrows::call_borrow_producer(f,*capture,b)?;
+                    if !matches!(original_producer.kind,InstructionKind::DescribeLocal{..}){
+                        return Err(bad("default Managed capture lacks its exact creator description operation"));
+                    }
+                }else if !matches!(&value.ty,Type::Address{..}){
+                    return Err(bad("implicit captured head has another complete borrow carrier"));
+                }
                 let pointee=self.child_value(module,&value,&[LifeTypeProjection::Pointee],b)?;
-                let ordinal=self.environment_capture(module,creator,child,creation_node,*capture,&pointee,None,&sealed,environment,b)?;
+                let ordinal=self.environment_capture(module,creator,child,creation_node,*capture,&pointee,None,&sealed,owner_description,environment,b)?;
                 borrowed_captures.insert(index as u32,ordinal);
                 let slot=value.life.slots.iter().find(|row|row.path.is_empty()).ok_or_else(||bad("actual implicit capture has no variable head occurrence"))?;
                 let binder=slot.binder as usize;
@@ -548,7 +556,7 @@ impl CheckedContext {
                 capture_images.push((head.clone(),value.classes[binder].clone()));
                 value.classes[binder]=head.clone();value.origins[binder]=IntrinsicOrigin::DerivedClass{source:head};
             }else{
-                let ordinal=self.environment_capture(module,creator,child,creation_node,*capture,&value,Some(values),&sealed,environment,b)?;
+                let ordinal=self.environment_capture(module,creator,child,creation_node,*capture,&value,Some(values),&sealed,false,environment,b)?;
                 let CheckedActual::Type(original)=&sealed[ordinal] else{unreachable!()};
                 if !self.same_type(environment,&value,original,b)? {
                     // environment_capture proved this exact compiler reborrow
@@ -619,8 +627,11 @@ impl CheckedContext {
             let row=child.header_embedding.iter().find(|row|row.header==StorageBinder::Fixed(class)).ok_or_else(||bad("actual captured head loses its original Fixed embedding"))?;
             if self.class(module,&row.actual,&child_environment,b)?!=head{return Err(bad("Closure captured head maps to another original class occurrence"));}
             if let Some(ordinal)=borrowed_captures.get(&(index as u32)){
-                let CheckedActual::Type(pointee)=&sealed[*ordinal]else{unreachable!()};
-                self.borrowed_capture_header(relation,child,index as u32,*ordinal,pointee,&sealed,environment,b)?;
+                let CheckedActual::Type(original)=&sealed[*ordinal]else{unreachable!()};
+                let projected=if matches!(value_at(values,captures[index])?.ty,Type::Desc(_)){
+                    Some(self.child_value(module,original,&[LifeTypeProjection::Pointee],b)?)
+                }else{None};
+                self.borrowed_capture_header(relation,child,index as u32,*ordinal,projected.as_ref().unwrap_or(original),&sealed,environment,b)?;
             }
         }
         for position in &relation.static_bindings {
@@ -903,7 +914,12 @@ impl CheckedContext {
         self.instantiate_original_call_heads(module,caller,site,&mut signature,&inputs,key,environment,b)?;
         let actual_function=module.functions.get(callee.0 as usize).ok_or_else(||bad("actual Call function is absent"))?;
         for (index,((expected,_),argument)) in signature.parameters.iter().zip(arguments).enumerate() {
-            if !self.call_argument(module,caller,*argument,values,expected,environment,source_checks[index],b)? {
+            let compatible=if source_checks[index]&&matches!(expected.ty,Type::Desc(_)){
+                self.compatible(environment,&source_inputs[index],expected,b)?
+            }else{
+                self.call_argument(module,caller,*argument,values,expected,environment,source_checks[index],b)?
+            };
+            if !compatible {
                 let actual=value_at(values,*argument)?;
                 return Err(bad("actual Call argument violates the original invariant class specialization")
                     .with_note(format!("caller {:?}, original {:?}, call {:?}, callee {:?}, parameter {index}, actual SSA {:?}, original source checked {}; actual/expected N {}/{}, retained {}/{}, nominal {}/{}",caller.target,caller.definition,site.recipe,callee,argument,source_checks[index],actual.life.binder_count,expected.life.binder_count,actual.life.retained.len(),expected.life.retained.len(),actual.life.nominal_arguments.len(),expected.life.nominal_arguments.len()))

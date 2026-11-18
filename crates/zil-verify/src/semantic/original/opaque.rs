@@ -68,17 +68,15 @@ impl CheckedOriginal {
         let original = context.definition(module, owner, b)?;
         let mut selected = self.environment(module, context, owner, active, b)?;
         selected.lexical[0].actuals = self.resolve_arguments(arguments, 0, b)?;
+        let rigid = self.environment(module, context, owner, active, b)?;
         let mut result = None;
         for row in &original.requirements {
-            if let SemanticRequirementRecipe::Callable { ty: SemanticTypeRecipe::OriginalType { scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result }, kind, signature } = row {
-                if result.is_some() { return Err(unsupported("opaque Callable overload requires its exact original role selection", None)); }
-                let rigid = self.environment(module, context, owner, active, b)?;
-                let mut prototype = self.callable_signature(module, context, signature, *kind, &rigid, active, b)?;
-                prototype.callable_kind = Some(*kind);
-                result = Some(self.specialize_code_prototype(&prototype, &selected, b)?);
-            }
+            // Select exactly this declaration's Result occurrence even when its
+            // hidden value is equal to a parameter with another Callable bound.
+            self.callable_premise_row(module, context, row, None, &rigid, &[], false,
+                &mut result, active, b)?;
         }
-        Ok(result)
+        result.map(|prototype| self.specialize_code_prototype(&prototype, &selected, b)).transpose()
     }
 
     pub(super) fn check_opaque_result(&mut self, module: &TypedModule, context: &CheckedContext, owner: SemanticDefinitionId, env: &Env, active: &mut ActiveQueries, b: &mut Budget) -> Check<()> {
@@ -123,6 +121,23 @@ mod structural_tests{
                 let decoded;let module=if wire{let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();decoded=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0;&decoded}else{&module};
                 let mut b=Budget::new(&limits);let context=CheckedContext::catalogue(module,&mut b).unwrap();let result=CheckedOriginal::check(module,&context,&mut ActiveQueries::new(),&mut b);
                 assert_eq!(result.is_ok(),hostile==0,"uninstantiated result contract wrapper {wrapper:?}, wrong signature/rigid-frame attack {hostile}, wire {wire}");
+                if let Ok(mut checked)=result {
+                    checked.current=Some(id);
+                    let mut active=ActiveQueries::new();
+                    let arguments=[Arg::Type(Ty::Atom(Type::I32))];
+                    let advertised=checked.opaque_callable(module,&context,id,&arguments,&mut active,&mut b).unwrap().unwrap();
+                    assert_eq!(advertised.premise_bounds.iter().map(Vec::len).collect::<Vec<_>>(),
+                        if wrapper==Some(1) {vec![1]} else {vec![]});
+                    assert_eq!(advertised.parameters,vec![Ty::Atom(Type::I32)]);
+                    assert_eq!(advertised.result,Ty::Atom(Type::I32));
+                    let applied=checked.freshen_code_prototype(&advertised,None,&mut b).unwrap();
+                    let again=checked.freshen_code_prototype(&advertised,None,&mut b).unwrap();
+                    assert_eq!(applied.premise_bounds.len(),advertised.premise_bounds.len());
+                    if wrapper==Some(1) {
+                        assert!(matches!(&applied.premise_bounds[..],[frame] if matches!(frame.as_slice(),[Life::Infer(_)])));
+                        assert_ne!(applied.premise_bounds,again.premise_bounds);
+                    }
+                }
             }
         }}
     }

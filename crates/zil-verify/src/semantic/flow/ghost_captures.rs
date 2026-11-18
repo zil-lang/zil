@@ -4,14 +4,19 @@
 use super::*;
 impl CheckedContext {
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn environment_capture(&self,module:&TypedModule,creator:&SemanticInstance,child:&SemanticInstance,node:zil_base::NodeId,value:ValueId,actual:&CheckedType,values:Option<&[Option<CheckedType>]>,sealed:&[CheckedActual],environment:&EvalEnv,b:&mut Budget)->Check<usize>{
+    pub(super) fn environment_capture(&self,module:&TypedModule,creator:&SemanticInstance,child:&SemanticInstance,node:zil_base::NodeId,value:ValueId,actual:&CheckedType,values:Option<&[Option<CheckedType>]>,sealed:&[CheckedActual],owner_description:bool,environment:&EvalEnv,b:&mut Budget)->Check<usize>{
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=creator.target else{return Err(bad("logical capture creator is not an actual function"));};
         let f=module.functions.get(function.0 as usize).ok_or_else(||bad("logical capture creator function is absent"))?;
         let mut selected=None;
         for(ordinal,expected)in sealed.iter().enumerate(){
-            let CheckedActual::Type(expected)=expected else{continue;};
+            let CheckedActual::Type(original)=expected else{continue;};
+            let projected=if owner_description{
+                if !matches!(original.ty,Type::Managed(_)){continue;}
+                Some(self.child_value(module,original,&[LifeTypeProjection::Pointee],b)?)
+            }else{None};
+            let expected=projected.as_ref().unwrap_or(original);
             if expected.ty!=actual.ty{continue;}
-            complete_environment(module,expected,b)?;
+            complete_environment(module,original,b)?;
             let source=self.original.borrow().as_ref().ok_or_else(||bad("logical capture has no checked original body"))?.ghost_capture_source(module,creator.definition,child.definition,ordinal,node,b)?;
             // Resolve every same-shaped original candidate by its real binder.
             // A different candidate cannot donate its class inventory.
@@ -178,6 +183,7 @@ impl CheckedContext{
         }Ok(())
     }
     pub(super) fn borrowed_capture_header(&self,relation:&StorageLifeContract,child:&SemanticInstance,index:u32,ordinal:usize,pointee:&CheckedType,sealed:&[CheckedActual],environment:&EvalEnv,b:&mut Budget)->Check<()>{
+        let described=matches!(sealed.get(ordinal),Some(CheckedActual::Type(owner)) if matches!(owner.ty,Type::Managed(_)) && owner.ty!=pointee.ty);
         for class in 0..pointee.life.binder_count{
             b.spend(relation.classes.len().saturating_add(child.header_embedding.len()))?;
             let mut rows=relation.classes.iter().filter(|row|row.position.base==StorageBase::Capture(index)&&row.position.path==[LifeTypeProjection::Pointee]&&row.position.class==class);
@@ -185,7 +191,7 @@ impl CheckedContext{
             if rows.next().is_some(){return Err(bad("borrowed capture repeats a pointee intrinsic occurrence"));}
             let mut maps=child.header_embedding.iter().filter(|map|map.header==row.binder);
             let map=maps.next().ok_or_else(||bad("borrowed capture pointee has no original environment embedding"))?;
-            if maps.next().is_some()||!matches!(row.binder,StorageBinder::Fixed(_))||!self.same_capture_anchor(&map.actual,&SemanticClassExpr::IntrinsicClass{operand:SemanticOperand::Environment(ordinal as u32),path:vec![],class},sealed,environment,b)?{return Err(bad("borrowed capture changes an independent original pointee class or aliases its outer head"));}
+            if maps.next().is_some()||!matches!(row.binder,StorageBinder::Fixed(_))||!self.same_capture_anchor(&map.actual,&SemanticClassExpr::IntrinsicClass{operand:SemanticOperand::Environment(ordinal as u32),path:if described{vec![LifeTypeProjection::Pointee]}else{vec![]},class},sealed,environment,b)?{return Err(bad("borrowed capture changes an independent original pointee class or aliases its outer head"));}
         }Ok(())
     }
 
