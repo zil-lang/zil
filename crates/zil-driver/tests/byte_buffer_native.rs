@@ -319,6 +319,8 @@ fn value()->i32 {
             let built = build_with_backend(program, level, false, backend);
             let output = run(&built.0.join("program"), &[]);
             assert_eq!(output.status.code(), Some(0), "{output:?}");
+            assert_eq!(output.stdout, b"0\n", "{output:?}");
+            assert!(output.stderr.is_empty(), "{output:?}");
         }
     }
 }
