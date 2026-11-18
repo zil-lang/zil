@@ -4264,6 +4264,43 @@ impl<'a> Engine<'a, '_> {
         self.record_cost("statement", cost_before, cost_children);
         result
     }
+    /// Check known callees in fresh host frames before callers consume their
+    /// exit summaries. An edge only schedules a body. The call itself must still
+    /// bind its actual arguments and prove the protocol in the current state.
+    fn function_order(&mut self) -> R<Vec<usize>> {
+        let count = self.program.definitions.len();
+        let edges = self.proof.call_targets.len();
+        let index_cost = lookup_work(count).saturating_mul(2);
+        self.pay(count.saturating_mul(6)
+            .saturating_add(edges.saturating_mul(index_cost.saturating_add(4))), 0)?;
+        let mut callers = vec![Vec::new(); count];
+        let mut remaining = vec![0usize; count];
+        let positions = &self.proof.definition_positions;
+        for ((owner, _), target) in &self.proof.call_targets {
+            let caller = *positions.get(owner).ok_or_else(|| failure("original call owner is absent"))?;
+            let callee = *positions.get(target).ok_or_else(|| failure("original call target is absent"))?;
+            callers[callee].push(caller);
+            remaining[caller] += 1;
+        }
+        let mut order = Vec::with_capacity(count);
+        order.extend((0..count).filter(|i| remaining[*i] == 0));
+        let mut next = 0;
+        while next < order.len() {
+            let callee = order[next];
+            next += 1;
+            for &caller in &callers[callee] {
+                remaining[caller] -= 1;
+                if remaining[caller] == 0 {
+                    order.push(caller);
+                }
+            }
+        }
+        // Keep the original declaration order for a recursive dependency and
+        // its dependents. The active-body and fixed-point checks govern them.
+        order.extend((0..count).filter(|i| remaining[*i] != 0));
+        Ok(order)
+    }
+
     fn function(&mut self, owner: SemanticDefinitionId, depth: usize) -> R<()> {
         let cost_before = *self.left;
         let cost_children = self.method_cost_total;
@@ -4821,7 +4858,8 @@ pub(super) fn check(
         .insert("protocol: relevance", setup_work);
     let functions_before = *engine.left;
     let result: R<()> = (|| {
-        for definition in &program.definitions {
+        for position in engine.function_order()? {
+            let definition = &program.definitions[position];
             if matches!(
                 definition.body,
                 SemanticDefinitionBody::FunctionWithBody { .. }
