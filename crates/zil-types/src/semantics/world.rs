@@ -5053,7 +5053,11 @@ fn program_at(
                     ));
                 }
             }
+            let nominal_self = SemanticTypeRecipe::SelfType {
+                scope: SemanticScopeRef::Ancestor(0),
+            };
             let recipe = match &original.body {
+                SemanticDefinitionBody::Nominal { .. } => Some(&nominal_self),
                 SemanticDefinitionBody::Scope(
                     SemanticScopeRecipe::InherentImpl { self_type, .. }
                     | SemanticScopeRecipe::TraitImpl { self_type, .. }
