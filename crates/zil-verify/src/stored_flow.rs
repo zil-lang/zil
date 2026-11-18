@@ -1883,6 +1883,59 @@ pub(super) fn pure_inline(module: &TypedModule, ty: &Type, b: &mut Budget) -> Ch
 /// An ordinary owner has no stored data targets, but its borrowed head still
 /// has the real Address origin and loan. This predicate concerns only the
 /// pointee: it never makes the owner Copy or discharges its cleanup debt.
+fn ordinary_task_enum(module: &TypedModule, root: &Type, b: &mut Budget) -> Check<bool> {
+    if !b.task_sources() || !matches!(root, Type::Enum { .. }) { return Ok(false); }
+    let mut todo = vec![root];
+    let mut owning = false;
+    while let Some(ty) = todo.pop() {
+        b.spend(1)?;
+        match ty {
+            Type::Enum { variants, .. } => {
+                b.spend(variants.len())?;
+                for (_, fields) in variants { b.spend(fields.len())?; todo.extend(fields); }
+            }
+            Type::Tuple(fields) => { b.spend(fields.len())?; todo.extend(fields); }
+            Type::Package { fields, .. } => {
+                b.spend(fields.len())?;
+                todo.extend(fields.iter().map(|(_, field)| field));
+            }
+            Type::ErrorUnion { error, result } => todo.extend([error.as_ref(), result.as_ref()]),
+            Type::Managed(inner) if super::stored_owned::payload(inner, b)? => {
+                // Check the physical nominal definition independently of the
+                // root Enum and its stored-target classification.
+                let Type::Record { name, .. } = inner.as_ref() else { return Ok(false); };
+                b.spend(module.resources.len())?;
+                let mut matches = 0usize;
+                for resource in &module.resources {
+                    b.spend(name.len().saturating_add(resource.name.len()))?;
+                    if resource.name == *name {
+                        resources::charge_payload(&resource.payload, b)?;
+                        if resource.payload != **inner { return Err(err("Enum field changes its actual resource payload")); }
+                        matches += 1;
+                    }
+                }
+                if matches != 1 { return Err(err("Enum field lacks its unique actual resource")); }
+                owning = true;
+            }
+            data if retained::closed_copy(data, b)? => {}
+            _ => return Ok(false),
+        }
+    }
+    if owning { super::sums::check_type_for(module, root, None, b)?; }
+    Ok(owning)
+}
+
+fn ordinary_enum_operation(module: &TypedModule, f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check<bool> {
+    if !b.task_sources() { return Ok(false); }
+    let root = match &i.kind {
+        InstructionKind::MakeVariant { .. } => i.result.and_then(|id| f.values.get(id.0 as usize)),
+        InstructionKind::DropEnum { local } | InstructionKind::UnpackVariant { local, .. }
+        | InstructionKind::VariantTagLocal { local, .. } => f.locals.get(local.0 as usize).map(|l| &l.ty),
+        _ => return Ok(false),
+    };
+    ordinary_task_enum(module, root.ok_or_else(|| err("Enum operation lacks its actual root"))?, b)
+}
+
 fn ordinary_owner_address(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
     let Type::Address { inner, .. } = ty else {
         return Ok(false);
@@ -1987,7 +2040,7 @@ pub(super) fn qualifications(
                 let ordinary_store_operation =
                     super::stored_owned::ordinary_store_instruction(module, f, i, b)?
                         || super::stored_owned::ordinary_byte_instruction(module, f, i, b)?;
-                let enum_operation = enum_address::instruction(module, f, i, b)?;
+                let enum_operation = enum_address::instruction(module, f, i, b)? || ordinary_enum_operation(module, f, i, b)?;
                 let task_capture_operation = task_address::capture_instruction(module, f, i, b)?;
                 let owned_operation = !ordinary_store_operation
                     && !task_capture_operation
@@ -5096,6 +5149,7 @@ static_dependency: StaticProvenance::NotStatic,
         | InstructionKind::SliceLength { .. }
         | InstructionKind::ScopeEnter { .. }
         | InstructionKind::ScopeExit { .. } => {}
+        _ if ordinary_enum_operation(module, f, i, b)? => {}
         _ => {
             return Err(unsupported(
                 "instruction lacks an independent stored target transfer",
@@ -8047,7 +8101,8 @@ fn check_with_mask(
                 || matches!(ty,Type::Address{inner,..}if shared_tuple_value(module,inner,Some(f.span),b)?)
                 || pure_copy::callable_tuple(module, ty, b)?
                 || callable_cells::admitted_value(module, ty, b)?
-                || ordinary_owner_address(module, ty, b)?;
+                || ordinary_owner_address(module, ty, b)?
+                || ordinary_task_enum(module, ty, b)?;
             let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
             let closed_dyn_value =
                 dyn_closed::value(module, ty, b)? || dyn_ports::value(module, ty, b)?;

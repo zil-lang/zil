@@ -147,12 +147,61 @@ pub(crate) fn ordinary_value(
             super::super::resources::product::admit_owned(module, ty, b)?;
             Ok(true)
         }
+        Type::Enum { .. } if b.task_sources() => ordinary_task_enum(module, ty, b),
         Type::ErrorUnion { .. } => {
             super::super::resources::sums::admit(module, ty, b)?;
             Ok(true)
         }
         _ => Ok(false),
     }
+}
+
+// A plain Enum carrying only data and actual managed records has no stored
+// target in any arm. Its live arm, transfers and cleanup remain affine facts.
+pub(super) fn ordinary_task_enum(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    if !matches!(ty, Type::Enum { .. }) { return Ok(false); }
+    let mut todo = vec![ty];
+    let mut owning = false;
+    while let Some(child) = todo.pop() {
+        fee(b, 1)?;
+        match child {
+            Type::Enum { variants, .. } => {
+                fee(b, variants.len())?;
+                for (_, fields) in variants {
+                    fee(b, fields.len())?;
+                    todo.extend(fields);
+                }
+            }
+            Type::Package { fields, .. } => {
+                fee(b, fields.len())?;
+                todo.extend(fields.iter().map(|(_, field)| field));
+            }
+            Type::Tuple(fields) => {
+                fee(b, fields.len())?;
+                todo.extend(fields);
+            }
+            Type::ErrorUnion { error, result } => todo.extend([error.as_ref(), result.as_ref()]),
+            Type::Managed(payload) if data(child, b)? => {
+                registered(module, payload, b)?;
+                owning = true;
+            }
+            data if retained::closed_copy(data, b)? => {}
+            _ => return Ok(false),
+        }
+    }
+    if owning { crate::resources::sums::admit(module, ty, b)?; }
+    Ok(owning)
+}
+
+pub(super) fn ordinary_enum_operation(module: &TypedModule, f: &TypedFunction, i: &Instruction, b: &mut Budget) -> CompileResult<bool> {
+    if !b.task_sources() { return Ok(false); }
+    let ty = match &i.kind {
+        InstructionKind::MakeVariant { .. } => value_type(f, i.result.ok_or_else(|| failure("Enum constructor lacks its result"))?)?,
+        InstructionKind::VariantTagLocal { local, .. } | InstructionKind::UnpackVariant { local, .. }
+        | InstructionKind::DropEnum { local } => &f.locals.get(local.0 as usize).ok_or_else(|| failure("Enum operation lacks its actual local"))?.ty,
+        _ => return Ok(false),
+    };
+    ordinary_task_enum(module, ty, b)
 }
 
 fn value(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<()> {

@@ -6090,6 +6090,7 @@ fn transfer(
         | InstructionKind::SliceLength { .. }
         | InstructionKind::ScopeEnter { .. }
         | InstructionKind::ScopeExit { .. } => {}
+        _ if owned::ordinary_enum_operation(module, f, i, b)? => {}
         _ => {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
@@ -9841,7 +9842,8 @@ fn actual_instructions(
             let enum_operation = enum_address::instruction(module, f, i, b)?;
             let task_capture_operation =
                 b.task_sources() && task_address::capture_instruction(module, f, i, b)?;
-            let owned_operation = owned::task_neighbour_instruction(module,f,i,b)?
+            let owned_operation = owned::ordinary_enum_operation(module, f, i, b)?
+                || owned::task_neighbour_instruction(module,f,i,b)?
                 || !task_capture_operation && (b.stored_owned_fixed
                 || b.stored_compound_values && matches!(i.kind,InstructionKind::DropManaged{local} if matches!(&f.locals[local.0 as usize].ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Record{..})))
                 || matches!(i.kind, InstructionKind::ReadDesc { .. } | InstructionKind::WriteDesc { .. })
