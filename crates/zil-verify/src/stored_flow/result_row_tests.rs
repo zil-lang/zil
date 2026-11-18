@@ -226,6 +226,38 @@ fn summarize_by_scan(
             }
             for (path, p) in &payload.leaves {
                 result_row_by_scan(&mut summary, path, &p.sources, b)?;
+                // The scan oracle also carries the independent complete
+                // per-path parent channel. An empty row is known ancestry,
+                // whereas a missing row is an unproved result obligation.
+                if path.is_empty()
+                    || p.sources.is_empty()
+                    || payload.enum_variants.present() && !payload.enum_variants.slot_active(path)
+                    || option_address::candidate(&f.return_type)
+                        && payload.option_variants.mask() == 1
+                {
+                    continue;
+                }
+                let parents = dyn_returns::parents(p, &solution.loans, b)?;
+                dyn_returns::check_parent_escape(f, &parents, b)?;
+                b.spend(
+                    summary
+                        .physical_result_parents
+                        .len()
+                        .saturating_mul(path.len().saturating_add(1)),
+                )?;
+                if let Some((_, row)) = summary
+                    .physical_result_parents
+                    .iter_mut()
+                    .find(|(key, _)| key == path)
+                {
+                    add_sources(row, &parents, b)?;
+                } else {
+                    b.spend(path.len().saturating_add(1))?;
+                    source_work(&parents, b)?;
+                    summary
+                        .physical_result_parents
+                        .push((path.clone(), parents));
+                }
             }
             task_address::summarize(module, f, payload, &mut summary, b)?;
         }
@@ -246,7 +278,10 @@ fn summarize_by_scan(
 fn origin(id: u32) -> Source {
     Source {
         static_dependency: StaticProvenance::NotStatic,
-        retained_port: (id.is_multiple_of(2)).then_some(PortOrigin::Task { carrier: Vec::new(), port: id }),
+        retained_port: (id.is_multiple_of(2)).then_some(PortOrigin::Task {
+            carrier: Vec::new(),
+            port: id,
+        }),
         base: HoldRoot::Parameter(id),
         leaf: vec![PlaceProjection::Field(id)],
         inline: vec![PlaceProjection::ErrorArm(id.is_multiple_of(2))],
@@ -447,7 +482,10 @@ fn indexed_results_keep_task_failures_and_final_actual_ancestry_checks() {
     let error = compare(&fixture, true).unwrap_err();
     assert_eq!(error.category, zil_base::ResultCategory::SafeReject);
     assert_eq!(error.code, "E-VERIFY-STORED");
-    assert_eq!(error.message, "stored target proof: Task boundary class domain is Unknown");
+    assert_eq!(
+        error.message,
+        "stored target proof: Task boundary class domain is Unknown"
+    );
     fixture.1.return_type = fixture::address(Type::I32, false);
     fixture.1.values[0] = fixture.1.return_type.clone();
     fixture.3.values[0].task_ports.clear();

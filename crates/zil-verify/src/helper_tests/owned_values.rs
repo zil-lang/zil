@@ -220,8 +220,17 @@ fn owning_callback_argument_is_consumed_once_raw_and_wire() {
 
 #[test]
 fn unused_owned_signature_cannot_hide_callback_in_store_element_raw_and_wire() {
-    let mut raw = dispatch();
-    raw.module.closures[0].result = Type::Package {
+    let closed = StorageLifeContract {
+        fixed_binder_count: 0,
+        invocation_binder_count: 0,
+        bindings: vec![],
+        static_bindings: vec![],
+        classes: vec![],
+    };
+    // Keep the original recursively hidden callback as an exact recursive
+    // domain attack, with its entry identity/header made complete first.
+    let mut recursive = dispatch();
+    recursive.module.closures[0].result = Type::Package {
         name: "BadReply".into(),
         fields: vec![(
             "callbacks".into(),
@@ -233,7 +242,104 @@ fn unused_owned_signature_cannot_hide_callback_in_store_element_raw_and_wire() {
             })),
         )],
     };
-    raw.reject("cannot contain a concrete or opaque callback");
+    recursive.module.functions[1].return_type = recursive.module.closures[0].result.clone();
+    recursive.module.closures[0].storage_life = Some(closed.clone());
+    recursive.module.functions[1].storage_life = Some(closed.clone());
+    for result in recursive.both() {
+        let errors = result.unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.code == "E-VERIFY-DYN-WITNESS"
+                    && error.message
+                        == "dynamic actual inventory has an unproved recursive domain"),
+            "{errors:?}"
+        );
+    }
+
+    // A concrete closed child callback is supported by the ordinary Store
+    // qualification. A separate finite callback with a real borrowed capture
+    // still cannot be hidden in that self-contained data domain, including
+    // when the enclosing callback definition is never constructed or called.
+    let mut raw = dispatch();
+    let element = Type::Package {
+        name: "CallbackItem".into(),
+        fields: vec![
+            ("token".into(), owned()),
+            ("callback".into(), Type::Closure(ClosureId(2))),
+        ],
+    };
+    let store = Type::OwnedStore {
+        element: Box::new(element.clone()),
+    };
+    let result = Type::Package {
+        name: "BadReply".into(),
+        fields: vec![("callbacks".into(), Type::Managed(Box::new(store.clone())))],
+    };
+    let mut unused = raw.module.functions[1].clone();
+    unused.id = FunctionId(3);
+    unused.environment = Some(ClosureId(1));
+    unused.return_type = result.clone();
+    unused.parameters.clear();
+    unused.locals.clear();
+    unused.values.clear();
+    unused.storage_life = Some(closed.clone());
+    unused.blocks = vec![BasicBlock {
+        id: BlockId(0),
+        instructions: vec![],
+        terminator: Terminator::Trap,
+    }];
+    unused.entry = BlockId(0);
+    raw.module.functions.push(unused);
+    raw.module.closures.push(ClosureDefinition {
+        id: ClosureId(1),
+        function: FunctionId(3),
+        captures: vec![],
+        parameters: vec![],
+        result,
+        kind: CallableKind::FnOnce,
+        storage_life: Some(closed),
+        lending_captures: vec![],
+    });
+    let borrowed_header = StorageLifeContract {
+        fixed_binder_count: 0,
+        invocation_binder_count: 0,
+        bindings: vec![],
+        classes: vec![],
+        static_bindings: vec![StoragePosition {
+            base: StorageBase::Capture(0),
+            path: vec![],
+        }],
+    };
+    let mut child = raw.module.functions[3].clone();
+    child.id = FunctionId(4);
+    child.environment = Some(ClosureId(2));
+    child.return_type = Type::I32;
+    child.storage_life = Some(borrowed_header.clone());
+    raw.module.functions.push(child);
+    raw.module.closures.push(ClosureDefinition {
+        id: ClosureId(2),
+        function: FunctionId(4),
+        captures: vec![address(Type::I32, false)],
+        parameters: vec![],
+        result: Type::I32,
+        kind: CallableKind::Fn,
+        storage_life: Some(borrowed_header),
+        lending_captures: vec![],
+    });
+    raw.module.resources.push(ResourceDefinition {
+        name: dynamic_store::definition_name(&element),
+        payload: store,
+        teardown: None,
+    });
+    for result in raw.both() {
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|error| error.code == "E-UNSUPPORTED"
+                && error.message == "Store callback requires a self-contained environment"),
+            "{errors:?}"
+        );
+    }
 }
 
 fn stored_event() -> Type {

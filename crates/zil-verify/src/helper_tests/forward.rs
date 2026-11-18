@@ -205,6 +205,17 @@ fn raw_companion_cannot_hide_f_or_an_external_address() {
         address(Type::I32, false),
     ] {
         let mut raw = keep(CallableKind::Fn, CallableKind::Fn);
+        // This attack concerns an extra helper input, not an omitted opaque
+        // relation. The concrete scalar environment has a complete N0 head.
+        let closed = StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 0,
+            bindings: vec![],
+            static_bindings: vec![],
+            classes: vec![],
+        };
+        raw.module.closures[0].storage_life = Some(closed.clone());
+        raw.module.functions[1].storage_life = Some(closed);
         let function = &mut raw.module.functions[0];
         function.locals.push(LocalDecl {
             id: LocalId(1),

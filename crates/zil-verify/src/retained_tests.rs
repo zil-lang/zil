@@ -11,9 +11,15 @@ pub(super) fn fixture(kind: CallableKind, captures: usize) -> TypedModule {
     // Every real capture is Managed<Token{n:i32}>: it owns a resource but
     // contributes no lifetime class. State that complete raw domain explicitly;
     // neither None nor a returned fresh allocation supplies this declaration.
-    let closed=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],static_bindings:vec![],classes:vec![]};
-    m.closures[0].storage_life=Some(closed.clone());
-    m.functions[1].storage_life=Some(closed);
+    let closed = StorageLifeContract {
+        fixed_binder_count: 0,
+        invocation_binder_count: 0,
+        bindings: vec![],
+        static_bindings: vec![],
+        classes: vec![],
+    };
+    m.closures[0].storage_life = Some(closed.clone());
+    m.functions[1].storage_life = Some(closed);
     let mut factory = m.functions[0].clone();
     let span = factory.span;
     let at = factory.blocks[0]
@@ -246,8 +252,14 @@ fn owning_fixture(kind: CallableKind, retain_input: bool) -> TypedModule {
     entry.blocks[0].terminator = Terminator::Return(Some(result));
     // Its only optional capture is the complete zero-domain owned closure
     // above. The capture's ownership/cleanup remains in the actual ledger.
-    let closed=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],static_bindings:vec![],classes:vec![]};
-    entry.storage_life=Some(closed.clone());
+    let closed = StorageLifeContract {
+        fixed_binder_count: 0,
+        invocation_binder_count: 0,
+        bindings: vec![],
+        static_bindings: vec![],
+        classes: vec![],
+    };
+    entry.storage_life = Some(closed.clone());
     m.closures.push(ClosureDefinition {
         storage_life: Some(closed),
         id: ClosureId(1),
@@ -478,7 +490,17 @@ fn owning_factory_raw_and_wire_keep_per_value_responsibility() {
 fn owning_factory_raw_and_wire_reject_recursive_or_deep_borrowed_inputs() {
     let mut m = owning_fixture(CallableKind::Fn, true);
     m.closures[0].captures = vec![Type::Closure(ClosureId(1))];
-    reject_both(&m, "E-VERIFY-CLOSURE-LAYOUT");
+    for result in both(&m) {
+        let errors = result.unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.code == "E-VERIFY-DYN-WITNESS"
+                    && error.message
+                        == "dynamic actual inventory has an unproved recursive domain"),
+            "{errors:?}"
+        );
+    }
 
     let mut m = owning_fixture(CallableKind::Fn, true);
     let Type::Managed(payload) = m.closures[0].captures[0].clone() else {
@@ -492,6 +514,43 @@ fn owning_factory_raw_and_wire_reject_recursive_or_deep_borrowed_inputs() {
     let mut entry = m.functions[1].clone();
     entry.id = FunctionId(5);
     entry.environment = Some(ClosureId(2));
+    // Desc contributes a fixed captured head. Both containing concrete
+    // environments preserve that entire child class; none is a fresh call
+    // binder or an absent/Unknown declaration.
+    let child_head = StorageLifeContract {
+        fixed_binder_count: 1,
+        invocation_binder_count: 0,
+        bindings: vec![StorageLifeBinding {
+            position: StoragePosition {
+                base: StorageBase::Capture(0),
+                path: vec![],
+            },
+            binder: StorageBinder::Fixed(0),
+        }],
+        classes: vec![],
+        static_bindings: vec![],
+    };
+    child.storage_life = Some(child_head.clone());
+    entry.storage_life = Some(child_head);
+    let parent_head = StorageLifeContract {
+        fixed_binder_count: 1,
+        invocation_binder_count: 0,
+        bindings: vec![],
+        static_bindings: vec![],
+        classes: vec![SignatureLifeClassBinding {
+            position: SignatureLifeClass {
+                base: StorageBase::Capture(0),
+                path: vec![],
+                class: 0,
+            },
+            binder: StorageBinder::Fixed(0),
+        }],
+    };
+    for id in 0..2 {
+        m.closures[id].storage_life = Some(parent_head.clone());
+        let function = m.closures[id].function.0 as usize;
+        m.functions[function].storage_life = Some(parent_head.clone());
+    }
     m.functions.push(entry);
     m.closures.push(child);
     reject_both(&m, "E-VERIFY-CALLABLE-SOURCE");
@@ -571,28 +630,89 @@ fn owning_factory_raw_and_wire_direct_store_companion_cannot_hide_another_callba
     reject_both(&store_companion(true), "E-UNSUPPORTED");
 }
 
-fn invoke_factory_result_kind(module:&mut TypedModule,wanted:CallableKind){
-    let main=&mut module.functions[0];
-    let at=main.blocks[0].instructions.iter().position(|row|matches!(row.kind,InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..})).unwrap();
-    if wanted==CallableKind::FnOnce{
-        let callee=main.blocks[0].instructions[at].result.unwrap();let result=ValueId(main.values.len()as u32);main.values.push(main.values[callee.0 as usize].clone());main.values[callee.0 as usize]=Type::Closure(ClosureId(0));let span=main.span;
-        main.blocks[0].instructions.insert(at,op(Some(callee),InstructionKind::TakeLocal{local:LocalId(0)},span));
-        main.blocks[0].instructions[at+1]=op(Some(result),InstructionKind::CallClosureOnce{callee,arguments:vec![]},span);main.blocks[0].terminator=Terminator::Return(Some(result));
-    }else{main.blocks[0].instructions[at].kind=InstructionKind::CallClosureMut{callee:LocalId(0),arguments:vec![]};}
+fn invoke_factory_result_kind(module: &mut TypedModule, wanted: CallableKind) {
+    let main = &mut module.functions[0];
+    let at = main.blocks[0]
+        .instructions
+        .iter()
+        .position(|row| {
+            matches!(
+                row.kind,
+                InstructionKind::CallClosureShared { .. } | InstructionKind::CallClosureMut { .. }
+            )
+        })
+        .unwrap();
+    if wanted == CallableKind::FnOnce {
+        let callee = main.blocks[0].instructions[at].result.unwrap();
+        let result = ValueId(main.values.len() as u32);
+        main.values.push(main.values[callee.0 as usize].clone());
+        main.values[callee.0 as usize] = Type::Closure(ClosureId(0));
+        let span = main.span;
+        main.blocks[0].instructions.insert(
+            at,
+            op(
+                Some(callee),
+                InstructionKind::TakeLocal { local: LocalId(0) },
+                span,
+            ),
+        );
+        main.blocks[0].instructions[at + 1] = op(
+            Some(result),
+            InstructionKind::CallClosureOnce {
+                callee,
+                arguments: vec![],
+            },
+            span,
+        );
+        main.blocks[0].terminator = Terminator::Return(Some(result));
+    } else {
+        main.blocks[0].instructions[at].kind = InstructionKind::CallClosureMut {
+            callee: LocalId(0),
+            arguments: vec![],
+        };
+    }
 }
 
 #[test]
-fn factory_envelope_can_promise_a_weaker_kind_without_changing_the_actual_entry(){
-    for(actual,wanted)in [(CallableKind::Fn,CallableKind::FnMut),(CallableKind::Fn,CallableKind::FnOnce),(CallableKind::FnMut,CallableKind::FnOnce)]{
-        let mut module=fixture(actual,1);
-        module.functions[2].callable_return_contract.as_mut().unwrap().kind=wanted;
-        invoke_factory_result_kind(&mut module,wanted);
-        for result in both(&module){result.unwrap();}
-        let mut wrong_identity=module.clone();wrong_identity.functions[2].callable_return_contract.as_mut().unwrap().closure=ClosureId(1);
-        assert!(both(&wrong_identity).into_iter().all(|result|result.is_err()),"a supported public kind never changes actual environment identity");
+fn factory_envelope_can_promise_a_weaker_kind_without_changing_the_actual_entry() {
+    for (actual, wanted) in [
+        (CallableKind::Fn, CallableKind::FnMut),
+        (CallableKind::Fn, CallableKind::FnOnce),
+        (CallableKind::FnMut, CallableKind::FnOnce),
+    ] {
+        let mut module = fixture(actual, 1);
+        module.functions[2]
+            .callable_return_contract
+            .as_mut()
+            .unwrap()
+            .kind = wanted;
+        invoke_factory_result_kind(&mut module, wanted);
+        for result in both(&module) {
+            result.unwrap();
+        }
+        let mut wrong_identity = module.clone();
+        wrong_identity.functions[2]
+            .callable_return_contract
+            .as_mut()
+            .unwrap()
+            .closure = ClosureId(1);
+        assert!(
+            both(&wrong_identity)
+                .into_iter()
+                .all(|result| result.is_err()),
+            "a supported public kind never changes actual environment identity"
+        );
     }
-    let mut stronger=fixture(CallableKind::FnMut,1);stronger.functions[2].callable_return_contract.as_mut().unwrap().kind=CallableKind::Fn;
-    assert!(both(&stronger).into_iter().all(|result|result.is_err()),"FnMut cannot promise the stronger shared invocation role");
+    let mut stronger = fixture(CallableKind::FnMut, 1);
+    stronger.functions[2]
+        .callable_return_contract
+        .as_mut()
+        .unwrap()
+        .kind = CallableKind::Fn;
+    assert!(
+        both(&stronger).into_iter().all(|result| result.is_err()),
+        "FnMut cannot promise the stronger shared invocation role"
+    );
 }
 
 #[test]
@@ -719,10 +839,20 @@ fn raw_return_contract_cannot_forge_identity_kind_dependencies_or_cleanup() {
     // both the unchanged shared invocation and an actual consuming call as
     // independent raw/Wire positives; the two remaining Token fields are
     // still settled by the actual ownership/resource kernel.
-    let mut promised_once=base.clone();promised_once.functions[2].callable_return_contract.as_mut().unwrap().kind=CallableKind::FnOnce;
-    for result in both(&promised_once){result.unwrap();}
-    let mut consumed_once=promised_once;invoke_factory_result_kind(&mut consumed_once,CallableKind::FnOnce);
-    for result in both(&consumed_once){result.unwrap();}
+    let mut promised_once = base.clone();
+    promised_once.functions[2]
+        .callable_return_contract
+        .as_mut()
+        .unwrap()
+        .kind = CallableKind::FnOnce;
+    for result in both(&promised_once) {
+        result.unwrap();
+    }
+    let mut consumed_once = promised_once;
+    invoke_factory_result_kind(&mut consumed_once, CallableKind::FnOnce);
+    for result in both(&consumed_once) {
+        result.unwrap();
+    }
     for mutation in 0..10 {
         let mut m = base.clone();
         let c = m.functions[2].callable_return_contract.as_mut().unwrap();

@@ -1751,6 +1751,10 @@ mod field_result_tests {
         let target = vec![PlaceProjection::Field(0)];
         let facts = value_transport::FieldFacts {
             description: permission(HoldRoot::Parameter(0)),
+            ..Default::default()
+        };
+        let view_target=vec![PlaceProjection::Field(1)];
+        let view_facts=value_transport::FieldFacts{
             views: vec![dyn_ports::View {
                 table: Some(DynVtableId {
                     module: zil_base::ModuleId(0),
@@ -1761,6 +1765,7 @@ mod field_result_tests {
             ..Default::default()
         };
         value_transport::put(&mut state.locals[0], &target, &facts, &mut b).unwrap();
+        value_transport::put(&mut state.locals[0], &view_target, &view_facts, &mut b).unwrap();
         let receiver = Permission {
             sources: vec![
                 source(HoldRoot::Local(LocalId(0))),
@@ -1770,7 +1775,7 @@ mod field_result_tests {
         };
         let inputs = [];
         let args = [];
-        let captures = [Type::I32];
+        let captures = [Type::Desc(Box::new(Type::I32)),Type::Address{mutable:false,inner:Box::new(Type::Dyn{interface:DynInterfaceId{module:zil_base::ModuleId(0),index:0}})}];
         let before = Before {
             module: &module,
             caller,
@@ -1792,11 +1797,12 @@ mod field_result_tests {
         );
         assert!(
             before
-                .input_views(&source(HoldRoot::Capture(0)), &mut b)
+                .input_views(&source(HoldRoot::Capture(1)), &mut b)
                 .unwrap()
                 .is_empty()
         );
         value_transport::put(&mut state.locals[1], &target, &facts, &mut b).unwrap();
+        value_transport::put(&mut state.locals[1], &view_target, &view_facts, &mut b).unwrap();
         let before = Before {
             module: &module,
             caller,
@@ -1818,7 +1824,7 @@ mod field_result_tests {
         );
         assert_eq!(
             before
-                .input_views(&source(HoldRoot::Capture(0)), &mut b)
+                .input_views(&source(HoldRoot::Capture(1)), &mut b)
                 .unwrap()
                 .len(),
             1
@@ -1913,6 +1919,9 @@ mod field_result_tests {
         module.functions[0] = caller.clone();
         let limits = Limits::default();
         let mut b = Budget::new(&limits);
+        // This control invokes the complete Task/error tag producer, rather
+        // than the narrower ordinary-sum producer selected by other profiles.
+        b.task_failure_carriers=true;
         let frame = Frame::default();
         let values = vec![Payload::default(); 2];
         let make = Instruction {

@@ -5286,7 +5286,13 @@ fn solve_mode(
             dyn_sites,
         });
     }
+    #[cfg(test)]
+    let mut diagnostic_round = 0usize;
     loop {
+        #[cfg(test)]
+        {
+            diagnostic_round += 1;
+        }
         if let Some(progress) = &mut b.diagnostic_progress {
             progress.cfg_round = progress.cfg_round.saturating_add(1);
         }
@@ -5330,12 +5336,34 @@ fn solve_mode(
                     b,
                 )?;
                 if let Some(v) = i.result {
-                    changed |= join_payload(&mut values[v.0 as usize], &out, b)?;
+                    #[cfg(test)]
+                    let diagnostic_before = (diagnostic_round == 12
+                        && std::env::var_os("ZIL_VERIFY_TRACE_CFG_DELTA").is_some())
+                    .then(|| values[v.0 as usize].clone());
+                    let value_changed = join_payload(&mut values[v.0 as usize], &out, b)?;
+                    #[cfg(test)]
+                    if let Some(previous) = diagnostic_before {
+                        eprintln!(
+                            "CFG VALUE round={diagnostic_round} block={bi} value={v:?} changed={value_changed} equal={} before={previous:?} after={:?}",
+                            previous == values[v.0 as usize],
+                            values[v.0 as usize]
+                        );
+                    }
+                    changed |= value_changed;
                 }
             }
             frame_work(&state, b)?;
             frame_work(&outputs[bi], b)?;
             if state != outputs[bi] {
+                #[cfg(test)]
+                if diagnostic_round == 12
+                    && std::env::var_os("ZIL_VERIFY_TRACE_CFG_DELTA").is_some()
+                {
+                    eprintln!(
+                        "CFG FRAME round={diagnostic_round} block={bi} before={:?} after={state:?}",
+                        outputs[bi]
+                    );
+                }
                 changed = true;
             }
             replacement[bi] = Some(state);
@@ -9025,6 +9053,7 @@ mod tests {
             let limits = Limits::default();
             let mut fast_budget = Budget::new(&limits);
             let mut reverse_budget = Budget::new(&limits);
+            eprintln!("complete DAG/cycle component: cyclic={cyclic}");
             let fast = solve_mode(&module, &f, &graph, &summaries, &mut fast_budget, true).unwrap();
             let reverse =
                 solve_mode(&module, &f, &graph, &summaries, &mut reverse_budget, false).unwrap();

@@ -163,12 +163,21 @@ fn checked_teardown(
     if **actual != resource.payload {
         return Err(bad("staged owner teardown has a different nominal payload"));
     }
-    if let Some(header)=&f.storage_life{
+    if let Some(header) = &f.storage_life {
         // A real Desc access-head is not an external capture or an owning
         // parameter. Authenticate its full occurrence directory instead of
         // requiring an absent header on an otherwise exact destructor ABI.
-        super::super::signature_life::charge(header,b)?;
-        super::super::signature_life::function_relation_resource_views(module,&[&f.locals[f.parameters[0].0 as usize].ty],&f.return_type,header,Some(f.span),false,false,b)?;
+        super::super::signature_life::charge(header, b)?;
+        super::super::signature_life::function_relation_resource_views(
+            module,
+            &[&f.locals[f.parameters[0].0 as usize].ty],
+            &f.return_type,
+            header,
+            Some(f.span),
+            false,
+            false,
+            b,
+        )?;
     }
     Ok(())
 }
@@ -235,7 +244,7 @@ pub(super) fn parameter(
     let mut before = None;
     for (index, instruction) in block.instructions.iter().enumerate() {
         if !finite_instruction(&instruction.kind)
-            && !super::super::stored_owned::operation(module,f,instruction,b)?
+            && !super::super::stored_owned::operation(module, f, instruction, b)?
         {
             return Err(bad(
                 "staged callback body exposes storage or unsupported effects",
@@ -493,53 +502,209 @@ mod tests {
     }
 
     #[test]
-    fn staged_origin_tracks_the_owned_parameter_with_nested_or_empty_captures(){
+    fn staged_origin_tracks_the_owned_parameter_with_nested_or_empty_captures() {
         // Local identity models, not a source/whole-kernel cleanup proof.
         // Nested capture debt is deliberately opaque to this resolver.
-        let original=model();
-        for nested in [false,true]{
-            let mut module=original.clone();
-            if nested{
-                let mut child=module.closures[0].clone();child.id=ClosureId(1);child.function=FunctionId(module.functions.len()as u32);
-                let mut entry=module.functions[1].clone();entry.id=child.function;entry.environment=Some(child.id);module.functions.push(entry);module.closures.push(child);
-                module.closures[0].captures=vec![Type::Closure(ClosureId(1))];
-            }else{module.closures[0].captures=vec![Type::I32];}
-            assert!(resolve(&module,&mut Budget::new(&Limits::default())).unwrap(),"owning the environment parameter does not depend on direct Managed field count");
-            for mutation in 0..3{
-                let mut hostile=module.clone();let f=&mut hostile.functions[0];
-                match mutation{
-                    0=>f.blocks[0].instructions[0].kind=InstructionKind::Load(LocalId(0)),
-                    1=>{let duplicate=f.blocks[0].instructions[1].clone();f.blocks[0].instructions.insert(2,duplicate);},
-                    _=>f.callable_contract.as_mut().unwrap().roles[0].cleanup=CallableCleanup::Borrowed,
+        let original = model();
+        for nested in [false, true] {
+            let mut module = original.clone();
+            if nested {
+                let mut child = module.closures[0].clone();
+                child.id = ClosureId(1);
+                child.function = FunctionId(module.functions.len() as u32);
+                let mut entry = module.functions[1].clone();
+                entry.id = child.function;
+                entry.environment = Some(child.id);
+                module.functions.push(entry);
+                module.closures.push(child);
+                module.closures[0].captures = vec![Type::Closure(ClosureId(1))];
+            } else {
+                module.closures[0].captures = vec![Type::I32];
+            }
+            // The resolver now consumes complete actual domains. Its local
+            // model must carry the same real P/R entry and both distinct
+            // parameter occurrences (outer head and qualified pointee κ).
+            let relation = StorageLifeContract {
+                fixed_binder_count: 0,
+                invocation_binder_count: 2,
+                bindings: vec![StorageLifeBinding {
+                    position: StoragePosition {
+                        base: StorageBase::Parameter(0),
+                        path: vec![],
+                    },
+                    binder: StorageBinder::Invocation(0),
+                }],
+                static_bindings: vec![],
+                classes: vec![SignatureLifeClassBinding {
+                    position: SignatureLifeClass {
+                        base: StorageBase::Parameter(0),
+                        path: vec![LifeTypeProjection::Pointee],
+                        class: 0,
+                    },
+                    binder: StorageBinder::Invocation(1),
+                }],
+            };
+            for definition in &mut module.closures {
+                definition.storage_life = Some(relation.clone());
+                let entry = &mut module.functions[definition.function.0 as usize];
+                entry.environment = Some(definition.id);
+                entry.storage_life = Some(relation.clone());
+                entry.parameters = (0..definition.parameters.len())
+                    .map(|index| LocalId(index as u32))
+                    .collect();
+                entry.locals = definition
+                    .parameters
+                    .iter()
+                    .enumerate()
+                    .map(|(index, ty)| LocalDecl {
+                        id: LocalId(index as u32),
+                        name: format!("input{index}"),
+                        ty: ty.clone(),
+                        mutable: false,
+                        span: entry.span,
+                    })
+                    .collect();
+                entry.return_type = definition.result.clone();
+                entry.values = vec![Type::I32];
+                entry.blocks = vec![BasicBlock {
+                    id: BlockId(0),
+                    instructions: vec![op(Some(0), InstructionKind::Constant(Constant::I32(0)))],
+                    terminator: Terminator::Return(Some(ValueId(0))),
+                }];
+                entry.entry = BlockId(0);
+            }
+            module.functions[0]
+                .callable_contract
+                .as_mut()
+                .unwrap()
+                .roles[0]
+                .life = Some(relation);
+            assert!(
+                resolve(&module, &mut Budget::new(&Limits::default())).unwrap(),
+                "owning the environment parameter does not depend on direct Managed field count"
+            );
+            for mutation in 0..3 {
+                let mut hostile = module.clone();
+                let f = &mut hostile.functions[0];
+                match mutation {
+                    0 => f.blocks[0].instructions[0].kind = InstructionKind::Load(LocalId(0)),
+                    1 => {
+                        let duplicate = f.blocks[0].instructions[1].clone();
+                        f.blocks[0].instructions.insert(2, duplicate);
+                    }
+                    _ => {
+                        f.callable_contract.as_mut().unwrap().roles[0].cleanup =
+                            CallableCleanup::Borrowed
+                    }
                 }
-                assert!(resolve(&hostile,&mut Budget::new(&Limits::default())).is_err(),"{nested}/{mutation}: nested responsibility cannot hide a copied/rebound/nonowned parameter");
+                assert!(
+                    resolve(&hostile, &mut Budget::new(&Limits::default())).is_err(),
+                    "{nested}/{mutation}: nested responsibility cannot hide a copied/rebound/nonowned parameter"
+                );
             }
         }
     }
     #[test]
-    fn staged_teardown_authenticates_the_complete_desc_header_and_exact_abi(){
-        let mut module=model();let resource=module.resources[0].clone();let mut teardown=module.functions[1].clone();let id=FunctionId(module.functions.len()as u32);
-        teardown.id=id;teardown.name="exact_teardown".into();teardown.environment=None;teardown.foreign=None;teardown.call_kind=CallKind::Direct;teardown.parameters=vec![LocalId(0)];teardown.return_type=Type::Unit;teardown.result_mode=PassingMode::Infer;teardown.reference_return_bound=None;teardown.callable_contract=None;teardown.callable_return_contract=None;
-        teardown.locals=vec![LocalDecl{id:LocalId(0),name:"self".into(),ty:Type::Desc(Box::new(resource.payload.clone())),mutable:false,span:Span::default()}];teardown.values.clear();teardown.blocks=vec![BasicBlock{id:BlockId(0),instructions:vec![],terminator:Terminator::Return(None)}];teardown.entry=BlockId(0);
-        teardown.storage_life=Some(StorageLifeContract{fixed_binder_count:0,invocation_binder_count:1,bindings:vec![StorageLifeBinding{position:StoragePosition{base:StorageBase::Parameter(0),path:vec![]},binder:StorageBinder::Invocation(0)}],static_bindings:vec![],classes:vec![]});
-        module.functions.push(teardown);module.resources[0].teardown=Some(id);
-        checked_teardown(&module,&module.resources[0],&mut Budget::new(&Limits::default())).unwrap();
-        for mutation in 0..8{
-            let mut hostile=module.clone();let f=&mut hostile.functions[id.0 as usize];
-            match mutation{
-                0=>f.call_kind=CallKind::Suspend,
-                1=>f.environment=Some(ClosureId(0)),
-                2=>f.return_type=Type::I32,
-                3=>f.locals[0].ty=Type::Address{mutable:false,inner:Box::new(resource.payload.clone())},
-                4=>f.locals[0].ty=Type::Desc(Box::new(Type::Record{name:"other_nominal".into(),fields:vec![("n".into(),Type::I32)]})),
-                5=>f.storage_life.as_mut().unwrap().bindings.clear(),
-                6=>f.storage_life.as_mut().unwrap().invocation_binder_count=2,
-                _=>f.storage_life.as_mut().unwrap().static_bindings.push(StoragePosition{base:StorageBase::Parameter(0),path:vec![]}),
+    fn staged_teardown_authenticates_the_complete_desc_header_and_exact_abi() {
+        let mut module = model();
+        let resource = module.resources[0].clone();
+        let mut teardown = module.functions[1].clone();
+        let id = FunctionId(module.functions.len() as u32);
+        teardown.id = id;
+        teardown.name = "exact_teardown".into();
+        teardown.environment = None;
+        teardown.foreign = None;
+        teardown.call_kind = CallKind::Direct;
+        teardown.parameters = vec![LocalId(0)];
+        teardown.return_type = Type::Unit;
+        teardown.result_mode = PassingMode::Infer;
+        teardown.reference_return_bound = None;
+        teardown.callable_contract = None;
+        teardown.callable_return_contract = None;
+        teardown.locals = vec![LocalDecl {
+            id: LocalId(0),
+            name: "self".into(),
+            ty: Type::Desc(Box::new(resource.payload.clone())),
+            mutable: false,
+            span: Span::default(),
+        }];
+        teardown.values.clear();
+        teardown.blocks = vec![BasicBlock {
+            id: BlockId(0),
+            instructions: vec![],
+            terminator: Terminator::Return(None),
+        }];
+        teardown.entry = BlockId(0);
+        teardown.storage_life = Some(StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 1,
+            bindings: vec![StorageLifeBinding {
+                position: StoragePosition {
+                    base: StorageBase::Parameter(0),
+                    path: vec![],
+                },
+                binder: StorageBinder::Invocation(0),
+            }],
+            static_bindings: vec![],
+            classes: vec![],
+        });
+        module.functions.push(teardown);
+        module.resources[0].teardown = Some(id);
+        checked_teardown(
+            &module,
+            &module.resources[0],
+            &mut Budget::new(&Limits::default()),
+        )
+        .unwrap();
+        for mutation in 0..8 {
+            let mut hostile = module.clone();
+            let f = &mut hostile.functions[id.0 as usize];
+            match mutation {
+                0 => f.call_kind = CallKind::Suspend,
+                1 => f.environment = Some(ClosureId(0)),
+                2 => f.return_type = Type::I32,
+                3 => {
+                    f.locals[0].ty = Type::Address {
+                        mutable: false,
+                        inner: Box::new(resource.payload.clone()),
+                    }
+                }
+                4 => {
+                    f.locals[0].ty = Type::Desc(Box::new(Type::Record {
+                        name: "other_nominal".into(),
+                        fields: vec![("n".into(), Type::I32)],
+                    }))
+                }
+                5 => f.storage_life.as_mut().unwrap().bindings.clear(),
+                6 => f.storage_life.as_mut().unwrap().invocation_binder_count = 2,
+                _ => f
+                    .storage_life
+                    .as_mut()
+                    .unwrap()
+                    .static_bindings
+                    .push(StoragePosition {
+                        base: StorageBase::Parameter(0),
+                        path: vec![],
+                    }),
             }
-            assert!(checked_teardown(&hostile,&hostile.resources[0],&mut Budget::new(&Limits::default())).is_err(),"complete Desc-to-Unit teardown control {mutation}");
+            assert!(
+                checked_teardown(
+                    &hostile,
+                    &hostile.resources[0],
+                    &mut Budget::new(&Limits::default())
+                )
+                .is_err(),
+                "complete Desc-to-Unit teardown control {mutation}"
+            );
         }
-        let mut absent=module;absent.functions[id.0 as usize].storage_life=None;
-        checked_teardown(&absent,&absent.resources[0],&mut Budget::new(&Limits::default())).unwrap(); // legacy metadata shape; full module signature kernel still applies
+        let mut absent = module;
+        absent.functions[id.0 as usize].storage_life = None;
+        checked_teardown(
+            &absent,
+            &absent.resources[0],
+            &mut Budget::new(&Limits::default()),
+        )
+        .unwrap(); // legacy metadata shape; full module signature kernel still applies
     }
     #[test]
     fn staged_verify_local_origin_and_hostile_neighbors() {
