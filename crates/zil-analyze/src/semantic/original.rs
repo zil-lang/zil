@@ -1600,7 +1600,7 @@ impl Solver<'_, '_> {
                         "recursive opaque result needs its complete original callable fixed point",
                     ));
                 }
-                self.function(target, None, b, depth + 1)?;
+                self.function(target, None, None, b, depth + 1)?;
             }
             self.settle_opaque_declaration(target, b)?;
             let checked = self
@@ -2897,7 +2897,17 @@ impl Solver<'_, '_> {
                         return Err(fail("original creator lexical point is reused"));
                     }
                     self.snapshot(frame, b)?;
-                    let term = self.function(target, Some(&inherited), b, depth + 1)?;
+                    let wanted = self.receiving_for(frame, value.id, b)?;
+                    let code_context = match wanted {
+                        Some(wanted) => {
+                            let wanted = self.type_root(wanted, b)?;
+                            matches!(self.state.arena[wanted], Kind::Code {
+                                kind: SemanticCodeKind::FunctionPointer, ..
+                            }).then_some(wanted)
+                        }
+                        None => None,
+                    };
+                    let term = self.function(target, Some(&inherited), code_context, b, depth + 1)?;
                     let captured = &self
                         .state
                         .frames
@@ -3679,6 +3689,7 @@ impl Solver<'_, '_> {
         &mut self,
         id: SemanticDefinitionId,
         inherited: Option<&[Local]>,
+        code_context: Option<Term>,
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Term> {
@@ -3739,6 +3750,27 @@ impl Solver<'_, '_> {
                 "original value parameter identities differ from the declared signature",
             ));
         }
+        let code_context = if let Some(code) = code_context {
+            let Kind::Code {
+                parameters: inputs,
+                result,
+                kind: SemanticCodeKind::FunctionPointer,
+                call_kind: CallKind::Direct,
+                ..
+            } = &self.state.arena[code] else {
+                return Err(fail("original thin child loses its checked receiving code type"));
+            };
+            if definition.kind != SemanticDefinitionKind::Closure
+                || signature.call_kind != CallKind::Direct
+                || inputs.len() != parameters.len()
+            {
+                return Err(fail("original thin child changes its exact receiving code signature"));
+            }
+            b.spend(inputs.len().saturating_add(1), WORK)?;
+            Some((inputs.clone(), *result))
+        } else {
+            None
+        };
         self.premises_well_formed(id, &definition.requirements, b)?;
         let mut frame = Frame {
             definition: id,
@@ -3819,6 +3851,9 @@ impl Solver<'_, '_> {
             {
                 return Err(fail("original value parameter name is duplicated"));
             }
+            if let Some((inputs, _)) = &code_context {
+                self.unify(frame.parameters[index], inputs[index], depth + 1, b)?;
+            }
             let declared = self.recipe(&frame, &signature.parameters[index].ty, b, depth + 1)?;
             self.unify(frame.parameters[index], declared, depth + 1, b)?;
             if matches!(self.state.arena[self.root(declared, b)?], Kind::Slice(_)) {
@@ -3844,6 +3879,9 @@ impl Solver<'_, '_> {
         ) {
             let expected = self.recipe(&frame, &signature.result, b, depth + 1)?;
             self.unify(frame.result, expected, depth + 1, b)?;
+        }
+        if let Some((_, result)) = code_context {
+            self.unify(frame.result, result, depth + 1, b)?;
         }
         match body {
             SemanticOriginalFunctionBody::Defined(body) => {
@@ -4397,7 +4435,7 @@ pub(super) fn check(
                     ))
             })
         {
-            solver.function(definition.id, None, b, 0)?;
+            solver.function(definition.id, None, None, b, 0)?;
         }
     }
     for definition in &program.definitions {
@@ -4422,7 +4460,7 @@ pub(super) fn check(
                 SemanticDefinitionBody::FunctionWithBody { .. }
             )
         {
-            solver.function(definition.id, None, b, 0)?;
+            solver.function(definition.id, None, None, b, 0)?;
         }
     }
     if let Some(wrapper) = inventory.frozen_wrapper {
@@ -4437,7 +4475,7 @@ pub(super) fn check(
                 "frozen query wrapper is not a real compiler child function",
             ));
         }
-        solver.function(wrapper, None, b, 0)?;
+        solver.function(wrapper, None, None, b, 0)?;
     }
     for definition in &program.definitions {
         b.spend(solver.state.frames.len().saturating_add(1), WORK)?;
