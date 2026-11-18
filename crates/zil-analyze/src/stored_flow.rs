@@ -5,6 +5,7 @@ use super::*;
 mod array_index;
 mod array_snapshot;
 mod byte_queries;
+mod callable_arrays;
 mod capture_after;
 mod environment_memory;
 mod live_words;
@@ -4776,6 +4777,7 @@ fn transfer(
     };
     match &i.kind {
         _ if mutex_transfer.is_some() => {out = mutex_transfer.ok_or_else(|| failure("Mutex operation lost its actual transport"))?;}
+        _ if callable_arrays::instruction(module,f,i,b)? => {out=callable_arrays::transfer(module,f,i,state,values,b)?;}
         InstructionKind::BindPackageCapture { local, index } => {
             let actual = state.captures.get(index)
                 .ok_or_else(|| failure("captured view has no actual environment value"))?;
@@ -6125,6 +6127,7 @@ fn transfer(
                 | InstructionKind::AddressIndex { .. }
                 | InstructionKind::AddressSlice { .. }
                 | InstructionKind::BorrowCapture { .. }
+                | InstructionKind::BorrowOwnedArrayElement { .. }
                 | InstructionKind::CallClosureBorrowed { .. }
                 | InstructionKind::CallClosure { .. }
                 | InstructionKind::CallClosureShared { .. }
@@ -6626,6 +6629,27 @@ fn reverse(
         | InstructionKind::BorrowLocalMut { local } => {
             live.put(f.values.len() + local.0 as usize, true)?
         }
+        InstructionKind::DropOwnedArray { local }
+            if callable_arrays::admitted(module, &f.locals[local.0 as usize].ty, b)?
+                && !capture_after::cleanup_reads_external(
+                    module,
+                    &f.locals[local.0 as usize].ty,
+                    b,
+                )? => {}
+        InstructionKind::DropOwnedArrayElement { local, .. }
+            if callable_arrays::admitted(module, &f.locals[local.0 as usize].ty, b)?
+                && matches!(&f.locals[local.0 as usize].ty,Type::Array {element,..}
+                    if !capture_after::cleanup_reads_external(module,element,b)?) => {}
+        InstructionKind::BorrowOwnedArrayElement { local, .. }
+        | InstructionKind::ProjectOwnedArrayField { local, .. }
+        | InstructionKind::TakeOwnedArrayElement { local, .. }
+        | InstructionKind::StoreOwnedArrayElement { local, .. }
+        | InstructionKind::DropOwnedArrayElement { local, .. }
+        | InstructionKind::DropOwnedArray { local }
+            if callable_arrays::admitted(module, &f.locals[local.0 as usize].ty, b)? =>
+        {
+            live.put(f.values.len() + local.0 as usize, true)?;
+        }
         InstructionKind::DropClosure { local }
             if environment_value(module, &f.locals[local.0 as usize].ty, b)?
                 && !capture_after::cleanup_reads_external(
@@ -6683,6 +6707,27 @@ fn reverse_bool(
         | InstructionKind::BorrowLocal { local }
         | InstructionKind::BorrowLocalMut { local } => {
             live[f.values.len() + local.0 as usize] = true
+        }
+        InstructionKind::DropOwnedArray { local }
+            if callable_arrays::admitted(module, &f.locals[local.0 as usize].ty, b)?
+                && !capture_after::cleanup_reads_external(
+                    module,
+                    &f.locals[local.0 as usize].ty,
+                    b,
+                )? => {}
+        InstructionKind::DropOwnedArrayElement { local, .. }
+            if callable_arrays::admitted(module, &f.locals[local.0 as usize].ty, b)?
+                && matches!(&f.locals[local.0 as usize].ty,Type::Array {element,..}
+                    if !capture_after::cleanup_reads_external(module,element,b)?) => {}
+        InstructionKind::BorrowOwnedArrayElement { local, .. }
+        | InstructionKind::ProjectOwnedArrayField { local, .. }
+        | InstructionKind::TakeOwnedArrayElement { local, .. }
+        | InstructionKind::StoreOwnedArrayElement { local, .. }
+        | InstructionKind::DropOwnedArrayElement { local, .. }
+        | InstructionKind::DropOwnedArray { local }
+            if callable_arrays::admitted(module, &f.locals[local.0 as usize].ty, b)? =>
+        {
+            live[f.values.len() + local.0 as usize] = true;
         }
         InstructionKind::DropClosure { local }
             if environment_value(module, &f.locals[local.0 as usize].ty, b)?
@@ -6972,6 +7017,11 @@ fn windows(
             owned_byte_sites.check(module, f, i, &state, values, &current, loans, apart, b)?;
             let checked = (|| -> CompileResult<()> {
                 let mut access = permission_access::Access::new(&current, loans, b)?;
+                if let Some((permission, write)) =
+                    callable_arrays::access(module, f, i, &state, values, b)?
+                {
+                    access.check(&permission, write, apart, b)?;
+                }
                 for (permission, write) in dyn_environment::accesses(
                     module,
                     f,
@@ -9090,6 +9140,7 @@ pub(super) fn infer(
                 || mutex::admitted(module, ty, b)?
                 || dyn_address::admitted_value(module, ty, b)?
                 || super::stored_callables::value(module, ty)
+                || callable_arrays::admitted(module, ty, b)?
                 || b.task_sources() && task_address::admitted_value(ty)
                 || b.task_sources() && crate::tasks::input_scope::neutral_owner_value(ty, b)?
                 || carrier(ty).is_some()
@@ -9574,6 +9625,11 @@ fn actual_instructions(
     for block in &f.blocks {
         for i in &block.instructions {
             fee(b, 1)?;
+            let callable_array = callable_arrays::instruction(module, f, i, b)?;
+            if callable_array {
+                callable_arrays::validate(module, f, i, b)?;
+                ordinary_observations = true;
+            }
             let byte_view = owned_byte_views::instruction(module, f, i, b)?;
             let unpack_failure = failure_unpack(f, i, b)?;
             let byte_description = owned_byte_views::description_instruction(module, f, i, b)?;
@@ -9630,6 +9686,7 @@ fn actual_instructions(
                         | InstructionKind::DropErrorUnion { .. }
                         | InstructionKind::DescribePackageField { .. }
                 ))
+                && !callable_array
                 && !mutex::instruction(module, f, i, b)?
                 && !pure_copy::operation(&i.kind)
                 && !pure_copy::ordinary_owned_union(f, i, b)?
@@ -9863,7 +9920,8 @@ fn actual_instructions(
                     address_result(f, i, *mutable, ty, b)?;
                 }
                 InstructionKind::BorrowCapture { index, mutable }
-                    if super::stored_callables::lending_borrow(module, f, *mutable) => {
+                    if super::stored_callables::lending_borrow(module, f, *mutable) =>
+                {
                     inline_capture_loan(module, f, i, *index, *mutable, b)?;
                 }
                 InstructionKind::ExtractField { .. } => {}
