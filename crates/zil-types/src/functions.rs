@@ -16,7 +16,10 @@ pub(super) fn closed_code_slot(
     if kind != SemanticCodeKind::FunctionPointer {
         return Ok(false);
     }
-    stored::closed_copy(ty, left, depth, limits.max_call_depth, Span::default())
+    stored::closed_copy_for(
+        stored::ClosedCopyUse::CodeArgumentOrResult, ty, left, depth,
+        limits.max_call_depth, Span::default(),
+    )
 }
 
 impl Signature {

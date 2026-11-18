@@ -617,7 +617,21 @@ pub(super) fn project_option_enum(
     Ok(candidate)
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum ClosedCopyUse {
+    StoredPointee,
+    CodeArgumentOrResult,
+}
+
 pub(super) fn closed_copy(ty: &Type, left: &mut usize, depth: usize, limit: usize, span: Span) -> R<bool> {
+    closed_copy_for(ClosedCopyUse::StoredPointee, ty, left, depth, limit, span)
+}
+
+/// Check every component in its intended representation. Passing a thin code
+/// address preserves its entire invocation ABI, including any nested code.
+pub(super) fn closed_copy_for(
+    use_site: ClosedCopyUse, ty: &Type, left: &mut usize, depth: usize, limit: usize, span: Span,
+) -> R<bool> {
     fee(left, 1, span)?;
     if depth > limit {
         return Err(Diagnostic::limit(
@@ -641,10 +655,18 @@ pub(super) fn closed_copy(ty: &Type, left: &mut usize, depth: usize, limit: usiz
         | Type::U32
         | Type::F32
         | Type::F64 => true,
+        Type::ForeignHandle if use_site == ClosedCopyUse::CodeArgumentOrResult => true,
+        Type::FunctionPointer { parameters, result } if use_site == ClosedCopyUse::CodeArgumentOrResult => {
+            let mut accepted = closed_copy_for(use_site, result, left, depth + 1, limit, span)?;
+            for parameter in parameters {
+                accepted &= closed_copy_for(use_site, parameter, left, depth + 1, limit, span)?;
+            }
+            accepted
+        }
         Type::Tuple(fields) => {
             let mut accepted = true;
             for field in fields {
-                accepted &= closed_copy(field, left, depth + 1, limit, span)?;
+                accepted &= closed_copy_for(use_site, field, left, depth + 1, limit, span)?;
             }
             accepted
         }
@@ -653,25 +675,25 @@ pub(super) fn closed_copy(ty: &Type, left: &mut usize, depth: usize, limit: usiz
             let mut accepted = true;
             for (name, field) in fields {
                 fee(left, name.len(), span)?;
-                accepted &= closed_copy(field, left, depth + 1, limit, span)?;
+                accepted &= closed_copy_for(use_site, field, left, depth + 1, limit, span)?;
             }
             accepted
         }
-        Type::Array { element, .. } => closed_copy(element, left, depth + 1, limit, span)?,
+        Type::Array { element, .. } => closed_copy_for(use_site, element, left, depth + 1, limit, span)?,
         Type::Enum { name, variants } => {
             fee(left, name.len(), span)?;
             let mut accepted = true;
             for (name, fields) in variants {
                 fee(left, name.len(), span)?;
                 for field in fields {
-                    accepted &= closed_copy(field, left, depth + 1, limit, span)?;
+                    accepted &= closed_copy_for(use_site, field, left, depth + 1, limit, span)?;
                 }
             }
             accepted
         }
         Type::ErrorUnion { error, result } => {
-            closed_copy(error, left, depth + 1, limit, span)?
-                & closed_copy(result, left, depth + 1, limit, span)?
+            closed_copy_for(use_site, error, left, depth + 1, limit, span)?
+                & closed_copy_for(use_site, result, left, depth + 1, limit, span)?
         }
         _ => false,
     })
