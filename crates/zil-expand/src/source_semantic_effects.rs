@@ -1632,10 +1632,37 @@ impl<'a> Scan<'a, '_, '_, '_> {
                     self.pattern_value(field, target, depth + 1)?;
                 }
             }
-            CorePatternKind::Variant { fields, .. }
-            | CorePatternKind::Constructor { fields, .. } => {
-                for field in fields {
-                    self.pattern(field, depth + 1)?
+            CorePatternKind::Variant { variant, fields, .. }
+            | CorePatternKind::Constructor { variant, fields, .. } => {
+                let projection = if let Target::NominalReceiver(application) = target {
+                    let owner = self.applications[application].declaration;
+                    let declaration = self.definitions[owner];
+                    let matches_owner = match &pattern.kind {
+                        CorePatternKind::Variant { ty, .. } => matches!(ty,
+                            SemanticTypeRecipe::Nominal { definition, .. } if *definition == declaration.id),
+                        CorePatternKind::Constructor { definition, .. } =>
+                            definition.is_none_or(|id| id == declaration.id),
+                        _ => false,
+                    };
+                    if matches_owner && let SemanticDefinitionBody::Nominal {
+                        body: SemanticNominalBody::Enum { variants }, ..
+                    } = &declaration.body {
+                        self.budget.identity_work(
+                            variants.len().saturating_mul(variant.len().saturating_add(1)),
+                            pattern.span,
+                        )?;
+                        let mut matches = variants.iter().filter(|row| row.name == *variant);
+                        matches.next().filter(|row| row.fields.len() == fields.len()
+                            && matches.next().is_none()).map(|row| (owner, application, row))
+                    } else { None }
+                } else { None };
+                for (ordinal, field) in fields.iter().enumerate() {
+                    let projected = match projection {
+                        Some((owner, application, row)) => self.bound_type(owner,
+                            &row.fields[ordinal], Some(application), depth + 1, field.span)?,
+                        None => Target::Unknown,
+                    };
+                    self.pattern_value(field, projected, depth + 1)?;
                 }
             }
             CorePatternKind::Record { fields, .. }
