@@ -3340,29 +3340,30 @@ impl<'a> Engine<'a> {
         // rewrites. Associate a call only after this exact original event
         // bundle has been restored; reading it inside expr_call_normal loses
         // the caller identity and cannot form an inference request.
-        let invoked = match &e.kind {
-            ExprKind::Call { callee, .. } => match &callee.kind {
-                ExprKind::Name(name) => Some(name.as_str()),
+        if result.is_ok() {
+            let invoked = match &e.kind {
+                ExprKind::Call { callee, .. } => match &callee.kind {
+                    ExprKind::Name(name) => Some(name.as_str()),
+                    _ => None,
+                },
+                ExprKind::Pipeline { target, .. } => crate::foreign::bare_name(target),
                 _ => None,
-            },
-            ExprKind::Pipeline { target, .. } => crate::foreign::bare_name(target),
-            _ => None,
-        };
-        if result.is_ok()
-            && let Some(generated) = invoked
-            && !env.contains_key(generated)
-            && let Some(program) = self.products.semantic.as_mut()
-        {
-            // Only a symbol registered by the actual specialization ledger
-            // enters this lookup. No generated spelling or raw Name itself
-            // authenticates a declaration, type, class or indirect callee.
-            program.record_specialized_call(
-                e.semantic,
-                self.original_module.id,
-                generated,
-                &mut self.budget,
-                e.span,
-            )?;
+            };
+            if let Some(generated) = invoked
+                && !env.contains_key(generated)
+                && let Some(program) = self.products.semantic.as_mut()
+            {
+                // Only a symbol registered by the actual specialization ledger
+                // enters this lookup. No generated spelling or raw Name itself
+                // authenticates a declaration, type, class or indirect callee.
+                program.record_specialized_call(
+                    e.semantic,
+                    self.original_module.id,
+                    generated,
+                    &mut self.budget,
+                    e.span,
+                )?;
+            }
         }
         result
     }

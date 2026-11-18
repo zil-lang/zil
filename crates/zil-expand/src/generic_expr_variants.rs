@@ -1174,10 +1174,10 @@ impl Engine<'_> {
         let mut callee = target.as_mut();
         let mut target_depth = depth + 1;
         while matches!(callee.kind, ExprKind::Group(_)) {
+            self.budget.node(callee.span, target_depth)?;
             let ExprKind::Group(inner) = &mut callee.kind else {
                 unreachable!("grouped pipeline target");
             };
-            self.budget.node(inner.span, target_depth)?;
             target_depth += 1;
             callee = inner;
         }
@@ -1190,9 +1190,13 @@ impl Engine<'_> {
             _ => None,
         };
         if let Some(name) = name {
+            self.budget.node(callee.span, target_depth)?;
             self.budget.text(name, callee.span)?;
             if !env.contains_key(name)
-                && self.templates.get(name).is_some_and(|item| matches!(item.kind, ItemKind::Function(_)))
+                && self
+                    .templates
+                    .get(name)
+                    .is_some_and(|item| matches!(item.kind, ItemKind::Function(_)))
             {
                 // Reuse ordinary inference on the actual input and full
                 // generic target. The outer Pipeline still prepares the left
@@ -1200,10 +1204,12 @@ impl Engine<'_> {
                 let span = e.span;
                 self.budget.node(span, depth)?;
                 self.budget.lineage_bytes(
-                    std::mem::size_of::<Expr>() + std::mem::size_of::<Argument>(), span,
+                    std::mem::size_of::<Expr>() + std::mem::size_of::<Argument>(),
+                    span,
                 )?;
                 let placeholder = || Expr {
-                    semantic: Default::default(), span,
+                    semantic: Default::default(),
+                    span,
                     kind: ExprKind::Literal(Literal::Bool(false)),
                 };
                 let argument = Argument {
@@ -1212,14 +1218,19 @@ impl Engine<'_> {
                     value: std::mem::replace(input.as_mut(), placeholder()),
                 };
                 let mut invocation = Expr {
-                    semantic: Default::default(), span,
+                    semantic: Default::default(),
+                    span,
                     kind: ExprKind::Call {
                         callee: Box::new(std::mem::replace(callee, placeholder())),
                         arguments: vec![argument],
                     },
                 };
                 let result = self.expr_call_normal(&mut invocation, env, context, depth);
-                let ExprKind::Call { callee: selected, mut arguments } = invocation.kind else {
+                let ExprKind::Call {
+                    callee: selected,
+                    mut arguments,
+                } = invocation.kind
+                else {
                     unreachable!("ordinary static invocation retains its call");
                 };
                 *callee = *selected;

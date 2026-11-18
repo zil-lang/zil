@@ -290,7 +290,9 @@ fn observation_operand(
             s::ExprKind::Group(_) if child == 0 => length -= 1,
             s::ExprKind::TypeApply { .. } if child == 0 => length -= 1,
             s::ExprKind::Call { .. } if child == 0 => return Ok(OperandObservation::Selector),
-            s::ExprKind::Pipeline { .. } if child == 0 => return Ok(OperandObservation::PipelineInput),
+            s::ExprKind::Pipeline { .. } if child == 0 => {
+                return Ok(OperandObservation::PipelineInput);
+            }
             s::ExprKind::Pipeline { .. } => return Ok(OperandObservation::Selector),
             s::ExprKind::Call { .. } if child > 0 => {
                 let selector = static_code_selector(
@@ -303,7 +305,11 @@ fn observation_operand(
                     value_names,
                     budget,
                 )?;
-                return Ok(if selector { OperandObservation::Selector } else { OperandObservation::Value });
+                return Ok(if selector {
+                    OperandObservation::Selector
+                } else {
+                    OperandObservation::Value
+                });
             }
             s::ExprKind::Unary {
                 op: s::UnaryOp::Give,
