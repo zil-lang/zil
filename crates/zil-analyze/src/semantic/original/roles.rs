@@ -847,7 +847,7 @@ impl Checked {
                                 b.lookup(sources.len(), WORK)?; sources.insert(*ordinal); seed = true;
                             } else {
                                 b.lookup(self.intrinsics.len().saturating_add(self.intrinsic_anchors.len()), WORK)?;
-                                if self.intrinsics.get(&(owner, node)) == Some(&sealed::Intrinsic::BytesView) {
+                                if self.intrinsics.get(&(owner, node)) == Some(&sealed::Intrinsic::BytesView { mutable: false }) {
                                     let Some(LocalAnchor::Environment(ordinal)) = self.intrinsic_anchors.get(&(owner, node))
                                         else { return Ok(false); };
                                     b.lookup(sources.len(), WORK)?; sources.insert(*ordinal); seed = true;

@@ -403,12 +403,12 @@ impl Check<'_, '_> {
         let (descriptor, extra) = match (&intrinsic, &instruction.kind) {
             (original::sealed::Intrinsic::BytesNew, InstructionKind::ByteBufferNew) => (None, None),
             (
-                original::sealed::Intrinsic::BytesView,
+                original::sealed::Intrinsic::BytesView { mutable },
                 InstructionKind::ByteBufferBorrow {
                     buffer,
-                    mutable: false,
+                    mutable: actual,
                 },
-            ) => (Some(*buffer), None),
+            ) if mutable == actual => (Some(*buffer), None),
             (original::sealed::Intrinsic::BytesLen, InstructionKind::ByteBufferLen { buffer })
             | (
                 original::sealed::Intrinsic::BytesCapacity,
@@ -510,17 +510,16 @@ impl Check<'_, '_> {
             let SemanticSiteAction::BodyCall { actuals } = &site.action else {
                 continue;
             };
-            if self
+            let Some(intrinsic @ original::sealed::Intrinsic::BytesView { .. }) = self
                 .original
                 .intrinsic(instance, site.recipe, self.inventory, b)?
-                != Some(original::sealed::Intrinsic::BytesView)
-            {
+            else {
                 continue;
-            }
+            };
             let ty = self.buffer_operation(
                 instance,
                 site.recipe,
-                original::sealed::Intrinsic::BytesView,
+                intrinsic,
                 function,
                 block,
                 index,

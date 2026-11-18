@@ -21,6 +21,8 @@ impl Solver<'_, '_> {
                 | sealed::Intrinsic::BytesPush
                 | sealed::Intrinsic::BytesTruncate
         );
+        let exclusive = writing
+            || matches!(intrinsic, sealed::Intrinsic::BytesView { mutable: true });
         let expected = if new {
             0
         } else if writing {
@@ -49,7 +51,7 @@ impl Solver<'_, '_> {
                     payload
                 }
                 Kind::Address { mutable, inner, .. } => {
-                    if writing && !mutable {
+                    if exclusive && !mutable {
                         return Err(fail(
                             "original ByteBuffer mutation cannot derive writable authority from a shared head",
                         ));
@@ -77,7 +79,7 @@ impl Solver<'_, '_> {
                     "original ByteBuffer operation selects another sealed resource family",
                 ));
             }
-            if writing && matches!(anchor, LocalAnchor::Environment(_)) {
+            if exclusive && matches!(anchor, LocalAnchor::Environment(_)) {
                 b.lookup(self.mutating_closures.len(), WORK)?;
                 self.mutating_closures.insert(frame.definition);
             }
@@ -146,7 +148,7 @@ impl Solver<'_, '_> {
         if new {
             let payload = self.atom(Type::ByteBuffer, b)?;
             self.term(Kind::Wrapped(Wrapper::Managed, payload), b)
-        } else if intrinsic == sealed::Intrinsic::BytesView {
+        } else if let sealed::Intrinsic::BytesView { mutable } = intrinsic {
             let life = manager_life.ok_or_else(|| {
                 fail("original ByteBuffer borrow lacks its complete manager source lifetime")
             })?;
@@ -154,7 +156,7 @@ impl Solver<'_, '_> {
             let inner = self.term(Kind::Slice(element), b)?;
             self.term(
                 Kind::Address {
-                    mutable: false,
+                    mutable,
                     life,
                     inner,
                 },

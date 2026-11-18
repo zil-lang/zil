@@ -1122,7 +1122,8 @@ impl Builder<'_, '_, '_, '_> {
         }
         fn outer(parameter: &SemanticParameterRecipe) -> Option<&SemanticOuterLifeRecipe> {
             match &parameter.ty {
-                SemanticTypeRecipe::Address { lifetime, .. } => Some(lifetime),
+                SemanticTypeRecipe::Address { lifetime, .. }
+                | SemanticTypeRecipe::Desc { lifetime, .. } => Some(lifetime),
                 _ => None,
             }
         }
@@ -1141,7 +1142,7 @@ impl Builder<'_, '_, '_, '_> {
             }
         }
         let selected = selected.ok_or_else(|| error(written.span,
-            "elided function result has no original receiver or unique address input lifetime"))?;
+            "elided function result has no original receiver or unique borrowed input lifetime"))?;
         let SemanticTypeRecipe::Address { lifetime, .. } = result else {
             return Err(error(written.span, "elided address result changed its original type constructor"));
         };
@@ -1605,7 +1606,7 @@ mod self_header_tests {
 
     #[test]
     fn function_elision_preserves_explicit_and_inner_lifetimes_and_rejects_ambiguity() {
-        let definitions = inventory("fn nested<life a,life b>(x:&'a &'b i32)->& &'b i32{return x}fn explicit<life a,life b>(x:&'a i32,y:&'b i32)->&'b i32{return y}fn unique(x:&i32)->&i32{return x}").unwrap();
+        let definitions = inventory("fn nested<life a,life b>(x:&'a &'b i32)->& &'b i32{return x}fn explicit<life a,life b>(x:&'a i32,y:&'b i32)->&'b i32{return y}fn unique(x:&i32)->&i32{return x}fn view(b:ByteBuffer)->&mut[u8]{return bytes_view_mut(b)}").unwrap();
         for definition in &definitions {
             let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body else { continue; };
             let name = definition.identity.declaration_path.last().unwrap().as_str();
@@ -1617,12 +1618,19 @@ mod self_header_tests {
                 }
                 "explicit" => assert!(matches!(lifetime, SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Formal(SemanticFormalRef { scope: SemanticScopeRef::Ancestor(0), ordinal: 1 })))),
                 "unique" => assert!(matches!(&signature.parameters[0].ty, SemanticTypeRecipe::Address { lifetime: input, .. } if input == lifetime)),
+                "view" => assert!(matches!(&signature.parameters[0].ty, SemanticTypeRecipe::Desc { lifetime: input, .. } if input == lifetime)),
                 _ => panic!(),
             }
             assert_eq!(signature.invocation_lifetimes, 0);
         }
-        let diagnostics = inventory("fn ambiguous(x:&i32,y:&i32)->&i32{return x}").unwrap_err();
-        assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains("several original input lifetime roles")));
+        for source in [
+            "fn ambiguous(x:&i32,y:&i32)->&i32{return x}",
+            "fn ambiguous(x:ByteBuffer,y:ByteBuffer)->&[u8]{return bytes_view(x)}",
+            "fn ambiguous(x:ByteBuffer,y:&[u8])->&[u8]{return bytes_view(x)}",
+        ] {
+            let diagnostics = inventory(source).unwrap_err();
+            assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains("several original input lifetime roles")));
+        }
     }
 
     #[test]

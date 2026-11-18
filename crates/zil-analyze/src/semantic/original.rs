@@ -2388,7 +2388,7 @@ impl Solver<'_, '_> {
                                 | sealed::Intrinsic::BytesPush
                                 | sealed::Intrinsic::BytesTruncate
                                 | sealed::Intrinsic::BytesLen
-                                | sealed::Intrinsic::BytesView
+                                | sealed::Intrinsic::BytesView { .. }
                                 | sealed::Intrinsic::BytesCapacity),
                             ) => {
                                 let result = self.buffer_call(
