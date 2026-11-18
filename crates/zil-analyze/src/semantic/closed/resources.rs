@@ -453,12 +453,19 @@ impl Check<'_, '_> {
                 if function.values.get(result.0 as usize) != Some(expected_ty) {
                     continue;
                 }
-                b.spend(arguments.len(), WORK)?;
-                if !arguments.contains(&source) {
-                    continue;
+                let mut selected_input = None;
+                for input in arguments {
+                    b.spend(1, WORK)?;
+                    if function.values.get(input.0 as usize) == Some(&actual.ty)
+                        && self.operation_operand_matches(function, *input, source, b)?
+                        && selected_input.replace(*input).is_some()
+                    {
+                        return Err(fail("closure result transport has competing exact input occurrences"));
+                    }
                 }
+                let Some(input) = selected_input else { continue; };
                 operations::available_before(
-                    function, (block.id, index, SemanticSiteEdge::Before), source, b,
+                    function, (block.id, index, SemanticSiteEdge::Before), input, b,
                 )?;
                 let result = self.ssa_value(context, function, result, b, depth + 1)?;
                 let result = self.capture_class_value(result, b)?;
