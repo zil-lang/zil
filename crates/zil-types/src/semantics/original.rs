@@ -2643,6 +2643,14 @@ impl<'a> Check<'a, '_> {
                 argument,
                 depth + 1,
             )?;
+            // A sealed whole-Type capture may itself be the requested raw
+            // carrier. Reveal its checked logical outer shape before splitting
+            // inner inference from the directed call loan. The original
+            // expression equation and creator source receipt stay unchanged.
+            let actual = if matches!(&parameter.ty,
+                SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }) {
+                self.observation_type(owner, &actual, depth + 1)?
+            } else { actual };
             let roots = match (&parameter.ty, &actual) {
                 (
                     SemanticTypeRecipe::Address {
