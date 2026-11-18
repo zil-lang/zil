@@ -4890,7 +4890,10 @@ static_dependency: StaticProvenance::NotStatic,
         _ if option_transfer.is_some() => {
             out = option_transfer.unwrap();
         }
-        InstructionKind::DropEnum{local}|InstructionKind::DropErrorUnion{local}if pure_copy::ordinary_owned_union(module,f,i,b)?=>{state.locals[local.0 as usize]=Payload::default();clear_local_holes(state,*local,b)?;},
+        kind if pure_copy::enum_local(kind).is_some() && pure_copy::ordinary_owned_enum(module,f,i,b)? => {
+            pure_copy::enum_local_transfer(f,i,state,&mut out,b)?;
+        }
+        InstructionKind::DropErrorUnion{local}if pure_copy::ordinary_owned_union(module,f,i,b)?=>{state.locals[local.0 as usize]=Payload::default();clear_local_holes(state,*local,b)?;},
         _ if pure_copy::ordinary_owned_union(module,f, i, b)? => {}
         _ if finite_fields::operation(module, f, i, b)? => {
             out = finite_fields::transfer(module, f, i, state, b)?;
@@ -5429,6 +5432,15 @@ fn reverse(
                 live.assign(f.values.len() + local.0 as usize, true)?;
             }
         }
+        InstructionKind::VariantTagLocal { local, .. } | InstructionKind::ReadVariantLocal { local, .. }
+            | InstructionKind::TakeVariantField { local, .. } | InstructionKind::UnpackVariant { local, .. }
+            | InstructionKind::DropEnum { local } if pure_copy::ordinary_owned_enum(module,f,i,b)? => {
+            if let InstructionKind::UnpackVariant { fields, .. } = &i.kind {
+                b.spend(fields.len())?;
+                for target in fields {live.assign(f.values.len() + target.0 as usize, false)?;}
+            }
+            live.assign(f.values.len() + local.0 as usize, true)?;
+        }
         InstructionKind::UnpackTuple { local, ref fields }
             if pure_copy::ordinary_owned_tuple(module, f, i, b)? =>
         {
@@ -5502,6 +5514,15 @@ fn reverse_bool(
             if let Some((local, _, _)) = callable_cells::local(&i.kind) {
                 live[f.values.len() + local.0 as usize] = true;
             }
+        }
+        InstructionKind::VariantTagLocal { local, .. } | InstructionKind::ReadVariantLocal { local, .. }
+            | InstructionKind::TakeVariantField { local, .. } | InstructionKind::UnpackVariant { local, .. }
+            | InstructionKind::DropEnum { local } if pure_copy::ordinary_owned_enum(module,f,i,b)? => {
+            if let InstructionKind::UnpackVariant { fields, .. } = &i.kind {
+                b.spend(fields.len())?;
+                for target in fields {live[f.values.len() + target.0 as usize] = false;}
+            }
+            live[f.values.len() + local.0 as usize] = true;
         }
         InstructionKind::UnpackTuple { local, ref fields }
             if pure_copy::ordinary_owned_tuple(module, f, i, b)? =>
@@ -6344,6 +6365,24 @@ fn windows(
                             loans: Vec::new(),
                         };
                         checks.check(&actual, false, requirements, b)?;
+                    }
+                    InstructionKind::VariantTagLocal { local, .. } | InstructionKind::ReadVariantLocal { local, .. }
+                        | InstructionKind::TakeVariantField { local, .. } | InstructionKind::UnpackVariant { local, .. }
+                        | InstructionKind::DropEnum { local } if pure_copy::ordinary_owned_enum(module,f,i,b)? => {
+                        let (path,write) = pure_copy::enum_place_access(&i.kind,b)?;
+                        let mut check_local = |local, inline, write, b: &mut Budget| {
+                            b.spend(1)?;
+                            let actual = Permission { sources: vec![Source {
+                                base: HoldRoot::Local(local), inline, leaf: Vec::new(),
+                                static_dependency: StaticProvenance::NotStatic, retained_port: None,
+                                heap_element: None, heap_parents: Vec::new(),
+                            }], loans: Vec::new() };
+                            checks.check(&actual,write,requirements,b)
+                        };
+                        check_local(*local,path,write,b)?;
+                        if let InstructionKind::UnpackVariant { fields, .. } = &i.kind {
+                            for target in fields { check_local(*target,Vec::new(),true,b)?; }
+                        }
                     }
                     InstructionKind::TakeVariantField { local, path } if ordinary_error_places => {
                         b.spend(path.len().saturating_add(1))?;

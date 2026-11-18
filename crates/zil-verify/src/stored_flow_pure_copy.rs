@@ -1120,21 +1120,78 @@ mod copy_field_borrow_tests {
     }
 }
 
+// Paths and destination locals are independently checked by the Sum schema.
+pub(super) fn enum_local(kind: &InstructionKind) -> Option<LocalId> {
+    match kind {
+        InstructionKind::VariantTagLocal { local, .. }
+        | InstructionKind::ReadVariantLocal { local, .. }
+        | InstructionKind::TakeVariantField { local, .. }
+        | InstructionKind::UnpackVariant { local, .. }
+        | InstructionKind::DropEnum { local } => Some(*local),
+        _ => None,
+    }
+}
+
+pub(super) fn enum_place_access(kind: &InstructionKind, b: &mut Budget) -> Check<(Path, bool)> {
+    Ok(match kind {
+        InstructionKind::VariantTagLocal { path, .. } | InstructionKind::ReadVariantLocal { path, .. } => {
+            b.spend(path.len())?;
+            (path.iter().copied().map(PlaceProjection::Variant).collect(), false)
+        }
+        InstructionKind::TakeVariantField { path, .. } => {b.spend(path.len())?; (path.clone(), true)}
+        InstructionKind::UnpackVariant { .. } | InstructionKind::DropEnum { .. } => (Vec::new(), true),
+        _ => return Err(err("ordinary enum local access has another instruction")),
+    })
+}
+
+pub(super) fn enum_local_transfer(f: &TypedFunction, i: &Instruction, state: &mut Frame, out: &mut Payload, b: &mut Budget) -> Check<()> {
+    let local = enum_local(&i.kind).ok_or_else(||err("ordinary enum local transfer lacks its place"))?;
+    match &i.kind {
+        InstructionKind::UnpackVariant { variant, fields, .. } => {
+            let payload = std::mem::take(&mut state.locals[local.0 as usize]);
+            clear_local_holes(state, local, b)?;
+            for (index, target) in fields.iter().enumerate() {
+                let path = [PlaceProjection::Variant(zil_ir::VariantProjection { variant: *variant, index: index as u32 })];
+                let child = value_transport::project(&payload, &path, &f.locals[target.0 as usize].ty, b)?;
+                clear_local_holes(state, *target, b)?;
+                state.locals[target.0 as usize] = child;
+            }
+        }
+        InstructionKind::ReadVariantLocal { .. } | InstructionKind::TakeVariantField { .. } => {
+            let (path, take) = enum_place_access(&i.kind, b)?;
+            let ty = vt(f, i.result.ok_or_else(||err("ordinary enum field has no result"))?)?;
+            let payload = &mut state.locals[local.0 as usize];
+            *out = if take { value_transport::take(payload, &path, ty, b)? } else { value_transport::project(payload, &path, ty, b)? };
+        }
+        InstructionKind::DropEnum { .. } => {
+            state.locals[local.0 as usize] = Payload::default();
+            clear_local_holes(state, local, b)?;
+        }
+        InstructionKind::VariantTagLocal { .. } => {}
+        _ => return Err(err("ordinary enum local transfer has another instruction")),
+    }
+    Ok(())
+}
+
 // Ordinary owning enums enter the same no-stored-target lane as owning error
 // unions. This verifies complete physical payloads, not Copy eligibility or
 // the active tag, move state, local initialization or cleanup responsibility.
-fn ordinary_owned_enum(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->Check<bool>{
+pub(super) fn ordinary_owned_enum(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->Check<bool>{
     let ty=match &i.kind{
         InstructionKind::MakeVariant{..}=>vt(f,i.result.ok_or_else(||err("ordinary owning enum constructor has no result"))?)?,
         InstructionKind::VariantTag{value}|InstructionKind::ReadVariant{value,..}=>vt(f,*value)?,
         InstructionKind::PlaceTagLocal{local,path}if path.is_empty()=>&f.locals.get(local.0 as usize).ok_or_else(||err("ordinary owning enum tag has no local"))?.ty,
-        InstructionKind::DropEnum{local}=>&f.locals.get(local.0 as usize).ok_or_else(||err("ordinary owning enum cleanup local is absent"))?.ty,
-        _=>return Ok(false),
+        kind=>{let Some(local)=enum_local(kind)else{return Ok(false);}; &f.locals.get(local.0 as usize).ok_or_else(||err("ordinary owning enum local is absent"))?.ty},
     };
     let Type::Enum{variants,..}=ty else{return Ok(false);};
     type_work(ty,&b.limits.clone(),b)?;
     if ty.is_copy_value()||!complete_owned_fields(module,vec![(ty,0)],b)?{return Ok(false);}
-    if matches!(i.kind,InstructionKind::DropEnum{..}){if i.result.is_some(){return Err(err("ordinary owning enum cleanup has a value result"));}return Ok(true);}
+    if enum_local(&i.kind).is_some() {
+        let expected = crate::sums::check_instruction(f, i, &b.limits.clone(), b)?;
+        let actual = i.result.map(|value| vt(f, value)).transpose()?;
+        if actual != expected.as_ref() {return Err(err("ordinary owning enum local operation changes its result"));}
+        return Ok(true);
+    }
     let output=vt(f,i.result.ok_or_else(||err("ordinary owning enum operation has no result"))?)?;
     match &i.kind{
         InstructionKind::MakeVariant{variant,fields}=>{
@@ -1270,6 +1327,10 @@ mod owned_observation_tests{
         assert!(!owner.is_copy_value());assert!(!union.is_copy_value());assert!(!record.is_copy_value());
         module.functions[0].locals[0].ty=union.clone();
         let mut local=module.functions[0].locals[0].clone();local.id=LocalId(1);local.ty=owner.clone();module.functions[0].locals.push(local);
+        for (id,ty) in [(2,enumeration.clone()),(3,Type::Closure(ClosureId(0))),(4,Type::I64)] {
+            let mut local=module.functions[0].locals[0].clone();local.id=LocalId(id);local.ty=ty;
+            module.functions[0].locals.push(local);
+        }
         module.functions[0].values=vec![union,Type::Bool,owner,Type::Unit,enumeration,Type::I32,Type::I64,record,Type::Closure(ClosureId(0))];
         for wire in [false,true]{
             let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();
@@ -1277,6 +1338,13 @@ mod owned_observation_tests{
             let f=&candidate.functions[0];let mut b=Budget::new(&limits);
             let operation=|result:Option<u32>,kind:InstructionKind|Instruction{result:result.map(ValueId),kind,span:f.span};
             for i in [operation(Some(1),InstructionKind::ErrorTag{value:ValueId(0)}),operation(Some(2),InstructionKind::TakeErrorUnion{value:ValueId(0),is_error:false}),operation(Some(0),InstructionKind::MakeErrorUnion{value:ValueId(2),is_error:false}),operation(None,InstructionKind::DropErrorUnion{local:LocalId(0)}),operation(Some(5),InstructionKind::VariantTag{value:ValueId(4)}),operation(Some(6),InstructionKind::ReadVariant{value:ValueId(4),variant:0,index:1})]{assert!(ordinary_owned_union(&candidate,f,&i,&mut b).unwrap());}
+            let tag=operation(Some(5),InstructionKind::VariantTagLocal{local:LocalId(2),path:vec![]});
+            assert!(ordinary_owned_union(&candidate,f,&tag,&mut b).unwrap());
+            let unpack=|variant,fields|operation(None,InstructionKind::UnpackVariant{local:LocalId(2),variant,fields});
+            assert!(ordinary_owned_union(&candidate,f,&unpack(0,vec![LocalId(3),LocalId(4)]),&mut b).unwrap());
+            for malformed in [unpack(1,vec![]),unpack(0,vec![LocalId(3),LocalId(3)]),unpack(0,vec![LocalId(4),LocalId(3)]),unpack(0,vec![LocalId(2),LocalId(4)])] {
+                assert!(ordinary_owned_union(&candidate,f,&malformed,&mut b).is_err());
+            }
             let read=operation(Some(6),InstructionKind::ReadPackageField{local:LocalId(1),index:1});assert!(ordinary_package_read(f,&read,&mut b).unwrap());
             let extract=operation(Some(6),InstructionKind::ExtractField{aggregate:ValueId(7),index:1});types(&candidate,f,&extract,&mut b).unwrap();
             let wrong=operation(Some(1),InstructionKind::ExtractField{aggregate:ValueId(7),index:1});assert!(types(&candidate,f,&wrong,&mut b).is_err());
