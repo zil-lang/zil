@@ -866,6 +866,7 @@ pub fn check(
 struct Builder<'a, 'c> {
     declared_call_kind: Option<CallKind>,
     original_call_kind: Option<CallKind>,
+    lexical_default_module: Option<zil_base::ModuleId>,
     function: FunctionDraft,
     // Hidden Task return context is fixed by actual return events. Error-only
     // constructors retain their payload while this private result is pending.
@@ -958,8 +959,9 @@ impl<'a, 'c> Builder<'a, 'c> {
         closures.block(f.span)?;
         let mut abi_work = closures.remaining_work();
         let before_abi = abi_work;
-        let original_call_kind =
+        let original_entry =
             semantics::abi::selected(&closures.semantic_emission, f, id, limits, &mut abi_work)?;
+        let original_call_kind = original_entry.map(|(kind, _)| kind);
         closures.snapshot(before_abi - abi_work, f.span)?;
         let effective_call_kind = original_call_kind
             .or(f.call_kind)
@@ -1083,6 +1085,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             limits,
             closures,
         );
+        b.lexical_default_module = original_entry.and_then(|(_, module)| module);
         if f.foreign.is_none() {
             b.emit(
                 InstructionKind::ScopeEnter { scope: ScopeId(0) },
@@ -1130,6 +1133,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             task_return_errors: Vec::new(),
             declared_call_kind,
             original_call_kind,
+            lexical_default_module: None,
             function,
             helper_bounds,
             state_callable_mode: None,
@@ -1324,7 +1328,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                         format!("module {alias} has no function {member}"),
                     )
                 })?;
-                if !signature.public {
+                if !signature.public && self.lexical_default_module != Some(*module) {
                     return Err(error(
                         "E-MODULE-PRIVATE",
                         callee.span,

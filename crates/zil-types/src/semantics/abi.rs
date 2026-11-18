@@ -16,7 +16,7 @@ type Key = (
     zil_base::NodeId,
     Option<zil_base::NodeId>,
 );
-pub(super) type Choices = std::collections::BTreeMap<Key, CallKind>;
+pub(super) type Choices = std::collections::BTreeMap<Key, (CallKind, Option<zil_base::ModuleId>)>;
 pub(super) struct SourceOrigin {
     origin: Origin,
     scope: Option<CoreFunctionSourceScope>,
@@ -150,7 +150,17 @@ pub(crate) fn prepare<'a>(
             .original
             .fixed_call_kind(program, instance.definition, limits, left)?;
         pay(left, choices.len().saturating_add(1).ilog2() as usize + 1)?;
-        if choices.insert(key, kind).is_some_and(|prior| prior != kind) {
+        let lexical_default = if key.0 != instance.definition.module {
+            let method = context.definition(instance.definition, left)?;
+            if method.kind == SemanticDefinitionKind::Method
+                && let Some(parent) = method.parent
+                && matches!(context.definition(parent, left)?.body, SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { .. }))
+            {
+                Some(method.id.module)
+            } else { None }
+        } else { None };
+        let choice = (kind, lexical_default);
+        if choices.insert(key, choice).is_some_and(|prior| prior != choice) {
             return Err(bad(
                 "one actual Core origin has conflicting original ABI candidates",
             ));
@@ -186,8 +196,7 @@ pub(crate) fn callee_kind(
     pay(left, choices.len().saturating_add(1).ilog2() as usize + 1)?;
     choices
         .get(&(origin.module, origin.creator, origin.closure))
-        .copied()
-        .map(Some)
+        .map(|&(kind, _)| Some(kind))
         .ok_or_else(|| bad("call target has no checked fixed original ABI convention"))
 }
 pub(crate) fn selected(
@@ -196,7 +205,7 @@ pub(crate) fn selected(
     actual: FunctionId,
     limits: &Limits,
     left: &mut usize,
-) -> R<Option<CallKind>> {
+) -> R<Option<(CallKind, Option<zil_base::ModuleId>)>> {
     let Some(choices) = ledger.fixed_abis.as_ref() else {
         return Ok(None);
     };
@@ -237,7 +246,7 @@ pub(crate) fn selected(
         })?
     };
     pay(left, choices.len().saturating_add(1).ilog2() as usize + 1)?;
-    let kind = *choices
+    let (kind, lexical_default) = *choices
         .get(&(origin.module, origin.creator, origin.closure))
         .ok_or_else(|| bad("actual executable origin has no checked original ABI candidate"))?;
     if function.call_kind.is_some_and(|declared| declared != kind) {
@@ -245,7 +254,7 @@ pub(crate) fn selected(
             "explicit Core ABI selection differs from its checked original declaration",
         ));
     }
-    Ok(Some(kind))
+    Ok(Some((kind, lexical_default)))
 }
 
 /// Register an actual specialization at the compiler's real template mint.

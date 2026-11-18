@@ -1478,6 +1478,10 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                         }
                         self.nominal(owner, declaration, &arguments, hint, depth + 1)?
                     }
+                    SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { .. }) => {
+                        let (provider, self_type) = self.default_provider_self(owner)?;
+                        self.ty(provider, self_type, hint, depth + 1)?
+                    }
                     _ => {
                         return Err(unknown(
                             "Self requires its checked original implementation or nominal scope",

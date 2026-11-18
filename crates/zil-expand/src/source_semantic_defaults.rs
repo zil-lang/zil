@@ -337,6 +337,97 @@ impl Visitor for Rewrite<'_, '_, '_> {
     }
 }
 
+// An omitted implementation receiver has the actual trait member's declared
+// receiver. Give the original header and body the same parameter that Core
+// lowering would otherwise insert only at its physical entry.
+fn inherited_receivers<'a>(
+    syntax: &[&s::Module],
+    inventory: &'a SourceDeclarationInventory<'_>,
+    imports: &[Vec<CoreImport>],
+    budget: &mut Budget<'_>,
+) -> R<BTreeMap<(ModuleId, usize, usize), &'a s::Param>> {
+    let mut rows = BTreeMap::new();
+    for (module, edges) in syntax.iter().zip(imports) {
+        for (placement, item) in module.items.iter().enumerate() {
+            let s::ItemKind::Impl(implementation) = &item.kind else {
+                continue;
+            };
+            let Some(s::TypeRef {
+                kind: s::TypeKind::Named { path, .. },
+                ..
+            }) = &implementation.trait_type
+            else {
+                continue;
+            };
+            let (source, name) = match path.as_slice() {
+                [name] => (module.id, name),
+                [alias, name] => {
+                    budget.identity_work(edges.len(), item.span)?;
+                    let mut target = edges.iter().filter(|edge| edge.alias == *alias);
+                    let Some(edge) = target.next() else {
+                        continue;
+                    };
+                    if target.next().is_some() {
+                        return Err(error(item.span, "ambiguous trait receiver module"));
+                    }
+                    (edge.module, name)
+                }
+                _ => continue,
+            };
+            budget.identity_work(inventory.declarations.len(), item.span)?;
+            let mut traits = inventory
+                .declarations
+                .iter()
+                .filter(|row| row.module == source && row.parent.is_none())
+                .filter_map(|row| match &row.item.kind {
+                    s::ItemKind::Trait(decl) if decl.name == *name => Some(decl),
+                    _ => None,
+                });
+            let Some(decl) = traits.next() else {
+                continue;
+            };
+            if traits.next().is_some() {
+                return Err(error(
+                    item.span,
+                    "implicit receiver has competing original trait declarations",
+                ));
+            }
+            for (ordinal, member) in implementation.members.iter().enumerate() {
+                let s::ItemKind::Function(method) = &member.kind else {
+                    continue;
+                };
+                if method.params.first().is_some_and(|p| p.name == "self") {
+                    continue;
+                }
+                budget.identity_work(decl.members.len(), member.span)?;
+                let mut members = decl.members.iter().filter_map(|m| match &m.kind {
+                    s::ItemKind::Function(signature) if signature.name == method.name => {
+                        Some(signature)
+                    }
+                    _ => None,
+                });
+                let Some(signature) = members.next() else {
+                    continue;
+                };
+                if members.next().is_some() {
+                    return Err(error(
+                        member.span,
+                        "duplicate original trait receiver scheme",
+                    ));
+                }
+                if let Some(receiver) = signature.params.first().filter(|p| p.name == "self") {
+                    budget.lineage_bytes(
+                        12 * std::mem::size_of::<((ModuleId, usize, usize), &s::Param)>(),
+                        member.span,
+                    )?;
+                    rows.insert((module.id, placement, ordinal), receiver);
+                }
+            }
+        }
+    }
+    Ok(rows)
+}
+
 pub(super) fn prepare(
     syntax: &[&s::Module],
     inventory: &SourceDeclarationInventory<'_>,
@@ -396,7 +487,8 @@ pub(super) fn prepare(
             }
         }
     }
-    if fields.is_empty() {
+    let receivers = inherited_receivers(syntax, inventory, imports, budget)?;
+    if fields.is_empty() && receivers.is_empty() {
         return Ok(None);
     }
     let span = syntax.first().map_or(Span::default(), |module| module.span);
@@ -410,6 +502,22 @@ pub(super) fn prepare(
         }
         Ok(modules)
     })?;
+    let has_receivers = !receivers.is_empty();
+    for ((module, placement, ordinal), receiver) in receivers {
+        let module = modules
+            .iter_mut()
+            .find(|row| row.id == module)
+            .ok_or_else(|| error(span, "receiver module is absent"))?;
+        let s::ItemKind::Impl(implementation) = &mut module.items[placement].kind else {
+            return Err(error(span, "receiver impl moved"));
+        };
+        let s::ItemKind::Function(method) = &mut implementation.members[ordinal].kind else {
+            return Err(error(span, "receiver method moved"));
+        };
+        budget.ty(&receiver.ty)?;
+        budget.lineage_bytes(std::mem::size_of::<s::Param>(), method.span)?;
+        method.params.insert(0, receiver.clone());
+    }
     for (module, edges) in modules.iter_mut().zip(imports) {
         let mut rewrite = Rewrite {
             module: module.id,
@@ -524,5 +632,5 @@ pub(super) fn prepare(
             field.span,
         )?;
     }
-    Ok((!helpers.is_empty()).then_some(Prepared { modules, helpers }))
+    Ok((has_receivers || !helpers.is_empty()).then_some(Prepared { modules, helpers }))
 }

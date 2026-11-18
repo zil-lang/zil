@@ -9,13 +9,24 @@ impl Eval<'_, '_, '_> {
     ) -> R<SemanticTypeValue> {
         let instance = self.instance(scope)?;
         let original = self.definition(instance.definition)?;
-        let (selector, parent) = match &original.body {
-            SemanticDefinitionBody::Nominal { .. } => (SemanticScopeRef::Ancestor(0), None),
+        let (selector, parent, provider) = match &original.body {
+            SemanticDefinitionBody::Nominal { .. } => (SemanticScopeRef::Ancestor(0), None, None),
             SemanticDefinitionBody::Scope(
                 SemanticScopeRecipe::InherentImpl { .. }
                 | SemanticScopeRecipe::TraitImpl { .. }
                 | SemanticScopeRecipe::BuiltinImpl { .. },
-            ) => (SemanticScopeRef::Ancestor(0), None),
+            ) => (SemanticScopeRef::Ancestor(0), None, None),
+            SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { .. }) => {
+                let SemanticTypeValue::Core {
+                    scope: selected, ..
+                } = claim
+                else {
+                    return Err(bad(
+                        "default trait Self omits its original implementation occurrence",
+                    ));
+                };
+                (SemanticScopeRef::Ancestor(0), None, Some(*selected))
+            }
             SemanticDefinitionBody::Function { .. }
             | SemanticDefinitionBody::FunctionWithBody { .. }
                 if original.kind == SemanticDefinitionKind::Method =>
@@ -28,18 +39,20 @@ impl Eval<'_, '_, '_> {
                 if original.parent != Some(parent_instance.definition)
                     || !matches!(
                         parent_definition.body,
-                        SemanticDefinitionBody::Nominal { .. } | SemanticDefinitionBody::Scope(
-                            SemanticScopeRecipe::InherentImpl { .. }
-                                | SemanticScopeRecipe::TraitImpl { .. }
-                                | SemanticScopeRecipe::BuiltinImpl { .. }
-                        )
+                        SemanticDefinitionBody::Nominal { .. }
+                            | SemanticDefinitionBody::Scope(
+                                SemanticScopeRecipe::Trait { .. }
+                                    | SemanticScopeRecipe::InherentImpl { .. }
+                                    | SemanticScopeRecipe::TraitImpl { .. }
+                                    | SemanticScopeRecipe::BuiltinImpl { .. }
+                            )
                     )
                 {
                     return Err(bad(
                         "method Self does not name its true original implementation parent",
                     ));
                 }
-                (SemanticScopeRef::Ancestor(1), Some(parent))
+                (SemanticScopeRef::Ancestor(1), Some(parent), None)
             }
             _ => {
                 return Err(unknown(
@@ -60,7 +73,7 @@ impl Eval<'_, '_, '_> {
             ..
         } = claim
         {
-            if *claimed_scope == scope {
+            if *claimed_scope == scope || Some(*claimed_scope) == provider {
                 // The claim is already expressed in this method/scope domain.
             } else if Some(*claimed_scope) == parent {
                 self.rehome_classes(&mut actual, 1)?;

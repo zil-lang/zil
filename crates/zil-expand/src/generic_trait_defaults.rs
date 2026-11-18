@@ -426,7 +426,11 @@ impl Engine<'_> {
                 .saturating_add(self.retained_stores.len())
                 .saturating_add(self.traits.instance_count())
                 .saturating_add(self.default_functions)
-                .saturating_add(2)
+                .saturating_add(if self.products.semantic.is_some() {
+                    1
+                } else {
+                    2
+                })
                 > self.limits.max_functions.min(512)
             {
                 return Err(Diagnostic::limit(
@@ -488,6 +492,36 @@ impl Engine<'_> {
                     trait_instances::rekey_anchored_calls(&body, anchors, &mut self.budget)
                 })
                 .transpose()?;
+            if let Some(program) = self.products.semantic.as_mut() {
+                let ItemKind::Function(function) = &mut body.kind else {
+                    unreachable!()
+                };
+                let origin = self
+                    .current_origin
+                    .ok_or_else(|| error(span, "default provider origin is absent"))?;
+                let origins = self.origins.ok_or_else(|| {
+                    error(span, "default provider declaration directory is absent")
+                })?;
+                let source = origins.identity(origin.declaration, &mut self.budget, span)?;
+                let definition = zil_ir::SemanticDefinitionId {
+                    module: origin.declaration.module,
+                    index: source.declaration.0,
+                };
+                function.semantic = program.default_method_template(
+                    function.semantic,
+                    definition,
+                    &mut self.budget,
+                    span,
+                )?;
+                if let Some(resolved) = remapped {
+                    self.current_member_calls
+                        .insert(implementation.members.len(), resolved);
+                }
+                self.budget.node(member.span, 0)?;
+                implementation.members.push(body);
+                self.default_functions += 1;
+                continue;
+            }
             let helper =
                 self.default_body_name(&reference, &implementation.target, method, span)?;
             self.budget.item(&body)?;

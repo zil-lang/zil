@@ -763,9 +763,50 @@ impl Check<'_, '_> {
                 }
             }
         }
-        selected.ok_or_else(|| {
-            bad("original caller lacks the declared trait premise for its static member")
-        })
+        if let Some(application) = selected { return Ok(application); }
+        if let SemanticTypeRecipe::SelfType { scope: SemanticScopeRef::Ancestor(hops) } = self_type {
+            let mut id = owner;
+            for _ in 0..*hops {
+                self.pay(1, depth)?;
+                id = self.definition(id)?.parent.ok_or_else(|| bad("default Self names an absent lexical scope"))?;
+            }
+            if matches!(&self.definition(id)?.body,
+                SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { declaration: expected }) if *expected == declaration)
+            {
+                return Ok(SemanticTraitRecipe { declaration, arguments: self.original_arguments(id, *hops, depth + 1)? });
+            }
+        }
+        // On an actual nominal receiver the selected implementation supplies
+        // the complete application, including arguments absent from its ABI.
+        if matches!(self_type, SemanticTypeRecipe::Nominal { .. } | SemanticTypeRecipe::Atom(_)) {
+            self.pay(self.program.definitions.len(), depth)?;
+            for provider in &self.program.definitions {
+                let SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl {
+                    trait_application, ..
+                }) = &provider.body else { continue; };
+                if trait_application.declaration != declaration { continue; }
+                let values = match self.solve_parent(owner, provider, self_type, depth + 1) {
+                    Ok(values) => values,
+                    Err(error) if error.category == zil_base::ResultCategory::SafeReject => continue,
+                    Err(error) => return Err(error),
+                };
+                let frames = [(0, values.as_slice())];
+                let empty = BTreeMap::new();
+                let substitution = substitute::Substitution {
+                    frames: &frames, selves: &[], environments: &[], implicit: &empty, invocation: &empty, shift: 0,
+                };
+                self.pay(trait_application.arguments.len(), depth)?;
+                let mut arguments = Vec::new();
+                for actual in &trait_application.arguments {
+                    arguments.push(substitute::actual(actual, &substitution, self.limits, self.left)?);
+                }
+                let application = SemanticTraitRecipe { declaration, arguments };
+                if selected.replace(application).is_some() {
+                    return Err(pending("default receiver has several applicable original implementations"));
+                }
+            }
+        }
+        selected.ok_or_else(|| bad("original caller lacks the declared trait premise for its static member"))
     }
     pub(super) fn solve_parent(
         &mut self,

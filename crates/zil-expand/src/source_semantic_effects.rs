@@ -1604,7 +1604,13 @@ impl<'a> Scan<'a, '_, '_, '_> {
                     self.budget.node(span, depth)?;
                     if matches!(self_type,SemanticTypeRecipe::Nominal {definition,..} if *definition==owner)
                     {
-                        found |= self.method_scope(definition.id, spelling, depth + 1, span)?;
+                        let concrete = self.method_scope(definition.id, spelling, depth + 1, span)?;
+                        found |= concrete;
+                        if !concrete && let SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl { trait_application, .. }) = &definition.body {
+                            let mut active = Vec::new();
+                            found |= self.trait_methods(trait_application.declaration, spelling, depth + 1, span, &mut active)?;
+                            self.budget.drop_lineage_vec(active, span)?;
+                        }
                     } else if !matches!(self_type, SemanticTypeRecipe::Nominal { .. }) {
                         // An unresolved blanket/projection receiver is not
                         // discarded merely because its image is not known.

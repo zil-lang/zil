@@ -33,6 +33,59 @@ struct SourceActual {
     recipe: SemanticActualRecipe,
 }
 impl<'a> Eval<'a, '_, '_> {
+    pub(super) fn default_provider_self(
+        &mut self,
+        owner: SemanticInstanceId,
+    ) -> R<(SemanticInstanceId, &'a SemanticTypeRecipe)> {
+        let trait_instance = self.scope_source_instance(owner)?;
+        let SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { declaration }) =
+            &self.definition(trait_instance.definition)?.body
+        else {
+            return Err(bad("default body has no original trait scope"));
+        };
+        let Some(SemanticTypeValue::Core {
+            scope: selected,
+            source: SemanticCoreTypeSource::OriginalRecipe(_),
+        }) = &trait_instance.self_type
+        else {
+            return Err(unknown(
+                "default Self requires its actual original provider scope",
+            ));
+        };
+        let selected = *selected;
+        let provider = self.instance(selected)?;
+        if selected == owner || !matches!(provider.target, SemanticInstanceTarget::Scope) {
+            return Err(bad("default Self selects another provider occurrence"));
+        }
+        let SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl {
+            self_type,
+            trait_application,
+            ..
+        }) = &self.definition(provider.definition)?.body
+        else {
+            return Err(bad("default Self selects a non-implementation scope"));
+        };
+        if trait_application.declaration != *declaration
+            || trait_instance.actuals.len() != trait_application.arguments.len()
+        {
+            return Err(bad(
+                "default provider changes the original trait or full argument arity",
+            ));
+        }
+        self.rows(trait_instance.actuals.len())?;
+        for (actual, expected) in trait_instance
+            .actuals
+            .iter()
+            .zip(&trait_application.arguments)
+        {
+            crate::dyn_metadata::semantic_operand_snapshot(expected, self.limits, self.left, 1)?;
+            if !matches!(actual, SemanticActual::CoreRecipe { scope, recipe } if *scope == selected && recipe.as_ref() == expected)
+            {
+                return Err(bad("default provider changes an original ordered argument"));
+            }
+        }
+        Ok((selected, self_type))
+    }
     /// A closed Type world still needs its complete original application
     /// identity. Reuse original argument provenance, never resolved layouts or
     /// an invented callsite, to compare every mixed position in one real Gamma.
@@ -393,9 +446,18 @@ impl<'a> Eval<'a, '_, '_> {
         let ancestry = self.scope_chain(scope, depth + 1).map_err(SourceFailure::Invalid)?;
         let mut arguments = Vec::new();
         let mut destination = None;
-        for id in &ancestry {
+        let mut original_selves = Vec::new();
+        for (hop, id) in ancestry.iter().enumerate() {
             let row = self.scope_source_instance(*id).map_err(SourceFailure::Invalid)?;
             self.fee(row.actuals.len().saturating_add(1)).map_err(SourceFailure::Invalid)?;
+            if matches!(row.target, SemanticInstanceTarget::Scope)
+                && matches!(&row.self_type, Some(SemanticTypeValue::Core { scope: selected, .. }) if selected != id)
+                && matches!(self.definition(row.definition).map_err(SourceFailure::Invalid)?.body, SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { .. })) {
+                let (provider, ty) = self.default_provider_self(*id).map_err(SourceFailure::Invalid)?;
+                crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1).map_err(SourceFailure::Invalid)?;
+                let actual = self.source_specialize(provider, &SemanticActualRecipe::Type(ty.clone()), active, depth + 1)?;
+                original_selves.push((hop as u32, actual));
+            }
             let mut frame = Vec::new();
             for ordinal in 0..row.actuals.len() {
                 let actual = self.source_actual(*id, ordinal as u32, active, depth + 1)?;
@@ -406,7 +468,7 @@ impl<'a> Eval<'a, '_, '_> {
             }
             arguments.push(frame);
         }
-        let destination = destination.unwrap_or(scope);
+        let destination = if original_selves.is_empty() { destination.unwrap_or(scope) } else { scope };
         let mut mapped = Vec::new();
         self.fee(arguments.len()).map_err(SourceFailure::Invalid)?;
         for frame in &arguments {
@@ -417,6 +479,14 @@ impl<'a> Eval<'a, '_, '_> {
             }
             mapped.push(values);
         }
+        let mut replacements = Vec::new();
+        for (hop, value) in original_selves {
+            let SemanticActualRecipe::Type(ty) = self.source_relocate(&value, destination, depth + 1)? else {
+                return Err(SourceFailure::Invalid(bad("default receiver lost its original type recipe")));
+            };
+            replacements.push((hop, ty));
+        }
+        let selves: Vec<_> = replacements.iter().map(|(hop, ty)| (*hop, ty)).collect();
         let destination_chain = self.scope_chain(destination, depth + 1).map_err(SourceFailure::Invalid)?;
         self.fee(
             ancestry
@@ -440,7 +510,7 @@ impl<'a> Eval<'a, '_, '_> {
             value,
             &super::super::original::substitute::Substitution {
                 frames: &frames,
-                selves: &[],
+                selves: &selves,
                 environments: &[],
                 implicit: &empty,
                 invocation: &empty,

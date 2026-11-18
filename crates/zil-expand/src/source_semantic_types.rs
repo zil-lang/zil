@@ -1153,8 +1153,15 @@ impl Builder<'_, '_, '_, '_> {
                 } else { selected = Some(lifetime); }
             }
         }
-        let selected = selected.ok_or_else(|| error(written.span,
-            "elided function result has no original receiver or unique borrowed input lifetime"))?;
+        let selected = selected.ok_or_else(|| {
+            let definition = &self.inventory.declarations[self.owner];
+            if receiver.is_some()
+                && definition.parent.is_some_and(|parent| matches!(self.inventory.declarations[parent].item.kind, s::ItemKind::Trait(_)))
+            {
+                return unsupported(written.span, "trait reference result has no independent borrowed receiver or input source");
+            }
+            error(written.span, "elided function result has no original receiver or unique borrowed input lifetime")
+        })?;
         let SemanticTypeRecipe::Address { lifetime, .. } = result else {
             return Err(error(written.span, "elided address result changed its original type constructor"));
         };

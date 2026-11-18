@@ -42,6 +42,7 @@ pub(crate) struct Program {
     generated_targets: BTreeMap<ModuleId, BTreeMap<String, usize>>,
     call_requests: Vec<requests::Request>,
     scope_applications: Vec<scopes::Application>,
+    default_scopes: BTreeMap<usize, SemanticInstanceId>,
     scope_owners: BTreeMap<SemanticInstanceId, SemanticInstanceId>,
     scope_requests: Vec<requests::Request>,
     default_helpers: Vec<defaults::Helper>,
@@ -203,6 +204,13 @@ impl Program {
             from_call: false,
             core: None,
         });
+        if !self.default_scopes.is_empty() {
+            budget.identity_work(self.default_scopes.len().ilog2() as usize + 1, function.span)?;
+            if let Some(scope) = self.default_scopes.get(&index) {
+                budget.lineage_bytes(12 * std::mem::size_of::<(SemanticInstanceId, SemanticInstanceId)>(), function.span)?;
+                self.scope_owners.insert(id, *scope);
+            }
+        }
         function.semantic = s::SemanticContextMarker::untrusted(marker);
         self.realize_body(function, budget)
     }
