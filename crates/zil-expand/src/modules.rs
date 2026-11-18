@@ -995,6 +995,24 @@ impl crate::runtime_ct::RuntimeCt for NormalizedRuntimeCt<'_> {
     }
 }
 
+pub(super) fn bind_default_self(
+    body: &mut Expr,
+    module: ModuleId,
+    nominal: &str,
+    budget: &mut Budget<'_>,
+) -> R<()> {
+    budget.text(nominal, body.span)?;
+    budget.lineage_bytes(nominal.len(), body.span)?;
+    let mut visitor = Visitor {
+        default_nominal: Some(nominal.to_owned()),
+        const_scope: Names::new(),
+        mode: Mode::DefaultScope,
+        module,
+        budget,
+    };
+    visitor.expr(body, &Names::new(), &Names::new(), 0)
+}
+
 enum Mode<'a> {
     Normalize(&'a Index),
     Binders {
@@ -1006,6 +1024,7 @@ enum Mode<'a> {
         functions: &'a Functions,
         edges: &'a mut Vec<CoreImport>,
     },
+    DefaultScope,
 }
 struct Visitor<'a, 'b, 'l> {
     default_nominal: Option<String>,
@@ -1125,7 +1144,7 @@ impl Visitor<'_, '_, '_> {
             return Ok(());
         }
         match &self.mode {
-            Mode::Binders { .. } => {}
+            Mode::Binders { .. } | Mode::DefaultScope => {}
             Mode::Normalize(index) => {
                 if let Some(symbol) = index.symbols[&self.module].get(name) {
                     self.budget.text(&symbol.canonical, span)?;

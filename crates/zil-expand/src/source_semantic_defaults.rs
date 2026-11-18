@@ -299,15 +299,6 @@ impl Visitor for Rewrite<'_, '_, '_> {
         result
     }
     fn expression(&mut self, e: &mut s::Expr, depth: usize) -> CompileResult<()> {
-        if let Some(host) = self.default_host
-            && let s::ExprKind::Name(name) = &mut e.kind
-            && name == "Self"
-        {
-            self.budget
-                .lineage_bytes(host.len(), e.span)
-                .map_err(|error| vec![error])?;
-            *name = host.to_owned();
-        }
         self.record(e, None).map_err(|error| vec![error])?;
         if let s::ExprKind::Ascribed { ty, value } = &mut e.kind {
             self.record(value, Some(ty)).map_err(|error| vec![error])?;
@@ -469,11 +460,16 @@ pub(super) fn prepare(
             })?;
         budget.const_expression(source)?;
         budget.ty(&field.ty)?;
+        let mut function = crate::records::default_function(default.name.clone(), field);
+        let s::FunctionBody::Expression(body) = &mut function.body else {
+            return Err(error(
+                field.span,
+                "default helper loses its authored expression",
+            ));
+        };
+        crate::modules::bind_default_self(body, host.module, &host_declaration.name, budget)?;
         let mut item = s::Item {
-            kind: s::ItemKind::Function(crate::records::default_function(
-                default.name.clone(),
-                field,
-            )),
+            kind: s::ItemKind::Function(function),
             attributes: Vec::new(),
             public: default.public,
             span: field.span,
