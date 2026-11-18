@@ -86,7 +86,7 @@ impl Value {
             _=>{},
         }
     }
-    fn width(&self) -> usize {
+    pub(super) fn width(&self) -> usize {
         match self {
             Self::Owner { root, .. } => place_width(root),
             Self::Product(fields) => fields.iter().fold(1usize, |n, (name, value)| {

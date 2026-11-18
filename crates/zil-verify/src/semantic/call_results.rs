@@ -93,6 +93,13 @@ impl CheckedContext {
                         "dynamic Call result changes its exact original dispatch or emission role",
                     ));
                 }
+            } else if let Some(intrinsic) = original::intrinsics::Intrinsic::actual(&operation.kind) {
+                let expected = self.original.borrow();
+                let expected = expected.as_ref().ok_or_else(|| bad("intrinsic result lacks original proof"))?
+                    .intrinsic(definition, site, b)?;
+                if !matches!(row.action, SemanticSiteAction::BodyCall { .. }) || expected.kind != intrinsic {
+                    return Err(bad("intrinsic result changes its original operation or emission role"));
+                }
             } else if !matches!(
                 operation.kind,
                 InstructionKind::Call { .. }

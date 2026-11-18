@@ -128,6 +128,83 @@ impl Check<'_, '_> {
         Ok(())
     }
 
+    // Reconstruct the destination of an indirect write from actual SSA.
+    // Distinct stack locals are disjoint, and an incoming address predates
+    // the current activation. Neither proof relies on a candidate Hold row.
+    fn cleanup_write_disjoint(&self, function: &TypedFunction, owner: LocalId,
+        mut at: (BlockId, usize), mut address: ValueId, b: &mut Budget) -> CompileResult<bool> {
+        let mut seen = BTreeSet::new();
+        loop {
+            b.lookup(seen.len(), WORK)?;
+            if !seen.insert(address) { return Ok(false); }
+            operations::available_before(function, (at.0, at.1, SemanticSiteEdge::Before), address, b)?;
+            let (block, index, source) = self.defining(function, address, b)?;
+            let Some(ty @ Type::Address { mutable: true, inner }) = function.values.get(address.0 as usize) else {
+                return Ok(false);
+            };
+            at = (block, index);
+            match source.kind {
+                InstructionKind::Load(local) => {
+                    operations::initialized_local_before(function, at, local, b)?;
+                    let declaration = function.locals.get(local.0 as usize).filter(|row| row.id == local)
+                        .ok_or_else(|| fail("conditional cleanup write has no address slot"))?;
+                    if !geometry::same_type(ty, &declaration.ty, b)? { return Ok(false); }
+                    b.spend(function.parameters.len(), WORK)?;
+                    let entry = function.parameters.contains(&local);
+                    let mut stored = None;
+                    for body in &function.blocks {
+                        for (position, op) in body.instructions.iter().enumerate() {
+                            b.spend(1, WORK)?;
+                            match op.kind {
+                                InstructionKind::Load(_) | InstructionKind::StorageDead(_) => continue,
+                                InstructionKind::StorageLive(_) if !entry => continue,
+                                InstructionKind::Store { local: target, value } if target == local && !entry => {
+                                    if stored.replace((body.id, position, value)).is_some() { return Ok(false); }
+                                    continue;
+                                }
+                                _ => {}
+                            }
+                            // Include reservations, borrowed slot aliases and
+                            // unpack destinations among competing definitions.
+                            for operand in op.kind.local_operands() {
+                                b.spend(1, WORK)?;
+                                if operand == local { return Ok(false); }
+                            }
+                        }
+                    }
+                    if entry { return Ok(true); }
+                    let Some((block, index, value)) = stored else { return Ok(false); };
+                    at = (block, index);
+                    address = value;
+                }
+                InstructionKind::BorrowLocalMut { local } => {
+                    operations::initialized_local_before(function, at, local, b)?;
+                    let declaration = function.locals.get(local.0 as usize).filter(|row| row.id == local)
+                        .ok_or_else(|| fail("conditional cleanup write loses its actual local root"))?;
+                    return Ok(local != owner && geometry::same_type(inner, &declaration.ty, b)?);
+                }
+                InstructionKind::AddressField { address: parent, index: field } => {
+                    let Some(Type::Address { mutable: true, inner: aggregate }) = function.values.get(parent.0 as usize) else {
+                        return Ok(false);
+                    };
+                    let Some(child) = Self::pattern_child_type(aggregate, PlaceProjection::Field(field)) else {
+                        return Ok(false);
+                    };
+                    if !geometry::same_type(inner, child, b)? { return Ok(false); }
+                    address = parent;
+                }
+                InstructionKind::ReborrowAddress { address: parent, mutable: true } => {
+                    if function.values.get(parent.0 as usize).is_none_or(|ty| !matches!(ty, Type::Address { mutable: true, .. })) {
+                        return Ok(false);
+                    }
+                    if !geometry::same_type(&function.values[parent.0 as usize], ty, b)? { return Ok(false); }
+                    address = parent;
+                }
+                _ => return Ok(false),
+            }
+        }
+    }
+
     // A conditional owning drop is not a read. Validate every live reaching
     // source independently; an actual removal supplies only a vacant debt.
     fn cleanup_local_subject(&self, instance: &SemanticInstance, function: &TypedFunction,
@@ -172,6 +249,8 @@ impl Check<'_, '_> {
                         stopped = true;
                         break;
                     }
+                    InstructionKind::WriteAddress { address, .. }
+                        if self.cleanup_write_disjoint(function, local, (block, index), address, b)? => {}
                     InstructionKind::CommitPlaceReplace { .. } | InstructionKind::WriteAddress { .. }
                     | InstructionKind::StoreStoredBorrow { .. } => {
                         return Err(unknown("conditional cleanup needs its complete indirect replacement source"));

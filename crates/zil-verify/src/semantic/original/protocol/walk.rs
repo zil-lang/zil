@@ -132,14 +132,27 @@ impl<'a> Engine<'a> {
                 }
             }
             Assign { target, value } => {
-                let place = self.task_place(target, b)?.ok_or_else(|| {
-                    unsupported(
-                        "original protocol assignment needs its complete projected owner place",
-                        Some(target.span),
-                    )
-                })?;
-                let value = self.expression(value, &mut state, depth + 1, b)?;
-                self.task_assign_place(&mut state, &place, value, b)?;
+                if let Some(place) = self.task_place(target, b)? {
+                    let value = self.expression(value, &mut state, depth + 1, b)?;
+                    self.task_assign_place(&mut state, &place, value, b)?;
+                } else {
+                    // The original place checker resolved this exact target,
+                    // including dereferences and field selection. A scalar
+                    // write cannot create, replace or retire a Task owner.
+                    b.spend(self.original.place_types.len().checked_ilog2().map_or(1, |n| n as usize + 1))?;
+                    if !matches!(self.original.place_types.get(&(self.current, target.id)),
+                        Some(Ty::Atom(ty)) if ty.is_b0_scalar()) {
+                        return Err(unsupported(
+                            "original protocol assignment needs its complete projected owner place",
+                            Some(target.span),
+                        ));
+                    }
+                    let destination = self.expression(target, &mut state, depth + 1, b)?;
+                    let source = self.expression(value, &mut state, depth + 1, b)?;
+                    if !matches!((destination, source), (Value::Plain, Value::Plain)) {
+                        return Err(bad("scalar assignment changes an original protocol responsibility"));
+                    }
+                }
             }
             CompoundAssign { target, value, .. } => {
                 self.expression(target, &mut state, depth + 1, b)?;
@@ -194,6 +207,7 @@ impl<'a> Engine<'a> {
                 for selected in self.select(&state, &observed, pattern, poll, true, b)? {
                     let mut selected = selected;
                     self.bind_pattern(statement.id, &[], pattern, &observed, &mut selected, b)?;
+                    self.consume_fallible_task_arm(value, poll, pattern, &observed, &mut selected, b)?;
                     let next =
                         self.block(then_body, selected, deferred, loop_start, depth + 1, b)?;
                     self.collect(&mut result, next, b)?;
@@ -229,6 +243,7 @@ impl<'a> Engine<'a> {
                             &mut selected,
                             b,
                         )?;
+                        self.consume_fallible_task_arm(value, poll, &arm.pattern, &observed, &mut selected, b)?;
                         let next =
                             self.block(&arm.body, selected, deferred, loop_start, depth + 1, b)?;
                         self.collect(&mut result, next, b)?;
@@ -431,6 +446,29 @@ impl<'a> Engine<'a> {
         self.task_loop_keys.pop();
         result
     }
+    // On allocation failure there is no child frame. A successful by-value
+    // binding already owns the newly instantiated generation. Remove the
+    // conditional responsibility only from this actual matched source place.
+    fn consume_fallible_task_arm(&self, source: &SemanticOriginalExpr, sum: Discriminant,
+        pattern: &SemanticOriginalPattern, observed: &Value, state: &mut State, b: &mut Budget) -> Check<()> {
+        if sum != Discriminant::ErrorUnion { return Ok(()); }
+        let CorePatternKind::ErrorArm { is_error, pattern: payload } = &pattern.kind else { return Ok(()); };
+        let bound = matches!(payload.kind, CorePatternKind::Name(_));
+        let consumed = match observed {
+            Value::FallibleTask(_) => *is_error || bound,
+            Value::FallibleTaskOwned(_, _) => bound,
+            _ => false,
+        };
+        if !consumed { return Ok(()); }
+        let Some(place) = self.task_place(source, b)? else { return Ok(()); };
+        if !place.fields.is_empty() { return Ok(()); }
+        b.spend(observed.width().saturating_add(state.values.len().saturating_add(1).ilog2() as usize + 1))?;
+        if state.values.get(&place.binder) != Some(observed) {
+            return Err(bad("conditional Task arm changes its actual source binding"));
+        }
+        self.task_take_place(state, &place, b)
+    }
+
     fn node_discriminant(&self,node:&SemanticOriginalExpr,b:&mut Budget)->Check<Discriminant>{
         let Some(ty)=self.original.expressions.get(&(self.current,node.id))else{return Ok(Discriminant::Other);};
         if matches!(self.original.resolved(ty,b)?,Ty::ErrorUnion(..)){return Ok(Discriminant::ErrorUnion);}
