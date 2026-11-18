@@ -598,12 +598,13 @@ impl CheckedOriginal {
             Some(head) => self.resolved_life(head, b)?,
             None => access.clone(),
         };
-        b.spend(2)?;
+        b.spend(3)?;
+        let bounds = (access.clone(), target.clone());
         if let Some(previous) = self
             .receiver_call_roles
-            .insert((owner, node), target.clone())
+            .insert((owner, node), bounds.clone())
         {
-            if previous != target {
+            if previous != bounds {
                 return Err(bad(
                     "one original Receiver call changes its access-window identity",
                 ));
