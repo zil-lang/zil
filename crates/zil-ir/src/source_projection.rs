@@ -275,7 +275,10 @@ impl Fuel<'_> {
     }
 }
 
-fn physical_child(ty: &Type, step: PlaceProjection) -> Option<&Type> {
+/// Select one inline child from the physical layout beneath one storage qualification.
+/// This constant-time lookup yields a type only. The caller accounts for each
+/// path step and separately establishes the active arm, root, mode and class map.
+pub fn physical_child(ty: &Type, step: PlaceProjection) -> Option<&Type> {
     let ty = if let Type::BorrowedStorage { storage, .. } = ty {
         storage.as_ref()
     } else {
@@ -936,6 +939,32 @@ mod tests {
             },
         }
     }
+    #[test]
+    fn physical_child_keeps_discriminators_and_stops_at_borrowed_heads() {
+        let value = Type::Array {
+            element: Box::new(Type::Enum {
+                name: "Choice".into(),
+                variants: vec![("Only".into(), vec![Type::ErrorUnion {
+                    error: Box::new(Type::I8),
+                    result: Box::new(parent()),
+                }])],
+            }),
+            length: 2,
+        };
+        let enumeration = physical_child(&value, p(1)).unwrap();
+        let payload = PlaceProjection::Variant(VariantProjection { variant: 0, index: 0 });
+        let union = physical_child(enumeration, payload).unwrap();
+        assert_eq!(physical_child(union, PlaceProjection::ErrorArm(true)), Some(&Type::I8));
+        let qualified = physical_child(union, PlaceProjection::ErrorArm(false)).unwrap();
+        let pair = physical_child(qualified, p(1)).unwrap();
+        let address = physical_child(pair, p(0)).unwrap();
+        assert!(matches!(address, Type::Address { mutable: true, .. }));
+        assert!(physical_child(address, p(0)).is_none());
+        assert!(physical_child(enumeration, p(0)).is_none());
+        assert!(physical_child(&value, p(2)).is_none());
+        assert!(physical_child(union, payload).is_none());
+    }
+
     #[test]
     fn ordered_joint_scope_keeps_phantom_and_full_nominal_identity() {
         let mut remaining = 10000;

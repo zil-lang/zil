@@ -31,33 +31,22 @@ fn static_leaf<'a>(
 ) -> R<&'a Type> {
     for step in path {
         spend(left, 1, span)?;
-        if let Type::BorrowedStorage { storage, .. } = ty {
-            ty = storage;
-        }
-        ty = match (step, ty) {
-            (ContractProjection::Capture(index), Type::Closure(id)) => module
-                .closures
-                .get(id.0 as usize)
-                .and_then(|definition| definition.captures.get(*index as usize)),
-            (
-                ContractProjection::Place(PlaceProjection::Field(index)),
-                Type::Record { fields, .. } | Type::Package { fields, .. },
-            ) => fields.get(*index as usize).map(|(_, ty)| ty),
-            (ContractProjection::Place(PlaceProjection::Field(index)), Type::Tuple(fields)) => {
-                fields.get(*index as usize)
+        ty = match step {
+            ContractProjection::Place(selector) => {
+                zil_ir::source_projection::physical_child(ty, *selector)
             }
-            (ContractProjection::Place(PlaceProjection::Field(index)), Type::Array { element, length }) if *index < *length => Some(element.as_ref()),
-            (
-                ContractProjection::Place(PlaceProjection::Variant(projection)),
-                Type::Enum { variants, .. },
-            ) => variants
-                .get(projection.variant as usize)
-                .and_then(|(_, fields)| fields.get(projection.index as usize)),
-            (
-                ContractProjection::Place(PlaceProjection::ErrorArm(error)),
-                Type::ErrorUnion { error: e, result },
-            ) => Some(if *error { e.as_ref() } else { result.as_ref() }),
-            _ => None,
+            ContractProjection::Capture(index) => {
+                let storage = match ty {
+                    Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                    _ => ty,
+                };
+                match storage {
+                    Type::Closure(id) => module.closures.get(id.0 as usize)
+                        .and_then(|definition| definition.captures.get(*index as usize)),
+                    _ => None,
+                }
+            }
+            ContractProjection::RetainedPort(_) | ContractProjection::RetainedClass(_) => None,
         }
         .ok_or_else(|| {
             unsupported(
