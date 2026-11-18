@@ -619,7 +619,7 @@ fn check_element_admission_cold(
     resources::charge_payload(element, budget)?;
     // A standalone StoreElement obligation can name a complete direct
     // owner even when this module never opens a nested Store window.
-    if (product_container || budget.nested_store_windows)
+    if (budget.nested_store_windows || product_container && matches!(element, Type::Managed(_)))
         && owned_elements::candidate(element, budget)?
     {
         return owned_elements::check(module, element, span, budget);
