@@ -365,14 +365,15 @@ struct LiveValues {
     count: usize,
 }
 impl LiveValues {
-    fn new(world: &mut World<'_, '_>, capacity: usize) -> R<Self> {
-        let words = capacity.saturating_add(63) / 64;
-        world.pay(words)?;
-        Ok(Self {
-            limit: capacity,
-            words: vec![0; words],
-            ..Self::default()
-        })
+    fn reaching(world: &mut World<'_, '_>, values: &ssa::Values) -> R<Self> {
+        world.pay(values.pages.len().saturating_mul(2))?;
+        let mut count = 0usize;
+        let words = values.pages.iter().map(|page| {
+            let present = page.as_ref().map_or(0, |page| page.present);
+            count = count.saturating_add(present.count_ones() as usize);
+            present
+        }).collect();
+        Ok(Self { limit: values.len(), words, count, ..Self::default() })
     }
     fn len(&self) -> usize {
         self.count
@@ -488,18 +489,21 @@ impl State {
             return Ok(());
         }
         let mut live = LiveMetadata {
-            values: LiveValues::new(world, self.values.len())?,
+            values: LiveValues::reaching(world, &self.values)?,
             ..LiveMetadata::default()
         };
+        live.bound(world)?;
         world.pay(
             self.values.pages
                 .len()
                 .saturating_add(self.locals.len())
                 .saturating_add(self.declared.len()),
         )?;
-        for (ordinal, value) in self.values.iter() {
+        // The immutable pages seed every reaching SSA spelling, including
+        // scalars whose own ID can be a metadata head. Only class-bearing
+        // occupants contribute additional images to the closure.
+        for value in self.values.classed() {
             world.pay(1)?;
-            live.value_id(world, ValueId(ordinal as u32))?;
             live.value(world, value)?;
         }
         for value in self.locals.iter().flatten().chain(self.declared.values()) {
@@ -986,13 +990,122 @@ impl BlockSet {
     }
 }
 
+// A loop epoch depends only on mutual reachability. Record one exact component
+// ordinal per block and the reachable set of the real entry; never build the
+// unused transitive closure of all block pairs.
+fn components(
+    left: &mut usize,
+    successors: &[Vec<usize>],
+    predecessors: &[Vec<usize>],
+    entry: usize,
+) -> R<(Vec<usize>, BlockSet)> {
+    let count = successors.len();
+    index::pay(left, count.div_ceil(64))?;
+    let mut visited = BlockSet::empty(count);
+    let mut reachable = None;
+    let mut finished = Vec::new();
+    let mut pending = Vec::new();
+    for start in std::iter::once(entry).chain(0..count) {
+        index::pay(left, 1)?;
+        if !visited.insert(start) {
+            continue;
+        }
+        index::pay(left, 1)?;
+        pending.push((start, 0usize));
+        while let Some((block, offset)) = pending.last_mut() {
+            index::pay(left, 1)?;
+            if let Some(&next) = successors[*block].get(*offset) {
+                *offset += 1;
+                index::pay(left, 1)?;
+                if visited.insert(next) {
+                    index::pay(left, 1)?;
+                    pending.push((next, 0));
+                }
+            } else {
+                index::pay(left, 1)?;
+                finished.push(*block);
+                pending.pop();
+            }
+        }
+        if start == entry {
+            index::pay(left, count.div_ceil(64))?;
+            reachable = Some(visited.clone());
+        }
+    }
+
+    index::pay(left, count)?;
+    let mut labels = vec![usize::MAX; count];
+    let mut pending = Vec::new();
+    for start in finished.into_iter().rev() {
+        index::pay(left, 1)?;
+        if labels[start] != usize::MAX {
+            continue;
+        }
+        index::pay(left, 2)?;
+        labels[start] = start;
+        pending.push(start);
+        while let Some(block) = pending.pop() {
+            index::pay(left, predecessors[block].len().saturating_add(1))?;
+            for &previous in &predecessors[block] {
+                if labels[previous] == usize::MAX {
+                    index::pay(left, 2)?;
+                    labels[previous] = start;
+                    pending.push(previous);
+                }
+            }
+        }
+    }
+    Ok((labels, reachable.ok_or_else(|| bad("class CFG has no reachable entry"))?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn immutable_loop_components_preserve_forward_and_reverse_reachability() {
+        const COUNT: usize = 3;
+        for bitmap in 0..(1usize << (COUNT * COUNT)) {
+            let mut successors = vec![Vec::new(); COUNT];
+            let mut predecessors = vec![Vec::new(); COUNT];
+            for (from, next) in successors.iter_mut().enumerate() {
+                for (to, previous) in predecessors.iter_mut().enumerate() {
+                    if bitmap & (1usize << (from * COUNT + to)) != 0 {
+                        next.push(to);
+                        previous.push(from);
+                    }
+                }
+            }
+            let reach: Vec<_> = (0..COUNT).map(|start| {
+                let mut found = BTreeSet::new();
+                let mut pending = vec![start];
+                while let Some(node) = pending.pop() {
+                    if found.insert(node) {
+                        pending.extend(&successors[node]);
+                    }
+                }
+                found
+            }).collect();
+            for entry in 0..COUNT {
+                let (actual, from_entry) = components(&mut 10_000, &successors, &predecessors, entry).unwrap();
+                for left in 0..COUNT {
+                    assert_eq!(from_entry.contains(left), reach[entry].contains(&left));
+                    for right in 0..COUNT {
+                        assert_eq!(actual[left] == actual[right], reach[left].contains(&right) && reach[right].contains(&left));
+                    }
+                }
+            }
+        }
+    }
+}
+
 pub(super) struct Shape {
     source: usize,
     schema: FunctionId,
     blocks: BTreeMap<BlockId, usize>,
     definitions: Vec<(usize, usize)>,
     dominators: Vec<BlockSet>,
-    reachable_from: Vec<BlockSet>,
+    components: Vec<usize>,
     predecessors: Vec<Vec<usize>>,
     pub(super) protocol_relevance: std::cell::Cell<Option<bool>>,
 }
@@ -1145,26 +1258,7 @@ impl Cfg {
                 successors[index].push(target);
             }
         }
-        // Record reachable nodes at discovery, visiting each adjacency list
-        // once. Rows contain actual CFG edges only (including self reach).
-        world.pay(count.saturating_mul(words.saturating_add(1)))?;
-        let mut reachable_from = Vec::with_capacity(count);
-        for start in 0..count {
-            let mut reached = BlockSet::empty(count);
-            reached.insert(start);
-            let mut pending = vec![start];
-            while let Some(block) = pending.pop() {
-                world.pay(successors[block].len().saturating_mul(2).saturating_add(1))?;
-                for &next in &successors[block] {
-                    if reached.insert(next) {
-                        pending.push(next);
-                    }
-                }
-            }
-            reachable_from.push(reached);
-        }
-
-        let reachable = &reachable_from[entry];
+        let (components, reachable) = components(world.left, &successors, &predecessors, entry)?;
         world.pay(count.saturating_mul(words.saturating_add(1)))?;
         let mut dominators: Vec<_> = (0..count).map(|block| {
             if block != entry && reachable.contains(block) {
@@ -1214,7 +1308,7 @@ impl Cfg {
             blocks,
             definitions,
             dominators,
-            reachable_from,
+            components,
         })
     }
     pub fn index(&self, block: BlockId) -> R<usize> {
@@ -1423,8 +1517,7 @@ impl Cfg {
                 .definitions
                 .get(id.0 as usize)
                 .ok_or_else(|| bad("loop role source selects an absent SSA occurrence"))?;
-            return Ok(self.reachable_from[entry].contains(definition)
-                && self.reachable_from[definition].contains(entry));
+            return Ok(self.components[entry] == self.components[definition]);
         }
         Ok(false)
     }
@@ -1450,10 +1543,19 @@ impl Cfg {
         // A loop may carry an old physical occurrence while reexecuting its
         // producer. Its public SSA spelling cannot make the two epochs equal.
         // Mark the occupant, not the spelling: replacement clears this mark.
-        if source.is_some_and(|source| {
-            self.reachable_from[index].contains(source)
+        let closes_epoch = if let Some(source) = source {
+            let predecessors = &self.predecessors[index];
+            world.pay(predecessors.len().saturating_add(1))?;
+            if !predecessors.contains(&source) {
+                return Err(bad("class CFG state reaches an edge absent from its immutable function"));
+            }
+            // The real source->target edge supplies forward reachability.
+            self.components[index] == self.components[source]
                 && (self.dominators[source].contains(index) || index <= source)
-        }) {
+        } else {
+            false
+        };
+        if closes_epoch {
             for (ordinal, value) in state.locals.iter().enumerate() {
                 world.pay(index::search(state.role_sources.len()).saturating_add(1))?;
                 let stable = if let Some(source) = state.role_sources.get(&LocalId(ordinal as u32)) {

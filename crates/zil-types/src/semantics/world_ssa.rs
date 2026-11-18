@@ -7,14 +7,18 @@ const PAGE_LEN: usize = u64::BITS as usize;
 #[derive(Clone)]
 pub(super) struct Page {
     pub(super) present: u64,
+    classed: u64,
     cells: [Option<SharedType>; PAGE_LEN],
 }
 impl Page {
     fn empty() -> Self {
-        Self { present: 0, cells: std::array::from_fn(|_| None) }
+        Self { present: 0, classed: 0, cells: std::array::from_fn(|_| None) }
     }
     pub(super) fn entries(&self) -> impl Iterator<Item = (usize, &SharedType)> {
-        Occupied(self.present).map(|offset| {
+        self.entries_for(self.present)
+    }
+    fn entries_for(&self, members: u64) -> impl Iterator<Item = (usize, &SharedType)> {
+        Occupied(members).map(|offset| {
             (offset, self.cells[offset].as_ref().expect("occupied SSA page slot"))
         })
     }
@@ -42,23 +46,30 @@ impl Values {
         index: usize,
         value: SharedType,
     ) -> R<()> {
-        world.pay(1)?;
+        world.pay(2)?;
         if index >= self.len {
             return Err(bad("original SSA result leaves its actual class directory"));
         }
-        if !matches!(value.as_ref(), SemanticTypeValue::Resolved { .. }) {
+        let SemanticTypeValue::Resolved { classes, .. } = value.as_ref() else {
             return Err(bad("original SSA cell has an unresolved complete type"));
-        }
+        };
+        let has_classes = !classes.is_empty();
         let page = &mut self.pages[index / PAGE_LEN];
         if page.is_none() {
-            world.pay(PAGE_LEN.saturating_add(1))?;
+            world.pay(PAGE_LEN.saturating_add(2))?;
             *page = Some(Rc::new(Page::empty()));
         }
         let page = page.as_mut().expect("SSA write initialized its page");
         let page = writable(world, page)?;
         let offset = index % PAGE_LEN;
+        let bit = 1u64 << offset;
         page.cells[offset] = Some(value);
-        page.present |= 1u64 << offset;
+        page.present |= bit;
+        if has_classes {
+            page.classed |= bit;
+        } else {
+            page.classed &= !bit;
+        }
         Ok(())
     }
     pub(super) fn iter(&self) -> impl Iterator<Item = (usize, &SharedType)> {
@@ -66,6 +77,11 @@ impl Values {
             page.iter().flat_map(move |page| page.entries().map(move |(offset, value)| {
                 (number * PAGE_LEN + offset, value)
             }))
+        })
+    }
+    pub(super) fn classed(&self) -> impl Iterator<Item = &SharedType> {
+        self.pages.iter().flatten().flat_map(|page| {
+            page.entries_for(page.classed).map(|(_, value)| value)
         })
     }
     pub(super) fn retain(
@@ -86,18 +102,19 @@ impl Values {
                 continue;
             }
             let page = writable(world, page)?;
-            world.pay(remove.count_ones() as usize)?;
+            world.pay((remove.count_ones() as usize).saturating_add(1))?;
             for offset in Occupied(remove) {
                 page.cells[offset] = None;
             }
             page.present &= !remove;
+            page.classed &= !remove;
         }
         Ok(())
     }
 }
 fn writable<'a>(world: &mut World<'_, '_>, shared: &'a mut Rc<Page>) -> R<&'a mut Page> {
     if Rc::strong_count(shared) != 1 {
-        world.pay(PAGE_LEN.saturating_add(1))?;
+        world.pay(PAGE_LEN.saturating_add(2))?;
     }
     Ok(Rc::make_mut(shared))
 }
