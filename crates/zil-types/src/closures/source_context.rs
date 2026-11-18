@@ -24,6 +24,7 @@ pub(super) struct Formation {
     proposal: StorageLifeContract,
     fixed: Vec<Fixed>,
     captures: Vec<CaptureKeys>,
+    depth_limit: usize,
 }
 fn invalid(span: Span, message: &str) -> Diagnostic {
     error("E-CLOSURE-CONTEXT", span, message)
@@ -482,6 +483,7 @@ fn prepare(
         proposal: row.signature,
         fixed,
         captures: keys,
+        depth_limit: limits.max_call_depth,
     })
 }
 
@@ -664,6 +666,7 @@ fn positions(
     ty: &Type,
     base: StorageBase,
     capture: bool,
+    depth_limit: usize,
     left: &mut usize,
     span: Span,
 ) -> R<Vec<Position>> {
@@ -677,14 +680,18 @@ fn positions(
     };
     if let Type::BorrowedStorage { storage, life } = inner {
         if !(matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
+            || pointer && matches!(storage.as_ref(), Type::Enum { .. })
             || capture && matches!(storage.as_ref(), Type::Package { .. }))
-            || !life.retained.is_empty()
         {
             return Err(unsupported(
                 span,
                 "source closure qualified boundary requires its complete nested consumer",
             ));
         }
+        // The complete actual qualifier owns the retained/nominal directory.
+        // Each class remains at its original ordinal; the outer Address above
+        // is a separate occurrence, never an image chosen from these classes.
+        stored::shape(inner, left, depth_limit, span)?;
         pay(left, (life.binder_count as usize).saturating_mul(2), span)?;
         for class in 0..life.binder_count {
             positions.push(Position::Class(SignatureLifeClass {
@@ -922,7 +929,7 @@ impl Formation {
             let base = StorageBase::Parameter(
                 u32::try_from(i).map_err(|_| limit("source parameter ordinal exceeded", span))?,
             );
-            for position in positions(parameter, base, false, left, span)? {
+            for position in positions(parameter, base, false, self.depth_limit, left, span)? {
                 let key = proposal.key(&position, left, span)?;
                 writer.push(position, key, false, left, span)?;
             }
@@ -931,7 +938,7 @@ impl Formation {
             let base = StorageBase::Capture(
                 u32::try_from(i).map_err(|_| limit("actual capture ordinal exceeded", span))?,
             );
-            for position in positions(ty, base, true, left, span)? {
+            for position in positions(ty, base, true, self.depth_limit, left, span)? {
                 let key = match &position {
                     Position::Borrow(_) => keys.outer,
                     Position::Class(p) => keys.classes.get(p.class as usize).copied(),
@@ -948,6 +955,7 @@ impl Formation {
             },
             StorageBase::Result,
             false,
+            self.depth_limit,
             left,
             span,
         )? {

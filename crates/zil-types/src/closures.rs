@@ -3404,6 +3404,19 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             return Ok(value);
         }
         let shared_compound = stored::shared_compound(ty, self.work_left, self.limits, span)?;
+        // An address to qualified storage retains two independent domains:
+        // this actual capture's access head and the complete pointee classes.
+        // Qualify the whole carrier rather than mistaking shared inner leaves
+        // for a Copy capability of its exclusive outer pointer.
+        let qualified_address = if let Type::Address { inner, .. } = ty
+            && matches!(inner.as_ref(), Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_) | Type::Enum { .. }))
+        {
+            stored::shape(inner, self.work_left, self.limits.max_call_depth, span)?;
+            true
+        } else {
+            false
+        };
         let (inner, address) = match ty {
             ty if ty.is_copy_value() || shared_compound => (ty, None),
             ty @ Type::OwnedDyn { .. } if self.move_capture || nested_owned => (ty, None),
@@ -3473,10 +3486,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             Type::Managed(payload) | Type::Desc(payload) if resources::supported(ty) => {
                 (payload.as_ref(), None)
             }
-            Type::Address { mutable, inner }
-                if matches!(inner.as_ref(), Type::BorrowedStorage { storage, life }
-                    if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_)) && life.retained.is_empty()) =>
-            {
+            Type::Address { mutable, inner } if qualified_address => {
                 (inner.as_ref(), Some(*mutable))
             }
             Type::Address { mutable, inner }
@@ -3526,7 +3536,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             ty: ty.clone(),
             borrowed: !self.move_capture
                 && address.is_none()
-                && (ty.is_copy_value() || shared_compound
+                && (ty.is_copy_value()
+                    || shared_compound
                     || matches!(ty, Type::BorrowedStorage { storage, .. }
                         if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_)))),
             written: write,
