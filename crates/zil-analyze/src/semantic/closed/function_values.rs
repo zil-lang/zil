@@ -17,7 +17,7 @@ impl Check<'_, '_> {
         }
         let part = |recipe: &SemanticTypeRecipe, b: &mut Budget| -> CompileResult<(Type, Option<u32>)> {
             if let SemanticTypeRecipe::Address { mutable, lifetime, inner } = recipe {
-                let SemanticLifeRecipe::Class(SemanticClassExpr::Invocation(ordinal)) = lifetime else {
+                let SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Invocation(ordinal)) = lifetime else {
                     return Err(unknown("borrowed Code requires a local original invocation lifetime"));
                 };
                 let inner = self.recipe_value(instance, inner, b, depth + 1)?;

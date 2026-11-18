@@ -349,7 +349,7 @@ impl Solver<'_, '_> {
         let SemanticTypeRecipe::Address { mutable, lifetime, inner } = recipe else {
             return self.recipe(frame, recipe, b, depth);
         };
-        let SemanticLifeRecipe::Class(SemanticClassExpr::Invocation(index)) = lifetime else {
+        let SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Invocation(index)) = lifetime else {
             return Err(unknown("borrowed code requires a local invocation lifetime"));
         };
         b.lookup(used.len(), WORK)?;
