@@ -5,6 +5,7 @@ use super::*;
 struct Row {
     base: HoldRoot,
     through: bool,
+    target_leaf: Path,
     ty: Type,
     facts: Vec<(Path, ResultFacts)>,
     tags: enum_address::Variants,
@@ -18,9 +19,100 @@ pub(in crate::stored_flow) struct PreparedAfter {
     rows: Vec<(Source, Type, Payload, bool, bool, Vec<Path>)>,
     pending: bool,
 }
+// Pointee memory of an address captured inside an owning callback input
+// is distinct from both the callback and the immutable captured pointer.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::stored_flow) struct ProjectedPointee {
+    pub(in crate::stored_flow) base: HoldRoot,
+    pub(in crate::stored_flow) leaf: Path,
+    ty: Type,
+    pub(in crate::stored_flow) payload: Payload,
+    written: bool,
+}
+
+pub(in crate::stored_flow) fn projected_inputs(
+    module:&TypedModule,f:&TypedFunction,b:&mut Budget,
+)->Check<Vec<ProjectedPointee>> {
+    let mut rows=Vec::new();
+    if f.callable_contract.is_none(){return Ok(rows);}
+    b.spend(f.parameters.len())?;
+    for (index,local) in f.parameters.iter().enumerate(){
+        let Some(Type::Closure(id))=f.locals.get(local.0 as usize).map(|local|&local.ty) else{continue;};
+        let definition=crate::closures::definition(module,*id,Some(f.span))?;
+        // Only actual invocation or transfer to another concrete callback
+        // argument can affect this owned input's captured pointee memory.
+        let mut invokes=false;
+        for block in &f.blocks {
+            b.spend(block.instructions.len())?;
+            for op in &block.instructions {
+                invokes|=matches!(&op.kind,InstructionKind::CallClosureOnce{callee,..}
+                    if f.values.get(callee.0 as usize)==Some(&Type::Closure(*id)));
+                if let InstructionKind::Call{arguments,..}=&op.kind {
+                    b.spend(arguments.len())?;
+                    invokes|=arguments.iter().any(|value|f.values.get(value.0 as usize)==Some(&Type::Closure(*id)));
+                }
+            }
+        }
+        if !invokes{continue;}
+        b.spend(definition.captures.len())?;
+        for (capture,ty) in definition.captures.iter().enumerate(){
+            let Type::Address{mutable:true,inner}=ty else{continue;};
+            if !transport_type(module,inner,b)?{continue;}
+            type_work(inner,&b.limits.clone(),b)?;
+            b.spend(2)?;
+            rows.push(ProjectedPointee{
+                base:HoldRoot::Parameter(index as u32),
+                leaf:vec![PlaceProjection::Field(capture as u32)],
+                ty:inner.as_ref().clone(),payload:Payload::default(),written:false,
+            });
+        }
+    }
+    Ok(rows)
+}
+
+pub(in crate::stored_flow) fn projected_work(rows:&[ProjectedPointee],b:&mut Budget)->Check<()> {
+    b.spend(rows.len())?;
+    for row in rows{
+        b.spend(row.leaf.len())?;
+        type_work(&row.ty,&b.limits.clone(),b)?;
+        payload_work(&row.payload,b)?;
+    }
+    Ok(())
+}
+
+pub(in crate::stored_flow) fn join_projected(to:&mut [ProjectedPointee],from:&[ProjectedPointee],b:&mut Budget)->Check<()> {
+    b.spend(to.len().saturating_add(from.len()))?;
+    if to.len()!=from.len(){return Err(err("projected pointee directories differ across actual CFG flow"));}
+    for (left,right) in to.iter_mut().zip(from){
+        b.spend(left.leaf.len().saturating_add(right.leaf.len()))?;
+        if left.base!=right.base||left.leaf!=right.leaf{return Err(err("projected pointee changes its exact captured input"));}
+        join_payload(&mut left.payload,&right.payload,b)?;
+        left.written&=right.written;
+    }
+    Ok(())
+}
+
+pub(in crate::stored_flow) fn projected_memory<'a>(rows:&'a[ProjectedPointee],target:&Source,b:&mut Budget)->Check<Option<&'a Payload>> {
+    if rows.is_empty()||target.leaf.is_empty()||target.retained_port.is_some()
+        ||target.heap_element.is_some()||!target.heap_parents.is_empty(){return Ok(None);}
+    b.spend(rows.len().saturating_mul(target.leaf.len().saturating_add(1)))?;
+    Ok(rows.iter().find(|row|row.written&&row.base==target.base&&row.leaf==target.leaf).map(|row|&row.payload))
+}
+
+fn projected_target<'a>(rows:&'a mut[ProjectedPointee],target:&Source,ty:&Type,b:&mut Budget)->Check<&'a mut ProjectedPointee>{
+    b.spend(rows.len().saturating_mul(target.leaf.len().saturating_add(1)))?;
+    let row=rows.iter_mut().find(|row|row.base==target.base&&row.leaf==target.leaf)
+        .ok_or_else(||err("auxiliary after-state has no exact mutable captured input pointee"))?;
+    type_work(&row.ty,&b.limits.clone(),b)?;
+    type_work(ty,&b.limits.clone(),b)?;
+    if row.ty!=*ty{return Err(err("auxiliary after-state changes its exact mutable captured pointee type"));}
+    Ok(row)
+}
+
 pub(in crate::stored_flow) fn after_work(after: &After, b: &mut Budget) -> Check<()> {
     b.spend(after.0.len())?;
     for row in &after.0 {
+        b.spend(row.target_leaf.len())?;
         type_work(&row.ty, &b.limits.clone(), b)?;
         row.tags.work(b)?;
         for path in &row.description_paths {
@@ -239,6 +331,15 @@ pub(in crate::stored_flow) fn after_sites(
             }
         }
     }
+    for row in projected_inputs(module,callee,b)? {
+        let HoldRoot::Parameter(index)=row.base else{unreachable!();};
+        for (path,exclusive) in physical_paths(module,&row.ty,b)? {
+            b.spend(row.leaf.len().saturating_add(path.len()).saturating_add(1))?;
+            let mut key=row.leaf.clone();
+            key.extend(path);
+            rows.push((index,key,exclusive));
+        }
+    }
     if let Some(definition) = callee
         .environment
         .and_then(|id| module.closures.get(id.0 as usize))
@@ -326,6 +427,7 @@ pub(in crate::stored_flow) fn summarize_after(
             inputs.push((
                 HoldRoot::Parameter(index as u32),
                 true,
+                &[][..],
                 inner.as_ref(),
                 memory_holder(state, HoldRoot::Parameter(index as u32), b)?,
             ));
@@ -344,12 +446,14 @@ pub(in crate::stored_flow) fn summarize_after(
                 } => inputs.push((
                     HoldRoot::Capture(index as u32),
                     true,
+                    &[][..],
                     inner.as_ref(),
                     memory_holder(state, HoldRoot::Capture(index as u32), b)?,
                 )),
                 _ if definition.kind == CallableKind::FnMut => inputs.push((
                     HoldRoot::Capture(index as u32),
                     false,
+                    &[][..],
                     ty,
                     state.captures.get(index),
                 )),
@@ -357,7 +461,15 @@ pub(in crate::stored_flow) fn summarize_after(
             }
         }
     }
-    for (base, through, ty, payload) in inputs {
+    b.spend(state.projected_pointees.len())?;
+    for row in &state.projected_pointees{
+        if !row.written {
+            summary.complete=false;
+            continue;
+        }
+        inputs.push((row.base,true,row.leaf.as_slice(),&row.ty,Some(&row.payload)));
+    }
+    for (base, through, target_leaf, ty, payload) in inputs {
         if !transport_type(module, ty, b)? {
             continue;
         }
@@ -365,7 +477,7 @@ pub(in crate::stored_flow) fn summarize_after(
         let (facts, known) =
             super::results::snapshot_rows(module, f, ty, payload, solution, true, b)?;
         summary.complete &= known;
-        let initial = if through {
+        let initial = if !target_leaf.is_empty(){None}else if through {
             memory_holder(entry, base, b)?
         } else {
             match base {
@@ -401,11 +513,12 @@ pub(in crate::stored_flow) fn summarize_after(
                 address: symbolic.clone(),
                 ..Default::default()
             };
-            super::results::validate_after_rows(
+            super::results::validate_after_target(
                 module,
                 f,
                 base,
                 through,
+                target_leaf,
                 ty,
                 &[(path.clone(), check)],
                 b,
@@ -425,7 +538,7 @@ pub(in crate::stored_flow) fn summarize_after(
         {
             summary.complete &= payload.enum_variants.grounded(ty, b)?;
         }
-        super::results::validate_after_rows(module, f, base, through, ty, &facts, b)?;
+        super::results::validate_after_target(module, f, base, through, target_leaf, ty, &facts, b)?;
         let mut description_paths = vec![];
         for (path, _) in &facts {
             if matches!(
@@ -442,7 +555,7 @@ pub(in crate::stored_flow) fn summarize_after(
             .value_after
             .0
             .iter_mut()
-            .find(|row| row.base == base)
+            .find(|row| row.base == base && row.target_leaf == target_leaf)
         {
             type_work(&old.ty, &b.limits.clone(), b)?;
             type_work(ty, &b.limits.clone(), b)?;
@@ -534,6 +647,7 @@ pub(in crate::stored_flow) fn summarize_after(
             summary.value_after.0.push(Row {
                 base,
                 through,
+                target_leaf:target_leaf.to_vec(),
                 ty: ty.clone(),
                 facts,
                 tags: payload.enum_variants.clone(),
@@ -555,6 +669,10 @@ pub(in crate::stored_flow) fn after_sources(
     for row in &after.0 {
         let base = row.base;
         let mut append = |path: &Path, sources: &[Source], b: &mut Budget| -> Check<()> {
+            b.spend(row.target_leaf.len().saturating_add(path.len()))?;
+            let mut full=row.target_leaf.clone();
+            full.extend(path);
+            let path=&full;
             b.spend(out.len().saturating_mul(path.len().saturating_add(1)))?;
             if let Some((_, _, known)) = out
                 .iter_mut()
@@ -631,6 +749,7 @@ pub(in crate::stored_flow) fn prepare_after(
                 }
             }
         }
+        if !out.pending && !projected_inputs(before.module(),_callee,b)?.is_empty(){out.pending=true;}
         return Ok(out);
     }
     for row in &summary.value_after.0 {
@@ -679,7 +798,12 @@ pub(in crate::stored_flow) fn prepare_after(
             }
             if !*stable {
                 let (parameter, site) = match row.base {
-                    HoldRoot::Parameter(index) => (index, path.clone()),
+                    HoldRoot::Parameter(index) => {
+                        b.spend(row.target_leaf.len().saturating_add(path.len()))?;
+                        let mut selected=row.target_leaf.clone();
+                        selected.extend(path);
+                        (index,selected)
+                    },
                     HoldRoot::Capture(index) => {
                         b.spend(path.len().saturating_add(1))?;
                         let mut key = vec![PlaceProjection::Field(index)];
@@ -696,7 +820,7 @@ pub(in crate::stored_flow) fn prepare_after(
             out.pending = true;
             continue;
         }
-        let targets = before.after_targets(row.base, row.through, b)?;
+        let targets = before.after_targets(row.base, row.through, &row.target_leaf, b)?;
         if targets.sources.is_empty() {
             out.pending = true;
             continue;
@@ -710,7 +834,7 @@ pub(in crate::stored_flow) fn prepare_after(
             if target.retained_port.is_some()
                 || target.heap_element.is_some()
                 || !target.heap_parents.is_empty()
-                || !target.leaf.is_empty()
+                || (!target.leaf.is_empty() && (!target.inline.is_empty()||!matches!(target.base,HoldRoot::Parameter(_))))
                 || target.base == HoldRoot::Static
             {
                 return Err(err(
@@ -745,8 +869,13 @@ pub(in crate::stored_flow) fn publish_after(
 ) -> Check<()> {
     state.pending_external_update |= prepared.pending;
     for (target, _ty, value, strong, root_address, physical_domain) in prepared.rows {
-        let holder = memory_holder_mut(state, target.base, b)?
-            .ok_or_else(|| err("auxiliary after-state target holder is absent"))?;
+        let holder = if target.leaf.is_empty(){
+            memory_holder_mut(state,target.base,b)?.ok_or_else(||err("auxiliary after-state target holder is absent"))?
+        }else{
+            let row=projected_target(&mut state.projected_pointees,&target,&_ty,b)?;
+            row.written|=strong;
+            &mut row.payload
+        };
         if strong {
             // A known new inactive arm owns no old leaf. Remove only the
             // complete declared physical slots carried by this snapshot;
@@ -1143,6 +1272,7 @@ mod tests {
             value_after: After(vec![Row {
                 base: HoldRoot::Parameter(0),
                 through: true,
+                target_leaf:vec![],
                 ty: tuple,
                 facts: vec![],
                 tags: enum_address::Variants::default(),
@@ -1297,6 +1427,7 @@ mod tests {
         let row = Row {
             base: HoldRoot::Parameter(0),
             through: true,
+            target_leaf:vec![],
             ty: Type::Tuple(vec![Type::Desc(Box::new(Type::I32))]),
             facts: vec![(key.clone(), facts)],
             tags: enum_address::Variants::default(),
@@ -1306,6 +1437,7 @@ mod tests {
         let capture = Row {
             base: HoldRoot::Capture(0),
             through: true,
+            target_leaf:vec![],
             ty: Type::Tuple(vec![Type::Address {
                 mutable: false,
                 inner: Box::new(Type::I32),

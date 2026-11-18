@@ -546,6 +546,17 @@ impl CheckedContext {
                 value.classes[binder]=head.clone();value.origins[binder]=IntrinsicOrigin::DerivedClass{source:head};
             }else{
                 let ordinal=self.environment_capture(module,creator,child,creation_node,*capture,&value,Some(values),&sealed,environment,b)?;
+                let CheckedActual::Type(original)=&sealed[ordinal] else{unreachable!()};
+                if !self.same_type(environment,&value,original,b)? {
+                    // environment_capture proved this exact compiler reborrow
+                    // of the original binder, including its complete child
+                    // domain. Use the sealed role only inside the child
+                    // header and body; actual memory still sees its SSA loan.
+                    if !matches!(&value.ty,Type::Address{..}) {
+                        return Err(bad("logical capture changes an original non-address occurrence"));
+                    }
+                    value=original.clone();
+                }
                 logical_captures.insert(index as u32,ordinal);
             }
             self.record(child_scope,OperandKey::Capture(index as u32),&value,b)?;

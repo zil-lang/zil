@@ -646,6 +646,7 @@ struct Frame {
     captures: Vec<Payload>,
     // Actual input pointee memory, distinct from the pointer value itself.
     pointees: Vec<(HoldRoot, Payload)>,
+    projected_pointees: Vec<value_transport::after::ProjectedPointee>,
     /// Union of paths left vacant by any incoming branch.
     vacant: Vec<Source>,
     prepared: Vec<replacements::Prepared>,
@@ -898,6 +899,7 @@ fn frame_work(f: &Frame, b: &mut Budget) -> Check<()> {
     for (_, payload) in &f.pointees {
         payload_work(payload, b)?;
     }
+    value_transport::after::projected_work(&f.projected_pointees,b)?;
     source_work(&f.vacant, b)?;
     replacements::frame_work(&f.prepared, b)?;
     reference_cells::work(&f.reference_cells, b)?;
@@ -1145,6 +1147,7 @@ fn join_frame(to: &mut Frame, from: &Frame, b: &mut Budget) -> Check<()> {
         }
         join_payload(left, right, b)?;
     }
+    value_transport::after::join_projected(&mut to.projected_pointees,&from.projected_pointees,b)?;
     for (a, z) in to
         .locals
         .iter_mut()
@@ -3088,6 +3091,7 @@ fn empty_frame(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check
         prepared: Vec::new(),
         reference_cells: reference_cells::Cells::default(),
         pointees,
+        projected_pointees:value_transport::after::projected_inputs(module,f,b)?,
     })
 }
 fn seed_pointee(
@@ -3290,9 +3294,7 @@ fn select(
         if source.base == HoldRoot::Static {
             return Err(err("static text cannot supply nested carrier permissions"));
         }
-        let p = memory_holder(state, source.base, b)?
-            .ok_or_else(|| err("carrier location is absent"))?;
-        let Some(actual_path) = symbolic_slot_path(p, source, path, b)? else {
+        let Some((p,actual_path))=memory_location(state,source,path,b)? else {
             return Ok(Permission::default());
         };
         let Some(p) = leaf(p, &actual_path, b)? else {
@@ -3309,6 +3311,15 @@ fn select(
 // A nonempty leaf is an abstract target namespace, not a physical GEP.
 // Only an actual seeded pointer row with that exact symbolic target can
 // establish a private pointee directory inside a closure helper.
+fn memory_location<'a>(state:&'a Frame,source:&Source,path:&[PlaceProjection],b:&mut Budget)->Check<Option<(&'a Payload,Path)>> {
+    if let Some(payload)=value_transport::after::projected_memory(&state.projected_pointees,source,b)? {
+        b.spend(source.inline.len().saturating_add(path.len()))?;
+        let mut actual=source.inline.clone();actual.extend(path);
+        return Ok(Some((payload,actual)));
+    }
+    let Some(holder)=memory_holder(state,source.base,b)? else{return Ok(None);};
+    Ok(symbolic_slot_path(holder,source,path,b)?.map(|position|(holder,position)))
+}
 fn symbolic_slot_path(
     holder: &Payload,
     source: &Source,
@@ -5781,7 +5792,8 @@ fn live_loans(
             loans.add(&row.permission.loans, b)?;
         }
     }
-    for (_, payload) in &state.pointees {
+    for payload in state.pointees.iter().map(|(_,payload)|payload)
+        .chain(state.projected_pointees.iter().map(|row|&row.payload)) {
         value_transport::visit_permissions(payload, b, |permission, b| {
             loans.add(&permission.loans, b)
         })?;
@@ -5887,7 +5899,8 @@ fn live_loans_main_fullscan(
             add_loans_by_scan(&mut loans, &row.permission.loans, b)?;
         }
     }
-    for (_, payload) in &state.pointees {
+    for payload in state.pointees.iter().map(|(_,payload)|payload)
+        .chain(state.projected_pointees.iter().map(|row|&row.payload)) {
         value_transport::visit_permissions(payload, b, |permission, b| {
             add_loans_by_scan(&mut loans, &permission.loans, b)?;
             Ok(())

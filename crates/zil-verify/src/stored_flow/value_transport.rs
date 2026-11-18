@@ -2,7 +2,7 @@
 //! they never identify a logical class or manufacture a pointer. Root-only
 //! facts retain an explicit field location instead of disappearing on nesting.
 use super::*;
-mod after;
+pub(super) mod after;
 mod input_environments;
 mod inputs;
 pub(super) use input_environments::seed_environments;

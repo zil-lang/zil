@@ -375,9 +375,7 @@ impl<'a> Before<'a> {
                     "call-before physical field requires its independent logical or heap memory route",
                 ));
             }
-            let holder = memory_holder(self.state, source.base, b)?
-                .ok_or_else(|| err("call-before source holder is absent"))?;
-            let Some(actual) = symbolic_slot_path(holder, source, path, b)? else {
+            let Some((holder,actual))=memory_location(self.state,source,path,b)? else {
                 return Ok(Permission::default());
             };
             let permission = if let Some(permission) = leaf(holder, &actual, b)? {
@@ -1308,11 +1306,7 @@ impl Before<'_> {
                                 "auxiliary input pointee requires its independent logical or heap memory route",
                             ));
                         }
-                        let Some(memory) = memory_holder(self.state, source.base, b)? else {
-                            known = false;
-                            continue;
-                        };
-                        let Some(position) = symbolic_slot_path(memory, source, &[], b)? else {
+                        let Some((memory,position))=memory_location(self.state,source,&[],b)? else {
                             known = false;
                             continue;
                         };
@@ -1507,8 +1501,19 @@ impl Before<'_> {
         &self,
         base: HoldRoot,
         through: bool,
+        target_leaf: &[PlaceProjection],
         b: &mut Budget,
     ) -> Check<Permission> {
+        if !target_leaf.is_empty(){
+            if !through||!matches!(base,HoldRoot::Parameter(_)){
+                return Err(err("projected after-state lacks its exact owned callback input"));
+            }
+            b.spend(target_leaf.len())?;
+            return self.source(&Source{
+                base,leaf:target_leaf.to_vec(),inline:vec![],retained_port:None,
+                heap_parents:vec![],heap_element:None,static_dependency:StaticProvenance::NotStatic,
+            },b);
+        }
         match base {
             HoldRoot::Parameter(index) => {
                 if !through {

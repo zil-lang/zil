@@ -1016,15 +1016,17 @@ pub(super) fn join_result(to: &mut ResultFacts, from: &ResultFacts, b: &mut Budg
     }
     Ok(())
 }
+#[cfg(test)]
 pub(super) fn validate_after_rows(
-    module: &TypedModule,
-    f: &TypedFunction,
-    base: HoldRoot,
-    through: bool,
-    ty: &Type,
-    rows: &[(Path, ResultFacts)],
-    b: &mut Budget,
-) -> Check<()> {
+    module:&TypedModule,f:&TypedFunction,base:HoldRoot,through:bool,ty:&Type,
+    rows:&[(Path,ResultFacts)],b:&mut Budget,
+)->Check<()> {
+    validate_after_target(module,f,base,through,&[],ty,rows,b)
+}
+pub(super) fn validate_after_target(
+    module:&TypedModule,f:&TypedFunction,base:HoldRoot,through:bool,target_leaf:&[PlaceProjection],
+    ty:&Type,rows:&[(Path,ResultFacts)],b:&mut Budget,
+)->Check<()> {
     let original = match base {
         HoldRoot::Parameter(index) => f
             .parameters
@@ -1043,6 +1045,18 @@ pub(super) fn validate_after_rows(
         HoldRoot::Capture(index) => StorageBase::Capture(index),
         _ => unreachable!(),
     };
+    let projected = if let [PlaceProjection::Field(capture)] = target_leaf {
+        if !through||!matches!(base,HoldRoot::Parameter(_)){return Err(err("after-state projected root is not an actual persistent input"));}
+        let Type::Closure(id)=original else{return Err(err("after-state projected root is not an owning closure"));};
+        let definition=crate::closures::definition(module,*id,Some(f.span))?;
+        let capture_ty=definition.captures.get(*capture as usize).ok_or_else(||err("after-state actual captured pointer is absent"))?;
+        let Type::Address{mutable:true,inner}=capture_ty else{return Err(err("after-state projected root is not a mutable address"));};
+        type_work(inner,&b.limits.clone(),b)?;
+        type_work(ty,&b.limits.clone(),b)?;
+        if inner.as_ref()!=ty{return Err(err("after-state projected pointee changes its complete type"));}
+        let entry=module.functions.get(definition.function.0 as usize).ok_or_else(||err("after-state closure entry is absent"))?;
+        Some((entry,definition,*capture,capture_ty))
+    }else if target_leaf.is_empty(){None}else{return Err(err("after-state projected root has another complete actual path"));};
     let mut relations = relation_index::Relations::new(f, b)?;
     for (path, row) in rows {
         let destination = call_results::destination(module, ty, path, b)?;
@@ -1083,7 +1097,20 @@ pub(super) fn validate_after_rows(
                 {
                     return Err(err("auxiliary after-state retains activation-local data"));
                 }
-                let target = if through {
+                let mut inner_fixed=None;
+                let target = if let Some((entry,_,capture,capture_ty))=projected{
+                    let Some(StorageBinder::Fixed(class))=pointee_bound(module,entry,StorageBase::Capture(capture),capture_ty,path,b)? else{
+                        return Err(err("after-state projected pointee lacks its exact captured child class"));
+                    };
+                    inner_fixed=Some(class);
+                    let header=f.storage_life.as_ref().ok_or_else(||err("after-state owning closure input lacks its complete class embedding"))?;
+                    b.spend(header.classes.len())?;
+                    let mut matches=header.classes.iter().filter(|row|row.position.base==storage
+                        &&row.position.path.is_empty()&&row.position.class==class);
+                    let row=matches.next().ok_or_else(||err("after-state projected class has no actual input embedding"))?;
+                    if matches.next().is_some(){return Err(err("after-state projected class has conflicting embeddings"));}
+                    Some(row.binder)
+                }else if through {
                     pointee_bound(module, f, storage, original, path, b)?
                 } else {
                     declared_bound(module, f, storage, original, path, b)?
@@ -1103,7 +1130,17 @@ pub(super) fn validate_after_rows(
                         }
                         _ => false,
                     };
-                    if actual != bound && !shared_capture_life {
+                    let projected_shared_life=if let (Some((entry,definition,..)),Some(wanted),[PlaceProjection::Field(capture)])=(projected,inner_fixed,source.leaf.as_slice())
+                        && source.base==base&&source.inline.is_empty()&&source.retained_port.is_none()
+                        &&source.heap_parents.is_empty()&&source.heap_element.is_none() {
+                        let source_ty=definition.captures.get(*capture as usize).ok_or_else(||err("after-state source capture is absent"))?;
+                        if let Some(StorageBinder::Fixed(actual))=declared_bound(module,entry,StorageBase::Capture(*capture),source_ty,&[],b)? {
+                            b.spend(1)?;
+                            b.semantic_capture_classes.get(&entry.id).is_some_and(|groups|
+                                groups.get(wanted as usize).zip(groups.get(actual as usize)).is_some_and(|(left,right)|left==right))
+                        }else{false}
+                    }else{false};
+                    if actual != bound && !shared_capture_life && !projected_shared_life {
                         return Err(err(
                             "auxiliary after-state changes its complete declared lifetime relation",
                         ));
