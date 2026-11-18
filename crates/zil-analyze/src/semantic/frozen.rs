@@ -438,12 +438,17 @@ fn selected_bridge(
         let SemanticOriginalNameValue::Definition(definition) = added.value else {
             return Err(fail("query wrapper adds a non-callee lexical recipe"));
         };
-        let target = comparison
-            .target(&added.path, b)?
-            .ok_or_else(|| fail("query wrapper name has no real selected Core callee"))?;
-        if added.namespace != SemanticOriginalNamespace::Value || target.definition != definition {
+        let actual = match added.namespace {
+            SemanticOriginalNamespace::Value => comparison.target(&added.path, b)?.map(|target| target.definition),
+            SemanticOriginalNamespace::Type => match added.path.as_slice() {
+                [name] => comparison.enum_target(name, b)?.map(|(owner, _)| owner),
+                _ => None,
+            },
+            SemanticOriginalNamespace::Lifetime => None,
+        };
+        if actual != Some(definition) {
             return Err(fail(
-                "query wrapper name changes its exact original callee identity",
+                "query wrapper name changes its exact original callee or enum declaration",
             ));
         }
     }

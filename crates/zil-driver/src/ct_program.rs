@@ -1926,6 +1926,222 @@ mod tests {
     use zil_ct::SourceCompiler;
 
     #[test]
+    fn frozen_enum_constructor_cannot_exchange_same_spelled_type_bindings() {
+        use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+
+        struct Capture<'a> {
+            compiler: Compiler<'a>,
+            raw: std::cell::RefCell<Vec<CtProgram>>,
+        }
+        impl SourceCompiler for Capture<'_> {
+            fn compile(
+                &self,
+                expression: &CoreExpr,
+                expected: Option<&Type>,
+                limits: &Limits,
+            ) -> CompileResult<CtProgram> {
+                self.compiler.compile(expression, expected, limits)
+            }
+
+            fn compile_in_frozen_context(
+                &self,
+                expression: &CoreExpr,
+                expected: Option<&Type>,
+                frozen: &CtFrozenContext,
+                limits: &Limits,
+            ) -> CompileResult<CtProgram> {
+                let program = self
+                    .compiler
+                    .compile_in_frozen_context(expression, expected, frozen, limits)?;
+                self.raw.borrow_mut().push(program.clone());
+                Ok(program)
+            }
+        }
+
+        let root = ModuleId(0);
+        let sources = [
+            SourceUnit::new(
+                FileId(0),
+                root,
+                "main.zil",
+                "import left\nimport right\n\
+                fn value()->i64{let x=#(left.E.N(42));let y=#(right.E.N(7));\
+                match x{left.E.N(n)=>{match y{right.E.N(m)=>{return n+m}}}}}",
+            ),
+            SourceUnit::new(FileId(1), ModuleId(1), "left.zil", "pub enum E{N(i64)}"),
+            SourceUnit::new(
+                FileId(2), ModuleId(2), "right.zil",
+                "fn before()->i64{return 0}\npub enum E{N(i64)}",
+            ),
+        ];
+        let aliases = BTreeMap::from([
+            (vec!["left".into()], ModuleId(1)),
+            (vec!["right".into()], ModuleId(2)),
+        ]);
+        let imports = [
+            vec![
+                CoreImport {
+                    alias: "left".into(),
+                    module: ModuleId(1),
+                    span: Span::default(),
+                },
+                CoreImport {
+                    alias: "right".into(),
+                    module: ModuleId(2),
+                    span: Span::default(),
+                },
+            ],
+            vec![],
+            vec![],
+        ];
+        let parsed = sources
+            .iter()
+            .map(|source| zil_syntax::parse(source).into_result().unwrap())
+            .collect::<Vec<_>>();
+        let limits = Limits::default();
+        let target = TargetProfile::host_llvm();
+        let modules = zil_expand::expand_program_with_semantics(
+            &sources,
+            &parsed.iter().collect::<Vec<_>>(),
+            &imports,
+            &limits,
+            &target,
+            SourceIdentityContext::ClosedSnapshot {
+                root,
+                aliases: &aliases,
+                declarations: DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .into_iter()
+        .map(|(module, _)| module)
+        .collect();
+        let frozen = CoreProgram {
+            root,
+            source_fingerprint: sources[0].fingerprint(),
+            modules,
+        };
+        let context = zil_ct::SourceProgramContext::new(&frozen, &limits).unwrap();
+        let capture = Capture {
+            compiler: Compiler {
+                program: &frozen,
+                module: root,
+                target: &target,
+            },
+            raw: Default::default(),
+        };
+        zil_ct::evaluate_source_constants_with_compiler(
+            &frozen.modules[0].core,
+            &target,
+            &limits,
+            Some(&context),
+            &capture,
+        )
+        .unwrap();
+        let programs = capture.raw.into_inner();
+        assert_eq!(programs.len(), 2);
+
+        for (owner, raw) in (1..=2).zip(programs) {
+            let binding = raw.frozen_context.clone().unwrap();
+            for swap in [false, true] {
+                let mut candidate = raw.clone();
+                if swap {
+                    let semantic = candidate.module.semantic.as_mut().unwrap();
+                    let wrapper = semantic
+                        .instances
+                        .iter()
+                        .find(|entry| {
+                            entry.target
+                                == SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(
+                                    candidate.entry,
+                                ))
+                        })
+                        .unwrap()
+                        .definition;
+                    let wrapper = semantic
+                        .definitions
+                        .iter_mut()
+                        .find(|row| row.id == wrapper)
+                        .unwrap();
+                    let SemanticDefinitionBody::FunctionWithBody { names, .. } = &mut wrapper.body
+                    else {
+                        panic!()
+                    };
+                    let emitted = &frozen.modules[owner].core.enums[0].name;
+                    let alias = names
+                        .iter_mut()
+                        .find(|name| {
+                            name.namespace == SemanticOriginalNamespace::Type
+                                && name.path.as_slice() == [emitted.as_str()]
+                        })
+                        .unwrap();
+                    let original = |module: usize| {
+                        frozen.modules[module]
+                            .core
+                            .semantic
+                            .as_ref()
+                            .unwrap()
+                            .definitions
+                            .iter()
+                            .find(|definition| {
+                                matches!(
+                                    definition.body,
+                                    SemanticDefinitionBody::Nominal {
+                                        kind: LifeNominalKind::Enum,
+                                        ..
+                                    }
+                                )
+                            })
+                            .unwrap()
+                            .id
+                    };
+                    assert_eq!(
+                        alias.value,
+                        SemanticOriginalNameValue::Definition(original(owner))
+                    );
+                    alias.value = SemanticOriginalNameValue::Definition(original(3 - owner));
+                    candidate.plan.module_fingerprint = candidate.module.fingerprint();
+                }
+                let analyzed = zil_analyze::analyze_in_frozen_context(
+                    &candidate.module,
+                    &frozen,
+                    &binding,
+                    &limits,
+                );
+                if swap {
+                    let errors = analyzed.unwrap_err();
+                    assert!(
+                        errors.iter().any(|error| error
+                            .message
+                            .contains("original callee or enum declaration")),
+                        "{errors:#?}"
+                    );
+                } else {
+                    analyzed.unwrap();
+                }
+                let data = zil_ir::wire::encode_ct_program(&candidate, &limits).unwrap();
+                let transported = zil_ir::wire::decode_ct_program(&data, &limits).unwrap();
+                for candidate in [candidate, transported] {
+                    let result = zil_verify::verify_ct_program_in_context(
+                        candidate, &frozen, &binding, &target, &limits,
+                    );
+                    if swap {
+                        let errors = result.unwrap_err();
+                        assert!(
+                            errors
+                                .iter()
+                                .any(|error| error.category == ResultCategory::SafeReject),
+                            "{errors:#?}"
+                        );
+                    } else {
+                        result.unwrap();
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn reified_record_raw_and_wire_require_exact_field_producers() {
         use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
 

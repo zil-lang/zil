@@ -833,6 +833,22 @@ pub(in crate::semantic) struct ActualConstructor {
     pub(in crate::semantic) payload: Vec<crate::semantic::value::Value>,
 }
 impl Checked {
+    pub(in crate::semantic) fn frozen_enum(
+        &self,
+        definition: SemanticDefinitionId,
+        node: NodeId,
+        b: &mut Budget,
+    ) -> CompileResult<Option<(SemanticDefinitionId, u32)>> {
+        b.lookup(self.enum_constructors.len(), WORK)?;
+        let Some(constructor) = self.enum_constructors.get(&(definition, node)) else {
+            return Ok(None);
+        };
+        let Kind::Nominal { definition, arguments, .. } = &self.arena[self.root(constructor.value, b)?] else {
+            return Err(fail("original CT constructor has no complete nominal result"));
+        };
+        Ok(arguments.is_empty().then_some((*definition, constructor.variant)))
+    }
+
     pub(in crate::semantic) fn enum_constructor(
         &self,
         context: &SemanticInstance,

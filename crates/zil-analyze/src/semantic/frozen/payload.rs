@@ -2,6 +2,7 @@
 //! markers are stage transport; callee spelling may change only after the real
 //! selected Core target and the full original mixed solution have been checked.
 use super::*;
+use zil_base::NodeId;
 
 pub(super) struct Compare<'a, 'i> {
     pub source: &'a CoreProgram,
@@ -121,6 +122,74 @@ impl Compare<'_, '_> {
         };
         self.target(&path, b)
     }
+    pub(super) fn enum_target(
+        &self,
+        name: &str,
+        b: &mut Budget,
+    ) -> CompileResult<Option<(SemanticDefinitionId, &CoreEnum)>> {
+        let caller = self.inventory.definition(self.owner.definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { names, .. } = &caller.body else {
+            return Err(fail("CT enum alias has no original caller scope"));
+        };
+        let mut actual = None;
+        for module in &self.source.modules {
+            b.spend(module.core.enums.len().saturating_add(1), WORK)?;
+            for emitted in &module.core.enums {
+                b.spend(emitted.name.len().saturating_add(name.len()), WORK)?;
+                if emitted.name != name { continue; }
+                b.spend(name.len().saturating_add(20), WORK)?;
+                let qualified = format!("@module{}:{name}", module.core.module_id.0);
+                for row in &module.core.life_instances {
+                    b.spend(1, WORK)?;
+                    let Type::Enum { name: actual_name, .. } = &row.ty else { continue; };
+                    b.spend(actual_name.len(), WORK)?;
+                    if !row.arguments.is_empty() || (actual_name != name && actual_name != &qualified) { continue; }
+                    let semantic = module.core.semantic.as_ref().ok_or_else(|| fail("CT enum lacks frozen definitions"))?;
+                    b.spend(semantic.definitions.len(), WORK)?;
+                    let mut definitions = semantic.definitions.iter().filter(|entry| entry.parameters.is_empty()
+                        && matches!(entry.body, SemanticDefinitionBody::Nominal {
+                            declaration, kind: LifeNominalKind::Enum, ..
+                        } if declaration == row.declaration));
+                    let Some(owner) = definitions.next().map(|entry| entry.id) else { continue; };
+                    if definitions.next().is_some() { return Err(fail("one CT enum has several original declarations")); }
+                    b.spend(names.len(), WORK)?;
+                    let visible = names.iter().any(|row| row.namespace == SemanticOriginalNamespace::Type && match &row.value {
+                        SemanticOriginalNameValue::Definition(id) => *id == owner,
+                        SemanticOriginalNameValue::Recipe(SemanticActualRecipe::Type(
+                            SemanticTypeRecipe::Nominal { definition, arguments },
+                        )) => *definition == owner && arguments.is_empty(),
+                        _ => false,
+                    });
+                    if visible && actual.replace((owner, emitted)).is_some_and(|(old, header)| old != owner || !std::ptr::eq(header, emitted)) {
+                        return Err(fail("CT emitted enum name selects multiple original declarations"));
+                    }
+                }
+            }
+        }
+        Ok(actual)
+    }
+
+    fn enum_owner(
+        &self,
+        original: &mut SemanticOriginalExpr,
+        emitted: &mut SemanticOriginalExpr,
+        variant: &str,
+        node: NodeId,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        let Some((expected, tag)) = self.original.frozen_enum(self.owner.definition, node, b)? else {
+            return Ok(false);
+        };
+        let CoreExprKind::Name(name) = &emitted.kind else { return Ok(false); };
+        let Some((actual, header)) = self.enum_target(name, b)? else { return Ok(false); };
+        b.spend(header.variants.len().saturating_add(variant.len()), WORK)?;
+        if actual != expected || !header.variants.get(tag as usize).is_some_and(|(name, _)| name == variant) {
+            return Err(fail("CT enum constructor changes its original declaration or variant"));
+        }
+        original.kind = CoreExprKind::Unit;
+        emitted.kind = CoreExprKind::Unit;
+        Ok(true)
+    }
     fn annotation(
         &self,
         expected: &SemanticTypeRecipe,
@@ -200,6 +269,14 @@ impl Compare<'_, '_> {
                     // before erasing these private comparison-only spellings.
                     ac.kind = CoreExprKind::Unit;
                     zc.kind = CoreExprKind::Unit;
+                } else if let (
+                    CoreExprKind::Member { object: original, member: a, owner: None },
+                    CoreExprKind::Member { object: emitted, member: z, owner: None },
+                ) = (&mut ac.kind, &mut zc.kind)
+                    && a == z && self.enum_owner(original, emitted, z, original_node, b)?
+                {
+                    // The binding and variant were reconstructed above. The
+                    // payload operands remain in the comparison below.
                 } else {
                     self.expr(ac, zc, b, depth + 1)?;
                 }
@@ -264,12 +341,12 @@ impl Compare<'_, '_> {
                 CoreExprKind::Member {
                     object: a,
                     owner: at,
-                    ..
+                    member: av,
                 },
                 CoreExprKind::Member {
                     object: z,
                     owner: zt,
-                    ..
+                    member: zv,
                 },
             ) => {
                 match (at, zt) {
@@ -277,7 +354,9 @@ impl Compare<'_, '_> {
                     (None, None) => {}
                     _ => return Err(fail("CT payload changes its reflected member owner")),
                 }
-                self.expr(a, z, b, depth + 1)?
+                if av != zv || !self.enum_owner(a, z, zv, original_node, b)? {
+                    self.expr(a, z, b, depth + 1)?;
+                }
             }
             (
                 CoreExprKind::If {

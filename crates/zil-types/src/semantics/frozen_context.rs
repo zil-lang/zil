@@ -419,6 +419,7 @@ fn wrapper_relation(
                     prefix,
                     &mut generated,
                     &[selected.name.as_str()],
+                    SemanticOriginalNamespace::Value,
                     target,
                     limits,
                     left,
@@ -445,6 +446,7 @@ fn wrapper_relation(
                         prefix,
                         &mut generated,
                         &[import.alias.as_str(), selected.name.as_str()],
+                        SemanticOriginalNamespace::Value,
                         target,
                         limits,
                         left,
@@ -453,18 +455,69 @@ fn wrapper_relation(
             }
         }
     }
+    for module in &source.modules {
+        for emitted in &module.core.enums {
+            let Some(owner) = frozen_enum_owner(&module.core, emitted, original, left)? else {
+                continue;
+            };
+            generated_name(
+                prefix, &mut generated, &[emitted.name.as_str()],
+                SemanticOriginalNamespace::Type, owner, limits, left,
+            )?;
+        }
+    }
     pay(left, generated.len())?;
     if &actual[original.len()..] != generated.as_slice() {
         return Err(bad(
-            "generated wrapper changes its complete selected callee symbol directory",
+            "generated wrapper changes its frozen value and enum bindings",
         ));
     }
     Ok((wrapper.id, definition.id))
 }
+fn frozen_enum_owner(
+    module: &CoreModule,
+    emitted: &CoreEnum,
+    original: &[SemanticOriginalNameBinding],
+    left: &mut usize,
+) -> R<Option<SemanticDefinitionId>> {
+    pay(left, emitted.name.len().saturating_add(module.life_instances.len()))?;
+    let qualified = format!("@module{}:{}", module.module_id.0, emitted.name);
+    let mut declaration = None;
+    for row in &module.life_instances {
+        let Type::Enum { name, .. } = &row.ty else { continue; };
+        pay(left, name.len())?;
+        if !row.arguments.is_empty() || (name != &emitted.name && name != &qualified) { continue; }
+        if declaration.replace(row.declaration).is_some_and(|old| old != row.declaration) {
+            return Err(bad("frozen enum emission selects conflicting declarations"));
+        }
+    }
+    let Some(declaration) = declaration else { return Ok(None); };
+    let semantic = module.semantic.as_ref().ok_or_else(|| bad("frozen enum module lacks its original declarations"))?;
+    pay(left, semantic.definitions.len())?;
+    let mut definitions = semantic.definitions.iter().filter(|entry| entry.parameters.is_empty()
+        && matches!(entry.body, SemanticDefinitionBody::Nominal {
+            declaration: id, kind: LifeNominalKind::Enum, ..
+        } if id == declaration));
+    let Some(owner) = definitions.next().map(|entry| entry.id) else { return Ok(None); };
+    if definitions.next().is_some() { return Err(bad("frozen enum emission has ambiguous original owners")); }
+    pay(left, original.len())?;
+    let visible = original.iter().any(|binding| {
+        binding.namespace == SemanticOriginalNamespace::Type && match &binding.value {
+            SemanticOriginalNameValue::Definition(id) => *id == owner,
+            SemanticOriginalNameValue::Recipe(SemanticActualRecipe::Type(
+                SemanticTypeRecipe::Nominal { definition, arguments },
+            )) => *definition == owner && arguments.is_empty(),
+            _ => false,
+        }
+    });
+    Ok(visible.then_some(owner))
+}
+
 fn generated_name(
     prefix: &[SemanticOriginalNameBinding],
     generated: &mut Vec<SemanticOriginalNameBinding>,
     path: &[&str],
+    namespace: SemanticOriginalNamespace,
     target: SemanticDefinitionId,
     limits: &Limits,
     left: &mut usize,
@@ -478,13 +531,13 @@ fn generated_name(
                 .saturating_add(path.iter().map(|part| part.len()).sum::<usize>())
                 .saturating_add(1),
         )?;
-        if entry.namespace == SemanticOriginalNamespace::Value
+        if entry.namespace == namespace
             && entry.path.len() == path.len()
             && entry.path.iter().zip(path).all(|(a, b)| a == b)
         {
             if entry.value != SemanticOriginalNameValue::Definition(target) {
                 return Err(bad(
-                    "generated CT callee collides with another original source binding",
+                    "generated CT name collides with another original source binding",
                 ));
             }
             return Ok(());
@@ -493,7 +546,7 @@ fn generated_name(
     if prefix.len().saturating_add(generated.len()) >= limits.max_nodes {
         return Err(Diagnostic::limit(
             Phase::Types,
-            "generated CT callee directory node limit exceeded",
+            "generated CT name directory node limit exceeded",
             None,
         ));
     }
@@ -506,7 +559,7 @@ fn generated_name(
     )?;
     generated.push(SemanticOriginalNameBinding {
         path: path.iter().map(|part| (*part).to_owned()).collect(),
-        namespace: SemanticOriginalNamespace::Value,
+        namespace,
         value: SemanticOriginalNameValue::Definition(target),
     });
     Ok(())

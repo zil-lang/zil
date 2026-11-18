@@ -117,7 +117,7 @@ impl Builder<'_, '_> {
         let program = self.collector.program;
         let mut application = None;
         for module in &program.modules {
-            let emitted = if let Type::Named(name) = ty {
+            let emitted = if matches!(ty, Type::Named(_)) || name.starts_with("@module") {
                 self.emitted_nominal(&module.core, name, depth)?
             } else {
                 None
@@ -125,10 +125,16 @@ impl Builder<'_, '_> {
             for instance in &module.core.life_instances {
                 self.node(depth)?;
                 self.collector.ty(&instance.ty, depth)?;
-                let emitted_application = match (emitted, &instance.ty) {
-                    (Some((declared, LifeNominalKind::Record)), Type::Record { name, .. })
-                    | (Some((declared, LifeNominalKind::Enum)), Type::Enum { name, .. }) => {
+                let emitted_application = match (emitted, &instance.ty, ty) {
+                    (Some((declared, LifeNominalKind::Record)), Type::Record { name, .. }, Type::Named(_))
+                    | (Some((declared, LifeNominalKind::Enum)), Type::Enum { name, .. }, Type::Named(_)) => {
                         named(module.core.module_id, declared, module.core.module_id, name)
+                    }
+                    (Some((declared, LifeNominalKind::Record)), Type::Record { name, fields }, Type::Record { fields: expected, .. }) => {
+                        named(module.core.module_id, declared, module.core.module_id, name) && fields == expected
+                    }
+                    (Some((declared, LifeNominalKind::Enum)), Type::Enum { name, variants }, Type::Enum { variants: expected, .. }) => {
+                        named(module.core.module_id, declared, module.core.module_id, name) && variants == expected
                     }
                     _ => false,
                 };
@@ -4523,6 +4529,7 @@ pub(super) fn wrapper(
                 builder.generated_name(
                     &mut original_names,
                     &[selected.name.as_str()],
+                    SemanticOriginalNamespace::Value,
                     owner,
                     selected.span,
                 )?;
@@ -4538,12 +4545,25 @@ pub(super) fn wrapper(
                         builder.generated_name(
                             &mut original_names,
                             &[import.alias.as_str(), selected.name.as_str()],
+                            SemanticOriginalNamespace::Value,
                             owner,
                             selected.span,
                         )?;
                     }
                 }
             }
+        }
+    }
+    for source in &program.modules {
+        for emitted in &source.core.enums {
+            let Some(owner) = builder.enum_alias(&source.core, emitted, names)? else { continue; };
+            builder.generated_name(
+                &mut original_names,
+                &[emitted.name.as_str()],
+                SemanticOriginalNamespace::Type,
+                owner,
+                emitted.span,
+            )?;
         }
     }
     Transport {
@@ -4691,10 +4711,58 @@ pub(super) fn wrapper(
 }
 
 impl Builder<'_, '_> {
+    fn enum_alias(
+        &mut self,
+        module: &CoreModule,
+        emitted: &CoreEnum,
+        inherited: &[SemanticOriginalNameBinding],
+    ) -> CompileResult<Option<SemanticDefinitionId>> {
+        // The Core emission and the authored enum use different declaration
+        // IDs. The complete, unqualified nominal application ties them.
+        let mut declaration = None;
+        for instance in &module.life_instances {
+            self.node(0)?;
+            let Type::Enum { name, .. } = &instance.ty else { continue; };
+            self.collector.text_len(name.len().saturating_add(emitted.name.len()))?;
+            if !instance.arguments.is_empty()
+                || !named(module.module_id, &emitted.name, module.module_id, name)
+            { continue; }
+            if declaration.replace(instance.declaration).is_some_and(|old| old != instance.declaration) {
+                return Err(invalid("CT enum header has multiple original declarations", emitted.span));
+            }
+        }
+        let Some(declaration) = declaration else { return Ok(None); };
+        let Some(semantic) = &module.semantic else { return Ok(None); };
+        let mut owner = None;
+        for definition in &semantic.definitions {
+            self.node(0)?;
+            if matches!(definition.body, SemanticDefinitionBody::Nominal {
+                declaration: id, kind: LifeNominalKind::Enum, ..
+            } if id == declaration) && definition.parameters.is_empty()
+                && owner.replace(definition.id).is_some()
+            {
+                return Err(invalid("CT enum declaration has multiple original owners", emitted.span));
+            }
+        }
+        let Some(owner) = owner else { return Ok(None); };
+        for binding in inherited {
+            self.node(0)?;
+            if binding.namespace == SemanticOriginalNamespace::Type && match &binding.value {
+                SemanticOriginalNameValue::Definition(id) => *id == owner,
+                SemanticOriginalNameValue::Recipe(SemanticActualRecipe::Type(
+                    SemanticTypeRecipe::Nominal { definition, arguments },
+                )) => *definition == owner && arguments.is_empty(),
+                _ => false,
+            } { return Ok(Some(owner)); }
+        }
+        Ok(None)
+    }
+
     fn generated_name(
         &mut self,
         names: &mut Vec<SemanticOriginalNameBinding>,
         path: &[&str],
+        namespace: SemanticOriginalNamespace,
         definition: SemanticDefinitionId,
         span: Span,
     ) -> CompileResult<()> {
@@ -4708,7 +4776,7 @@ impl Builder<'_, '_> {
                     .sum::<usize>()
                     .saturating_add(path.iter().map(|s| s.len()).sum::<usize>()),
             )?;
-            if existing.namespace == SemanticOriginalNamespace::Value
+            if existing.namespace == namespace
                 && existing.path.len() == path.len()
                 && existing.path.iter().zip(path).all(|(a, b)| a == b)
             {
@@ -4716,7 +4784,7 @@ impl Builder<'_, '_> {
                     Ok(())
                 } else {
                     Err(invalid(
-                        "generated CT callee collides with another original value binding",
+                        "generated CT name collides with another original binding",
                         span,
                     ))
                 };
@@ -4731,7 +4799,7 @@ impl Builder<'_, '_> {
             names,
             SemanticOriginalNameBinding {
                 path: owned,
-                namespace: SemanticOriginalNamespace::Value,
+                namespace,
                 value: SemanticOriginalNameValue::Definition(definition),
             },
         )?;

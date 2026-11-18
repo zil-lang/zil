@@ -269,7 +269,7 @@ impl FrozenContext<'_> {
         }
         let recipe={
             let mut storage=context.original.borrow_mut();let original=storage.as_mut().ok_or_else(||bad("CT wrapper lacks checked original names/body"))?;
-            original.frozen_names(module,context,self.query.0.id,wrapper.definition,&self.aliases(b)?,active,b)?;
+            original.frozen_names(module,context,self.query.0.id,wrapper.definition,&self.aliases(b)?,&self.enum_bindings(b)?,active,b)?;
             // This is the original query's own lexical node, not wrapper SSA.
             let SemanticOriginalNode::Expression(node)=self.expected.query.original else{return Err(bad("frozen CT original query is not an expression"));};
             original.type_recipe(module,self.query.0.id,&SemanticOriginalTypeSource::Expression(node),&caller_environment,b)?
@@ -301,6 +301,55 @@ impl FrozenContext<'_> {
                 if aliases.insert((module.core.module_id,qualified),*definition).is_some_and(|old|old!=*definition){return Err(bad("frozen import alias selects conflicting original declarations"));}
             }
         }}
+        Ok(aliases)
+    }
+
+    fn enum_bindings(&self, b: &mut Budget) -> Check<BTreeMap<String, SemanticDefinitionId>> {
+        let SemanticDefinitionBody::FunctionWithBody { names, .. } = &self.query.0.body else {
+            return Err(bad("CT enum names have no complete frozen caller binding table"));
+        };
+        let mut visible = BTreeMap::new();
+        for binding in names {
+            b.spend(1)?;
+            if binding.namespace != SemanticOriginalNamespace::Type { continue; }
+            let id = match &binding.value {
+                SemanticOriginalNameValue::Definition(id) => *id,
+                SemanticOriginalNameValue::Recipe(SemanticActualRecipe::Type(
+                    SemanticTypeRecipe::Nominal { definition, arguments },
+                )) if arguments.is_empty() => *definition,
+                _ => continue,
+            };
+            let Some(definition) = self.definitions.get(&id) else { continue; };
+            if !definition.parameters.is_empty() { continue; }
+            if let SemanticDefinitionBody::Nominal { declaration, kind: LifeNominalKind::Enum, .. } = definition.body {
+                if visible.insert(declaration, id).is_some_and(|old| old != id) {
+                    return Err(bad("frozen CT enum declaration has multiple visible original owners"));
+                }
+            }
+        }
+        let mut aliases = BTreeMap::new();
+        if visible.is_empty() { return Ok(aliases); }
+        for module in &self.source.modules {
+            for row in &module.core.life_instances {
+                b.spend(1)?;
+                let Some(&owner) = visible.get(&row.declaration) else { continue; };
+                let Type::Enum { name, .. } = &row.ty else { continue; };
+                if !row.arguments.is_empty() { continue; }
+                dynamic_metadata::ty(&row.ty, b)?;
+                let digits = module.core.module_id.0;
+                b.spend(name.len().saturating_add(20))?;
+                let prefix = format!("@module{digits}:");
+                let raw = name.strip_prefix(&prefix).unwrap_or(name);
+                let mut headers = module.core.enums.iter().filter(|emitted| emitted.name == raw);
+                b.spend(module.core.enums.iter().fold(0usize, |work, emitted| {
+                    work.saturating_add(emitted.name.len().saturating_add(1))
+                }))?;
+                let Some(header) = headers.next() else { continue; };
+                if headers.next().is_some() || aliases.insert(header.name.clone(), owner).is_some_and(|old| old != owner) {
+                    return Err(bad("frozen emitted enum name selects conflicting original declarations"));
+                }
+            }
+        }
         Ok(aliases)
     }
 }

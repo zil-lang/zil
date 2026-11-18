@@ -542,11 +542,8 @@ fn same_spelling_in_distinct_modules_preserves_nominal_identity() {
         "pub enum E{N(i64)}pub fn make()->E{return E.N(7)}",
     )
     .unwrap();
-    fs::write(
-        case.0.join("main.zil"),
-        "import left\nimport right\nfn value(){let a:left.E=#(right.make())}",
-    )
-    .unwrap();
+    let source = "import left\nimport right\nfn value(){let a:left.E=#(right.make())}";
+    fs::write(case.0.join("main.zil"), source).unwrap();
     let report = compile_path(
         &case.0.join("main.zil"),
         &CompileOptions {
@@ -562,8 +559,22 @@ fn same_spelling_in_distinct_modules_preserves_nominal_identity() {
         "{}",
         report.to_json()
     );
-    assert_eq!(report.phase, Phase::Ct);
-    assert_eq!(report.diagnostics[0].code, "E-TYPE-MISMATCH");
+    assert_eq!(report.phase, Phase::Expand);
+    let diagnostic = &report.diagnostics[0];
+    assert_eq!(diagnostic.code, "E-GENERIC-ARGUMENT");
+    let call = diagnostic.span.unwrap();
+    assert_eq!(call.file, FileId(0));
+    assert_eq!(&source[call.start as usize..call.end as usize], "right.make");
+    assert!(diagnostic.related.iter().any(|entry| {
+        entry.role == zil_base::DiagnosticRole::Input && entry.message == "expected type $module2_E"
+            && entry.span.is_some_and(|span| span.file == FileId(2) && span.start == 33 && span.end == 34)
+    }), "{diagnostic:#?}");
+    assert!(diagnostic.related.iter().any(|entry| {
+        entry.role == zil_base::DiagnosticRole::Result && entry.message == "actual type $module1_E"
+            && entry.span.is_some_and(|span| {
+                span.file == FileId(0) && &source[span.start as usize..span.end as usize] == "left.E"
+            })
+    }), "{diagnostic:#?}");
 }
 
 #[test]

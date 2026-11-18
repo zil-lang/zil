@@ -4332,10 +4332,26 @@ fn unify_bounded(
         {
             Ok(())
         }
-        _ => Err(error(
-            span,
-            "generic parameter does not match argument type",
-        )),
+        _ => {
+            let mut diagnostic = error(span, "generic parameter does not match argument type");
+            if let (TypeKind::Named { path: expected, .. }, TypeKind::Named { path: received, .. })
+                = (&pattern.kind, &actual.kind)
+                && expected != received
+            {
+                for (role, name, location, path) in [
+                    (zil_base::DiagnosticRole::Input, "expected type", pattern.span, expected),
+                    (zil_base::DiagnosticRole::Result, "actual type", actual.span, received),
+                ] {
+                    let length = path.iter().fold(name.len(), |length, part| {
+                        length.saturating_add(part.len()).saturating_add(2)
+                    });
+                    budget.identity_work(length, span)?;
+                    budget.lineage_bytes(length, span)?;
+                    diagnostic.relate(role, Some(location), None, format!("{name} {}", path.join("::")));
+                }
+            }
+            Err(diagnostic)
+        }
     }
 }
 

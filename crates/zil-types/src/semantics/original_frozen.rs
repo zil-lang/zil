@@ -90,6 +90,35 @@ impl Context for Normalize<'_> {
             };
             *value = *inner;
         }
+        if matches!(value.kind, CoreExprKind::Call { .. } | CoreExprKind::Member { .. }) {
+            let source = (self.definition.id, value.id);
+            spend(self.left, self.proof.nominal_constructors.len().saturating_add(1).ilog2() as usize + 1,
+                depth, self.limits)?;
+            if let Some((declaration, variant)) = self.proof.nominal_constructors.get(&source) {
+                spend(self.left, self.proof.types.len().saturating_add(1).ilog2() as usize + 1,
+                    depth, self.limits)?;
+                let result = self.proof.types.get(&(self.definition.id, Query::Expression(value.id)))
+                    .ok_or_else(|| bad("frozen enum construction lacks its complete original result"))?;
+                let empty = BTreeMap::new();
+                let substitution = substitute::Substitution {
+                    frames: &[], selves: &[], environments: &[], implicit: &empty,
+                    invocation: &empty, shift: self.shift,
+                };
+                let result = substitute::ty(result, &substitution, self.limits, self.left)?;
+                let mut marker = ComparisonText { text: String::new(), left: self.left };
+                std::fmt::Write::write_fmt(&mut marker,
+                    format_args!("CT checked enum {declaration:?} variant {variant} of {result:?}")
+                ).map_err(|_| Diagnostic::limit(Phase::Types, "frozen enum identity text exceeded", None))?;
+                let identity = CoreExprKind::Unsupported(marker.text);
+                if let CoreExprKind::Call { callee, .. } = &mut value.kind {
+                    // Keep the ordered payload for the complete expression comparison.
+                    callee.kind = identity;
+                } else {
+                    value.kind = identity;
+                }
+                return Ok(());
+            }
+        }
         if !matches!(value.kind, CoreExprKind::Call { .. }) {
             return Ok(());
         }

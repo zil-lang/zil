@@ -2,7 +2,7 @@
 //! They are not executable targets and supply no caller equality or CT rights.
 use super::*;
 impl CheckedOriginal {
-    pub(in crate::semantic) fn frozen_names(&mut self,module:&TypedModule,context:&CheckedContext,caller:SemanticDefinitionId,wrapper:SemanticDefinitionId,aliases:&BTreeMap<(zil_base::ModuleId,String),SemanticDefinitionId>,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+    pub(in crate::semantic) fn frozen_names(&mut self,module:&TypedModule,context:&CheckedContext,caller:SemanticDefinitionId,wrapper:SemanticDefinitionId,aliases:&BTreeMap<(zil_base::ModuleId,String),SemanticDefinitionId>,enum_aliases:&BTreeMap<String,SemanticDefinitionId>,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         let definition=context.definition(module,caller,b)?;let SemanticDefinitionBody::FunctionWithBody{names:expected,..}=&definition.body else{return Err(bad("frozen caller names have no original body"));};
         let definition=context.definition(module,wrapper,b)?;let SemanticDefinitionBody::FunctionWithBody{names:actual,..}=&definition.body else{return Err(bad("CT wrapper names have no original body"));};
         let caller_env=self.environments.get(&caller).cloned().ok_or_else(||bad("frozen original caller environment was not checked"))?;
@@ -12,10 +12,10 @@ impl CheckedOriginal {
             let mut seen=BTreeSet::new();
             for row in actual {
                 b.spend(expected.len().saturating_add(row.path.iter().map(String::len).sum::<usize>()))?;
+                if !seen.insert((row.namespace as u8,row.path.clone())) {return Err(bad("CT wrapper repeats a lexical name"));}
                 let candidates=expected.iter().filter(|old|old.path==row.path&&old.namespace==row.namespace).collect::<Vec<_>>();
                 if candidates.len()>1{return Err(bad("frozen caller has duplicate original names"));}
                 if let Some(old)=candidates.first(){
-                    seen.insert((row.namespace as u8,row.path.clone()));
                     match(&old.value,&row.value){
                         (SemanticOriginalNameValue::Definition(a),SemanticOriginalNameValue::Definition(c))if a==c=>{},
                         (SemanticOriginalNameValue::Recipe(a),SemanticOriginalNameValue::Recipe(c))=>{let a=self.actual(module,context,a,&caller_env,active,b)?;let c=self.actual(module,context,c,&wrapper_env,active,b)?;self.same_argument(&a,&c,b)?;},
@@ -23,8 +23,12 @@ impl CheckedOriginal {
                     }
                 }else{
                     let SemanticOriginalNameValue::Definition(target)=row.value else{return Err(bad("CT wrapper introduces a nondeclaration original name"));};
-                    let name=row.path.join("::");
-                    if row.namespace!=SemanticOriginalNamespace::Value||aliases.get(&(caller.module,name))!=Some(&target){return Err(bad("CT wrapper generated value name has no exact frozen Core/original declaration link"));}
+                    let declaration = match row.namespace {
+                        SemanticOriginalNamespace::Value => aliases.get(&(caller.module,row.path.join("::"))),
+                        SemanticOriginalNamespace::Type => match row.path.as_slice() { [name] => enum_aliases.get(name), _ => None },
+                        SemanticOriginalNamespace::Lifetime => None,
+                    };
+                    if declaration!=Some(&target){return Err(bad("CT wrapper generated name has no exact frozen Core/original declaration link"));}
                 }
             }
             if expected.iter().any(|row|!seen.contains(&(row.namespace as u8,row.path.clone()))){return Err(bad("CT wrapper omits a complete original frozen caller name binding"));}
