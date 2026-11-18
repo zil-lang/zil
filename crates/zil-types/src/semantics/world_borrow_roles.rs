@@ -308,7 +308,7 @@ fn capture_source_value(
                     "capture description alias has no original owning field",
                 ));
             }
-            let payload = world.pointee(&captured)?;
+            let payload = projection::pointee(world, &captured)?;
             let image = world.occurrence(function, value)?;
             world.address(output, image, &payload)?
         }
@@ -345,7 +345,7 @@ fn capture_source_value(
                     "capture description alias has no reached owning carrier",
                 ));
             }
-            let payload = world.pointee(&owner)?;
+            let payload = projection::pointee(world, &owner)?;
             let image = world.occurrence(function, value)?;
             world.address(output, image, &payload)?
         }
@@ -565,6 +565,51 @@ fn checked_call_source(
     Ok(())
 
 }
+/// A non-address original callee (for example a returned temporary) has no
+/// projected-pointer view theorem. Its existing value/prepared-place receipts
+/// still identify the exact live whole environment used by this call.
+#[allow(clippy::too_many_arguments)]
+fn whole_receiver_source(
+    world: &mut World<'_, '_>, instance: &SemanticInstance, original: &SemanticDefinition,
+    function: &TypedFunction, source: NodeId, site: SemanticSiteId,
+    at: (BlockId, usize), receiver: Cursor, values: &[Option<SharedType>],
+    locals: &[Option<SharedType>], implicit: &BTreeMap<u32, SemanticClassExpr>,
+) -> R<()> {
+    if let Cursor::Value(address) = receiver {
+        let program = world.program;
+        world.pay(program.sites.len())?;
+        let mut calls = program.sites.iter().filter(|row| row.instance == instance.id && row.recipe == site
+            && matches!(row.at, SemanticSiteAddress::Typed { block, instruction, edge: SemanticSiteEdge::After }
+                if block == at.0 && instruction as usize == at.1));
+        let call = calls.next().ok_or_else(|| bad("whole receiver has no exact original call occurrence"))?;
+        if calls.next().is_some() { return Err(bad("whole receiver repeats its actual call occurrence")); }
+        if occurrences::prepared_callee(world, instance, original, call, source)? == Some(address) {
+            let raw = world.get(values, address)?;
+            let value = world.pointee(&raw)?;
+            let expected = world.physical_type(instance.id, &SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Expression(source),
+            }, World::type_of(&value)?)?;
+            return world.same(instance.id, &value, &expected, implicit);
+        }
+    }
+    let source_value = occurrences::expression_value(world, instance, original, source)?
+        .ok_or_else(|| bad("whole temporary receiver lost its real original value occurrence"))?;
+    let expected = world.get(values, source_value)?;
+    if !matches!(World::type_of(&expected)?, Type::Closure(_)) {
+        return Err(bad("whole receiver source is not a complete callable environment"));
+    }
+    let Cursor::Local(local) = receiver else {
+        return Err(bad("whole temporary receiver has no exact staged local place"));
+    };
+    let actual = world.local(locals, local)?;
+    for incoming in reaching_values(world, function, local, at)? {
+        if incoming != ActivationSource::Value(source_value) {
+            return Err(bad("temporary receiver place selects another original whole value"));
+        }
+    }
+    world.same(instance.id, &actual, &expected, implicit)
+}
+
 fn trace(
     world: &mut World<'_, '_>,
     instance: &SemanticInstance,
@@ -670,10 +715,13 @@ fn trace_steps(
                 if call.callee_node != *source || !matches!(call.kind, CallableKind::Fn | CallableKind::FnMut)
                     || call.signature.call_kind != CallKind::Direct
                 { return Err(bad("returned receiver changes its exact original operand or mode")); }
-                let (root, steps) = proof.view_source_steps(original.id, *source, world.limits, world.left)?
-                    .ok_or_else(|| bad("returned receiver omits its complete original operand source"))?;
-                trace_steps(world, instance, original, function, root, &steps, receiver,
-                    values, locals, implicit, return_boundary, depth + 1)?;
+                if let Some((root, steps)) = proof.view_source_steps(original.id, *source, world.limits, world.left)? {
+                    trace_steps(world, instance, original, function, root, &steps, receiver,
+                        values, locals, implicit, return_boundary, depth + 1)?;
+                } else {
+                    whole_receiver_source(world, instance, original, function, *source, *site,
+                        (block, index), receiver, values, locals, implicit)?;
+                }
                 reached_input = true;
             }
             ViewBorrowStepKind::BytesBorrow { site, mutable } => {
@@ -1179,6 +1227,54 @@ fn trace_steps(
     }
     Ok(())
 }
+/// Consume an original creator/child write theorem at this exact actual
+/// WriteCapture. Only the outer bound is viewed as the persistent slot's bound;
+/// actual source identity and the complete pointee are proved independently.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn capture_write(
+    world: &mut World<'_, '_>, instance: &SemanticInstance,
+    original: &SemanticDefinition, function: &TypedFunction,
+    capture: u32, operand: ValueId, actual: &SharedType, expected: &SharedType,
+    values: &[Option<SharedType>], locals: &[Option<SharedType>],
+    implicit: &BTreeMap<u32, SemanticClassExpr>,
+) -> R<bool> {
+    let ledger = world.ledger;
+    let proof = ledger.original.borrow();
+    let proof = proof.as_ref().ok_or_else(|| bad("capture write has no complete original Gamma"))?;
+    world.pay(index::search(proof.capture_writes.len()))?;
+    if proof.capture_writes.range((original.id, NodeId(0))..=(original.id, NodeId(u32::MAX))).next().is_none() {
+        return Ok(false);
+    }
+    let ordinal = super::super::headers::original_capture_ordinal(world.program, &world.view,
+        ledger, instance, capture, world.limits, world.left)?;
+    let mut selected = None;
+    for ((_, node), write) in proof.capture_writes.range((original.id, NodeId(0))..=(original.id, NodeId(u32::MAX))) {
+        world.pay(1)?;
+        if write.environment != ordinal { continue; }
+        if occurrences::expression_value(world, instance, original, *node)? != Some(operand) { continue; }
+        if selected.replace(write).is_some() { return Err(bad("actual capture write has multiple original source occurrences")); }
+    }
+    let Some(write) = selected else { return Ok(false); };
+    world.pay(index::search(proof.local_roles.len()))?;
+    if !proof.local_roles.contains_key(&(write.creator_role_owner, write.creator_binding)) {
+        return Err(bad("captured write loses its immutable creator declaration role"));
+    }
+    if World::type_of(actual)? != World::type_of(expected)? {
+        return Err(bad("captured role write changes its complete actual pointer type"));
+    }
+    // A source trace is mandatory even when the outer images already agree.
+    trace(world, instance, original, function, &write.role, operand, values, locals, implicit, false)?;
+    let target = role_target(world, instance, &write.role, implicit)?;
+    if roles::outer(world, expected)? != target {
+        return Err(bad("captured role write changes its exact persistent environment bound"));
+    }
+    if apply_role(world, instance, original, function, &write.role, operand, actual, expected,
+        values, locals, implicit, false)?.is_none() {
+        world.same(instance.id, actual, expected, implicit)?;
+    }
+    Ok(true)
+}
+
 /// A sealed call can carry the original contextual-loan theorem itself; an
 /// extra TypeUse read is not required to manufacture the same source boundary.
 /// Run after its real result SSA exists so the ordinary trace still validates
@@ -1351,6 +1447,27 @@ pub(super) fn apply(
     )
 }
 
+fn role_target(
+    world: &mut World<'_, '_>, instance: &SemanticInstance,
+    role: &BorrowRole, implicit: &BTreeMap<u32, SemanticClassExpr>,
+) -> R<roles::Source> {
+    Ok(match &role.target_lifetime {
+        SemanticOuterLifeRecipe::Static => roles::Source::Static,
+        SemanticOuterLifeRecipe::Class(recipe) => {
+            let image = super::super::materialize::class_in_view(
+                world.program,
+                &world.view,
+                world.ledger,
+                instance.id,
+                recipe,
+                world.limits,
+                world.left,
+            )?;
+            roles::Source::Class(world.class(instance.id, &image, implicit)?)
+        }
+    })
+}
+
 #[allow(clippy::too_many_arguments)]
 fn apply_role(
     world: &mut World<'_, '_>,
@@ -1367,21 +1484,7 @@ fn apply_role(
     return_boundary: bool,
 ) -> R<Option<(SharedType, roles::Source)>> {
     let expected_source = roles::outer(world, expected)?;
-    let target_source = match &role.target_lifetime {
-        SemanticOuterLifeRecipe::Static => roles::Source::Static,
-        SemanticOuterLifeRecipe::Class(recipe) => {
-            let image = super::super::materialize::class_in_view(
-                world.program,
-                &world.view,
-                world.ledger,
-                instance.id,
-                recipe,
-                world.limits,
-                world.left,
-            )?;
-            roles::Source::Class(world.class(instance.id, &image, implicit)?)
-        }
-    };
+    let target_source = role_target(world, instance, role, implicit)?;
     if expected_source != target_source {
         // The receipt belongs to a later call adapter, not to this source
         // value's original sigma. Its exact call/parameter consumes it there.
@@ -1968,13 +2071,25 @@ pub(super) fn record_source(
     }
     if !source { return Ok(()); }
     let Some(operand) = occurrences::site_value(world, instance, original, site)? else { return Ok(()); };
-    let Some((root, steps)) = proof.view_source_steps(original.id, node, world.limits, world.left)? else {
-        return Err(bad("incoming source has no complete original projection trace"));
-    };
     let actual = world.get(values, operand)?;
+    if matches!(World::type_of(&actual)?, Type::Closure(_)) {
+        // A receiver access role may name a temporary whole callee, whose
+        // logical value is a Closure rather than a raw address source. Its
+        // actual prepared place/operation has its own complete callee receipt;
+        // never manufacture a raw-pointer origin from that whole environment.
+        world.pay(index::search(proof.callable_calls.len()))?;
+        for (_, call) in proof.callable_calls.range((original.id, SemanticSiteId(0))..=(original.id, SemanticSiteId(u32::MAX))) {
+            world.pay(1)?;
+            if call.callee_node == node { return Ok(()); }
+        }
+        return Err(bad("whole closure source has no exact original receiver access"));
+    }
     if !matches!(World::type_of(&actual)?, Type::Address { .. } | Type::Desc(_)) {
         return Err(bad("incoming loan source changes its actual address carrier"));
     }
+    let Some((root, steps)) = proof.view_source_steps(original.id, node, world.limits, world.left)? else {
+        return Err(bad("incoming source has no complete original projection trace"));
+    };
     trace_steps(world, instance, original, function, root, &steps, Cursor::Value(operand),
         values, locals, implicit, false, 0)?;
     // A pure local-pointer copy preserves its already transported source.

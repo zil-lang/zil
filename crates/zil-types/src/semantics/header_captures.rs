@@ -564,6 +564,26 @@ fn capture_value(
     Ok(Formation::Complete(value))
 }
 
+/// Select the immutable environment coordinate of one real Typed capture.
+/// The exact creator/MakeClosure/capture ledger proves this correspondence;
+/// neither a source name alone nor a same-Type field supplies an ordinal.
+pub(in crate::semantics) fn original_capture_ordinal(
+    program: &SemanticModule, module: &super::super::materialize::ActualDirectory<'_>,
+    ledger: &super::super::emission::Ledger, instance: &SemanticInstance,
+    capture: u32, limits: &Limits, left: &mut usize,
+) -> R<u32> {
+    let environment = instance.environment.as_ref().ok_or_else(|| bad("capture selection has no original environment"))?;
+    let SemanticClosureTarget::Typed(id) = environment.closure else {
+        return Err(bad("capture selection retains an unbound creator"));
+    };
+    let captures = creator_captures(program, module, ledger, instance, id, limits, left)?;
+    pay(left, captures.len())?;
+    let mut selected = captures.iter().filter(|(index, _, _)| *index == capture);
+    let (_, ordinal, _) = selected.next().ok_or_else(|| bad("capture selection has no exact creator input"))?;
+    if selected.next().is_some() { return Err(bad("capture selection repeats its actual creator input")); }
+    Ok(*ordinal)
+}
+
 /// Read the already checked complete source value for one actual capture.
 /// The caller cannot supply an environment ordinal or select a same-Type mint.
 pub(in crate::semantics) fn original_capture_value(
@@ -997,14 +1017,46 @@ fn equal_capture_image(
 pub(in crate::semantics) fn complete_emitted_headers(
     program: &mut SemanticModule,
     module: &mut TypedModule,
-    ledger: &super::super::emission::Ledger,
+    ledger: &mut super::super::emission::Ledger,
     limits: &Limits,
     left: &mut usize,
 ) -> R<()> {
+    pay(left, 1)?;
+    let formation_stats = ledger.ordinary_stats.clone();
     let mut complete = BTreeSet::new();
     loop {
+    // Deferred nominal applications and closure headers share this existing
+    // finite formation loop. A Type actual may need a child header, while a
+    // different header may need an already formed nominal application. Publish
+    // only complete rows between rounds; neither dependency supplies an N0 fact.
+    let before_nominals = module.life_instances.len();
+    let (nominal_progress, nominal_state) = stored::OrdinaryStats::step(&formation_stats,
+        "finish: deferred nominals", left, |left| {
+            super::super::materialize::populate_deferred_nominals(program, module, ledger, limits, left)
+        })?;
+    let nominal_dependencies = match nominal_state {
+        Formation::Complete(()) => BTreeSet::new(),
+        Formation::NotReady { dependencies } => dependencies,
+    };
+    // A representation change invalidates only the affected complete headers
+    // and embeddings in the canonicalizer. Do not let this scheduling set
+    // preserve a directory which the real actual catalogue has retired.
+    pay(left, complete.len().saturating_mul(program.instances.len().saturating_add(module.closures.len()).saturating_add(1)))?;
+    let mut retired = Vec::new();
+    for id in &complete {
+        let instance = program.instances.iter().find(|row| row.id == *id)
+            .ok_or_else(|| bad("completed header instance disappeared during representation formation"))?;
+        let Some(environment) = &instance.environment else { continue; };
+        let SemanticClosureTarget::Typed(closure) = environment.closure else {
+            return Err(bad("completed header reverted to an unbound creator"));
+        };
+        let definition = module.closures.iter().find(|row| row.id == closure)
+            .ok_or_else(|| bad("completed header lost its actual closure during canonicalization"))?;
+        if definition.storage_life.is_none() { retired.push(*id); }
+    }
+    for id in retired { complete.remove(&id); }
     let mut pending = Vec::new();
-    let mut progress = false;
+    let mut progress = nominal_progress || module.life_instances.len() != before_nominals;
     pay(left, program.instances.len())?;
     for position in 0..program.instances.len() {
         let instance = &program.instances[position];
@@ -1112,10 +1164,15 @@ pub(in crate::semantics) fn complete_emitted_headers(
         complete.insert(instance);
         progress = true;
     }
-    if pending.is_empty() { return Ok(()); }
+    if pending.is_empty() && nominal_dependencies.is_empty() { return Ok(()); }
     if !progress {
         let mut diagnostic = Diagnostic::unsupported(Phase::Types,
             "closure declaration directory has unresolved actual header dependencies", None);
+        if !nominal_dependencies.is_empty() {
+            let detail = format!("pending complete nominal applications require actual closure headers {nominal_dependencies:?}");
+            pay(left, detail.len())?;
+            diagnostic.notes.push(detail);
+        }
         for (instance, closure, dependencies) in pending {
             let detail = format!("pending original instance {instance:?}, actual closure {closure:?}, requires complete headers {dependencies:?}");
             pay(left, detail.len())?;

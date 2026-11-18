@@ -782,7 +782,7 @@ pub fn check(
         "single: stored elements and closing transfers",
         closure_state.remaining_work(),
     );
-    let semantic_emission = std::mem::take(&mut closure_state.semantic_emission);
+    let mut semantic_emission = std::mem::take(&mut closure_state.semantic_emission);
     let (closures, synthesized, mut remaining) = closure_state
         .finish(&semantic_emission)
         .map_err(|e| vec![e])?;
@@ -849,7 +849,7 @@ pub fn check(
     module.semantic = semantics::finish::program(
         &[core],
         &mut module,
-        &semantic_emission,
+        &mut semantic_emission,
         input_lease.as_ref(),
         limits,
         &mut remaining,

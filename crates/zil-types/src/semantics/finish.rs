@@ -6,7 +6,7 @@ use crate::*;
 pub(crate) fn program(
     cores: &[&CoreModule],
     module: &mut TypedModule,
-    ledger: &super::emission::Ledger,
+    ledger: &mut super::emission::Ledger,
     input_lease: Option<&super::original_context::InputLease<'_>>,
     limits: &Limits,
     left: &mut usize,
@@ -27,7 +27,7 @@ pub(crate) fn program(
         )?;
         return Ok(None);
     }
-    let context = ledger.original.context().ok_or_else(|| {
+    let context = ledger.original.context().cloned().ok_or_else(|| {
         error(
             "E-SEMANTIC-CONTEXT",
             Span::default(),
@@ -67,16 +67,9 @@ pub(crate) fn program(
         super::source_probe::record_stage(module, "after-ghost")?;
         super::source_probe::record_semantic_stage(&result, "after-ghost")?;
     }
+    let formation_stats = ledger.ordinary_stats.clone();
     stored::OrdinaryStats::step(
-        &ledger.ordinary_stats,
-        "finish: deferred nominals",
-        left,
-        |left| {
-            super::materialize::populate_deferred_nominals(&result, module, ledger, limits, left)
-        },
-    )?;
-    stored::OrdinaryStats::step(
-        &ledger.ordinary_stats,
+        &formation_stats,
         "finish: complete headers",
         left,
         |left| super::headers::complete_emitted_headers(&mut result, module, ledger, limits, left),

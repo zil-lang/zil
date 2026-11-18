@@ -199,9 +199,7 @@ impl Check<'_, '_> {
     ) -> R<()> {
         self.pay(1, depth)?;
         if owner != role_owner {
-            return Err(pending(
-                "captured local role mutation requires its explicit creator/child substitution receipt",
-            ));
+            return self.assign_captured_role(owner, role_owner, statement, value, actual, variables, depth + 1);
         }
         let role = self
             .proof
@@ -244,6 +242,123 @@ impl Check<'_, '_> {
             .ok_or_else(|| bad("original local role disappeared during assignment proof"))?;
         if !role.sources.contains(&source) {
             role.sources.push(source);
+        }
+        Ok(())
+    }
+    fn rehome_role_type(
+        &mut self, source: SemanticDefinitionId, owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe, depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        let mut chain = Vec::new();
+        let mut cursor = owner;
+        while cursor != source {
+            self.pay(1, depth + chain.len())?;
+            chain.push(cursor);
+            cursor = self.definition(cursor)?.parent
+                .ok_or_else(|| bad("captured role source is outside its true lexical creator chain"))?;
+        }
+        let mut result = copy_recipe(ty, self.limits, self.left)?;
+        let mut parent = source;
+        for id in chain.into_iter().rev() {
+            let child = self.definition(id)?;
+            result = self.rehome(parent, child, &result, depth + 1)?;
+            parent = id;
+        }
+        Ok(result)
+    }
+
+    /// A persistent captured slot keeps its creator's complete domain. Child
+    /// writes are directed source loans into that slot, not an equality of the
+    /// child parameter with an ancestor's same-numbered inferred local role.
+    fn assign_captured_role(
+        &mut self, owner: SemanticDefinitionId, role_owner: SemanticDefinitionId,
+        statement: NodeId, value: &SemanticOriginalExpr, actual: &SemanticTypeRecipe,
+        variables: &BTreeMap<String, Binding>, depth: usize,
+    ) -> R<()> {
+        self.pay(variables.len(), depth)?;
+        let mut targets = variables.iter().filter(|(_, binding)| binding.capture
+            && binding.origin_owner == role_owner && binding.origin == Query::Binding(statement));
+        let (name, target) = targets.next().ok_or_else(|| bad("captured role write has no exact inherited lexical binder"))?;
+        if targets.next().is_some() { return Err(bad("captured role write has ambiguous lexical binders")); }
+        let SemanticTypeRecipe::Environment { scope: SemanticScopeRef::Ancestor(0), ordinal } = &target.ty else {
+            return Err(bad("captured role write lost its sealed whole-Type environment selection"));
+        };
+        let ordinal = *ordinal;
+        let child = self.definition(owner)?;
+        let formal = child.environment.get(ordinal as usize)
+            .ok_or_else(|| bad("captured role write leaves its complete original environment"))?;
+        if !matches!(&formal.source, SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
+            scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::NameAt { name: original, .. },
+        }) if original == name) {
+            return Err(bad("captured role write changes its original creator NameAt selection"));
+        }
+        let (creator, sealed) = self.proof.environments.get(&(owner, ordinal))
+            .ok_or_else(|| bad("captured role write has no checked creator/child substitution"))?;
+        if child.parent != Some(*creator) { return Err(bad("captured role write changes its actual lexical creator")); }
+        let _sealed = copy_recipe(sealed, self.limits, self.left)?;
+        let expected = self.observation_type(owner, &target.ty, depth + 1)?;
+        let actual = self.observation_type(owner, actual, depth + 1)?;
+        let Some((kind, target_life, inner)) = self.outer(&expected, depth + 1)? else {
+            return Err(bad("captured role target is not an address or description"));
+        };
+        let Some((source_kind, source_life, source_inner)) = self.outer(&actual, depth + 1)? else {
+            return Err(bad("captured role source changes its complete outer constructor"));
+        };
+        if kind != source_kind { return Err(bad("captured role write changes its permission mode")); }
+        self.same(inner, source_inner)?;
+        let count = self.proof.local_roles.get(&(role_owner, statement))
+            .ok_or_else(|| bad("captured role write loses its original declaration role"))?.sources.len();
+        self.pay(count.saturating_add(1), depth)?;
+        let parent_role = self.proof.local_roles.get(&(role_owner, statement))
+            .ok_or_else(|| bad("captured role declaration disappeared"))?;
+        let parent_type = copy_recipe(&parent_role.ty, self.limits, self.left)?;
+        let mut bounds = Vec::new();
+        for source in &parent_role.sources {
+            crate::dyn_metadata::semantic_operand_snapshot(&source.lifetime, self.limits, self.left, 1)?;
+            bounds.push(source.lifetime.clone());
+        }
+        let Some((_, _, parent_inner)) = self.outer(&parent_type, depth + 1)? else {
+            return Err(bad("captured creator role has no complete pointer payload"));
+        };
+        if bounds.is_empty() { return Err(bad("captured role has no initialized creator source bounds")); }
+        for lifetime in bounds {
+            let bound = match kind {
+                LocalRoleKind::Address { mutable } => SemanticTypeRecipe::Address {
+                    mutable, lifetime, inner: Box::new(copy_recipe(parent_inner, self.limits, self.left)?),
+                },
+                LocalRoleKind::Desc => SemanticTypeRecipe::Desc {
+                    lifetime, inner: Box::new(copy_recipe(parent_inner, self.limits, self.left)?),
+                },
+            };
+            let bound = self.rehome_role_type(role_owner, owner, &bound, depth + 1)?;
+            let Some((_, required, _)) = self.outer(&bound, depth + 1)? else { unreachable!() };
+            let valid = match (source_life, required) {
+                (SemanticOuterLifeRecipe::Static, _) => true,
+                (_, SemanticOuterLifeRecipe::Static) => false,
+                (SemanticOuterLifeRecipe::Class(source), SemanticOuterLifeRecipe::Class(target)) =>
+                    self.life_outlives(owner, source, target, depth + 1)?,
+            };
+            if !valid { return Err(bad("captured role write exceeds its complete persistent creator source bounds")); }
+        }
+        let Some((root, steps)) = self.proof.view_source_steps(owner, value.id, self.limits, self.left)? else {
+            return Err(bad("captured role write has no complete original source path"));
+        };
+        for life in [source_life, target_life] {
+            crate::dyn_metadata::semantic_operand_snapshot(life, self.limits, self.left, 2)?;
+        }
+        let write = CapturedRoleWrite { creator_role_owner: role_owner, creator_binding: statement,
+            environment: ordinal, role: BorrowRole { root, steps,
+                source_lifetime: source_life.clone(), occurrence_lifetime: source_life.clone(),
+                target_lifetime: target_life.clone(), inner: copy_recipe(inner, self.limits, self.left)? } };
+        self.pay(self.proof.capture_writes.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+        if let Some(prior) = self.proof.capture_writes.get(&(owner, value.id)) {
+            let previous = views::snapshot_role(&prior.role, self.limits, self.left)?;
+            if prior.creator_role_owner != write.creator_role_owner
+                || prior.creator_binding != write.creator_binding || prior.environment != write.environment
+                || previous != write.role
+            { return Err(bad("captured role write changes its checked creator/source receipt")); }
+        } else {
+            self.proof.proof_mut()?.capture_writes.insert((owner, value.id), write);
         }
         Ok(())
     }

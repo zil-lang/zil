@@ -3078,8 +3078,12 @@ impl World<'_, '_> {
                                     "actual capture write overwrites an initialized owning field",
                                 ));
                             }
-                            let value = self.get(&values, *value)?;
-                            self.same(instance.id, &value, &expected, &implicit)?;
+                            let operand = *value;
+                            let value = self.get(&values, operand)?;
+                            if !borrow_roles::capture_write(self, instance, original, f, *index, operand,
+                                &value, &expected, &values, &locals, &implicit)? {
+                                self.same(instance.id, &value, &expected, &implicit)?;
+                            }
                             self.vacant_captures.remove(&(instance.id, *index));
                             None
                         }

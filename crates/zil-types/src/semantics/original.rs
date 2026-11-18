@@ -187,6 +187,7 @@ pub(super) struct Proof {
     pub(super) definition_positions: std::rc::Rc<BTreeMap<SemanticDefinitionId, usize>>,
     view_bounds: BTreeMap<(SemanticDefinitionId, Query), views::ViewBorrowBound>,
     pub borrow_roles: BTreeMap<(SemanticDefinitionId, NodeId), BorrowRole>,
+    pub(super) capture_writes: BTreeMap<(SemanticDefinitionId, NodeId), CapturedRoleWrite>,
     // Exact original call input for an already-declared contextual outer role.
     // The value's own TypeUse keeps its original sigma; only this call uses it.
     pub(super) call_borrows: BTreeMap<(SemanticDefinitionId, NodeId, u32), NodeId>,
@@ -253,6 +254,14 @@ pub(super) struct Proof {
     environments: BTreeMap<(SemanticDefinitionId, u32), (SemanticDefinitionId, SemanticTypeRecipe)>,
     frozen_environments: BTreeMap<(SemanticDefinitionId, bool, NodeId), BTreeMap<String, Binding>>,
 }
+#[derive(Clone, PartialEq, Eq)]
+pub(super) struct CapturedRoleWrite {
+    pub creator_role_owner: SemanticDefinitionId,
+    pub creator_binding: NodeId,
+    pub environment: u32,
+    pub role: BorrowRole,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum LocalRoleKind {
     Address { mutable: bool },

@@ -135,7 +135,7 @@ pub(super) fn snapshot_bound(
     Ok(value.clone())
 }
 /// Snapshot the complete existing directed receipt before a deep comparison.
-fn snapshot_role(value: &BorrowRole, limits: &Limits, left: &mut usize) -> R<BorrowRole> {
+pub(super) fn snapshot_role(value: &BorrowRole, limits: &Limits, left: &mut usize) -> R<BorrowRole> {
     for lifetime in [&value.source_lifetime, &value.target_lifetime, &value.occurrence_lifetime] {
         crate::dyn_metadata::semantic_operand_snapshot(lifetime, limits, left, 1)?;
     }
