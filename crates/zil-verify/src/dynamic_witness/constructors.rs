@@ -215,15 +215,15 @@ pub(super) struct Shape{pub life:StorageLifeShape,pub classes:Vec<StorageBinder>
 pub(super) fn shape_views(kind:crate::semantic::PhysicalConstructor,children:&[View<'_>],head:Option<terms::LifeTerm>,mode:Option<StoredBorrowMode>,b:&mut Budget)->Check<Shape>{
     use crate::semantic::PhysicalConstructor as K;
     b.spend(children.len())?;let mut rows=Rows::default();
-    if kind==K::Tuple{
-        for(index,child)in children.iter().copied().enumerate(){let field=PlaceProjection::Field(index as u32);rows.child(child,&[field],&[LifeTypeProjection::Place(field)],true,b)?;}
-    }else{
+    if let Some(projection) = kind.child_projection() {
         if children.len()!=1{return Err(bad("unary semantic constructor has another child count"));}
         if let Some(mode)=mode{
             if let Some(head)=head{rows.slots.push((vec![],mode,head));}
             else if !matches!(mode,StoredBorrowMode::SharedAddress|StoredBorrowMode::ReadOnlyDescription){return Err(bad("static type constructor cannot invent mutable storage"));}
         }
-        rows.child(children[0],&[],&[LifeTypeProjection::Pointee],false,b)?;
+        rows.child(children[0],&[],&[projection],false,b)?;
+    } else {
+        for(index,child)in children.iter().copied().enumerate(){let field=PlaceProjection::Field(index as u32);rows.child(child,&[field],&[LifeTypeProjection::Place(field)],true,b)?;}
     }
     if kind==K::Tuple{rows.shape(b)}else{
         b.spend(children[0].terms.len().saturating_add(1))?;

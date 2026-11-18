@@ -2,7 +2,14 @@
 //! and caller substitutions never replace that rigid checking environment.
 use super::*;
 mod default_self;
-pub(super) struct ClosedFrames{limits:Limits,lexical:Vec<LexicalFrame>}
+pub(super) struct ClosedFrames {
+    limits: Limits,
+    // None is possible only for a root function whose closed arguments were
+    // reconstructed directly from its immutable instance. Self, seals and
+    // caller premises never take part in such a frame.
+    premises_epoch: Option<u64>,
+    lexical: Vec<LexicalFrame>,
+}
 impl CheckedContext {
     pub(crate) fn environment_for_instance(&self,module:&TypedModule,id:SemanticInstanceId,active:&mut ActiveQueries,b:&mut Budget)->Check<EvalEnv> {
         self.environment_for_instance_with_seal(module,id,None,active,b)
@@ -10,12 +17,12 @@ impl CheckedContext {
     pub(in crate::semantic) fn environment_for_instance_with_seal(&self,module:&TypedModule,id:SemanticInstanceId,provisional:Option<&[CheckedActual]>,active:&mut ActiveQueries,b:&mut Budget)->Check<EvalEnv> {
         let requested=id;
         let epoch=self.premises_epoch.get();
-        let memo_key=(module as *const TypedModule as usize,id,epoch,self.original.borrow().is_some(),self.domain_only.get());
+        let memo_key=(module as *const TypedModule as usize,id,self.original.borrow().is_some(),self.domain_only.get());
         let reusable=provisional.is_none();
         let lexical=if reusable{
             b.spend(self.closed_frames.borrow().len().checked_ilog2().map_or(1,|n|n as usize+2).saturating_add(11))?;
             let frames=self.closed_frames.borrow();
-            if let Some(known)=frames.get(&memo_key).filter(|known|known.limits==b.limits){
+            if let Some(known)=frames.get(&memo_key).filter(|known|known.limits==b.limits && known.premises_epoch.is_none_or(|generation| generation == epoch)){
                 charge_frames(&known.lexical,b)?;
                 if let Some(progress)=&mut b.diagnostic_progress{progress.frame_hits=progress.frame_hits.saturating_add(1);}
                 Some(known.lexical.clone())
@@ -32,11 +39,14 @@ impl CheckedContext {
         }
         let mut lexical=Vec::new();
         let mut no_seals=true;
+        let mut independent = chain.len() == 1;
         // Frames are built outermost first so references to real parents never
         // temporarily mean a child's same-numbered formal or SSA operand.
         for id in chain.iter().rev() {
             let instance=self.instance(module,*id,b)?;
             let definition=self.definition(module,instance.definition,b)?;
+            independent &= matches!(definition.kind, SemanticDefinitionKind::Function | SemanticDefinitionKind::TaskEntry)
+                && instance.self_type.is_none() && instance.environment.is_none();
             let key=ScopeKey::Instance(*id);
             let rigid=match instance.lifetime_instantiation {
                 SemanticLifetimeInstantiation::Rigid=>key,
@@ -112,7 +122,18 @@ impl CheckedContext {
         if reusable&&no_seals&&epoch==self.premises_epoch.get()&&pure_frames(&lexical,b)?{
             charge_frames(&lexical,b)?;
             b.spend(self.closed_frames.borrow().len().checked_ilog2().map_or(1,|n|n as usize+2).saturating_add(13))?;
-            self.closed_frames.borrow_mut().insert(memo_key,ClosedFrames{limits:b.limits.clone(),lexical:lexical.clone()});
+            if independent {
+                for actual in &lexical[0].actuals {
+                    let value = match actual {
+                        CheckedActual::Type(value) | CheckedActual::Const { carrier: value, .. } => value,
+                        CheckedActual::Life(_) => continue,
+                    };
+                    if !type_storage::closed_storage(&value.ty, b)? { independent = false; break; }
+                }
+            }
+            self.closed_frames.borrow_mut().insert(memo_key,ClosedFrames{
+                limits:b.limits.clone(), premises_epoch: (!independent).then_some(epoch), lexical:lexical.clone(),
+            });
             if let Some(progress)=&mut b.diagnostic_progress{progress.frame_cache_entries=self.closed_frames.borrow().len();}
         }
         lexical
@@ -204,7 +225,9 @@ mod tests{
         assert_eq!(entries,context.closed_frames.borrow().len());
         context.invalidate_closed_frames();
         context.environment_for_instance(&module,instance.id,&mut active,&mut b).unwrap();
-        assert!(context.closed_frames.borrow().len()>entries);
+        assert_eq!(context.closed_frames.borrow().len(), entries);
+        assert!(context.closed_frames.borrow().values().all(|v| v.premises_epoch.is_none()),
+            "an ordinary root function uses only independently reconstructed closed inputs");
         b.limits.max_call_depth=0;
         assert!(context.environment_for_instance(&module,instance.id,&mut active,&mut b).is_err());
         b.limits=limits.clone();

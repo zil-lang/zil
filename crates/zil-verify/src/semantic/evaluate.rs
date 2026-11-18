@@ -243,39 +243,19 @@ impl CheckedContext {
             | SemanticTypeRecipe::Registration(inner)
             | SemanticTypeRecipe::AsyncRegistration(inner) => {
                 let child = self.evaluate_type(module, inner, environment, external, active, b)?;
-                let (ty, projection) = match recipe {
-                    SemanticTypeRecipe::Slice(_) => (
-                        Type::Slice {
-                            element: Box::new(child.raw_type_copy(b)?),
-                        },
-                        LifeTypeProjection::Element,
-                    ),
-                    SemanticTypeRecipe::OwnedStore(_) => (
-                        Type::OwnedStore {
-                            element: Box::new(child.raw_type_copy(b)?),
-                        },
-                        LifeTypeProjection::Element,
-                    ),
-                    SemanticTypeRecipe::Mutex(_) => (
-                        Type::Mutex {
-                            payload: Box::new(child.raw_type_copy(b)?),
-                        },
-                        LifeTypeProjection::Pointee,
-                    ),
-                    SemanticTypeRecipe::Registration(_) => (
-                        Type::Registration {
-                            environment: Box::new(child.raw_type_copy(b)?),
-                        },
-                        LifeTypeProjection::Pointee,
-                    ),
-                    _ => (
-                        Type::AsyncRegistration {
-                            environment: Box::new(child.raw_type_copy(b)?),
-                        },
-                        LifeTypeProjection::Pointee,
-                    ),
+                use PhysicalConstructor as K;
+                let kind = match recipe {
+                    SemanticTypeRecipe::Slice(_) => K::Slice,
+                    SemanticTypeRecipe::OwnedStore(_) => K::OwnedStore,
+                    SemanticTypeRecipe::Mutex(_) => K::Mutex,
+                    SemanticTypeRecipe::Registration(_) => K::Registration,
+                    SemanticTypeRecipe::AsyncRegistration(_) => K::AsyncRegistration,
+                    _ => unreachable!("matched a unary storage constructor"),
                 };
-                let mut value = CheckedType {type_cell: crate::semantic::CheckedTypeData::new(ty),
+                let projection = kind.child_projection().ok_or_else(|| bad("unary storage has no child projection"))?;
+                let type_cell = self.physical_constructor(kind, std::slice::from_ref(&child), &empty_life(), b)?;
+                let mut value = CheckedType {
+                    type_cell,
                     life: empty_life(),
                     classes: vec![],
                     origins: vec![],

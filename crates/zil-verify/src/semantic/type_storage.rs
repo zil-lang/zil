@@ -4,7 +4,17 @@ use super::*;
 use std::rc::Rc;
 
 #[derive(Clone,Copy,PartialEq,Eq,PartialOrd,Ord)]
-pub(crate) enum PhysicalConstructor{Managed,SharedAddress,ExclusiveAddress,Description,Tuple}
+pub(crate) enum PhysicalConstructor{Managed,SharedAddress,ExclusiveAddress,Description,Tuple,Slice,OwnedStore,Mutex,Registration,AsyncRegistration}
+impl PhysicalConstructor {
+    pub(crate) fn child_projection(self) -> Option<LifeTypeProjection> {
+        match self {
+            Self::Tuple => None,
+            Self::Slice | Self::OwnedStore => Some(LifeTypeProjection::Element),
+            Self::Managed | Self::Mutex | Self::Registration | Self::AsyncRegistration |
+            Self::SharedAddress | Self::ExclusiveAddress | Self::Description => Some(LifeTypeProjection::Pointee),
+        }
+    }
+}
 #[derive(PartialEq,Eq,PartialOrd,Ord)]
 pub(super) struct ConstructionKey{kind:PhysicalConstructor,children:Vec<usize>,embedded:Option<StorageLifeShape>}
 pub(super) struct ConstructedType{
@@ -39,6 +49,11 @@ impl CheckedContext{
             K::Managed=>Type::Managed(Box::new(children[0].raw_type_copy(b)?)),
             K::SharedAddress|K::ExclusiveAddress=>Type::Address{mutable:kind==K::ExclusiveAddress,inner:Box::new(children[0].raw_type_copy(b)?)},
             K::Description=>Type::Desc(Box::new(children[0].raw_type_copy(b)?)),
+            K::Slice=>Type::Slice{element:Box::new(children[0].raw_type_copy(b)?)},
+            K::OwnedStore=>Type::OwnedStore{element:Box::new(children[0].raw_type_copy(b)?)},
+            K::Mutex=>Type::Mutex{payload:Box::new(children[0].raw_type_copy(b)?)},
+            K::Registration=>Type::Registration{environment:Box::new(children[0].raw_type_copy(b)?)},
+            K::AsyncRegistration=>Type::AsyncRegistration{environment:Box::new(children[0].raw_type_copy(b)?)},
             K::Tuple=>{let mut fields=Vec::with_capacity(children.len());for child in children{fields.push(child.raw_type_copy(b)?);}if fields.is_empty(){Type::Unit}else{Type::Tuple(fields)}},
         };
         if let Some(life)=&key.embedded{dynamic_metadata::life_shape(life,b)?;ty=Type::BorrowedStorage{storage:Box::new(ty),life:life.clone()};}
@@ -50,6 +65,43 @@ impl CheckedContext{
         self.constructed_types.borrow_mut().insert(key,ConstructedType{_children:children.iter().map(|child|child.type_cell.clone()).collect(),value:value.clone(),checked_bounds:bounds});
         Ok(value)
     }
+}
+
+/// These physical carriers have no runtime receiver, external signature, or
+/// embedded borrow domain. Callers separately check the accompanying life
+/// shape and every actual origin before reusing an immutable result.
+pub(super) fn closed_storage(ty: &Type, b: &mut Budget) -> Check<bool> {
+    let mut pending = vec![ty];
+    while let Some(ty) = pending.pop() {
+        b.spend(1)?;
+        match ty {
+            ty if ty.is_b0_scalar() => {}
+            Type::Array { element, .. } | Type::Managed(element) | Type::OwnedStore { element } => {
+                pending.push(element)
+            }
+            Type::Tuple(fields) => {
+                b.spend(fields.len())?;
+                pending.extend(fields);
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, ty)| ty));
+            }
+            Type::Enum { variants, .. } => {
+                b.spend(variants.len())?;
+                for (_, fields) in variants {
+                    b.spend(fields.len())?;
+                    pending.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                pending.push(error);
+                pending.push(result);
+            }
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
 }
 
 #[cfg(test)]

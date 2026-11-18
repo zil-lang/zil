@@ -112,7 +112,26 @@ pub(crate) struct CheckedTypeData {
     pub(crate) ty: Type,
 }
 impl CheckedTypeData {
-    pub(crate) fn new(ty: Type) -> std::rc::Rc<Self> {std::rc::Rc::new(Self{ty})}
+    pub(crate) fn new(ty: Type) -> std::rc::Rc<Self> {
+        use std::rc::Rc;
+        // A primitive physical type has no declaration, owner, or lifetime.
+        // One immutable cell per primitive makes independent occurrences valid
+        // keys for physical constructors, without sharing their semantic facts.
+        macro_rules! primitive_cells {
+            ($($name:ident),+) => {
+                match ty {
+                    $(Type::$name => {
+                        thread_local! {
+                            static CELL: Rc<CheckedTypeData> = Rc::new(CheckedTypeData { ty: Type::$name });
+                        }
+                        CELL.with(Rc::clone)
+                    }),+,
+                    ty => Rc::new(Self { ty }),
+                }
+            };
+        }
+        primitive_cells!(Unit, Bool, I8, I16, I32, I64, Isize, U8, U16, U32, U64, Usize, F32, F64)
+    }
 }
 /// Only immutable physical type structure is shared. Every value continues to
 /// own its current class image, intrinsic origins and pending source directory.
@@ -133,7 +152,10 @@ impl std::ops::Deref for CheckedType {
 impl CheckedType {
     pub(crate) fn same_raw_type(&self,other:&Self,b:&mut crate::Budget)->crate::Check<bool>{
         b.spend(1)?;
-        if std::rc::Rc::ptr_eq(&self.type_cell,&other.type_cell){return Ok(true);}
+        if std::rc::Rc::ptr_eq(&self.type_cell,&other.type_cell){
+            if self.ty.is_b0_scalar() && b.limits.max_nodes == 0 { return Err(crate::limit("dyn metadata node count exceeded")); }
+            return Ok(true);
+        }
         // Both actual carriers have one node and no nested metadata. Check
         // that bound directly and compare their complete scalar identities.
         if self.ty.is_b0_scalar() && other.ty.is_b0_scalar() {

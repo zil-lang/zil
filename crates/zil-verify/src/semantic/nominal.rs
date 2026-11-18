@@ -1,6 +1,7 @@
 //! Exact nominal construction from its original declaration and complete
 //! ordered actuals. A matching layout is never a nominal identity.
 use super::*;
+pub(super) mod closed;
 
 impl CheckedContext {
     pub(super) fn nominal(
@@ -138,6 +139,11 @@ impl CheckedContext {
             )?;
         }
 
+        let reusable = self.site_index.same_input(module, b);
+        let closed_key = (id, self.domain_only.get(), active.depth());
+        if reusable && let Some(result) = self.closed_nominals.borrow().get(closed_key, &actuals, b)? {
+            return Ok(result);
+        }
         let expected = match body {
             SemanticNominalBody::Product { fields } => {
                 b.spend(fields.len())?;
@@ -172,7 +178,8 @@ impl CheckedContext {
             }
         };
         let mut selected = None;
-        for instance in dynamic_metadata::nominal_instances(module,*declaration,b)? {
+        let inventory = dynamic_metadata::nominal_instances(module, *declaration, b)?;
+        for instance in &inventory {
             if let Some(candidate) = self.nominal_candidate(
                 module,
                 &instance.ty,
@@ -190,8 +197,9 @@ impl CheckedContext {
         // Known0 ordinary nominals may have no stored-life inventory. Their
         // real nominal scope instance supplies the exact original identity;
         // neither a type name nor a same-layout type search is accepted.
-        if module.semantic.is_some() {
-            for instance in dynamic_metadata::nominal_scope_instances(module,id,b)? {
+        let scope_instances = dynamic_metadata::nominal_scope_instances(module,id,b)?;
+        {
+            for instance in &scope_instances {
                 let Some(value) = &instance.self_type else {
                     continue;
                 };
@@ -224,6 +232,9 @@ impl CheckedContext {
         if !selected.classes.is_empty(){
             selected.origins=self.nominal_origins(*declaration,&actuals,&environment.lexical[0].environment,&selected.life,&selected.origins,b)?;
             for origin in &mut selected.origins{*origin=self.normalized_origin(caller,origin,b)?;}
+        }
+        if reusable && scope_instances.is_empty() {
+            self.closed_nominals.borrow_mut().remember(closed_key, definition, &actuals, body, &inventory, &selected, b)?;
         }
         Ok(selected)
     }

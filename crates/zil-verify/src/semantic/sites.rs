@@ -119,6 +119,10 @@ fn lookup(n: usize) -> usize {
     n.checked_ilog2().map_or(1, |n| n as usize + 2)
 }
 impl Index {
+    pub(super) fn same_input(&self, module: &TypedModule, b: &Budget) -> bool {
+        self.module == module as *const TypedModule as usize && self.limits == b.limits
+    }
+
     pub(super) fn new(module: &TypedModule, b: &mut Budget) -> Check<Self> {
         b.spend(12)?;
         Ok(Self {
