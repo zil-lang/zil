@@ -641,3 +641,45 @@ fn borrowed_code_keeps_its_invocation_relation_on_named_and_literal_addresses() 
         }
     }
 }
+
+#[test]
+fn nominal_thin_inputs_and_results_keep_their_declaration_on_both_routes() {
+    use zil_ir::*;
+    let target = TargetProfile::host_llvm();
+    let limits = Limits::default();
+    let raw = semantic_typed(source(
+        "struct Sample {value:i64;}\nfn keep(s:Sample)->Sample=>s\nfn main()->i32{\n\
+         let named:fn(Sample)->Sample=keep\nlet inline:fn(Sample)->Sample=s=>s\n\
+         let first=named(Sample{value:42})\nlet second=inline(first)\nreturn 0\n}",
+    ), &target, &limits);
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+    for replace_input in [true, false] {
+        let mut changed = raw.clone();
+        let record = changed.semantic.as_mut().unwrap().sites.iter_mut().find_map(|site| {
+            match &mut site.action {
+                SemanticSiteAction::TypeUse { expected: SemanticTypeValue::Resolved {
+                    ty: Type::FunctionPointer { parameters, result }, ..
+                }, .. } if matches!(result.as_ref(), Type::Record { .. }) => {
+                    Some(if replace_input { &mut parameters[0] } else { result.as_mut() })
+                }
+                _ => None,
+            }
+        }).unwrap();
+        let Type::Record { name, .. } = record else { panic!("missing nominal ABI value") };
+        *name = "same_fields_different_declaration".into();
+        let mut stale = plan.clone();
+        stale.module_fingerprint = changed.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&changed, &stale, &limits).unwrap();
+        for errors in [
+            zil_verify::verify_module(changed, stale, &target, &limits).unwrap_err(),
+            zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err(),
+        ] {
+            assert!(errors.iter().any(|e| e.phase == Phase::Verify
+                && e.category == ResultCategory::SafeReject && e.code == "E-VERIFY-SEMANTIC"), "{errors:?}");
+        }
+    }
+}
