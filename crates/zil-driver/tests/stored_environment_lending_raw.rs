@@ -1949,13 +1949,29 @@ fn standard_poll_full_actual_resolves_the_complete_nominal_pointee() {
     let module = typed_stored(include_str!(
         "../../../tests/fixtures/borrowed-enums/poll-record.zil"
     ));
-    let instance = &module.life_instances[0];
-    let [zil_ir::LifeNominalActual::Type(actual)] = instance.arguments.as_slice() else {
-        panic!("full actual missing")
+    let mut poll_instances = module.life_instances.iter().enumerate()
+        .filter(|(_, instance)| instance.declaration == zil_ir::builtin_life::POLL);
+    let (poll_index, instance) = poll_instances.next().expect("missing sealed Poll instance");
+    assert!(poll_instances.next().is_none());
+    let [zil_ir::LifeNominalActual::QualifiedType { ty: actual, life }] = instance.arguments.as_slice() else {
+        panic!("qualified Poll argument missing")
     };
-    assert!(
-        matches!(actual, Type::Address { mutable:false, inner } if matches!(inner.as_ref(), Type::Record { fields, .. } if fields.len()==2))
-    );
+    assert_eq!(life, &zil_ir::StorageLifeShape {
+        binder_count: 1,
+        slots: vec![zil_ir::StorageLifeSlot {
+            path: vec![],
+            binder: 0,
+            mode: zil_ir::StoredBorrowMode::SharedAddress,
+        }],
+        retained: vec![],
+        nominal_arguments: vec![],
+    });
+    let Type::Address { mutable: false, inner } = actual else { panic!("shared address missing") };
+    let Type::Record { fields, .. } = inner.as_ref() else { panic!("Pair record missing") };
+    assert_eq!(fields, &[("left".into(), Type::I32), ("right".into(), Type::I32)]);
+    let pair = module.life_instances.iter().find(|row| &row.ty == inner.as_ref()).unwrap();
+    let declaration = module.life_declarations.iter().find(|d| d.id == pair.declaration).unwrap();
+    assert_eq!(declaration.identity.declaration_path.last().map(String::as_str), Some("Pair"));
     let Type::BorrowedStorage { storage, .. } = &instance.ty else {
         panic!("qualified Poll missing")
     };
@@ -1972,6 +1988,14 @@ fn standard_poll_full_actual_resolves_the_complete_nominal_pointee() {
     .unwrap();
     let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
     zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+
+    let mut wrong_mode = module.clone();
+    let zil_ir::LifeNominalActual::QualifiedType { life, .. } =
+        &mut wrong_mode.life_instances[poll_index].arguments[0] else { unreachable!() };
+    life.slots[0].mode = zil_ir::StoredBorrowMode::ExclusiveAddress;
+    assert!(zil_analyze::analyze(&wrong_mode, &Limits::default()).unwrap_err().iter()
+        .any(|d| d.phase == Phase::Analyze && d.category == ResultCategory::SafeReject));
+    reject("poll-record-wrong-actual-slot-mode", wrong_mode, plan, "E-VERIFY-STORED");
 }
 
 #[test]
@@ -2586,12 +2610,45 @@ fn ordinary_borrowed_enum_same_physical_leaf_cannot_change_a_short_source_into_a
     });
     assert_ne!(graft, module);
     assert!(zil_analyze::analyze(&graft, &Limits::default()).is_err());
-    reject(
-        "coherent-shape-short-source",
-        graft,
-        plan,
-        "E-VERIFY-STORED",
-    );
+    let other = graft.functions.iter().find(|f| f.name == "other").unwrap();
+    let shape = &graft.life_instances[0].ty;
+    let Type::BorrowedStorage { life, .. } = shape else { unreachable!() };
+    let changed_slot = &life.slots[1];
+    let slot_path: Vec<_> = changed_slot.path.iter().copied().map(zil_ir::ContractProjection::Place).collect();
+    let position = zil_ir::StoragePosition { base: zil_ir::StorageBase::Result, path: slot_path.clone() };
+    let header = other.storage_life.as_ref().unwrap();
+    let physical = header.bindings.iter().find(|row| row.position == position).unwrap().binder;
+    let image = header.classes.iter().find(|row| row.position.base == position.base
+        && row.position.path.is_empty() && row.position.class == changed_slot.binder).unwrap().binder;
+    assert_ne!(physical, image);
+    let detail = format!("qualified slot {position:?} has physical binding {physical:?}; intrinsic class {} maps to {image:?}", changed_slot.binder);
+    for diagnostics in rejected_channels("coherent-shape-short-source", &graft, plan.clone()) {
+        assert!(diagnostics.iter().any(|d| d.phase == Phase::Verify && d.category == ResultCategory::SafeReject
+            && d.code == "E-VERIFY-SIGNATURE-CLASS" && d.message.contains(&detail)
+            && d.span == Some(other.span)), "{diagnostics:?}");
+    }
+    // Align both actual physical signature rows with the counterfeit
+    // payload map. The real constructor and return still use the short root.
+    let mut changed_headers = 0;
+    for function in &mut graft.functions {
+        let input_bases = function.parameters.iter().enumerate().filter_map(|(index, local)| {
+            (&function.locals[local.0 as usize].ty == shape).then_some(zil_ir::StorageBase::Parameter(index as u32))
+        });
+        let result = (&function.return_type == shape).then_some(zil_ir::StorageBase::Result);
+        let Some(header) = &mut function.storage_life else { continue };
+        for base in input_bases.chain(result) {
+            let image = header.classes.iter().find(|row| row.position.base == base
+                && row.position.path.is_empty() && row.position.class == changed_slot.binder).unwrap().binder;
+            let physical = header.bindings.iter_mut().find(|row| row.position.base == base
+                && row.position.path == slot_path).unwrap();
+            assert_ne!(physical.binder, image);
+            physical.binder = image;
+            changed_headers += 1;
+        }
+    }
+    assert_eq!(changed_headers, 2);
+    assert!(zil_analyze::analyze(&graft, &Limits::default()).is_err());
+    reject("coherent-signature-short-source", graft, plan, "E-VERIFY-STORED");
 }
 
 // Change both the inventory and every complete executable type. These raw
@@ -2781,7 +2838,7 @@ fn record(name: &str, m: &TypedModule, p: &CandidatePlan, results: &[Vec<Diagnos
         fs::write(dir.join("results.txt"), format!("{results:#?}")).unwrap();
     }
 }
-fn reject(name: &str, m: TypedModule, mut p: CandidatePlan, code: &str) {
+fn rejected_channels(name: &str, m: &TypedModule, mut p: CandidatePlan) -> [Vec<Diagnostic>; 2] {
     p.module_fingerprint = m.fingerprint();
     let bytes = zil_ir::wire::encode_module_candidate(&m, &p, &Limits::default()).unwrap();
     let decoded = zil_ir::wire::decode_module_candidate(&bytes, &Limits::default()).unwrap();
@@ -2790,8 +2847,11 @@ fn reject(name: &str, m: TypedModule, mut p: CandidatePlan, code: &str) {
         zil_verify::verify_module(m.clone(), p.clone(), &m.target, &Limits::default()).unwrap_err(),
         zil_verify::verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap_err(),
     ];
-    record(name, &m, &p, &results);
-    for ds in results {
+    record(name, m, &p, &results);
+    results
+}
+fn reject(name: &str, m: TypedModule, p: CandidatePlan, code: &str) {
+    for ds in rejected_channels(name, &m, p) {
         assert!(
             ds.iter().any(|d| d.phase == Phase::Verify
                 && d.category == ResultCategory::SafeReject

@@ -588,7 +588,10 @@ fn qualified_borrows(
         } else {
             let row = occurrences::binding(c, *borrow, &position, span)?;
             if row.binder != image.binder {
-                return Err(invalid());
+                return Err(occurrences::failure(span, base, format!(
+                    "qualified slot {position:?} has physical binding {:?}; intrinsic class {} maps to {:?}",
+                    row.binder, slot.binder, image.binder,
+                )));
             }
             *borrow += 1;
         }

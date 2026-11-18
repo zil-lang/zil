@@ -56,6 +56,12 @@ impl Check<'_, '_> {
 
     pub(super) fn task_result(&self, instance: &SemanticInstance, function: &TypedFunction,
         block: BlockId, index: usize, b: &mut Budget) -> CompileResult<value::Value> {
+        let key = (instance.id, function.id, block, index);
+        {
+            let results = self.task_results.borrow();
+            b.lookup(results.len(), "semantic Task result lookup")?;
+            if let Some(value) = results.get(&key) { return value.copy(b); }
+        }
         let operation = function.blocks.get(block.0 as usize)
             .filter(|actual| actual.id == block)
             .and_then(|body| body.instructions.get(index))
@@ -76,7 +82,13 @@ impl Check<'_, '_> {
                 return Err(fail("Task result has another complete original carrier or duplicate creator"));
             }
         }
-        selected.ok_or_else(|| fail("Task result lacks its exact original creator receipt"))
+        let output = selected.ok_or_else(|| fail("Task result lacks its exact original creator receipt"))?;
+        // Only this completed operation in its immutable function world has
+        // proved the whole result. Runtime phase and port proofs run separately.
+        let mut results = self.task_results.borrow_mut();
+        b.lookup(results.len(), "semantic Task result publication")?;
+        results.insert(key, output.copy(b)?);
+        Ok(output)
     }
 
     #[allow(clippy::too_many_arguments)]

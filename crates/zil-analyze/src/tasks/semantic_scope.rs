@@ -2,6 +2,18 @@
 //! This proves no closing state, synchronous cleanup, parent loan or access.
 use super::*;
 
+type ScopeKey = (usize, usize, usize, usize, [usize; 5]);
+
+fn scope_key(module: &TypedModule, ordinal: usize, limits: &Limits, b: &Budget) -> Option<ScopeKey> {
+    let module_key = module as *const TypedModule as usize;
+    if b.geometry_module == Some(module_key)
+        && b.initialization.as_ref().is_some_and(|cache| cache.module == module_key) {
+        Some((module_key, ordinal,
+            limits.max_nodes, limits.max_call_depth,
+            [b.helper_nodes, b.helper_calls, b.helper_edges, b.helper_depth, b.partial_depth]))
+    } else { None }
+}
+
 /// Pure opaque-domain formation. The caller must recursively prove its
 /// result Type; no allocation, creator, phase, owner or cleanup fact is made.
 pub(super) fn type_domain_zero(payload: &Type, b: &mut Budget) -> CompileResult<()> {
@@ -69,13 +81,7 @@ pub(super) fn zero(
     // The exact full payload and unique canonical resource are rechecked
     // above on every query. Reuse only a completed immutable module proof;
     // private/unbound helper calls never cache an address-based authority.
-    let module_key = module as *const TypedModule as usize;
-    let cache_key = if b.geometry_module == Some(module_key)
-        && b.initialization.as_ref().is_some_and(|cache| cache.module == module_key) {
-        Some((module_key, resource_ordinal.expect("unique complete Task resource"),
-            limits.max_nodes, limits.max_call_depth,
-            [b.helper_nodes, b.helper_calls, b.helper_edges, b.helper_depth, b.partial_depth]))
-    } else { None };
+    let cache_key = scope_key(module, resource_ordinal.expect("unique complete Task resource"), limits, b);
     if let Some(key) = cache_key {
         b.lookup(b.semantic_task_scopes.len(), "complete immutable Task scope lookup")?;
         if b.semantic_task_scopes.contains(&key) { return Ok(()); }
@@ -186,17 +192,24 @@ pub(super) fn complete(module: &TypedModule, payload: &Type, limits: &Limits, b:
     };
     if retained_life.binder_count == 0 { return zero(module, payload, limits, b); }
     crate::dyn_metadata::ty(payload, b)?;
-    let mut definitions = 0usize;
-    for resource in &module.resources {
+    let mut definition = None;
+    for (ordinal, resource) in module.resources.iter().enumerate() {
         crate::dyn_metadata::ty(&resource.payload, b)?;
         if resource.payload != *payload { continue; }
         b.spend(resource.name.len().saturating_add(96), "semantic complete Task resource")?;
         if resource.name != format!("{TASK_RESOURCE_NAME_PREFIX}{}", payload.fingerprint()) || resource.teardown.is_some() {
             return Err(bad("semantic Task has another allocator identity or user cleanup"));
         }
-        definitions += 1;
+        if definition.replace(ordinal).is_some() {
+            return Err(bad("complete Task scope has multiple exact sealed resource definitions"));
+        }
     }
-    if definitions != 1 { return Err(bad("complete Task scope has no unique exact sealed resource definition")); }
+    let ordinal = definition.ok_or_else(|| bad("complete Task scope has no exact sealed resource definition"))?;
+    let cache_key = scope_key(module, ordinal, limits, b);
+    if let Some(key) = cache_key {
+        b.lookup(b.semantic_task_scopes.len(), "complete immutable Task scope lookup")?;
+        if b.semantic_task_scopes.contains(&key) { return Ok(()); }
+    }
     let mut constructors = 0usize;
     for function in &module.functions {
         for block in &function.blocks {
@@ -246,5 +259,9 @@ pub(super) fn complete(module: &TypedModule, payload: &Type, limits: &Limits, b:
     }
     if constructors == 0 { return Err(vec![Diagnostic::unsupported(Phase::Analyze,
         "complete Task scope needs its actual worker/creator inventory", None)]); }
+    if let Some(key) = cache_key {
+        b.lookup(b.semantic_task_scopes.len(), "complete immutable Task scope insertion")?;
+        b.semantic_task_scopes.insert(key);
+    }
     Ok(())
 }

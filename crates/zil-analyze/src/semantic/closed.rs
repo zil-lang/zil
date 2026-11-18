@@ -75,6 +75,7 @@ struct Check<'a, 'i> {
     scope_queries: std::cell::RefCell<BTreeSet<ClosureId>>,
     capture_directories: std::cell::RefCell<BTreeMap<ClosureId, capture_heads::CaptureDirectory>>,
     value_queries: std::cell::RefCell<BTreeSet<(SemanticInstanceId, ValueId)>>,
+    task_results: std::cell::RefCell<BTreeMap<(SemanticInstanceId, FunctionId, BlockId, usize), value::Value>>,
     slot_queries: std::cell::RefCell<
         BTreeMap<(SemanticInstanceId, FunctionId, LocalId), Option<value::Value>>,
     >,
@@ -101,6 +102,7 @@ pub(super) fn coordinate_field(
         scope_queries: Default::default(),
         capture_directories: Default::default(),
         value_queries: Default::default(),
+        task_results: Default::default(),
         slot_queries: Default::default(),
         trait_queries: Default::default(),
         nominal_definitions: Default::default(),
@@ -1144,6 +1146,7 @@ pub(super) fn check(
         scope_queries: std::cell::RefCell::new(BTreeSet::new()),
         capture_directories: Default::default(),
         value_queries: std::cell::RefCell::new(BTreeSet::new()),
+        task_results: Default::default(),
         slot_queries: Default::default(),
         trait_queries: std::cell::RefCell::new(Vec::new()),
         nominal_definitions: std::cell::RefCell::new(BTreeMap::new()),
