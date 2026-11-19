@@ -41,8 +41,13 @@ an implicit invocation domain at that exact declaration, parameter ordinal and
 nested type path. Independent omitted input occurrences have independent source
 domains; actual call substitution may relate them only through the real inputs.
 These hygienic domains are not additional user generic parameters. A bare
-borrowed result uses the receiver domain, or the unique input domain when there
-is no receiver; an ambiguous result needs an explicit relation. A generic result
+borrowed result in a signature without a body uses the receiver domain or the
+unique input domain. Such a signature needs an explicit relation when its
+inputs leave the result ambiguous. For an ordinary function with a body, the
+rules in §18.1 for reference returns derive the possible sources from its actual
+returns. For example, returning the first of two independent references keeps
+only that input live in the caller. An explicit result annotation bounds every
+reachable return. A generic result
 that transfers the whole actual `T` preserves the complete joint input shape
 rather than selecting one of its borrowed leaves. Ordinary helper result hints
 are substituted through the complete semantic input applications before another

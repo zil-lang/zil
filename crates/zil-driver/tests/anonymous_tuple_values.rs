@@ -677,10 +677,19 @@ fn elided_inputs_preserve_independent_domains_and_reject_ambiguous_results() {
             "elided source forgery Wire={decoded}: {errors:?}"
         );
     }
-    // Actual no-input and two-independent-input bare result elision has no
-    // invented source. These are whole Source consumers, not shape-only tests.
+    // A body can select one actual input even with two independent input domains.
+    let body_selects_left = "fn ambiguous(left:&i32,right:&i32)->&i32{return left}fn main(){}";
+    let report = compile_source(&input(body_selects_left), &CompileOptions::default());
+    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 1);
+    let caller = "fn ambiguous(left:&i32,right:&i32)->&i32{return left}fn main()->i32{var l=42;var r=10;let p=ambiguous(&l,&r);r=15;return *p}";
+    let report = compile_source(&input(caller), &CompileOptions::default());
+    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    let conflict = compile_source(&input(&caller.replace("r=15", "l=15")), &CompileOptions::default());
+    assert_eq!(conflict.status, ResultCategory::SafeReject, "{}", conflict.to_json());
+    assert!(conflict.diagnostics.iter().any(|d| d.code == "E-BORROW-CONFLICT"), "{}", conflict.to_json());
     for invalid in [
-        "fn ambiguous(left:&i32,right:&i32)->&i32{return left}fn main(){}",
+        "fn wrong<life a,life b>(left:&'a i32,right:&'b i32)->&'a i32{return right}fn main(){}",
         "fn missing()->&i32{var local:i32=7;return &local}fn main(){}",
     ] {
         let report = compile_source(&input(invalid), &CompileOptions::default());
