@@ -97,6 +97,7 @@ impl Check<'_, '_> {
         function: &TypedFunction,
         recipe: &SemanticSiteRecipe,
         value: ValueId,
+        address: Option<ValueId>,
         covered_operands: &mut BTreeSet<zil_base::NodeId>,
         b: &mut Budget,
     ) -> CompileResult<()> {
@@ -110,7 +111,10 @@ impl Check<'_, '_> {
         };
         let original = self.inventory.original_index(instance.definition, b)?;
         let mut expression = original.get_expr(*node, b)?;
-        let mut physical = value;
+        let mut physical = address.unwrap_or(value);
+        if let Some(address) = address {
+            operations::available_before(function, self.definition_at(function, value, b)?, address, b)?;
+        }
         loop {
             b.spend(1, WORK)?;
             if expression.id != *node {
@@ -121,24 +125,35 @@ impl Check<'_, '_> {
                 CoreExprKind::Group(child) => expression = child,
                 CoreExprKind::Member { object, member, .. } => {
                     let at = self.definition_at(function, physical, b)?;
-                    let InstructionKind::ExtractField { aggregate, index } =
-                        self.instruction(function, physical, b)?
-                    else {
-                        return Err(fail("implicit record observation changes its exact field operation"));
+                    let (aggregate, index) = match (address, self.instruction(function, physical, b)?) {
+                        (None, InstructionKind::ExtractField { aggregate, index }) => (*aggregate, *index),
+                        (Some(_), InstructionKind::AddressField { address, index }) => (*address, *index),
+                        _ => return Err(fail("implicit record observation changes its exact field operation")),
                     };
-                    operations::available_before(function, at, *aggregate, b)?;
-                    let Some(Type::Record { fields, .. }) = function.values.get(aggregate.0 as usize)
-                    else {
+                    operations::available_before(function, at, aggregate, b)?;
+                    let mut carrier = function.values.get(aggregate.0 as usize)
+                        .ok_or_else(|| fail("implicit record observation has no parent type"))?;
+                    if address.is_some() {
+                        let Type::Address { inner, .. } = carrier else {
+                            return Err(fail("implicit field address lacks its actual parent address"));
+                        };
+                        carrier = inner;
+                        while let Type::BorrowedStorage { storage, .. } = carrier {
+                            b.spend(1, WORK)?;
+                            carrier = storage;
+                        }
+                    }
+                    let Type::Record { fields, .. } = carrier else {
                         return Err(unknown("implicit record observation needs a complete inline record"));
                     };
-                    let (name, _) = fields.get(*index as usize)
+                    let (name, _) = fields.get(index as usize)
                         .ok_or_else(|| fail("implicit record observation has no actual field"))?;
                     b.spend(member.len().saturating_add(name.len()), WORK)?;
                     if name != member {
                         return Err(fail("implicit record observation changes its original field"));
                     }
                     expression = object;
-                    physical = *aggregate;
+                    physical = aggregate;
                 }
                 CoreExprKind::Name(_) => break,
                 _ => return Err(unknown("implicit record observation needs its exact lexical owner")),
@@ -146,8 +161,12 @@ impl Check<'_, '_> {
         }
         let anchor = self.original.local_read_anchor(instance.definition, expression.id, b)?
             .ok_or_else(|| unknown("implicit record observation needs its exact local binding"))?;
-        let InstructionKind::Load(local) = self.instruction(function, physical, b)? else {
-            return Err(fail("implicit record observation changes its original local read"));
+        let local = match (address, self.instruction(function, physical, b)?) {
+            (None, InstructionKind::Load(local)) => local,
+            (Some(_), InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local }) => local,
+            (Some(_), InstructionKind::Load(local)) if function.locals.get(local.0 as usize)
+                .is_some_and(|slot| matches!(slot.ty, Type::Address { .. })) => local,
+            _ => return Err(fail("implicit record observation changes its original local read")),
         };
         if self.anchored_local(instance, function, anchor, b)? != *local {
             return Err(fail("implicit record observation selects another lexical owner"));
@@ -455,8 +474,14 @@ impl Check<'_, '_> {
                                 .captures
                                 .get(*index as usize)
                                 .is_some_and(Type::is_b0_scalar) => {}
-                        InstructionKind::ReadAddress { .. } => {
-                            self.captured_read(function, value, b)?;
+                        InstructionKind::ReadAddress { address } => {
+                            if matches!(self.instruction(function, *address, b)?, InstructionKind::AddressField { .. }) {
+                                self.implicit_record_observation(
+                                    instance, function, recipe, value, Some(*address), &mut covered_operands, b,
+                                )?;
+                            } else {
+                                self.captured_read(function, value, b)?;
+                            }
                         }
                         InstructionKind::TakeOwnedArrayElement { local, index: 0 }
                         | InstructionKind::BorrowOwnedArrayElement {
@@ -522,7 +547,7 @@ impl Check<'_, '_> {
                         }
                         InstructionKind::ExtractField { .. } => {
                             self.implicit_record_observation(
-                                instance, function, recipe, value, &mut covered_operands, b,
+                                instance, function, recipe, value, None, &mut covered_operands, b,
                             )?;
                         }
                         InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {

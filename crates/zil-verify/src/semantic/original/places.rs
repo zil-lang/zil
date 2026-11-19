@@ -25,6 +25,29 @@ pub(in crate::semantic) enum ScalarProjection {
 }
 
 impl CheckedOriginal {
+    pub(in crate::semantic) fn lexical_record_field(
+        &self, owner: SemanticDefinitionId, node: NodeId, b: &mut Budget,
+    ) -> Check<bool> {
+        let syntax = self.source_grammar.as_ref()
+            .ok_or_else(|| bad("field read lacks its complete original body"))?
+            .place_syntax(owner, b)?;
+        let mut current = node;
+        let mut field = false;
+        loop {
+            match &syntax.expression(current, b)?.operation {
+                index::PlaceOperation::Group(child) => current = *child,
+                index::PlaceOperation::Member { object, .. } => { field = true; current = *object; }
+                index::PlaceOperation::Name if field => {
+                    b.spend(self.value_bindings.len().checked_ilog2().map_or(1, |n| n as usize + 1))?;
+                    return Ok(matches!(self.value_bindings.get(&(owner, current)),
+                        Some(Binder::Local { definition, .. } | Binder::Parameter { definition, .. })
+                            if *definition == owner));
+                }
+                _ => return Ok(false),
+            }
+        }
+    }
+
     pub(in crate::semantic) fn resource_field_read(
         &self,
         definition: SemanticDefinitionId,

@@ -1430,6 +1430,15 @@ impl CheckedContext {
                 self.original_tuple_give_source(module,instance,f,subject,*node,b)?;
             }
             let original=self.original.borrow();let original=original.as_ref().ok_or_else(||bad("original implicit address lacks its complete body proof"))?;
+            if f.environment.is_some() && expected.ty.is_b0_scalar()
+                && let SemanticOriginalTypeSource::Expression(node) = original_source
+                && original.lexical_record_field(instance.definition, *node, b)?
+            {
+                let SemanticOperand::Value(value) = subject else {
+                    return Err(bad("original lexical field read has no actual result"));
+                };
+                self.original_projection_source(module, instance, f, *value, instance.definition, *node, true, b)?;
+            }
             if let SemanticOriginalTypeSource::Expression(node) = original_source
                 && original.resource_field_read(instance.definition, *node, b)?
             {

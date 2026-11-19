@@ -2760,6 +2760,47 @@ fn ambient_class_propagation_repeated_host_headers_prepay_each_method_before_the
 }
 
 #[test]
+fn closure_local_phantom_field_keeps_its_actual_sibling_in_source_raw_and_wire() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_ir::InstructionKind;
+
+    let text = "struct Phantom<life s>{n:i32;other:i32}
+        fn value<life a>(p:&'a i32)->i32{
+            return (()->i32=>{let x:Phantom<'a>=Phantom::<'a>{n:41,other:17};return x.n})()+1
+        }
+        fn main()->i32{let n=0;return value(&n)}";
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let core = original_callable_core(text, &limits, &target).unwrap();
+    let mut typed = zil_types::check(&core, &target, &limits).unwrap();
+    let mut plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+
+    let child = typed.functions.iter_mut().find(|f| f.environment.is_some()).unwrap();
+    let mut fields = child.blocks.iter_mut().flat_map(|block| &mut block.instructions)
+        .filter_map(|instruction| match &mut instruction.kind {
+            InstructionKind::AddressField { index, .. } => Some(index),
+            _ => None,
+        });
+    let field = fields.next().unwrap();
+    assert_eq!(*field, 0);
+    *field = 1;
+    assert!(fields.next().is_none());
+    plan.module_fingerprint = typed.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    for errors in [
+        zil_analyze::analyze(&typed, &limits).unwrap_err(),
+        zil_verify::verify_module(typed, plan, &target, &limits).unwrap_err(),
+        zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err(),
+    ] {
+        assert_eq!(errors[0].category, ResultCategory::SafeReject, "{errors:?}");
+        assert!(errors[0].message.contains("field"), "{errors:?}");
+    }
+}
+
+#[test]
 fn nested_source_class_stack_nested_source_classes_keep_default_stack_and_compatibility() {
     const CHILD: &str = "ZIL_G10_1_8_CLASS_CHILD";
     if let Ok(actual) = std::env::var(CHILD) {
