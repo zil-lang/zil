@@ -1,4 +1,28 @@
 use super::*;
+
+enum SelectedCall<'m, 's> {
+    Complete(Ty),
+    Intrinsic { intrinsic: intrinsics::Intrinsic, site: SemanticSiteId, written: Vec<Arg>, family: Option<Ty> },
+    Direct {
+        target: SemanticDefinitionId, site: &'m SemanticSiteRecipe, family: Option<Ty>,
+        written_types: Option<&'s [SemanticTypeRecipe]>,
+        written_mixed: Option<&'s [CoreGenericArgument<SemanticTypeRecipe>]>,
+    },
+    Indirect { ty: Ty, callee_type: Ty, callee_place: Option<Place>, written: bool },
+}
+
+struct DirectCall<'m> {
+    definition: &'m SemanticDefinition,
+    signature: &'m SemanticSignatureRecipe,
+    proposed: Option<&'m [SemanticActualRecipe]>,
+    selected: Env,
+    prototype: Prototype,
+    checked: Vec<Arg>,
+    written_slots: Vec<Option<usize>>,
+    outer_heads: Vec<(u64, Vec<u32>, bool)>,
+    result_role: Option<u64>,
+}
+
 impl CheckedOriginal {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn call(
@@ -45,6 +69,80 @@ impl CheckedOriginal {
         active: &mut ActiveQueries,
         b: &mut Budget,
     ) -> Check<Ty> {
+        match self.select_call(module, context, call, callee, arguments, env, bindings, expected, active, b)? {
+            SelectedCall::Complete(result) => Ok(result),
+            SelectedCall::Intrinsic { intrinsic, site, written, family } =>
+                self.registered_call(module, context, call, arguments, env, bindings, expected,
+                    intrinsic, site, &written, family.as_ref(), active, b),
+            SelectedCall::Direct { target, site, family, written_types, written_mixed } =>
+                self.direct_call(module, context, call, arguments, env, bindings, expected,
+                    target, site, family.as_ref(), written_types, written_mixed, active, b),
+            SelectedCall::Indirect { ty, callee_type, callee_place, written } =>
+                self.indirect_call(module, context, call, arguments, env, bindings, ty,
+                    callee_type, callee_place, written, active, b),
+        }
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn registered_call(
+        &mut self,
+        module: &TypedModule,
+        context: &CheckedContext,
+        call: &SemanticOriginalExpr,
+        arguments: &[SemanticOriginalExpr],
+        env: &Env,
+        bindings: &BTreeMap<String, Binding>,
+        expected: Option<&Ty>,
+        intrinsic: intrinsics::Intrinsic,
+        site: SemanticSiteId,
+        written: &[Arg],
+        family: Option<&Ty>,
+        active: &mut ActiveQueries,
+        b: &mut Budget,
+    ) -> Check<Ty> {
+        let result = self.intrinsic_call(
+            module,
+            context,
+            intrinsic,
+            site,
+            written,
+            expected.or(family),
+            arguments,
+            env,
+            bindings,
+            active,
+            b,
+        )?;
+        if matches!(
+            intrinsic,
+            intrinsics::Intrinsic::BytesNew
+                | intrinsics::Intrinsic::StoreNew
+                | intrinsics::Intrinsic::AsyncStart
+                | intrinsics::Intrinsic::MutexCreate
+                | intrinsics::Intrinsic::TaskCreate
+                | intrinsics::Intrinsic::TaskCreateOwned
+        ) {
+            b.spend(1)?;
+            self.created.insert((env.current()?, call.id));
+        }
+        if let Some(expected) = expected {
+            self.relate_value(&result, expected, b)?;
+        }
+        Ok(result)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn select_call<'m, 's>(
+        &mut self,
+        module: &'m TypedModule,
+        context: &CheckedContext,
+        call: &SemanticOriginalExpr,
+        callee: &'s SemanticOriginalExpr,
+        arguments: &[SemanticOriginalExpr],
+        env: &Env,
+        bindings: &BTreeMap<String, Binding>,
+        expected: Option<&Ty>,
+        active: &mut ActiveQueries,
+        b: &mut Budget,
+    ) -> Check<SelectedCall<'m, 's>> {
         let mut callee = callee;
         while let CoreExprKind::Group(inner) = &callee.kind {
             b.spend(1)?;
@@ -90,7 +188,7 @@ impl CheckedOriginal {
             return self.variant_constructor(
                 module, context, call, base, written_types, written_mixed, arguments,
                 env, bindings, expected, active, b,
-            )?.ok_or_else(|| bad("original formation lacks its exact enum constructor"));
+            )?.map(SelectedCall::Complete).ok_or_else(|| bad("original formation lacks its exact enum constructor"));
         }
         if let Some(intrinsic) = self.intrinsic_name(module, context, base, env, bindings, b)? {
             let mut written = Vec::new();
@@ -117,35 +215,8 @@ impl CheckedOriginal {
             if !matches!(site.kind, SemanticSiteRecipeKind::OriginalCall) {
                 return Err(bad("registered intrinsic has another original call role"));
             }
-            let result = self.intrinsic_call(
-                module,
-                context,
-                intrinsic,
-                site.id,
-                &written,
-                expected.or(family.as_ref()),
-                arguments,
-                env,
-                bindings,
-                active,
-                b,
-            )?;
-            if matches!(
-                intrinsic,
-                intrinsics::Intrinsic::BytesNew
-                    | intrinsics::Intrinsic::StoreNew
-                    | intrinsics::Intrinsic::AsyncStart
-                    | intrinsics::Intrinsic::MutexCreate
-                    | intrinsics::Intrinsic::TaskCreate
-                    | intrinsics::Intrinsic::TaskCreateOwned
-            ) {
-                b.spend(1)?;
-                self.created.insert((env.current()?, call.id));
-            }
-            if let Some(expected) = expected {
-                self.relate_value(&result, expected, b)?;
-            }
-            return Ok(result);
+            return Ok(SelectedCall::Intrinsic { intrinsic, site: site.id, written, family });
+
         }
         let static_type = self.static_call_type(module, context, base, env, bindings, b)?;
         if let Some(Ty::Function(target)) = &static_type {
@@ -164,7 +235,7 @@ impl CheckedOriginal {
                 active,
                 b,
             )? {
-                return Ok(result);
+                return Ok(SelectedCall::Complete(result));
             }
         }
         if static_type.is_none() {
@@ -183,7 +254,7 @@ impl CheckedOriginal {
                 if let Some(expected) = expected {
                     self.relate_value(&result, expected, b)?;
                 }
-                return Ok(result);
+                return Ok(SelectedCall::Complete(result));
             }
         }
         if static_type.is_none() {
@@ -201,7 +272,7 @@ impl CheckedOriginal {
                 active,
                 b,
             )? {
-                return Ok(result);
+                return Ok(SelectedCall::Complete(result));
             }
         }
         if static_type.is_none() {
@@ -219,7 +290,7 @@ impl CheckedOriginal {
                 active,
                 b,
             )? {
-                return Ok(result);
+                return Ok(SelectedCall::Complete(result));
             }
         }
         self.callable_nodes
@@ -231,254 +302,338 @@ impl CheckedOriginal {
         if let Some(place) = &callee_place {
             self.read_original(module, context, place, &callee_type, env, false, active, b)?;
         }
-        match self.resolved(&callee_type, b)? {
-            Ty::Function(target) => {
-                let definition = context.definition(module, target, b)?;
-                let SemanticDefinitionBody::FunctionWithBody {
-                    signature, body, ..
-                } = &definition.body
-                else {
-                    return Err(bad("original Call target omits its complete body"));
-                };
-                if matches!(body, SemanticOriginalFunctionBody::External)
-                    && self.unsafe_depth.get(&env.current()?).copied().unwrap_or(0) == 0
+        Ok(match self.resolved(&callee_type, b)? {
+            Ty::Function(target) => SelectedCall::Direct { target, site, family, written_types, written_mixed },
+            ty => SelectedCall::Indirect { ty, callee_type, callee_place,
+                written: written_types.is_some() || written_mixed.is_some() },
+        })
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn direct_call(
+        &mut self,
+        module: &TypedModule,
+        context: &CheckedContext,
+        call: &SemanticOriginalExpr,
+        arguments: &[SemanticOriginalExpr],
+        env: &Env,
+        bindings: &BTreeMap<String, Binding>,
+        expected: Option<&Ty>,
+        target: SemanticDefinitionId,
+        site: &SemanticSiteRecipe,
+        family: Option<&Ty>,
+        written_types: Option<&[SemanticTypeRecipe]>,
+        written_mixed: Option<&[CoreGenericArgument<SemanticTypeRecipe>]>,
+        active: &mut ActiveQueries,
+        b: &mut Budget,
+    ) -> Check<Ty> {
+        let prepared = self.prepare_direct_call(
+            module, context, arguments, env, expected, target, site, family,
+            written_types, written_mixed, active, b,
+        )?;
+        let DirectCall { definition, signature, prototype, result_role, .. } = &prepared;
+        b.spend(prototype.parameters.len())?;
+        let mut region_parameters = Vec::with_capacity(prototype.parameters.len());
+        for (ordinal, ((argument, parameter), mode)) in arguments
+            .iter()
+            .zip(&prototype.parameters)
+            .zip(&prototype.modes)
+            .enumerate()
+        {
+            let parameter =
+                self.normalize_original_type(module, context, parameter, env, active, b)?;
+            let actual = self.argument_at_call(
+                module, context, argument, &parameter, *mode, Some((call.id, ordinal)),
+                env, bindings, active, b,
+            )?;
+            self.relate_value(&actual, &parameter, b)?;
+            if let Some(id) = *result_role {
+                let declared = &signature.parameters[ordinal].ty;
+                if let SemanticTypeRecipe::Address {lifetime: SemanticOuterLifeRecipe::Class(source), ..}
+                    | SemanticTypeRecipe::Desc {lifetime: SemanticOuterLifeRecipe::Class(source), ..} = declared
                 {
+                    b.spend(definition.requirements.len())?;
+                    if definition.requirements.iter().any(|row| definition.elided_result_bound(row) == Some(source)) {
+                        let (Ty::Address {life, ..} | Ty::Desc {life, ..}) = &actual else {
+                            return Err(bad("elided result bound lacks its actual address source"));
+                        };
+                        self.relate_outer(life, &Life::Infer(id), b)?;
+                    }
+                }
+            }
+            region_parameters.push(parameter);
+        }
+        self.finish_direct_call(module, context, call, arguments, env, expected,
+            target, site, prepared, region_parameters, active, b)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_direct_call<'m>(
+        &mut self,
+        module: &'m TypedModule,
+        context: &CheckedContext,
+        arguments: &[SemanticOriginalExpr],
+        env: &Env,
+        expected: Option<&Ty>,
+        target: SemanticDefinitionId,
+        site: &'m SemanticSiteRecipe,
+        family: Option<&Ty>,
+        written_types: Option<&[SemanticTypeRecipe]>,
+        written_mixed: Option<&[CoreGenericArgument<SemanticTypeRecipe>]>,
+        active: &mut ActiveQueries,
+        b: &mut Budget,
+    ) -> Check<DirectCall<'m>> {
+        let definition = context.definition(module, target, b)?;
+        let SemanticDefinitionBody::FunctionWithBody {
+            signature, body, ..
+        } = &definition.body
+        else {
+            return Err(bad("original Call target omits its complete body"));
+        };
+        if matches!(body, SemanticOriginalFunctionBody::External)
+            && self.unsafe_depth.get(&env.current()?).copied().unwrap_or(0) == 0
+        {
+            return Err(bad(
+                "original foreign execution is outside its actual unsafe lexical scope",
+            ));
+        }
+        if !matches!(
+            site.kind,
+            SemanticSiteRecipeKind::Call { .. } | SemanticSiteRecipeKind::OriginalCall
+        ) {
+            return Err(bad("original static Call lacks a unique exact call site"));
+        }
+        let proposed = match &site.kind {
+            SemanticSiteRecipeKind::Call {
+                target: claim,
+                actuals,
+            } => {
+                if *claim != target {
                     return Err(bad(
-                        "original foreign execution is outside its actual unsafe lexical scope",
+                        "original Call recipe resolves another lexical declaration",
                     ));
                 }
-                if !matches!(
-                    site.kind,
-                    SemanticSiteRecipeKind::Call { .. } | SemanticSiteRecipeKind::OriginalCall
-                ) {
-                    return Err(bad("original static Call lacks a unique exact call site"));
-                }
-                let proposed = match &site.kind {
-                    SemanticSiteRecipeKind::Call {
-                        target: claim,
-                        actuals,
-                    } => {
-                        if *claim != target {
-                            return Err(bad(
-                                "original Call recipe resolves another lexical declaration",
-                            ));
-                        }
-                        Some(actuals.as_slice())
+                Some(actuals.as_slice())
+            }
+            SemanticSiteRecipeKind::OriginalCall => None,
+            _ => unreachable!(),
+        };
+        if proposed.is_some_and(|actuals| actuals.len() != definition.parameters.len()) {
+            return Err(bad("original Call omits full-ordinal actual obligations"));
+        }
+        let written_slots = Self::written_original_slots(
+            &definition.parameters,
+            written_types,
+            written_mixed,
+            b,
+        )?;
+        let mut checked = Vec::new();
+        for (ordinal, formal) in definition.parameters.iter().enumerate() {
+            let written_slot = written_slots[ordinal];
+            let written = if let Some(types) = written_types {
+                written_slot
+                    .and_then(|index| types.get(index))
+                    .map(|ty| self.ty(module, context, ty, env, active, b).map(Arg::Type))
+                    .transpose()?
+            } else if let Some(mixed) = written_mixed {
+                match written_slot.and_then(|index| mixed.get(index)) {
+                    Some(CoreGenericArgument::Type(ty)) => {
+                        Some(Arg::Type(self.ty(module, context, ty, env, active, b)?))
                     }
-                    SemanticSiteRecipeKind::OriginalCall => None,
-                    _ => unreachable!(),
-                };
-                if proposed.is_some_and(|actuals| actuals.len() != definition.parameters.len()) {
-                    return Err(bad("original Call omits full-ordinal actual obligations"));
-                }
-                let written_slots = Self::written_original_slots(
-                    &definition.parameters,
-                    written_types,
-                    written_mixed,
-                    b,
-                )?;
-                let mut checked = Vec::new();
-                for (ordinal, formal) in definition.parameters.iter().enumerate() {
-                    let written_slot = written_slots[ordinal];
-                    let written = if let Some(types) = written_types {
-                        written_slot
-                            .and_then(|index| types.get(index))
-                            .map(|ty| self.ty(module, context, ty, env, active, b).map(Arg::Type))
-                            .transpose()?
-                    } else if let Some(mixed) = written_mixed {
-                        match written_slot.and_then(|index| mixed.get(index)) {
-                            Some(CoreGenericArgument::Type(ty)) => {
-                                Some(Arg::Type(self.ty(module, context, ty, env, active, b)?))
-                            }
-                            Some(CoreGenericArgument::Const(_)) => {
-                                return Err(unsupported(
-                                    "original written const argument requires its solved full carrier",
-                                    None,
-                                ));
-                            }
-                            Some(CoreGenericArgument::Lifetime(name)) => {
-                                let row = self
-                                    .named(
-                                        module,
-                                        context,
-                                        env.current()?,
-                                        name,
-                                        SemanticOriginalNamespace::Lifetime,
-                                        b,
-                                    )?
-                                    .ok_or_else(|| {
-                                        bad("written original life name has no lexical binding")
-                                    })?;
-                                let SemanticOriginalNameValue::Recipe(
-                                    recipe @ SemanticActualRecipe::Life(_),
-                                ) = row
-                                else {
-                                    return Err(bad(
-                                        "original life name selects another full-ordinal kind",
-                                    ));
-                                };
-                                Some(self.actual(module, context, recipe, env, active, b)?)
-                            }
-                            None => None,
-                        }
-                    } else {
-                        None
-                    };
-                    let value = match (written, formal) {
-                        (Some(value), _) => value,
-                        (None, SemanticFormal::Type { .. }) => Arg::Type(self.fresh(b)?),
-                        (None, SemanticFormal::Lifetime) => Arg::Life(self.fresh_life(b)?),
-                        (None, _) => {
-                            return Err(unsupported(
-                                "original non-Type inference needs its complete scalar/lifetime constraints",
-                                None,
-                            ));
-                        }
-                    };
-                    if !matches!(
-                        (formal, &value),
-                        (SemanticFormal::Type { .. }, Arg::Type(_))
-                            | (SemanticFormal::Const { .. }, Arg::Const(_))
-                            | (SemanticFormal::Lifetime, Arg::Life(_))
-                    ) {
-                        return Err(bad("written original argument changes full-ordinal kind"));
+                    Some(CoreGenericArgument::Const(_)) => {
+                        return Err(unsupported(
+                            "original written const argument requires its solved full carrier",
+                            None,
+                        ));
                     }
-                    checked.push(value);
-                }
-                let mut selected = self.environment(module, context, target, active, b)?;
-                selected.lexical[0].actuals = checked.clone();
-                let outer_floor = self.next_inference;
-                let prototype =
-                    self.call_signature(module, context, target, signature, &selected, active, b)?;
-                if let Some(family) = &family {
-                    self.bind_family_result(&prototype.result, family, b)?;
-                }
-                let mut outer_heads = self.defer_call_heads(&prototype, &checked, outer_floor, b)?;
-                let result_role = if let Some(ordinal) = definition.elided_result_ordinal() {
-                    let Ty::Address { life: Life::Infer(id), .. } = &prototype.result else {
-                        return Err(bad("elided result has no independent call lifetime"));
-                    };
-                    b.spend(4)?;
-                    self.outer_inferences.entry(*id).or_default();
-                    outer_heads.push((*id, vec![1, ordinal], false));
-                    Some(*id)
-                } else { None };
-                self.execute_effect(env, prototype.call_kind, b)?;
-                if prototype.parameters.len() != arguments.len() {
-                    return Err(bad(
-                        "original Call value arity differs from the declared signature",
-                    ));
-                }
-                if let Some(expected) = expected {
-                    if !associated::has_projection(&prototype.result, b)? {
-                        self.unify(&prototype.result, expected, b)?;
-                    }
-                }
-                b.spend(prototype.parameters.len())?;
-                let mut region_parameters = Vec::with_capacity(prototype.parameters.len());
-                for (ordinal, ((argument, parameter), mode)) in arguments
-                    .iter()
-                    .zip(&prototype.parameters)
-                    .zip(&prototype.modes)
-                    .enumerate()
-                {
-                    let parameter =
-                        self.normalize_original_type(module, context, parameter, env, active, b)?;
-                    let actual = self.argument_at_call(
-                        module, context, argument, &parameter, *mode, Some((call.id, ordinal)),
-                        env, bindings, active, b,
-                    )?;
-                    self.relate_value(&actual, &parameter, b)?;
-                    if let Some(id) = result_role {
-                        let declared = &signature.parameters[ordinal].ty;
-                        if let SemanticTypeRecipe::Address {lifetime: SemanticOuterLifeRecipe::Class(source), ..}
-                            | SemanticTypeRecipe::Desc {lifetime: SemanticOuterLifeRecipe::Class(source), ..} = declared
-                        {
-                            b.spend(definition.requirements.len())?;
-                            if definition.requirements.iter().any(|row| definition.elided_result_bound(row) == Some(source)) {
-                                let (Ty::Address {life, ..} | Ty::Desc {life, ..}) = &actual else {
-                                    return Err(bad("elided result bound lacks its actual address source"));
-                                };
-                                self.relate_outer(life, &Life::Infer(id), b)?;
-                            }
-                        }
-                    }
-                    region_parameters.push(parameter);
-                }
-                self.finish_call_heads(&outer_heads, call.id, b)?;
-                self.remember_call_region_parameters(&region_parameters, call.id, env, b)?;
-                let result = self.normalize_original_type(
-                    module,
-                    context,
-                    &prototype.result,
-                    env,
-                    active,
-                    b,
-                )?;
-                if let Some(expected) = expected {
-                    self.relate_value(&result, expected, b)?;
-                }
-                // Opaque result capabilities refer to the defining body's
-                // actual Result role. Complete every original return before
-                // interpreting those obligations in this call's full actuals.
-                if let Ty::Opaque(owner, actuals) = self.resolved(&result, b)? {
-                    self.opaque_hidden(module, context, owner, &actuals, active, b)?;
-                }
-                // A target's requirements are obligations here. They never enter
-                // the caller's equality assumptions merely by selecting target.
-                for requirement in &definition.requirements {
-                    if definition.elided_result_bound(requirement).is_some() { continue; }
-                    self.obligation(module, context, requirement, &selected, env, active, b)?;
-                }
-                for formal in &definition.parameters {
-                    if let SemanticFormal::Type { requirements } = formal {
-                        for requirement in requirements {
-                            self.obligation(
+                    Some(CoreGenericArgument::Lifetime(name)) => {
+                        let row = self
+                            .named(
                                 module,
                                 context,
-                                requirement,
-                                &selected,
-                                env,
-                                active,
+                                env.current()?,
+                                name,
+                                SemanticOriginalNamespace::Lifetime,
                                 b,
-                            )?;
-                        }
+                            )?
+                            .ok_or_else(|| {
+                                bad("written original life name has no lexical binding")
+                            })?;
+                        let SemanticOriginalNameValue::Recipe(
+                            recipe @ SemanticActualRecipe::Life(_),
+                        ) = row
+                        else {
+                            return Err(bad(
+                                "original life name selects another full-ordinal kind",
+                            ));
+                        };
+                        Some(self.actual(module, context, recipe, env, active, b)?)
                     }
+                    None => None,
                 }
-                if let Some(proposed) = proposed {
-                    for (recipe, value) in proposed.iter().zip(&checked) {
-                        if !matches!(recipe, SemanticActualRecipe::Infer) {
-                            let claim = self.actual(module, context, recipe, env, active, b)?;
-                            self.same_argument(&claim, value, b)?;
-                        }
-                    }
+            } else {
+                None
+            };
+            let value = match (written, formal) {
+                (Some(value), _) => value,
+                (None, SemanticFormal::Type { .. }) => Arg::Type(self.fresh(b)?),
+                (None, SemanticFormal::Lifetime) => Arg::Life(self.fresh_life(b)?),
+                (None, _) => {
+                    return Err(unsupported(
+                        "original non-Type inference needs its complete scalar/lifetime constraints",
+                        None,
+                    ));
                 }
-                // An inferred whole Type is the existing argument domain, not
-                // a fresh nominal reconstructed from its outside Life images.
-                // Preserve every inducing occurrence; the actual bridge must
-                // compare all of them rather than choose the first match.
-                self.remember_inferred_type_sources(
-                    module,
-                    env.current()?,
-                    site.id,
-                    definition,
-                    signature,
-                    arguments,
-                    0,
-                    &written_slots,
-                    &checked,
-                    b,
-                )?;
-                self.calls.insert((env.current()?, site.id), checked);
-                self.call_targets.insert((env.current()?, site.id), target);
-                if prototype.result_mode == PassingMode::Create {
-                    b.spend(1)?;
-                    self.created.insert((env.current()?, call.id));
-                }
-                Ok(result)
+            };
+            if !matches!(
+                (formal, &value),
+                (SemanticFormal::Type { .. }, Arg::Type(_))
+                    | (SemanticFormal::Const { .. }, Arg::Const(_))
+                    | (SemanticFormal::Lifetime, Arg::Life(_))
+            ) {
+                return Err(bad("written original argument changes full-ordinal kind"));
             }
+            checked.push(value);
+        }
+        let mut selected = self.environment(module, context, target, active, b)?;
+        selected.lexical[0].actuals = checked.clone();
+        let outer_floor = self.next_inference;
+        let prototype =
+            self.call_signature(module, context, target, signature, &selected, active, b)?;
+        if let Some(family) = family {
+            self.bind_family_result(&prototype.result, family, b)?;
+        }
+        let mut outer_heads = self.defer_call_heads(&prototype, &checked, outer_floor, b)?;
+        let result_role = if let Some(ordinal) = definition.elided_result_ordinal() {
+            let Ty::Address { life: Life::Infer(id), .. } = &prototype.result else {
+                return Err(bad("elided result has no independent call lifetime"));
+            };
+            b.spend(4)?;
+            self.outer_inferences.entry(*id).or_default();
+            outer_heads.push((*id, vec![1, ordinal], false));
+            Some(*id)
+        } else { None };
+        self.execute_effect(env, prototype.call_kind, b)?;
+        if prototype.parameters.len() != arguments.len() {
+            return Err(bad(
+                "original Call value arity differs from the declared signature",
+            ));
+        }
+        if let Some(expected) = expected {
+            if !associated::has_projection(&prototype.result, b)? {
+                self.unify(&prototype.result, expected, b)?;
+            }
+        }
+        Ok(DirectCall { definition, signature, proposed, selected, prototype, checked,
+            written_slots, outer_heads, result_role })
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn finish_direct_call(
+        &mut self,
+        module: &TypedModule,
+        context: &CheckedContext,
+        call: &SemanticOriginalExpr,
+        arguments: &[SemanticOriginalExpr],
+        env: &Env,
+        expected: Option<&Ty>,
+        target: SemanticDefinitionId,
+        site: &SemanticSiteRecipe,
+        prepared: DirectCall<'_>,
+        region_parameters: Vec<Ty>,
+        active: &mut ActiveQueries,
+        b: &mut Budget,
+    ) -> Check<Ty> {
+        let DirectCall { definition, signature, proposed, selected, prototype, checked,
+            written_slots, outer_heads, .. } = prepared;
+        self.finish_call_heads(&outer_heads, call.id, b)?;
+        self.remember_call_region_parameters(&region_parameters, call.id, env, b)?;
+        let result = self.normalize_original_type(
+            module,
+            context,
+            &prototype.result,
+            env,
+            active,
+            b,
+        )?;
+        if let Some(expected) = expected {
+            self.relate_value(&result, expected, b)?;
+        }
+        // Opaque result capabilities refer to the defining body's
+        // actual Result role. Complete every original return before
+        // interpreting those obligations in this call's full actuals.
+        if let Ty::Opaque(owner, actuals) = self.resolved(&result, b)? {
+            self.opaque_hidden(module, context, owner, &actuals, active, b)?;
+        }
+        // A target's requirements are obligations here. They never enter
+        // the caller's equality assumptions merely by selecting target.
+        for requirement in &definition.requirements {
+            if definition.elided_result_bound(requirement).is_some() { continue; }
+            self.obligation(module, context, requirement, &selected, env, active, b)?;
+        }
+        for formal in &definition.parameters {
+            if let SemanticFormal::Type { requirements } = formal {
+                for requirement in requirements {
+                    self.obligation(
+                        module,
+                        context,
+                        requirement,
+                        &selected,
+                        env,
+                        active,
+                        b,
+                    )?;
+                }
+            }
+        }
+        if let Some(proposed) = proposed {
+            for (recipe, value) in proposed.iter().zip(&checked) {
+                if !matches!(recipe, SemanticActualRecipe::Infer) {
+                    let claim = self.actual(module, context, recipe, env, active, b)?;
+                    self.same_argument(&claim, value, b)?;
+                }
+            }
+        }
+        // An inferred whole Type is the existing argument domain, not
+        // a fresh nominal reconstructed from its outside Life images.
+        // Preserve every inducing occurrence; the actual bridge must
+        // compare all of them rather than choose the first match.
+        self.remember_inferred_type_sources(
+            module,
+            env.current()?,
+            site.id,
+            definition,
+            signature,
+            arguments,
+            0,
+            &written_slots,
+            &checked,
+            b,
+        )?;
+        self.calls.insert((env.current()?, site.id), checked);
+        self.call_targets.insert((env.current()?, site.id), target);
+        if prototype.result_mode == PassingMode::Create {
+            b.spend(1)?;
+            self.created.insert((env.current()?, call.id));
+        }
+        Ok(result)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn indirect_call(
+        &mut self,
+        module: &TypedModule,
+        context: &CheckedContext,
+        call: &SemanticOriginalExpr,
+        arguments: &[SemanticOriginalExpr],
+        env: &Env,
+        bindings: &BTreeMap<String, Binding>,
+        ty: Ty,
+        callee_type: Ty,
+        callee_place: Option<Place>,
+        written: bool,
+        active: &mut ActiveQueries,
+        b: &mut Budget,
+    ) -> Check<Ty> {
+        match ty {
             Ty::Closure(definition, actuals, sealed) => {
-                if written_types.is_some() || written_mixed.is_some() {
+                if written {
                     return Err(bad(
                         "original closure invocation has unsupported generic application",
                     ));
@@ -538,7 +693,7 @@ impl CheckedOriginal {
                 )
             }
             Ty::Infer(_) if callee_place.is_some() => {
-                if written_types.is_some() || written_mixed.is_some() {
+                if written {
                     return Err(bad("an inferred indirect invocation has a generic application"));
                 }
                 b.spend(arguments.len().saturating_add(1))?;
@@ -567,7 +722,7 @@ impl CheckedOriginal {
                 invocation_lifetimes,
                 ..
             } => {
-                if written_types.is_some() || written_mixed.is_some() {
+                if written {
                     return Err(bad("original function pointer invocation has a generic application"));
                 }
                 let mut code_environment=env.clone();
@@ -604,7 +759,7 @@ impl CheckedOriginal {
                 inner,
                 life,
             } => {
-                if written_types.is_some() || written_mixed.is_some() {
+                if written {
                     return Err(bad(
                         "original borrowed callable has a written generic application",
                     ));

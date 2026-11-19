@@ -75,187 +75,250 @@ impl CheckedOriginal {
     fn expression_mode(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,expected:Option<&Ty>,observe_bound_fields:bool,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
         let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Type,token},b,|active,b|{
             let id=env.current()?;self.remember_names(env,SemanticOriginalNode::Expression(expression.id),bindings,b)?;
-            if !matches!(expression.kind,CoreExprKind::If{..}|CoreExprKind::Sequence{..}) {
-                if let Some(expected)=expected {
-                    let sum=self.resolved(expected,b)?;
-                    if let Ty::ErrorUnion(error,result)=&sum {
-                        // Elaborating a contextual injection never equates
-                        // the payload with the sum or one arm with the other.
-                        let numeric = self.injection_literal_context(expression,error,result,b)?;
-                        let arm = if numeric.is_some() { numeric.as_ref() } else {
-                            self.enum_injection_arm(module, context, expression, env, bindings, error, result, active, b)?
-                        };
-                        let payload=self.expression(module,context,expression,env,bindings,arm,active,b)?;
-                        if self.same(&payload,&sum,b)?{return Ok(payload);}
-                        // A sum-valued argument cannot be an injected payload
-                        // when neither declared arm is a sum or an open type.
-                        // Its nested call lifetimes still have to unify in
-                        // their respective original type and declaration roles.
-                        if matches!(payload, Ty::ErrorUnion(..))
-                            && !matches!(error.as_ref(), Ty::ErrorUnion(..) | Ty::Infer(_))
-                            && !matches!(result.as_ref(), Ty::ErrorUnion(..) | Ty::Infer(_))
-                        {
-                            self.unify(&payload, &sum, b)?;
-                            return self.resolved(&payload, b);
-                        }
-                        // The payload can be an untyped integer binding, even
-                        // when the enclosing sum already has two rigid arms.
-                        // Settle it with the other original return equations.
-                        if matches!(payload, Ty::Infer(_))
-                            || matches!(error.as_ref(),Ty::Infer(_))
-                            || matches!(result.as_ref(),Ty::Infer(_)) {
-                            b.spend(1)?;
-                            self.pending_injections.entry(id).or_default().push((expression.id,payload,sum.clone()));
-                            self.expressions.insert((id,expression.id),sum.clone());
-                            return Ok(sum);
-                        }
-                        let failed=self.same(&payload,error,b)?;
-                        let succeeded=self.same(&payload,result,b)?;
-                        if failed==succeeded{
-                            let payload=self.resolved(&payload,b)?;
-                            let error=self.resolved(error,b)?;
-                            let result=self.resolved(result,b)?;
-                            let detail=format!("original injection complete types: payload {payload:?}; error {error:?}; result {result:?}; matching arms error={failed}, result={succeeded}");
-                            b.spend(detail.len())?;
-                            return Err(bad("original implicit error injection has no unique complete payload arm").with_note(detail));
-                        }
-                        b.spend(2)?;
-                        self.injections.insert((id,expression.id),(failed,payload));
-                        self.expressions.insert((id,expression.id),sum.clone());
-                        return Ok(sum);
-                    }
-                }
+            if let Some(sum) = self.original_injection(module, context, expression, env, bindings, expected, id, active, b)? {
+                return Ok(sum);
             }
             let shared_context=expected.map(|ty|self.resolved(ty,b)).transpose()?.is_some_and(|ty|matches!(ty,Ty::Address{mutable:false,..}));
-            let actual=if shared_context&&matches!(expression.kind,CoreExprKind::Name(_)|CoreExprKind::Member{..}|CoreExprKind::ReceiverMember(_)|CoreExprKind::Index{..}|CoreExprKind::Unary{op:UnaryOp::Dereference,..}){
-                let(actual,place)=self.place(module,context,expression,env,bindings,active,b)?;
-                if matches!(self.resolved(&actual,b)?,Ty::Address{mutable:true,..}){if let Some(place)=&place{self.read_original(module,context,place,&actual,env,false,active,b)?;}}
-                else{self.take_place(module,context,&actual,place.as_ref(),env,active,b)?;}
-                actual
-            }else{match &expression.kind{
-                CoreExprKind::Unit=>Ty::Atom(Type::Unit),
-                CoreExprKind::Bool(_)=>Ty::Atom(Type::Bool),
-                CoreExprKind::Literal(value)=>Ty::Atom(value.ty()),
-                CoreExprKind::Integer(text)|CoreExprKind::Float(text)=>self.expression_literal(module,text,matches!(expression.kind,CoreExprKind::Float(_)),false,expected,b)?,
-                CoreExprKind::String(_)=>Ty::Address{mutable:false,life:Life::Static,inner:Box::new(Ty::Slice(Box::new(Ty::Atom(Type::U8))))},
-                CoreExprKind::Name(name)=>match bindings.get(name){Some(binding)=>{self.value_bindings.insert((id,expression.id),binding.identity.clone());let place=Place{binder:binding.identity.clone(),fields:vec![]};self.read_original(module,context,&place,&binding.ty,env,true,active,b)?;binding.identity.charge_clone(b)?;self.value_places.insert((id,expression.id),place);binding.ty.clone()},None=>match self.bound_name(module,context,name,env,active,b)?{Arg::Type(ty)=>ty,Arg::Const(value)=>*value.carrier,Arg::Life(_)=>return Err(bad("original value expression selects a lifetime name"))}},
+            let actual = match &expression.kind {
                 CoreExprKind::Group(value)=>self.expression_mode(module,context,value,env,bindings,expected,observe_bound_fields,active,b)?,
                 CoreExprKind::CompileTime(value)=>self.expression(module,context,value,env,bindings,expected,active,b)?,
-                CoreExprKind::Ascribed{ty,value}=>{let expected=self.ty(module,context,ty,env,active,b)?;let actual=self.expression(module,context,value,env,bindings,Some(&expected),active,b)?;self.relate_value(&actual,&expected,b)?;expected},
-                CoreExprKind::NumericConvert{value,target}|CoreExprKind::IntegerConvert{value,target}=>{let source=self.expression(module,context,value,env,bindings,None,active,b)?;let target=self.ty(module,context,target,env,active,b)?;let source=self.resolved(&source,b)?;if !self.numeric_carrier(&source)||!matches!(self.resolved(&target,b)?,Ty::Atom(ref ty)if ty.is_integer()||ty.is_float()){return Err(bad("original numeric conversion has nonnumeric endpoint"));}target},
-                CoreExprKind::Unary{op:UnaryOp::Negate,operand}if matches!(operand.kind,CoreExprKind::Integer(_))=>{let CoreExprKind::Integer(text)=&operand.kind else{unreachable!()};let ty=self.expression_literal(module,text,false,true,expected,b)?;self.expressions.insert((id,operand.id),ty.clone());ty},
-                CoreExprKind::Unary{op:UnaryOp::Borrow|UnaryOp::BorrowMut,operand}=>{
-                    let mutable=matches!(expression.kind,CoreExprKind::Unary{op:UnaryOp::BorrowMut,..});
-                    let(child,place)=self.place(module,context,operand,env,bindings,active,b)?;
-                    if mutable{self.mutable_place(module,context,operand,env,bindings,active,b)?;}
-                    if let Some(place)=place{
-                        if !mutable&&matches!(place.binder,Binder::Capture{definition,..}if definition==id)&&self.inline_capture_place(id,operand,b)?{b.spend(1)?;self.receiver_borrows.insert((id,expression.id));}
-                        self.read_original(module,context,&place,&child,env,false,active,b)?;
-                    }
-                    let mut source=operand.as_ref();
-                    while let CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=&source.kind{b.spend(1)?;source=inner;}
-                    self.remember_borrow_parent(module,id,expression.id,source.id,b)?;
-                    Ty::Address{mutable,life:Life::Local(id,expression.id),inner:Box::new(child)}
-                },
-                CoreExprKind::Unary{op:UnaryOp::Dereference,..}|CoreExprKind::Member{..}|CoreExprKind::Index{..}|CoreExprKind::ReceiverMember(_)=>{
-                    if matches!(expression.kind,CoreExprKind::Member{..}) {
-                        if let Some(value)=self.variant_constructor(module,context,expression,expression,None,None,&[],env,bindings,expected,active,b)? {
-                            self.expressions.insert((id,expression.id),value.clone());return Ok(value);
-                        }
-                    }
-                    if let Some(ty)=self.static_call_type(module,context,expression,env,bindings,b)?{ty}else{
-                        let(ty,place)=self.place(module,context,expression,env,bindings,active,b)?;
-                        if matches!(expression.kind, CoreExprKind::Member { .. })
-                            && let Ty::Address { mutable: true, inner, .. } = self.resolved(&ty,b)?
-                        {
-                            self.mutable_place(module,context,expression,env,bindings,active,b)?;
-                            if let Some(place) = &place { self.read_original(module,context,place,&ty,env,false,active,b)?; }
-                            self.remember_borrow_parent(module,id,expression.id,expression.id,b)?;
-                            Ty::Address { mutable: true, life: Life::Local(id,expression.id), inner }
-                        } else if observe_bound_fields && matches!(expression.kind,CoreExprKind::Member{..})
-                            && matches!(self.resolved(&ty,b)?,Ty::Managed(_))
-                        {
-                            if let Some(place)=&place {
-                                self.read_original(module,context,place,&ty,env,false,active,b)?;
-                            } else {
-                                // A borrowed Product field has an address source
-                                // even though it has no movable lexical Place.
-                                self.address_place(module,id,expression.id,b)?;
-                            }
-                            self.observed_argument(expression,&ty,env,b)?
-                        }else{
-                            self.take_place(module,context,&ty,place.as_ref(),env,active,b)?;ty
-                        }
-                    }
-                },
-                CoreExprKind::Unary{op,operand}=>{
-                    let child=self.expression(module,context,operand,env,bindings,expected,active,b)?;
-                    match op{
-                        UnaryOp::Give=>{
-                            let head = self.resolved(&child, b)?;
-                            let exclusive_place = if matches!(head, Ty::Address { mutable: true, .. }) {
-                                let mut source = operand.as_ref();
-                                while let CoreExprKind::Group(inner) = &source.kind {
-                                    b.spend(1)?;
-                                    source = inner;
-                                }
-                                match &source.kind {
-                                    CoreExprKind::Name(name) => match bindings.get(name) {
-                                        Some(binding) if matches!(binding.identity, Binder::Capture { .. }) =>
-                                            self.capture_owns(&binding.identity, b)?,
-                                        Some(_) => true,
-                                        None => false,
-                                    },
-                                    _ => false,
-                                }
-                            } else {
-                                false
-                            };
-                            if !exclusive_place && !matches!(head,Ty::Managed(_)|Ty::Store(_))
-                                && !self.owned_package_field_transfer(module,context,operand,&child,env,active,b)? {
-                                return Err(bad("original give has no actual owning resource type"));
-                            }
-                            child
-                        },
-                        UnaryOp::Not=>{self.unify(&child,&Ty::Atom(Type::Bool),b)?;Ty::Atom(Type::Bool)},
-                        UnaryOp::Negate|UnaryOp::BitNot=>{let resolved=self.resolved(&child,b)?;if !(self.integer_carrier(&resolved)||matches!(resolved,Ty::Atom(ref ty)if *op==UnaryOp::Negate&&ty.is_float())){return Err(bad("original unary scalar operation is not proved"));}child},
-                        _=>unreachable!(),
-                    }
-                },
-                CoreExprKind::Binary{op,left,right}=>{
-                    let operand_expected=if matches!(op,BinaryOp::Equal|BinaryOp::NotEqual|BinaryOp::Less|BinaryOp::LessEqual|BinaryOp::Greater|BinaryOp::GreaterEqual|BinaryOp::And|BinaryOp::Or){None}else{expected};
-                    let(left,right)=if Self::contextual_numeric_literal(left,b)?{
-                        // A pure untyped literal has no move, observation or
-                        // effect to order. Obtain the other operand's carrier
-                        // before applying the language's default literal type.
-                        let right=self.expression(module,context,right,env,bindings,operand_expected,active,b)?;
-                        let left=self.expression(module,context,left,env,bindings,Some(&right),active,b)?;(left,right)
-                    }else{
-                        let left=self.expression(module,context,left,env,bindings,operand_expected,active,b)?;
-                        let right=self.expression(module,context,right,env,bindings,Some(&left),active,b)?;(left,right)
-                    };
-                    self.numeric_binary_original(*op,&left,&right,b)?
-                },
+                CoreExprKind::Binary { op, left, right } =>
+                    self.binary_expression(module, context, *op, left, right, env, bindings, expected, active, b)?,
                 CoreExprKind::Call{callee,arguments}=>self.call(module,context,expression,callee,arguments,env,bindings,expected,active,b)?,
-                CoreExprKind::Tuple(fields)=>{let expected=expected.map(|ty|self.resolved(ty,b)).transpose()?;let mut actuals=Vec::new();for(index,field)in fields.iter().enumerate(){let field_expected=match &expected{Some(Ty::Tuple(fields))=>fields.get(index),_=>None};actuals.push(self.expression(module,context,field,env,bindings,field_expected,active,b)?);}if actuals.is_empty(){Ty::Atom(Type::Unit)}else{Ty::Tuple(actuals)}},
-                CoreExprKind::Array(fields)=>{let contextual=expected.map(|ty|self.resolved(ty,b)).transpose()?;let mut child=match contextual{Some(Ty::Array(child,_))=>*child,_=>self.fresh(b)?};for field in fields{let actual=self.expression(module,context,field,env,bindings,Some(&child),active,b)?;self.relate_value(&actual,&child,b)?;child=self.resolved(&child,b)?;}Ty::Array(Box::new(child),Box::new(Const{carrier:Box::new(Ty::Atom(Type::Usize)),value:ConstValue::Value(Constant::Usize(fields.len() as u64))}))},
-                CoreExprKind::Record{ty,fields}=>{let ty=self.ty(module,context,ty,env,active,b)?;self.record(module,context,&ty,fields,None,env,bindings,active,b)?;self.constructed_resource(module,context,ty,expression,env,b)?},
-                CoreExprKind::RecordConstructor{definition,fields}=>self.record_constructor(module,context,expression,*definition,fields,env,bindings,expected,active,b)?,
-                CoreExprKind::RecordUpdate{ty,base,fields}=>{let annotation=ty.as_ref().map(|ty|self.ty(module,context,ty,env,active,b)).transpose()?;let base=self.expression(module,context,base,env,bindings,annotation.as_ref().or(expected),active,b)?;self.record(module,context,&base,fields,Some(&base),env,bindings,active,b)?;base},
-                CoreExprKind::Sequence { bindings:initializers, value } =>
-                    self.sequence_value(module, context, initializers, value, id, env, bindings, expected, active, b)?,
-                CoreExprKind::If{condition,then_value,else_value}=>
-                    self.conditional_value(module, context, expression.id, condition, then_value, else_value, env, bindings, expected, active, b)?,
-                CoreExprKind::Closure{..}=>
-                    self.closure_literal(module, context, expression, id, env, bindings, expected, active, b)?,
-                CoreExprKind::Try(value)=>{let source=self.expression(module,context,value,env,bindings,None,active,b)?;self.propagate_error(source,env,b)?},
-                _=>return Err(unsupported("original expression has no complete symbolic operation rule",Some(expression.span))),
-            }};
-            let actual=self.code_value(module,context,expression,&actual,expected,false,env,active,b)?;
-            if let Some(expected)=expected{self.relate_value(&actual,expected,b)?;}
-            if self.creation(id,expression,bindings,b)?{b.spend(1)?;self.created.insert((id,expression.id));}
-            self.expressions.insert((id,expression.id),actual.clone());if let Some(expected)=expected{self.contextual_borrow_value(&actual,expected,b)}else{Ok(actual)}
+                _ => return self.other_original_expression(module, context, expression, env, bindings, expected,
+                    shared_context, observe_bound_fields, id, active, b),
+            };
+            self.finish_original_expression(module, context, expression, env, bindings, expected, &actual, id, active, b)
         }).map_err(|mut error|{error.message.push_str(&format!(" [original definition {:?}, expression {:?}]",env.current().ok(),expression.id));if error.span.is_none(){error.span=Some(expression.span);}error})
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn binary_expression(
+        &mut self, module: &TypedModule, context: &CheckedContext, op: BinaryOp,
+        left: &SemanticOriginalExpr, right: &SemanticOriginalExpr, env: &Env,
+        bindings: &BTreeMap<String, Binding>, expected: Option<&Ty>,
+        active: &mut ActiveQueries, b: &mut Budget,
+    ) -> Check<Ty> {
+        let operand_expected=if matches!(op,BinaryOp::Equal|BinaryOp::NotEqual|BinaryOp::Less|BinaryOp::LessEqual|BinaryOp::Greater|BinaryOp::GreaterEqual|BinaryOp::And|BinaryOp::Or){None}else{expected};
+        let(left,right)=if Self::contextual_numeric_literal(left,b)?{
+            // A pure untyped literal has no move, observation or
+            // effect to order. Obtain the other operand's carrier
+            // before applying the language's default literal type.
+            let right=self.expression(module,context,right,env,bindings,operand_expected,active,b)?;
+            let left=self.expression(module,context,left,env,bindings,Some(&right),active,b)?;(left,right)
+        }else{
+            let left=self.expression(module,context,left,env,bindings,operand_expected,active,b)?;
+            let right=self.expression(module,context,right,env,bindings,Some(&left),active,b)?;(left,right)
+        };
+        self.numeric_binary_original(op,&left,&right,b)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn original_injection(
+        &mut self,
+        module: &TypedModule,
+        context: &CheckedContext,
+        expression: &SemanticOriginalExpr,
+        env: &Env,
+        bindings: &BTreeMap<String, Binding>,
+        expected: Option<&Ty>,
+        id: SemanticDefinitionId,
+        active: &mut ActiveQueries,
+        b: &mut Budget,
+    ) -> Check<Option<Ty>> {
+        if !matches!(expression.kind,CoreExprKind::If{..}|CoreExprKind::Sequence{..}) {
+            if let Some(expected)=expected {
+                let sum=self.resolved(expected,b)?;
+                if let Ty::ErrorUnion(error,result)=&sum {
+                    // Elaborating a contextual injection never equates
+                    // the payload with the sum or one arm with the other.
+                    let numeric = self.injection_literal_context(expression,error,result,b)?;
+                    let arm = if numeric.is_some() { numeric.as_ref() } else {
+                        self.enum_injection_arm(module, context, expression, env, bindings, error, result, active, b)?
+                    };
+                    let payload=self.expression(module,context,expression,env,bindings,arm,active,b)?;
+                    if self.same(&payload,&sum,b)?{return Ok(Some(payload));}
+                    // A sum-valued argument cannot be an injected payload
+                    // when neither declared arm is a sum or an open type.
+                    // Its nested call lifetimes still have to unify in
+                    // their respective original type and declaration roles.
+                    if matches!(payload, Ty::ErrorUnion(..))
+                        && !matches!(error.as_ref(), Ty::ErrorUnion(..) | Ty::Infer(_))
+                        && !matches!(result.as_ref(), Ty::ErrorUnion(..) | Ty::Infer(_))
+                    {
+                        self.unify(&payload, &sum, b)?;
+                        return self.resolved(&payload, b).map(Some);
+                    }
+                    // The payload can be an untyped integer binding, even
+                    // when the enclosing sum already has two rigid arms.
+                    // Settle it with the other original return equations.
+                    if matches!(payload, Ty::Infer(_))
+                        || matches!(error.as_ref(),Ty::Infer(_))
+                        || matches!(result.as_ref(),Ty::Infer(_)) {
+                        b.spend(1)?;
+                        self.pending_injections.entry(id).or_default().push((expression.id,payload,sum.clone()));
+                        self.expressions.insert((id,expression.id),sum.clone());
+                        return Ok(Some(sum));
+                    }
+                    let failed=self.same(&payload,error,b)?;
+                    let succeeded=self.same(&payload,result,b)?;
+                    if failed==succeeded{
+                        let payload=self.resolved(&payload,b)?;
+                        let error=self.resolved(error,b)?;
+                        let result=self.resolved(result,b)?;
+                        let detail=format!("original injection complete types: payload {payload:?}; error {error:?}; result {result:?}; matching arms error={failed}, result={succeeded}");
+                        b.spend(detail.len())?;
+                        return Err(bad("original implicit error injection has no unique complete payload arm").with_note(detail));
+                    }
+                    b.spend(2)?;
+                    self.injections.insert((id,expression.id),(failed,payload));
+                    self.expressions.insert((id,expression.id),sum.clone());
+                    return Ok(Some(sum));
+                }
+            }
+        }
+        Ok(None)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn other_original_expression(
+        &mut self,
+        module: &TypedModule,
+        context: &CheckedContext,
+        expression: &SemanticOriginalExpr,
+        env: &Env,
+        bindings: &BTreeMap<String, Binding>,
+        expected: Option<&Ty>,
+        shared_context: bool,
+        observe_bound_fields: bool,
+        id: SemanticDefinitionId,
+        active: &mut ActiveQueries,
+        b: &mut Budget,
+    ) -> Check<Ty> {
+        let actual=if shared_context&&matches!(expression.kind,CoreExprKind::Name(_)|CoreExprKind::Member{..}|CoreExprKind::ReceiverMember(_)|CoreExprKind::Index{..}|CoreExprKind::Unary{op:UnaryOp::Dereference,..}){
+            let(actual,place)=self.place(module,context,expression,env,bindings,active,b)?;
+            if matches!(self.resolved(&actual,b)?,Ty::Address{mutable:true,..}){if let Some(place)=&place{self.read_original(module,context,place,&actual,env,false,active,b)?;}}
+            else{self.take_place(module,context,&actual,place.as_ref(),env,active,b)?;}
+            actual
+        }else{match &expression.kind{
+            CoreExprKind::Unit=>Ty::Atom(Type::Unit),
+            CoreExprKind::Bool(_)=>Ty::Atom(Type::Bool),
+            CoreExprKind::Literal(value)=>Ty::Atom(value.ty()),
+            CoreExprKind::Integer(text)|CoreExprKind::Float(text)=>self.expression_literal(module,text,matches!(expression.kind,CoreExprKind::Float(_)),false,expected,b)?,
+            CoreExprKind::String(_)=>Ty::Address{mutable:false,life:Life::Static,inner:Box::new(Ty::Slice(Box::new(Ty::Atom(Type::U8))))},
+            CoreExprKind::Name(name)=>match bindings.get(name){Some(binding)=>{self.value_bindings.insert((id,expression.id),binding.identity.clone());let place=Place{binder:binding.identity.clone(),fields:vec![]};self.read_original(module,context,&place,&binding.ty,env,true,active,b)?;binding.identity.charge_clone(b)?;self.value_places.insert((id,expression.id),place);binding.ty.clone()},None=>match self.bound_name(module,context,name,env,active,b)?{Arg::Type(ty)=>ty,Arg::Const(value)=>*value.carrier,Arg::Life(_)=>return Err(bad("original value expression selects a lifetime name"))}},
+            CoreExprKind::Ascribed{ty,value}=>{let expected=self.ty(module,context,ty,env,active,b)?;let actual=self.expression(module,context,value,env,bindings,Some(&expected),active,b)?;self.relate_value(&actual,&expected,b)?;expected},
+            CoreExprKind::NumericConvert{value,target}|CoreExprKind::IntegerConvert{value,target}=>{let source=self.expression(module,context,value,env,bindings,None,active,b)?;let target=self.ty(module,context,target,env,active,b)?;let source=self.resolved(&source,b)?;if !self.numeric_carrier(&source)||!matches!(self.resolved(&target,b)?,Ty::Atom(ref ty)if ty.is_integer()||ty.is_float()){return Err(bad("original numeric conversion has nonnumeric endpoint"));}target},
+            CoreExprKind::Unary{op:UnaryOp::Negate,operand}if matches!(operand.kind,CoreExprKind::Integer(_))=>{let CoreExprKind::Integer(text)=&operand.kind else{unreachable!()};let ty=self.expression_literal(module,text,false,true,expected,b)?;self.expressions.insert((id,operand.id),ty.clone());ty},
+            CoreExprKind::Unary{op:UnaryOp::Borrow|UnaryOp::BorrowMut,operand}=>{
+                let mutable=matches!(expression.kind,CoreExprKind::Unary{op:UnaryOp::BorrowMut,..});
+                let(child,place)=self.place(module,context,operand,env,bindings,active,b)?;
+                if mutable{self.mutable_place(module,context,operand,env,bindings,active,b)?;}
+                if let Some(place)=place{
+                    if !mutable&&matches!(place.binder,Binder::Capture{definition,..}if definition==id)&&self.inline_capture_place(id,operand,b)?{b.spend(1)?;self.receiver_borrows.insert((id,expression.id));}
+                    self.read_original(module,context,&place,&child,env,false,active,b)?;
+                }
+                let mut source=operand.as_ref();
+                while let CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=&source.kind{b.spend(1)?;source=inner;}
+                self.remember_borrow_parent(module,id,expression.id,source.id,b)?;
+                Ty::Address{mutable,life:Life::Local(id,expression.id),inner:Box::new(child)}
+            },
+            CoreExprKind::Unary{op:UnaryOp::Dereference,..}|CoreExprKind::Member{..}|CoreExprKind::Index{..}|CoreExprKind::ReceiverMember(_)=>{
+                if matches!(expression.kind,CoreExprKind::Member{..}) {
+                    if let Some(value)=self.variant_constructor(module,context,expression,expression,None,None,&[],env,bindings,expected,active,b)? {
+                        self.expressions.insert((id,expression.id),value.clone());return Ok(value);
+                    }
+                }
+                if let Some(ty)=self.static_call_type(module,context,expression,env,bindings,b)?{ty}else{
+                    let(ty,place)=self.place(module,context,expression,env,bindings,active,b)?;
+                    if matches!(expression.kind, CoreExprKind::Member { .. })
+                        && let Ty::Address { mutable: true, inner, .. } = self.resolved(&ty,b)?
+                    {
+                        self.mutable_place(module,context,expression,env,bindings,active,b)?;
+                        if let Some(place) = &place { self.read_original(module,context,place,&ty,env,false,active,b)?; }
+                        self.remember_borrow_parent(module,id,expression.id,expression.id,b)?;
+                        Ty::Address { mutable: true, life: Life::Local(id,expression.id), inner }
+                    } else if observe_bound_fields && matches!(expression.kind,CoreExprKind::Member{..})
+                        && matches!(self.resolved(&ty,b)?,Ty::Managed(_))
+                    {
+                        if let Some(place)=&place {
+                            self.read_original(module,context,place,&ty,env,false,active,b)?;
+                        } else {
+                            // A borrowed Product field has an address source
+                            // even though it has no movable lexical Place.
+                            self.address_place(module,id,expression.id,b)?;
+                        }
+                        self.observed_argument(expression,&ty,env,b)?
+                    }else{
+                        self.take_place(module,context,&ty,place.as_ref(),env,active,b)?;ty
+                    }
+                }
+            },
+            CoreExprKind::Unary{op,operand}=>{
+                let child=self.expression(module,context,operand,env,bindings,expected,active,b)?;
+                match op{
+                    UnaryOp::Give=>{
+                        let head = self.resolved(&child, b)?;
+                        let exclusive_place = if matches!(head, Ty::Address { mutable: true, .. }) {
+                            let mut source = operand.as_ref();
+                            while let CoreExprKind::Group(inner) = &source.kind {
+                                b.spend(1)?;
+                                source = inner;
+                            }
+                            match &source.kind {
+                                CoreExprKind::Name(name) => match bindings.get(name) {
+                                    Some(binding) if matches!(binding.identity, Binder::Capture { .. }) =>
+                                        self.capture_owns(&binding.identity, b)?,
+                                    Some(_) => true,
+                                    None => false,
+                                },
+                                _ => false,
+                            }
+                        } else {
+                            false
+                        };
+                        if !exclusive_place && !matches!(head,Ty::Managed(_)|Ty::Store(_))
+                            && !self.owned_package_field_transfer(module,context,operand,&child,env,active,b)? {
+                            return Err(bad("original give has no actual owning resource type"));
+                        }
+                        child
+                    },
+                    UnaryOp::Not=>{self.unify(&child,&Ty::Atom(Type::Bool),b)?;Ty::Atom(Type::Bool)},
+                    UnaryOp::Negate|UnaryOp::BitNot=>{let resolved=self.resolved(&child,b)?;if !(self.integer_carrier(&resolved)||matches!(resolved,Ty::Atom(ref ty)if *op==UnaryOp::Negate&&ty.is_float())){return Err(bad("original unary scalar operation is not proved"));}child},
+                    _=>unreachable!(),
+                }
+            },
+            CoreExprKind::Tuple(fields)=>{let expected=expected.map(|ty|self.resolved(ty,b)).transpose()?;let mut actuals=Vec::new();for(index,field)in fields.iter().enumerate(){let field_expected=match &expected{Some(Ty::Tuple(fields))=>fields.get(index),_=>None};actuals.push(self.expression(module,context,field,env,bindings,field_expected,active,b)?);}if actuals.is_empty(){Ty::Atom(Type::Unit)}else{Ty::Tuple(actuals)}},
+            CoreExprKind::Array(fields)=>{let contextual=expected.map(|ty|self.resolved(ty,b)).transpose()?;let mut child=match contextual{Some(Ty::Array(child,_))=>*child,_=>self.fresh(b)?};for field in fields{let actual=self.expression(module,context,field,env,bindings,Some(&child),active,b)?;self.relate_value(&actual,&child,b)?;child=self.resolved(&child,b)?;}Ty::Array(Box::new(child),Box::new(Const{carrier:Box::new(Ty::Atom(Type::Usize)),value:ConstValue::Value(Constant::Usize(fields.len() as u64))}))},
+            CoreExprKind::Record{ty,fields}=>{let ty=self.ty(module,context,ty,env,active,b)?;self.record(module,context,&ty,fields,None,env,bindings,active,b)?;self.constructed_resource(module,context,ty,expression,env,b)?},
+            CoreExprKind::RecordConstructor{definition,fields}=>self.record_constructor(module,context,expression,*definition,fields,env,bindings,expected,active,b)?,
+            CoreExprKind::RecordUpdate{ty,base,fields}=>{let annotation=ty.as_ref().map(|ty|self.ty(module,context,ty,env,active,b)).transpose()?;let base=self.expression(module,context,base,env,bindings,annotation.as_ref().or(expected),active,b)?;self.record(module,context,&base,fields,Some(&base),env,bindings,active,b)?;base},
+            CoreExprKind::Sequence { bindings:initializers, value } =>
+                self.sequence_value(module, context, initializers, value, id, env, bindings, expected, active, b)?,
+            CoreExprKind::If{condition,then_value,else_value}=>
+                self.conditional_value(module, context, expression.id, condition, then_value, else_value, env, bindings, expected, active, b)?,
+            CoreExprKind::Closure{..}=>
+                self.closure_literal(module, context, expression, id, env, bindings, expected, active, b)?,
+            CoreExprKind::Try(value)=>{let source=self.expression(module,context,value,env,bindings,None,active,b)?;self.propagate_error(source,env,b)?},
+            _=>return Err(unsupported("original expression has no complete symbolic operation rule",Some(expression.span))),
+        }};
+        self.finish_original_expression(module, context, expression, env, bindings, expected, &actual, id, active, b)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn finish_original_expression(
+        &mut self,
+        module: &TypedModule,
+        context: &CheckedContext,
+        expression: &SemanticOriginalExpr,
+        env: &Env,
+        bindings: &BTreeMap<String, Binding>,
+        expected: Option<&Ty>,
+        actual: &Ty,
+        id: SemanticDefinitionId,
+        active: &mut ActiveQueries,
+        b: &mut Budget,
+    ) -> Check<Ty> {
+        let actual=self.code_value(module,context,expression,actual,expected,false,env,active,b)?;
+        if let Some(expected)=expected{self.relate_value(&actual,expected,b)?;}
+        if self.creation(id,expression,bindings,b)?{b.spend(1)?;self.created.insert((id,expression.id));}
+        self.expressions.insert((id,expression.id),actual.clone());if let Some(expected)=expected{self.contextual_borrow_value(&actual,expected,b)}else{Ok(actual)}
     }
     #[allow(clippy::too_many_arguments)]
     fn sequence_value(
