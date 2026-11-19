@@ -82,20 +82,12 @@ impl CheckedContext {
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=creator.target else{return Err(bad("capture creator is not executable"));};
         let f=module.functions.get(function.0 as usize).ok_or_else(||bad("capture creator function is absent"))?;
         if owner_description{
-            let mut exact=None;
-            for block in &f.blocks{
-                b.spend(block.instructions.len())?;
-                for instruction in &block.instructions{
-                    if instruction.result==Some(capture)&&exact.replace(&instruction.kind).is_some(){
-                        return Err(bad("default Managed capture has multiple actual creator definitions"));
-                    }
-                }
-            }
-            if !matches!(exact,Some(InstructionKind::DescribeLocal{..})){
+            let (_, _, producer) = self.site_index.producers.get(f, capture, b)?;
+            if !matches!(producer.kind, InstructionKind::DescribeLocal{..}){
                 return Err(bad("default Managed capture lacks its exact creator description operation"));
             }
         }
-        if !self.capture_creator_source(module,creator,f,capture,source,b)?{return Err(bad("captured head differs from its exact original creator free-value binder"));}Ok(())
+        if !self.capture_creator_source(module,creator,f,capture,&source,b)?{return Err(bad("captured head differs from its exact original creator free-value binder"));}Ok(())
     }
 }
 impl CheckedContext {

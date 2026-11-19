@@ -2041,7 +2041,14 @@ impl<'a> Scan<'a, '_, '_, '_> {
                     self.locals.truncate(base);
                 }
             }
-            S::Block(body) | S::Defer(body) | S::Unsafe(body) | S::Loop(body) => {
+            S::Defer(wrapper) => {
+                let (action, _, _) = wrapper.deferred_action().ok_or_else(||
+                    error(statement.span, "defer effects require its registered closure body"))?;
+                // Scope exit executes this registered action. A closure merely
+                // created inside the action retains its own effect boundary.
+                self.invoke(action, Some(0), depth + 1)?;
+            }
+            S::Block(body) | S::Unsafe(body) | S::Loop(body) => {
                 self.block(body, depth + 1)?
             }
             S::With { name, value, body } => {

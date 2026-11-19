@@ -19,6 +19,7 @@ mod capabilities;
 mod carriers;
 mod cleanup;
 mod closure_sources;
+pub(in crate::semantic) use closure_sources::CapturedSource;
 mod constructors;
 mod effects;
 mod elements;

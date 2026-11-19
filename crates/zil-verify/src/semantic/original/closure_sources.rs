@@ -1,6 +1,43 @@
 //! Original value identities used at an actual closure creation. Type equality
 //! and equal outside lifetime images never choose the captured value.
 use super::*;
+/// A free value is tied to its lexical root through each enclosing
+/// environment. The concrete capture ordinal is proved at each real creator.
+#[derive(PartialEq, Eq)]
+pub(in crate::semantic) struct CapturedSource {
+    pub(in crate::semantic) root: intrinsics::BufferSource,
+    pub(in crate::semantic) parents: Vec<SemanticDefinitionId>,
+}
+
+impl CapturedSource {
+    fn from_binding(original: &CheckedOriginal, module: &TypedModule, mut binder: &Binder, b: &mut Budget) -> Check<Self> {
+        let mut parents = Vec::new();
+        loop {
+            b.spend(1)?;
+            let root = match binder {
+                Binder::Capture { definition, source } => {
+                    if parents.len() >= b.limits.max_call_depth {
+                        return Err(limit("nested captured source exceeds the lexical depth budget"));
+                    }
+                    if parents.len() == parents.capacity() { b.spend(parents.len())?; }
+                    parents.push(*definition);
+                    binder = source;
+                    continue;
+                }
+                Binder::Local { definition, node, .. } =>
+                    intrinsics::BufferSource::Local { definition: *definition, node: *node },
+                Binder::Parameter { definition, ordinal } =>
+                    intrinsics::BufferSource::Parameter { definition: *definition, ordinal: *ordinal },
+                Binder::Pattern { definition, .. } => {
+                    let range = original.range_binder(module, *definition, binder, b)?.ok_or_else(||
+                        unsupported("captured pattern requires its checked original activation and binding", None))?;
+                    intrinsics::BufferSource::Local { definition: *definition, node: range.statement }
+                }
+            };
+            return Ok(Self { root, parents });
+        }
+    }
+}
 impl CheckedOriginal {
     pub(in crate::semantic) fn prepared_shared_call_input(
         &self, definition: SemanticDefinitionId, site: SemanticSiteId, b: &mut Budget,
@@ -254,7 +291,7 @@ impl CheckedOriginal {
         if !place.fields.is_empty()||matches!(place.binder,Binder::Capture{..}|Binder::Pattern{..}){return Ok(Some(intrinsics::BufferSource::Place{definition,node:operand}));}
         Ok(Some(match &place.binder{Binder::Local{definition,node,..}=>intrinsics::BufferSource::Local{definition:*definition,node:*node},Binder::Parameter{definition,ordinal}=>intrinsics::BufferSource::Parameter{definition:*definition,ordinal:*ordinal},_=>return Err(unsupported("original address needs its complete captured/indirect Place boundary",None))}))
     }
-    pub(in crate::semantic) fn ghost_capture_source(&self,module:&TypedModule,creator:SemanticDefinitionId,child:SemanticDefinitionId,ordinal:usize,node:NodeId,managed_mode:Option<bool>,b:&mut Budget)->Check<Option<intrinsics::BufferSource>>{
+    pub(in crate::semantic) fn ghost_capture_source(&self,module:&TypedModule,creator:SemanticDefinitionId,child:SemanticDefinitionId,ordinal:usize,node:NodeId,managed_mode:Option<bool>,b:&mut Budget)->Check<Option<CapturedSource>>{
         let index=self.source_index(module,&[creator,child],b)?;
         let parent=index.definitions.get(&creator).ok_or_else(||bad("logical capture has no original creator body"))?;
         let function=index.definitions.get(&child).ok_or_else(||bad("logical capture has no original child body"))?;
@@ -272,7 +309,7 @@ impl CheckedOriginal {
             // caller still has to prove the actual creator of this operand.
             return Ok(None);
         }
-        match &binding.identity{Binder::Local{definition,node,..}=>Ok(Some(intrinsics::BufferSource::Local{definition:*definition,node:*node})),Binder::Parameter{definition,ordinal}=>Ok(Some(intrinsics::BufferSource::Parameter{definition:*definition,ordinal:*ordinal})),_=>Err(unsupported("nested logical capture needs its complete parent capture transport",None))}
+        CapturedSource::from_binding(self, module, &binding.identity, b).map(Some)
     }
     pub(in crate::semantic) fn buffer_place(&self,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(intrinsics::BufferRoot,Vec<String>)>{
         b.spend(1)?;let place=self.value_places.get(&(definition,node)).ok_or_else(||bad("original buffer observation has no complete checked Place"))?;
@@ -280,12 +317,12 @@ impl CheckedOriginal {
         let root=match &place.binder{Binder::Local{definition:owner,node,..}if *owner==definition=>intrinsics::BufferRoot::Local{node:*node},Binder::Parameter{definition:owner,ordinal}if *owner==definition=>intrinsics::BufferRoot::Parameter{ordinal:*ordinal},Binder::Capture{definition:owner,..}if *owner==definition=>intrinsics::BufferRoot::Capture,Binder::Pattern{definition:owner,..}if *owner==definition=>intrinsics::BufferRoot::Pattern,_=>return Err(bad("original buffer observation uses another source scope or unsupported pattern root"))};
         Ok((root,place.fields.clone()))
     }
-    pub(in crate::semantic) fn buffer_capture_source(&self,child:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<intrinsics::BufferSource>{
+    pub(in crate::semantic) fn buffer_capture_source(&self,module:&TypedModule,child:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<CapturedSource>{
         b.spend(1)?;let place=self.value_places.get(&(child,node)).ok_or_else(||bad("captured buffer has no independently checked original Place"))?;
         let Binder::Capture{definition,source}=&place.binder else{return Err(bad("captured buffer selects another original root category"));};
         if *definition!=child||!self.used.get(&child).is_some_and(|used|used.contains(&place.binder)){return Err(bad("captured buffer is not a checked original free-value use"));}
         source.charge_clone(b)?;
-        match source.as_ref(){Binder::Local{definition,node,..}=>Ok(intrinsics::BufferSource::Local{definition:*definition,node:*node}),Binder::Parameter{definition,ordinal}=>Ok(intrinsics::BufferSource::Parameter{definition:*definition,ordinal:*ordinal}),_=>Err(unsupported("nested captured buffer needs its complete original creator source boundary",None))}
+        CapturedSource::from_binding(self, module, source, b)
     }
     pub(in crate::semantic) fn closure_creation(
         &self, _module: &TypedModule, selection: &mut SourceType<'_>, b: &mut Budget,
@@ -318,7 +355,7 @@ impl CheckedOriginal {
         b.spend(search)?;
         Ok(closures.contains_key(&initializer).then_some(initializer))
     }
-    pub(in crate::semantic) fn implicit_capture_binding(&self,module:&TypedModule,child:SemanticDefinitionId,ordinal:u32,b:&mut Budget)->Check<intrinsics::BufferSource> {
+    pub(in crate::semantic) fn implicit_capture_binding(&self,module:&TypedModule,child:SemanticDefinitionId,ordinal:u32,b:&mut Budget)->Check<CapturedSource> {
         if self.creator_moves.get(&child)!=Some(&false){return Err(bad("implicit captured head does not have its original default-borrow creation mode"));}
         let index=self.source_index(module,&[child],b)?;let function=index.definitions.get(&child).ok_or_else(||bad("implicit capture has no original child"))?;
         let implicit=function.definition.implicit_lifetimes.iter().find(|row|row.ordinal==ordinal).ok_or_else(||bad("implicit capture has no original lifetime occurrence"))?;
@@ -340,8 +377,11 @@ impl CheckedOriginal {
                 if first.as_ref().is_none_or(|path:&Vec<u32>|candidate.occurrence_path<*path){first=Some(candidate.occurrence_path.clone());}
             }
             if first.as_ref()!=Some(&implicit.occurrence_path){return Err(bad("implicit capture head is not its original first lexical free-value use"));}
-            let source=match &binding.identity{Binder::Local{definition,node,..}=>intrinsics::BufferSource::Local{definition:*definition,node:*node},Binder::Parameter{definition,ordinal}=>intrinsics::BufferSource::Parameter{definition:*definition,ordinal:*ordinal},_=>return Err(unsupported("nested implicit capture needs its complete original parent capture source",None))};
-            if selected.replace(source).is_some_and(|old|old!=source){return Err(bad("implicit capture selects several original source binders"));}
+            let source = CapturedSource::from_binding(self, module, &binding.identity, b)?;
+            if selected.as_ref().is_some_and(|old| old != &source) {
+                return Err(bad("implicit capture selects several original source binders"));
+            }
+            selected = Some(source);
         }
         selected.ok_or_else(||bad("implicit captured head has no exact original first free-value use"))
     }

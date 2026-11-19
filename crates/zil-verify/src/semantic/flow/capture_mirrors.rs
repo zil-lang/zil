@@ -146,3 +146,51 @@ pub(super) fn initial(
     }
     Ok((!assignments.is_empty()).then_some(initial))
 }
+
+/// A scalar spill represents the same lexical binding only for its single
+/// entry activation. Whole writes must publish to that exact capture; exit
+/// writeback must read this actual spill. Loans and liveness remain CFG facts.
+pub(super) fn scalar(
+    producers: &sites::Producers, f: &TypedFunction, local: LocalId, b: &mut Budget,
+) -> Check<Option<u32>> {
+    let declaration = f.locals.get(local.0 as usize).ok_or_else(|| bad("forwarded capture local is absent"))?;
+    if !declaration.ty.is_b0_scalar() { return Ok(None); }
+    let entry = f.blocks.get(f.entry.0 as usize).filter(|block| block.id == f.entry)
+        .ok_or_else(|| bad("capture spill has no actual entry block"))?;
+    b.spend(entry.instructions.len())?;
+    let Some(start) = entry.instructions.iter().position(|op| op.kind == InstructionKind::StorageLive(local))
+    else { return Ok(None); };
+    let Some([read, initial]) = entry.instructions.get(start + 1..start + 3) else { return Ok(None); };
+    let (InstructionKind::ReadCapture { index }, Some(value)) = (&read.kind, read.result) else { return Ok(None); };
+    if initial.kind != (InstructionKind::Store { local, value }) { return Ok(None); }
+    for block in &f.blocks {
+        b.spend(block.instructions.len())?;
+        for (at, op) in block.instructions.iter().enumerate() {
+            match op.kind {
+                InstructionKind::StorageLive(id) if id == local && !(block.id == entry.id && at == start) => return Ok(None),
+                InstructionKind::Store { local: id, value: rhs } if id == local && !(block.id == entry.id && at == start + 2) => {
+                    if block.instructions.get(at + 1).is_none_or(|next| next.kind !=
+                        (InstructionKind::WriteCapture { index: *index, value: rhs })) { return Ok(None); }
+                }
+                InstructionKind::WriteCapture { index: actual, value: rhs } if actual == *index => {
+                    let prior = at.checked_sub(1).and_then(|at| block.instructions.get(at));
+                    if prior.is_some_and(|previous| previous.kind == (InstructionKind::Store { local, value: rhs })) { continue; }
+                    let (_, _, load) = producers.get(f, rhs, b)?;
+                    if prior.is_none_or(|previous| previous.result != Some(rhs)) || load.kind != InstructionKind::Load(local) {
+                        return Ok(None);
+                    }
+                }
+                InstructionKind::StorageLive(_) | InstructionKind::Store { .. }
+                | InstructionKind::BorrowLocal { .. } | InstructionKind::BorrowLocalMut { .. }
+                | InstructionKind::Load(_) | InstructionKind::StorageDead(_) => {}
+                _ => {
+                    for id in op.kind.local_operands() {
+                        b.spend(1)?;
+                        if id == local { return Ok(None); }
+                    }
+                }
+            }
+        }
+    }
+    Ok(Some(*index))
+}

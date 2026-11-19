@@ -357,9 +357,15 @@ impl Walk<'_, '_> {
                     self.block(&mut local, &arm.body, b, depth + 1)?;
                 }
             }
-            CoreStatementKind::Block(body)
-            | CoreStatementKind::Defer(body)
-            | CoreStatementKind::Loop(body) => self.scoped(names, body, b, depth + 1)?,
+            CoreStatementKind::Defer(wrapper) => {
+                let (action, _, _) = wrapper.deferred_action().ok_or_else(||
+                    fail("defer original effects require the registered closure body"))?;
+                // The registered entry has its own original definition. Its
+                // synchronous bound and body are checked at that definition.
+                self.expr(names, action, b, depth + 1)?;
+            }
+            CoreStatementKind::Block(body) | CoreStatementKind::Loop(body) =>
+                self.scoped(names, body, b, depth + 1)?,
             CoreStatementKind::Unsafe(body) => {
                 self.unsafe_depth += 1;
                 self.scoped(names, body, b, depth + 1)?;

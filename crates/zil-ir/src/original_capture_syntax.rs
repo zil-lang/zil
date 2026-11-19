@@ -4,6 +4,8 @@ use super::*;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum CaptureUse {
+    /// The first name occurrence owned by this declaration. Children have
+    /// their own node-to-site directory even when they capture the same root.
     First,
     Give,
 }
@@ -316,6 +318,7 @@ where
                 self.expression(value, depth + 1)?;
                 self.shadowed = before;
             }
+            K::Closure { .. } if self.mode == CaptureUse::First => {}
             K::Closure {
                 parameters, body, ..
             } => {
@@ -455,6 +458,19 @@ mod tests {
             },
         );
         assert_eq!(selected(&value, CaptureUse::First), Some(NodeId(2)));
+    }
+
+    #[test]
+    fn nested_free_name_is_owned_by_the_child_even_when_the_parent_reads_it_later() {
+        let child = expression(2, CoreExprKind::Closure {
+            parameters: vec![], return_type: None, move_capture: false,
+            body: CoreBlock { statements: vec![CoreStatement {
+                id: NodeId(3), kind: CoreStatementKind::Return(Some(name(4))), span: Span::default(),
+            }], span: Span::default() },
+        });
+        assert_eq!(selected(&child, CaptureUse::First), None);
+        let value = expression(1, CoreExprKind::Tuple(vec![child, name(7)]));
+        assert_eq!(selected(&value, CaptureUse::First), Some(NodeId(7)));
     }
 
     #[test]

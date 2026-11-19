@@ -9,8 +9,20 @@ use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::rc::Rc;
 
+/// A defer owns one lexical closure. Control may target loops inside that
+/// action; a closure declared inside it has its own return/propagation target.
+#[derive(Clone, Copy, Default)]
+enum DeferControl {
+    #[default]
+    Ordinary,
+    Forming(zil_base::NodeId),
+    Action { loops: usize },
+    NestedClosure,
+}
+
 struct Budget<'a> {
     limits: &'a Limits,
+    defer_control: DeferControl,
     work: usize,
     nodes: usize,
     ordinary_functions: usize,
@@ -28,6 +40,7 @@ impl<'a> Budget<'a> {
     fn new(limits: &'a Limits) -> Self {
         Self {
             limits,
+            defer_control: DeferControl::Ordinary,
             work: limits.max_analysis_steps,
             nodes: limits.max_nodes,
             ordinary_functions: 0,
@@ -1525,6 +1538,12 @@ fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) ->
     for statement in &block.statements {
         budget.node(depth + 1, statement.span)?;
         match &statement.kind {
+            CoreStatementKind::Return(_) if matches!(budget.defer_control, DeferControl::Action { .. }) => {
+                return Err(error("E-DEFER-CONTROL", statement.span, "return cannot leave a defer cleanup body"));
+            }
+            CoreStatementKind::Break | CoreStatementKind::Continue if matches!(budget.defer_control, DeferControl::Action { loops: 0 }) => {
+                return Err(error("E-DEFER-CONTROL", statement.span, "loop control cannot cross a defer cleanup boundary"));
+            }
             CoreStatementKind::ForEach { .. }
             | CoreStatementKind::CompoundAssign { .. }
             | CoreStatementKind::Yield(_)
@@ -1584,7 +1603,7 @@ fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) ->
             }
             CoreStatementKind::While { condition, body } => {
                 found |= expression_has_closure(condition, depth + 1, budget)?;
-                found |= contains_closure(body, depth + 1, budget)?;
+                found |= loop_contains_closure(body, depth + 1, budget)?;
             }
             CoreStatementKind::IfLet {
                 pattern,
@@ -1606,7 +1625,7 @@ fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) ->
             } => {
                 validate_pattern(pattern, depth + 1, budget)?;
                 found |= expression_has_closure(value, depth + 1, budget)?;
-                found |= contains_closure(body, depth + 1, budget)?;
+                found |= loop_contains_closure(body, depth + 1, budget)?;
             }
             CoreStatementKind::ForRange {
                 name,
@@ -1617,7 +1636,7 @@ fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) ->
                 budget.work(name.len(), statement.span)?;
                 found |= expression_has_closure(start, depth + 1, budget)?;
                 found |= expression_has_closure(end, depth + 1, budget)?;
-                found |= contains_closure(body, depth + 1, budget)?;
+                found |= loop_contains_closure(body, depth + 1, budget)?;
             }
             CoreStatementKind::Match { value, arms } => {
                 found |= expression_has_closure(value, depth + 1, budget)?;
@@ -1627,8 +1646,17 @@ fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) ->
                 }
             }
             CoreStatementKind::Block(body)
-            | CoreStatementKind::Unsafe(body)
-            | CoreStatementKind::Defer(body) => found |= contains_closure(body, depth + 1, budget)?,
+            | CoreStatementKind::Unsafe(body) => found |= contains_closure(body, depth + 1, budget)?,
+            CoreStatementKind::Defer(body) => {
+                if !matches!(budget.defer_control, DeferControl::Ordinary) {
+                    return Err(error("E-DEFER-NESTED", statement.span, "nested defer is not supported"));
+                }
+                let (action, _, _) = body.deferred_action().ok_or_else(||
+                    error("E-DEFER-ACTION", statement.span, "defer requires its actual zero-argument cleanup closure"))?;
+                budget.defer_control = DeferControl::Forming(action.id);
+                found |= contains_closure(body, depth + 1, budget)?;
+                budget.defer_control = DeferControl::Ordinary;
+            }
             CoreStatementKind::Unsupported(feature) => {
                 budget.work(feature.len(), statement.span)?
             }
@@ -1637,10 +1665,22 @@ fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) ->
     }
     Ok(found)
 }
+fn loop_contains_closure(body: &CoreBlock, depth: usize, budget: &mut Budget<'_>) -> R<bool> {
+    let parent = budget.defer_control;
+    if let DeferControl::Action { loops } = parent {
+        budget.defer_control = DeferControl::Action { loops: loops + 1 };
+    }
+    let found = contains_closure(body, depth, budget);
+    budget.defer_control = parent;
+    found
+}
 fn expression_has_closure(e: &CoreExpr, depth: usize, budget: &mut Budget<'_>) -> R<bool> {
     budget.node(depth, e.span)?;
     let direct_type_callee = std::mem::take(&mut budget.direct_type_callee);
     match &e.kind {
+        CoreExprKind::Try(_) if matches!(budget.defer_control, DeferControl::Action { .. }) => {
+            return Err(error("E-DEFER-CONTROL", e.span, "a defer body cannot propagate an error outside its cleanup boundary"));
+        }
         CoreExprKind::Spread(_)
         | CoreExprKind::Group(_)
         | CoreExprKind::Character(_)
@@ -1783,7 +1823,15 @@ fn expression_has_closure_closure(
                 if let Some(ty) = return_type {
                     validate_type(ty, depth + 1, e.span, budget)?;
                 }
+                let parent = budget.defer_control;
+                budget.defer_control = match parent {
+                    DeferControl::Ordinary => DeferControl::Ordinary,
+                    DeferControl::Forming(node) if node == e.id => DeferControl::Action { loops: 0 },
+                    DeferControl::Forming(_) => return Err(error("E-DEFER-ACTION", e.span, "cleanup action changes its registered source occurrence")),
+                    DeferControl::Action { .. } | DeferControl::NestedClosure => DeferControl::NestedClosure,
+                };
                 contains_closure(body, depth + 1, budget)?;
+                budget.defer_control = parent;
             };
         }
         _ => unreachable!("closure presence dispatch"),

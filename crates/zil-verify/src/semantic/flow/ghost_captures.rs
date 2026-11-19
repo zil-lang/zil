@@ -21,7 +21,7 @@ impl CheckedContext {
             let Some(source)=self.original.borrow().as_ref().ok_or_else(||bad("logical capture has no checked original body"))?.ghost_capture_source(module,creator.definition,child.definition,ordinal,node,managed_mode,b)? else { continue; };
             // Resolve every same-shaped original candidate by its real binder.
             // A different candidate cannot donate its class inventory.
-            if !self.capture_creator_source(module,creator,f,value,source,b)?{continue;}
+            if !self.capture_creator_source(module,creator,f,value,&source,b)?{continue;}
             if !self.same_type(environment,actual,expected,b)? {
                 let Some(values)=values else{return Err(bad("logical capture changes the complete original type/class/origin occurrence"));};
                 // Reconstruct a compiler-created reborrow of this exact original

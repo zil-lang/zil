@@ -4,6 +4,7 @@ use super::*;
 use std::collections::VecDeque;
 mod intrinsics;
 mod capture_values;
+mod capture_mirrors;
 mod ghost_captures;
 mod closed_values;
 mod operations;

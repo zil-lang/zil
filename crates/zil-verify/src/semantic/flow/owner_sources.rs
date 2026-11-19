@@ -8,8 +8,7 @@ use zil_base::NodeId;
 pub(in crate::semantic::flow) mod scalar_preparations;
 #[path = "range_bindings.rs"]
 mod range_bindings;
-#[path = "capture_mirrors.rs"]
-mod capture_mirrors;
+use crate::semantic::flow::capture_mirrors;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PatternStart { Value(ValueId), Unpack { local: LocalId, at: (BlockId, usize) } }
@@ -568,7 +567,7 @@ impl CheckedContext{
         if actual.ty!=*expected{return Err(bad("buffer capture actual type differs from its sealed creator operand"));}
         ghost_captures::complete_environment(module,actual,b)?;
         b.spend(actual.classes.len().saturating_add(actual.origins.len()).saturating_add(actual.statics.len()))?;
-        let source=self.original.borrow().as_ref().ok_or_else(||bad("buffer capture lacks independent original proof"))?.buffer_capture_source(caller.definition,node,b)?;
+        let source=self.original.borrow().as_ref().ok_or_else(||bad("buffer capture lacks independent original proof"))?.buffer_capture_source(module,caller.definition,node,b)?;
         let boundaries=self.closure_boundaries.borrow();let mut matched=false;
         for boundary in boundaries.iter().filter(|row|row.child==caller.id){
             b.spend(1)?;
@@ -582,7 +581,7 @@ impl CheckedContext{
             let InstructionKind::MakeClosure{closure,captures}=&instruction.kind else{return Err(bad("captured buffer boundary is not its actual environment constructor"));};
             if *closure!=environment||boundary.value.ty!=Type::Closure(environment){return Err(bad("captured buffer uses another actual creator environment"));}
             let operand=*captures.get(capture as usize).ok_or_else(||bad("captured buffer creator omits its physical capture operand"))?;
-            if !self.capture_creator_source(module,creator,f,operand,source,b)?{
+            if !self.capture_creator_source(module,creator,f,operand,&source,b)?{
                 use zil_base::{DiagnosticIrLocation, DiagnosticRole};
                 let mut diagnostic=bad("buffer projection substitutes another same-typed original free binder");
                 diagnostic.relate(DiagnosticRole::Input,Some(instruction.span),Some(DiagnosticIrLocation{

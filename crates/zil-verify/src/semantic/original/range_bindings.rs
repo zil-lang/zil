@@ -33,13 +33,18 @@ impl CheckedOriginal {
     }
     pub(in crate::semantic) fn range_name(&self,module:&TypedModule,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<Option<RangeBinding>> {
         let Some(place)=self.value_places.get(&(definition,node))else{return Ok(None);};
-        let statement=match &place.binder {
+        self.range_binder(module, definition, &place.binder, b)
+    }
+
+    pub(super) fn range_binder(&self, module: &TypedModule, definition: SemanticDefinitionId,
+        identity: &Binder, b: &mut Budget) -> Check<Option<RangeBinding>> {
+        let statement=match identity {
             Binder::Local{definition:owner,node,..}if *owner==definition=>*node,
             Binder::Pattern{definition:owner,..}if *owner==definition=>{
                 let mut found=None;
                 for((scope,statement,path),binder)in &self.pattern_bindings {
                     b.spend(path.len().saturating_add(1))?;
-                    if *scope==definition&&binder==&place.binder {
+                    if *scope==definition&&binder==identity {
                         if !path.is_empty(){return Ok(None);}
                         if found.replace(*statement).is_some(){return Err(bad("range pattern has several original binder occurrences"));}
                     }
