@@ -205,6 +205,19 @@ fn checkpoint_complete_ordered_rounds_proofs_and_metadata_match_fresh_solver() {
     assert!(!proof.retired[&1].is_empty());
 }
 #[test]
+fn final_validation_reuses_a_leaf_that_only_needed_one_inference_solve() {
+    let module = chain(1);
+    HITS.with(|hits| hits.borrow_mut().clear());
+    let (result, trace, metadata) = run(&module, false, 10_000_000);
+    let (reference, original_trace, original_metadata) = run(&module, true, 10_000_000);
+    assert_eq!(result.unwrap(), reference.unwrap());
+    assert_eq!(trace.solves, [0]);
+    assert_eq!(trace.final_state, original_trace.final_state);
+    assert_eq!(metadata, original_metadata);
+    assert_eq!(drain_hits(), [0]);
+}
+
+#[test]
 fn checkpoint_request_preserves_exact_n_minus_one_and_fresh_retry() {
     let module = chain(3);
     let mut lo = 0;

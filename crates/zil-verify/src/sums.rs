@@ -3261,6 +3261,7 @@ fn run_retaining<'m>(
     queued[f.entry.0 as usize] = true;
     let mut excluded_edges = BTreeSet::new();
     while let Some(block) = pending.pop(budget)? {
+        budget.usage.sum_cfg_visits = budget.usage.sum_cfg_visits.saturating_add(1);
         queued[block] = false;
         let mut output = inputs[block].as_ref().unwrap().duplicate(budget)?;
         flow.block(block, &mut output, false, false, budget)?;
@@ -3344,6 +3345,7 @@ fn replay_inputs(
     let mut rows = vec![Vec::new(); f.blocks.len()];
     for (block, input) in inputs.into_iter().enumerate() {
         if let Some(mut state) = input {
+            budget.usage.sum_replay_visits = budget.usage.sum_replay_visits.saturating_add(1);
             rows[block] = flow.block(block, &mut state, validate, validate, budget)?;
             if validate
                 && matches!(f.blocks[block].terminator, Terminator::Return(_))

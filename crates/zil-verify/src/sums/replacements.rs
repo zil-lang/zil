@@ -1260,9 +1260,10 @@ pub(super) fn check_with_routes(
         result.push(content(&f.return_type, None, &mut Vec::new(), true, b)?);
     }
     let mut ordered = ordered::Ordered::new(module.functions.len(), b)?;
-    // No retention work on the first round. Only a repeated actual solve
-    // can produce a checkpoint; versions start at this request's second round.
-    let mut checkpoints: Option<checkpoint::Cache<'_>> = None;
+    // A completed solve already contains all incoming block states. Save it
+    // against the exact callee versions it read, including the first round.
+    // A changed dependency invalidates that solve before final validation.
+    let mut checkpoints = checkpoint::Cache::new(module.functions.len(), b)?;
     loop {
         for (index, (f, graph)) in module.functions.iter().zip(graphs).enumerate() {
             b.spend(1)?;
@@ -1281,11 +1282,7 @@ pub(super) fn check_with_routes(
                 store_calls: &store_calls,
                 observed: Some(RefCell::new(BTreeSet::new())),
             };
-            let retain = if let Some(cache) = &mut checkpoints {
-                cache.begin(index, b)?
-            } else {
-                false
-            };
+            let retain = checkpoints.begin(index, b)?;
             let ((found, _, _), checkpoint) =
                 run_retaining(module, f, graph, &result, false, b, Some(&context), retain)?;
             let rows = context.written.into_inner();
@@ -1293,19 +1290,15 @@ pub(super) fn check_with_routes(
                 .observed
                 .expect("inference observes its actual reads")
                 .into_inner();
-            if let Some(cache) = &mut checkpoints {
-                cache.publish(index, checkpoint, &reads, b)?;
-            }
+            checkpoints.publish(index, checkpoint, &reads, b)?;
             ordered.observe(index, reads, b)?;
             let mut changed = result[f.id.0 as usize].merge(&found, b)?;
             b.spend(rows.len())?;
             for (target, payload) in rows {
                 changed |= merge_row(&mut effects[f.id.0 as usize], &target, &payload, b)?;
             }
-            if let Some(cache) = &mut checkpoints {
-                cache.published(index, b)?;
-            }
             if changed {
+                checkpoints.published(index, b)?;
                 ordered.changed(index, b)?;
             }
         }
@@ -1313,9 +1306,6 @@ pub(super) fn check_with_routes(
         trace::round(&result, &effects, &store_calls, b);
         if !ordered.advance(b)? {
             break;
-        }
-        if checkpoints.is_none() {
-            checkpoints = Some(checkpoint::Cache::new(module.functions.len(), b)?);
         }
     }
     let mut rows = Vec::with_capacity(module.functions.len());
@@ -1325,11 +1315,7 @@ pub(super) fn check_with_routes(
             rows.push(Vec::new());
             continue;
         }
-        let mut saved = if let Some(cache) = &mut checkpoints {
-            cache.take(index, module, f, graph, b)?
-        } else {
-            None
-        };
+        let mut saved = checkpoints.take(index, module, f, graph, b)?;
         let written = if let Some(entry) = &mut saved {
             entry.written(b)?
         } else {

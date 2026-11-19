@@ -136,7 +136,7 @@ CLI默认`alpha`选择冻结的`alpha-64m-v2`，`max_analysis_steps`为64,000,00
 重复或未知配置是命令行用法错误；耗尽配额仍返回`ResourceLimit`，不自动提高配额或重试。
 SDK的`CompileOptions::default()`与`zil_base::Limits::default()`仍使用标准10M配额。
 
-JSON 编译报告给出 `work_profile`、`work_profile_revision` 和 `effective_limits`。完成独立 Verify 后，`verification_usage` 给出函数、基本块、指令、局部变量、SSA 值的数量，物理类型预检访问的节点数、最大嵌套深度，以及求解存储借用和资源责任时分别访问的基本块次数。同一块在环或合流处可以多次访问。嵌套深度从根的零开始计数，每次对实际类型的预检单独执行节点上限。当前物理类型深度使用 `max_call_depth` 配置，编译期执行另有 `max_ct_steps`。
+JSON 编译报告给出 `work_profile`、`work_profile_revision` 和 `effective_limits`。完成独立 Verify 后，`verification_usage` 给出函数、基本块、指令、局部变量、SSA 值的数量，物理类型预检访问的节点数、最大嵌套深度，以及求解存储借用和资源责任时分别访问的基本块次数。聚合与 Sum 的固定点访问、最终逐块复核分别由 `sum_cfg_visits` 和 `sum_replay_visits` 计数。同一块在环或合流处可以多次访问。嵌套深度从根的零开始计数，每次对实际类型的预检单独执行节点上限。当前物理类型深度使用 `max_call_depth` 配置，编译期执行另有 `max_ct_steps`。
 
 累计工作耗尽时，诊断给出阶段、已用步骤、剩余步骤、下一笔请求和已观测到的结构与求解计数。此时没有已验证模块。`work_steps` 的单位由当前实现定义。比较版本的性能还需要在同一输入上测实际运行时间与峰值内存。
 

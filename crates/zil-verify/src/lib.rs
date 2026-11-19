@@ -170,6 +170,9 @@ pub struct VerificationUsage {
     /// The final validation replay and other CFG algorithms have separate work.
     pub stored_cfg_visits: usize,
     pub resource_cfg_visits: usize,
+    /// Reachable Sum/aggregate block transfers during fixed points and final replay.
+    pub sum_cfg_visits: usize,
+    pub sum_replay_visits: usize,
     pub work_steps: usize,
 }
 
@@ -828,9 +831,9 @@ impl Budget {
                     self.remaining,
                 ));
                 error.notes.push(format!(
-                    "observed so far: functions={} blocks={} instructions={} physical_type_nodes={} max_type_depth={} stored_cfg_visits={} resource_cfg_visits={}",
+                    "observed so far: functions={} blocks={} instructions={} physical_type_nodes={} max_type_depth={} stored_cfg_visits={} resource_cfg_visits={} sum_cfg_visits={} sum_replay_visits={}",
                     self.usage.functions, self.usage.blocks, self.usage.instructions, self.usage.type_nodes_visited, self.usage.max_type_depth,
-                    self.usage.stored_cfg_visits, self.usage.resource_cfg_visits,
+                    self.usage.stored_cfg_visits, self.usage.resource_cfg_visits, self.usage.sum_cfg_visits, self.usage.sum_replay_visits,
                 ));
             }
             error
