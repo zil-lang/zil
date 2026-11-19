@@ -330,12 +330,33 @@ fn type_life(
     b: &mut Budget,
     depth: usize,
 ) -> Check<StorageLifeShape> {
-    dynamic_metadata::ty(ty, b)?;
+    dynamic_metadata::bounds_type(ty, b)?;
+    type_life_at(module, ty, static_outer, span, b, depth)
+}
+
+fn type_life_at(
+    module: &TypedModule,
+    ty: &Type,
+    static_outer: bool,
+    span: Option<Span>,
+    b: &mut Budget,
+    depth: usize,
+) -> Check<StorageLifeShape> {
+    b.spend(1)?;
     if depth > b.limits.max_call_depth.min(128) {
         return Err(limit("raw Task complete child domain depth exceeded"));
     }
     let mut shape = match ty {
-        Type::BorrowedStorage { life, .. } => life.clone(),
+        Type::BorrowedStorage { life, .. } => {
+            b.spend(life.slots.len().saturating_add(life.retained.len()).saturating_add(life.nominal_arguments.len()))?;
+            for size in life.slots.iter().map(|row| row.path.len())
+                .chain(life.retained.iter().map(|row| row.path.len()))
+                .chain(life.nominal_arguments.iter().map(|row| row.path.len()))
+            {
+                b.spend(size)?;
+            }
+            life.clone()
+        }
         Type::Task { retained_life, .. } | Type::MutexGuard { retained_life, .. } => {
             StorageLifeShape {
                 binder_count: retained_life.binder_count,
@@ -386,14 +407,14 @@ fn type_life(
             }
         }
         Type::Array{element,length:1}if matches!(element.as_ref(),Type::Closure(_))=>{
-            let child=type_life(module,element,false,span,b,depth+1)?;
+            let child=type_life_at(module,element,false,span,b,depth+1)?;
             let mut parent=StorageLifeShape{binder_count:child.binder_count,slots:vec![],retained:vec![],nominal_arguments:vec![]};
             b.spend(child.binder_count as usize)?;
             for class in 0..child.binder_count{parent.retained.push(StorageRetainedBinding{path:vec![LifeTypeProjection::Element],class,binder:class});}
             parent
         },
         Type::Address { inner, .. } | Type::Desc(inner) | Type::Managed(inner) => {
-            let child = type_life(module, inner, false, span, b, depth + 1)?;
+            let child = type_life_at(module, inner, false, span, b, depth + 1)?;
             let outer = matches!(ty, Type::Address { .. } | Type::Desc(_));
             let offset = u32::from(outer && !static_outer);
             let mut parent = StorageLifeShape {
@@ -471,6 +492,31 @@ fn type_life(
 #[cfg(test)]
 mod static_capture_context_tests {
     use super::*;
+    #[test]
+    fn declared_life_visits_the_complete_carrier_without_copying_its_names() {
+        let (module, _) = crate::tests::baseline();
+        let carrier = |name: &str| Type::Address {
+            mutable: false,
+            inner: Box::new(Type::Managed(Box::new(Type::BorrowedStorage {
+                storage: Box::new(Type::Record { name: name.into(), fields: vec![(name.into(), Type::I64)] }),
+                life: StorageLifeShape { binder_count: 0, slots: vec![], retained: vec![], nominal_arguments: vec![] },
+            }))),
+        };
+        let short = carrier("x");
+        let long = carrier(&"x".repeat(4096));
+        let query = |ty: &Type, limits: Limits| {
+            let mut b = Budget::new(&limits);
+            let checked = declared_life(&module, ty, &mut b);
+            (checked, limits.max_analysis_steps - b.remaining)
+        };
+        let (expected, short_work) = query(&short, Limits::default());
+        let (checked, long_work) = query(&long, Limits::default());
+        assert_eq!(checked.unwrap(), expected.unwrap());
+        assert_eq!(long_work, short_work);
+        for profile in [Limits { max_nodes: 3, ..Limits::default() }, Limits { max_call_depth: 2, ..Limits::default() }] {
+            assert_eq!(query(&long, profile).0.unwrap_err().category, zil_base::ResultCategory::ResourceLimit);
+        }
+    }
     fn header(path: Vec<ContractProjection>) -> StorageLifeContract {
         StorageLifeContract { fixed_binder_count: 0, invocation_binder_count: 0,
             bindings: vec![], classes: vec![], static_bindings: vec![StoragePosition{base:StorageBase::Capture(0),path}] }
