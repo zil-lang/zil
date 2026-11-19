@@ -695,7 +695,7 @@ pub(super) enum Access {
 }
 
 /// Access summaries and returned data have different responsibilities. An
-/// exact SSA environment owns its scalar resource capture outright;
+/// exact SSA environment owns its qualified resource capture outright;
 /// accessing that internal storage exports no alias to a caller target. The
 /// actual resource kernel still proves its affine move, live flag and cleanup.
 /// Borrowed captures, retained ports and all result-source substitutions keep
@@ -727,6 +727,14 @@ pub(super) fn substitute_access(
             .get(index as usize)
             .ok_or_else(|| err("capture access selects an absent actual field"))?;
         let complete_field = match ty {
+            Type::Managed(inner)
+                if matches!(inner.as_ref(), Type::OwnedStore { .. })
+                    && source.inline.is_empty()
+                    && super::super::stored_owned::ordinary_store_value(module, ty, b)? =>
+            {
+                crate::resources::check_type_for(module, ty, None, b)?;
+                true
+            }
             Type::Managed(inner) if super::super::stored_owned::owner(ty, b)? => match inner.as_ref() {
                 Type::Record { fields, .. } => {
                     source.inline.is_empty()
