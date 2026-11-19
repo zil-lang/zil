@@ -322,7 +322,7 @@ impl Solver<'_, '_> {
         } else {
             false
         };
-        if let Kind::Address { mutable: true, inner, .. } = self.state.arena[selected] {
+        if let Kind::Address { mutable: true, life: stored_life, inner } = self.state.arena[selected] {
             // A field read borrows the live slot through its writable carrier.
             // Keep the original field lifetime in the slot and give the
             // resulting view its own source occurrence.
@@ -332,6 +332,7 @@ impl Solver<'_, '_> {
             }
             let ordinal = self.borrow_occurrence(frame.definition, expression.id, b)?;
             self.remember_view_upper(frame.definition, ordinal, slot.source_life, b)?;
+            self.remember_view_upper(frame.definition, ordinal, Some(stored_life), b)?;
             let life = self.term(Kind::Life(Life::Implicit(frame.definition, ordinal)), b)?;
             let view = self.term(Kind::Address { mutable: true, life, inner }, b)?;
             b.lookup(frame.expressions.len(), WORK)?;

@@ -520,6 +520,11 @@ impl Solver<'_, '_> {
         {
             // A head stored in an inline field is observed in its real place.
             // Selecting it for an access is not a Copy or an owning move.
+            if matches!(self.state.arena[self.type_root(place.selected, b)?], Kind::Address { mutable: true, .. })
+                && let Some(view) = self.observe_member(frame, value, b, depth + 1)?
+            {
+                return Ok(view);
+            }
             let place = self
                 .place(frame, value, true, b, depth + 1)?
                 .ok_or_else(|| fail("original address observation loses its exact field place"))?;
