@@ -239,10 +239,9 @@ pub(super) fn check_shared_product_type(
     Ok(())
 }
 
-/// The caller selected this Package by its actual direct Store field. Each
-/// request still checks the projection index, child type, head mode and
-/// source. Only the immutable Product and builtin resource definitions are
-/// shared after a successful ordinary admission.
+/// Only complete ordinary Products with scalar or POD Store leaves can
+/// share this check. Field selection, access mode and lifetime are checked
+/// for the actual AddressField instruction each time.
 pub(super) fn check_projected_store_package(
     module: &TypedModule,
     ty: &Type,
@@ -252,28 +251,34 @@ pub(super) fn check_projected_store_package(
     if dynamic_metadata::known_pod_package(module, ty, b)? {
         return Ok(());
     }
-    check_ordinary_type(module, ty, span, b)?;
-    let Type::Package { fields, .. } = ty else {
-        return Ok(());
-    };
+    // A Product with child Packages runs exactly this complete recursive
+    // check in both the ordinary and shared projection paths.
+    if has_children(ty) {
+        check_shared_product_type(module, ty, span, b)?;
+    } else {
+        check_ordinary_type(module, ty, span, b)?;
+    }
+    let Type::Package { .. } = ty else { return Ok(()); };
+    let mut pending = vec![ty];
     let mut has_store = false;
-    for (_, field) in fields {
-        b.spend(2)?;
-        if field.is_b0_scalar() {
-            continue;
+    while let Some(parent) = pending.pop() {
+        b.spend(1)?;
+        let Type::Package { fields, .. } = parent else { unreachable!() };
+        for (_, field) in fields {
+            b.spend(2)?;
+            match field {
+                scalar if scalar.is_b0_scalar() => {}
+                Type::Package { .. } => pending.push(field),
+                Type::Managed(payload) => {
+                    let Type::OwnedStore { element } = payload.as_ref() else {
+                        return Ok(());
+                    };
+                    if !dynamic_store::plain_element(element) { return Ok(()); }
+                    has_store = true;
+                }
+                _ => return Ok(()),
+            }
         }
-        let Type::Managed(payload) = field else {
-            return Ok(());
-        };
-        let Type::OwnedStore { element } = payload.as_ref() else {
-            return Ok(());
-        };
-        if !dynamic_store::plain_element(element) {
-            return Ok(());
-        }
-        // The complete ordinary check above dispatched such an element to
-        // the POD layout rule and checked its exact builtin declaration.
-        has_store = true;
     }
     if has_store {
         dynamic_metadata::record_pod_package(module, ty, b)?;
@@ -289,9 +294,6 @@ pub(super) fn check_ordinary_type(
     if matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
     {
         return check_package_type(module, ty, span, budget, true);
-    }
-    if sums::needs_shape(ty, budget)? {
-        return sums::check_type_for(module, ty, span, budget);
     }
     check_product_type(module, ty, span, budget, true)
 }

@@ -346,6 +346,7 @@ pub(crate) fn shared_record_child(ty: &Type, b: &mut Budget) -> Check<bool> {
 pub(super) fn package_return_input(
     function: FunctionId,
     value: ValueId,
+    exclusive: bool,
     b: &mut Budget,
 ) -> Check<u32> {
     let count = b.package_return_calls.as_ref().map_or(0, BTreeMap::len);
@@ -362,7 +363,11 @@ pub(super) fn package_return_input(
         .copied();
     found.ok_or_else(|| {
         unsupported(
-            "qualified Package return requires one actual whole shared input",
+            if exclusive {
+                "qualified Package return requires one actual whole exclusive input"
+            } else {
+                "qualified Package return requires one actual whole shared input"
+            },
             None,
         )
     })

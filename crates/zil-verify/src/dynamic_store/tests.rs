@@ -2394,3 +2394,40 @@ fn ordinary_pod_store_package_receipt_binds_the_actual_module_fields_and_limits(
         assert!(diagnostic.message.contains("unique nonempty names"));
     }
 }
+
+#[test]
+fn outer_projected_product_checks_the_complete_nested_store_member() {
+    let limits = Limits::default();
+    let (mut module, plan) = scoped_pod_fixture(pod(vec![("n", Type::I64)]));
+    let leaf = Type::Package {
+        name: "Storage".into(),
+        fields: vec![
+            ("items".into(), module.functions[0].locals[0].ty.clone()),
+            ("size".into(), Type::I64),
+        ],
+    };
+    let span = module.functions[0].span;
+    module.functions[0].locals.push(LocalDecl {
+        id: LocalId(1),
+        ty: Type::Package { name: "Member".into(), fields: vec![("storage".into(), leaf)] },
+        name: "member".into(),
+        mutable: false,
+        span,
+    });
+    for result in pod_both(&module, &plan, &limits) { result.unwrap(); }
+    let mut budget = Budget::new(&limits);
+    budget.structural = Some(dynamic_metadata::Structure::register(&module, &mut budget).unwrap());
+    let outer = &module.functions[0].locals[1].ty;
+    packages::check_projected_store_package(&module, outer, None, &mut budget).unwrap();
+    assert!(dynamic_metadata::known_pod_package(&module, outer, &mut budget).unwrap());
+
+    let mut wrong = module.clone();
+    let Type::Package { fields, .. } = &mut wrong.functions[0].locals[1].ty else { unreachable!() };
+    let Type::Package { fields, .. } = &mut fields[0].1 else { unreachable!() };
+    fields[1].0 = "items".into();
+    for result in pod_both(&wrong, &plan, &limits) {
+        let diagnostics = result.err().expect("duplicate nested member accepted");
+        assert_eq!(diagnostics[0].code,"E-VERIFY-PACKAGE");
+        assert_eq!(diagnostics[0].message,"package fields must have unique nonempty names");
+    }
+}

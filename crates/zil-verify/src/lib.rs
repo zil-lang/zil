@@ -3563,9 +3563,9 @@ fn check_instruction(
                         && dynamic_store::package_inline_store(projected, budget)?
                     {
                         packages::check_ordinary_type(module, projected, span, budget)?;
-                    } else if packages::has_children(projected)
-                        || packages::shared_product_head(projected)
-                    {
+                    } else if packages::has_children(projected) {
+                        packages::check_projected_store_package(module, projected, span, budget)?;
+                    } else if packages::shared_product_head(projected) {
                         packages::check_shared_product_type(module, projected, span, budget)?;
                     } else {
                         dynamic_store::check_element(module, projected, span, budget)?;

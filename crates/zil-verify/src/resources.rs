@@ -730,7 +730,7 @@ fn package_storage(ty: &Type) -> Option<&[(String, Type)]> {
 
 /// A physical/profile dispatch only; the call certificate proves its origin.
 pub(super) fn qualified_package_address(ty: &Type) -> bool {
-    matches!(ty, Type::Address { mutable: false, inner }
+    matches!(ty, Type::Address { inner, .. }
         if matches!(inner.as_ref(), Type::BorrowedStorage { storage, .. }
             if matches!(storage.as_ref(), Type::Package { .. })))
 }
@@ -2800,8 +2800,8 @@ impl Transfer<'_> {
                         let value = instruction
                             .result
                             .ok_or_else(|| bad(span, "Package return has no result"))?;
-                        let position =
-                            crate::stored_flow::package_return_input(f.id, value, budget)?;
+                        let exclusive = matches!(&returned.return_type, Type::Address { mutable: true, .. });
+                        let position = crate::stored_flow::package_return_input(f.id, value, exclusive, budget)?;
                         let actual = *arguments
                             .get(position as usize)
                             .ok_or_else(|| bad(span, "Package return input is absent"))?;
