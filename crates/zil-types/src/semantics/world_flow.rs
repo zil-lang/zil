@@ -483,11 +483,28 @@ impl LiveMetadata {
     }
 }
 impl State {
+    fn metadata_already_reaching(&self, world: &mut World<'_, '_>) -> R<bool> {
+        // A concrete SSA occupant seeds its own head before graph closure.
+        // If no indexed entry depends on an absent head, the closure cannot
+        // retire a row. Non-SSA implicit heads are unconditional roots.
+        for image in self.implicit.values() {
+            world.pay(1)?;
+            if image_value(image).is_some_and(|head| self.values.get(head.0 as usize).is_none()) {
+                return Ok(false);
+            }
+        }
+        for head in self.reborrows.keys().chain(self.value_roots.keys()) {
+            world.pay(1)?;
+            if self.values.get(head.0 as usize).is_none() {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     fn canonicalize(&mut self, world: &mut World<'_, '_>) -> R<()> {
-        // Only these three directories are retired by this pass. Scalar-only
-        // worlds need no live metadata graph.
         world.pay(1)?;
-        if self.implicit.is_empty() && self.reborrows.is_empty() && self.value_roots.is_empty() {
+        if self.metadata_already_reaching(world)? {
             return Ok(());
         }
         let mut live = LiveMetadata {
@@ -1106,6 +1123,7 @@ pub(super) struct Shape {
     schema: FunctionId,
     blocks: BTreeMap<BlockId, usize>,
     definitions: Vec<(usize, usize)>,
+    unique_arrival: BlockSet,
     definition_pages: Vec<Vec<(usize, u64)>>,
     strict_ssa_masks: Vec<std::cell::RefCell<Option<Rc<Vec<u64>>>>>,
     dominators: Vec<BlockSet>,
@@ -1202,6 +1220,7 @@ impl Shape {
 pub(super) struct Cfg {
     shape: Rc<Shape>,
     instance: SemanticInstanceId,
+    single_seen: BlockSet,
     seen: Vec<BTreeMap<zil_base::Fingerprint, Vec<usize>>>,
     domains: DomainDigests,
 }
@@ -1225,10 +1244,13 @@ impl Cfg {
         let shape = Shape::for_function(world, function)?;
         // These are fresh for each actual instance: no seen state, live root,
         // ticket, domain equation or protocol outcome crosses this boundary.
-        world.pay(function.blocks.len().saturating_add(2))?;
+        world.pay(function.blocks.len()
+            .saturating_add(function.blocks.len().div_ceil(u64::BITS as usize))
+            .saturating_add(2))?;
         Ok(Self {
             shape,
             instance: instance.id,
+            single_seen: BlockSet::empty(function.blocks.len()),
             seen: (0..function.blocks.len())
                 .map(|_| BTreeMap::new())
                 .collect(),
@@ -1346,6 +1368,24 @@ impl Cfg {
             world.pay(incoming.len().saturating_add(1))?;
             incoming.retain(|ordinal| reachable.contains(*ordinal));
         }
+        // Entry is offered once. A reachable block whose only incoming edge
+        // is from a single-arrival block can never acquire a second world.
+        // A loop backedge or real join ends this proof.
+        world.pay(words.saturating_add(1))?;
+        let mut unique_arrival = BlockSet::empty(count);
+        if predecessors[entry].is_empty() {
+            unique_arrival.insert(entry);
+            let mut pending = vec![entry];
+            while let Some(source) = pending.pop() {
+                world.pay(successors[source].len().saturating_add(1))?;
+                for &target in &successors[source] {
+                    if predecessors[target].as_slice() == [source] && unique_arrival.insert(target) {
+                        world.pay(1)?;
+                        pending.push(target);
+                    }
+                }
+            }
+        }
         Ok(Shape {
             predecessors,
             protocol_relevance: Default::default(),
@@ -1353,6 +1393,7 @@ impl Cfg {
             schema,
             blocks,
             definitions,
+            unique_arrival,
             definition_pages,
             strict_ssa_masks: (0..count).map(|_| Default::default()).collect(),
             dominators,
@@ -1569,6 +1610,24 @@ impl Cfg {
         }
         Ok(false)
     }
+    pub fn take_entry(
+        &self,
+        world: &mut World<'_, '_>,
+        block: usize,
+        index: usize,
+        entries: &mut [Vec<State>],
+    ) -> R<State> {
+        world.pay(1)?;
+        if self.unique_arrival.contains(block) {
+            if index != 0 || !self.single_seen.contains(block) {
+                return Err(bad("single-arrival CFG entry has a different actual state"));
+            }
+            entries[block].pop().ok_or_else(|| bad("single-arrival CFG state has already run"))
+        } else {
+            entries[block][index].snapshot(world)
+        }
+    }
+
     pub fn offer(
         &mut self,
         world: &mut World<'_, '_>,
@@ -1669,6 +1728,16 @@ impl Cfg {
             .canonical_work
             .saturating_add(before.saturating_sub(*world.left));
         canonical?;
+        world.pay(1)?;
+        if self.unique_arrival.contains(index) {
+            if !self.single_seen.insert(index) {
+                return Err(bad("single-arrival CFG block receives another actual state"));
+            }
+            world.pay(2)?;
+            reaching[index].push(state);
+            work.push_back((index, 0));
+            return Ok(());
+        }
         // Most blocks receive a single world. Keep small frontiers as exact
         // states and build a digest directory only when comparisons fan out.
         // Even a digest hit always compares the complete live state.

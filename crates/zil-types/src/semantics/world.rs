@@ -2557,7 +2557,7 @@ impl<'p> World<'p, '_> {
                 reservations,
                 value_roots,
                 local_roots,
-            } = reaching[block_index][state_index].snapshot(self)?;
+            } = cfg.take_entry(self, block_index, state_index, &mut reaching)?;
             self.vacant_captures = vacant_captures;
             self.stale_values = stale_values;
             self.stale_locals = stale_locals;
