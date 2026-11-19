@@ -215,13 +215,7 @@ impl CheckedContext {
             }
             return Ok(cell);
         }
-        dynamic_metadata::bounds_type(ty, b)?;
-        let cell = if let Some(cell) = dynamic_metadata::shared_type(ty, b)? {
-            cell
-        } else {
-            dynamic_metadata::ty(ty, b)?;
-            CheckedTypeData::new(ty.clone())
-        };
+        let cell = dynamic_metadata::validated_type_cell(ty, b)?;
         b.spend(fee.saturating_add(2))?;
         self.shared_types.borrow_mut().insert(
             &cell.ty as *const Type as usize,

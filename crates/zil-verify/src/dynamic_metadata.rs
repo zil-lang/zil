@@ -3,7 +3,7 @@
 use super::*;
 mod structure;
 pub(crate) use structure::{check_store_resource_payloads, source_program_bounds, store_definition_known, store_definition_success, sum_shape_known, sum_shape_success};
-pub(crate) use structure::{Structure,owner_known,owner_success,lexical_scopes,program_lexical_scopes,dyn_declarations,trait_providers,nominal_declarations,nominal_instances,nominal_scope_instances,resource_known,resource_success,store_element_known,store_element_success,stored_type_known,stored_type_success,shared_type,adopt_type_cell};
+pub(crate) use structure::{Structure,owner_known,owner_success,lexical_scopes,program_lexical_scopes,dyn_declarations,trait_providers,nominal_declarations,nominal_instances,nominal_scope_instances,resource_known,resource_success,store_element_known,store_element_success,stored_type_known,stored_type_success,adopt_type_cell};
 fn pay(b: &mut Budget, nodes: &mut usize, cap: usize, n: usize) -> Check<()> {
     *nodes = nodes
         .checked_add(n)
@@ -206,6 +206,25 @@ fn inexpensive_bounds(ty:&Type)->bool{
     }
 }
 pub(crate) fn bounds_type(root:&Type,b:&mut Budget)->Check<()>{type_bounds_at(root,0,b)}
+/// Share a live immutable physical type after checking its current bounds.
+/// Fresh snapshots pay their complete copy traversal once.
+pub(crate) fn validated_type_cell(ty: &Type, b: &mut Budget) -> Check<std::rc::Rc<crate::semantic::CheckedTypeData>> {
+    if let Some(cell) = structure::shared_type(ty, b)? {
+        return Ok(cell);
+    }
+    self::ty(ty, b)?;
+    Ok(crate::semantic::CheckedTypeData::new(ty.clone()))
+}
+
+/// Verify a freshly constructed physical type and move the checked value into
+/// its immutable cell. No bounds query is needed after the move.
+pub(crate) fn adopt_checked_type(ty: Type, b: &mut Budget) -> Check<std::rc::Rc<crate::semantic::CheckedTypeData>> {
+    type_walk(&ty, 0, false, b)?;
+    let cell = crate::semantic::CheckedTypeData::new(ty);
+    structure::adopt_checked_type_cell(&cell, b)?;
+    Ok(cell)
+}
+
 /// The exact public DTV callbacks, without allocating/copying a DTV payload.
 /// All class/domain interpretation remains with the independent inventory.
 pub(crate) fn bounds_type_parts(ty:&Type,life:&StorageLifeShape,classes:&[StorageBinder],b:&mut Budget)->Check<()>{

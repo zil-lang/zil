@@ -57,10 +57,7 @@ impl CheckedContext{
             K::Tuple=>{let mut fields=Vec::with_capacity(children.len());for child in children{fields.push(child.raw_type_copy(b)?);}if fields.is_empty(){Type::Unit}else{Type::Tuple(fields)}},
         };
         if let Some(life)=&key.embedded{dynamic_metadata::life_shape(life,b)?;ty=Type::BorrowedStorage{storage:Box::new(ty),life:life.clone()};}
-        dynamic_metadata::bounds_type(&ty,b)?;
-        let value=CheckedTypeData::new(ty);
-        dynamic_metadata::adopt_type_cell(&value,b)?;
-        dynamic_metadata::bounds_type(&value.ty,b)?;
+        let value=dynamic_metadata::adopt_checked_type(ty,b)?;
         b.spend(levels.saturating_mul(key_units).saturating_add(children.len()).saturating_add(2))?;
         self.constructed_types.borrow_mut().insert(key,ConstructedType{_children:children.iter().map(|child|child.type_cell.clone()).collect(),value:value.clone(),checked_bounds:bounds});
         Ok(value)

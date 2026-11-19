@@ -28,22 +28,53 @@ fn cacheable(ty:&Type)->bool{!matches!(ty,
     Type::ByteBuffer|Type::ForeignHandle|Type::SyncCell(_)|Type::TaskI32|Type::CWideString|Type::Closure(_)|Type::Dyn{..}|Type::OwnedDyn{..}
 )&&!ty.is_b0_scalar()}
 
-type TypeFact=(usize,usize,Profile);
-// The exact set's logical length determines its search allowance. Pointer
-// values are equality keys, never layout/cost selectors: fresh clones and
-// decoded trees perform the same work for the same logical query stream.
-struct TypeFacts(BTreeSet<TypeFact>);
-impl TypeFacts{
-    fn new()->Self{Self(BTreeSet::new())}
+type TypeFact = (usize, usize, Profile);
+const TYPE_FACT_BUCKETS: usize = 64;
+
+// Partition by the immutable outer shape. Each bucket keeps exact address,
+// entry depth and limits for every completed physical bounds check.
+fn type_fact_bucket(ty: &Type) -> usize {
+    fn child_kind(ty: &Type) -> usize {
+        match ty {
+            Type::Record { .. } | Type::Package { .. } => 0,
+            Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. } => 1,
+            Type::Address { .. } | Type::Desc(_) | Type::Managed(_) => 2,
+            _ => 3,
+        }
+    }
+    let (family, shape) = match ty {
+        Type::Address { mutable, inner } => (usize::from(*mutable), child_kind(inner)),
+        Type::Desc(inner) => (2, child_kind(inner)),
+        Type::Managed(inner) => (3, child_kind(inner)),
+        Type::Record { name, fields } => (4, name.len() ^ fields.len()),
+        Type::Package { name, fields } => (5, name.len() ^ fields.len()),
+        Type::Enum { name, variants } => (6, name.len() ^ variants.len()),
+        Type::Tuple(fields) => (7, fields.len()),
+        Type::BorrowedStorage { storage, .. } => (8, child_kind(storage)),
+        Type::Array { element, .. } => (9, child_kind(element)),
+        Type::ErrorUnion { result, .. } => (10, child_kind(result)),
+        Type::Task { result, .. } => (11, child_kind(result)),
+        Type::FunctionPointer { parameters, .. } | Type::BorrowedFunctionPointer { parameters, .. }
+        | Type::ForeignCallback { parameters, .. } => (12, parameters.len()),
+        Type::OwnedStore { element } | Type::Slice { element } => (13, child_kind(element)),
+        Type::Named(name) | Type::Unsupported(name) => (14, name.len()),
+        _ => (15, 0),
+    };
+    4 * family + (shape % 4)
+}
+
+struct TypeFacts([BTreeSet<TypeFact>; TYPE_FACT_BUCKETS]);
+impl TypeFacts {
+    fn new() -> Self { Self(std::array::from_fn(|_| BTreeSet::new())) }
     #[cfg(test)]
-    fn len(&self)->usize{self.0.len()}
-    fn contains(&self,key:&TypeFact,b:&mut Budget)->Check<bool>{
-        b.spend(lookup(self.0.len()))?;Ok(self.0.contains(key))
-    }
-    fn insert(&mut self,key:TypeFact,b:&mut Budget)->Check<()>{
-        b.spend(lookup(self.0.len()).saturating_add(2))?;
-        self.0.insert(key);Ok(())
-    }
+    fn len(&self) -> usize { self.0.iter().map(BTreeSet::len).sum() }
+}
+
+type TypeCell = std::rc::Rc<crate::semantic::CheckedTypeData>;
+#[derive(Clone)]
+struct TypeSnapshot {
+    cell: TypeCell,
+    bounds: Option<Profile>,
 }
 
 pub(crate) struct Structure{
@@ -74,8 +105,10 @@ pub(crate) struct Structure{
     borrowed_callback_domains:BTreeMap<ClosureId,u32>,
     nominal_instances:BTreeMap<LifeDeclarationId,Vec<usize>>,
     scope_instances:BTreeMap<SemanticDefinitionId,Vec<usize>>,
-    shared_types:BTreeMap<usize,std::rc::Rc<crate::semantic::CheckedTypeData>>,
-    type_owners:BTreeMap<usize,std::rc::Rc<crate::semantic::CheckedTypeData>>,
+    // The original pointer and the copied root can both refer to the same
+    // cell. Each copied root holds its own strong reference even if an alias
+    // is subsequently replaced by a check of the original owner.
+    type_cells:BTreeMap<usize,TypeSnapshot>,
 }
 impl Structure{
     pub(crate) fn identity_for(&self, module: &TypedModule) -> Option<std::rc::Rc<()>> {
@@ -88,14 +121,14 @@ impl Structure{
     /// The root checker keeps this exact module immutably borrowed until this
     /// directory is removed. Nested module checks install a separate scope.
     pub(crate) fn register(module:&TypedModule,b:&mut Budget)->Check<Self>{
-        b.spend(12)?;
+        b.spend(12 + TYPE_FACT_BUCKETS)?;
         let mut result=Self{
             module:module as *const TypedModule as usize,
             scope_identity: std::rc::Rc::new(()),
             program:module.semantic.as_ref().map(|program|program as *const SemanticModule as usize),
             declarations:(module.dyn_declarations.as_ptr() as usize,module.dyn_declarations.len()),
             types:BTreeSet::new(),recipes:BTreeSet::new(),program_bounds:BTreeSet::new(),declaration_nodes:BTreeSet::new(),
-            type_success:TypeFacts::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),sum_shapes:BTreeMap::new(),store_definitions:BTreeSet::new(),scalar_store_definitions:BTreeSet::new(),store_resource_payloads:BTreeSet::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),lexical_scopes:BTreeMap::new(),dyn_declarations:BTreeMap::new(),trait_providers:None,nominal_declarations:BTreeMap::new(),nominal_instances:BTreeMap::new(),scope_instances:BTreeMap::new(),shared_types:BTreeMap::new(),type_owners:BTreeMap::new(),borrowed_callback_domains:BTreeMap::new(),
+            type_success:TypeFacts::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),sum_shapes:BTreeMap::new(),store_definitions:BTreeSet::new(),scalar_store_definitions:BTreeSet::new(),store_resource_payloads:BTreeSet::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),lexical_scopes:BTreeMap::new(),dyn_declarations:BTreeMap::new(),trait_providers:None,nominal_declarations:BTreeMap::new(),nominal_instances:BTreeMap::new(),scope_instances:BTreeMap::new(),type_cells:BTreeMap::new(),borrowed_callback_domains:BTreeMap::new(),
         };
         for function in &module.functions{
             result.ty(&function.return_type,b)?;
@@ -231,22 +264,29 @@ impl DynRecipeVisitor for Register<'_>{
     fn text(&mut self,_:&str,_:usize)->Check<()>{self.b.spend(1)}
 }
 
-pub(super) fn type_known(ty:&Type,depth:usize,b:&mut Budget)->Check<bool>{
-    if !cacheable(ty){return Ok(false);}
-    let Some(_)=&b.structural else{return Ok(false);};
-    // Only a registered, still-live immutable node can enter type_success.
-    // A second tree search for its membership repeats that established fact.
-    let key=(ty as *const Type as usize,depth,profile(b));
-    let state=b.structural.take().unwrap();
-    let result=state.type_success.contains(&key,b);b.structural=Some(state);result
+pub(super) fn type_known(ty: &Type, depth: usize, b: &mut Budget) -> Check<bool> {
+    if !cacheable(ty) || b.structural.is_none() { return Ok(false); }
+    b.spend(2)?;
+    let bucket = type_fact_bucket(ty);
+    let fee = lookup(b.structural.as_ref().unwrap().type_success.0[bucket].len());
+    b.spend(fee)?;
+    let key = (ty as *const Type as usize, depth, profile(b));
+    Ok(b.structural.as_ref().unwrap().type_success.0[bucket].contains(&key))
 }
-pub(super) fn type_success(ty:&Type,depth:usize,b:&mut Budget)->Check<()>{
-    if !cacheable(ty){return Ok(());}
-    let Some(state)=&b.structural else{return Ok(());};let ptr=ty as *const Type as usize;
-    let membership=lookup(state.types.len());b.spend(membership)?;
-    if !b.structural.as_ref().unwrap().types.contains(&ptr){return Ok(());}
-    let key=(ptr,depth,profile(b));let mut state=b.structural.take().unwrap();
-    let result=state.type_success.insert(key,b);b.structural=Some(state);result
+
+pub(super) fn type_success(ty: &Type, depth: usize, b: &mut Budget) -> Check<()> {
+    if !cacheable(ty) { return Ok(()); }
+    let Some(state) = &b.structural else { return Ok(()); };
+    let ptr = ty as *const Type as usize;
+    b.spend(lookup(state.types.len()))?;
+    if !b.structural.as_ref().unwrap().types.contains(&ptr) { return Ok(()); }
+    b.spend(2)?;
+    let bucket = type_fact_bucket(ty);
+    let fee = lookup(b.structural.as_ref().unwrap().type_success.0[bucket].len());
+    b.spend(fee.saturating_add(2))?;
+    let key = (ptr, depth, profile(b));
+    b.structural.as_mut().unwrap().type_success.0[bucket].insert(key);
+    Ok(())
 }
 pub(super) fn recipe_known<T:'static>(value:&T,b:&mut Budget)->Check<bool>{
     let Some(state)=&b.structural else{return Ok(false);};let fee=lookup(state.recipes.len()).saturating_add(lookup(state.recipe_success.len()));
@@ -573,42 +613,75 @@ pub(crate) fn store_element_success(module:&TypedModule,ty:&Type,product:bool,b:
     b.structural.as_mut().unwrap().store_success.entry(key).or_default().push(limits);Ok(())
 }
 
-/// Adopt an already formed immutable physical type. Strong ownership covers
-/// every registered child address until this exact module scope is restored.
-pub(crate) fn adopt_type_cell(cell:&std::rc::Rc<crate::semantic::CheckedTypeData>,b:&mut Budget)->Check<()>{
-    let Some(state)=&b.structural else{return Ok(());};
-    let ptr=&cell.ty as *const Type as usize;
-    b.spend(lookup(state.type_owners.len()).saturating_add(1))?;
-    if b.structural.as_ref().unwrap().type_owners.get(&ptr).is_some_and(|known|std::rc::Rc::ptr_eq(known,cell)){return Ok(());}
-    b.spend(lookup(b.structural.as_ref().unwrap().type_owners.len()).saturating_add(2))?;
-    let mut state=b.structural.take().unwrap();
-    state.type_owners.insert(ptr,cell.clone());
-    let result=state.ty(&cell.ty,b);
-    b.structural=Some(state);result
+/// Adopt an already formed immutable physical type. Hold the root before
+/// registration so any child address entered before a budget error stays live.
+pub(crate) fn adopt_type_cell(cell: &TypeCell, b: &mut Budget) -> Check<()> {
+    adopt_type_snapshot(cell, None, b)
 }
 
-/// Owned storage for an exact registered immutable input node. This memo owns
-/// no class/origin/source result and never recognizes a temporary by address.
-pub(crate) fn shared_type(ty:&Type,b:&mut Budget)->Check<Option<std::rc::Rc<crate::semantic::CheckedTypeData>>>{
-    let Some(state)=&b.structural else{return Ok(None);};
-    let ptr=ty as *const Type as usize;
-    let fee=lookup(state.types.len()).saturating_add(lookup(state.shared_types.len())).saturating_add(lookup(state.type_owners.len())).saturating_add(1);
-    b.spend(fee)?;
-    let state=b.structural.as_ref().unwrap();
-    if !state.types.contains(&ptr){return Ok(None);}
-    if let Some(shared)=state.type_owners.get(&ptr){return Ok(Some(shared.clone()));}
-    if let Some(shared)=state.shared_types.get(&ptr){return Ok(Some(shared.clone()));}
-    super::ty(ty,b)?;
-    let shared=crate::semantic::CheckedTypeData::new(ty.clone());
-    b.spend(lookup(b.structural.as_ref().unwrap().shared_types.len()).saturating_add(lookup(b.structural.as_ref().unwrap().type_owners.len())).saturating_add(4))?;
-    let mut state=b.structural.take().unwrap();
-    // The scope itself keeps every registered copied node alive. Registering
-    // its child pointers permits the same immutable payload directory to be
-    // borrowed by resource/metadata consumers, without re-cloning the tree.
-    state.shared_types.insert(ptr,shared.clone());
-    state.type_owners.insert(&shared.ty as *const Type as usize,shared.clone());
-    let result=state.ty(&shared.ty,b);
-    b.structural=Some(state);
+pub(super) fn adopt_checked_type_cell(cell: &TypeCell, b: &mut Budget) -> Check<()> {
+    adopt_type_snapshot(cell, Some(profile(b)), b)?;
+    if !super::inexpensive_bounds(&cell.ty) {
+        type_success(&cell.ty, 0, b)?;
+    }
+    Ok(())
+}
+
+fn adopt_type_snapshot(cell: &TypeCell, bounds: Option<Profile>, b: &mut Budget) -> Check<()> {
+    let Some(state) = &b.structural else {
+        return Ok(());
+    };
+    let fee = lookup(state.type_cells.len());
+    let ptr = &cell.ty as *const Type as usize;
+    b.spend(fee.saturating_add(1))?;
+    if b.structural.as_ref().unwrap().type_cells.get(&ptr)
+        .is_some_and(|known| std::rc::Rc::ptr_eq(&known.cell, cell))
+    {
+        return Ok(());
+    }
+    b.spend(fee.saturating_add(2))?;
+    let mut state = b.structural.take().unwrap();
+    state.type_cells.insert(ptr, TypeSnapshot { cell: cell.clone(), bounds });
+    let result = state.ty(&cell.ty, b);
+    b.structural = Some(state);
+    result
+}
+
+/// Owned storage for an exact registered immutable input node. Both the
+/// borrowed root and every copied root stay live in this same module scope.
+pub(super) fn shared_type(ty: &Type, b: &mut Budget) -> Check<Option<TypeCell>> {
+    let Some(state) = &b.structural else {
+        return Ok(None);
+    };
+    if !cacheable(ty) {
+        return Ok(None);
+    }
+    let ptr = ty as *const Type as usize;
+    b.spend(lookup(state.type_cells.len()).saturating_add(1))?;
+    if let Some(shared) = b.structural.as_ref().unwrap().type_cells.get(&ptr).cloned() {
+        if shared.bounds != Some(profile(b)) {
+            super::bounds_type(ty, b)?;
+        }
+        return Ok(Some(shared.cell));
+    }
+    b.spend(lookup(b.structural.as_ref().unwrap().types.len()))?;
+    if !b.structural.as_ref().unwrap().types.contains(&ptr) {
+        return Ok(None);
+    }
+    // The copy traversal includes the same complete depth and node bounds.
+    super::ty(ty, b)?;
+    let shared = crate::semantic::CheckedTypeData::new(ty.clone());
+    // The original and its exact clone both passed the same physical walk.
+    let snapshot = TypeSnapshot { cell: shared.clone(), bounds: Some(profile(b)) };
+    let fee = lookup(b.structural.as_ref().unwrap().type_cells.len());
+    b.spend(fee.saturating_mul(2).saturating_add(4))?;
+    let mut state = b.structural.take().unwrap();
+    state.type_cells.insert(&shared.ty as *const Type as usize, snapshot.clone());
+    let result = state.ty(&shared.ty, b);
+    if result.is_ok() {
+        state.type_cells.insert(ptr, snapshot);
+    }
+    b.structural = Some(state);
     result?;
     Ok(Some(shared))
 }
@@ -617,19 +690,50 @@ pub(crate) fn shared_type(ty:&Type,b:&mut Budget)->Check<Option<std::rc::Rc<crat
 mod tests{
     use super::*;
     #[test]
-    fn exact_type_facts_keep_depth_profiles_and_allocation_independent_work(){
-        let mut b=Budget::new(&Limits::default());let mut facts=TypeFacts::new();let mut shifted=TypeFacts::new();let mut expected=BTreeSet::new();
-        for index in 0..1024usize{let key=(0x1000+index*256,index%7,(1_000_000,128));facts.insert(key,&mut b).unwrap();expected.insert(key);}
-        for key in expected.iter().rev(){shifted.insert((key.0+0x1000000,key.1,key.2),&mut b).unwrap();}
-        assert_eq!(facts.len(),expected.len());
-        for key in &expected{
-            let mut first=Budget::new(&Limits::default());let mut other=Budget::new(&Limits::default());
-            assert!(facts.contains(key,&mut first).unwrap());assert!(shifted.contains(&(key.0+0x1000000,key.1,key.2),&mut other).unwrap());assert_eq!(first.remaining,other.remaining);
-            assert!(!facts.contains(&(key.0,key.1+13,key.2),&mut b).unwrap());assert!(!facts.contains(&(key.0,key.1,(key.2.0-1,key.2.1)),&mut b).unwrap());
+    fn exact_type_facts_keep_depth_profiles_and_allocation_independent_work() {
+        let mut module = fixture();
+        let start = module.functions[0].locals.len();
+        for index in 0..128 {
+            let function = &mut module.functions[0];
+            let ty = match index % 3 {
+                0 => Type::Managed(Box::new(record())),
+                1 => Type::Tuple(vec![record(), Type::I32]),
+                _ => Type::Address { mutable: true, inner: Box::new(record()) },
+            };
+            function.locals.push(LocalDecl {
+                id: LocalId(function.locals.len() as u32), name: format!("root_{index}"),
+                ty, mutable: false, span: function.span,
+            });
         }
-        let key=*expected.iter().next().unwrap();let new=(key.0,key.1+13,key.2);
-        let mut short=Budget::new(&Limits{max_analysis_steps:0,..Limits::default()});assert!(facts.insert(new,&mut short).is_err());assert_eq!(facts.len(),expected.len());assert!(!facts.contains(&new,&mut b).unwrap());
-        facts.insert(new,&mut b).unwrap();assert!(facts.contains(&new,&mut b).unwrap());assert_eq!(facts.len(),expected.len()+1);
+        let copy = module.clone();
+        let mut first = budget(&module);
+        let mut other = budget(&copy);
+        let originals = &module.functions[0].locals[start..];
+        let clones = &copy.functions[0].locals[start..];
+        for (index, (original, cloned)) in originals.iter().zip(clones).enumerate() {
+            let depth = index % 7;
+            for (b, root, foreign) in [(&mut first, &original.ty, &cloned.ty), (&mut other, &cloned.ty, &original.ty)] {
+                assert!(!type_known(foreign, depth, b).unwrap());
+                assert!(!type_known(root, depth, b).unwrap());
+                super::super::type_bounds_at(root, depth, b).unwrap();
+                assert!(type_known(root, depth, b).unwrap());
+                assert!(!type_known(root, depth + 1, b).unwrap());
+                b.limits.max_nodes -= 1;
+                assert!(!type_known(root, depth, b).unwrap());
+                b.limits.max_nodes += 1;
+            }
+            assert_eq!(first.remaining, other.remaining);
+        }
+        let root = &originals[0].ty;
+        let entries = first.structural.as_ref().unwrap().type_success.len();
+        let before = first.remaining;
+        first.remaining = 0;
+        assert!(type_success(root, 1, &mut first).is_err());
+        assert_eq!(first.structural.as_ref().unwrap().type_success.len(), entries);
+        first.remaining = before;
+        super::super::type_bounds_at(root, 1, &mut first).unwrap();
+        assert!(type_known(root, 1, &mut first).unwrap());
+        assert_eq!(first.structural.as_ref().unwrap().type_success.len(), entries + 1);
     }
     fn record()->Type{Type::Record{name:"registered_complete_payload_".repeat(16),fields:vec![("whole_field".repeat(8),Type::Tuple(vec![Type::I32,Type::Array{element:Box::new(Type::U8),length:4}]))]}}
     fn fixture()->TypedModule{
@@ -780,6 +884,68 @@ mod tests{
         assert!(std::rc::Rc::ptr_eq(&first,&again),"an owned immutable root is already its own snapshot");
     }
     #[test]
+    fn validated_type_cell_checks_current_limits_and_pays_full_temporary_copy() {
+        let module = fixture();
+        let root = &module.functions[0].locals.last().unwrap().ty;
+        let mut b = budget(&module);
+        let cached = super::super::validated_type_cell(root, &mut b).unwrap();
+        let same = super::super::validated_type_cell(&cached.ty, &mut b).unwrap();
+        assert!(std::rc::Rc::ptr_eq(&cached, &same));
+        let temporary = root.clone();
+        let copied = super::super::validated_type_cell(&temporary, &mut b).unwrap();
+        assert_eq!(copied.ty, cached.ty);
+        assert!(!std::rc::Rc::ptr_eq(&cached, &copied));
+
+        for (max_nodes, max_call_depth) in [(1, 128), (Limits::default().max_nodes, 0)] {
+            b.limits.max_nodes = max_nodes;
+            b.limits.max_call_depth = max_call_depth;
+            for actual in [root, &cached.ty, &temporary] {
+                let expected = super::super::ty(actual, &mut Budget::new(&b.limits)).unwrap_err();
+                let hot = super::super::validated_type_cell(actual, &mut b).map(|_| ()).unwrap_err();
+                assert_eq!(hot, expected);
+            }
+        }
+        let limits = Limits::default();
+        let mut cold = Budget::new(&limits);
+        super::super::ty(&temporary, &mut cold).unwrap();
+        let used = limits.max_analysis_steps - cold.remaining;
+        let mut exact = Budget::new(&Limits { max_analysis_steps: used, ..limits.clone() });
+        super::super::validated_type_cell(&temporary, &mut exact).unwrap();
+        assert_eq!(exact.remaining, 0);
+        let mut short = Budget::new(&Limits { max_analysis_steps: used - 1, ..limits });
+        assert!(super::super::validated_type_cell(&temporary, &mut short).is_err());
+    }
+    #[test]
+    fn owned_type_adoption_checks_before_publication_and_keeps_exact_budget() {
+        let module = fixture();
+        let root = &module.functions[0].locals.last().unwrap().ty;
+        let adopt = |steps| {
+            let mut b = budget(&module);
+            b.remaining = steps;
+            let owned = super::super::adopt_checked_type(root.clone(), &mut b)?;
+            let shared = super::super::validated_type_cell(&owned.ty, &mut b)?;
+            assert!(std::rc::Rc::ptr_eq(&owned, &shared));
+            Ok(b.remaining)
+        };
+        let steps = 1_000_000;
+        let used = steps - adopt(steps).unwrap();
+        assert_eq!(adopt(used).unwrap(), 0);
+        let short: Check<_> = adopt(used - 1);
+        assert_eq!(short.unwrap_err().category, zil_base::ResultCategory::ResourceLimit);
+
+        let mut b = budget(&module);
+        let raw = crate::semantic::CheckedTypeData::new(root.clone());
+        adopt_type_cell(&raw, &mut b).unwrap();
+        let entries = b.structural.as_ref().unwrap().type_cells.len();
+        b.limits.max_call_depth = 0;
+        let expected = super::super::bounds_type(root, &mut Budget::new(&b.limits)).unwrap_err();
+        let invalid = super::super::adopt_checked_type(root.clone(), &mut b).map(|_| ());
+        assert_eq!(invalid.unwrap_err(), expected);
+        assert_eq!(b.structural.as_ref().unwrap().type_cells.len(), entries);
+        let unchecked = super::super::validated_type_cell(&raw.ty, &mut b).map(|_| ());
+        assert_eq!(unchecked.unwrap_err(), expected);
+    }
+    #[test]
     fn immutable_type_memo_keeps_each_depth_quota_and_temporary_cold_walk(){
         let module=fixture();let ty=&module.functions[0].locals.last().unwrap().ty;
         let mut b=budget(&module);let before=b.remaining;
@@ -793,7 +959,9 @@ mod tests{
         super::super::type_walk(&temporary,0,false,&mut cold_walk).unwrap();
         // A temporary executes the complete cold walker. Its two real index
         // lookups cannot publish a success for this unregistered allocation.
-        let lookups=lookup(entries).saturating_add(lookup(b.structural.as_ref().unwrap().types.len()));
+        let directory=&b.structural.as_ref().unwrap();
+        let bucket=type_fact_bucket(&temporary);
+        let lookups=2usize.saturating_add(lookup(directory.type_success.0[bucket].len())).saturating_add(lookup(directory.types.len()));
         assert_eq!(actual,cold_before-cold_walk.remaining+lookups);
         assert_eq!(entries,b.structural.as_ref().unwrap().type_success.len());
         b.limits.max_nodes=1;
