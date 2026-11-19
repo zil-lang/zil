@@ -10,9 +10,9 @@ impl CheckedContext{
             SemanticOperand::Value(value)=>value_at(values,*value)?,
             SemanticOperand::Local(local)=>{
                 let value=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual type use reads an uninitialized local"))?;
-                if super::persistent_slots::element(&value.ty)==Some(&required.ty){
+                if let Some((_,selector))=value.ty.binding_cell_element().filter(|(ty,_)| **ty==required.ty){
                     self.persistent_initialization(module,instance,f,*local,b)?;
-                    return self.child_value(module,value,&[LifeTypeProjection::Element],b);
+                    return self.child_value(module,value,&[selector],b);
                 }value
             },
             SemanticOperand::Parameter(index)=>{

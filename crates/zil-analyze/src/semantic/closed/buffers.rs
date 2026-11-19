@@ -177,6 +177,26 @@ impl Check<'_, '_> {
                 ));
             }
         };
+        // The semantic root of a replaceable manager is the current occupant.
+        // Only an actual declaration/initializer witness can consume its physical field.
+        let (slot, captured) = match origin {
+            Origin::Local(local, ..) if matches!(root.ty, Type::Managed(_))
+                && function.locals.get(local.0 as usize)
+                    .is_some_and(|entry| matches!(entry.ty.binding_cell_element(), Some((Type::Managed(_), _)))) =>
+            {
+                let slot = self.binding_slot(instance, function, local, b)?;
+                let captured = if slot.is_none() {
+                    self.captured_cell_binding(instance, function, local, b)?
+                } else { None };
+                (slot, captured)
+            }
+            _ => (None, None),
+        };
+        let path = if slot.is_some() || captured.is_some() {
+            path.strip_prefix(&[0]).ok_or_else(|| fail("original manager operation misses its binding cell element"))?
+        } else {
+            path.as_slice()
+        };
         b.spend(path.len().saturating_add(expected_path.len()), WORK)?;
         if path != expected_path {
             let mut errors = fail("actual ByteBuffer operation changes its original field path");
@@ -190,7 +210,7 @@ impl Check<'_, '_> {
         let actual = match origin {
             Origin::Local(actual, at_block, at_index) => {
                 operations::initialized_local_before(function, (at_block, at_index), actual, b)?;
-                if matches!(selected.ty, Type::Desc(_))
+                if (matches!(selected.ty, Type::Desc(_)) || captured.is_some())
                     && let original::LocalAnchor::Environment(ordinal) = anchor
                 {
                     let capture = self.environment_capture(instance, function, ordinal, b)?;
@@ -202,7 +222,14 @@ impl Check<'_, '_> {
                         "actual ByteBuffer operation selects another original parent place",
                     ));
                 }
-                self.local_value(instance, function, actual, (at_block, at_index), b, 0)?
+                if let Some(slot) = &slot {
+                    self.persistent_slot_value(instance, function, slot, (at_block, at_index), b, 0)?
+                } else if let Some(seed) = captured {
+                    self.check_binding_refills(instance, function, actual, &seed, b, 0)?;
+                    seed
+                } else {
+                    self.local_value(instance, function, actual, (at_block, at_index), b, 0)?
+                }
             }
             Origin::Capture(actual) => {
                 let original::LocalAnchor::Environment(ordinal) = anchor else {
@@ -227,7 +254,7 @@ impl Check<'_, '_> {
         if let Type::Address { inner, .. } = leaf {
             leaf = inner;
         }
-        for field in &path {
+        for field in path {
             b.spend(1, WORK)?;
             if let Type::BorrowedStorage { storage, .. } = leaf {
                 leaf = storage;

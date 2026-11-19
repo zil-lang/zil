@@ -249,7 +249,7 @@ mod closure_child_tests{
         // A scoped type/origin kernel control. The private constructor receipt
         // is supplied here; this does not admit an SSA creator or actual body.
         let value=CheckedType{type_cell:CheckedTypeData::new(Type::Closure(id)),life:StorageLifeShape{binder_count:count,slots:vec![],retained:vec![],nominal_arguments:vec![]},classes:vec![image.clone();count as usize],origins:origins.clone(),statics:vec![]};
-        context.closure_boundaries.borrow_mut().push(ClosureBoundary{creator:scope,node:zil_base::NodeId(0),at:SitePoint{function,block:BlockId(0),instruction:0,after:true},child:child.id,value});
+        context.closure_boundaries.borrow_mut().push(ClosureBoundary{creator:scope,node:zil_base::NodeId(0),at:SitePoint{function,block:BlockId(0),instruction:0,after:true},child:child.id,value,moved_cells:BTreeMap::new()});
         let ty=Type::Address{mutable:true,inner:Box::new(Type::Closure(id))};let life=StorageLifeShape{binder_count:count+1,slots:vec![StorageLifeSlot{path:vec![],binder:0,mode:StoredBorrowMode::ExclusiveAddress}],retained:(0..count).map(|class|StorageRetainedBinding{path:vec![LifeTypeProjection::Pointee],class,binder:class+1}).collect(),nominal_arguments:vec![]};let images=vec![image.clone();(count+1)as usize];
         let checked=context.checked_value(&module,&ty,&life,images,&mut b).unwrap();assert_eq!(&checked.origins[1..],origins.as_slice());assert_ne!(checked.origins[0],checked.origins[1]);assert!(checked.classes.iter().all(|class|class==&image));
         let mut collapsed=life.clone();collapsed.retained[0].binder=0;assert!(context.typed_origins(&module,&ty,&collapsed,&checked.classes,&mut b).is_err(),"same outer image cannot merge the retained Closure κ");

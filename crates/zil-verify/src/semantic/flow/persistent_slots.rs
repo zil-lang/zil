@@ -1,6 +1,6 @@
-//! The existing private callback cell is a representation boundary. Its
-//! element retains the exact original Closure domain; the array shell never
-//! becomes a callable, an environment capture, or a new source of equality.
+//! A source binding carries its element's domain. A move can transfer a
+//! manager cell through a real closure constructor. Its physical field then
+//! belongs to that environment until an actual move, replacement or cleanup.
 use super::*;
 
 pub(super) fn element(ty:&Type)->Option<&Type>{
@@ -48,11 +48,94 @@ impl CheckedContext{
         value.origins=child.origins.clone();value.statics=child.statics.clone();Ok(value)
     }
 
+    pub(super) fn binding_storage(
+        &self, module: &TypedModule, storage: &Type, child: &CheckedType, environment: &EvalEnv, b: &mut Budget,
+    ) -> Check<CheckedType> {
+        let (element, selector) = storage.binding_cell_element()
+            .ok_or_else(|| bad("source binding has no physical single-element carrier"))?;
+        dynamic_metadata::ty(storage, b)?;
+        if *element != child.ty { return Err(bad("physical binding carrier changes its logical element")); }
+        if matches!(selector, LifeTypeProjection::Element) { return self.persistent_array(module, child, b); }
+        let mut value = CheckedType {
+            type_cell: crate::semantic::CheckedTypeData::new(storage.clone()), life: empty_life(),
+            classes: Vec::new(), origins: Vec::new(), statics: Vec::new(),
+        };
+        self.attach_child(environment, &mut value, child, vec![selector], Some(PlaceProjection::Field(0)), b)?;
+        value.life.binder_count = u32::try_from(value.classes.len()).map_err(|_| limit("binding lifetime domain exceeds u32"))?;
+        Ok(value)
+    }
+
+    /// A lowered lexical cell has no source Package constructor. Select its
+    /// unique declaration immediately after formation, then prove its original
+    /// initializer independently from the actual stored field.
+    pub(super) fn binding_constructor(
+        &self, module: &TypedModule, caller: &SemanticInstance, f: &TypedFunction,
+        block: &BasicBlock, ordinal: usize, instruction: &Instruction, values: &[Option<CheckedType>],
+        environment: &EvalEnv, b: &mut Budget,
+    ) -> Check<Option<CheckedType>> {
+        let Some(result) = instruction.result else { return Ok(None); };
+        let physical = f.values.get(result.0 as usize).ok_or_else(|| bad("constructor result is absent"))?;
+        let Some(input) = physical.binding_cell_input(&instruction.kind) else { return Ok(None); };
+        let next = ordinal.checked_add(1).ok_or_else(|| limit("binding construction position overflow"))?;
+        let Some(Instruction { kind: InstructionKind::StorageLive(local), .. }) = block.instructions.get(next) else { return Ok(None); };
+        let after = self.site_index.at(module, caller.id, block.id, next as u32, b)?;
+        if !after.iter()
+            .any(|site| matches!(&site.action, SemanticSiteAction::DeclareLocal { local: SemanticLocalTarget::Typed(id),
+                expected: SemanticTypeValue::Resolved { ty: Type::Managed(_), .. } } if id == local)) { return Ok(None); }
+        let (actual, incoming) = self.persistent_initialization(module,caller,f,*local,b)?;
+        if actual != result || incoming != input { return Err(bad("lexical binding selects another aggregate initializer")); }
+        self.binding_storage(module, physical, value_at(values,input)?, environment, b).map(Some)
+    }
+
+    /// Each constructor must have transferred the same source binder into
+    /// this field. Occupancy and loans of its view stay with the CFG kernels.
+    pub(super) fn captured_manager_cell(&self, child: SemanticInstanceId, field: u32, b: &mut Budget) -> Check<bool> {
+        let boundaries = self.closure_boundaries.borrow();
+        b.spend(boundaries.len())?;
+        let mut ordinal = None;
+        for row in boundaries.iter().filter(|row| row.child == child) {
+            b.spend(row.moved_cells.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
+            let Some(&actual) = row.moved_cells.get(&field) else { return Ok(false); };
+            if ordinal.replace(actual).is_some_and(|old| old != actual) {
+                return Err(bad("actual constructors select different original manager binders"));
+            }
+        }
+        Ok(ordinal.is_some())
+    }
+
+    pub(super) fn manager_cell_projection(&self, module: &TypedModule, caller: &SemanticInstance,
+        f: &TypedFunction, local: LocalId, index: u32, b: &mut Budget) -> Check<bool> {
+        let ty=&f.locals.get(local.0 as usize).ok_or_else(||bad("binding projection local is absent"))?.ty;
+        if index != 0 || !matches!(ty.binding_cell_element(), Some((Type::Managed(_), _))) { return Ok(false); }
+        if let Some(field) = self.bound_package_capture(module, f, local, b)? {
+            return self.captured_manager_cell(caller.id, field, b);
+        }
+        self.persistent_initialization(module,caller,f,local,b)?;
+        Ok(true)
+    }
+
+    pub(super) fn bound_package_capture(&self, module: &TypedModule, f: &TypedFunction,
+        local: LocalId, b: &mut Budget) -> Check<Option<u32>> {
+        if f.environment.is_none() { return Ok(None); }
+        let entry = f.blocks.get(f.entry.0 as usize)
+            .filter(|block| block.id == f.entry).ok_or_else(|| bad("capture view has no entry block"))?;
+        let mut field = None;
+        for instruction in &entry.instructions {
+            b.spend(1)?;
+            if let InstructionKind::BindPackageCapture { local: target, index } = instruction.kind
+                && target == local {
+                crate::packages::check_instruction(module, f, instruction, b)?;
+                if field.replace(index).is_some() { return Err(bad("capture view has competing entry bindings")); }
+            }
+        }
+        Ok(field)
+    }
+
     /// Locate the complete actual initialization, then bind its single operand
     /// to the initializer of the exact original DeclareLocal occurrence.
     pub(super) fn persistent_initialization(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,local:LocalId,b:&mut Budget)->Check<(ValueId,ValueId)>{
         let declaration=f.locals.get(local.0 as usize).ok_or_else(||bad("persistent callback local is absent"))?;
-        if !declaration.mutable||element(&declaration.ty).is_none()||f.parameters.contains(&local){return Err(bad("private callback cell changes its original local role"));}
+        if !declaration.mutable||declaration.ty.binding_cell_element().is_none()||f.parameters.contains(&local){return Err(bad("private callback cell changes its original local role"));}
         let programme=module.semantic.as_ref().ok_or_else(||bad("private callback cell lacks its original programme"))?;
         let mut declared=None;
         for site in &programme.sites{
@@ -77,19 +160,19 @@ impl CheckedContext{
         let SemanticSiteAddress::Typed{block:site_block,instruction:site_at,..}=site.at else{return Err(bad("private callback cell retains a nonactual declaration"));};
         if (site_block,site_at)!=(block,at)&&(site_block,site_at)!=live{return Err(bad("private callback declaration selects another storage epoch or Store"));}
         let(_,_,producer)=self.site_index.producers.get(f,array,b)?;
-        let InstructionKind::MakeOwnedArray{elements}=&producer.kind else{return Err(bad("private callback initializer is not its actual one-element constructor"));};
-        let [input]=elements.as_slice()else{return Err(bad("private callback initializer changes its single original element"));};
+        let input=declaration.ty.binding_cell_input(&producer.kind)
+            .ok_or_else(||bad("private binding initializer changes its actual single operand or constructor"))?;
         crate::check_instruction(module,f,producer,b)?;
         if f.values.get(array.0 as usize)!=Some(&declaration.ty){return Err(bad("private callback constructor changes its exact local carrier"));}
-        self.assignment_value_source(module,caller,f,*input,initializer,b)?;
-        Ok((array,*input))
+        self.assignment_value_source(module,caller,f,input,initializer,b)?;
+        Ok((array,input))
     }
 
-    pub(super) fn persistent_constraint(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,local:LocalId,logical:&CheckedType,b:&mut Budget)->Check<CheckedType>{
+    pub(super) fn persistent_constraint(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,local:LocalId,logical:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<CheckedType>{
         let actual=f.locals.get(local.0 as usize).ok_or_else(||bad("private callback declaration local is absent"))?;
-        if element(&actual.ty)!=Some(&logical.ty){return Err(bad("private callback cell element changes its complete logical Closure type"));}
+        if actual.ty.binding_cell_element().map(|row|row.0)!=Some(&logical.ty){return Err(bad("private callback cell element changes its complete logical Closure type"));}
         self.persistent_initialization(module,caller,f,local,b)?;
-        self.persistent_array(module,logical,b)
+        self.binding_storage(module,&actual.ty,logical,environment,b)
     }
 
     pub(super) fn persistent_constructor(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,instruction:&Instruction,values:&[Option<CheckedType>],b:&mut Budget)->Check<CheckedType>{

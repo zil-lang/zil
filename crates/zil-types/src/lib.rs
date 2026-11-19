@@ -2028,7 +2028,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                         .managed_rebindings
                         .contains(&(s.id, s.span, name.clone()))
                 {
-                    return self.managed_slot(name, t, v, s.span);
+                    return self.managed_slot(name, t, v, e.id, s.span);
                 }
                 if *mutable
                     && owned_shapes::sum(&t)

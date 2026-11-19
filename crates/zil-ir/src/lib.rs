@@ -661,6 +661,32 @@ pub enum Type {
     Unsupported(String),
 }
 impl Type {
+    /// Candidate physical cell for a reassignable source binding. A consumer
+    /// must separately prove its declaration, unique initializer, actual use
+    /// and storage epoch. A user product with this shape is still a product.
+    pub fn binding_cell_element(&self) -> Option<(&Type, LifeTypeProjection)> {
+        match self {
+            Type::Array { element, length: 1 } if matches!(element.as_ref(), Type::Closure(_)) =>
+                Some((element, LifeTypeProjection::Element)),
+            Type::Package { fields, .. } => match fields.as_slice() {
+                [(_, element @ Type::Managed(_))] =>
+                    Some((element, LifeTypeProjection::Place(PlaceProjection::Field(0)))),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    pub fn binding_cell_input(&self, operation: &InstructionKind) -> Option<ValueId> {
+        self.binding_cell_element()?;
+        let inputs = match (self, operation) {
+            (Type::Array { .. }, InstructionKind::MakeOwnedArray { elements }) => elements,
+            (Type::Package { .. }, InstructionKind::MakePackage { fields }) => fields,
+            _ => return None,
+        };
+        match inputs.as_slice() { [input] => Some(*input), _ => None }
+    }
+
     /// Raw structural identity, never a proof of type or access validity.
     /// Table-bearing forms (Dyn and qualified nominal life inventory) require
     /// a context-aware semantic key for exports/cross-request caches. Raw table

@@ -17,7 +17,7 @@ impl CheckedContext {
                 continue;
             };
             if creator.definition != definition { return Ok(false); }
-            let Some(slot) = self.forwarded_capture_slot(f, value, b)? else { return Ok(false); };
+            let Some(slot) = self.forwarded_capture_slot(module, f, value, b)? else { return Ok(false); };
             let environment = f.environment.ok_or_else(|| bad("forwarded capture has no actual environment"))?;
             let parent = self.instance(module, creator.parent.ok_or_else(|| bad("forwarded capture lacks its lexical creator"))?, b)?;
             let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) = parent.target else {
@@ -51,7 +51,7 @@ impl CheckedContext {
         Ok(true)
     }
 
-    fn forwarded_capture_slot(&self, f: &TypedFunction, mut value: ValueId, b: &mut Budget) -> Check<Option<u32>> {
+    fn forwarded_capture_slot(&self, module: &TypedModule, f: &TypedFunction, mut value: ValueId, b: &mut Budget) -> Check<Option<u32>> {
         let mut seen = BTreeSet::new();
         loop {
             b.spend(seen.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
@@ -61,6 +61,7 @@ impl CheckedContext {
                 InstructionKind::ReadCapture { index } | InstructionKind::BorrowCapture { index, .. }
                 | InstructionKind::DescribeCapture { index } | InstructionKind::TakeCapture { index } => return Ok(Some(index)),
                 InstructionKind::ReborrowAddress { address, .. } | InstructionKind::DescribeAddress { address } => value = address,
+                InstructionKind::TakeLocal { local } => return self.bound_package_capture(module, f, local, b),
                 InstructionKind::Load(local) | InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } =>
                 {
                     let mut spills = self.capture_spills.borrow_mut();

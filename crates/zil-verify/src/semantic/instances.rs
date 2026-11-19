@@ -405,6 +405,7 @@ mod tests{
                     after: true,
                 },
                 child: child.id,
+                moved_cells: BTreeMap::new(),
                 value,
             });
         assert!(!context.callbacks_still_empty(&[id], &mut budget).unwrap());

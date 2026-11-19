@@ -1494,12 +1494,12 @@ impl<'p> World<'p, '_> {
                     SemanticSiteRecipeKind::DeclareLocal { expected: recipe },
                 ) => {
                     let logical = self.ledger.logical_local_type(function, *local, self.limits, self.left)?;
-                    let persistent = logical.is_persistent_closure();
+                    let persistent = logical.is_binding_slot();
                     let actual = super::materialize::LogicalExpected::local(logical)
                         .materialize(|hint| self.actual_type(instance.id, recipe, hint))?;
                     self.same(instance.id, expected, &actual, implicit)?;
                     let storage = if persistent {
-                        persistent_slots::array(self, &actual)?
+                        persistent_slots::storage(self, &function.locals[local.0 as usize].ty, &actual)?
                     } else { actual };
                     if let Some(old) = edit_declarations(self, declared)?.insert(*local, storage.clone()) {
                         self.same(instance.id, &old, &storage, implicit)?;
@@ -1514,7 +1514,7 @@ impl<'p> World<'p, '_> {
                     let mut value = match subject {
                         SemanticOperand::Value(value) => self.get(values, *value)?,
                         SemanticOperand::Local(local) => {
-                            if self.ledger.logical_local_type(function, *local, self.limits, self.left)?.is_persistent_closure() {
+                            if self.ledger.logical_local_type(function, *local, self.limits, self.left)?.is_binding_slot() {
                                 self.projected_local(locals, *local, &[PlaceProjection::Field(0)])?
                             } else if let SemanticSiteAddress::Typed { block, instruction, edge: SemanticSiteEdge::Before } = site.at {
                                 places::borrow_source(self, function, block, instruction as usize, locals, *local)?
@@ -3674,7 +3674,12 @@ impl<'p> World<'p, '_> {
                         | InstructionKind::MakePackage { fields }
                         | InstructionKind::MakeManaged { fields }
                         | InstructionKind::MakeVariant { fields, .. } => {
-                            if matches!(
+                            let slot = if matches!(instruction.kind, InstructionKind::MakePackage { .. } | InstructionKind::MakeOwnedArray { .. }) {
+                                persistent_slots::constructor(self, f, block.id, index, fields, &values)?
+                            } else { None };
+                            if let Some(storage) = slot {
+                                Some(storage)
+                            } else if matches!(
                                 ty.map(stored::physical),
                                 Some(
                                     Type::Record { .. }
@@ -3713,13 +3718,10 @@ impl<'p> World<'p, '_> {
                                 let result = instruction
                                     .result
                                     .ok_or_else(|| bad("aggregate has no actual result"))?;
-                                let slot = persistent_slots::constructor(
-                                    self, f, block.id, index, fields, &values,
-                                )?;
-                                let expected = match if slot.is_some() { slot } else { self.constructed_value(
+                                let expected = match self.constructed_value(
                                     instance, original, &sites, block.id, index, result, actual_ty,
                                     &implicit,
-                                )? } {
+                                )? {
                                     Some(value) => value,
                                     None => match self
                                         .emitted_value(instance, f, block.id, index, result)?

@@ -495,6 +495,12 @@ fn capture_value(
     if original_ty == actual_ty {
         return Ok(Formation::Complete(value));
     }
+    // A move capture can transport the storage of the exact mutable binding
+    // selected by its creator. Preserve that binding's full occupant domain.
+    if matches!(actual_ty.binding_cell_element(), Some((element @ Type::Managed(_), _)) if element == original_ty) {
+        return super::super::materialize::binding_slot_storage(actual_ty, &value, limits, left)
+            .map(Formation::Complete);
+    }
     if let Type::Managed(inner) = actual_ty
         && inner.as_ref() == original_ty
     {

@@ -164,10 +164,11 @@ impl Check<'_, '_> {
                     // value and every actual creator's literal leaves. Reuse
                     // those complete values, never the proposed Static header
                     // or an omitted raw Address slot, for nested captures.
-                    if !self.physical_byte_paths(capture, b)?.is_empty() {
+                    if matches!(capture.binding_cell_element(), Some((Type::Managed(_), _)))
+                        || !self.physical_byte_paths(capture, b)?.is_empty() {
                         let worlds = self.function_worlds(closure.function, b)?;
                         if worlds.is_empty() {
-                            return Err(fail("Static captured aggregate has no original world"));
+                            return Err(fail("captured aggregate has no original world"));
                         }
                         for world in worlds {
                             let bindings = self.capture_creator_bindings(world, closure, b)?;
@@ -176,13 +177,13 @@ impl Check<'_, '_> {
                                 b.spend(1, WORK)?;
                                 if binding.capture == index as u32
                                     && selected.replace(&binding.stored).is_some() {
-                                    return Err(fail("Static captured aggregate repeats its original creator"));
+                                    return Err(fail("captured aggregate repeats its original creator"));
                                 }
                             }
-                            let stored = selected.ok_or_else(|| fail("Static captured aggregate lacks its complete creator"))?;
+                            let stored = selected.ok_or_else(|| fail("captured aggregate lacks its complete creator"))?;
                             if !geometry::same_type(&stored.ty, capture, b)?
                                 || !empty(&stored.life) || !stored.classes.is_empty() {
-                                return Err(fail("Static captured aggregate retains an original variable domain"));
+                                return Err(fail("captured aggregate retains an original variable domain"));
                             }
                         }
                     } else {

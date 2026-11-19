@@ -1165,7 +1165,13 @@ impl Check<'_, '_> {
             // every actual Return is independently Static. No owned head or
             // environment-relative loan is lent through this exception.
         }
+        let mut moved_cells = BTreeSet::new();
         for binding in creator_bindings.values() {
+            if binding.moved_cell {
+                self.ordinary_type(&binding.lexical.ty, b)?;
+                b.lookup(moved_cells.len(), WORK)?;
+                moved_cells.insert(binding.capture);
+            }
             self.ghost_capture_rows(
                 instance,
                 closure,
@@ -1287,7 +1293,10 @@ impl Check<'_, '_> {
                 // Complete capture rows above already retain nonzero child
                 // domains. Classify that exact child without reinterpreting
                 // an opaque Closure/Package as a zero-domain environment.
-                self.ordinary_type(ty, b)?;
+                if !matches!(ty.binding_cell_element(), Some((Type::Managed(_), _))) || {
+                    b.lookup(moved_cells.len(), WORK)?;
+                    !moved_cells.contains(&(index as u32))
+                } { self.ordinary_type(ty, b)?; }
             }
         }
         if used_slots.len()
@@ -2174,9 +2183,17 @@ impl Check<'_, '_> {
             .get(id.0 as usize)
             .ok_or_else(|| fail("semantic value transport selects an absent SSA"))?;
         self.inventory.geometry.check_type(ty, b)?;
-        if let Some(slot) = self.persistent_array_slot(instance, function, id, b)? {
+        if let Some(slot) = self.binding_carrier_slot(instance, function, id, b)? {
             let child = self.ssa_value(instance, function, slot.initial(), b, depth + 1)?;
             return self.persistent_slot_array_value(instance, function, &slot, &child, b);
+        }
+        if matches!(ty.binding_cell_element(), Some((Type::Managed(_), _))) {
+            let (block, at, producer) = self.defining(function, id, b)?;
+            if let InstructionKind::TakeLocal { local } = producer.kind
+                && let Some(cell) = self.binding_cell_at(instance, function, local, (block, at), b, depth)?
+            {
+                return Ok(cell);
+            }
         }
         if ty.is_b0_scalar() {
             return Ok(value::scalar(ty.clone()));
@@ -3459,9 +3476,8 @@ impl Check<'_, '_> {
             .filter(|item| item.id == local)
             .ok_or_else(|| fail("semantic class query selects no actual local type"))?
             .ty;
-        if let Some(slot) = self.persistent_slot(instance, function, local, b)? {
-            let child = self.persistent_slot_value(instance, function, &slot, at, b, depth + 1)?;
-            return self.persistent_slot_array_value(instance, function, &slot, &child, b);
+        if let Some(cell) = self.binding_cell_at(instance, function, local, at, b, depth)? {
+            return Ok(cell);
         }
         if let Some(value) =
             self.reference_local_value(instance, function, local, at, b, depth + 1)?

@@ -737,7 +737,8 @@ pub(super) fn capture(
     // Reuse the same exact creator/environment correspondence that formed the
     // header, rather than reconstructing this compound from its erased Type.
     world.pay(header.static_bindings.len())?;
-    if header.static_bindings.iter().any(|position| position.base == StorageBase::Capture(index) && !position.path.is_empty()) {
+    if matches!(ty.binding_cell_element(), Some((Type::Managed(_), _)))
+        || header.static_bindings.iter().any(|position| position.base == StorageBase::Capture(index) && !position.path.is_empty()) {
         let value = super::super::headers::original_capture_value(
             world.program, &world.view, world.ledger, instance, index, ty,
             world.limits, world.left,

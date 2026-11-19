@@ -471,7 +471,10 @@ impl CheckedContext{
                     return self.projected_local_root(module,caller,f,*local,root,node,b);
                 },
                 InstructionKind::DescribePackageField{local,index}|InstructionKind::ReadPackageField{local,index}|InstructionKind::TakePackageField{local,index}|InstructionKind::BorrowPackageField{local,index,..}=>{
-                    consume_field(&f.locals.get(local.0 as usize).ok_or_else(||bad("package source local is absent"))?.ty,*index,&mut fields,b)?;
+                    let physical=&f.locals.get(local.0 as usize).ok_or_else(||bad("package source local is absent"))?.ty;
+                    if !fields.is_empty() || !self.manager_cell_projection(module,caller,f,*local,*index,b)? {
+                        consume_field(physical,*index,&mut fields,b)?;
+                    }
                     if !fields.is_empty(){return Err(unsupported("nested package observation requires its actual local-to-parent projection ledger",Some(instruction.span)));}
                     return self.projected_local_root(module,caller,f,*local,root,node,b);
                 },

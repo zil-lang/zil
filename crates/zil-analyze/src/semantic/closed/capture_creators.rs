@@ -2,10 +2,12 @@
 //! Navigation need not fabricate an executable whole-name read in the child.
 use super::*;
 use crate::semantic::value::{Argument, Class, Value};
+pub(super) type CreatorBindings = std::rc::Rc<BTreeMap<u32, CreatorBinding>>;
 pub(super) struct CreatorBinding {
     pub(super) capture: u32,
     pub(super) lexical: Value,
     pub(super) stored: Value,
+    pub(super) moved_cell: bool,
     pub(super) bound_operands: BTreeSet<ValueId>,
 }
 impl Check<'_, '_> {
@@ -313,7 +315,16 @@ impl Check<'_, '_> {
         instance: &SemanticInstance,
         closure: &ClosureDefinition,
         b: &mut Budget,
-    ) -> CompileResult<BTreeMap<u32, CreatorBinding>> {
+    ) -> CompileResult<CreatorBindings> {
+        let key = (instance.id, closure.id, b.partial_depth, b.helper_nodes);
+        let memoize = self.checked_header_bounds.get() == Some((b.partial_depth, b.helper_nodes))
+            && self.slot_queries.borrow().is_empty() && self.value_queries.borrow().is_empty()
+            && self.scope_queries.borrow().is_empty() && self.trait_queries.borrow().is_empty();
+        if memoize {
+            let known = self.creator_bindings.borrow();
+            b.lookup(known.len(), WORK)?;
+            if let Some(rows) = known.get(&key) { return Ok(rows.clone()); }
+        }
         let definition = self.inventory.definition(instance.definition, b)?;
         let parent = self.inventory.instance(
             instance
@@ -393,6 +404,7 @@ impl Check<'_, '_> {
             let expected = self.resolved(parent, actual, b, 0)?;
             let mut selected = None;
             let mut stored = None;
+            let mut cell_mode = None;
             let mut bound_operands = BTreeSet::new();
             let mut creators = 0usize;
             for block in &function.blocks {
@@ -443,8 +455,13 @@ impl Check<'_, '_> {
                         if closure.captures.get(capture) != Some(&value.ty) {
                             return Err(fail("actual creator changes its physical capture type"));
                         }
+                        let moved_cell = moved && matches!(value.ty.binding_cell_element(), Some((element @ Type::Managed(_), _)) if element == &expected.ty)
+                            && self.binding_storage_value(&value.ty, &expected, b)?.equal_paid(&value, b)?;
+                        if cell_mode.replace(moved_cell).is_some_and(|old| old != moved_cell) {
+                            return Err(fail("creators disagree on ownership of the original binding cell"));
+                        }
                         if matches!(expected.ty, Type::Managed(_))
-                            && matches!(value.ty, Type::Managed(_)) != moved
+                            && (matches!(value.ty, Type::Managed(_)) || moved_cell) != moved
                         {
                             return Err(fail("actual capture changes the original resource transfer mode"));
                         }
@@ -454,7 +471,7 @@ impl Check<'_, '_> {
                             b.lookup(bound_operands.len(), WORK)?;
                             bound_operands.insert(*operand);
                             value
-                        } else if value.equal_paid(&expected, b)?
+                        } else if moved_cell || value.equal_paid(&expected, b)?
                             || !moved
                                 && matches!(&value.ty, Type::Address { inner, .. } if inner.as_ref() == &expected.ty)
                                 && self.pointee(&value, b)?.equal_paid(&expected, b)?
@@ -514,11 +531,18 @@ impl Check<'_, '_> {
                     capture: selected
                         .ok_or_else(|| fail("captured value has no physical original operand"))?,
                     bound_operands,
+                    moved_cell: cell_mode.ok_or_else(|| fail("original capture has no physical transfer mode"))?,
                     lexical: expected,
                     stored: stored
                         .ok_or_else(|| fail("captured value has no complete stored head"))?,
                 },
             );
+        }
+        let result = std::rc::Rc::new(result);
+        if memoize {
+            let mut known = self.creator_bindings.borrow_mut();
+            b.lookup(known.len(), WORK)?;
+            known.insert(key, result.clone());
         }
         Ok(result)
     }

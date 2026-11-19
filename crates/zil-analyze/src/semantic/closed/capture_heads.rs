@@ -1619,8 +1619,8 @@ impl Check<'_, '_> {
         function: &TypedFunction,
         local: LocalId,
         b: &mut Budget,
-    ) -> CompileResult<Option<persistent_slots::Slot>> {
-        let mut selected: Option<persistent_slots::Slot> = None;
+    ) -> CompileResult<Option<std::rc::Rc<persistent_slots::Slot>>> {
+        let mut selected: Option<std::rc::Rc<persistent_slots::Slot>> = None;
         let mut worlds = 0usize;
         for instance in &self.program.instances {
             b.spend(1, WORK)?;
@@ -1665,13 +1665,13 @@ impl Check<'_, '_> {
         function: &TypedFunction,
         value: ValueId,
         b: &mut Budget,
-    ) -> CompileResult<Option<persistent_slots::Slot>> {
+    ) -> CompileResult<Option<std::rc::Rc<persistent_slots::Slot>>> {
         if !matches!(function.values.get(value.0 as usize),
             Some(Type::Array { length: 1, element }) if matches!(element.as_ref(), Type::Closure(_)))
         {
             return Ok(None);
         }
-        self.persistent_array_slot(instance, function, value, b)?
+        self.binding_carrier_slot(instance, function, value, b)?
             .map(Some)
             .ok_or_else(|| {
                 unknown("implicit array source lacks its complete original slot witness")
@@ -1908,7 +1908,7 @@ impl Check<'_, '_> {
                     self.place_heads(
                         function,
                         *local,
-                        slot.as_ref(),
+                        slot.as_deref(),
                         &[],
                         false,
                         Some(*class),
@@ -1974,7 +1974,7 @@ impl Check<'_, '_> {
                     self.place_heads(
                         function,
                         *local,
-                        slot.as_ref(),
+                        slot.as_deref(),
                         &[],
                         false,
                         Some(class as u32),

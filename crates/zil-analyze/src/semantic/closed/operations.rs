@@ -867,8 +867,8 @@ impl Check<'_, '_> {
                 // A logical local use crosses the private shell only through
                 // this original binding's real declaration/initializer witness.
                 let actual_operand = if let SemanticOperand::Local(local) = subject
-                    && matches!(expected_type, Type::Closure(_))
-                    && let Some(slot) = self.persistent_slot(instance, point.function, *local, b)? {
+                    && matches!(expected_type, Type::Closure(_) | Type::Managed(_))
+                    && let Some(slot) = self.binding_slot(instance, point.function, *local, b)? {
                     ObservedType::Reconstructed(self.persistent_slot_value(instance, point.function, &slot,
                         (point.block.id, point.instruction + usize::from(point.edge == SemanticSiteEdge::After)), b, 0)?)
                 } else { ObservedType::Physical(self.operand(instance, subject, point, b)?) };
@@ -1070,7 +1070,7 @@ impl Check<'_, '_> {
                     Some(self.original_claim(instance, expected, &original_value, b)?)
                 } else { None };
 
-                if let Some(slot) = self.persistent_slot(instance, point.function, *local, b)? {
+                if let Some(slot) = self.binding_slot(instance, point.function, *local, b)? {
                     if slot.declaration() != (point.block.id, point.instruction)
                         || point.edge != SemanticSiteEdge::After
                         || !slot.logical().equal_paid(&original_value, b)? {
@@ -2088,7 +2088,7 @@ impl Check<'_, '_> {
                 else {
                     return Err(fail("declaration snapshot retains a Core emission site"));
                 };
-                let image_at = if let Some(slot) = self.persistent_slot(instance, function, *local, b)? {
+                let image_at = if let Some(slot) = self.binding_slot(instance, function, *local, b)? {
                     (slot.initial_store().0, slot.initial_store().1, SemanticSiteEdge::After)
                 } else { (block, instruction as usize, edge) };
                 let images = self.image_heads(instance, expected, image_at, b)?;
@@ -2371,7 +2371,7 @@ impl Check<'_, '_> {
                                     Some(role) => role,
                                     None => self.ssa_value(instance, function, value, b, 0)?,
                                 };
-                            let shell = self.persistent_slot(instance, function, local, b)?;
+                            let shell = self.binding_slot(instance, function, local, b)?;
                             let physical_expected = if let Some(slot) = &shell {
                                 if slot.initial_store() != (block.id, index) || slot.array() != value {
                                     return Err(fail("persistent Store replaces another original shell activation"));
@@ -2387,7 +2387,7 @@ impl Check<'_, '_> {
                         }
                         b.spend(declared.len().saturating_add(1), WORK)?;
                         if let Some(images) = declared.get(&local) {
-                            let subject = if let Some(slot) = self.persistent_slot(instance, function, local, b)? {
+                            let subject = if let Some(slot) = self.binding_slot(instance, function, local, b)? {
                                 if slot.initial_store() != (block.id, index) || slot.array() != value {
                                     return Err(fail("persistent head Store changes its exact initializer"));
                                 }
@@ -2402,8 +2402,9 @@ impl Check<'_, '_> {
                             )?;
                         }
                     }
-                    if let InstructionKind::StoreOwnedArrayElement { local, index: element, value } = instruction.kind
-                        && let Some(slot) = self.persistent_slot(instance, function, local, b)? {
+                    if let (InstructionKind::StoreOwnedArrayElement { local, index: element, value }
+                        | InstructionKind::StorePackageField { local, index: element, value }) = instruction.kind
+                        && let Some(slot) = self.binding_slot(instance, function, local, b)? {
                         if element != 0 { return Err(fail("persistent refill changes its original element selector")); }
                         available_before(function, (block.id, index, SemanticSiteEdge::Before), value, b)?;
                         let incoming = self.ssa_value(instance, function, value, b, 0)?;

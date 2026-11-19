@@ -17,29 +17,31 @@ impl Builder<'_, '_> {
             element: Box::new(element),
             length: 1,
         };
-        let input = value;
-        let block = self.current.ok_or_else(|| unsupported(span, "callback slot has no live actual block"))?;
+        let local = self.construct_binding_slot(name, storage,
+            InstructionKind::MakeOwnedArray { elements: vec![value] }, value, initializer, span)?;
+        self.closure_slots.insert(local, id);
+        Ok(())
+    }
+
+    pub(crate) fn construct_binding_slot(
+        &mut self, name: &str, storage: Type, operation: InstructionKind,
+        input: ValueId, initializer: zil_base::NodeId, span: Span,
+    ) -> R<LocalId> {
+        let block = self.current.ok_or_else(|| unsupported(span, "binding cell has no live block"))?;
         let construction = crate::semantics::emission::Point {
             block, instruction: self.function.blocks[block.0 as usize].instructions.len(),
         };
-        let value = self.value(
-            InstructionKind::MakeOwnedArray {
-                elements: vec![value],
-            },
-            storage.clone(),
-            span,
-        )?;
+        let carrier = self.value(operation, storage.clone(), span)?;
         let local = self.local(name, storage, true, span)?;
         let initialization = crate::semantics::emission::Point {
             block, instruction: self.function.blocks[block.0 as usize].instructions.len(),
         };
-        self.store(local, value, span)?;
-        self.closures.semantic_emission.closure_slot(
-            self.function.id, local, initializer, input, value, construction, initialization,
+        self.store(local, carrier, span)?;
+        self.closures.semantic_emission.binding_slot(
+            self.function.id, local, initializer, input, carrier, construction, initialization,
             &mut self.closures.work_left, span,
         )?;
-        self.closure_slots.insert(local, id);
-        Ok(())
+        Ok(local)
     }
 
     pub(crate) fn take_closure_slot(&mut self, local: LocalId, span: Span) -> R<(ValueId, Type)> {

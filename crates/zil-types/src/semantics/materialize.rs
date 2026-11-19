@@ -78,14 +78,17 @@ fn logical_operand<'t>(
 
 /// The existing persistent callback slot has one physical element. Its
 /// representation does not change the child's complete intrinsic domain.
-pub(super) fn closure_slot_array(
-    element: &SemanticTypeValue, limits: &Limits, left: &mut usize,
+pub(super) fn binding_slot_storage(
+    storage: &Type, element: &SemanticTypeValue, limits: &Limits, left: &mut usize,
 ) -> R<SemanticTypeValue> {
     crate::dyn_metadata::semantic_operand_snapshot(element, limits, left, 1)?;
     let SemanticTypeValue::Resolved { ty, life, classes } = element else {
         return Err(bad("callback slot element retains an unresolved original type"));
     };
-    if !matches!(ty, Type::Closure(_)) || life.binder_count as usize != classes.len()
+    let (physical_element, selector) = storage.binding_cell_element()
+        .ok_or_else(|| bad("binding cell has no physical element"))?;
+    crate::inference::charge_type_snapshot(storage, Span::default(), limits, left, 1)?;
+    if physical_element != ty || life.binder_count as usize != classes.len()
         || life.slots.len() > limits.max_nodes
     {
         return Err(bad("callback slot omits its exact closure or complete element domain"));
@@ -104,8 +107,8 @@ pub(super) fn closure_slot_array(
         shape.slots.push(StorageLifeSlot { path, ..slot.clone() });
     }
     let map: Vec<_> = (0..life.binder_count).collect();
-    inherit_child_shape(&mut shape, life, LifeTypeProjection::Element, &map, limits, left)?;
-    Ok(resolved(Type::Array { element: Box::new(ty.clone()), length: 1 }, shape, classes.clone()))
+    inherit_child_shape(&mut shape, life, selector, &map, limits, left)?;
+    Ok(resolved(storage.clone(), shape, classes.clone()))
 }
 
 /// Embed a real child's complete occurrence forest through its proved class

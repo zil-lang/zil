@@ -9,6 +9,7 @@ impl Builder<'_, '_> {
         name: &str,
         ty: Type,
         value: ValueId,
+        initializer: zil_base::NodeId,
         span: Span,
     ) -> R<()> {
         let package = Type::Package {
@@ -20,15 +21,8 @@ impl Builder<'_, '_> {
             fields: vec![(FIELD.into(), ty)],
         };
         // Completed SSA carrier is transferred once into a lexical owning slot.
-        let value = self.value(
-            InstructionKind::MakePackage {
-                fields: vec![value],
-            },
-            package.clone(),
-            span,
-        )?;
-        let local = self.local(name, package, true, span)?;
-        self.store(local, value, span)?;
+        let local = self.construct_binding_slot(name, package,
+            InstructionKind::MakePackage { fields: vec![value] }, value, initializer, span)?;
         self.managed_slots.insert(local);
         Ok(())
     }

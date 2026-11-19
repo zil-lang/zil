@@ -270,7 +270,7 @@ impl CheckedContext {
                     if let SemanticSiteAction::DeclareLocal{local:SemanticLocalTarget::Typed(local),expected}=&site.action {
                         let value=self.site_expected(module,instance,site,&environment,external,active,b)?;
                         self.claim(module,expected,&value,&environment,b)?;
-                        let value=if f.locals[local.0 as usize].ty==value.ty{value}else{self.persistent_constraint(module,instance,f,*local,&value,b)?};
+                        let value=if f.locals[local.0 as usize].ty==value.ty{value}else{self.persistent_constraint(module,instance,f,*local,&value,&environment,b)?};
                         if let Some(old)=&constraints[local.0 as usize] {if !self.same_type(&environment,old,&value,b)? {return Err(bad("local declarations impose different semantic constraints"));}}
                         self.affine_field_declaration(module, instance, f, site.recipe, *local, block, ordinal, b)?;
                         constraints[local.0 as usize]=Some(value);
@@ -393,7 +393,10 @@ impl CheckedContext {
                         let site=declarations.next();
                         if declarations.next().is_some() {return Err(bad("actual aggregate construction has duplicate semantic claims"));}
                         let value=if let Some(site)=site{self.site_expected(module,instance,site,&environment,external,active,b)?}else if matches!(instruction.kind,InstructionKind::MakeOwnedArray{..}){self.persistent_constructor(module,instance,f,instruction,&values,b)?}
-                        else if matches!(instruction.kind,InstructionKind::MakePackage{..}){self.package_repack(module,instance,f,instruction,fields,&state,b)?}
+                        else if matches!(instruction.kind,InstructionKind::MakePackage{..}){
+                            if let Some(storage)=self.binding_constructor(module,instance,f,block,ordinal,instruction,&values,&environment,b)? { storage }
+                            else { self.package_repack(module,instance,f,instruction,fields,&state,b)? }
+                        }
                         else{self.internal_copy_aggregate(module,f,instruction,fields,&values,reified_data::nominal_producer(&reified_data,instruction,b)?,b)?};
                         let mut storage=&value.ty;
                         while let Type::BorrowedStorage{storage:inner,..}|Type::Managed(inner)=storage {storage=inner;}
@@ -613,7 +616,7 @@ impl CheckedContext {
         self.seals.borrow_mut().insert(child.id,checked);
         let child_environment=self.environment_for_instance(module,child.id,active,b)?;
         let child_scope=ScopeKey::Instance(child.id);
-        let mut capture_images=Vec::new();let mut logical_captures=BTreeMap::new();let mut borrowed_captures=BTreeMap::new();
+        let mut capture_images=Vec::new();let mut logical_captures=BTreeMap::new();let mut borrowed_captures=BTreeMap::new();let mut moved_cells=BTreeMap::new();
         let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&creator_definition.body else{unreachable!()};
         let node=site_nodes.iter().find(|row|row.site==site.recipe).ok_or_else(||bad("Closure creator has no exact original node"))?;
         let SemanticOriginalNode::Expression(creation_node)=node.node else{return Err(bad("Closure creator original node is not an expression"));};
@@ -627,7 +630,7 @@ impl CheckedContext {
                     return Err(bad("implicit captured head has another complete borrow carrier"));
                 }
                 let pointee=self.child_value(module,&value,&[LifeTypeProjection::Pointee],b)?;
-                let ordinal=self.environment_capture(module,creator,child,creation_node,*capture,&pointee,None,&sealed,owner_description,environment,b)?;
+                let (ordinal,_)=self.environment_capture(module,creator,child,creation_node,*capture,&pointee,None,&sealed,owner_description,environment,b)?;
                 borrowed_captures.insert(index as u32,ordinal);
                 let slot=value.life.slots.iter().find(|row|row.path.is_empty()).ok_or_else(||bad("actual implicit capture has no variable head occurrence"))?;
                 let binder=slot.binder as usize;
@@ -640,9 +643,12 @@ impl CheckedContext {
                 capture_images.push((head.clone(),value.classes[binder].clone()));
                 value.classes[binder]=head.clone();value.origins[binder]=IntrinsicOrigin::DerivedClass{source:head};
             }else{
-                let ordinal=self.environment_capture(module,creator,child,creation_node,*capture,&value,Some(values),&sealed,false,environment,b)?;
+                let (ordinal,moved_cell)=self.environment_capture(module,creator,child,creation_node,*capture,&value,Some(values),&sealed,false,environment,b)?;
                 let CheckedActual::Type(original)=&sealed[ordinal] else{unreachable!()};
-                if !self.same_type(environment,&value,original,b)? {
+                if moved_cell {
+                    b.spend(1)?;
+                    moved_cells.insert(index as u32, ordinal);
+                } else if !self.same_type(environment,&value,original,b)? {
                     // environment_capture proved this exact compiler reborrow
                     // of the original binder, including its complete child
                     // domain. Use the sealed role only inside the child
@@ -700,7 +706,10 @@ impl CheckedContext {
         for (index,_) in captures.iter().enumerate() {
             if let Some(ordinal)=logical_captures.get(&(index as u32)){
                 let CheckedActual::Type(value)=&sealed[*ordinal]else{unreachable!()};
-                self.environment_capture_header(module,relation,child,index as u32,*ordinal,value,&sealed,environment,b)?;
+                let stored = if moved_cells.contains_key(&(index as u32)) {
+                    value_at(values, captures[index])?
+                } else { value };
+                self.environment_capture_header(module,relation,child,index as u32,*ordinal,stored,&sealed,environment,b)?;
                 continue;
             }
             if value_at(values,captures[index])?.classes.is_empty(){continue;}
@@ -737,8 +746,8 @@ impl CheckedContext {
         let mut boundaries=self.closure_boundaries.borrow_mut();
         b.spend(boundaries.len().saturating_add(value.classes.len()))?;
         if let Some(old)=boundaries.iter().find(|row|row.creator==creator_scope&&row.node==node&&row.at==at) {
-            if old.child!=child.id||old.value!=value{return Err(bad("actual Closure creation changes its complete intrinsic domain or outside image"));}
-        }else{boundaries.push(ClosureBoundary{creator:creator_scope,node,at,child:child.id,value:value.clone()});}
+            if old.child!=child.id||old.value!=value||old.moved_cells!=moved_cells{return Err(bad("actual Closure creation changes its complete intrinsic domain or outside image"));}
+        }else{boundaries.push(ClosureBoundary{creator:creator_scope,node,at,child:child.id,value:value.clone(),moved_cells});}
         let selected=self.original.borrow();
         let original=selected.as_ref().ok_or_else(||bad("closure creation lacks its independently checked original body"))?;
         let action=original.is_cleanup_operand(creator.definition,node,b)?.then_some(defer_actions::Action{node,child:child.id,closure});

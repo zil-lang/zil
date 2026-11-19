@@ -126,6 +126,8 @@ struct ClosureBoundary {
     at: SitePoint,
     child: SemanticInstanceId,
     value: CheckedType,
+    /// Physical owning field to logical free binder, proven at this constructor.
+    moved_cells: BTreeMap<u32, usize>,
 }
 
 pub(crate) struct ClosureCursor {

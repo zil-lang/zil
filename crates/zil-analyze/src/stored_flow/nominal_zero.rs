@@ -138,8 +138,16 @@ pub(super) fn exact_index(
             ));
         }
     }
-    let position =
-        selected.ok_or_else(|| failure("zero nominal type lacks its complete instance"))?;
+    let Some(position) = selected else {
+        let mut error = failure("zero nominal type lacks its complete instance");
+        let name = match ty {
+            Type::Package { name, .. } | Type::Record { name, .. } | Type::Enum { name, .. } => name.as_str(),
+            _ => "<qualified storage>",
+        };
+        b.spend(name.len().saturating_add(64), "missing nominal identity diagnostic")?;
+        error[0].notes.push(format!("Expected an original nominal instance for {name}, but {width} candidates matched its identity bucket."));
+        return Err(error);
+    };
     if raw_work.is_some() {
         b.lookup(
             b.geometry_types.len(),

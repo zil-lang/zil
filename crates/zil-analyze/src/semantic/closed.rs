@@ -105,6 +105,9 @@ struct Check<'a, 'i> {
     // image or cleanup source. Those belong to the actual value and operation.
     formed_nominal_types: std::cell::RefCell<Option<(std::sync::Arc<()>, BTreeSet<(usize, usize, usize)>)>>,
     task_results: std::cell::RefCell<BTreeMap<(SemanticInstanceId, FunctionId, BlockId, usize), value::Value>>,
+    creator_bindings: std::cell::RefCell<BTreeMap<(SemanticInstanceId, ClosureId, usize, usize), capture_creators::CreatorBindings>>,
+    // Immutable source declaration and physical cell, independent of its current occupant.
+    binding_cells: std::cell::RefCell<BTreeMap<(SemanticInstanceId, FunctionId, LocalId, usize, usize), Option<std::rc::Rc<persistent_slots::Slot>>>>,
     slot_queries: std::cell::RefCell<
         BTreeMap<(SemanticInstanceId, FunctionId, LocalId), Option<value::Value>>,
     >,
@@ -141,6 +144,8 @@ pub(super) fn coordinate_field(
         range_locals: Default::default(),
         formed_nominal_types: Default::default(),
         task_results: Default::default(),
+        creator_bindings: Default::default(),
+        binding_cells: Default::default(),
         slot_queries: Default::default(),
         trait_queries: Default::default(),
         nominal_definitions: Default::default(),
@@ -1167,8 +1172,28 @@ impl Check<'_, '_> {
             if admitted_functions.insert(function.id) {
                 b.spend(function.values.len().saturating_add(function.locals.len()), WORK)?;
                 self.ordinary_type(&function.return_type, b)?;
-                for ty in function.locals.iter().map(|local| &local.ty).chain(&function.values) {
-                    self.actual_type(ty, b)?;
+                for local in &function.locals {
+                    let ty = &local.ty;
+                    if matches!(ty.binding_cell_element(), Some((Type::Managed(_), _)))
+                        && let Some(slot) = self.binding_slot(instance, function, local.id, b)?
+                    {
+                        self.actual_type(&slot.logical().ty, b)?;
+                    } else if matches!(ty.binding_cell_element(), Some((Type::Managed(_), _)))
+                        && let Some(logical) = self.captured_cell_binding(instance, function, local.id, b)? {
+                        self.actual_type(&logical.ty, b)?;
+                    } else {
+                        self.actual_type(ty, b)?;
+                    }
+                }
+                for (ordinal, ty) in function.values.iter().enumerate() {
+                    if matches!(ty.binding_cell_element(), Some((Type::Managed(_), _)))
+                    {
+                        // SSA source reconstruction distinguishes a lexical cell from
+                        // a nominal user Package, including a cell moved to a creator.
+                        self.ssa_value(instance, function, ValueId(ordinal as u32), b, 0)?;
+                    } else {
+                        self.actual_type(ty, b)?;
+                    }
                 }
                 if let Some(closure) = function.environment {
                     self.capture_directory(closure, b)?;
@@ -1206,6 +1231,8 @@ pub(super) fn check(
         range_locals: Default::default(),
         formed_nominal_types: Default::default(),
         task_results: Default::default(),
+        creator_bindings: Default::default(),
+        binding_cells: Default::default(),
         slot_queries: Default::default(),
         trait_queries: std::cell::RefCell::new(Vec::new()),
         nominal_definitions: std::cell::RefCell::new(BTreeMap::new()),

@@ -119,7 +119,6 @@ impl Check<'_, '_> {
             .captures
             .get(index as usize)
             .ok_or_else(|| fail("actual whole capture ordinal is absent"))?;
-        self.actual_type(ty, b)?;
         // This reconstructs the selected creator-bound value; it is not a
         // certificate for the containing directory. The publication pass checks
         // that directory separately after all identities have been formed.
@@ -130,6 +129,9 @@ impl Check<'_, '_> {
                 if binding.capture != index {
                     continue;
                 }
+                if binding.moved_cell {
+                    self.actual_type(&binding.lexical.ty, b)?;
+                } else { self.actual_type(ty, b)?; }
                 if selected.replace(&binding.stored).is_some() {
                     return Err(fail(
                         "actual captured head has several original lexical sources",

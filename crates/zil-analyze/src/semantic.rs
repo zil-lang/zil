@@ -510,12 +510,21 @@ impl<'a> Inventory<'a> {
         value: ValueId,
         b: &mut Budget,
     ) -> CompileResult<Vec<&'p SemanticSite>> {
+        self.sites_for_operand(program, instance, site_index::OperandKey::Value(value), b)
+    }
+    fn sites_for_operand<'p>(
+        &self,
+        program: &'p SemanticModule,
+        instance: SemanticInstanceId,
+        operand: site_index::OperandKey,
+        b: &mut Budget,
+    ) -> CompileResult<Vec<&'p SemanticSite>> {
         if !self.ensure_actual_sites(program, b)? {
             let mut selected = Vec::new();
             for site in &program.sites {
                 b.spend(1, WORK)?;
                 if site.instance == instance
-                    && site_index::operand(site) == Some(site_index::OperandKey::Value(value))
+                    && site_index::operand(site) == Some(operand)
                 {
                     Self::push_site(&mut selected, site, b)?;
                 }
@@ -527,13 +536,13 @@ impl<'a> Inventory<'a> {
             .get(&(program as *const SemanticModule as usize))
             .ok_or_else(|| fail("actual operand owner is absent"))?;
         let mut selected = Vec::new();
-        for position in index.operand(instance, site_index::OperandKey::Value(value), b)? {
+        for position in index.operand(instance, operand, b)? {
             let site = program
                 .sites
                 .get(*position)
                 .ok_or_else(|| fail("actual operand leaves its immutable event table"))?;
             if site.instance != instance
-                || site_index::operand(site) != Some(site_index::OperandKey::Value(value))
+                || site_index::operand(site) != Some(operand)
             {
                 return Err(fail("actual operand changes its original world or kind"));
             }

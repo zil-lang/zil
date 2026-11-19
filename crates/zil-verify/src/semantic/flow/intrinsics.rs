@@ -269,6 +269,10 @@ impl CheckedContext {
                 {
                     return Ok(());
                 }
+                InstructionKind::DescribePackageField { local: actual, index }
+                    | InstructionKind::TakePackageField { local: actual, index }
+                    | InstructionKind::BorrowPackageField { local: actual, index, .. }
+                    if *actual == local && self.manager_cell_projection(module,caller,f,local,*index,b)? => return Ok(()),
                 InstructionKind::ReborrowAddress { address, .. } | InstructionKind::AddressSlice { address, .. } => value = *address,
                 _ => {
                     return Err(bad(

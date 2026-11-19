@@ -4,7 +4,7 @@
 use super::*;
 impl CheckedContext {
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn environment_capture(&self,module:&TypedModule,creator:&SemanticInstance,child:&SemanticInstance,node:zil_base::NodeId,value:ValueId,actual:&CheckedType,values:Option<&[Option<CheckedType>]>,sealed:&[CheckedActual],owner_description:bool,environment:&EvalEnv,b:&mut Budget)->Check<usize>{
+    pub(super) fn environment_capture(&self,module:&TypedModule,creator:&SemanticInstance,child:&SemanticInstance,node:zil_base::NodeId,value:ValueId,actual:&CheckedType,values:Option<&[Option<CheckedType>]>,sealed:&[CheckedActual],owner_description:bool,environment:&EvalEnv,b:&mut Budget)->Check<(usize,bool)>{
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=creator.target else{return Err(bad("logical capture creator is not an actual function"));};
         let f=module.functions.get(function.0 as usize).ok_or_else(||bad("logical capture creator function is absent"))?;
         let mut selected=None;
@@ -15,14 +15,32 @@ impl CheckedContext {
                 Some(self.child_value(module,original,&[LifeTypeProjection::Pointee],b)?)
             }else{None};
             let expected=projected.as_ref().unwrap_or(original);
-            if expected.ty!=actual.ty{continue;}
+            let cell = values.is_some() && !owner_description
+                && matches!(expected.ty, Type::Managed(_))
+                && actual.ty.binding_cell_element().is_some_and(|(element, _)| element == &expected.ty);
+            if !cell && expected.ty != actual.ty { continue; }
             complete_environment(module,original,b)?;
             let managed_mode = matches!(original.ty, Type::Managed(_)).then_some(values.is_some() && !owner_description);
             let Some(source)=self.original.borrow().as_ref().ok_or_else(||bad("logical capture has no checked original body"))?.ghost_capture_source(module,creator.definition,child.definition,ordinal,node,managed_mode,b)? else { continue; };
             // Resolve every same-shaped original candidate by its real binder.
             // A different candidate cannot donate its class inventory.
             if !self.capture_creator_source(module,creator,f,value,&source,b)?{continue;}
-            if !self.same_type(environment,actual,expected,b)? {
+            if cell {
+                let (_, _, producer) = self.site_index.producers.get(f, value, b)?;
+                match producer.kind {
+                    InstructionKind::TakeLocal { local } => {
+                        if !self.manager_cell_projection(module, creator, f, local, 0, b)? {
+                            return Err(bad("moved manager binding has no initialized lexical or environment source"));
+                        }
+                    }
+                    InstructionKind::TakeCapture { index } if self.captured_manager_cell(creator.id, index, b)? => {}
+                    _ => return Err(bad("owning capture does not transfer its actual manager binding")),
+                }
+                let stored = self.binding_storage(module, &actual.ty, expected, environment, b)?;
+                if !self.same_type(environment, actual, &stored, b)? {
+                    return Err(bad("captured manager cell changes its complete initialized element domain"));
+                }
+            } else if !self.same_type(environment,actual,expected,b)? {
                 let Some(values)=values else{return Err(bad("logical capture changes the complete original type/class/origin occurrence"));};
                 // Reconstruct a compiler-created reborrow of this exact original
                 // binder. The stored-target and loan kernels still check its use.
@@ -42,7 +60,7 @@ impl CheckedContext {
                 }
                 if !proved{return Err(bad("logical capture changes the complete original type/class/origin occurrence"));}
             }
-            if selected.replace(ordinal).is_some(){return Err(bad("logical capture has several original environment sources"));}
+            if selected.replace((ordinal, cell)).is_some(){return Err(bad("logical capture has several original environment sources"));}
         }
         selected.ok_or_else(||bad("logical capture does not select its exact original free-value binding"))
     }

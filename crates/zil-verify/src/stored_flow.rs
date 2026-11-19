@@ -9079,12 +9079,7 @@ fn solve_check(
                 // explicit. Its public owner identity comes from the unique
                 // executable Bind checked by capture_views, never its type.
                 let base = match root.base {
-                    HoldRoot::Local(local)
-                        if matches!(
-                            f.locals[local.0 as usize].ty,
-                            Type::BorrowedStorage { .. }
-                        ) =>
-                    {
+                    HoldRoot::Local(local) => {
                         graphs[index]
                             .package_views
                             .capture(local)
