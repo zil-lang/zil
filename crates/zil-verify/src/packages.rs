@@ -450,7 +450,7 @@ fn check_package_type(
             "package operation requires an actual nominal package",
         ));
     };
-    resources::charge_payload(ty, budget)?;
+    resources::charge_payload_members(ty, budget)?;
     if name.is_empty() {
         return Err(reject("E-VERIFY-PACKAGE", span, "empty package identity"));
     }

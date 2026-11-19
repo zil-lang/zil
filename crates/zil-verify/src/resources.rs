@@ -53,6 +53,31 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
 }
 
 pub(super) fn charge_payload_store_shape(ty: &Type, budget: &mut Budget) -> Check<bool> {
+    payload_work(ty, PayloadNames::All, budget)
+}
+
+// Ordinal/classifier work still validates the same nested Task contexts.
+pub(super) fn charge_payload_shape(ty: &Type, budget: &mut Budget) -> Check<()> {
+    payload_work(ty, PayloadNames::None, budget).map(|_| ())
+}
+
+// Package admission compares member names for uniqueness. A nominal type
+// name is only tested for emptiness; callers copying or comparing the type
+// still use charge_payload for every byte of that operation.
+pub(super) fn charge_payload_members(ty: &Type, budget: &mut Budget) -> Check<()> {
+    payload_work(ty, PayloadNames::Members, budget).map(|_| ())
+}
+
+#[derive(Clone, Copy)]
+enum PayloadNames {
+    None,
+    Members,
+    All,
+}
+
+fn payload_work(ty: &Type, names: PayloadNames, budget: &mut Budget) -> Check<bool> {
+    let nominal_names = matches!(names, PayloadNames::All);
+    let member_names = !matches!(names, PayloadNames::None);
     let mut pending = vec![ty];
     let mut contains_store = false;
     while let Some(ty) = pending.pop() {
@@ -111,16 +136,21 @@ pub(super) fn charge_payload_store_shape(ty: &Type, budget: &mut Budget) -> Chec
                 pending.extend(fields);
             }
             Type::Record { name, fields } | Type::Package { name, fields } => {
-                budget.spend(name.len().saturating_add(fields.len()).saturating_mul(2))?;
+                let name_bytes = if nominal_names { name.len() } else { 0 };
+                budget.spend(name_bytes.saturating_add(fields.len()).saturating_mul(2))?;
                 for (name, ty) in fields {
-                    budget.spend(name.len().saturating_mul(2))?;
+                    if member_names {
+                        budget.spend(name.len().saturating_mul(2))?;
+                    }
                     pending.push(ty);
                 }
             }
             Type::Enum { name, variants } => {
-                budget.spend(name.len().saturating_add(variants.len()).saturating_mul(2))?;
+                let name_bytes = if nominal_names { name.len() } else { 0 };
+                budget.spend(name_bytes.saturating_add(variants.len()).saturating_mul(2))?;
                 for (name, fields) in variants {
-                    budget.spend(name.len().saturating_add(fields.len()).saturating_mul(2))?;
+                    let name_bytes = if member_names { name.len() } else { 0 };
+                    budget.spend(name_bytes.saturating_add(fields.len()).saturating_mul(2))?;
                     pending.extend(fields);
                 }
             }
@@ -144,6 +174,63 @@ pub(super) fn charge_payload_store_shape(ty: &Type, budget: &mut Budget) -> Chec
         }
     }
     Ok(contains_store)
+}
+
+#[cfg(test)]
+mod payload_tests {
+    use super::*;
+
+    #[test]
+    fn payload_shape_and_member_checks_only_pay_for_names_they_use() {
+        let make = |nominal: &str, field: &str, variant: &str| Type::Package {
+            name: nominal.into(),
+            fields: vec![(
+                field.into(),
+                Type::Enum {
+                    name: nominal.into(),
+                    variants: vec![(variant.into(), vec![Type::I32])],
+                },
+            )],
+        };
+        let ty = make("P", "f", "a");
+        let renamed = make("LongNominalIdentity", "f", "a");
+        let new_members = make("P", "field", "alternative");
+        let cost = |ty, names| {
+            let limits = Limits::default();
+            let mut budget = Budget::new(&limits);
+            assert!(!payload_work(ty, names, &mut budget).unwrap());
+            limits.max_analysis_steps - budget.remaining
+        };
+        for changed in [&renamed, &new_members] {
+            assert_eq!(cost(&ty, PayloadNames::None), cost(changed, PayloadNames::None));
+        }
+        assert_eq!(cost(&ty, PayloadNames::Members), cost(&renamed, PayloadNames::Members));
+        assert!(cost(&ty, PayloadNames::Members) < cost(&new_members, PayloadNames::Members));
+        assert!(cost(&ty, PayloadNames::All) < cost(&renamed, PayloadNames::All));
+    }
+
+    #[test]
+    fn ordinal_payload_scan_still_rejects_a_malformed_nested_task_context() {
+        let make = |binder_count| Type::Tuple(vec![Type::Managed(Box::new(Type::Task {
+            result: Box::new(Type::I32),
+            retained_life: zil_ir::RetainedLifeShape {
+                binder_count,
+                ports: Vec::new(),
+                retained: vec![zil_ir::StorageRetainedBinding {
+                    path: vec![zil_ir::LifeTypeProjection::Result],
+                    class: 0,
+                    binder: 0,
+                }],
+                nominal_arguments: Vec::new(),
+            },
+        }))]);
+        let limits = Limits::default();
+        for names in [PayloadNames::None, PayloadNames::Members, PayloadNames::All] {
+            assert!(payload_work(&make(1), names, &mut Budget::new(&limits)).is_ok());
+            let err = payload_work(&make(0), names, &mut Budget::new(&limits)).unwrap_err();
+            assert_eq!(err.code, "E-VERIFY-TASK");
+        }
+    }
 }
 
 pub(super) fn check_type_for(
@@ -656,7 +743,7 @@ impl Slots {
     ) -> Check<Self> {
         if budget.sum_function(f.id) {
             for ty in f.locals.iter().map(|l| &l.ty).chain(&f.values) {
-                charge_payload(ty, budget)?;
+                charge_payload_shape(ty, budget)?;
             }
         }
         budget.spend(

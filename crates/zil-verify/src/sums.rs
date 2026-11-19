@@ -160,7 +160,7 @@ pub(super) fn needs_shape(ty: &Type, budget: &mut Budget) -> Check<bool> {
     if let Some(shape) = dynamic_metadata::sum_shape_known(ty, budget)? {
         return Ok(shape);
     }
-    resources::charge_payload(ty, budget)?;
+    resources::charge_payload_shape(ty, budget)?;
     let shape = complete_sum_shape(ty);
     dynamic_metadata::sum_shape_success(ty, shape, budget)?;
     Ok(shape)
@@ -210,7 +210,6 @@ pub(super) fn check_type_for(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
-    resources::charge_payload(root, budget)?;
     let owning_container = matches!(
         root,
         Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Package { .. }
@@ -2939,7 +2938,7 @@ impl Flow<'_> {
                     arguments,
                 } => {
                     let result_ty = &self.module.functions[function.0 as usize].return_type;
-                    resources::charge_payload(result_ty, budget)?;
+                    resources::charge_payload_shape(result_ty, budget)?;
                     let mut returned = if result_ty.is_copy_value() {
                         // Copy callees have no owning-source summary. Its
                         // bottom placeholder is not an impossible runtime
