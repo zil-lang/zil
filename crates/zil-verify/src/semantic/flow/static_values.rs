@@ -6,10 +6,8 @@ impl CheckedContext {
         let InstructionKind::StaticUtf8{bytes}=&instruction.kind else{return Err(bad("static literal consumer selects another actual operation"));};
         crate::check_instruction(module,f,instruction,b)?;
         let result=instruction.result.ok_or_else(||bad("static literal has no actual value"))?;
-        let programme=module.semantic.as_ref().ok_or_else(||bad("static literal lacks its complete original programme"))?;
         let mut matched=false;
-        for site in &programme.sites{
-            b.spend(1)?;if site.instance!=instance.id{continue;}
+        for site in self.site_index.instance(module, instance.id, b)? {
             let SemanticSiteAddress::Typed{block,instruction:at,edge}=site.at else{return Err(bad("static source retains a Core operation"));};
             let block=f.blocks.get(block.0 as usize).ok_or_else(||bad("static literal source has no actual site block"))?;
             if at as usize>block.instructions.len()||at as usize==block.instructions.len()&&edge!=SemanticSiteEdge::Before{return Err(bad("static literal source is outside its actual instruction/terminator boundary"));}
@@ -30,7 +28,7 @@ impl CheckedContext {
                         InstructionKind::CallIndirect{arguments,..}|InstructionKind::CallDynSlot{arguments,..}|InstructionKind::CallClosure{arguments,..}|InstructionKind::CallClosureOnce{arguments,..}|InstructionKind::CallClosureBorrowed{arguments,..}|InstructionKind::CallClosureShared{arguments,..}|InstructionKind::CallClosureMut{arguments,..}=>(arguments,false),
                         _=>continue,
                     };
-                    let mut selects=false;for argument in args{if static_operand_root(f,*argument,result,b)?{selects=true;break;}}if !selects{continue;}
+                    let mut selects=false;for argument in args{if self.static_operand_root(f,*argument,result,b)?{selects=true;break;}}if !selects{continue;}
                     let original=self.original.borrow();let original=original.as_ref().ok_or_else(||bad("static Call literal has no independently checked original body"))?;
                     if let Some((arity,literals))=original.static_call_literals(module,instance.definition,site.recipe,receiver_argument,b)?{
                         if literals.is_empty(){continue;}
@@ -41,7 +39,7 @@ impl CheckedContext {
                 _=>{},
             }
             for(value,spelling)in candidates{
-                if !static_operand_root(f,value,result,b)?{continue;}
+                if !self.static_operand_root(f,value,result,b)?{continue;}
                 let expected=if let Some(bytes)=spelling{Some(bytes)}else{let original=self.original.borrow();original.as_ref().ok_or_else(||bad("static literal has no independently checked original body"))?.static_literal(module,instance.definition,site.recipe,b)?};
                 if let Some(expected)=expected{b.spend(expected.len().saturating_add(bytes.len()))?;if expected!=*bytes{return Err(bad("actual static bytes differ from their exact original literal"));}matched=true;}
             }
@@ -64,12 +62,18 @@ impl CheckedContext {
         if actual.statics.iter().any(|row|!expected.statics.contains(row)){return Err(bad("static claim omits a previously checked pending source occurrence"));}
         b.spend(expected.statics.len())?;actual.statics=expected.statics.clone();Ok(())
     }
-}
 
-fn static_operand_root(f:&TypedFunction,mut value:ValueId,result:ValueId,b:&mut Budget)->Check<bool>{
-    let mut seen=BTreeSet::new();loop{
-        if value==result{return Ok(true);}b.spend(1)?;if !seen.insert(value){return Err(bad("static literal role contains an actual SSA cycle"));}
-        let mut producer=None;for block in &f.blocks{b.spend(block.instructions.len())?;for operation in &block.instructions{if operation.result==Some(value)&&producer.replace(operation).is_some(){return Err(bad("static literal role has duplicate actual SSA definitions"));}}}
-        match producer.map(|row|&row.kind){Some(InstructionKind::ReborrowAddress{address,mutable:false})=>value=*address,_=>return Ok(false)}
+    fn static_operand_root(&self, f: &TypedFunction, mut value: ValueId, result: ValueId, b: &mut Budget) -> Check<bool> {
+        let mut seen = BTreeSet::new();
+        while value != result {
+            b.spend(seen.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
+            if !seen.insert(value) { return Err(bad("static literal role contains an actual SSA cycle")); }
+            let (_, _, producer) = self.site_index.producers.get(f, value, b)?;
+            match producer.kind {
+                InstructionKind::ReborrowAddress { address, mutable: false } => value = address,
+                _ => return Ok(false),
+            }
+        }
+        Ok(true)
     }
 }

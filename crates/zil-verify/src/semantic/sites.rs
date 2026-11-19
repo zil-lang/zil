@@ -43,8 +43,17 @@ pub(super) struct Index {
     limits: Limits,
     by_recipe: BTreeMap<(SemanticInstanceId, SemanticSiteId), Vec<usize>>,
     by_position: BTreeMap<(SemanticInstanceId, BlockId, u32), Vec<usize>>,
-    value_type_uses: BTreeMap<(SemanticInstanceId, ValueId), Vec<usize>>,
+    subjects: BTreeMap<(SemanticInstanceId, Subject), Vec<usize>>,
     pub(super) producers: Producers,
+}
+
+/// An occurrence of a physical operand. A local declaration or use names its
+/// local slot; the value at a program point is still proved by the consumer.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum Subject {
+    ValueTypeUse(ValueId),
+    LocalTypeUse(LocalId),
+    Declaration(LocalId),
 }
 
 /// Physical SSA definitions in the immutable body. The result gives an exact
@@ -145,7 +154,7 @@ impl Index {
             limits: b.limits.clone(),
             by_recipe: BTreeMap::new(),
             by_position: BTreeMap::new(),
-            value_type_uses: BTreeMap::new(),
+            subjects: BTreeMap::new(),
             producers: Producers::default(),
         })
     }
@@ -176,9 +185,15 @@ impl Index {
             .entry((site.instance, block, instruction))
             .or_default();
         push(rows, position, b)?;
-        if let SemanticSiteAction::TypeUse { subject: SemanticOperand::Value(value), .. } = site.action {
-            b.spend(lookup(self.value_type_uses.len()).saturating_add(1))?;
-            push(self.value_type_uses.entry((site.instance, value)).or_default(), position, b)?;
+        let subject = match site.action {
+            SemanticSiteAction::TypeUse { subject: SemanticOperand::Value(value), .. } => Some(Subject::ValueTypeUse(value)),
+            SemanticSiteAction::TypeUse { subject: SemanticOperand::Local(local), .. } => Some(Subject::LocalTypeUse(local)),
+            SemanticSiteAction::DeclareLocal { local: SemanticLocalTarget::Typed(local), .. } => Some(Subject::Declaration(local)),
+            _ => None,
+        };
+        if let Some(subject) = subject {
+            b.spend(lookup(self.subjects.len()).saturating_add(1))?;
+            push(self.subjects.entry((site.instance, subject)).or_default(), position, b)?;
         }
         Ok(())
     }
@@ -214,12 +229,41 @@ impl Index {
             })
             .collect()
     }
-    pub(super) fn value_type_uses<'a>(
-        &self, module: &'a TypedModule, instance: SemanticInstanceId, value: ValueId, b: &mut Budget,
+    pub(super) fn subject<'a>(
+        &self, module: &'a TypedModule, instance: SemanticInstanceId, subject: Subject, b: &mut Budget,
     ) -> Check<Vec<&'a SemanticSite>> {
         let program = self.programme(module, b)?;
-        b.spend(lookup(self.value_type_uses.len()))?;
-        Self::rows(program, self.value_type_uses.get(&(instance, value)).map(Vec::as_slice), b)
+        b.spend(lookup(self.subjects.len()))?;
+        Self::rows(program, self.subjects.get(&(instance, subject)).map(Vec::as_slice), b)
+    }
+
+    pub(super) fn has_subject(
+        &self, module: &TypedModule, instance: SemanticInstanceId, subjects: &[Subject], b: &mut Budget,
+    ) -> Check<bool> {
+        self.programme(module, b)?;
+        for subject in subjects {
+            b.spend(lookup(self.subjects.len()))?;
+            if self.subjects.contains_key(&(instance, *subject)) { return Ok(true); }
+        }
+        Ok(false)
+    }
+
+    /// Enumerate the instance's actual sites in their original input order.
+    /// Every site was registered exactly once at its typed instruction address.
+    pub(super) fn instance<'a>(
+        &self, module: &'a TypedModule, instance: SemanticInstanceId, b: &mut Budget,
+    ) -> Check<Vec<&'a SemanticSite>> {
+        let program = self.programme(module, b)?;
+        b.spend(lookup(self.by_position.len()).saturating_mul(2))?;
+        let mut positions = Vec::new();
+        let range = (instance, BlockId(0), 0)..=(instance, BlockId(u32::MAX), u32::MAX);
+        for (_, group) in self.by_position.range(range) {
+            b.spend(1)?;
+            for &position in group { push(&mut positions, position, b)?; }
+        }
+        b.spend(positions.len().saturating_mul(lookup(positions.len())))?;
+        positions.sort_unstable();
+        Self::rows(program, Some(&positions), b)
     }
     pub(super) fn at<'a>(
         &self,

@@ -24,12 +24,9 @@ impl CheckedContext{
         let(block,at,instruction)=self.site_index.producers.get(f,value,b)?;
         let InstructionKind::TakeLocal{local}=instruction.kind else{return Ok(None);};
         if f.locals.get(local.0 as usize).is_none_or(|declaration|!declaration.mutable){return Ok(None);}
-        let programme=module.semantic.as_ref().ok_or_else(||bad("owning preparation lacks its original programme"))?;
-        for site in &programme.sites{b.spend(1)?;if site.instance==caller.id&&(
-            matches!(site.action,SemanticSiteAction::DeclareLocal{local:SemanticLocalTarget::Typed(actual),..}if actual==local)
-            ||matches!(site.action,SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(actual),..}if actual==value)
-            ||matches!(site.action,SemanticSiteAction::TypeUse{subject:SemanticOperand::Local(actual),..}if actual==local)
-        ){return Ok(None);}}
+        let subjects = [sites::Subject::Declaration(local), sites::Subject::LocalTypeUse(local),
+                        sites::Subject::ValueTypeUse(value)];
+        if self.site_index.has_subject(module, caller.id, &subjects, b)? { return Ok(None); }
         if managed {
             super::intrinsics::owner_sources::scalar_preparations::managed_source(module,f,block,at,local,b)
         } else {
@@ -136,15 +133,12 @@ impl CheckedContext{
     pub(super) fn persistent_initialization(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,local:LocalId,b:&mut Budget)->Check<(ValueId,ValueId)>{
         let declaration=f.locals.get(local.0 as usize).ok_or_else(||bad("persistent callback local is absent"))?;
         if !declaration.mutable||declaration.ty.binding_cell_element().is_none()||f.parameters.contains(&local){return Err(bad("private callback cell changes its original local role"));}
-        let programme=module.semantic.as_ref().ok_or_else(||bad("private callback cell lacks its original programme"))?;
-        let mut declared=None;
-        for site in &programme.sites{
-            b.spend(1)?;
-            if site.instance==caller.id&&matches!(site.action,SemanticSiteAction::DeclareLocal{local:SemanticLocalTarget::Typed(actual),..}if actual==local){
-                if declared.replace(site).is_some(){return Err(bad("private callback cell has ambiguous original declarations"));}
-            }
-        }
-        let site=declared.ok_or_else(||bad("private callback cell has no original logical declaration"))?;
+        let declared = self.site_index.subject(module, caller.id, sites::Subject::Declaration(local), b)?;
+        let site = match declared.as_slice() {
+            [site] => *site,
+            [] => return Err(bad("private callback cell has no original logical declaration")),
+            _ => return Err(bad("private callback cell has ambiguous original declarations")),
+        };
         let (_,initializer)=self.original.borrow().as_ref().ok_or_else(||bad("private callback cell lacks its independent original body"))?.persistent_binding(module,caller.definition,site.recipe,b)?;
         let mut live=None;let mut stored=None;
         for block in &f.blocks{for(at,instruction)in block.instructions.iter().enumerate(){

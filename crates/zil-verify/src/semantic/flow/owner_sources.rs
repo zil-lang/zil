@@ -69,7 +69,7 @@ impl CheckedContext{
         storage: ValueId, path: &[PlaceProjection], b: &mut Budget,
     ) -> Check<Option<ClassKey>> {
         let mut source = None;
-        for site in self.site_index.value_type_uses(module, caller.id, value, b)? {
+        for site in self.site_index.subject(module, caller.id, sites::Subject::ValueTypeUse(value), b)? {
             let original = self.original.borrow();
             let original = original.as_ref().ok_or_else(|| bad("stored reborrow has no independent source proof"))?;
             let Some(member) = original.original_stored_member(caller.definition, site.recipe, b)? else { continue; };
