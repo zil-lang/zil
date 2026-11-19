@@ -47,6 +47,16 @@ impl CheckedOriginal {
         let definition=selection.definition;
         let source=selection.source;
         let mut value=selection.into_value(self,b)?;
+        if let SemanticOriginalTypeSource::Expression(node) = source
+            && self.prototypes.get(&definition).is_some_and(|prototype| prototype.callable_kind == Some(CallableKind::Fn))
+        {
+            b.spend(self.value_places.len().saturating_add(1).ilog2() as usize + 1)?;
+            if self.value_places.get(&(definition, *node)).is_some_and(|place| {
+                place.fields.is_empty() && matches!(place.binder, Binder::Capture { definition: owner, .. } if owner == definition)
+            }) && let Ty::Address { mutable, .. } = &mut value {
+                *mutable = false;
+            }
+        }
         if matches!(source,SemanticOriginalTypeSource::Result)&&self.receiver_results.get(&definition)==Some(&true){
             if let Ty::Address{mutable:false,life,..}=&mut value{if self.resolved_life(life,b)?!=Life::Static&&!self.receiver_physical_source(definition,life,b)?{*life=Life::ReceiverHead(definition);}}else{return Err(bad("proved Receiver result loses its shared root Address"));}
         }

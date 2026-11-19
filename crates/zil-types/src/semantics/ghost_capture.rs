@@ -12,16 +12,22 @@ fn pay(left: &mut usize, n: usize) -> R<()> {
     })?;
     Ok(())
 }
+#[derive(Clone, Copy)]
+struct CaptureSource {
+    index: u32,
+    read: bool,
+}
+
 /// Recover the actual whole capture occupying a TypeUse's value or local at
 /// that exact emitted boundary. Equal types do not establish this lineage.
-pub(super) fn capture_at(
+fn capture_at(
     function: &TypedFunction,
     subject: &SemanticOperand,
     at: &SemanticSiteAddress,
     left: &mut usize,
-) -> R<Option<u32>> {
+) -> R<Option<CaptureSource>> {
     if let SemanticOperand::Capture(index) = subject {
-        return Ok(Some(*index));
+        return Ok(Some(CaptureSource { index: *index, read: false }));
     }
     let SemanticSiteAddress::Typed {
         block, instruction, ..
@@ -44,13 +50,12 @@ pub(super) fn capture_at(
             .saturating_add(function.values.len())
             .saturating_add(*instruction as usize),
     )?;
-    let mut locals: Vec<Option<u32>> = vec![None; function.locals.len()];
-    let mut values: Vec<Option<u32>> = vec![None; function.values.len()];
+    let mut locals = vec![None; function.locals.len()];
+    let mut values = vec![None; function.values.len()];
     for operation in body.instructions.iter().take(*instruction as usize) {
         let origin = match operation.kind {
-            InstructionKind::ReadCapture { index } | InstructionKind::TakeCapture { index } => {
-                Some(index)
-            }
+            InstructionKind::ReadCapture { index } => Some(CaptureSource { index, read: true }),
+            InstructionKind::TakeCapture { index } => Some(CaptureSource { index, read: false }),
             InstructionKind::Load(local) => *locals
                 .get(local.0 as usize)
                 .ok_or_else(|| bad("ghost capture load has no actual local"))?,
@@ -183,7 +188,7 @@ pub(super) fn populate(
             let SemanticSiteAction::TypeUse { subject, .. } = &site.action else {
                 continue;
             };
-            let Some(capture) = capture_at(entry, subject, &site.at, left)? else {
+            let Some(CaptureSource { index: capture, read }) = capture_at(entry, subject, &site.at, left)? else {
                 continue;
             };
             let actual_subject = match subject {
@@ -192,7 +197,20 @@ pub(super) fn populate(
                 SemanticOperand::Value(value) => entry.values.get(value.0 as usize),
                 _ => None,
             };
-            if actual_subject != d.captures.get(capture as usize) {
+            let captured = d.captures.get(capture as usize);
+            if actual_subject != captured {
+                if read && d.kind == CallableKind::Fn
+                    && let (Some(Type::Address { mutable: true, inner: captured }),
+                        Some(Type::Address { mutable: false, inner: observed })) = (captured, actual_subject)
+                {
+                    crate::aggregate_templates::type_work(captured, limits, left, entry.span)?;
+                    crate::aggregate_templates::type_work(observed, limits, left, entry.span)?;
+                    if captured == observed {
+                        // Shared observation retains the exact capture index.
+                        // Address captures have no nominal ghost rows here.
+                        continue;
+                    }
+                }
                 return Err(bad(
                     "ghost capture lineage changes the whole actual capture type",
                 ));

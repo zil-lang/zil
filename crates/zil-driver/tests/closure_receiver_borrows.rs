@@ -143,10 +143,24 @@ consumer!(
     same_entry_receivers_keep_distinct_holders,
     "captured-mutable-holder-two-receivers"
 );
-consumer!(
-    readonly_exclusive_capture_reborrows_without_copying_environment,
-    "exclusive-capture-readonly-fn"
-);
+#[test]
+fn readonly_exclusive_capture_reborrows_without_copying_environment() {
+    let text = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/exclusive-capture-readonly-fn.zil"
+    );
+    accepted("exclusive-capture-readonly-fn", text);
+    let writes = text.replace("move()=>*value", "move()=>{*value=22;return *value}");
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "shared-capture-write.zil", writes);
+    let report = compile_source(
+        &source,
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(report.status, ResultCategory::SafeReject);
+    assert!(report.diagnostics.iter().any(|error| error.code == "E-SEMANTIC-ORIGINAL"));
+}
 consumer!(
     call_before_return_keeps_actual_holder_update,
     "captured-mutable-holder-call-before-return"

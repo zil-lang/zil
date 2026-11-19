@@ -6988,6 +6988,9 @@ impl<'a> Check<'a, '_> {
         )?;
         names.sort_unstable();
         self.proof.proof_mut()?.kinds.insert(definition.id, kind);
+        if definition.kind == SemanticDefinitionKind::Closure && kind == CallableKind::Fn {
+            self.finish_shared_capture_observations(definition.id)?;
+        }
         self.pay(names.len(), 0)?;
         for name in &names {
             self.pay(name.len(), 0)?;

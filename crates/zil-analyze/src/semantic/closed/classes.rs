@@ -4,6 +4,26 @@ use super::*;
 use crate::semantic::value::{self, Argument, Class, Value};
 
 impl Check<'_, '_> {
+    pub(super) fn shared_capture_entry(&self, function: &TypedFunction) -> bool {
+        function.environment.and_then(|id| self.module.closures.get(id.0 as usize))
+            .is_some_and(|closure| closure.function == function.id && closure.kind == CallableKind::Fn)
+    }
+
+    pub(super) fn shared_capture_read(&self, value: &Value, b: &mut Budget) -> CompileResult<Value> {
+        b.spend(value.life.slots.len(), WORK)?;
+        let mut roots = value.life.slots.iter().filter(|slot| slot.path.is_empty());
+        let root = roots.next().ok_or_else(|| fail("shared capture read loses its actual exclusive occurrence"))?;
+        if roots.next().is_some() || root.mode != StoredBorrowMode::ExclusiveAddress {
+            return Err(fail("shared capture read changes its actual source mode"));
+        }
+        let class = value.classes.get(root.binder as usize)
+            .ok_or_else(|| fail("shared capture read has no source class"))?;
+        b.spend(1, WORK)?;
+        value::address(false, class.clone(), self.pointee(value, b)?, b)
+    }
+}
+
+impl Check<'_, '_> {
     pub(super) fn life(
         &self,
         instance: &SemanticInstance,
@@ -3001,7 +3021,15 @@ impl Check<'_, '_> {
             }
             InstructionKind::ReadCapture { index: capture }
             | InstructionKind::TakeCapture { index: capture } => {
-                self.capture_whole_value(instance, function, *capture, b, depth + 1)
+                let value = self.capture_whole_value(instance, function, *capture, b, depth + 1)?;
+                if matches!(instruction.kind, InstructionKind::ReadCapture { .. })
+                    && self.shared_capture_entry(function)
+                    && matches!(value.ty, Type::Address { mutable: true, .. })
+                {
+                    self.shared_capture_read(&value, b)
+                } else {
+                    Ok(value)
+                }
             }
             InstructionKind::MakeVariant { variant, fields } => {
                 let mut selected = None;

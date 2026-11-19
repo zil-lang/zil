@@ -10,6 +10,32 @@ pub(crate) struct FieldReborrow {
 }
 
 impl Check<'_, '_> {
+    pub(super) fn finish_shared_capture_observations(&mut self, owner: SemanticDefinitionId) -> R<()> {
+        self.pay(self.proof.types.len().saturating_add(1).ilog2() as usize + 1, 0)?;
+        let mut observations = Vec::new();
+        for ((_, query), recipe) in self.proof.types.range(
+            (owner, Query::Expression(NodeId(0)))..=(owner, Query::Expression(NodeId(u32::MAX))),
+        ) {
+            *self.left = self.left.checked_sub(1).ok_or_else(|| Diagnostic::limit(
+                Phase::Types, "shared capture observation work exceeded", None,
+            ))?;
+            if let Query::Expression(node) = query
+                && matches!(recipe, SemanticTypeRecipe::Environment { scope: SemanticScopeRef::Ancestor(0), .. })
+            {
+                observations.push((*node, copy_recipe(recipe, self.limits, self.left)?));
+            }
+        }
+        for (node, recipe) in observations {
+            let SemanticTypeRecipe::Address { mutable: true, lifetime, inner } = self.observation_type(owner, &recipe, 1)?
+            else { continue; };
+            self.pay(self.proof.projected_type_actuals.len().saturating_add(1).ilog2() as usize + 1, 0)?;
+            self.proof.proof_mut()?.projected_type_actuals.insert((owner, node), SemanticTypeRecipe::Address {
+                mutable: false, lifetime, inner,
+            });
+        }
+        Ok(())
+    }
+
     pub(super) fn observe_address_operand(
         &mut self,
         owner: SemanticDefinitionId,

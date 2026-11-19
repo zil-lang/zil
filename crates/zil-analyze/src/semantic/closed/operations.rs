@@ -828,7 +828,24 @@ impl Check<'_, '_> {
                 SemanticSiteRecipeKind::TypeUse { expected: recipe },
                 SemanticSiteAction::TypeUse { subject, expected },
             ) => {
-                let original_value = self.recipe_value(instance, recipe, b, 0)?;
+                let mut original_value = self.recipe_value(instance, recipe, b, 0)?;
+                if matches!(original_value.ty, Type::Address { mutable: true, .. })
+                    && self.shared_capture_entry(point.function)
+                    && let SemanticOperand::Value(value) = subject
+                    && matches!(point.function.values.get(value.0 as usize), Some(Type::Address { mutable: false, .. }))
+                    && let SemanticTypeRecipe::OriginalType {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        source: SemanticOriginalTypeSource::Expression(node),
+                    } = recipe
+                    && let Some(original::LocalAnchor::Environment(ordinal)) =
+                        self.original.place_read_anchor(instance.definition, *node, b)?
+                {
+                    let capture = self.environment_capture(instance, point.function, ordinal, b)?;
+                    if self.capture_value_origin(point.function, *value, b, 0)? != capture {
+                        return Err(fail("shared original capture observation reads another actual capture"));
+                    }
+                    original_value = self.shared_capture_read(&original_value, b)?;
+                }
                 let expected_type = &original_value.ty;
                 let resource_read = if let SemanticTypeRecipe::OriginalType {
                     scope: SemanticScopeRef::Ancestor(0),
