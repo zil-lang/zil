@@ -1246,7 +1246,7 @@ impl<'a> Check<'a, '_> {
                 op: UnaryOp::Dereference,
                 operand,
             } => {
-                let pointer = self.place(owner, operand, variables, depth + 1)?;
+                let pointer = self.observe_address_operand(owner, operand, variables, depth + 1)?;
                 let pointer = self.observation_type(owner, &pointer, depth + 1)?;
                 let SemanticTypeRecipe::Address { inner, .. } = pointer else {
                     return Err(bad("original dereference place is not an address"));
@@ -4077,7 +4077,7 @@ impl<'a> Check<'a, '_> {
                 op: UnaryOp::Dereference,
                 operand,
             } => {
-                let value = self.place(owner, operand, variables, depth + 1)?;
+                let value = self.observe_address_operand(owner, operand, variables, depth + 1)?;
                 let value = self.observation_type(owner, &value, depth + 1)?;
                 let SemanticTypeRecipe::Address { inner, .. } = value else {
                     return Err(bad("original dereference has no address type"));
@@ -5054,7 +5054,7 @@ impl<'a> Check<'a, '_> {
                 op: UnaryOp::Dereference,
                 operand,
             } => {
-                let address = self.place(owner, operand, variables, depth + 1)?;
+                let address = self.observe_address_operand(owner, operand, variables, depth + 1)?;
                 let address = self.observation_type(owner, &address, depth + 1)?;
                 let SemanticTypeRecipe::Address {
                     mutable: true,

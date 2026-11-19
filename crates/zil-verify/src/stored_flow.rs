@@ -7219,7 +7219,7 @@ fn windows(
                                     continue;
                                 }
                                 let current = returned_environment::current_leaf(
-                                    definition, receiver, path, p, &state, b,
+                                    definition, receiver, path, p, &state, &solution.loans, b,
                                 )?;
                                 all.push((current, false));
                             }

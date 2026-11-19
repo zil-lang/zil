@@ -330,7 +330,7 @@ impl Check<'_, '_> {
     }
 
     pub(super) fn stored_carrier_root<'a>(
-        &self, instance: &SemanticInstance, function: &'a TypedFunction, storage: ValueId,
+        &'a self, instance: &SemanticInstance, function: &'a TypedFunction, storage: ValueId,
         expression: &SemanticOriginalExpr, b: &mut Budget,
     ) -> CompileResult<(&'a Type, Vec<u32>)> {
         let origin = self.projected_borrow_origin(function, storage, b, 0)?;
@@ -339,7 +339,15 @@ impl Check<'_, '_> {
             Root::Local(local, block, index, loaded) => {
                 let declaration = &function.locals.get(local.0 as usize).ok_or_else(|| fail("stored reborrow root local is absent"))?.ty;
                 if let Some(anchor) = self.original.place_read_anchor(instance.definition, expression.id, b)? {
-                    if self.anchored_local(instance, function, anchor, b)? != local {
+                    let matches = if let original::LocalAnchor::Environment(ordinal) = anchor
+                        && loaded
+                    {
+                        let capture = self.environment_capture(instance, function, ordinal, b)?;
+                        self.capture_local_origin(function, local, (block, index), b, 0)? == capture
+                    } else {
+                        self.anchored_local(instance, function, anchor, b)? == local
+                    };
+                    if !matches {
                         return Err(fail("stored reborrow selects another original carrier"));
                     }
                     let root = if loaded {
@@ -350,6 +358,23 @@ impl Check<'_, '_> {
                 }
                 function.blocks[block.0 as usize].instructions[index].result
                     .ok_or_else(|| fail("stored reborrow has no actual returned carrier value"))?
+            }
+            Root::Capture(capture, true) => {
+                let Some(original::LocalAnchor::Environment(ordinal)) =
+                    self.original.place_read_anchor(instance.definition, expression.id, b)?
+                else {
+                    return Err(fail("stored reborrow capture has another original carrier"));
+                };
+                if self.environment_capture(instance, function, ordinal, b)? != capture {
+                    return Err(fail("stored reborrow selects another original capture"));
+                }
+                let closure = function.environment.and_then(|id| self.module.closures.get(id.0 as usize))
+                    .filter(|closure| closure.function == function.id)
+                    .ok_or_else(|| fail("stored reborrow has no actual capture directory"))?;
+                let Some(Type::Address { inner, .. }) = closure.captures.get(capture as usize) else {
+                    return Err(fail("stored reborrow capture is not an address"));
+                };
+                return Ok((inner.as_ref(), origin.path));
             }
             Root::Expression(actual) => actual,
             _ => return Err(unknown("stored reborrow requires its complete original capture or slot origin")),

@@ -278,6 +278,35 @@ impl<'a> Before<'a> {
         }
         Ok(result)
     }
+
+    pub(super) fn receiver_data_source(&self, source: &Source, loans: &[Loan], b: &mut Budget) -> Check<Permission> {
+        let mut actual = self.source(source, b)?;
+        let (HoldRoot::Capture(capture), Some((instruction, definition))) = (source.base, self.invocation)
+        else { return Ok(actual); };
+        let local = match instruction.kind {
+            InstructionKind::CallClosureShared { callee, .. }
+            | InstructionKind::CallClosureMut { callee, .. } => callee,
+            _ => return Ok(actual),
+        };
+        if source.leaf.is_empty() || !source.inline.is_empty() || source.retained_port.is_some()
+            || source.heap_element.is_some() || !source.heap_parents.is_empty()
+        {
+            return Ok(actual);
+        }
+        let environment = self.state.locals.get(local.0 as usize)
+            .ok_or_else(|| err("receiver result has no actual closure local"))?;
+        b.spend(source.leaf.len().saturating_add(1))?;
+        let mut path = vec![PlaceProjection::Field(capture)];
+        path.extend_from_slice(&source.leaf);
+        let Some(snapshot) = leaf(environment, &path, b)? else { return Ok(actual); };
+        let retained = returned_environment::current_leaf(definition, environment, &path, snapshot, self.state, loans, b)?;
+        permission_work(&retained, b)?;
+        permission_work(&actual, b)?;
+        if retained.sources == actual.sources {
+            add_loans(&mut actual.loans, &retained.loans, b)?;
+        }
+        Ok(actual)
+    }
     /// Instantiate an entry separation source against every current actual
     /// pointee. A known inactive arm imposes no separation debt; a missing
     /// active target or unknown tag cannot borrow a sibling's permission.
@@ -1142,6 +1171,8 @@ fn prepare_result(
         for source in sources {
             let actual = if descriptor {
                 before.descriptor_source(source, b)?
+            } else if receiver::declared(definition) {
+                before.receiver_data_source(source, loans, b)?
             } else {
                 before.source(source, b)?
             };

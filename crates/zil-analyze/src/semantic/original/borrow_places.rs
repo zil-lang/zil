@@ -211,7 +211,31 @@ impl Solver<'_, '_> {
                 op: UnaryOp::Dereference,
                 operand,
             } => {
-                let mut place = self.borrow_place_inner(frame, operand, b, depth + 1)?;
+                let mut selected = operand.as_ref();
+                let mut source_depth = depth;
+                while let CoreExprKind::Group(inner) = &selected.kind {
+                    self.step(source_depth, b)?;
+                    source_depth += 1;
+                    selected = inner;
+                }
+                let mut place = if matches!(selected.kind, CoreExprKind::Member { .. }) {
+                    // The field observation checks the physical slot and creates
+                    // its exact address SSA. Dereference that address boundary.
+                    let root = self.expression(frame, operand, b, depth + 1)?;
+                    Place {
+                        anchor: None,
+                        expression: Some(selected.id),
+                        index: None,
+                        root,
+                        path: Vec::new(),
+                        inner: root,
+                        indirect: false,
+                        source_life: None,
+                        mutable: false,
+                    }
+                } else {
+                    self.borrow_place_inner(frame, operand, b, depth + 1)?
+                };
                 let root = self.type_root(place.inner, b)?;
                 if !matches!(self.state.arena[root], Kind::Address { .. }) {
                     return Err(fail(

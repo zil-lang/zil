@@ -517,6 +517,7 @@ pub(super) fn current_leaf(
     path: &[PlaceProjection],
     snapshot: &Permission,
     state: &Frame,
+    loans: &[Loan],
     b: &mut Budget,
 ) -> Check<Permission> {
     if let Some((PlaceProjection::Field(index), tail)) = path.split_first()
@@ -528,7 +529,31 @@ pub(super) fn current_leaf(
     {
         let head = leaf(environment, &[PlaceProjection::Field(*index)], b)?
             .ok_or_else(|| err("captured pointee lacks its actual head"))?;
-        return select(state, head, tail, b);
+        let mut current = select(state, head, tail, b)?;
+        // Relocating the actual callable can attach a child loan to this
+        // precise captured field. Keep it only while the field still holds
+        // the exact targets and parent loans that produced that child.
+        if !current.loans.is_empty() && !snapshot.loans.is_empty() {
+            permission_work(&current, b)?;
+            permission_work(snapshot, b)?;
+            if current.sources == snapshot.sources {
+                let mut attached = None;
+                for &id in &snapshot.loans {
+                    let loan = loans.get(id).ok_or_else(|| err("captured field loan is absent"))?;
+                    b.spend(loan.sources.iter().fold(1usize, |work, source| work.saturating_add(width(source))))?;
+                    if loan.parents.is_empty() || loan.sources != current.sources { continue; }
+                    let parents = ancestry(&loan.parents, loans, b)?;
+                    b.spend(parents.len().saturating_mul(current.loans.len()).saturating_add(1))?;
+                    if current.loans.iter().all(|parent| parents.binary_search(parent).is_ok())
+                        && attached.replace(id).is_some()
+                    {
+                        return Ok(current);
+                    }
+                }
+                if let Some(id) = attached { add_loans(&mut current.loans, &[id], b)?; }
+            }
+        }
+        return Ok(current);
     }
     permission_work(snapshot, b)?;
     Ok(snapshot.clone())

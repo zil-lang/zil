@@ -10,6 +10,29 @@ pub(crate) struct FieldReborrow {
 }
 
 impl Check<'_, '_> {
+    pub(super) fn observe_address_operand(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        variables: &mut BTreeMap<String, Binding>,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        let mut source = expression;
+        let mut current_depth = depth;
+        while let CoreExprKind::Group(inner) = &source.kind {
+            self.pay(1, current_depth)?;
+            source = inner;
+            current_depth = current_depth.saturating_add(1);
+        }
+        if matches!(source.kind, CoreExprKind::Member { .. }) {
+            // Loading a stored address through a holder uses the field
+            // observation rule, including its fresh exclusive child.
+            self.expr(owner, expression, variables, None, depth)
+        } else {
+            self.place(owner, expression, variables, depth)
+        }
+    }
+
     /// Ordinary affine fields of a directly owned Package transfer their own
     /// responsibility. A resource-head field remains an observation unless an
     /// explicit Give selects it; a projection through a borrowed owner cannot
@@ -504,7 +527,18 @@ impl Check<'_, '_> {
                     .get(name)
                     .ok_or_else(|| bad("method receiver loses its original lexical binder"))?;
                 if binding.origin_owner != owner {
-                    return Ok(None);
+                    if !binding.capture {
+                        return Ok(None);
+                    }
+                    self.pay(name.len().saturating_add(1), depth)?;
+                    return Ok(Some(calls::MethodReceiverPlace {
+                        owner,
+                        root: SemanticOriginalTypeSource::NameAt {
+                            at: SemanticOriginalNode::Expression(expression.id),
+                            name: name.clone(),
+                        },
+                        fields: Vec::new(),
+                    }));
                 }
                 self.pay(binding.origin.copy_work(), depth)?;
                 let root = match &binding.origin {

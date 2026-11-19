@@ -224,7 +224,7 @@ pub(super) fn receiver_result(
             let actual = if descriptor {
                 before.descriptor_source(source, b)?
             } else {
-                before.source(source, b)?
+                before.receiver_data_source(source, loans, b)?
             };
             *pending |= actual.sources.is_empty();
             if path.is_empty() {

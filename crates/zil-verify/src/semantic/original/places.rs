@@ -353,7 +353,22 @@ impl CheckedOriginal {
                 },
                 CoreExprKind::Group(inner)=>{let result=self.place(module,context,inner,env,bindings,active,b)?;self.observe_projection_parent(inner.id,&result.0,expression.id,env,b)?;result},
                 CoreExprKind::Unary{op:UnaryOp::Dereference,operand}=>{
-                    let (pointer,place)=self.place(module,context,operand,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&pointer,env,false,active,b)?;}
+                    let mut source = operand.as_ref();
+                    while let CoreExprKind::Group(inner) = &source.kind {
+                        b.spend(1)?;
+                        source = inner;
+                    }
+                    let pointer = if matches!(source.kind, CoreExprKind::Member { .. }) {
+                        // Dereferencing a stored address observes the field's
+                        // live child window before observing its pointee.
+                        self.expression(module, context, operand, env, bindings, None, active, b)?
+                    } else {
+                        let (pointer, place) = self.place(module, context, operand, env, bindings, active, b)?;
+                        if let Some(place) = place {
+                            self.read_original(module, context, &place, &pointer, env, false, active, b)?;
+                        }
+                        pointer
+                    };
                     self.observe_projection_parent(operand.id,&pointer,expression.id,env,b)?;
                     match self.resolved(&pointer,b)?{Ty::Address{inner,..}=>(*inner,None),_=>return Err(bad("original dereference requires a real Address"))}
                 },

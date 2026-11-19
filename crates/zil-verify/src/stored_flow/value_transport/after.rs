@@ -14,6 +14,21 @@ struct Row {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(in crate::stored_flow) struct After(Vec<Row>);
+
+impl After {
+    pub(in crate::stored_flow) fn unchanged_capture_pointee(
+        &self, capture: u32, path: &[PlaceProjection], b: &mut Budget,
+    ) -> Check<bool> {
+        b.spend(self.0.len())?;
+        for row in &self.0 {
+            if row.base == HoldRoot::Capture(capture) && row.through && row.target_leaf.is_empty() {
+                b.spend(row.physical.len().saturating_mul(path.len().saturating_add(1)))?;
+                return Ok(row.physical.iter().any(|(field, _, stable)| *stable && field == path));
+            }
+        }
+        Ok(false)
+    }
+}
 #[derive(Default)]
 pub(in crate::stored_flow) struct PreparedAfter {
     rows: Vec<(Source, Type, Payload, bool, bool, Vec<Path>)>,

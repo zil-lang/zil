@@ -415,6 +415,11 @@ pub(super) fn prepare_after(
     // Derive every replacement from one pre-call state (a swap must not read
     // its own preceding write). Old SSA pointers keep their original payload.
     for (index, tail, sources) in &summary.capture_after {
+        if summary.complete && summary.value_after.unchanged_capture_pointee(*index, tail, b)? {
+            // The independent physical after-state proof compares the exact
+            // incoming permission on every return. This row is not a write.
+            continue;
+        }
         b.spend(tail.len().saturating_add(1))?;
         let mut path = vec![PlaceProjection::Field(*index)];
         path.extend(tail);

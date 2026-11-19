@@ -1110,6 +1110,7 @@ impl Check<'_, '_> {
                 Query::Expression(value.id)
             }
             CoreExprKind::Member { object, member, .. } => {
+                self.place_borrow_bound(owner, object, variables, depth + 1)?;
                 let Some(base) = self.proof.types.get(&(owner, Query::Expression(object.id)))
                 else {
                     return Ok(());
@@ -1609,13 +1610,10 @@ impl Check<'_, '_> {
                 self.place_borrow_bound(owner, value, variables, depth + 1)?;
                 self.view_bound(owner, expression, variables, depth + 1)
             }
-            CoreExprKind::Member { object, .. } => {
-                self.place_borrow_bound(owner, object, variables, depth + 1)?;
-                self.view_bound(owner, expression, variables, depth + 1)
-            }
             // Each of these view rules establishes its operand's place bound
             // before appending its own step. Walk that operand once per level.
-            CoreExprKind::Slice { .. }
+            CoreExprKind::Member { .. }
+            | CoreExprKind::Slice { .. }
             | CoreExprKind::Index { .. }
             | CoreExprKind::Unary { op: UnaryOp::Dereference, .. }
             | CoreExprKind::Call { .. } => self.view_bound(owner, expression, variables, depth + 1),
