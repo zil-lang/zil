@@ -2092,6 +2092,7 @@ pub(super) fn qualifications(
                         && matches!(i.kind, InstructionKind::OwnedStoreBorrowMut { .. }))
                     && !replacements::operation(&i.kind)
                     && !pure_copy::operation(&i.kind)
+                    && !pure_copy::local_projection_type(module, f, i, b)?
                     && !pure_copy::ordinary_owned_union(module, f, i, b)?
                     && !pure_copy::ordinary_owned_tuple(module, f, i, b)?
                     && !callable_cells::operation(module, f, i, b)?
@@ -4310,6 +4311,21 @@ static_dependency: StaticProvenance::NotStatic,
                 heap_element: None,
             });
         }
+        InstructionKind::BorrowFieldLocal { .. } | InstructionKind::BorrowVariantLocal { .. } => {
+            let (local, inline, _) = pure_copy::local_projection(&i.kind, b)?
+                .ok_or_else(|| err("Copy borrow has no actual local projection"))?;
+            b.spend(1)?;
+            out.address.sources.push(Source {
+                static_dependency: StaticProvenance::NotStatic,
+                retained_port: None,
+                base: HoldRoot::Local(local),
+                leaf: Vec::new(),
+                inline,
+                heap_parents: Vec::new(),
+                heap_element: None,
+            });
+            require_filled(state, &out.address, &[], b)?;
+        }
         InstructionKind::TakePackageField { local, index } => {
             let holder = state
                 .locals
@@ -5197,6 +5213,7 @@ static_dependency: StaticProvenance::NotStatic,
         | InstructionKind::ConvertNumber { .. }
         | InstructionKind::Unary { .. }
         | InstructionKind::Binary { .. }
+        | InstructionKind::VariantTagLocal { .. }
         | InstructionKind::SliceLength { .. }
         | InstructionKind::ScopeEnter { .. }
         | InstructionKind::ScopeExit { .. } => {}
@@ -5278,6 +5295,8 @@ static_dependency: StaticProvenance::NotStatic,
                 i.kind,
                 InstructionKind::BorrowLocal { .. }
                     | InstructionKind::BorrowLocalMut { .. }
+                    | InstructionKind::BorrowFieldLocal { .. }
+                    | InstructionKind::BorrowVariantLocal { .. }
                     | InstructionKind::BorrowOwnedArrayElement { .. }
                     | InstructionKind::ReborrowAddress { .. }
                     | InstructionKind::LoadStoredBorrow {
@@ -5588,6 +5607,9 @@ fn reverse(
         }
         InstructionKind::Load(local)
         | InstructionKind::BorrowPlaceLocal { local, .. }
+        | InstructionKind::BorrowFieldLocal { local, .. }
+        | InstructionKind::BorrowVariantLocal { local, .. }
+        | InstructionKind::VariantTagLocal { local, .. }
         | InstructionKind::BorrowLocal { local }
         | InstructionKind::BorrowLocalMut { local } => {
             live.assign(f.values.len() + local.0 as usize, true)?
@@ -5672,6 +5694,9 @@ fn reverse_bool(
         | InstructionKind::StorageDead(local) => live[f.values.len() + local.0 as usize] = false,
         InstructionKind::Load(local)
         | InstructionKind::BorrowPlaceLocal { local, .. }
+        | InstructionKind::BorrowFieldLocal { local, .. }
+        | InstructionKind::BorrowVariantLocal { local, .. }
+        | InstructionKind::VariantTagLocal { local, .. }
         | InstructionKind::BorrowLocal { local }
         | InstructionKind::BorrowLocalMut { local } => {
             live[f.values.len() + local.0 as usize] = true
@@ -6580,6 +6605,29 @@ fn windows(
                                 }
                             }
                         }
+                    }
+                    InstructionKind::BorrowFieldLocal { .. }
+                    | InstructionKind::BorrowVariantLocal { .. }
+                    | InstructionKind::VariantTagLocal { .. }
+                        if !matches!(i.kind, InstructionKind::VariantTagLocal { .. })
+                            || pure_copy::local_projection_type(module, f, i, b)? =>
+                    {
+                        let (local, inline, mode) = pure_copy::local_projection(&i.kind, b)?
+                            .ok_or_else(|| err("Copy access has no actual local projection"))?;
+                        b.spend(1)?;
+                        let actual = Permission {
+                            sources: vec![Source {
+                                static_dependency: StaticProvenance::NotStatic,
+                                retained_port: None,
+                                base: HoldRoot::Local(local),
+                                leaf: Vec::new(),
+                                inline,
+                                heap_parents: Vec::new(),
+                                heap_element: None,
+                            }],
+                            loans: Vec::new(),
+                        };
+                        checks.check(&actual, mode.unwrap_or(false), requirements, b)?;
                     }
                     InstructionKind::BorrowPlaceLocal { local, path, mutable }
                         if ordinary_error_borrow(module,f, i, b)? || finite_fields::operation(module, f, i, b)? =>

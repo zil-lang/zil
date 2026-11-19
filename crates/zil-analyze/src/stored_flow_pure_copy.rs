@@ -19,6 +19,60 @@ pub(super) fn operation(kind: &InstructionKind) -> bool {
     )
 }
 
+pub(super) fn local_projection(
+    kind: &InstructionKind, b: &mut Budget,
+) -> CompileResult<Option<(LocalId, Vec<PlaceProjection>, Option<bool>)>> {
+    Ok(Some(match kind {
+        InstructionKind::BorrowFieldLocal { local, path, mutable } => {
+            fee(b, path.len())?;
+            (*local, path.iter().copied().map(PlaceProjection::Field).collect(), Some(*mutable))
+        }
+        InstructionKind::BorrowVariantLocal { local, path, mutable } => {
+            fee(b, path.len())?;
+            (*local, path.iter().copied().map(PlaceProjection::Variant).collect(), Some(*mutable))
+        }
+        InstructionKind::VariantTagLocal { local, path } => {
+            fee(b, path.len())?;
+            (*local, path.iter().copied().map(PlaceProjection::Variant).collect(), None)
+        }
+        _ => return Ok(None),
+    }))
+}
+
+pub(super) fn local_projection_type(
+    module: &TypedModule, f: &TypedFunction, i: &Instruction, b: &mut Budget,
+) -> CompileResult<bool> {
+    let Some((local, path, mode)) = local_projection(&i.kind, b)? else { return Ok(false); };
+    let local = f.locals.get(local.0 as usize)
+        .ok_or_else(|| failure("Copy projection has no actual local"))?;
+    if path.len() > b.partial_depth {
+        return Err(vec![Diagnostic::limit(Phase::Analyze, "Copy projection depth exceeded", Some(i.span))]);
+    }
+    if !pure(module, &local.ty, b, 0)? { return Ok(false); }
+    let mut selected = &local.ty;
+    for step in &path {
+        fee(b, 1)?;
+        selected = match (step, selected) {
+            (PlaceProjection::Field(index), Type::Record { fields, .. }) => fields.get(*index as usize).map(|(_, t)| t),
+            (PlaceProjection::Field(index), Type::Tuple(fields)) => fields.get(*index as usize),
+            (PlaceProjection::Variant(step), Type::Enum { variants, .. }) => variants.get(step.variant as usize)
+                .and_then(|(_, fields)| fields.get(step.index as usize)),
+            _ => None,
+        }.ok_or_else(|| failure("Copy projection changes its actual local path"))?;
+    }
+    if let Some(mutable) = mode {
+        if path.is_empty() || mutable && !local.mutable {
+            return Err(failure("Copy projection has no matching mutable local or selected field"));
+        }
+        address_result(f, i, mutable, selected, b)?;
+    } else if !matches!(selected, Type::Enum { .. })
+        || value_type(f, i.result.ok_or_else(|| failure("local discriminant has no result"))?)? != &Type::I32
+    {
+        return Err(failure("local discriminant has no actual Enum or I32 result"));
+    }
+    Ok(true)
+}
+
 // In a mixed Option/ordinary-owner function, the stored-address ledger has no
 // permission to transfer an owning ErrorUnion. Its tag and complete debt are
 // checked by the ordinary resource kernel. Authenticate this exact zero-target

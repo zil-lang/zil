@@ -2949,7 +2949,10 @@ impl Check<'_, '_> {
                     return Err(errors);
                 }
                 let child = self.pointee(&parent, b)?;
-                let result = value::address(*mutable, Class::Reborrow(function.id, id), child, b)?;
+                let class = self.original_pattern_reborrow_class(
+                    instance, function, *address, *mutable, instruction.span, b,
+                )?.unwrap_or(Class::Reborrow(function.id, id));
+                let result = value::address(*mutable, class, child, b)?;
                 // This distinct outer occurrence may adapt to its actual
                 // parent only within a proved call role; it is never Eq(parent).
                 Ok(result)
@@ -3242,6 +3245,37 @@ impl Check<'_, '_> {
                 let output = value::address(*mutable, class, child, b)?;
                 if !geometry::same_type(&output.ty, ty, b)? {
                     return Err(fail("actual pattern borrow changes its complete selected address type"));
+                }
+                Ok(output)
+            }
+            InstructionKind::BorrowFieldLocal { local, mutable, .. }
+            | InstructionKind::BorrowVariantLocal { local, mutable, .. } => {
+                if let Some(value) = self.source_borrow(instance, function, id, b, depth + 1)? {
+                    return Ok(value);
+                }
+                let path = match &instruction.kind {
+                    InstructionKind::BorrowFieldLocal { path, .. } => {
+                        b.spend(path.len(), WORK)?;
+                        path.iter().copied().map(PlaceProjection::Field).collect::<Vec<_>>()
+                    }
+                    InstructionKind::BorrowVariantLocal { path, .. } => {
+                        b.spend(path.len(), WORK)?;
+                        path.iter().copied().map(PlaceProjection::Variant).collect()
+                    }
+                    _ => unreachable!(),
+                };
+                let class = self.original_pattern_borrow_class(
+                    instance, function, *local, &path, *mutable, instruction.span, b, depth + 1,
+                )?.unwrap_or(Class::Reborrow(function.id, id));
+                operations::initialized_local_before(function, (block, index), *local, b)?;
+                let mut child = self.local_value(instance, function, *local, (block, index), b, depth + 1)?;
+                for selector in path {
+                    b.spend(1, WORK)?;
+                    child = self.closure_child_value(&child, selector, b)?;
+                }
+                let output = value::address(*mutable, class, child, b)?;
+                if !geometry::same_type(&output.ty, ty, b)? {
+                    return Err(fail("actual field or variant borrow changes its complete address type"));
                 }
                 Ok(output)
             }

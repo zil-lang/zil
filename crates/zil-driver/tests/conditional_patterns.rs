@@ -263,6 +263,17 @@ fn named_record_fields_borrow_real_copy_storage() {
     );
 }
 #[test]
+fn named_record_references_keep_same_typed_fields_disjoint() {
+    native(
+        "struct Pair{left:i32,right:i32} fn result()->i32{var p=Pair{left:43,right:2};let Pair{right:ref b,left:ref mut a}=p;*a+=1;return *a-*b}",
+        42,
+    );
+    reject(
+        "struct Pair{left:i32,right:i32} fn result()->i32{var p=Pair{left:43,right:2};let Pair{right:ref b,left:ref mut a}=p;let same=&mut p.left;*same+=1;return *a-*b}",
+        "E-BORROW-CONFLICT",
+    );
+}
+#[test]
 fn named_record_fields_preserve_cross_module_identity() {
     let project = zil_driver::ProjectSources {
         root: ModuleId(0),

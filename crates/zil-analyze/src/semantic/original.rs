@@ -321,6 +321,7 @@ pub(super) struct Checked {
     enum_constructors: BTreeMap<(SemanticDefinitionId, NodeId), enums::Constructor>,
     patterns: BTreeMap<(SemanticDefinitionId, NodeId, Vec<u32>), Term>,
     pattern_origins: Vec<pattern_places::PatternOrigin>,
+    indirect_pattern_borrows: BTreeMap<(SemanticDefinitionId, zil_base::Span), u32>,
     range_bindings: BTreeMap<u32, loops::RangeSource>,
     names_at: BTreeMap<(SemanticDefinitionId, NodeId), Vec<(String, Term)>>,
     environment_reads: BTreeMap<(SemanticDefinitionId, NodeId), u32>,
@@ -3558,7 +3559,7 @@ impl Solver<'_, '_> {
                 } => {
                     let mode = self.pattern_reference_mode(pattern, b, depth + 1)?;
                     let (subject, source) =
-                        self.observed_pattern_subject(frame, initializer, mode, b, depth + 1)?;
+                        self.observed_pattern_subject(frame, initializer, mode, pattern_places::record_subject(pattern), b, depth + 1)?;
                     if let Some(annotation) = ty {
                         let expected = self.recipe(frame, annotation, b, depth + 1)?;
                         self.unify(subject, expected, depth + 1, b)?;
@@ -4695,6 +4696,7 @@ pub(super) fn check(
             enum_constructors: BTreeMap::new(),
             patterns: BTreeMap::new(),
             pattern_origins: Vec::new(),
+            indirect_pattern_borrows: BTreeMap::new(),
             range_bindings: BTreeMap::new(),
             names_at: BTreeMap::new(),
             environment_reads: BTreeMap::new(),

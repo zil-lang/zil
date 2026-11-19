@@ -326,7 +326,16 @@ impl CheckedContext {
                     }
                     InstructionKind::ReborrowAddress{address,mutable}=>{
                         let result=instruction.result.ok_or_else(||bad("actual reborrow has no SSA result"))?;
-                        Some(self.reborrow_value(value_at(&values,*address)?,scope,result,*mutable,b)?)
+                        let parent = value_at(&values, *address)?;
+                        if let Some(outer) = self.pattern_reborrow_class(module, instance, f, instruction, scope, b)? {
+                            let child = self.child_value(module, parent, &[LifeTypeProjection::Pointee], b)?;
+                            let mode = if *mutable { StoredBorrowMode::ExclusiveAddress } else { StoredBorrowMode::SharedAddress };
+                            Some(dynamic_witness::semantic_external::construct(self, &environment,
+                                dynamic_witness::semantic_external::Constructor::Address { mode, outer: Some(outer) },
+                                &[child], active, b)?)
+                        } else {
+                            Some(self.reborrow_value(parent, scope, result, *mutable, b)?)
+                        }
                     }
                     InstructionKind::DescribeLocal{local}=>{
                         let owner=state.locals.get(local.0 as usize).and_then(Option::as_deref).ok_or_else(||bad("actual description has no initialized owner"))?;
@@ -361,7 +370,7 @@ impl CheckedContext {
                         && !sites.iter().any(|site|matches!(site.action,SemanticSiteAction::Construct{..}|SemanticSiteAction::BodyCall{..}))=>
                         Some(self.reified_variant(module,f,instruction,fields,&values,b)?),
                     InstructionKind::UpdateField{..}|InstructionKind::LoadStoredBorrow{..}|InstructionKind::StoreStoredBorrow{..}|InstructionKind::MakeVariant{..}|InstructionKind::VariantTag{..}|InstructionKind::ReadVariant{..}|InstructionKind::ExtractIndex{..}|InstructionKind::UpdateIndex{..}|InstructionKind::AddressIndex{..}|InstructionKind::AddressSlice{..}|InstructionKind::SliceLength{..}=>self.product_instruction(module,instance,f,instruction,sites,&values,&environment,external,active,b)?,
-                    InstructionKind::MakeErrorUnion{..}|InstructionKind::ReadErrorUnion{..}|InstructionKind::TakeErrorUnion{..}|InstructionKind::ErrorTag{..}|InstructionKind::VariantTagLocal{..}|InstructionKind::ReadVariantLocal{..}|InstructionKind::PlaceTagLocal{..}|InstructionKind::TakeVariantField{..}|InstructionKind::TakeTupleField{..}|InstructionKind::BorrowPlaceLocal{..}|InstructionKind::UnpackTuple{..}|InstructionKind::UnpackVariant{..}|InstructionKind::DropErrorUnion{..}|InstructionKind::DropEnum{..}|InstructionKind::DropTuple{..}=>self.sum_instruction(module,instance,f,instruction,sites,&mut state,&values,signature,&environment,external,active,b)?,
+                    InstructionKind::MakeErrorUnion{..}|InstructionKind::ReadErrorUnion{..}|InstructionKind::TakeErrorUnion{..}|InstructionKind::ErrorTag{..}|InstructionKind::VariantTagLocal{..}|InstructionKind::ReadVariantLocal{..}|InstructionKind::PlaceTagLocal{..}|InstructionKind::TakeVariantField{..}|InstructionKind::TakeTupleField{..}|InstructionKind::BorrowPlaceLocal{..}|InstructionKind::BorrowFieldLocal{..}|InstructionKind::BorrowVariantLocal{..}|InstructionKind::UnpackTuple{..}|InstructionKind::UnpackVariant{..}|InstructionKind::DropErrorUnion{..}|InstructionKind::DropEnum{..}|InstructionKind::DropTuple{..}=>self.sum_instruction(module,instance,f,instruction,sites,&mut state,&values,signature,&environment,external,active,b)?,
                     InstructionKind::ReservePlaceLocal{..}|InstructionKind::ReservePlaceAddress{..}|InstructionKind::CommitPlaceReplace{..}|InstructionKind::AbortPlaceReservation{..}=>self.replacement_instruction(module,instance,f,instruction,&mut state,&values,&environment,external,active,b)?,
                     InstructionKind::TakeOwnedArrayElement{..}|InstructionKind::StoreOwnedArrayElement{..}|InstructionKind::DropOwnedArrayElement{..}|InstructionKind::BorrowOwnedArrayElement{..}|InstructionKind::DropOwnedArray{..}=>self.persistent_instruction(module,instance,f,instruction,&mut state,&values,&environment,active,b)?,
                     InstructionKind::ReadAddress{address}=>{

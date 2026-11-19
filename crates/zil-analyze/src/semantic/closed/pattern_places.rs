@@ -2,10 +2,59 @@
 //! tag/field selection and destination Store operations. Names and equal
 //! physical types do not choose a destination.
 use super::*;
-use zil_base::Span;
+use zil_base::{NodeId, Span};
 use crate::semantic::value::Class;
 
 impl Check<'_, '_> {
+    fn pattern_address_projection(
+        &self, instance: &SemanticInstance, function: &TypedFunction,
+        origin: &original::pattern_places::PatternOrigin, mut address: ValueId, b: &mut Budget,
+    ) -> CompileResult<bool> {
+        let mut path = origin.path.as_slice();
+        while let Some((PlaceProjection::Field(index), parents)) = path.split_last() {
+            b.spend(1, WORK)?;
+            let (_, _, producer) = self.defining(function, address, b)?;
+            let InstructionKind::AddressField { address: parent, index: actual } = producer.kind else {
+                return Ok(false);
+            };
+            if *index != actual { return Ok(false); }
+            address = parent;
+            path = parents;
+        }
+        if origin.subject.indirect {
+            if !path.is_empty() { return Ok(false); }
+            let root = self.original_subject_value(instance, function, origin.subject.node, b)?
+                .ok_or_else(|| fail("borrowed pattern lacks the actual original input address"))?;
+            return self.operation_operand_matches(function, address, root, b);
+        }
+        let (_, _, producer) = self.defining(function, address, b)?;
+        let InstructionKind::BorrowVariantLocal { local, path: actual, .. } = &producer.kind else {
+            return Ok(false);
+        };
+        b.spend(path.len().saturating_add(actual.len()), WORK)?;
+        if !origin.subject.path.is_empty()
+            || actual.iter().copied().map(PlaceProjection::Variant).ne(path.iter().copied())
+        {
+            return Ok(false);
+        }
+        let anchor = origin.subject.anchor.ok_or_else(|| fail("borrowed pattern has no original variant owner"))?;
+        Ok(self.anchored_local_at(instance, function, anchor, b, 0)? == *local)
+    }
+
+    pub(super) fn original_pattern_reborrow_class(
+        &self, instance: &SemanticInstance, function: &TypedFunction,
+        address: ValueId, mutable: bool, span: Span, b: &mut Budget,
+    ) -> CompileResult<Option<Class>> {
+        let Some(origin) = self.original.indirect_pattern_borrow(instance.definition, span, b)? else {
+            return Ok(None);
+        };
+        let borrow = origin.borrow.ok_or_else(|| fail("original reborrow loses its pattern occurrence"))?;
+        if borrow.mutable != mutable || !self.pattern_address_projection(instance, function, origin, address, b)? {
+            return Err(fail("actual pattern reborrow changes its original input address, field, or mode"));
+        }
+        Ok(Some(Class::Implicit(instance.id, borrow.ordinal)))
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn original_pattern_borrow_class(
         &self, instance: &SemanticInstance, function: &TypedFunction, local: LocalId,
@@ -635,6 +684,36 @@ impl Check<'_, '_> {
         let origin = self
             .original
             .pattern_origin(ordinal, instance.definition, b)?;
+        let variant_record = origin.record && matches!(origin.path.first(), Some(PlaceProjection::Variant(_)));
+        if origin.subject.indirect || variant_record {
+            let (span, name) = origin.binding.as_ref().ok_or_else(|| fail("indirect pattern has no original binder"))?;
+            let mut selected = None;
+            for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
+                b.spend(1, WORK)?;
+                let InstructionKind::Store { local, value } = instruction.kind else { continue; };
+                let declaration = function.locals.get(local.0 as usize)
+                    .ok_or_else(|| fail("indirect pattern store has no actual local"))?;
+                if declaration.span != *span { continue; }
+                b.spend(name.len(), WORK)?;
+                if declaration.name != *name { continue; }
+                let (_, _, producer) = self.defining(function, value, b)?;
+                let address = match (&producer.kind, origin.borrow) {
+                    (InstructionKind::ReborrowAddress { address, mutable }, Some(borrow))
+                        if *mutable == borrow.mutable && producer.span == borrow.span => *address,
+                    (InstructionKind::ReadAddress { address }, None) => *address,
+                    _ if !origin.subject.indirect => continue,
+                    _ => return Err(fail("actual pattern binding changes its original read or borrow")),
+                };
+                if !self.pattern_address_projection(instance, function, origin, address, b)?
+                    || selected.replace(local).is_some()
+                {
+                    return Err(fail("indirect pattern binding changes its exact original field selection"));
+                }
+            }
+            if origin.subject.indirect || selected.is_some() {
+                return selected.ok_or_else(|| fail("indirect pattern lacks its actual binding transfer"));
+            }
+        }
         if let Some(range) = self.original.range_source(ordinal, b)? {
             return self.range_binding_local(instance, function, range.statement, range.start, range.end, depth, b);
         }
@@ -789,6 +868,29 @@ impl Check<'_, '_> {
             for (at, instruction) in block.instructions.iter().enumerate() {
                 b.spend(1, WORK)?;
                 match &instruction.kind {
+                    InstructionKind::BorrowFieldLocal { local, path: actual, mutable }
+                        if *local == root && origin.borrow.map_or(!*mutable, |borrow|
+                            borrow.mutable == *mutable && borrow.span == instruction.span) =>
+                    {
+                        b.spend(actual.len().saturating_add(path.len() + 1), WORK)?;
+                        if actual.iter().copied().map(PlaceProjection::Field).eq(path.iter().copied()) {
+                            let value = instruction.result.ok_or_else(|| fail("actual field borrow has no SSA result"))?;
+                            let local = if origin.borrow.is_some() {
+                                self.stored_pattern_value(function, value, b)?
+                            } else {
+                                self.copied_pattern_local(function, root, &path, value, b)?
+                            };
+                            if let Some(local) = local
+                                && let Some((span, name)) = &origin.binding
+                                && let Some(declaration) = function.locals.get(local.0 as usize)
+                            {
+                                b.spend(name.len(), WORK)?;
+                                if declaration.span == *span && declaration.name == *name {
+                                    accept(local)?;
+                                }
+                            }
+                        }
+                    }
                     InstructionKind::BorrowPlaceLocal { local, path: actual, mutable: false }
                         if *local == root && origin.borrow.is_none() => {
                         b.spend(actual.len().saturating_add(path.len() + 1), WORK)?;

@@ -2,6 +2,10 @@
 //! directory supplies identities only; initialized tags and loans are checked
 //! by the actual storage kernels.
 use super::*;
+
+pub(super) fn record_subject(pattern: &SemanticOriginalPattern) -> bool {
+    matches!(pattern.kind, CorePatternKind::Record { .. } | CorePatternKind::RecordConstructor { .. })
+}
 use zil_base::Span;
 
 pub(in crate::semantic) struct PatternSubject {
@@ -9,6 +13,7 @@ pub(in crate::semantic) struct PatternSubject {
     pub(in crate::semantic) success_projections: usize,
     pub(in crate::semantic) anchor: Option<LocalAnchor>,
     pub(in crate::semantic) path: Vec<u32>,
+    pub(in crate::semantic) indirect: bool,
     pub(super) retained: Option<Term>,
 }
 #[derive(Clone, Copy)]
@@ -48,6 +53,7 @@ impl PatternSubject {
             success_projections,
             anchor: None,
             path: Vec::new(),
+            indirect: false,
             retained: None,
         })
     }
@@ -55,9 +61,32 @@ impl PatternSubject {
 
 impl Solver<'_, '_> {
     pub(super) fn observed_pattern_subject(
-        &mut self, frame: &mut Frame, source: &SemanticOriginalExpr, mode: Option<bool>,
+        &mut self, frame: &mut Frame, source: &SemanticOriginalExpr, mode: Option<bool>, record: bool,
         b: &mut Budget, depth: usize,
     ) -> CompileResult<(Term, PatternSubject)> {
+        if record && let Some(mutable) = mode
+            && let CoreExprKind::Unary { op: UnaryOp::Dereference, operand } = &source.kind
+        {
+            let term = if let Some(place) = self.place_inner(frame, source, true, true, b, depth + 1)? {
+                self.place_available(frame, place.anchor, &place.path, false, b)?;
+                place.selected
+            } else {
+                self.expression(frame, source, b, depth + 1)?
+            };
+            b.lookup(frame.expressions.len(), WORK)?;
+            let address = *frame.expressions.get(&operand.id)
+                .ok_or_else(|| fail("borrowed pattern has no original address expression"))?;
+            let Kind::Address { mutable: available, .. } = self.state.arena[self.type_root(address, b)?] else {
+                return Err(fail("borrowed pattern subject does not select an original address"));
+            };
+            if mutable && !available {
+                return Err(fail("exclusive pattern borrows through a shared original address"));
+            }
+            return Ok((term, PatternSubject {
+                node: operand.id, success_projections: 0, anchor: None, path: Vec::new(),
+                indirect: true, retained: Some(term),
+            }));
+        }
         // Resolve the subject in the incoming state. Evaluating it can move
         // an affine field out of this very place. The pattern binds that
         // produced value and must keep its origin across the transfer.
@@ -74,7 +103,8 @@ impl Solver<'_, '_> {
                     }
                 }
                 return Ok((place.selected, PatternSubject {
-                    node: source.id, success_projections: 0, anchor: place.anchor, path: place.path, retained: Some(place.selected),
+                    node: source.id, success_projections: 0, anchor: place.anchor, path: place.path,
+                    indirect: false, retained: Some(place.selected),
                 }));
             }
             let term = self.expression(frame, source, b, depth + 1)?;
@@ -85,7 +115,7 @@ impl Solver<'_, '_> {
         let subject = match place {
             Some(place) => PatternSubject {
                 node: source.id, success_projections: 0, anchor: place.anchor,
-                path: place.path, retained: None,
+                path: place.path, indirect: false, retained: None,
             },
             None => PatternSubject::value(source, b)?,
         };
@@ -142,6 +172,14 @@ impl Solver<'_, '_> {
         if let Some((_, name)) = binding { b.spend(name.len(), WORK)?; }
         let index = u32::try_from(self.state.pattern_origins.len())
             .map_err(|_| resource("original pattern origin ordinal overflow"))?;
+        if (source.indirect || record && matches!(path.first(), Some(PlaceProjection::Variant(_))))
+            && let Some(borrow) = borrow
+        {
+            b.lookup(self.state.indirect_pattern_borrows.len(), WORK)?;
+            if self.state.indirect_pattern_borrows.insert((owner, borrow.span), index).is_some() {
+                return Err(fail("original pattern reborrow has competing occurrences"));
+            }
+        }
         Self::push(
             &mut self.state.pattern_origins,
             PatternOrigin {
@@ -151,6 +189,7 @@ impl Solver<'_, '_> {
                     success_projections: source.success_projections,
                     anchor: source.anchor,
                     path: source.path.clone(),
+                    indirect: source.indirect,
                     retained: source.retained,
                 },
                 path: path.to_vec(),
@@ -165,6 +204,15 @@ impl Solver<'_, '_> {
 }
 impl Checked {
     pub(in crate::semantic) fn pattern_origins(&self) -> &[PatternOrigin] { &self.pattern_origins }
+
+    pub(in crate::semantic) fn indirect_pattern_borrow(
+        &self, owner: SemanticDefinitionId, span: Span, b: &mut Budget,
+    ) -> CompileResult<Option<&PatternOrigin>> {
+        if self.indirect_pattern_borrows.is_empty() { return Ok(None); }
+        b.lookup(self.indirect_pattern_borrows.len(), WORK)?;
+        self.indirect_pattern_borrows.get(&(owner, span))
+            .map(|index| self.pattern_origin(*index, owner, b)).transpose()
+    }
 
     pub(in crate::semantic) fn pattern_origin(
         &self,

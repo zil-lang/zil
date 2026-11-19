@@ -5022,6 +5022,19 @@ fn transfer(
                 heap_element: None,
             });
         }
+        InstructionKind::BorrowFieldLocal { .. } | InstructionKind::BorrowVariantLocal { .. } => {
+            let (local, place, _) = pure_copy::local_projection(&i.kind, b)?
+                .ok_or_else(|| failure("Copy borrow has no actual local projection"))?;
+            fee(b, 1)?;
+            out.pointer.targets.insert(Target {
+                retained_port: None,
+                base: local_capture_base(state, local, b)?,
+                stored: Vec::new(),
+                place,
+                heap_parents: Vec::new(),
+                heap_element: None,
+            });
+        }
         InstructionKind::TakePackageField { local, index } => {
             ordered(b, state.locals.len(), 0)?;
             let holder = state
@@ -6135,6 +6148,7 @@ fn transfer(
         | InstructionKind::ConvertNumber { .. }
         | InstructionKind::Unary { .. }
         | InstructionKind::Binary { .. }
+        | InstructionKind::VariantTagLocal { .. }
         | InstructionKind::SliceLength { .. }
         | InstructionKind::ScopeEnter { .. }
         | InstructionKind::ScopeExit { .. }
@@ -6280,6 +6294,8 @@ fn transfer(
             InstructionKind::MutexValue { .. }
                 | InstructionKind::BorrowLocal { .. }
                 | InstructionKind::BorrowLocalMut { .. }
+                | InstructionKind::BorrowFieldLocal { .. }
+                | InstructionKind::BorrowVariantLocal { .. }
                 | InstructionKind::ReborrowAddress { .. }
                 | InstructionKind::MakeDynBorrow { .. }
                 | InstructionKind::BorrowDynOwned { .. }
@@ -6798,6 +6814,9 @@ fn reverse(
         InstructionKind::Load(local)
         | InstructionKind::DropMutexGuard { local }
         | InstructionKind::BorrowPlaceLocal { local, .. }
+        | InstructionKind::BorrowFieldLocal { local, .. }
+        | InstructionKind::BorrowVariantLocal { local, .. }
+        | InstructionKind::VariantTagLocal { local, .. }
         | InstructionKind::BorrowPackageField { local, .. }
         | InstructionKind::ReadPackageField { local, .. }
         | InstructionKind::BorrowLocal { local }
@@ -6877,6 +6896,9 @@ fn reverse_bool(
         InstructionKind::Load(local)
         | InstructionKind::DropMutexGuard { local }
         | InstructionKind::BorrowPlaceLocal { local, .. }
+        | InstructionKind::BorrowFieldLocal { local, .. }
+        | InstructionKind::BorrowVariantLocal { local, .. }
+        | InstructionKind::VariantTagLocal { local, .. }
         | InstructionKind::BorrowPackageField { local, .. }
         | InstructionKind::ReadPackageField { local, .. }
         | InstructionKind::BorrowLocal { local }
@@ -7309,6 +7331,28 @@ fn windows(
                                 }
                             }
                         }
+                    }
+                    InstructionKind::BorrowFieldLocal { .. }
+                    | InstructionKind::BorrowVariantLocal { .. }
+                    | InstructionKind::VariantTagLocal { .. }
+                        if !matches!(i.kind, InstructionKind::VariantTagLocal { .. })
+                            || pure_copy::local_projection_type(module, f, i, b)? =>
+                    {
+                        let (local, place, mode) = pure_copy::local_projection(&i.kind, b)?
+                            .ok_or_else(|| failure("Copy access has no actual local projection"))?;
+                        fee(b, 1)?;
+                        let actual = Permission {
+                            targets: BTreeSet::from([Target {
+                                retained_port: None,
+                                base: local_capture_base(&state, local, b)?,
+                                stored: Vec::new(),
+                                place,
+                                heap_parents: Vec::new(),
+                                heap_element: None,
+                            }]),
+                            loans: Loans::new(),
+                        };
+                        access.check(&actual, mode.unwrap_or(false), apart, b)?;
                     }
                     InstructionKind::BorrowPlaceLocal { local, path, .. }
                         if ordinary_error_borrow(module, f, i, b)? =>
@@ -10070,6 +10114,7 @@ fn actual_instructions(
                 && !callable_array
                 && !mutex::instruction(module, f, i, b)?
                 && !pure_copy::operation(&i.kind)
+                && !pure_copy::local_projection_type(module, f, i, b)?
                 && !pure_copy::ordinary_owned_union(f, i, b)?
                 && !pure_copy::ordinary_package_borrow(module, f, i, b)?
                 && !task_calls::call(&i.kind, b)?

@@ -19,6 +19,44 @@ pub(super) fn operation(kind: &InstructionKind) -> bool {
     )
 }
 
+pub(super) fn local_projection(
+    kind: &InstructionKind, b: &mut Budget,
+) -> Check<Option<(LocalId, Path, Option<bool>)>> {
+    Ok(Some(match kind {
+        InstructionKind::BorrowFieldLocal { local, path, mutable } => {
+            b.spend(path.len())?;
+            (*local, path.iter().copied().map(PlaceProjection::Field).collect(), Some(*mutable))
+        }
+        InstructionKind::BorrowVariantLocal { local, path, mutable } => {
+            b.spend(path.len())?;
+            (*local, path.iter().copied().map(PlaceProjection::Variant).collect(), Some(*mutable))
+        }
+        InstructionKind::VariantTagLocal { local, path } => {
+            b.spend(path.len())?;
+            (*local, path.iter().copied().map(PlaceProjection::Variant).collect(), None)
+        }
+        _ => return Ok(None),
+    }))
+}
+
+pub(super) fn local_projection_type(
+    module: &TypedModule, f: &TypedFunction, i: &Instruction, b: &mut Budget,
+) -> Check<bool> {
+    let local = match i.kind {
+        InstructionKind::BorrowFieldLocal { local, .. }
+        | InstructionKind::BorrowVariantLocal { local, .. }
+        | InstructionKind::VariantTagLocal { local, .. } => local,
+        _ => return Ok(false),
+    };
+    match ordinary(local_type(f, local, Some(i.span))?, b, 0) {
+        Ok(()) => {}
+        Err(failure) if failure.category == zil_base::ResultCategory::Unsupported => return Ok(false),
+        Err(failure) => return Err(failure),
+    }
+    crate::check_instruction(module, f, i, b)?;
+    Ok(true)
+}
+
 pub(super) fn code_atom(ty:&Type,b:&mut Budget)->Check<bool>{
     match ty{
         Type::FunctionPointer{..}=>crate::class_flow::plain_pointer_type(ty,b),

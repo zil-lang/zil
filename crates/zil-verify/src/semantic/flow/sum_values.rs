@@ -1,6 +1,7 @@
 //! Actual discriminators and selected whole child domains. Runtime active-tag,
 //! initialization, moves and conditional cleanup remain independent checks.
 use super::*;
+use super::intrinsics::owner_sources::local_pattern_borrow;
 impl CheckedContext {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn sum_instruction(&self,module:&TypedModule,instance:&SemanticInstance,f:&TypedFunction,instruction:&Instruction,sites:&[&SemanticSite],state:&mut State,values:&[Option<CheckedType>],signature:&CheckedSignature,environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>> {
@@ -31,12 +32,14 @@ impl CheckedContext {
             InstructionKind::VariantTagLocal{local:source,..}|InstructionKind::PlaceTagLocal{local:source,..}=>{local(*source)?;Ok(Some(atomic(&Type::I32,b)?))},
             InstructionKind::ReadErrorUnion{value,is_error}|InstructionKind::TakeErrorUnion{value,is_error}=>project(value_at(values,*value)?,&[PlaceProjection::ErrorArm(*is_error)],b).map(Some),
             InstructionKind::TakeVariantField{local:source,path}|InstructionKind::TakeTupleField{local:source,path}=>project(local(*source)?,path,b).map(Some),
-            InstructionKind::BorrowPlaceLocal{local:source,path,mutable}=>{
-                let child=project(local(*source)?,path,b)?;
+            InstructionKind::BorrowPlaceLocal{..}|InstructionKind::BorrowFieldLocal{..}|InstructionKind::BorrowVariantLocal{..}=>{
+                let (source,path,mutable)=local_pattern_borrow(&instruction.kind,b)?
+                    .ok_or_else(||bad("selected place operation has no actual original path"))?;
+                let child=project(local(source)?,&path,b)?;
                 let result=instruction.result.ok_or_else(||bad("actual selected-place borrow has no SSA result"))?;
                 let scope=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?.key;
-                let mode=if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
-                let outer=self.pattern_borrow_class(module,instance,f,instruction,*source,path,*mutable,scope,b)?
+                let mode=if mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
+                let outer=self.pattern_borrow_class(module,instance,f,instruction,source,&path,mutable,scope,b)?
                     .unwrap_or(ClassKey::Outer{scope,operand:OperandKey::Value(result),path:vec![],mode});
                 // The typed place kernel independently proves actual active
                 // tags, initialization and parent loans along every path step.

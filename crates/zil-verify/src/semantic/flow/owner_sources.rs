@@ -2,6 +2,27 @@
 //! selectors prove identities only; address/description loans, initialization,
 //! field debts and retirement remain obligations of the ordinary kernels.
 use super::*;
+
+pub(in crate::semantic::flow) fn local_pattern_borrow<'a>(
+    kind: &'a InstructionKind, b: &mut Budget,
+) -> Check<Option<(LocalId, std::borrow::Cow<'a, [PlaceProjection]>, bool)>> {
+    use std::borrow::Cow;
+    let result: (LocalId, Cow<'a, [PlaceProjection]>, bool) = match kind {
+        InstructionKind::BorrowPlaceLocal { local, path, mutable } => (*local, Cow::Borrowed(path.as_slice()), *mutable),
+        InstructionKind::BorrowFieldLocal { local, path, mutable } => {
+            b.spend(path.len())?;
+            (*local, Cow::Owned(path.iter().copied().map(PlaceProjection::Field).collect()), *mutable)
+        }
+        InstructionKind::BorrowVariantLocal { local, path, mutable } => {
+            b.spend(path.len())?;
+            (*local, Cow::Owned(path.iter().copied().map(PlaceProjection::Variant).collect()), *mutable)
+        }
+        InstructionKind::BorrowLocal { local } => (*local, Cow::Borrowed(&[]), false),
+        InstructionKind::BorrowLocalMut { local } => (*local, Cow::Borrowed(&[]), true),
+        _ => return Ok(None),
+    };
+    Ok(Some(result))
+}
 use original::intrinsics::{AddressProjection,AddressRoot,BufferRoot,BufferSource};
 use zil_base::NodeId;
 #[path = "scalar_preparations.rs"]
@@ -132,9 +153,11 @@ impl CheckedContext{
         let (root, root_node, ordinal) = {
             let original = self.original.borrow();
             let original = original.as_ref().ok_or_else(|| bad("pattern borrow lacks its original body proof"))?;
-            let Some((subject, expected, ordinal, expected_mode)) = original.pattern_borrow_source(
+            let Some((source, ordinal, expected_mode)) = original.pattern_borrow_source(
                 module, caller.definition, instruction.span, b,
             )? else { return Ok(None); };
+            let subject = source.subject;
+            let expected = source.projections;
             let (root, parents) = original.address_place(module, caller.definition, subject, b)?;
             let AddressRoot::Place(root_node) = root else {
                 return Err(bad("pattern borrow changes its original lexical subject"));
@@ -154,6 +177,71 @@ impl CheckedContext{
             (root, root_node, ordinal)
         };
         self.projected_local_root(module, caller, f, local, root, root_node, b)?;
+        Ok(Some(ClassKey::Implicit { scope, ordinal }))
+    }
+
+    fn pattern_address_projection(
+        &self, module: &TypedModule, caller: &SemanticInstance, f: &TypedFunction, subject: NodeId,
+        mut address: ValueId, path: &[LifeTypeProjection], b: &mut Budget,
+    ) -> Check<()> {
+        let mut path = path;
+        while let Some((LifeTypeProjection::Place(PlaceProjection::Field(index)), parents)) = path.split_last() {
+            b.spend(1)?;
+            let (_, _, producer) = self.site_index.producers.get(f, address, b)?;
+            let InstructionKind::AddressField { address: parent, index: actual } = producer.kind else {
+                return Err(bad("actual pattern address changes its original field operation"));
+            };
+            if *index != actual {
+                return Err(bad("actual pattern address changes its exact original selected field"));
+            }
+            crate::check_instruction(module, f, producer, b)?;
+            address = parent;
+            path = parents;
+        }
+        if path != [LifeTypeProjection::Pointee] {
+            let (_, _, producer) = self.site_index.producers.get(f, address, b)?;
+            let InstructionKind::BorrowVariantLocal { local, path: actual, .. } = &producer.kind else {
+                return Err(bad("actual pattern address omits its original variant owner"));
+            };
+            b.spend(actual.len().saturating_add(path.len()))?;
+            if actual.iter().copied().map(PlaceProjection::Variant).map(LifeTypeProjection::Place)
+                .ne(path.iter().copied())
+            {
+                return Err(bad("actual pattern address changes its exact original variant"));
+            }
+            crate::check_instruction(module, f, producer, b)?;
+            let (root, fields) = self.original.borrow().as_ref()
+                .ok_or_else(|| bad("variant pattern address lacks its original body proof"))?
+                .buffer_place(caller.definition, subject, b)?;
+            if !fields.is_empty() {
+                return Err(bad("actual variant pattern address omits its original parent fields"));
+            }
+            return self.projected_local_root(module, caller, f, *local, root, subject, b);
+        }
+        let original = self.original.borrow();
+        let original = original.as_ref().ok_or_else(|| bad("pattern input address has no original body proof"))?;
+        if original.bound_value_name(caller.definition, subject, b)? {
+            self.original_projection_source(module, caller, f, address, caller.definition, subject, true, b)
+        } else {
+            self.exact_expression_value(module, caller, f, address, subject, b)
+        }
+    }
+
+    pub(in crate::semantic::flow) fn pattern_reborrow_class(
+        &self, module: &TypedModule, caller: &SemanticInstance, f: &TypedFunction,
+        instruction: &Instruction, scope: ScopeKey, b: &mut Budget,
+    ) -> Check<Option<ClassKey>> {
+        let original = self.original.borrow().as_ref()
+            .ok_or_else(|| bad("pattern reborrow has no original body proof"))?
+            .pattern_borrow_source(module, caller.definition, instruction.span, b)?;
+        let Some((source, ordinal, mode)) = original else { return Ok(None); };
+        if !source.record { return Ok(None); }
+        let InstructionKind::ReborrowAddress { address, mutable } = instruction.kind else {
+            return Err(bad("original indirect pattern requires its actual reborrow"));
+        };
+        if mutable != mode { return Err(bad("actual pattern reborrow changes its original mode")); }
+        crate::check_instruction(module, f, instruction, b)?;
+        self.pattern_address_projection(module, caller, f, source.subject, address, &source.projections, b)?;
         Ok(Some(ClassKey::Implicit { scope, ordinal }))
     }
 
@@ -642,13 +730,13 @@ impl CheckedContext {
             if instruction.span != reference {
                 return Err(bad("named reference pattern substitutes another original occurrence"));
             }
-            let (root, path, mutable) = match &instruction.kind {
-                InstructionKind::BorrowPlaceLocal { local, path, mutable } => (*local, path.as_slice(), *mutable),
-                InstructionKind::BorrowLocal { local } => (*local, &[][..], false),
-                InstructionKind::BorrowLocalMut { local } => (*local, &[][..], true),
-                _ => return Err(bad("named reference pattern initial value is not its physical borrow")),
-            };
-            return self.pattern_borrow_class(module, caller, f, instruction, root, path, mutable, ScopeKey::Instance(caller.id), b)?
+            if source.record && matches!(instruction.kind, InstructionKind::ReborrowAddress { .. }) {
+                return self.pattern_reborrow_class(module, caller, f, instruction, ScopeKey::Instance(caller.id), b)?
+                    .map(|_| ()).ok_or_else(|| bad("named reference pattern lacks its exact original reborrow"));
+            }
+            let (root, path, mutable) = local_pattern_borrow(&instruction.kind, b)?
+                .ok_or_else(|| bad("named reference pattern initial value is not its physical borrow"))?;
+            return self.pattern_borrow_class(module, caller, f, instruction, root, &path, mutable, ScopeKey::Instance(caller.id), b)?
                 .map(|_| ()).ok_or_else(|| bad("named reference pattern lacks its original class"));
         }
         let subject = source.subject;
@@ -690,12 +778,12 @@ impl CheckedContext {
         } else {
             None
         };
-        self.pattern_projection_start(module, caller, f, initial, subject, &source.projections, &subjects, preparation, b)
+        self.pattern_projection_start(module, caller, f, initial, subject, &source.projections, &subjects, preparation, source.record, b)
     }
     fn pattern_projection_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,subject:NodeId,path:&[LifeTypeProjection],subjects:&BTreeSet<ValueId>,b:&mut Budget)->Check<()>{
-        self.pattern_projection_start(module, caller, f, PatternStart::Value(value), subject, path, subjects, None, b)
+        self.pattern_projection_start(module, caller, f, PatternStart::Value(value), subject, path, subjects, None, false, b)
     }
-    fn pattern_projection_start(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,start:PatternStart,subject:NodeId,path:&[LifeTypeProjection],subjects:&BTreeSet<ValueId>,preparation:Option<LocalId>,b:&mut Budget)->Check<()>{
+    fn pattern_projection_start(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,start:PatternStart,subject:NodeId,path:&[LifeTypeProjection],subjects:&BTreeSet<ValueId>,preparation:Option<LocalId>,record:bool,b:&mut Budget)->Check<()>{
         let (local, index) = match start { PatternStart::Value(value) => (false, value.0), PatternStart::Unpack { local, .. } => (true, local.0) };
         let mut pending=vec![(local,index,path.to_vec(),false)];let mut active=BTreeSet::new();let mut proven=BTreeSet::new();let mut rooted=false;
         while let Some((local,index,mut path,exit))=pending.pop(){
@@ -752,13 +840,22 @@ impl CheckedContext {
                         pending.push((false,value.0,path,false));
                     },
                     InstructionKind::ReadAddress{address}=>{
+                        if record
+                            && matches!(path.first(), Some(LifeTypeProjection::Pointee
+                                | LifeTypeProjection::Place(PlaceProjection::Variant(_))))
+                            && matches!(path.last(), Some(LifeTypeProjection::Place(PlaceProjection::Field(_))))
+                        {
+                            self.pattern_address_projection(module, caller, f, subject, *address, &path, b)?;
+                            rooted = true;
+                            continue;
+                        }
                         if path.last()==Some(&LifeTypeProjection::Pointee){
                             path.pop();
                             pending.push((false,address.0,path,false));
                             continue;
                         }
                         let(_,_,borrow)=self.site_index.producers.get(f,*address,b)?;
-                        let InstructionKind::BorrowPlaceLocal{local,path:actual,mutable:false}=&borrow.kind else{
+                        let Some((local,actual,false))=local_pattern_borrow(&borrow.kind,b)? else {
                             return Err(bad("pattern binding changes its original dereference boundary"));
                         };
                         let output=f.values.get(index as usize).ok_or_else(||bad("pattern Copy read result has no complete type"))?;

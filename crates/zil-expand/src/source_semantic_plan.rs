@@ -772,6 +772,33 @@ fn unit_variant(
     }
     Ok(found == Some(true))
 }
+fn binding_observes_place(pattern: &s::Pattern, budget: &mut Budget<'_>, depth: usize) -> R<bool> {
+    match &pattern.kind {
+        s::PatternKind::Name(_) | s::PatternKind::Wildcard | s::PatternKind::Literal(_) => Ok(false),
+        s::PatternKind::Reference { .. } => Ok(true),
+        s::PatternKind::ErrorArm { pattern: inner, .. } => {
+            budget.node(pattern.span, depth)?;
+            binding_observes_place(inner, budget, depth + 1)
+        }
+        s::PatternKind::Tuple(fields) | s::PatternKind::Constructor { arguments: fields, .. } => {
+            budget.node(pattern.span, depth)?;
+            budget.identity_work(fields.len(), pattern.span)?;
+            for field in fields {
+                if binding_observes_place(field, budget, depth + 1)? { return Ok(true); }
+            }
+            Ok(false)
+        }
+        s::PatternKind::RecordConstructor { fields, .. } => {
+            budget.node(pattern.span, depth)?;
+            budget.identity_work(fields.len(), pattern.span)?;
+            for field in fields {
+                if binding_observes_place(&field.pattern, budget, depth + 1)? { return Ok(true); }
+            }
+            Ok(false)
+        }
+    }
+}
+
 fn operations(
     program: &mut program::Program,
     definition: SemanticDefinitionId,
@@ -840,9 +867,9 @@ fn operations(
         path.extend_from_slice(&original.path);
         match (&original.kind, located.node) {
             (body::OriginalBodyNodeKind::Binding, body_nodes::Node::Statement(statement)) => {
-                if !matches!(statement.kind, s::StmtKind::Binding { .. }) {
+                let s::StmtKind::Binding { pattern, .. } = &statement.kind else {
                     continue;
-                }
+                };
                 // A raw Address/Desc result may acquire a local role at this
                 // declaration. The original solver activates this potential
                 // occurrence only for that actual outer mode; it never
@@ -853,7 +880,10 @@ fn operations(
                     source: SemanticOriginalTypeSource::Binding(original.id),
                 };
                 prepay_recipe(&expected, budget, statement.span, 0)?;
-                if !runtime {
+                // A reference pattern observes the initializer place and
+                // creates its own leaf binders. There is no whole binding
+                // local at this statement to receive a storage constraint.
+                if !runtime || binding_observes_place(pattern, budget, 0)? {
                     directory_site(
                         program,
                         definition,

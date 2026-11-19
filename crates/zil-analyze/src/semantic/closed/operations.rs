@@ -2224,15 +2224,29 @@ impl Check<'_, '_> {
                 if !emitted {
                     let node = original_nodes.site_node(recipe.id, b)?
                         .ok_or_else(|| fail("emission recipe has no original operation node"))?;
-                    let (SemanticOriginalNode::Expression(node) | SemanticOriginalNode::Statement(node)) = node;
+                    let (SemanticOriginalNode::Expression(id) | SemanticOriginalNode::Statement(id)) = node;
                     // A raw source stage is proved universally as well. Its
                     // selected CT execution is checked in the frozen context;
                     // it is not an extra executable operation in this runtime.
-                    if original_nodes.erased(node, b)? {
+                    if original_nodes.erased(id, b)? {
+                        continue;
+                    }
+                    if let SemanticOriginalNode::Statement(statement) = node
+                        && matches!(recipe.kind, SemanticSiteRecipeKind::DeclareLocal { .. })
+                        && let CoreStatementKind::TupleBinding { pattern, .. } = &original_nodes.get_stmt(statement, b)?.kind
+                        && original_pattern_reference_mode(pattern, 0, &mut |depth| {
+                            if depth > b.partial_depth {
+                                return Err(vec![zil_base::Diagnostic::limit(
+                                    zil_base::Phase::Analyze, "reference binding syntax depth", Some(pattern.span),
+                                )]);
+                            }
+                            b.spend(1, WORK)
+                        })?.is_some()
+                    {
                         continue;
                     }
                     if let SemanticSiteRecipeKind::TypeUse { expected } = &recipe.kind
-                        && original_nodes.navigation(node, b)?
+                        && original_nodes.navigation(id, b)?
                     {
                         let value = self.recipe_value(instance, expected, b, 0)?;
                         self.actual_type(&value.ty, b)?;
@@ -2241,7 +2255,7 @@ impl Check<'_, '_> {
                     let mut errors = fail("original emission recipe has no actual operation");
                     errors[0].notes.push(format!(
                         "original module {} definition {} recipe {} node {}",
-                        definition.id.module.0, definition.id.index, recipe.id.0, node.0
+                        definition.id.module.0, definition.id.index, recipe.id.0, id.0
                     ));
                     return Err(errors);
                 }

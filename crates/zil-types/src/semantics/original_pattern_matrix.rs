@@ -2,6 +2,17 @@
 use super::*;
 
 impl Check<'_, '_> {
+    pub(super) fn irrefutable_original_pattern(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe,
+        pattern: &SemanticOriginalPattern,
+        depth: usize,
+    ) -> R<bool> {
+        self.pay(2, depth)?;
+        self.covers_patterns(owner, &[vec![Some(pattern)]], &[ty], depth + 1)
+    }
+
     pub(super) fn exhaustive(
         &mut self,
         owner: SemanticDefinitionId,

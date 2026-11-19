@@ -14,6 +14,16 @@ pub(super) fn has_reference(p: &CorePattern) -> bool {
         _ => false,
     }
 }
+pub(super) fn has_record(p: &CorePattern) -> bool {
+    match &p.kind {
+        CorePatternKind::Record { .. } => true,
+        CorePatternKind::Tuple(fields) | CorePatternKind::Variant { fields, .. } => {
+            fields.iter().any(has_record)
+        }
+        CorePatternKind::ErrorArm { pattern, .. } => has_record(pattern),
+        _ => false,
+    }
+}
 fn needs_mutable(p: &CorePattern) -> bool {
     match &p.kind {
         CorePatternKind::Reference { mutable, pattern } => *mutable || needs_mutable(pattern),
@@ -215,6 +225,18 @@ impl Builder<'_, '_> {
                 self.current.unwrap(),
                 &mut bindings,
             )?;
+        } else if has_record(p)
+            && let CoreExprKind::Name(name) = &place.kind
+            && let Some(local) = self.lookup(name)
+            && !self.borrowed_captures.contains_key(&local)
+            && !self.closure_captures.contains_key(&local)
+            && !self.stored_copy_captures.contains_key(&local)
+        {
+            if matches!(&place, std::borrow::Cow::Borrowed(_)) {
+                self.semantic_local_place(e, local)?;
+            }
+            let fail = self.current.expect("pattern binding in live block");
+            self.reference_local_test(p, local, &mut Vec::new(), &ty, fail, &mut bindings)?;
         } else {
             self.binding_place(p, &place, expected, &mut bindings)?;
         }
@@ -431,6 +453,9 @@ impl Builder<'_, '_> {
             let local = self
                 .lookup(name)
                 .ok_or_else(|| error("E-UNKNOWN-NAME", e.span, "unknown condition place"))?;
+            if has_record(p) {
+                self.semantic_local_place(e, local)?;
+            }
             self.closures
                 .array_snapshot(&self.function.locals[local.0 as usize].ty, 1, e.span)?;
             (local, self.function.locals[local.0 as usize].ty.clone())
@@ -475,6 +500,9 @@ impl Builder<'_, '_> {
             let local = self
                 .lookup(name)
                 .ok_or_else(|| error("E-UNKNOWN-NAME", e.span, "unknown match place"))?;
+            if arms.iter().any(|arm| has_record(&arm.pattern)) {
+                self.semantic_local_place(e, local)?;
+            }
             self.closures
                 .array_snapshot(&self.function.locals[local.0 as usize].ty, 1, e.span)?;
             (local, self.function.locals[local.0 as usize].ty.clone())

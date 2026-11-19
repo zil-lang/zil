@@ -176,7 +176,7 @@ impl Solver<'_, '_> {
         if let Some(condition) = condition {
             if let Some((_, pattern)) = pattern {
                 let mode = self.pattern_reference_mode(pattern, b, depth + 1)?;
-                subject = Some(self.observed_pattern_subject(frame, condition, mode, b, depth + 1)?);
+                subject = Some(self.observed_pattern_subject(frame, condition, mode, super::pattern_places::record_subject(pattern), b, depth + 1)?);
             } else {
                 let term = self.expression(frame, condition, b, depth + 1)?;
                 let boolean = self.atom(Type::Bool, b)?;
@@ -210,7 +210,8 @@ impl Solver<'_, '_> {
         }
         if let Some(range) = range {
             let source = pattern_places::PatternSubject {
-                node: range.start, success_projections: 0, anchor: None, path: Vec::new(), retained: None,
+                node: range.start, success_projections: 0, anchor: None, path: Vec::new(),
+                indirect: false, retained: None,
             };
             let first_origin = self.state.pattern_origins.len();
             match range.binding {

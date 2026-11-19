@@ -627,7 +627,9 @@ impl Solver<'_, '_> {
     ) -> CompileResult<()> {
         self.step(depth, b)?;
         let mode = self.pattern_reference_mode(pattern, b, depth + 1)?;
-        let (subject, source) = self.observed_pattern_subject(frame, value, mode, b, depth + 1)?;
+        let (subject, source) = self.observed_pattern_subject(
+            frame, value, mode, pattern_places::record_subject(pattern), b, depth + 1,
+        )?;
         let entered = frame.alive;
         let before = self.copy_locals(&frame.locals, b)?;
         let prefix = before.len();
@@ -883,12 +885,14 @@ impl Solver<'_, '_> {
     ) -> CompileResult<()> {
         self.step(depth, b)?;
         let mut mode = None;
+        let mut record = false;
         for arm in arms {
             if let Some(mutable) = self.pattern_reference_mode(&arm.pattern, b, depth + 1)? {
                 mode = Some(mode.unwrap_or(false) || mutable);
+                record |= pattern_places::record_subject(&arm.pattern);
             }
         }
-        let (subject, source) = self.observed_pattern_subject(frame, value, mode, b, depth + 1)?;
+        let (subject, source) = self.observed_pattern_subject(frame, value, mode, record, b, depth + 1)?;
         let original_alive = frame.alive;
         let base = self.copy_locals(&frame.locals, b)?;
         let base_len = base.len();

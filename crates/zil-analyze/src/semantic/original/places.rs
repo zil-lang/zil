@@ -59,7 +59,7 @@ impl Solver<'_, '_> {
         }
         Ok(place)
     }
-    fn place_inner(
+    pub(super) fn place_inner(
         &mut self,
         frame: &mut Frame,
         value: &SemanticOriginalExpr,

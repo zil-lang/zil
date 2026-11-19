@@ -5164,6 +5164,15 @@ impl<'a> Check<'a, '_> {
             Some(true) => {
                 // A fresh rvalue can establish its own writable temporary.
                 // A lexical or indirect place must retain its real permission.
+                if let CoreExprKind::Name(name) = &value.kind
+                    && variables.get(name).is_some_and(|binding| !binding.mutable)
+                {
+                    return Err(error(
+                        "E-IMMUTABLE-ASSIGNMENT",
+                        value.span,
+                        "exclusive pattern requires a mutable place",
+                    ));
+                }
                 if matches!(value.kind, CoreExprKind::Name(_) | CoreExprKind::Member { .. }
                     | CoreExprKind::Group(_) | CoreExprKind::Index { .. }
                     | CoreExprKind::Unary { op: UnaryOp::Dereference, .. })
@@ -5848,15 +5857,16 @@ impl<'a> Check<'a, '_> {
                         &mut BTreeSet::new(),
                         depth + 1,
                     )?;
+                    let irrefutable = self.irrefutable_original_pattern(owner, &ty, pattern, depth + 1)?;
                     if self.block(owner, then_body, &mut matched, result, depth + 1)? {
                         branches.push(matched);
                     }
                     let mut other = self.clone_variables(variables)?;
                     if let Some(body) = else_body {
-                        if self.block(owner, body, &mut other, result, depth + 1)? {
+                        if self.block(owner, body, &mut other, result, depth + 1)? && !irrefutable {
                             branches.push(other);
                         }
-                    } else {
+                    } else if !irrefutable {
                         branches.push(other);
                     }
                     if branches.is_empty() {

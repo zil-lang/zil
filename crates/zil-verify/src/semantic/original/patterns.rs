@@ -23,6 +23,7 @@ pub(in crate::semantic) struct PatternSource {
     pub mutable: bool,
     pub reference: Option<Span>,
     pub preparation: Option<(NodeId, Span)>,
+    pub record: bool,
 }
 
 impl CheckedOriginal {
@@ -167,11 +168,12 @@ impl CheckedOriginal {
 
     pub(in crate::semantic) fn pattern_borrow_source(
         &self, module: &TypedModule, definition: SemanticDefinitionId, span: Span, b: &mut Budget,
-    ) -> Check<Option<(NodeId, Vec<LifeTypeProjection>, u32, bool)>> {
+    ) -> Check<Option<(PatternSource, u32, bool)>> {
+        if self.pattern_borrows.is_empty() { return Ok(None); }
         b.spend(self.pattern_borrows.len().saturating_add(1).ilog2() as usize + 1)?;
         let Some(borrow) = self.pattern_borrows.get(&(definition, span)) else { return Ok(None); };
         let source = self.pattern_binding_source(module,definition,borrow.statement,&borrow.path,b)?;
-        Ok(Some((source.subject, source.projections, borrow.ordinal, borrow.mutable)))
+        Ok(Some((source, borrow.ordinal, borrow.mutable)))
     }
 
     fn pattern_binding_source(&self,module:&TypedModule,definition:SemanticDefinitionId,statement:NodeId,path:&[u32],b:&mut Budget)->Check<PatternSource>{
@@ -183,6 +185,7 @@ impl CheckedOriginal {
             CoreStatementKind::TupleBinding{initializer,pattern,mutable,..}=>(initializer,pattern,0,*mutable),
             _=>return Err(bad("pattern binder selects another original statement role")),
         };
+        let root_pattern = pattern;
         let binding_subject_span=subject.span;
         let mut subject=subject;let mut projections=Vec::new();let mut reference=None;let mut record=false;
         loop{
@@ -224,9 +227,14 @@ impl CheckedOriginal {
         }
         let CorePatternKind::Name(name)=&pattern.kind else{return Err(bad("pattern source does not end at its actual original value binder"));};
         b.spend(name.len())?;
-        let preparation = (record && matches!(statement.kind, CoreStatementKind::TupleBinding { .. }))
-            .then_some((statement.id, binding_subject_span));
-        Ok(PatternSource { subject: subject.id, projections, name: name.clone(), span: pattern.span, mutable, reference, preparation })
+        let preparation = if record && matches!(statement.kind, CoreStatementKind::TupleBinding { .. })
+            && Self::pattern_mode(root_pattern, b)?.is_none()
+        {
+            Some((statement.id, binding_subject_span))
+        } else {
+            None
+        };
+        Ok(PatternSource { subject: subject.id, projections, name: name.clone(), span: pattern.span, mutable, reference, preparation, record })
     }
 }
 

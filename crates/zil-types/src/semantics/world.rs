@@ -1161,6 +1161,26 @@ impl<'a> World<'a, '_> {
             mode,
         })
     }
+
+    fn pattern_occurrence(
+        &mut self,
+        owner: SemanticDefinitionId,
+        span: Span,
+        mutable: bool,
+    ) -> R<Option<SemanticClassExpr>> {
+        let ledger = self.ledger;
+        let proof = ledger.original.borrow();
+        let proof = proof.as_ref().ok_or_else(|| bad("pattern borrow lacks its original Gamma"))?;
+        if proof.pattern_borrows.is_empty() { return Ok(None); }
+        self.pay(index::search(proof.pattern_borrows.len()))?;
+        match proof.pattern_borrows.get(&(owner, span)) {
+            Some((ordinal, mode)) if *mode == mutable => Ok(Some(SemanticClassExpr::Implicit {
+                scope: SemanticScopeRef::Ancestor(0), ordinal: *ordinal,
+            })),
+            Some(_) => Err(bad("actual reference pattern changes its original access mode")),
+            None => Ok(None),
+        }
+    }
 }
 
 impl<'p> World<'p, '_> {
@@ -3179,18 +3199,9 @@ impl<'p> World<'p, '_> {
                             let result = instruction
                                 .result
                                 .ok_or_else(|| bad("place borrow has no actual result"))?;
-                            let image = {
-                                let ledger = self.ledger;
-                                let proof = ledger.original.borrow();
-                                let proof = proof.as_ref().ok_or_else(|| bad("inline place borrow lacks its original Gamma"))?;
-                                self.pay(index::search(proof.pattern_borrows.len()))?;
-                                match proof.pattern_borrows.get(&(original.id, instruction.span)) {
-                                    Some((ordinal, mode)) if mode == mutable => SemanticClassExpr::Implicit {
-                                        scope: SemanticScopeRef::Ancestor(0), ordinal: *ordinal,
-                                    },
-                                    Some(_) => return Err(bad("actual reference pattern changes its original access mode")),
-                                    None => self.occurrence(f, result)?,
-                                }
+                            let image = match self.pattern_occurrence(original.id, instruction.span, *mutable)? {
+                                Some(image) => image,
+                                None => self.occurrence(f, result)?,
                             };
                             Some(self.address(
                                 ty.ok_or_else(|| bad("place borrow has no complete result type"))?,
@@ -3265,12 +3276,12 @@ impl<'p> World<'p, '_> {
                                 ));
                             }
                             let value = self.projected_local(&locals, *local, &path)?;
-                            let image = self.occurrence(
-                                f,
-                                instruction
-                                    .result
-                                    .ok_or_else(|| bad("inline field borrow has no result"))?,
-                            )?;
+                            let result = instruction.result
+                                .ok_or_else(|| bad("inline field borrow has no result"))?;
+                            let image = match self.pattern_occurrence(original.id, instruction.span, *mutable)? {
+                                Some(image) => image,
+                                None => self.occurrence(f, result)?,
+                            };
                             Some(self.address(
                                 ty.ok_or_else(|| bad("inline field borrow has no result type"))?,
                                 image,
@@ -3295,12 +3306,12 @@ impl<'p> World<'p, '_> {
                             {
                                 places::local_mutable(self, f, *local, mutable)?;
                                 places::borrow_mode(ty, mutable)?;
-                                let image = self.occurrence(
-                                    f,
-                                    instruction.result.ok_or_else(|| {
-                                        bad("variant payload borrow has no result")
-                                    })?,
-                                )?;
+                                let result = instruction.result
+                                    .ok_or_else(|| bad("variant payload borrow has no result"))?;
+                                let image = match self.pattern_occurrence(original.id, instruction.span, mutable)? {
+                                    Some(image) => image,
+                                    None => self.occurrence(f, result)?,
+                                };
                                 Some(self.address(
                                     ty.ok_or_else(|| bad("variant payload borrow has no type"))?,
                                     image,
@@ -3400,7 +3411,7 @@ impl<'p> World<'p, '_> {
                                 &inner,
                             )?)
                         }
-                        InstructionKind::ReborrowAddress { address, .. } => {
+                        InstructionKind::ReborrowAddress { address, mutable } => {
                             let parent = self.get(&values, *address)?;
                             let child = self.pointee(&parent)?;
                             if matches!(ty, Some(Type::Address { mutable: true, .. }))
@@ -3432,7 +3443,13 @@ impl<'p> World<'p, '_> {
                             // source through a shared view, with the complete
                             // child domain and the real reborrow receipt above.
                             // Variable sources still get a fresh occurrence.
-                            if static_source {
+                            if let Some(image) = self.pattern_occurrence(original.id, instruction.span, *mutable)? {
+                                Some(self.address(
+                                    ty.ok_or_else(|| bad("pattern reborrow has no type"))?,
+                                    image,
+                                    &child,
+                                )?)
+                            } else if static_source {
                                 if !matches!(ty, Some(Type::Address { mutable: false, .. })) {
                                     return Err(bad(
                                         "static reborrow cannot provide an exclusive outer mode",
