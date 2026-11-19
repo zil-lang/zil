@@ -547,7 +547,7 @@ impl CheckedOriginal {
         if matches!(mode, PassingMode::Infer | PassingMode::BorrowMut)
             && matches!(self.resolved(expected, b)?, Ty::Address { mutable: true, .. })
             && matches!(self.resolved(&actual, b)?, Ty::Address { mutable: true, .. })
-            && let Some(root) = zil_ir::original_capture_syntax::exclusive_place_root(expression, |_, _| b.spend(1))?
+            && let Some(root) = zil_ir::exclusive_place_root(expression, |_, _| b.spend(1))?
         {
             self.record_exclusive_argument_capture(env.current()?, root.node, b)?;
         }

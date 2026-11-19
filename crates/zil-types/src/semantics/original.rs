@@ -5073,7 +5073,7 @@ impl<'a> Check<'a, '_> {
         variables: &mut BTreeMap<String, Binding>,
         depth: usize,
     ) -> R<()> {
-        let Some(root) = zil_ir::original_capture_syntax::exclusive_place_root(
+        let Some(root) = zil_ir::exclusive_place_root(
             expression, |step, _| self.pay(1, depth.saturating_add(step)),
         )? else { return Ok(()); };
         let name = root.name;
