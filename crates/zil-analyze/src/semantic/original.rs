@@ -3546,7 +3546,8 @@ impl Solver<'_, '_> {
                     ty,
                     initializer,
                 } => {
-                    let subject = self.expression(frame, initializer, b, depth + 1)?;
+                    let (subject, source) =
+                        self.observed_pattern_subject(frame, initializer, None, b, depth + 1)?;
                     if let Some(annotation) = ty {
                         let expected = self.recipe(frame, annotation, b, depth + 1)?;
                         self.unify(subject, expected, depth + 1, b)?;
@@ -3562,7 +3563,7 @@ impl Solver<'_, '_> {
                         statement.id,
                         pattern,
                         subject,
-                        initializer,
+                        &source,
                         *mutable,
                         b,
                         depth + 1,

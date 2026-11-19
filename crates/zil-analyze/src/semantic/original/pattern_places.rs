@@ -51,27 +51,16 @@ impl PatternSubject {
 }
 
 impl Solver<'_, '_> {
-    pub(super) fn pattern_subject(
-        &mut self,
-        frame: &mut Frame,
-        source: &SemanticOriginalExpr,
-        b: &mut Budget,
-        depth: usize,
-    ) -> CompileResult<PatternSubject> {
-        if let Some(place) = self.place(frame, source, false, b, depth + 1)? {
-            Ok(PatternSubject {
-                node: source.id, success_projections: 0, anchor: place.anchor, path: place.path, retained: None,
-            })
-        } else {
-            PatternSubject::value(source, b)
-        }
-    }
     pub(super) fn observed_pattern_subject(
         &mut self, frame: &mut Frame, source: &SemanticOriginalExpr, mode: Option<bool>,
         b: &mut Budget, depth: usize,
     ) -> CompileResult<(Term, PatternSubject)> {
+        // Resolve the subject in the incoming state. Evaluating it can move
+        // an affine field out of this very place. The pattern binds that
+        // produced value and must keep its origin across the transfer.
+        let place = self.place(frame, source, mode.is_some(), b, depth + 1)?;
         if let Some(mutable) = mode {
-            if let Some(place) = self.place(frame, source, true, b, depth + 1)? {
+            if let Some(place) = place {
                 if mutable {
                     let anchor = place.anchor.ok_or_else(|| fail("exclusive reference pattern lacks its actual writable root"))?;
                     b.spend(frame.locals.len(), WORK)?;
@@ -90,8 +79,14 @@ impl Solver<'_, '_> {
             subject.retained = Some(term);
             return Ok((term, subject));
         }
-        let term = self.expression(frame, source, b, depth + 1)?;
-        Ok((term, self.pattern_subject(frame, source, b, depth + 1)?))
+        let subject = match place {
+            Some(place) => PatternSubject {
+                node: source.id, success_projections: 0, anchor: place.anchor,
+                path: place.path, retained: None,
+            },
+            None => PatternSubject::value(source, b)?,
+        };
+        Ok((self.expression(frame, source, b, depth + 1)?, subject))
     }
 
     // Original products already flatten declared enum fields in variant

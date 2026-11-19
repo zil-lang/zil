@@ -22,7 +22,7 @@ impl Solver<'_, '_> {
         statement: NodeId,
         pattern: &SemanticOriginalPattern,
         subject: Term,
-        source: &SemanticOriginalExpr,
+        source: &pattern_places::PatternSubject,
         mutable: bool,
         b: &mut Budget,
         depth: usize,
@@ -47,14 +47,13 @@ impl Solver<'_, '_> {
             }
         }
         let start = frame.locals.len();
-        let source = self.pattern_subject(frame, source, b, depth + 1)?;
         if !self.pattern_bind(
             frame,
             statement,
             &mut Vec::new(),
             pattern,
             subject,
-            &source,
+            source,
             &mut Vec::new(),
             b,
             depth + 1,
