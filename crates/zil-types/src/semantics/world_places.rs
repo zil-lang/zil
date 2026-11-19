@@ -176,10 +176,20 @@ pub(super) fn borrow_source(
         return world.local_shell(locals, local);
     }
     let instruction = function.blocks.get(block.0 as usize).and_then(|bb| bb.instructions.get(at));
-    let Some(Instruction {kind: InstructionKind::BorrowLocalMut { local: source }, result: Some(value), ..}) = instruction
-        else { return Err(bad("whole local reads an uninitialized projected occupant")); };
-    if *source != local { return Err(bad("partial shell belongs to another borrowed local")); }
-    let mut value = *value;
+    let Some(instruction) = instruction else { return Err(bad("partial shell has no actual address preparation")); };
+    match instruction.kind {
+        InstructionKind::BorrowLocalMut { local: source } if source == local => {}
+        InstructionKind::Load(source) if source == local
+            && matches!(function.locals.get(local.0 as usize).map(|local| &local.ty), Some(Type::Address { mutable: true, .. })) => {
+            world.pay(index::search(world.local_roots.len()))?;
+            if !world.local_roots.get(&local).is_some_and(|roots| roots.len() == 1
+                && roots.iter().all(|root| root.local == local && root.path.is_empty())) {
+                return Err(bad("partial holder refill lacks its actual incoming address root"));
+            }
+        }
+        _ => return Err(bad("whole local reads an uninitialized projected occupant")),
+    }
+    let mut value = instruction.result.ok_or_else(|| bad("partial shell has no actual addressed result"))?;
     let mut after = at;
     let mut path = Vec::new();
     loop {

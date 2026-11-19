@@ -119,6 +119,36 @@ pub(in crate::semantic::original) struct SelectedFunction<'a> {
 }
 
 impl<'a> SelectedFunction<'a> {
+    /// Block children have reverse traversal ordinals. A larger sibling
+    /// ordinal denotes an earlier declaration in the same enclosing block.
+    pub(in crate::semantic::original) fn local_covers_call_binding(
+        &self, local: NodeId, call: NodeId, b: &mut Budget,
+    ) -> Check<bool> {
+        let syntax = &self.cursor.places;
+        let Some(binding) = syntax.binding(local, b)? else { return Ok(false); };
+        if binding.value.is_none() { return Ok(false); }
+        let locations = &self.cursor.locations;
+        b.spend(search(locations.nodes.len()))?;
+        let local = locations.nodes[&local];
+        let Some((block, ordinal)) = locations.parents[local] else { return Ok(false); };
+        for (holder, binding) in &syntax.bindings {
+            b.spend(1)?;
+            let Some(mut value) = binding.value else { continue; };
+            while let PlaceOperation::Group(inner) | PlaceOperation::Ascribed(inner) = syntax.expression(value, b)?.operation {
+                value = inner;
+            }
+            if value != call { continue; }
+            b.spend(search(locations.nodes.len()))?;
+            let mut cursor = locations.nodes[holder];
+            while let Some((parent, slot)) = locations.parents[cursor] {
+                b.spend(1)?;
+                if parent == block { return Ok(ordinal > slot); }
+                cursor = parent;
+            }
+        }
+        Ok(false)
+    }
+
     pub(in crate::semantic::original) fn expression(
         &self,
         id: NodeId,

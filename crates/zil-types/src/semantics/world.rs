@@ -2994,7 +2994,7 @@ impl<'p> World<'p, '_> {
                                 &implicit,
                             )?)
                         }
-                        InstructionKind::Load(local) => Some(self.local(&locals, *local)?),
+                        InstructionKind::Load(local) => Some(places::borrow_source(self, f, block.id, index, &locals, *local)?),
                         InstructionKind::TakeLocal { local } => {
                             let value = self.local(&locals, *local)?;
                             self.clear_vacant(*local)?;

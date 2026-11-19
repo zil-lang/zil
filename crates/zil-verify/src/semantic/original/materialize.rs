@@ -292,7 +292,7 @@ impl CheckedOriginal {
                 if *id == region && direct_local(prior_site, *ordinal, b)? == Some(local) { return Ok(true); }
             }
         }
-        Ok(false)
+        function.local_covers_call_binding(local, producer, b)
     }
 }
 

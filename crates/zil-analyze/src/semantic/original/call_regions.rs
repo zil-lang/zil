@@ -505,7 +505,26 @@ impl Solver<'_, '_> {
         b.lookup(self.state.call_regions.len(), WORK)?;
         let Some(region) = self.state.call_regions.get(&(owner, ordinal)) else { return Ok(false) };
         b.spend(region.sources.len(), WORK)?;
-        Ok(region.sources.iter().any(|incoming| incoming.direct_local == Some(local)))
+        if region.sources.iter().any(|incoming| incoming.direct_local == Some(local)) { return Ok(true); }
+        // Original locals are in activation order. An earlier live binding
+        // covers the actual receiver initialized from the producing Call.
+        let directory = self.inventory.original_index(owner, b)?;
+        let mut live_source = false;
+        for binding in &frame.locals {
+            b.spend(1, WORK)?;
+            let Some(LocalAnchor::Binding(node)) = binding.anchor else { continue; };
+            if !binding.initialized { continue; }
+            if node == local { live_source = true; continue; }
+            if !live_source { continue; }
+            let CoreStatementKind::Binding { initializer: Some(value), .. } = &directory.get_stmt(node, b)?.kind else { continue; };
+            let mut value = value;
+            while let CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } = &value.kind {
+                b.spend(1, WORK)?;
+                value = inner;
+            }
+            if value.id == region.call && matches!(value.kind, CoreExprKind::Call { .. }) { return Ok(true); }
+        }
+        Ok(false)
     }
     pub(super) fn call_source_allows(
         &mut self,
