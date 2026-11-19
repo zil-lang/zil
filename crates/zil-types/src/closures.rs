@@ -1587,6 +1587,15 @@ fn limit(message: impl Into<String>, span: Span) -> Diagnostic {
 }
 
 pub(super) type Variable = usize;
+pub(super) fn value_parameter_mode(parameter: &CoreClosureParameter) -> bool {
+    match parameter.mode {
+        PassingMode::Infer | PassingMode::Copy | PassingMode::Move => true,
+        PassingMode::Borrow | PassingMode::BorrowMut => matches!(&parameter.ty,
+            Some(Type::Address { mutable, .. }) if *mutable == (parameter.mode == PassingMode::BorrowMut)),
+        _ => false,
+    }
+}
+
 pub(super) fn signature_parameter(ty: &Type) -> bool {
     ty.is_copy_value()
         || ty.is_package_address()
@@ -3297,10 +3306,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         };
         for parameter in input.parameters {
             this.visit(0, parameter.span)?;
-            if !matches!(
-                parameter.mode,
-                PassingMode::Infer | PassingMode::Copy | PassingMode::Move
-            ) {
+            if !value_parameter_mode(parameter) {
                 return Err(unsupported(
                     parameter.span,
                     "non-Value closure parameter mode",

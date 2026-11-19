@@ -852,9 +852,9 @@ impl CompilationSession {
             report,
             observer,
             || {
+                let inference =
+                    zil_types::infer_shared_program_for_ct(&expanded.core, &options.limits)?;
                 (|| {
-                    let inference =
-                        zil_types::infer_shared_program_for_ct(&expanded.core, &options.limits)?;
                     let inferred = inference.program();
                     let mut remaining = expanded.selection.remaining(&options.limits)?;
                     if let Some(usage) = &expanded.ct_usage {

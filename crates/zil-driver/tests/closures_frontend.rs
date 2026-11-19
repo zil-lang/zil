@@ -545,6 +545,34 @@ fn direct_lending_context_keeps_exact_fresh_type_budgets_and_contracts() {
 }
 
 #[test]
+fn borrowed_closure_parameters_preserve_runtime_and_ct_diagnostic_phases() {
+    for (body, expected) in [
+        ("let read=(x:&i32)->i32=>*x;let n=42;return read(&n)-42", None),
+        ("let read=(x:&i32)->i32=>*x;let n=#(40+2);return read(&n)-42", None),
+        ("let read=(x:i32)->i32=>x;return read(true)", Some(zil_base::Phase::Types)),
+        ("return #(1/0)", Some(zil_base::Phase::Ct)),
+    ] {
+        let text = format!("fn main()->i32{{{body}}}");
+        let unit = source(&text);
+        let options = CompileOptions::default();
+        let project = ProjectSources { root: ModuleId(0), modules: vec![unit.clone()], paths: BTreeMap::new() };
+        for report in [compile_source(&unit, &options), compile_project(&project, &options)] {
+            if let Some(phase) = expected {
+                assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+                assert_eq!(report.phase, phase, "{}", report.to_json());
+                if phase == zil_base::Phase::Types {
+                    assert!(report.diagnostics.iter().all(|d| d.notes.iter().all(|note|
+                        note != "while compiling a pure #(...) query")), "{}", report.to_json());
+                }
+            } else {
+                assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+                assert_eq!(report.verification_runs, 1);
+            }
+        }
+    }
+}
+
+#[test]
 fn closure_ct_parameter_shadowing_does_not_use_outer_i64_hint() {
     let report = report(
         "fn main() -> i32 { let x: i64 = 2147483648; let f = (x) => #(2147483647 + 1) + x; return f(0); }",

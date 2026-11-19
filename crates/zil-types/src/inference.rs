@@ -6990,10 +6990,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         let previous_owner = self.owner.replace(id);
         self.scopes.push(BTreeMap::new());
         for (parameter_index, parameter) in parameters.iter().enumerate() {
-            if !matches!(
-                parameter.mode,
-                PassingMode::Infer | PassingMode::Copy | PassingMode::Move
-            ) {
+            if !closures::value_parameter_mode(parameter) {
                 return Err(unsupported(
                     parameter.span,
                     "non-Value closure parameter mode",
