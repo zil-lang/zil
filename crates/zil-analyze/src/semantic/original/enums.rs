@@ -28,24 +28,6 @@ impl Solver<'_, '_> {
         depth: usize,
     ) -> CompileResult<()> {
         self.step(depth, b)?;
-        let mut stack = Vec::new();
-        Self::push(&mut stack, pattern, b)?;
-        while let Some(pattern) = stack.pop() {
-            self.step(depth + 1, b)?;
-            match &pattern.kind {
-                CorePatternKind::Name(_) | CorePatternKind::Wildcard => {}
-                CorePatternKind::Tuple(fields) => {
-                    for field in fields {
-                        Self::push(&mut stack, field, b)?;
-                    }
-                }
-                _ => {
-                    return Err(unknown(
-                        "original binding pattern requires its complete refutability and branch relation",
-                    ));
-                }
-            }
-        }
         let start = frame.locals.len();
         if !self.pattern_bind(
             frame,
@@ -55,10 +37,11 @@ impl Solver<'_, '_> {
             subject,
             source,
             &mut Vec::new(),
+            false,
             b,
             depth + 1,
         )? {
-            return Err(fail("original tuple binding is not irrefutable"));
+            return Err(fail("original destructuring binding is not irrefutable"));
         }
         for local in &mut frame.locals[start..] {
             b.spend(1, WORK)?;
@@ -71,7 +54,7 @@ impl Solver<'_, '_> {
         value: Term,
         name: &str,
         b: &mut Budget,
-    ) -> CompileResult<(u32, Vec<Term>)> {
+    ) -> CompileResult<(u32, Vec<Term>, bool)> {
         let Kind::Nominal {
             definition, fields, ..
         } = &self.state.arena[self.type_root(value, b)?]
@@ -119,6 +102,7 @@ impl Solver<'_, '_> {
                     u32::try_from(index)
                         .map_err(|_| resource("original variant ordinal overflow"))?,
                     payload,
+                    variants.len() == 1,
                 ));
             }
             start = end;
@@ -293,7 +277,7 @@ impl Solver<'_, '_> {
                 self.unify(value, contextual, depth + 1, b)?;
             }
         }
-        let (variant, mut payload) = self.enum_variant(value, member, b)?;
+        let (variant, mut payload, _) = self.enum_variant(value, member, b)?;
         if payload.len() != arguments.len() {
             return Err(fail(
                 "original enum constructor changes its declared member arity",
@@ -365,6 +349,7 @@ impl Solver<'_, '_> {
         subject: Term,
         source: &pattern_places::PatternSubject,
         physical: &mut Vec<PlaceProjection>,
+        record: bool,
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<bool> {
@@ -385,7 +370,7 @@ impl Solver<'_, '_> {
                     self.retire_lexical_place(frame, source.anchor, &selected, b)?;
                 }
                 self.bind(frame, name, subject, false, b)?;
-                let anchor = self.pattern_anchor(frame.definition, source, physical, None, Some((pattern.span, name)), b)?;
+                let anchor = self.pattern_anchor(frame.definition, source, physical, None, Some((pattern.span, name)), record, b)?;
                 frame
                     .locals
                     .last_mut()
@@ -431,7 +416,7 @@ impl Solver<'_, '_> {
                     path.pop();
                     self.bind(frame, name, address, false, b)?;
                     let anchor = self.pattern_anchor(frame.definition, source, physical,
-                        Some(pattern_places::PatternBorrow { mutable: *mutable, ordinal, span: pattern.span }), Some((inner.span, name)), b)?;
+                        Some(pattern_places::PatternBorrow { mutable: *mutable, ordinal, span: pattern.span }), Some((inner.span, name)), record, b)?;
                     frame.locals.last_mut().ok_or_else(|| fail("original reference pattern loses its binder"))?.anchor = Some(anchor);
                 }
                 Ok(true)
@@ -467,8 +452,61 @@ impl Solver<'_, '_> {
                         field,
                         source,
                         physical,
+                        record,
                         b,
                         depth + 1,
+                    )?;
+                    physical.pop();
+                    path.pop();
+                }
+                Ok(irrefutable)
+            }
+            CorePatternKind::Record { fields, .. }
+            | CorePatternKind::RecordConstructor { fields, .. } => {
+                if let CorePatternKind::Record { ty, .. } = &pattern.kind {
+                    let expected = self.recipe(frame, ty, b, depth + 1)?;
+                    self.unify(subject, expected, depth + 1, b)?;
+                }
+                let Kind::Nominal { definition, fields: payload, .. } =
+                    &self.state.arena[self.type_root(subject, b)?]
+                else {
+                    return Err(fail("original record pattern requires a nominal Record"));
+                };
+                if let CorePatternKind::RecordConstructor { definition: Some(expected), .. } = &pattern.kind
+                    && definition != expected
+                {
+                    return Err(fail("original record pattern changes its declaration identity"));
+                }
+                let declaration = self.inventory.definition(*definition, b)?;
+                let SemanticDefinitionBody::Nominal {
+                    kind: LifeNominalKind::Record,
+                    body: SemanticNominalBody::Product { fields: declared },
+                    ..
+                } = &declaration.body
+                else {
+                    return Err(fail("original record pattern selects a non-Record declaration"));
+                };
+                if fields.len() != declared.len() || fields.len() != payload.len() {
+                    return Err(fail("original record pattern changes its complete field arity"));
+                }
+                super::resources::ordinary_drop_absent(*definition, self.inventory, b)?;
+                Self::push(&mut self.needs, Need { term: subject, predicate: Predicate::Copy }, b)?;
+                let mut seen = BTreeSet::new();
+                let mut irrefutable = true;
+                for (index, (name, pattern)) in fields.iter().enumerate() {
+                    let (ordinal, field) = self.field(subject, name, b, depth + 1)?;
+                    b.lookup(seen.len(), WORK)?;
+                    if !seen.insert(ordinal) {
+                        return Err(fail("original record pattern repeats a declared field"));
+                    }
+                    let index = u32::try_from(index)
+                        .map_err(|_| resource("original record pattern occurrence ordinal overflow"))?;
+                    // Occurrence paths follow source order. Physical paths follow
+                    // the actual declaration order, even for same-typed fields.
+                    Self::push(path, index, b)?;
+                    Self::push(physical, PlaceProjection::Field(ordinal), b)?;
+                    irrefutable &= self.pattern_bind(
+                        frame, statement, path, pattern, field, source, physical, true, b, depth + 1,
                     )?;
                     physical.pop();
                     path.pop();
@@ -485,7 +523,7 @@ impl Solver<'_, '_> {
                 };
                 Self::push(path, 0, b)?;
                 Self::push(physical, PlaceProjection::ErrorArm(*is_error), b)?;
-                let result = self.pattern_bind(
+                self.pattern_bind(
                     frame,
                     statement,
                     path,
@@ -493,12 +531,13 @@ impl Solver<'_, '_> {
                     if *is_error { error } else { result },
                     source,
                     physical,
+                    record,
                     b,
                     depth + 1,
-                );
+                )?;
                 path.pop();
                 physical.pop();
-                result
+                Ok(false)
             }
             CorePatternKind::Constructor {
                 definition: _,
@@ -526,7 +565,7 @@ impl Solver<'_, '_> {
                         ));
                     }
                 }
-                let (variant, payload) = self.enum_variant(subject, variant, b)?;
+                let (variant, payload, only_variant) = self.enum_variant(subject, variant, b)?;
                 if fields.len() != payload.len() {
                     return Err(fail("original enum pattern changes its exact member arity"));
                 }
@@ -549,15 +588,14 @@ impl Solver<'_, '_> {
                         field,
                         source,
                         physical,
+                        record,
                         b,
                         depth + 1,
                     )?;
                     physical.pop();
                     path.pop();
                 }
-                // This is irrefutable *within this variant*, used only by the
-                // complete declaration's coverage check below.
-                Ok(irrefutable)
+                Ok(irrefutable && only_variant)
             }
             CorePatternKind::Bool(_) => {
                 let ty = self.atom(Type::Bool, b)?;
@@ -601,6 +639,7 @@ impl Solver<'_, '_> {
             subject,
             &source,
             &mut Vec::new(),
+            false,
             b,
             depth + 1,
         )?;
@@ -729,6 +768,19 @@ impl Solver<'_, '_> {
                 definition, fields, ..
             } => {
                 let declaration = self.inventory.definition(*definition, b)?;
+                if let SemanticDefinitionBody::Nominal {
+                    kind: LifeNominalKind::Record,
+                    body: SemanticNominalBody::Product { fields: declared },
+                    ..
+                } = &declaration.body
+                {
+                    if fields.len() != declared.len() {
+                        return Err(fail("original record coverage lacks its complete fields"));
+                    }
+                    b.spend(declared.len(), WORK)?;
+                    let names = declared.iter().map(|field| field.name.as_str()).collect::<Vec<_>>();
+                    return self.pattern_branch(rows, OriginalPatternHead::Record(&names), fields, tail, b, depth);
+                }
                 let SemanticDefinitionBody::Nominal {
                     kind: LifeNominalKind::Enum,
                     body: SemanticNominalBody::Enum { variants },
@@ -788,16 +840,31 @@ impl Solver<'_, '_> {
     ) -> CompileResult<bool> {
         let width = fields.len().saturating_add(tail.len());
         let mut work = width.saturating_add(rows.len().saturating_mul(width.saturating_add(1)));
-        if let OriginalPatternHead::Variant(expected) = head {
-            for row in rows {
-                if let Some(
-                    CorePatternKind::Variant { variant, .. }
-                    | CorePatternKind::Constructor { variant, .. },
-                ) = row[0].map(|pattern| &pattern.kind)
-                {
-                    work = work.saturating_add(expected.len().saturating_add(variant.len()));
+        match head {
+            OriginalPatternHead::Variant(expected) => {
+                for row in rows {
+                    if let Some(CorePatternKind::Variant { variant, .. }
+                        | CorePatternKind::Constructor { variant, .. }) = row[0].map(|pattern| &pattern.kind)
+                    {
+                        work = work.saturating_add(expected.len().saturating_add(variant.len()));
+                    }
                 }
             }
+            OriginalPatternHead::Record(labels) => {
+                b.spend(labels.len().saturating_add(rows.len()), WORK)?;
+                let expected = labels.iter().fold(0usize, |n, name| n.saturating_add(name.len().saturating_add(1)));
+                for row in rows {
+                    if let Some(CorePatternKind::Record { fields, .. }
+                        | CorePatternKind::RecordConstructor { fields, .. }) = row[0].map(|pattern| &pattern.kind)
+                    {
+                        b.spend(fields.len(), WORK)?;
+                        let written = fields.iter().fold(0usize, |n, (name, _)| n.saturating_add(name.len().saturating_add(1)));
+                        work = work.saturating_add(expected.saturating_mul(fields.len()))
+                            .saturating_add(written.saturating_mul(labels.len()));
+                    }
+                }
+            }
+            _ => {}
         }
         b.spend(work, WORK)?;
         let rows = specialize_original_patterns(rows, head, fields.len());
@@ -841,6 +908,7 @@ impl Solver<'_, '_> {
                 subject,
                 &source,
                 &mut Vec::new(),
+                false,
                 b,
                 depth + 1,
             )?;

@@ -23,6 +23,7 @@ pub(in crate::semantic) struct PatternOrigin {
     pub(in crate::semantic) path: Vec<PlaceProjection>,
     pub(in crate::semantic) borrow: Option<PatternBorrow>,
     pub(in crate::semantic) binding: Option<(Span, String)>,
+    pub(in crate::semantic) record: bool,
 }
 impl PatternSubject {
     fn value(source: &SemanticOriginalExpr, b: &mut Budget) -> CompileResult<Self> {
@@ -134,6 +135,7 @@ impl Solver<'_, '_> {
         path: &[PlaceProjection],
         borrow: Option<PatternBorrow>,
         binding: Option<(Span, &str)>,
+        record: bool,
         b: &mut Budget,
     ) -> CompileResult<LocalAnchor> {
         b.spend(source.path.len().saturating_add(path.len() + 1), WORK)?;
@@ -154,6 +156,7 @@ impl Solver<'_, '_> {
                 path: path.to_vec(),
                 borrow,
                 binding: binding.map(|(span, name)| (span, name.to_owned())),
+                record,
             },
             b,
         )?;

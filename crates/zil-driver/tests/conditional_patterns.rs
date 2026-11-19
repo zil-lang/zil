@@ -6,7 +6,7 @@ use std::{
 };
 use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, TargetProfile};
 use zil_driver::{CompileOptions, Stage, compile_source};
-use zil_ir::{CorePattern, CorePatternKind, CoreStatementKind};
+use zil_ir::{CorePattern, CorePatternKind, CoreStatementKind, InstructionKind};
 static NEXT: AtomicU64 = AtomicU64::new(0);
 struct Temp(std::path::PathBuf);
 impl Temp {
@@ -122,6 +122,68 @@ fn named_record_fields_reject_wrong_shape() {
         "struct Pair{flag:bool,n:i32} fn result()->i32{let p=Pair{flag:true,n:42};match p{Pair{flag:true,n:x}=>{return x}}}",
         "E-MATCH-NONEXHAUSTIVE",
     );
+}
+
+#[test]
+fn named_record_binding_preserves_the_selected_same_typed_field() {
+    let input = source(
+        "struct Pair{left:i32,right:i32} fn result()->i32{let Pair{right:b,left:a}=Pair{left:4,right:2};return a*10+b}",
+    );
+    native(input.text.as_str(), 42);
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand_with_map_semantics(
+        &input,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: input.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let mut module = zil_types::check(&core, &target, &limits).unwrap();
+    assert!(module.semantic.is_some());
+    let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+
+    let function = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "result")
+        .unwrap();
+    let field = function
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .find_map(|instruction| match &mut instruction.kind {
+            InstructionKind::ExtractField { index, .. } if *index == 0 => Some(index),
+            _ => None,
+        })
+        .unwrap();
+    *field = 1;
+    let errors = zil_analyze::analyze(&module, &limits).unwrap_err();
+    assert_eq!(errors[0].category, ResultCategory::SafeReject, "{errors:?}");
+    assert!(
+        errors[0].message.contains("record pattern binding"),
+        "{errors:?}"
+    );
+
+    plan.module_fingerprint = module.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    let raw = zil_verify::verify_module(module, plan, &target, &limits).unwrap_err();
+    let wire = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
+    for errors in [raw, wire] {
+        assert_eq!(errors[0].category, ResultCategory::SafeReject, "{errors:?}");
+        assert!(
+            errors[0].message.contains("exact original product field"),
+            "{errors:?}"
+        );
+    }
 }
 #[test]
 fn named_record_fields_reject_forged_core_nominal_and_labels() {

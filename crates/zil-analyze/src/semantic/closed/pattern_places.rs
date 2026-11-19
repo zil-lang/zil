@@ -38,8 +38,11 @@ impl Check<'_, '_> {
 
     pub(super) fn check_pattern_borrows(&self, b: &mut Budget) -> CompileResult<()> {
         let mut owners = BTreeSet::new();
-        for origin in self.original.pattern_origins() {
+        for (ordinal, origin) in self.original.pattern_origins().iter().enumerate() {
             b.spend(1, WORK)?;
+            if origin.record {
+                self.check_record_pattern_binding(ordinal, origin, b)?;
+            }
             if origin.borrow.is_some() {
                 b.lookup(owners.len(), WORK)?;
                 owners.insert(origin.owner);
@@ -60,6 +63,29 @@ impl Check<'_, '_> {
                     _ => continue,
                 };
                 self.original_pattern_borrow_class(instance, function, local, path, mutable, instruction.span, b, 0)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn check_record_pattern_binding(
+        &self, ordinal: usize, origin: &original::pattern_places::PatternOrigin, b: &mut Budget,
+    ) -> CompileResult<()> {
+        let ordinal = u32::try_from(ordinal).map_err(|_| fail("record binder occurrence ordinal overflow"))?;
+        let (span, name) = origin.binding.as_ref()
+            .ok_or_else(|| fail("record pattern path lacks its original binding name"))?;
+        for instance in &self.program.instances {
+            b.spend(1, WORK)?;
+            if instance.definition != origin.owner { continue; }
+            let SemanticInstanceTarget::Function(target) = &instance.target else { continue; };
+            let function = self.inventory.function(target, b)?;
+            let local = self.pattern_local(instance, function, ordinal, b, 0)?;
+            let actual = function.locals.get(local.0 as usize)
+                .filter(|declaration| declaration.id == local)
+                .ok_or_else(|| fail("record pattern lacks its actual binding declaration"))?;
+            b.spend(name.len().saturating_add(1), WORK)?;
+            if actual.span != *span || actual.name != *name {
+                return Err(fail("actual record pattern field initializes another original binder"));
             }
         }
         Ok(())
@@ -634,8 +660,24 @@ impl Check<'_, '_> {
             .anchor
             .map(|anchor| self.anchored_local_at(instance, function, anchor, b, depth + 1))
             .transpose()?;
-        let emitted = self.projected_pattern_subject(instance, function, origin.subject.node,
+        let mut emitted = self.projected_pattern_subject(instance, function, origin.subject.node,
             origin.subject.success_projections, b, depth + 1)?;
+        if emitted.is_none() && origin.record && origin.borrow.is_none()
+            && let Some(root) = anchored
+        {
+            let original = self.inventory.original_index(instance.definition, b)?;
+            let span = original.get_expr(origin.subject.node, b)?.span;
+            for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
+                b.spend(1, WORK)?;
+                if instruction.span == span && let Some(value) = instruction.result
+                    && self.pattern_subject_root(instance, function, origin.subject.node, value,
+                        root, &origin.subject.path, b, depth + 1)?
+                    && emitted.replace(value).is_some()
+                {
+                    return Err(fail("record pattern has several actual observations of its original subject"));
+                }
+            }
+        }
         let root = if let Some(value) = emitted {
             if let Some(anchor) = anchored {
                 let valid = self.pattern_subject_root(instance, function, origin.subject.node, value,
@@ -665,6 +707,14 @@ impl Check<'_, '_> {
                     else {
                         continue;
                     };
+                    if origin.record && let Some((span, name)) = &origin.binding {
+                        let destination = function.locals.get(local.0 as usize)
+                            .filter(|item| item.id == local)
+                            .ok_or_else(|| fail("record pattern store has no actual destination"))?;
+                        if destination.span != *span { continue; }
+                        b.spend(name.len(), WORK)?;
+                        if destination.name != *name { continue; }
+                    }
                     if self.pattern_ssa_path(function, child, value, &origin.path, b, depth + 1)? {
                         operations::available_before(
                             function,
@@ -819,7 +869,11 @@ impl Check<'_, '_> {
             }
         }
         selected.ok_or_else(|| {
-            unknown("pattern binding lacks its exact actual selection and destination store")
+            if origin.record {
+                fail("record pattern binding loses its exact original field selection")
+            } else {
+                unknown("pattern binding lacks its exact actual selection and destination store")
+            }
         })
     }
 }

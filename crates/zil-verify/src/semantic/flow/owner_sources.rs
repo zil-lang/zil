@@ -601,8 +601,36 @@ impl CheckedContext{
 }
 
 impl CheckedContext {
+    pub(in crate::semantic::flow) fn check_record_pattern_bindings(
+        &self, module: &TypedModule, caller: &SemanticInstance, f: &TypedFunction, b: &mut Budget,
+    ) -> Check<()> {
+        let sources = self.original.borrow().as_ref()
+            .ok_or_else(|| bad("record pattern binding lacks its original body proof"))?
+            .record_pattern_sources(module, caller.definition, b)?;
+        for source in sources {
+            let mut selected = None;
+            for local in &f.locals {
+                b.spend(1)?;
+                if local.span != source.span { continue; }
+                b.spend(source.name.len())?;
+                if local.name == source.name && selected.replace(local.id).is_some() {
+                    return Err(bad("record pattern has multiple actual declarations for its original binder"));
+                }
+            }
+            let local = selected.ok_or_else(|| bad("record pattern lacks its actual binding declaration"))?;
+            self.pattern_local_source(module, caller, f, local, source, b)?;
+        }
+        Ok(())
+    }
+
     fn pattern_local_root(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,local:LocalId,node:NodeId,b:&mut Budget)->Check<()>{
         let source=self.original.borrow().as_ref().ok_or_else(||bad("pattern address has no independent original body proof"))?.pattern_place(module,caller.definition,node,b)?;
+        self.pattern_local_source(module, caller, f, local, source, b)
+    }
+
+    fn pattern_local_source(&self, module: &TypedModule, caller: &SemanticInstance, f: &TypedFunction,
+        local: LocalId, source: original::patterns::PatternSource, b: &mut Budget,
+    ) -> Check<()> {
         let declaration=f.locals.get(local.0 as usize).ok_or_else(||bad("pattern address local is absent"))?;
         if declaration.name!=source.name||declaration.span!=source.span||declaration.mutable!=source.mutable{return Err(bad("pattern address changes its exact original binding declaration"));}
         let initial = pattern_initial_transfer(module, f, local, source.span, b)?;
@@ -630,7 +658,8 @@ impl CheckedContext {
         for original in site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(subject)){
             for site in self.site_index.all_roles(module,caller.id,original.site,b)? {
                 match site.action{
-                    SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(value),..}=>{subjects.insert(value);},
+                    SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(value),..}
+                    |SemanticSiteAction::Construct{result:SemanticOperand::Value(value),..}=>{subjects.insert(value);},
                     SemanticSiteAction::BodyCall{..}|SemanticSiteAction::Call{..}=>{
                         let SemanticSiteAddress::Typed{block,instruction,..}=site.at else{return Err(bad("pattern subject retains a nonactual original call"));};
                         if let Some(value)=f.blocks.get(block.0 as usize).and_then(|block|block.instructions.get(instruction as usize)).and_then(|instruction|instruction.result){subjects.insert(value);}
@@ -651,12 +680,22 @@ impl CheckedContext {
                 }
             }
         }
-        self.pattern_projection_start(module, caller, f, initial, subject, &source.projections, &subjects, b)
+        let preparation = if let Some((node, span)) = source.preparation {
+            let local = self.buffer_source_local(module, caller, f,
+                BufferSource::Local { definition: caller.definition, node }, b)?;
+            if !f.locals.get(local.0 as usize).is_some_and(|local| local.span == span) {
+                return Err(bad("record pattern preparation changes its original subject occurrence"));
+            }
+            Some(local)
+        } else {
+            None
+        };
+        self.pattern_projection_start(module, caller, f, initial, subject, &source.projections, &subjects, preparation, b)
     }
     fn pattern_projection_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,subject:NodeId,path:&[LifeTypeProjection],subjects:&BTreeSet<ValueId>,b:&mut Budget)->Check<()>{
-        self.pattern_projection_start(module, caller, f, PatternStart::Value(value), subject, path, subjects, b)
+        self.pattern_projection_start(module, caller, f, PatternStart::Value(value), subject, path, subjects, None, b)
     }
-    fn pattern_projection_start(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,start:PatternStart,subject:NodeId,path:&[LifeTypeProjection],subjects:&BTreeSet<ValueId>,b:&mut Budget)->Check<()>{
+    fn pattern_projection_start(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,start:PatternStart,subject:NodeId,path:&[LifeTypeProjection],subjects:&BTreeSet<ValueId>,preparation:Option<LocalId>,b:&mut Budget)->Check<()>{
         let (local, index) = match start { PatternStart::Value(value) => (false, value.0), PatternStart::Unpack { local, .. } => (true, local.0) };
         let mut pending=vec![(local,index,path.to_vec(),false)];let mut active=BTreeSet::new();let mut proven=BTreeSet::new();let mut rooted=false;
         while let Some((local,index,mut path,exit))=pending.pop(){
@@ -666,6 +705,16 @@ impl CheckedContext {
             if !active.insert(key.clone()){return Err(bad("pattern binding projection has a cyclic actual source"));}
             pending.push((local,index,path.clone(),true));
             if !local&&path.is_empty(){
+                if let Some(preparation) = preparation {
+                    let (block, at, producer) = self.site_index.producers.get(f, ValueId(index), b)?;
+                    if producer.kind == InstructionKind::Load(preparation) {
+                        let value = scalar_preparations::pattern_copy_source(
+                            &self.site_index.local_uses, module, f, block, at, preparation, b,
+                        )?.ok_or_else(|| bad("record pattern preparation lacks its single unaliased subject store"))?;
+                        pending.push((false, value.0, path, false));
+                        continue;
+                    }
+                }
                 if self.original.borrow().as_ref().ok_or_else(||bad("pattern subject original proof is absent"))?.bound_value_name(caller.definition,subject,b)?{
                     self.original_projection_source(module,caller,f,ValueId(index),caller.definition,subject,true,b)?;rooted=true;continue;
                 }

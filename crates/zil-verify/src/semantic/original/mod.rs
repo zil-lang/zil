@@ -9,7 +9,7 @@ mod code_sources;
 mod dyn_types;
 mod expressions;
 mod index;
-mod patterns;
+pub(super) mod patterns;
 mod range_bindings;
 mod recipes;
 mod terms;
@@ -174,6 +174,7 @@ pub(super) struct CheckedOriginal {
     name_binders_at: BTreeMap<(SemanticDefinitionId, bool, NodeId, String), Binder>,
     pattern_types: BTreeMap<(SemanticDefinitionId, NodeId, Vec<u32>), Ty>,
     pattern_bindings: BTreeMap<(SemanticDefinitionId, NodeId, Vec<u32>), Binder>,
+    record_pattern_bindings: BTreeMap<SemanticDefinitionId, Vec<(NodeId, Vec<u32>)>>,
     pattern_origin: Option<patterns::PatternOrigin>,
     pattern_borrows: BTreeMap<(SemanticDefinitionId, Span), patterns::PatternBorrow>,
     unsafe_depth: BTreeMap<SemanticDefinitionId, usize>,

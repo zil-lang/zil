@@ -589,6 +589,7 @@ impl CheckedContext {
             }
         }
         defer_actions.finish(b)?;
+        self.check_record_pattern_bindings(module, instance, f, b)?;
         self.mark_task_worker_checked(module,instance,signature,b)?;
         Ok(BodyChecked{instance:instance.id,definition:instance.definition,function,environment:checked_environment,result:checked_signature.result})
     }

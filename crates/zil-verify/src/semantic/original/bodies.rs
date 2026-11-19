@@ -128,7 +128,16 @@ impl CheckedOriginal {
                         let actual=if *mutable&&ty.is_none(){self.introduce_shared_local(module,context,statement.id,&actual,env,b)?}else{actual};
                         self.bindings.insert((env.current()?,statement.id),actual.clone());let binding=Binding{ty:actual,mutable:*mutable,identity:Binder::Local{definition:env.current()?,node:statement.id,name:name.clone()}};if let Some(initializer)=initializer{if self.creation(env.current()?,initializer,bindings,b)?{b.spend(1)?;self.created_bindings.insert(binding.identity.clone());}}self.declare(env,&binding,b)?;bindings.insert(name.clone(),binding);false
                     },
-                    CoreStatementKind::TupleBinding{pattern,mutable,ty,initializer}=>{let expected=ty.as_ref().map(|recipe|self.ty(module,context,recipe,env,active,b)).transpose()?;let mode=Self::pattern_mode(pattern,b)?;let(actual,retained)=self.pattern_subject(module,context,initializer,expected.as_ref(),mode,env,bindings,active,b)?;self.pattern_root(module,context,statement.id,&[],pattern,&actual,retained,*mutable,env,bindings,active,b)?;self.bindings.insert((env.current()?,statement.id),actual);false},
+                    CoreStatementKind::TupleBinding{pattern,mutable,ty,initializer}=>{
+                        let expected=ty.as_ref().map(|recipe|self.ty(module,context,recipe,env,active,b)).transpose()?;
+                        let mode=Self::pattern_mode(pattern,b)?;
+                        let(actual,retained)=self.pattern_subject(module,context,initializer,expected.as_ref(),mode,env,bindings,active,b)?;
+                        if !self.pattern_root(module,context,statement.id,&[],pattern,&actual,retained,*mutable,env,bindings,active,b)? {
+                            return Err(bad("original destructuring binding is refutable"));
+                        }
+                        self.bindings.insert((env.current()?,statement.id),actual);
+                        false
+                    },
                     CoreStatementKind::Expression(expression)=>{let value=self.expression(module,context,expression,env,bindings,None,active,b)?;self.overwrite_cleanup(env,expression.id,&value,None,b)?;false},
                     CoreStatementKind::Return(expression)=>{
                         if self.in_defer.get(&env.current()?).copied().unwrap_or(0)!=0{return Err(bad("original deferred cleanup cannot return from its caller"));}
@@ -149,10 +158,10 @@ impl CheckedOriginal {
                         self.branch_uses(env,&before,&yes,yes_returns,&no,no_returns,b)?;yes_returns&&no_returns
                     },
                     CoreStatementKind::IfLet{pattern,value,then_body,else_body}=>{
-                        let mode=Self::pattern_mode(pattern,b)?;let(actual,retained)=self.pattern_subject(module,context,value,None,mode,env,bindings,active,b)?;let before=self.use_snapshot(env,b)?;let live_before=self.live_keys(env,b)?;let mut branch=bindings.clone();self.pattern_root(module,context,statement.id,&[],pattern,&actual,retained,false,env,&mut branch,active,b)?;
+                        let mode=Self::pattern_mode(pattern,b)?;let(actual,retained)=self.pattern_subject(module,context,value,None,mode,env,bindings,active,b)?;let before=self.use_snapshot(env,b)?;let live_before=self.live_keys(env,b)?;let mut branch=bindings.clone();let irrefutable=self.pattern_root(module,context,statement.id,&[],pattern,&actual,retained,false,env,&mut branch,active,b)?;
                         let yes_returns=self.block(module,context,then_body,env,&mut branch,result,loops,active,b)?;if yes_returns{self.forget_scope(env,&live_before,b)?;}else{self.exit_scope(env,&live_before,b)?;}let yes=self.use_snapshot(env,b)?;
                         self.set_uses(env,before.clone())?;let no_returns=match else_body{Some(body)=>self.block(module,context,body,env,&mut bindings.clone(),result,loops,active,b)?,None=>false};let no=self.use_snapshot(env,b)?;
-                        self.branch_uses(env,&before,&yes,yes_returns,&no,no_returns,b)?;yes_returns&&no_returns
+                        self.branch_uses(env,&before,&yes,yes_returns,&no,no_returns||irrefutable,b)?;yes_returns&&(no_returns||irrefutable)
                     },
                     CoreStatementKind::While{condition,body}=>{
                         let entry=self.use_snapshot(env,b)?;self.condition_original(module,context,condition,env,bindings,active,b)?;let after_condition=self.use_snapshot(env,b)?;
@@ -161,9 +170,9 @@ impl CheckedOriginal {
                     },
                     CoreStatementKind::WhileLet{pattern,value,body}=>{
                         let entry=self.use_snapshot(env,b)?;let mode=Self::pattern_mode(pattern,b)?;let(ty,retained)=self.pattern_subject(module,context,value,None,mode,env,bindings,active,b)?;let after_condition=self.use_snapshot(env,b)?;
-                        let live_before=self.live_keys(env,b)?;let mut inner=bindings.clone();self.pattern_root(module,context,statement.id,&[],pattern,&ty,retained,false,env,&mut inner,active,b)?;
+                        let live_before=self.live_keys(env,b)?;let mut inner=bindings.clone();let irrefutable=self.pattern_root(module,context,statement.id,&[],pattern,&ty,retained,false,env,&mut inner,active,b)?;
                         let returns=self.block(module,context,body,env,&mut inner,result,loops+1,active,b)?;if returns{self.forget_scope(env,&live_before,b)?;}else{self.exit_scope(env,&live_before,b)?;}let backedge=self.use_snapshot(env,b)?;
-                        if !returns{self.loop_uses(module,context,env,&entry,&backedge,bindings,active,b)?;}self.set_uses(env,after_condition)?;false
+                        if !returns{self.loop_uses(module,context,env,&entry,&backedge,bindings,active,b)?;}self.set_uses(env,after_condition)?;irrefutable&&!Self::loop_break(body,b)?
                     },
                     CoreStatementKind::ForRange{name,start,end,body}=>{let ty=self.range_endpoints(module,context,start,end,env,bindings,active,b)?;let scope_before=self.live_keys(env,b)?;let mut inner=bindings.clone();let binding=Binding{ty,mutable:false,identity:Binder::Local{definition:env.current()?,node:statement.id,name:name.clone()}};self.declare(env,&binding,b)?;inner.insert(name.clone(),binding);let before=self.use_snapshot(env,b)?;let returns=self.block(module,context,body,env,&mut inner,result,loops+1,active,b)?;if returns{self.forget_scope(env,&scope_before,b)?;}else{self.exit_scope(env,&scope_before,b)?;}let after=self.use_snapshot(env,b)?;if !returns{self.loop_uses(module,context,env,&before,&after,bindings,active,b)?;}self.set_uses(env,before)?;false},
                     CoreStatementKind::ForEach{pattern,iterator,body}=>{

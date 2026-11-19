@@ -195,6 +195,7 @@ impl Solver<'_, '_> {
                 subject,
                 &source,
                 &mut Vec::new(),
+                false,
                 b,
                 depth + 1,
             )?;
@@ -227,7 +228,7 @@ impl Solver<'_, '_> {
                         .locals
                         .last_mut()
                         .ok_or_else(|| fail("range induction binding disappeared"))?
-                        .anchor = Some(self.pattern_anchor(frame.definition, &source, &[], None, None, b)?);
+                        .anchor = Some(self.pattern_anchor(frame.definition, &source, &[], None, None, false, b)?);
                 }
                 RangeBinding::Pattern(pattern) => {
                     if !self.pattern_bind(
@@ -238,6 +239,7 @@ impl Solver<'_, '_> {
                         range.element,
                         &source,
                         &mut Vec::new(),
+                        false,
                         b,
                         depth + 1,
                     )? {

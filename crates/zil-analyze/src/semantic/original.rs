@@ -32,7 +32,7 @@ pub(super) mod local_reference_roles;
 pub(super) mod mixed;
 mod mutex;
 pub(super) mod nominal;
-mod pattern_places;
+pub(super) mod pattern_places;
 mod place_writes;
 mod places;
 mod protocol;
@@ -3546,8 +3546,9 @@ impl Solver<'_, '_> {
                     ty,
                     initializer,
                 } => {
+                    let mode = self.pattern_reference_mode(pattern, b, depth + 1)?;
                     let (subject, source) =
-                        self.observed_pattern_subject(frame, initializer, None, b, depth + 1)?;
+                        self.observed_pattern_subject(frame, initializer, mode, b, depth + 1)?;
                     if let Some(annotation) = ty {
                         let expected = self.recipe(frame, annotation, b, depth + 1)?;
                         self.unify(subject, expected, depth + 1, b)?;

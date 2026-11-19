@@ -22,8 +22,11 @@ impl Check<'_, '_> {
             .map(|arm| vec![Some(&arm.pattern)])
             .collect::<Vec<_>>();
         if !self.covers_patterns(owner, &rows, &[ty], depth + 1)? {
-            return Err(bad(
-                "original match omits a possible symbolic constructor or payload",
+            return Err(Diagnostic::error(
+                Phase::Types,
+                "E-MATCH-NONEXHAUSTIVE",
+                arms.first().map(|arm| arm.pattern.span),
+                "match does not cover every possible value",
             ));
         }
         Ok(())

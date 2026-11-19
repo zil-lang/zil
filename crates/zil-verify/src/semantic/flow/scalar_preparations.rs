@@ -256,13 +256,23 @@ pub(super) fn source(uses: &sites::LocalUses,
     local: LocalId,
     b: &mut Budget,
 ) -> Check<Option<ValueId>> {
-    source_with_slot(module,f,block,at,local,slot(uses, f,local,true,b)?,b)
+    source_with_slot(module,f,block,at,local,slot(uses, f,local,true,b)?,false,b)
 }
 
 pub(in crate::semantic::flow) fn copy_value_source(uses: &sites::LocalUses,
     module:&TypedModule,f:&TypedFunction,block:BlockId,at:u32,local:LocalId,b:&mut Budget,
 )->Check<Option<ValueId>> {
-    source_with_slot(module,f,block,at,local,slot_kind(uses, f,local,true,SlotKind::CopyValue,None,b)?,b)
+    source_with_slot(module,f,block,at,local,slot_kind(uses, f,local,true,SlotKind::CopyValue,None,b)?,false,b)
+}
+
+/// The original destructuring declaration selects this slot before its use.
+/// Its actual single store, unaliased reads and storage epoch prove the copy.
+pub(super) fn pattern_copy_source(
+    uses: &sites::LocalUses, module: &TypedModule, f: &TypedFunction,
+    block: BlockId, at: u32, local: LocalId, b: &mut Budget,
+) -> Check<Option<ValueId>> {
+    let slot = slot_kind(uses, f, local, false, SlotKind::CopyValue, None, b)?;
+    source_with_slot(module, f, block, at, local, slot, true, b)
 }
 
 pub(in crate::semantic::flow) fn shared_address_source(uses: &sites::LocalUses,
@@ -273,11 +283,11 @@ pub(in crate::semantic::flow) fn shared_address_source(uses: &sites::LocalUses,
     local: LocalId,
     b: &mut Budget,
 ) -> Check<Option<ValueId>> {
-    source_with_slot(module, f, block, at, local, slot_kind(uses, f, local, true, SlotKind::SharedAddress, None, b)?, b)
+    source_with_slot(module, f, block, at, local, slot_kind(uses, f, local, true, SlotKind::SharedAddress, None, b)?, false, b)
 }
 
 fn source_with_slot(
-    module:&TypedModule,f:&TypedFunction,block:BlockId,at:u32,local:LocalId,slot:Option<Slot>,b:&mut Budget,
+    module:&TypedModule,f:&TypedFunction,block:BlockId,at:u32,local:LocalId,slot:Option<Slot>,hoisted:bool,b:&mut Budget,
 )->Check<Option<ValueId>> {
     let Some(slot)=slot else{return Ok(None);};
     let [(store_block, store_at, value)] = slot.stores.as_slice() else {
@@ -285,19 +295,35 @@ fn source_with_slot(
     };
     let (live_block, live_at) = slot.live;
     let declaration = &f.locals[local.0 as usize];
-    if live_block != block
-        || *store_block != block
-        || live_at.checked_add(1) != Some(*store_at)
-        || *store_at >= at as usize
+    if *store_block != block || *store_at >= at as usize
+        || !hoisted && (live_block != block || live_at.checked_add(1) != Some(*store_at))
     {
         return Ok(None);
+    }
+    if hoisted {
+        // Destructuring reserves its storage at scope entry, before the
+        // initializer. Only the actual store just before the load selects
+        // the occupant. Ordinary CFG checks also prove the active epoch.
+        let point = |block, instruction| SitePoint { function: f.id, block, instruction, after: false };
+        if !closure_boundaries::creation_dominates(f, point(live_block, live_at as u32),
+            point(block, *store_at as u32), b)?
+        {
+            return Ok(None);
+        }
+        b.spend(slot.retirements.len())?;
+        if slot.retirements.iter().any(|(dead_block, dead_at)| *dead_block == block && *dead_at < *store_at) {
+            return Ok(None);
+        }
     }
     let body = f
         .blocks
         .get(block.0 as usize)
         .filter(|body| body.id == block)
         .ok_or_else(|| bad("scalar preparation block is absent"))?;
-    let activation = &body.instructions[live_at];
+    let activation = f.blocks.get(live_block.0 as usize)
+        .filter(|body| body.id == live_block)
+        .and_then(|body| body.instructions.get(live_at))
+        .ok_or_else(|| bad("scalar preparation activation is absent"))?;
     let assignment = &body.instructions[*store_at];
     if activation.span != declaration.span || assignment.span != declaration.span {
         return Ok(None);

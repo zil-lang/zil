@@ -242,7 +242,12 @@ impl Engine<'_> {
             return Err(error(span, "record pattern has a different nominal type"));
         }
         if supplied.len() != declaration.fields.len() {
-            return Err(error(span, "record pattern must name every field"));
+            return Err(Diagnostic::error(
+                Phase::Expand,
+                "E-MATCH-ARITY",
+                Some(span),
+                "record pattern must name every field",
+            ));
         }
         let mut seen = BTreeSet::new();
         for field in supplied.iter_mut() {
@@ -254,8 +259,10 @@ impl Engine<'_> {
                     .iter()
                     .any(|candidate| candidate.name == field.name)
             {
-                return Err(error(
-                    field.span,
+                return Err(Diagnostic::error(
+                    Phase::Expand,
+                    "E-MATCH-FIELD",
+                    Some(field.span),
                     "duplicate or unknown record pattern field",
                 ));
             }
