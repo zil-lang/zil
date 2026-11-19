@@ -261,6 +261,10 @@ impl CheckedOriginal {
                         }
                         true
                     }
+                    Ty::ErrorUnion(error, result) => {
+                        self.is_copy(module, context, error, env, active, b)?
+                            && self.is_copy(module, context, result, env, active, b)?
+                    }
                     Ty::Array(element, _) => {
                         self.is_copy(module, context, element, env, active, b)?
                     }

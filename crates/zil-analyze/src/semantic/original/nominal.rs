@@ -1407,6 +1407,12 @@ pub(in crate::semantic) fn predicate_actual(
         _ => ty,
     };
     match ty {
+        Type::ErrorUnion { error, result }
+            if matches!(predicate, Predicate::Copy | Predicate::Value | Predicate::SyncDrop) =>
+        {
+            Ok(predicate_actual(error, predicate, inventory, b, depth + 1)?
+                && predicate_actual(result, predicate, inventory, b, depth + 1)?)
+        }
         Type::Tuple(fields) => {
             if matches!(predicate, Predicate::StoreElement) {
                 for field in fields {
