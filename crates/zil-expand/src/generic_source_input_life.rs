@@ -80,12 +80,15 @@ pub(crate) fn has_elided(ty: &TypeRef, budget: &mut Budget<'_>, depth: usize) ->
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum ElidedOutput { Selected, Independent, Static }
+
 impl Engine<'_> {
     pub(super) fn elide_source_inputs(
         &mut self,
         function: &mut Function,
         candidate: &mut SignatureCandidate,
-    ) -> R<(bool,bool)> {
+    ) -> R<(bool,ElidedOutput)> {
         fn implicit_input(
             engine: &mut Engine<'_>,
             parameter: u32,
@@ -424,7 +427,8 @@ impl Engine<'_> {
             }
             candidate.source_scope = self.life_scope.clone();
         }
-        Ok((changed,static_result))
+        let output = if static_result { ElidedOutput::Static } else if own_result { ElidedOutput::Independent } else { ElidedOutput::Selected };
+        Ok((changed,output))
     }
 }
 

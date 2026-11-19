@@ -515,7 +515,12 @@ impl<'a> Engine<'a> {
             return Ok(false);
         }
         let mut candidate = stored_types::SignatureCandidate::default();
-        let (implicit_inputs,static_result) = self.elide_source_inputs(function, &mut candidate)?;
+        let (implicit_inputs, output_role) = self.elide_source_inputs(function, &mut candidate)?;
+        let static_result = output_role == super::source_input_life::ElidedOutput::Static;
+        let raw_body_result = self.products.semantic.is_none()
+            && output_role == super::source_input_life::ElidedOutput::Independent
+            && self.life_scope.len() == candidate.source_inputs.len();
+
         // Keep the semantic result in this actual declaration's source domain.
         // At a call it must be rebased through actual input occurrences, never
         // returned as an erased pointer or a callee-local spelling.
@@ -536,7 +541,7 @@ impl<'a> Engine<'a> {
             }
         }
         let mut occurrences = Vec::new();
-        let mut stored = implicit_inputs
+        let mut stored = (implicit_inputs && !raw_body_result)
             || if let Some(ty) = function
                 .return_type
                 .as_ref()
@@ -625,6 +630,14 @@ impl<'a> Engine<'a> {
                     0,
                 )?;
             }
+        }
+        // The standalone emitter carries no original world for an omitted
+        // result. A plain input/result head already obtains its complete
+        // source set from the ordinary executable CFG. Any independent
+        // storage class, capture or nested borrow still requires its header.
+        if raw_body_result && !stored && callable_parameters.is_empty() {
+            erase_stored_header_lifetimes(function);
+            return Ok(false);
         }
         if !candidate.parameters.is_empty()
             || candidate.result.is_some()
