@@ -19,7 +19,22 @@ impl CheckedOriginal {
                 }
             }
         }
-        let (result,roles)=self.instantiate_prototype_roles(&prototype,Some(target),selected,b)?;
+        let (mut result,roles)=self.instantiate_prototype_roles(&prototype,Some(target),selected,b)?;
+        // Rigid &Self was formed before the call supplied its actual Self.
+        // Freshen the call roles first, then borrow the selected resource slot.
+        if let Some((trait_scope, _)) = &selected.self_type
+            && let definition = context.definition(module,target,b)?
+            && definition.parent == Some(*trait_scope)
+            && let SemanticDefinitionBody::FunctionWithBody { receiver_parameter: Some(ordinal), .. } = &definition.body
+            && let Some(SemanticTypeRecipe::Address {inner, ..}) = signature.parameters.get(*ordinal as usize).map(|p| &p.ty)
+            && matches!(inner.as_ref(), SemanticTypeRecipe::SelfType { scope: SemanticScopeRef::Ancestor(1) })
+            && let Some(Ty::Address { inner, .. }) = result.parameters.get_mut(*ordinal as usize)
+            && let Ty::Nominal(id,_) = inner.as_ref()
+            && matches!(context.definition(module,*id,b)?.body, SemanticDefinitionBody::Nominal {kind:LifeNominalKind::Resource,..})
+        {
+            let subject = std::mem::replace(inner.as_mut(), Ty::Atom(Type::Unit));
+            **inner = Ty::Managed(Box::new(subject));
+        }
         for (source,position) in description_heads {
             let Some(Life::Infer(id))=roles.get(&source) else{return Err(bad("original window description has no exact fresh call head"));};
             // The omitted lifetime at this exact Desc parameter denotes its

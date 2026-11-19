@@ -458,6 +458,17 @@ fn shared_resource_receiver_runs_real_drop_and_rejects_owned_receiver() {
         ],
         "A",
     );
+    // Importing a resource, its trait and its inherited receiver together
+    // must validate the same provider even when no caller exercises it.
+    let model = "pub resource Controller{pub count:i32} pub trait Read{fn read(self:&Self)->i32;} impl Read for Controller{fn read()->i32=>.count}";
+    let main = "import model;fn main()->i32{let c=model.Controller{count:21};return c.read()+c.read()-42}";
+    native("resource-imported-receiver", &[("main", main), ("model", model)], "");
+    accept("resource-unused-provider", &[("main", "import model;fn main()->i32=>0"), ("model", model)]);
+    let writes = model.replace("=>.count", "{.count=1;return .count}");
+    reject("resource-shared-provider-write", &[("main", main), ("model", &writes)], None);
+    let other = format!("{model} pub resource Other{{pub count:i32}}");
+    let wrong_self = main.replace("model.Controller", "model.Other");
+    reject("resource-lookalike-provider", &[("main", &wrong_self), ("model", &other)], None);
     let owned = rules.replace("self:&Self", "self:Self");
     reject(
         "owned-resource-receiver",

@@ -270,6 +270,63 @@ fn generic_state_body_uses_same_field_precision() {
     native(&[("main", &source)], b"A", 0);
 }
 
+#[test]
+fn borrowed_callable_alias_uses_its_actual_field_binding() {
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+    use zil_ir::{CoreProgram, ProgramModule};
+
+    let source = r#"
+package Slots<F>{manages bytes:ByteBuffer;first:F;second:F}
+fn pack<F:FnMut()->i32>(a:F,b:F)->Slots<F>{return Slots::<F>{bytes:bytes_new(),first:a,second:b}}
+fn run<F:FnMut()->i32+SyncDrop>(s:Slots<F>)->i32{
+    var slots=s
+    let x=&mut slots.first
+    let y=&mut slots.second
+    return x()+y()
+}
+fn make(seed:i32)->impl FnMut()->i32{var n=seed;return move()=>{n+=1;return n}}
+fn main()->i32=>run(pack(make(10),make(30)))-42
+"#;
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let root = ModuleId(0);
+    let unit = SourceUnit::new(FileId(0), root, "borrowed_callable_alias.zil", source);
+    let ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let identity = SourceIdentityContext::ClosedSnapshot {
+        root,
+        aliases: &BTreeMap::new(),
+        declarations: DeclarationPlacement::Original,
+    };
+    let core = zil_expand::expand_with_map_semantics(&unit, &ast, &limits, &target, identity).unwrap().core;
+    let program = CoreProgram {
+        root,
+        source_fingerprint: core.source_fingerprint,
+        modules: vec![ProgramModule { core, imports: vec![], exports: vec![] }],
+    };
+    let typed = zil_types::check_program(&program, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze_program(&typed, &limits).unwrap();
+    verify_pair("original-callable-alias", typed.module.clone(), plan.clone(), None);
+
+    let mut forged = typed.module;
+    let mut changed = false;
+    for function in &mut forged.functions {
+        let mut calls = function.blocks.iter_mut().flat_map(|block| &mut block.instructions)
+            .filter_map(|instruction| match &mut instruction.kind {
+                I::CallClosureBorrowed { callee, .. } => Some(callee),
+                _ => None,
+            });
+        if let (Some(first), Some(second)) = (calls.next(), calls.next()) {
+            assert_ne!(*first, *second);
+            *second = *first;
+            changed = true;
+            break;
+        }
+    }
+    assert!(changed, "expected the two original same-typed callback calls");
+    assert!(zil_analyze::analyze(&forged, &limits).is_err());
+    verify_pair("different-callable-alias", forged, plan, Some("E-VERIFY-SEMANTIC"));
+}
+
 fn candidate(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
     let unit = SourceUnit::new(
         FileId(0),

@@ -1328,7 +1328,7 @@ fn method_instances(
 ) -> R<()> {
     let original = semantic_definition(cores, scope, budget)?;
     let SemanticDefinitionBody::FunctionWithBody {
-        receiver_parameter, ..
+        receiver_parameter, signature, ..
     } = &original.body
     else {
         return Err(error(
@@ -1353,6 +1353,12 @@ fn method_instances(
     {
         return Ok(());
     }
+    let parameter = signature.parameters.get(receiver_parameter as usize)
+        .ok_or_else(|| error(Span::default(), "Dyn receiver is absent from its original signature"))?;
+    let managed_receiver = matches!(&parameter.ty,
+        SemanticTypeRecipe::Address { inner, .. } if matches!(inner.as_ref(),
+            SemanticTypeRecipe::Managed(subject) if matches!(subject.as_ref(),
+                SemanticTypeRecipe::SelfType { scope: SemanticScopeRef::Ancestor(1) })));
     let mut requests = Vec::new();
     for (core, _) in cores.iter() {
         let Some(semantic) = &core.semantic else {
@@ -1414,7 +1420,12 @@ fn method_instances(
         let Type::Address { inner, .. } = &receiver.ty else {
             continue;
         };
-        let Some(receiver) = closed_value(inner, cores, budget)? else {
+        let subject = match (inner.as_ref(), managed_receiver) {
+            (Type::Managed(payload), true) => payload.as_ref(),
+            (_, false) => inner.as_ref(),
+            _ => return Err(error(actual.span, "resource method address omits its declared manager head")),
+        };
+        let Some(receiver) = closed_value(subject, cores, budget)? else {
             continue;
         };
         let Some(header) = &actual.storage_life else {

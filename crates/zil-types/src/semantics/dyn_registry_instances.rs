@@ -341,6 +341,7 @@ pub(super) fn complete(
             }
             exact_signature_recipe(&definition.signature, original, left)?;
             let SemanticDefinitionBody::FunctionWithBody {
+                signature,
                 receiver_parameter: Some(receiver_parameter),
                 ..
             } = &original.body
@@ -397,6 +398,19 @@ pub(super) fn complete(
                 let Type::Address { inner, .. } = &local.ty else {
                     return Err(bad("Dyn method receiver is not an actual address"));
                 };
+                // Only the declared address of a Managed Self borrows the
+                // manager slot while selecting its payload as the impl subject.
+                let parameter = signature.parameters.get(*receiver_parameter as usize)
+                    .ok_or_else(|| bad("Dyn receiver ordinal exceeds its original signature"))?;
+                let managed_receiver = matches!(&parameter.ty,
+                    SemanticTypeRecipe::Address { inner, .. } if matches!(inner.as_ref(),
+                        SemanticTypeRecipe::Managed(subject) if matches!(subject.as_ref(),
+                            SemanticTypeRecipe::SelfType { scope: SemanticScopeRef::Ancestor(1) })));
+                let subject = match (inner.as_ref(), managed_receiver) {
+                    (Type::Managed(payload), true) => payload.as_ref(),
+                    (_, false) => inner.as_ref(),
+                    _ => return Err(bad("resource method address omits its declared manager head")),
+                };
                 let value = crate::semantics::materialize::type_at(
                     program,
                     module,
@@ -405,13 +419,13 @@ pub(super) fn complete(
                     &SemanticTypeRecipe::SelfType {
                         scope: SemanticScopeRef::Ancestor(1),
                     },
-                    Some(inner),
+                    Some(subject),
                     limits,
                     left,
                 )?;
                 crate::dyn_metadata::semantic_operand_snapshot(&value, limits, left, 1)?;
                 if instance.self_type.as_ref() != Some(&value)
-                    || !matches!(&value, SemanticTypeValue::Resolved { ty, .. } if ty == inner.as_ref())
+                    || !matches!(&value, SemanticTypeValue::Resolved { ty, .. } if ty == subject)
                 {
                     return Err(bad(
                         "Dyn method Self differs from its independently materialized original scope",

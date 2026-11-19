@@ -2,6 +2,19 @@
 //! owning carrier or a parameter description; a nominal Record cannot do so.
 use super::*;
 impl CheckedContext {
+    // A closed Self may also be an ordinary record. Only its exact nominal
+    // instance and original declaration determine the resource kind.
+    pub(super) fn nominal_resource_instance(&self, module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+        if !matches!(ty, Type::Record { .. } | Type::BorrowedStorage { .. }) { return Ok(false); }
+        dynamic_metadata::ty(ty,b)?;
+        b.spend(module.life_instances.len())?;
+        let mut instances = module.life_instances.iter().filter(|row| row.ty == *ty);
+        let Some(instance) = instances.next() else { return Ok(false); };
+        if instances.next().is_some() { return Err(bad("trait Self has ambiguous nominal instances")); }
+        let declarations = dynamic_metadata::nominal_declarations(module, instance.declaration, b)?;
+        Ok(matches!(declarations.as_slice(), [decl] if decl.kind == LifeNominalKind::Resource))
+    }
+
     fn resource_recipe(&self,module:&TypedModule,recipe:&SemanticTypeRecipe,environment:&EvalEnv,depth:usize,b:&mut Budget)->Check<bool>{
         b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("resource signature recipe depth exceeded"));}
         Ok(match recipe{

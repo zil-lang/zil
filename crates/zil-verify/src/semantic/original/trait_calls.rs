@@ -16,15 +16,23 @@ impl CheckedOriginal {
         let mut root=object.as_ref();while let CoreExprKind::Group(inner)|CoreExprKind::Member{object:inner,..}=&root.kind{root=inner;}
         if !matches!(&root.kind,CoreExprKind::Name(name)if bindings.contains_key(name)){return Ok(None);}
         let(object_type,place)=self.place(module,context,object,env,bindings,active,b)?;
-        let (receiver,borrowed_head)=match self.resolved(&object_type,b)?{
-            Ty::Address{inner,life,..}|Ty::Desc{inner,life} => (*inner, Some(life)),
-            ty => (ty, None),
+        let (pointee,borrowed_head,description)=match self.resolved(&object_type,b)?{
+            Ty::Address{inner,life,..} => (*inner, Some(life), false),
+            Ty::Desc{inner,life} => (*inner, Some(life), true),
+            ty => (ty, None, false),
+        };
+        // Self selects the provider. A borrow still addresses the full
+        // original manager slot and cannot promote a descriptor to an owner.
+        let (mut receiver, resource_head) = match pointee {
+            Ty::Managed(payload) if !description && matches!(payload.as_ref(), Ty::Nominal(id, _)
+                if matches!(context.definition(module, *id, b)?.body,
+                    SemanticDefinitionBody::Nominal { kind: LifeNominalKind::Resource, .. })) => (*payload, true),
+            value => (value, false),
         };
         if let Ty::Nominal(id,..)=&receiver{let definition=context.definition(module,*id,b)?;if matches!(&definition.body,SemanticDefinitionBody::Nominal{body:SemanticNominalBody::Product{fields},..}if fields.iter().any(|row|row.name==*member)){return Ok(None);}}
         let applications=self.original_method_applications(module,context,&receiver,member,env,active,b)?;
         if applications.is_empty(){return Ok(None);}if applications.len()!=1{return Err(bad("original member call has multiple complete trait applications"));}
         let(declaration,trait_arguments,ordinal,method)=applications.into_iter().next().unwrap();
-        let mut receiver=receiver;
         if let Ty::Dyn(value)=&mut receiver{value.owned=false;}
         let original=context.definition(module,method,b)?;
         let SemanticDefinitionBody::FunctionWithBody{signature,receiver_parameter:Some(0),..}=&original.body else{return Err(unsupported("original trait call requires its exact first receiver parameter",None));};
@@ -55,7 +63,7 @@ impl CheckedOriginal {
         // of a value is grounded at this actual member call's receiver operand.
         let owner = env.current()?;
         let receiver_head = |mode| borrowed_head.clone().unwrap_or(Life::ReceiverRole(owner,call.id,mode));
-        let actual_receiver=match receiver_parameter{Ty::Address{mutable,..}=>Ty::Address{mutable,life:receiver_head(receiver_mode.unwrap()),inner:Box::new(receiver.clone())},Ty::Desc{..}=>Ty::Desc{life:receiver_head(StoredBorrowMode::WritableDescription),inner:Box::new(receiver.clone())},_=>object_type};
+        let actual_receiver=match receiver_parameter{Ty::Address{mutable,..}=>Ty::Address{mutable,life:receiver_head(receiver_mode.unwrap()),inner:Box::new(if resource_head{Ty::Managed(Box::new(receiver.clone()))}else{receiver.clone()})},Ty::Desc{..}=>Ty::Desc{life:receiver_head(StoredBorrowMode::WritableDescription),inner:Box::new(receiver.clone())},_=>object_type};
         self.relate_value(&actual_receiver,&prototype.parameters[0],b)?;
         self.require_input_address_wf(module,context,&actual_receiver,&prototype.parameters[0],active,b)?;
         b.spend(prototype.parameters.len())?;let mut region_parameters=Vec::with_capacity(prototype.parameters.len());region_parameters.push(self.resolved(&prototype.parameters[0],b)?);

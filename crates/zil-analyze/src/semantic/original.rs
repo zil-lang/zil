@@ -1039,7 +1039,17 @@ impl Solver<'_, '_> {
                 inner,
             } => {
                 let life = self.life(frame, life, b, depth + 1)?;
-                let inner = self.recipe(frame, inner, b, depth + 1)?;
+                let child = self.recipe(frame, inner, b, depth + 1)?;
+                let inner = if let SemanticTypeRecipe::SelfType { scope } = inner.as_ref()
+                    && self.resource_payload(child, b)?
+                    && let owner = self.original_scope(frame.definition, scope, b)?
+                    && matches!(self.inventory.definition(owner, b)?.body,
+                        SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { .. }))
+                {
+                    self.term(Kind::Wrapped(Wrapper::Managed, child), b)?
+                } else {
+                    child
+                };
                 self.term(
                     Kind::Address {
                         mutable: *mutable,

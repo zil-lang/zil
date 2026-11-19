@@ -126,7 +126,7 @@ impl Check<'_, '_> {
             let Some(call) = self.original.abstract_boundary(instance, site.recipe, self.program, self.inventory, b)? else {
                 continue;
             };
-            let Some(parameter) = call.parameter else { continue; };
+            let Some(original::LocalAnchor::Parameter(parameter)) = call.anchor else { continue; };
             if kind != call.kind || !original::receiver_result(&call.signature, kind)
                 || !self.capture_values_equal(actual, &call.result, b)?
                 || !self.anchored_value(instance, function, original::LocalAnchor::Parameter(parameter), callee, b, 0)?
@@ -292,25 +292,12 @@ impl Check<'_, '_> {
                     ));
                 }
             } else {
-                let callee = callee.ok_or_else(|| fail("abstract borrowed parameter loses its actual SSA"))?;
-                let parameter = self.anchored_local(
-                    instance,
-                    function,
-                    original::LocalAnchor::Parameter(boundary.parameter.ok_or_else(|| {
-                        fail("abstract receiver has neither an original parameter nor a checked place")
-                    })?),
-                    b,
-                )?;
-                operations::available_before(
-                    function,
-                    (block, index, SemanticSiteEdge::Before),
-                    callee,
-                    b,
-                )?;
-                if self.receiver_local(function, callee, b, 0)? != parameter {
-                    return Err(fail(
-                        "abstract call selects another original receiver parameter",
-                    ));
+                let callee = callee.ok_or_else(|| fail("abstract borrowed receiver loses its actual SSA"))?;
+                let anchor = boundary.anchor.ok_or_else(|| {
+                    fail("abstract receiver has neither an original binder nor a checked place")
+                })?;
+                if !self.anchored_value(instance, function, anchor, callee, b, 0)? {
+                    return Err(fail("abstract call selects another original receiver binding"));
                 }
                 let receiver = self.ssa_value(instance, function, callee, b, 0)?;
                 let Type::Address { mutable, inner } = &receiver.ty else {

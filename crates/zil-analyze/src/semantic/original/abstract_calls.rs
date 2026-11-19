@@ -4,7 +4,7 @@ use super::*;
 
 #[derive(Clone)]
 pub(super) struct AbstractCall {
-    parameter: Option<u32>,
+    anchor: Option<LocalAnchor>,
     pub(super) subject: Term,
     pub(super) receiver: Term,
     pub(super) place: Option<Borrow>,
@@ -17,7 +17,7 @@ pub(super) struct AbstractCall {
     result: Term,
 }
 pub(in crate::semantic) struct AbstractBoundary {
-    pub(in crate::semantic) parameter: Option<u32>,
+    pub(in crate::semantic) anchor: Option<LocalAnchor>,
     pub(in crate::semantic) place: Option<borrow_places::Source>,
     pub(in crate::semantic) subject: crate::semantic::value::Value,
     pub(in crate::semantic) receiver: crate::semantic::value::Value,
@@ -50,6 +50,15 @@ impl Solver<'_, '_> {
         ordinal: u32,
         b: &mut Budget,
     ) -> CompileResult<(CallableKind, SemanticSignatureRecipe, Vec<u32>)> {
+        self.find_callable_premise(owner, ordinal, b)?.ok_or_else(||
+            fail("abstract call lacks a declared callable premise for its actual subject"))
+    }
+    pub(super) fn find_callable_premise(
+        &self,
+        owner: SemanticDefinitionId,
+        ordinal: u32,
+        b: &mut Budget,
+    ) -> CompileResult<Option<(CallableKind, SemanticSignatureRecipe, Vec<u32>)>> {
         let declaration = self.inventory.definition(owner, b)?;
         let Some(SemanticFormal::Type { requirements }) =
             declaration.parameters.get(ordinal as usize)
@@ -91,12 +100,10 @@ impl Solver<'_, '_> {
                 selected = Some(role);
             }
         }
-        let role = selected.ok_or_else(|| {
-            fail("abstract call lacks a declared callable premise for its actual subject")
-        })?;
+        let Some(role) = selected else { return Ok(None); };
         crate::dyn_metadata::recipe(role.signature, b)?;
         b.spend(role.bounds.len(), WORK)?;
-        Ok((role.kind, role.signature.clone(), role.bounds.clone()))
+        Ok(Some((role.kind, role.signature.clone(), role.bounds.clone())))
     }
 
     fn invocation_scheme(
@@ -270,7 +277,7 @@ impl Solver<'_, '_> {
                 self.invocation_scheme(&context, &signature, &bounds, receiver, b, depth + 1)?;
             b.spend(parameters.len().saturating_add(place.path.len() + 1), WORK)?;
             let saved = AbstractCall {
-                parameter: None,
+                anchor: None,
                 subject: root,
                 receiver: local,
                 place: Some(Borrow {
@@ -313,51 +320,17 @@ impl Solver<'_, '_> {
             return Ok(None);
         };
         let source = self.explicit_callable_borrow(frame, callee, b)?;
-        let parameter = if source.is_some() {
+        let anchor = if source.is_some() {
             None
         } else {
-            let CoreExprKind::Name(name) = &callee.kind else {
-                return Err(unknown(
-                    "abstract receiver needs its complete original place anchor",
-                ));
-            };
-            let mut position = None;
-            for (index, local) in frame.locals.iter().enumerate().rev() {
-                b.spend(local.name.len().saturating_add(name.len() + 1), WORK)?;
-                if local.name == *name {
-                    if !local.initialized {
-                        return Err(fail(
-                            "abstract receiver is not initialized in the original context",
-                        ));
-                    }
-                    if local.used {
-                        Self::push(
-                            &mut self.needs,
-                            Need {
-                                term: local.ty,
-                                predicate: Predicate::Copy,
-                            },
-                            b,
-                        )?;
-                    }
-                    position = Some(index);
-                    break;
-                }
+            if !matches!(callee.kind, CoreExprKind::Name(_)) {
+                return Err(unknown("abstract receiver needs its complete original place anchor"));
             }
-            let position =
-                position.ok_or_else(|| fail("abstract receiver has no original lexical value"))?;
-            // This borrowed receiver is observed by this invocation path, not
-            // by expression() or borrow_place(). Keep its exact binder receipt
-            // alongside the single expression registration below.
-            self.record_environment_read(frame, position, callee.id, b)?;
-            let parameter = position
-                .checked_sub(frame.inherited)
-                .filter(|position| *position < frame.parameters.len())
-                .ok_or_else(|| {
-                    unknown("abstract receiver alias needs its exact original Binding anchor")
-                })?;
-            Some(u32::try_from(parameter)
-                .map_err(|_| fail("abstract receiver parameter ordinal overflow"))?)
+            // Forward an existing address through its lexical slot. This is
+            // an observation of the address, not a new borrow of its pointee.
+            let place = self.borrow_place(frame, callee, b, depth + 1)?;
+            self.unify(local, place.inner, depth + 1, b)?;
+            Some(place.anchor.ok_or_else(|| fail("abstract receiver has no original binder"))?)
         };
         let (kind, signature, bounds) = self.quantified_callable_premise(owner, ordinal, b)?;
         match kind {
@@ -393,9 +366,8 @@ impl Solver<'_, '_> {
             answer?
         };
         b.spend(parameters.len().saturating_add(1), WORK)?;
-        let evaluated = source.is_some();
         let saved = AbstractCall {
-            parameter,
+            anchor,
             subject,
             receiver: local,
             place: source,
@@ -415,12 +387,6 @@ impl Solver<'_, '_> {
             .is_some()
         {
             return Err(fail("abstract call has competing original resolutions"));
-        }
-        if !evaluated {
-            b.lookup(frame.expressions.len(), WORK)?;
-            if frame.expressions.insert(callee.id, local).is_some() {
-                return Err(fail("abstract receiver expression identity is reused"));
-            }
         }
         Ok(Some((parameters, result)))
     }
@@ -449,7 +415,7 @@ impl Checked {
         crate::dyn_metadata::recipe(&call.signature, b)?;
         b.spend(call.bounds.len(), WORK)?;
         Ok(Some(AbstractBoundary {
-            parameter: call.parameter,
+            anchor: call.anchor,
             place: call
                 .place
                 .as_ref()

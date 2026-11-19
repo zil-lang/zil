@@ -170,6 +170,15 @@ impl CheckedContext {
             }
             | SemanticTypeRecipe::Desc { lifetime, inner } => {
                 let child = self.evaluate_bounded_type(module, inner, environment, external, active, b)?;
+                let child = if matches!(recipe, SemanticTypeRecipe::Address { .. })
+                    && let SemanticTypeRecipe::SelfType { scope } = inner.as_ref()
+                    && let owner = self.frame(environment, *scope, b)?.definition
+                    && matches!(self.definition(module, owner, b)?.body, SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { .. }))
+                    && self.nominal_resource_instance(module, &child.ty, b)?
+                {
+                    dynamic_witness::semantic_external::construct(self, environment,
+                        dynamic_witness::semantic_external::Constructor::Managed, &[child], active, b)?
+                } else { child };
                 let mode = match recipe {
                     SemanticTypeRecipe::Address { mutable: true, .. } => {
                         StoredBorrowMode::ExclusiveAddress

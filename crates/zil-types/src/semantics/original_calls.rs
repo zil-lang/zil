@@ -440,7 +440,7 @@ impl Check<'_, '_> {
                 "original provider changes the declared receiver parameter identity",
             ));
         }
-        let wanted = substitute::signature(wanted, &substitution, self.limits, self.left)?;
+        let wanted = self.substitute_method_signature(wanted, *wanted_receiver, &substitution, depth + 1)?;
         crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
         let mut actual = actual.clone();
         for parameter in &mut actual.parameters {
@@ -881,6 +881,33 @@ impl Check<'_, '_> {
         self.call_requirements(owner, parent, &actuals, depth + 1)?;
         Ok(actuals)
     }
+    // A trait's unbound &Self gains its concrete addressable head when the
+    // provider is selected. The nominal payload still identifies the impl.
+    fn substitute_method_signature(
+        &mut self,
+        signature: &SemanticSignatureRecipe,
+        receiver: Option<u32>,
+        substitution: &substitute::Substitution<'_>,
+        depth: usize,
+    ) -> R<SemanticSignatureRecipe> {
+        let mut solved = substitute::signature(signature, substitution, self.limits, self.left)?;
+        let Some(ordinal) = receiver.map(|ordinal| ordinal as usize) else {
+            return Ok(solved);
+        };
+        if let Some(SemanticTypeRecipe::Address { inner, .. }) =
+            signature.parameters.get(ordinal).map(|parameter| &parameter.ty)
+            && matches!(inner.as_ref(), SemanticTypeRecipe::SelfType { scope: SemanticScopeRef::Ancestor(1) })
+            && let SemanticTypeRecipe::Address { inner, .. } = &mut solved.parameters[ordinal].ty
+            && let SemanticTypeRecipe::Nominal { definition, .. } = inner.as_ref()
+            && matches!(self.definition(*definition)?.body,
+                SemanticDefinitionBody::Nominal { kind: LifeNominalKind::Resource, .. })
+        {
+            self.pay(1, depth)?;
+            let payload = copy_recipe(inner, self.limits, self.left)?;
+            **inner = SemanticTypeRecipe::Managed(Box::new(payload));
+        }
+        Ok(solved)
+    }
     pub(super) fn method_call(
         &mut self,
         owner: SemanticDefinitionId,
@@ -962,10 +989,18 @@ impl Check<'_, '_> {
                     };
                     match applicable {
                         Ok(()) => {
-                            if target.is_some_and(|old| old != candidate) {
-                                return Err(bad(
-                                    "original receiver selects ambiguous method declarations",
-                                ));
+                            if let Some(old) = target && old != candidate {
+                                // The visible provider and the very trait member it
+                                // implements denote one dispatch slot.
+                                if self.provider_conformance(method, depth + 1)? == Some(old) {
+                                    continue;
+                                }
+                                let previous = self.definition(old)?;
+                                if self.provider_conformance(previous, depth + 1)? != Some(candidate) {
+                                    return Err(bad(
+                                        "original receiver selects ambiguous method declarations",
+                                    ));
+                                }
                             }
                             target = Some(candidate);
                         }
@@ -1034,8 +1069,9 @@ impl Check<'_, '_> {
         effective.result = self.effective_result(target, &signature.result, depth + 1)?;
         let signature =
             self.inference_template(&effective, &definition.parameters, true, depth + 1)?;
+        let trait_receiver = application.as_ref().and(*receiver_parameter);
         let signature =
-            substitute::signature(&signature, &parent_substitution, self.limits, self.left)?;
+            self.substitute_method_signature(&signature, trait_receiver, &parent_substitution, depth + 1)?;
         self.pay(
             signature
                 .parameters

@@ -420,7 +420,13 @@ impl Solver<'_, '_> {
             let anchor = place.anchor.ok_or_else(|| {
                 unknown("original trait receiver has no exact original place anchor")
             })?;
-            (inner, address, Some(anchor), dynamic)
+            // Trait lookup selects the resource declaration. The place and
+            // forwarded address still carry the owner's full Managed head.
+            let subject = match self.state.arena[self.type_root(inner, b)?] {
+                Kind::Wrapped(Wrapper::Managed, payload) if self.resource_payload(payload, b)? => payload,
+                _ => inner,
+            };
+            (subject, address, Some(anchor), dynamic)
         } else {
             let Some(receiver) = self.static_trait_receiver(frame, object, b, depth + 1)? else {
                 return Ok(None);

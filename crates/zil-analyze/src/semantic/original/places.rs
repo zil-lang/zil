@@ -285,14 +285,15 @@ impl Solver<'_, '_> {
             && (matches!(self.state.arena[selected], Kind::Infer(None))
                 || !self.satisfies(field, Predicate::Copy, b, depth + 1)?)
         {
-            // Reading an affine inline aggregate transfers just that field. A
+            // Reading an owning aggregate or callable transfers just that field. A
             // later access to a sibling starts at its own declared field path.
             let aggregate = match &self.state.arena[selected] {
                 Kind::Nominal { definition, .. } => matches!(
                     self.inventory.definition(*definition, b)?.body,
                     SemanticDefinitionBody::Nominal { kind: LifeNominalKind::Package | LifeNominalKind::Enum, .. }
                 ),
-                Kind::Tuple(_) | Kind::ErrorUnion { .. } => true,
+                Kind::Rigid(owner, ordinal) => self.find_callable_premise(*owner, *ordinal, b)?.is_some(),
+                Kind::Closure { .. } | Kind::Tuple(_) | Kind::ErrorUnion { .. } => true,
                 _ => false,
             };
             if !aggregate || !self.inline_package_field(self.type_root(place.root, b)?, &place.path, selected, b)? {

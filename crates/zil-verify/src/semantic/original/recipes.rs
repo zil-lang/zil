@@ -34,7 +34,16 @@ impl CheckedOriginal {
             SemanticTypeRecipe::Tuple(fields)=>{b.spend(fields.len().saturating_add(1))?;let mut checked=Vec::new();for field in fields{checked.push(self.ty(module,context,field,env,active,b)?);}if checked.is_empty(){Ty::Atom(Type::Unit)}else{Ty::Tuple(checked)}},
             SemanticTypeRecipe::Opaque{definition,arguments,hidden}=>self.opaque_type(module,context,*definition,arguments,hidden,env,active,b)?,
             SemanticTypeRecipe::AssociatedType{receiver,application,member}=>{let receiver=self.ty(module,context,receiver,env,active,b)?;let mut arguments=Vec::new();for argument in &application.arguments{arguments.push(self.actual(module,context,argument,env,active,b)?);}self.associated_type(module,context,&receiver,application.declaration,&arguments,*member,env,active,b)?},
-            SemanticTypeRecipe::Address{mutable,lifetime,inner}=>Ty::Address{mutable:*mutable,life:self.outer(module,context,lifetime,env,active,b)?,inner:Box::new(self.ty(module,context,inner,env,active,b)?)},
+            SemanticTypeRecipe::Address{mutable,lifetime,inner}=>{
+                let life=self.outer(module,context,lifetime,env,active,b)?;
+                let child=self.ty(module,context,inner,env,active,b)?;
+                let child=if let SemanticTypeRecipe::SelfType{scope}=inner.as_ref()
+                    && let Ty::Nominal(id,_)=&child
+                    && matches!(context.definition(module,*id,b)?.body,SemanticDefinitionBody::Nominal{kind:LifeNominalKind::Resource,..})
+                    && matches!(context.definition(module,env.frame(*scope)?.definition,b)?.body,SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait{..}))
+                { Ty::Managed(Box::new(child)) } else { child };
+                Ty::Address{mutable:*mutable,life,inner:Box::new(child)}
+            },
             SemanticTypeRecipe::Desc{lifetime,inner}=>Ty::Desc{life:self.outer(module,context,lifetime,env,active,b)?,inner:Box::new(self.ty(module,context,inner,env,active,b)?)},
             SemanticTypeRecipe::Slice(inner)=>Ty::Slice(Box::new(self.ty(module,context,inner,env,active,b)?)),
             SemanticTypeRecipe::Managed(inner)=>{
