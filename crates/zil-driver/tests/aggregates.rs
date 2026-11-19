@@ -5147,26 +5147,30 @@ fn large_copy_abi_codegen_budget_exact_and_fresh() {
         let cold = compile_source(&src, &options);
         assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
         assert!(cold.native_codegen.as_ref().unwrap().object_cache.misses > 0);
-        let failed = compile_source(
-            &src,
-            &CompileOptions {
-                limits: Limits {
-                    max_analysis_steps: low - 1,
-                    ..defaults.clone()
-                },
+        // The complete Source request also verifies its original body. Measure
+        // its fresh proof here using the same request that populated the cache.
+        let verify_steps = cold.verification_usage.as_ref().unwrap().work_steps;
+        let full_request = |steps| {
+            compile_source(&src, &CompileOptions {
+                limits: Limits { max_analysis_steps: steps, ..defaults.clone() },
                 ..options.clone()
-            },
-        );
+            })
+        };
+        let failed = full_request(verify_steps - 1);
         assert_eq!(
             failed.status,
             ResultCategory::ResourceLimit,
             "{}",
             failed.to_json()
         );
-        assert_eq!(failed.phase, Phase::Codegen);
+        assert_eq!(failed.phase, Phase::Verify);
+        assert_eq!(failed.verification_runs, 1);
+        assert!(failed.native_codegen.is_none());
         assert!(!failed.artifacts.contains_key("executable"));
-        let warm = compile_source(&src, &options);
+        let warm = full_request(verify_steps);
         assert_eq!(warm.status, ResultCategory::Success, "{}", warm.to_json());
+        assert_eq!(warm.verification_runs, 1);
+        assert_eq!(warm.verification_usage.unwrap().work_steps, verify_steps);
         assert_eq!(warm.native_codegen.as_ref().unwrap().object_cache.misses, 0);
         assert!(warm.native_codegen.as_ref().unwrap().object_cache.hits > 0);
     }
