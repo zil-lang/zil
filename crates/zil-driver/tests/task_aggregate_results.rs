@@ -170,6 +170,17 @@ fn queued_registration_drains_before_explicit_destruction() {
 }
 
 #[test]
+fn exported_suspend_frame_cleans_its_registration_without_an_internal_task_constructor() {
+    let worker = include_str!("../../../tests/language-readiness/async-registration/queued-export.zil");
+    let with_creator = format!("{worker}\nfn local_create()->std.task.TaskCreateError!i32 {{ var t=task_create(worker,0)?; return 0 }}");
+    for text in [worker, with_creator.as_str()] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+        assert_eq!(report.verification_runs, 1);
+    }
+}
+
+#[test]
 fn queued_registration_cleanup_requires_the_actual_suspend_frame() {
     let queued = include_str!(
         "../../../tests/language-readiness/task-aggregate-results/queued-nested-result.zil"

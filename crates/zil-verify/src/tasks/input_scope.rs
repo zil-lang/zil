@@ -405,14 +405,16 @@ pub(crate) fn empty_function(
 /// registration signature, actual constructor/provider, phase and owner debts
 /// are still checked by their independent consumers.
 pub(crate) fn registration_operation(
+    module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
-    if !b.task_sources() {
+    if !b.task_sources() && f.call_kind != CallKind::Suspend {
         return Ok(false);
     }
     if let InstructionKind::DropTuple { local } = &i.kind {
+        if !b.task_sources() { return Ok(false); }
         let ty = &f
             .locals
             .get(local.0 as usize)
@@ -459,7 +461,9 @@ pub(crate) fn registration_operation(
     {
         return Ok(false);
     }
-    Ok(domain(actual, b)? == Domain::Known(0))
+    // The actual callback environment supplies its complete class domain
+    // even if this Suspend frame is constructed only by an external caller.
+    Ok(module_domain(module, actual, b)? == Domain::Known(0))
 }
 
 /// A complete zero data domain selects no stored permission row. Each actual
@@ -578,7 +582,7 @@ pub(crate) fn provider(
     candidate: &TypedFunction,
     b: &mut Budget,
 ) -> Check<bool> {
-    if !b.task_sources()
+    if !(b.task_sources() || b.async_registrations && b.tasks)
         || !candidate.foreign.as_ref().is_some_and(|f| {
             matches!(
                 f.scoped_callback,
@@ -607,7 +611,7 @@ pub(crate) fn provider(
                 ..
             } = i.kind
                 && [register, request_close, poll_drain].contains(&candidate.id)
-                && registration_operation(f, i, b)?
+                && registration_operation(module, f, i, b)?
             {
                 return Ok(true);
             }

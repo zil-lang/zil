@@ -2463,7 +2463,7 @@ impl Flow<'_> {
                         let point = (f.id, f.blocks[b].id, position, *local);
                         budget.lookup(budget.semantic_cleanup_sites.len(), "original slot cleanup occurrence")?;
                         if budget.semantic_cleanup_sites.contains(&(point.0, point.1, point.2, point.3, Some(*closure))) {
-                            if !budget.task_origin_roots || !budget.tasks || budget.task_input_scopes.is_none() {
+                            if !budget.task_cleanup_frame(f.call_kind) || budget.task_input_scopes.is_none() {
                                 return Err(error("original slot cleanup has no complete actual preflight and input scopes"));
                             }
                             // The actual conditional child debt, loans and
@@ -3501,7 +3501,7 @@ impl Flow<'_> {
                         let point = (f.id, f.blocks[b].id, position, *local);
                         budget.lookup(budget.semantic_cleanup_sites.len(), "original Task cleanup occurrence")?;
                         if budget.semantic_cleanup_sites.contains(&(point.0, point.1, point.2, point.3, cleanup_closure)) {
-                            if !budget.task_origin_roots || !budget.tasks || budget.task_input_scopes.is_none() {
+                            if !budget.task_cleanup_frame(f.call_kind) || budget.task_input_scopes.is_none() {
                                 return Err(error("original Task cleanup has no complete actual preflight and input scopes"));
                             }
                             // The converged actual state above has checked

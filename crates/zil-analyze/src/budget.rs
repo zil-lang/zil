@@ -344,6 +344,12 @@ impl Budget {
             // solver; a proved empty relation stays in the ordinary ledgers.
             || self.task_origin_roots && self.capture_relations
     }
+    // An actual Suspend body owns its cleanup frame even when every task
+    // handle is held by its external caller. Direct cleanup still needs a
+    // concrete Task carrier inventoried in this module.
+    pub(super) fn task_cleanup_frame(&self, abi: zil_ir::CallKind) -> bool {
+        self.tasks && (self.task_origin_roots || abi == zil_ir::CallKind::Suspend)
+    }
     pub(super) fn masked_stored_tasks(&self) -> bool {
         self.store_option_results || self.task_failure_carriers
     }

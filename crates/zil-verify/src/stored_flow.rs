@@ -2073,7 +2073,7 @@ pub(super) fn qualifications(
                     && !failure_unpack(f, i, b)?
                     && !(b.stored_task_flow()
                         && crate::tasks::input_scope::neutral_owner_unpack(f, i, b)?)
-                    && !crate::tasks::input_scope::registration_operation(f, i, b)?
+                    && !crate::tasks::input_scope::registration_operation(module, f, i, b)?
                     && !failure_tuple_drop(f, i, b)?
                     && !(b.masked_stored_tasks()
                         && matches!(
@@ -4200,7 +4200,7 @@ fn step(
             state.locals[local.0 as usize] = Payload::default();
             clear_local_holes(state, *local, b)?;
         }
-        _ if crate::tasks::input_scope::registration_operation(f, i, b)? => {
+        _ if crate::tasks::input_scope::registration_operation(module, f, i, b)? => {
             // No stored permission is synthesized for the actual zero scope.
             // Other Verify consumers still prove the provider, current phase,
             // linear owner, and the unique checked release of the same head.

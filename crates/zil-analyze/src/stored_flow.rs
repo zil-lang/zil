@@ -4942,13 +4942,13 @@ fn transfer(
             state.captures.insert(*index, actual);
         }
         InstructionKind::DropManaged { local }
-            if crate::tasks::input_scope::registration_operation(f, i, b)? => {
+            if crate::tasks::input_scope::registration_operation(module, f, i, b)? => {
             // This clears storage facts, not protocol debt. In particular the
             // guarded cleanup after explicit finish is inactive; the resource
             // and phase kernels still reject a live Direct asynchronous drop.
             state.locals.remove(local);
         }
-        _ if crate::tasks::input_scope::registration_operation(f, i, b)? => {
+        _ if crate::tasks::input_scope::registration_operation(module, f, i, b)? => {
             // Its independently reconstructed complete environment has no
             // stored class or target. Provider, phase, owner and release facts
             // are proved by their separate actual-instruction consumers.
@@ -10138,7 +10138,7 @@ fn actual_instructions(
                 && !(b.stored_task_flow() && task_address::operation(&i.kind))
                 && !unpack_failure
                 && !(b.stored_task_flow() && crate::tasks::input_scope::neutral_owner_unpack(f, i, b)?)
-                && !crate::tasks::input_scope::registration_operation(f, i, b)?
+                && !crate::tasks::input_scope::registration_operation(module, f, i, b)?
                 && !failure_tuple_drop(f, i, b)?
                 && !(matches!(
                     i.kind,

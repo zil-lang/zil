@@ -265,12 +265,12 @@ pub(super) fn finish(module: &TypedModule, b: &mut Budget) -> CompileResult<()> 
     let sites: Vec<_> = b.semantic_cleanup_sites.iter().copied().collect();
     let mut frames = BTreeSet::new();
     for (function, block, position, local, closure) in sites {
-        if !b.task_origin_roots || !b.tasks {
-            return Err(fail("original concrete cleanup reached no complete actual Task preflight"));
-        }
         let function = module.functions.get(function.0 as usize)
             .filter(|actual| actual.id == function)
             .ok_or_else(|| fail("original concrete cleanup loses its actual function"))?;
+        if !b.task_cleanup_frame(function.call_kind) {
+            return Err(fail("original concrete cleanup reached no complete actual Task preflight"));
+        }
         let instruction = function.blocks.get(block.0 as usize)
             .filter(|actual| actual.id == block)
             .and_then(|actual| actual.instructions.get(position))

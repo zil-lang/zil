@@ -188,9 +188,9 @@ fn analyze_budgeted_context(
     }
     let original_task_cleanup = !budget.semantic_cleanup_sites.is_empty()
         || !budget.semantic_capture_cleanups.is_empty();
-    if (budget.task_sources() || budget.task_origin_roots)
-        && budget.task_input_scopes.is_none()
-        && (!module.closures.is_empty() || original_task_cleanup)
+    if budget.task_input_scopes.is_none()
+        && ((budget.task_sources() || budget.task_origin_roots) && !module.closures.is_empty()
+            || budget.tasks && original_task_cleanup)
     {
         budget.task_input_scopes = Some(tasks::input_scope::build(module, limits, budget)?);
     }
