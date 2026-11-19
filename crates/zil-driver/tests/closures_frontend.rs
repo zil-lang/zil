@@ -551,6 +551,9 @@ fn borrowed_closure_parameters_preserve_runtime_and_ct_diagnostic_phases() {
         ("let read=(x:&i32)->i32=>*x;let n=#(40+2);return read(&n)-42", None),
         ("let read=(x:i32)->i32=>x;return read(true)", Some(zil_base::Phase::Types)),
         ("return #(1/0)", Some(zil_base::Phase::Ct)),
+        ("let read=(x:i32)->i32=>x;return #(1+true)", Some(zil_base::Phase::Ct)),
+        ("let bytes_push=2;return 0", Some(zil_base::Phase::Ct)),
+        ("let store_push=2;return 0", Some(zil_base::Phase::Types)),
     ] {
         let text = format!("fn main()->i32{{{body}}}");
         let unit = source(&text);

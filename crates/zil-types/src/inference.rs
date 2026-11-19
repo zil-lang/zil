@@ -23,6 +23,7 @@ enum DeferControl {
 struct Budget<'a> {
     limits: &'a Limits,
     defer_control: DeferControl,
+    preparation_phase: Phase,
     work: usize,
     nodes: usize,
     ordinary_functions: usize,
@@ -41,6 +42,7 @@ impl<'a> Budget<'a> {
         Self {
             limits,
             defer_control: DeferControl::Ordinary,
+            preparation_phase: Phase::Types,
             work: limits.max_analysis_steps,
             nodes: limits.max_nodes,
             ordinary_functions: 0,
@@ -307,7 +309,18 @@ fn state_snapshot(states: &[CoreStateParameter], span: Span, budget: &mut Budget
 /// Infer closure-related source types without executing CT or producing a
 /// verified artifact. The caller must still run CT, ordinary types and Verify.
 pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResult<CoreModule> {
+    infer_source_closures_at(core, limits, Phase::Types)
+}
+
+/// Prepare the source closure constraints and runtime-only intrinsic namespace
+/// needed before compile-time expressions are evaluated.
+pub fn infer_source_closures_for_ct(core: &CoreModule, limits: &Limits) -> CompileResult<CoreModule> {
+    infer_source_closures_at(core, limits, Phase::Ct)
+}
+
+fn infer_source_closures_at(core: &CoreModule, limits: &Limits, phase: Phase) -> CompileResult<CoreModule> {
     let mut budget = Budget::new(limits);
+    budget.preparation_phase = phase;
     if core.semantic.is_some() {
         crate::semantics::well_formed::originals(&[core], limits, &mut budget.work)
             .map_err(|e| vec![e])?;
@@ -328,7 +341,7 @@ pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResul
         })
         .collect::<R<Vec<_>>>()
         .map_err(|e| vec![e])?;
-    names::check(core, limits).map_err(|e| vec![e])?;
+    names::check_modules_with_work([core], limits, None, phase).map_err(|e| vec![e])?;
     let normalized = if flags.iter().any(|f| *f)
         || !core.aggregate_templates.is_empty()
         || !core.aggregate_applications.is_empty()
@@ -379,14 +392,16 @@ pub fn infer_program_closures(
     program: &CoreProgram,
     limits: &Limits,
 ) -> CompileResult<CoreProgram> {
-    infer_program_closures_borrowed(program, limits).map(Cow::into_owned)
+    infer_program_closures_borrowed_with_frozen(program, limits, None).map(Cow::into_owned)
 }
 
-pub(super) fn infer_program_closures_borrowed<'a>(
+pub(super) fn infer_program_closures_for_ct<'a>(
     program: &'a CoreProgram,
     limits: &Limits,
 ) -> CompileResult<Cow<'a, CoreProgram>> {
-    infer_program_closures_borrowed_with_frozen(program, limits, None)
+    let mut budget = Budget::new(limits);
+    budget.preparation_phase = Phase::Ct;
+    infer_program_closures_with_budget(program, None, false, &mut budget)
 }
 pub(super) fn infer_program_closures_borrowed_with_frozen<'a>(
     program: &'a CoreProgram,
@@ -548,6 +563,7 @@ fn infer_program_closures_with_budget<'a>(
     }
     names::check_modules_with_work(
         program.modules.iter().map(|m| &m.core), limits, shared_work.then_some(&mut budget.work),
+        budget.preparation_phase,
     ).map_err(|e| vec![e])?;
     let normalized = if flags.iter().flatten().any(|f| *f)
         || program.modules.iter().any(|m| {
@@ -6904,7 +6920,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         };
         // Only type relationships are collected. No value is read or
         // computed; the original CT expression still enters verify_ct.
-        self.expr_expected(inner, expected, depth + 1, false)
+        self.expr_expected(inner, expected, depth + 1, false).map_err(|mut error| {
+            if self.budget.preparation_phase == Phase::Ct {
+                error.phase = Phase::Ct;
+            }
+            error
+        })
     }
 
     #[inline(never)]

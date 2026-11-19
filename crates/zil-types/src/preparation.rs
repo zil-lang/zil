@@ -64,7 +64,7 @@ pub fn infer_program_for_ct<'a>(
     limits: &Limits,
 ) -> CompileResult<InferredProgram<'a>> {
     Ok(InferredProgram {
-        core: inference::infer_program_closures_borrowed(program, limits)?,
+        core: inference::infer_program_closures_for_ct(program, limits)?,
         limits: limits.clone(),
         shared: None,
     })

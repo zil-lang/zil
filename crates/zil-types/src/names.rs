@@ -1,32 +1,30 @@
 //! Lexical receiver-name rules do not depend on resource or aggregate layout.
 use super::*;
 
-pub(super) fn check(module: &CoreModule, limits: &Limits) -> R<()> {
-    check_modules(std::iter::once(module), limits)
-}
 pub(super) fn check_modules<'a>(
     modules: impl IntoIterator<Item = &'a CoreModule>,
     limits: &Limits,
 ) -> R<()> {
-    check_modules_with_work(modules, limits, None)
+    check_modules_with_work(modules, limits, None, Phase::Types)
 }
 
 pub(super) fn check_modules_with_work<'a>(
     modules: impl IntoIterator<Item = &'a CoreModule>,
     limits: &Limits,
     remaining: Option<&mut usize>,
+    intrinsic_phase: Phase,
 ) -> R<()> {
-    let mut checker = Names { limits, visited: 0, remaining };
+    let mut checker = Names { limits, visited: 0, remaining, intrinsic_phase };
     for module in modules {
         for f in &module.functions {
             checker.work(f.name.len().saturating_add(1), f.span)?;
             if primitive_name(&f.name) {
-                return Err(primitive_reserved(&f.name, f.span));
+                return Err(primitive_reserved(&f.name, f.span, checker.intrinsic_phase));
             }
             for (index, p) in f.parameters.iter().enumerate() {
                 checker.work(p.name.len().saturating_add(1), p.span)?;
                 if primitive_name(&p.name) {
-                    return Err(primitive_reserved(&p.name, p.span));
+                    return Err(primitive_reserved(&p.name, p.span, checker.intrinsic_phase));
                 }
                 if p.name == "self" && (index != 0 || f.receiver.is_none() || !f.name.contains('.'))
                 {
@@ -87,38 +85,44 @@ fn primitive_name(name: &str) -> bool {
             | "bytes_view_mut"
     )
 }
-fn primitive_reserved(name: &str, span: Span) -> Diagnostic {
+/// These callable names are interpreted as runtime operations by CT preflight.
+pub fn runtime_only_ct_callee(name: &str) -> bool {
+    matches!(name,
+        "c_callback" | "bytes_new" | "bytes_reserve" | "bytes_truncate" | "bytes_push"
+        | "bytes_len" | "bytes_capacity" | "bytes_view" | "bytes_view_mut")
+}
+
+fn primitive_reserved(name: &str, span: Span, preparation_phase: Phase) -> Diagnostic {
+    let diagnostic = |code, message| {
+        let phase = if runtime_only_ct_callee(name) { preparation_phase } else { Phase::Types };
+        Diagnostic::error(phase, code, Some(span), message)
+    };
     if matches!(name, "error_ok" | "error_err") {
-        return error(
+        return diagnostic(
             "E-ERROR-CONSTRUCTOR-NAME",
-            span,
             "bare error-union constructors cannot be rebound",
         );
     }
     if matches!(name, "Store" | "StoreElement") || name.starts_with("store_") {
-        return error(
+        return diagnostic(
             "E-OWNED-STORE-NAME",
-            span,
             "Store and bare Store primitives cannot be rebound",
         );
     }
     if name == "ByteBuffer" || name.starts_with("bytes_") {
-        return error(
+        return diagnostic(
             "E-BYTE-BUFFER-NAME",
-            span,
             "ByteBuffer and bare byte storage primitives cannot be rebound",
         );
     }
     if name.starts_with("c_") {
-        return error(
+        return diagnostic(
             "E-FFI-CONSTRUCTOR-NAME",
-            span,
             "bare static foreign constructor names cannot be rebound",
         );
     }
-    error(
+    diagnostic(
         "E-INTEGER-CONVERSION-NAME",
-        span,
         "u8, u16, i32 and i64 are reserved bare integer conversion names",
     )
 }
@@ -126,6 +130,7 @@ struct Names<'a, 'b> {
     limits: &'a Limits,
     visited: usize,
     remaining: Option<&'b mut usize>,
+    intrinsic_phase: Phase,
 }
 impl Names<'_, '_> {
     fn work(&mut self, amount: usize, span: Span) -> R<()> {
@@ -165,7 +170,7 @@ impl Names<'_, '_> {
                     name, initializer, ..
                 } => {
                     if primitive_name(name) {
-                        return Err(primitive_reserved(name, s.span));
+                        return Err(primitive_reserved(name, s.span, self.intrinsic_phase));
                     }
                     if name == "self" {
                         return Err(reserved(s.span));
@@ -225,7 +230,7 @@ impl Names<'_, '_> {
                     body,
                 } => {
                     if primitive_name(name) {
-                        return Err(primitive_reserved(name, s.span));
+                        return Err(primitive_reserved(name, s.span, self.intrinsic_phase));
                     }
                     if name == "self" {
                         return Err(reserved(s.span));
@@ -255,7 +260,7 @@ impl Names<'_, '_> {
             CorePatternKind::Reference { pattern, .. }
             | CorePatternKind::ErrorArm { pattern, .. } => self.pattern(pattern, depth + 1)?,
             CorePatternKind::Name(name) if primitive_name(name) => {
-                return Err(primitive_reserved(name, p.span));
+                return Err(primitive_reserved(name, p.span, self.intrinsic_phase));
             }
             CorePatternKind::Name(name) if name == "self" => return Err(reserved(p.span)),
             CorePatternKind::Tuple(fields) | CorePatternKind::Variant { fields, .. } => {
@@ -379,7 +384,7 @@ impl Names<'_, '_> {
         };
         for (name, e) in bindings {
             if primitive_name(name) {
-                return Err(primitive_reserved(name, e.span));
+                return Err(primitive_reserved(name, e.span, self.intrinsic_phase));
             }
             self.expr(e, receiver, depth + 1)?;
         }
@@ -395,7 +400,7 @@ impl Names<'_, '_> {
             unreachable!("name closure dispatcher")
         };
         if let Some(p) = parameters.iter().find(|p| primitive_name(&p.name)) {
-            return Err(primitive_reserved(&p.name, p.span));
+            return Err(primitive_reserved(&p.name, p.span, self.intrinsic_phase));
         }
         if let Some(p) = parameters.iter().find(|p| p.name == "self") {
             return Err(reserved(p.span));

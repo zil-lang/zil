@@ -84,7 +84,8 @@ mod tasks;
 mod tuple_bindings;
 mod type_hints;
 mod utf8_literals;
-pub use inference::{infer_program_closures, infer_source_closures};
+pub use inference::{infer_program_closures, infer_source_closures, infer_source_closures_for_ct};
+pub use names::runtime_only_ct_callee;
 pub use program::{check_program, check_program_in_frozen_context, resolve_program_shapes};
 type R<T> = Result<T, Diagnostic>;
 #[derive(Clone)]
