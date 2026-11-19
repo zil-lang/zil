@@ -1630,6 +1630,7 @@ fn check_module_budget(
         }
         budget.diagnostic_stage("actual CFG structure and retained bodies");
         let mut graphs = Vec::with_capacity(module.functions.len());
+        let mut escaping_stack_borrow = None;
         for (function, function_plan) in module.functions.iter().zip(&plan.functions) {
             if function_plan.function != function.id {
                 return Err(reject(
@@ -1638,7 +1639,7 @@ fn check_module_budget(
                     "candidate function order or identity is incorrect",
                 ));
             }
-            let graph = check_function(module, function, function_plan, &mut budget)?;
+            let graph = check_function(module, function, function_plan, &mut escaping_stack_borrow, &mut budget)?;
             if budget
                 .private_slot_functions
                 .as_ref()
@@ -1701,6 +1702,10 @@ fn check_module_budget(
             budget.diagnostic_stage("actual borrow CFG");
             borrows::check_module(module, plan, &graphs, &mut budget)?
         };
+        // Every reachable direct return of this activation's own address is
+        // invalid. The loan CFG can additionally identify the earlier access
+        // that already invalidated the returned loan, with its actual site.
+        if let Some(error) = escaping_stack_borrow { return Err(error); }
         budget.diagnostic_stage("actual deferred sources and head access");
         if !budget.pending_callable_sources.is_empty() {
             return Err(reject(
@@ -2660,6 +2665,7 @@ fn check_function(
     module: &TypedModule,
     function: &TypedFunction,
     plan: &FunctionPlan,
+    escaping_stack_borrow: &mut Option<Diagnostic>,
     budget: &mut Budget,
 ) -> Check<FunctionGraph> {
     let fail = |code, message| reject(code, Some(function.span), message);
@@ -2762,6 +2768,7 @@ fn check_function(
     let mut projected_returns = Vec::new();
     let mut addressed_sums = false;
     let mut mixed_address_sums = false;
+    let mut has_defer = false;
     let mut immutable_stores = vec![0usize; m];
     for (block_index, block) in function.blocks.iter().enumerate() {
         budget.spend(1)?;
@@ -2793,6 +2800,7 @@ fn check_function(
                     ));
                 }
             }
+            has_defer |= matches!(instruction.kind, InstructionKind::RegisterDefer { .. });
             mixed_address_sums |= matches!(
                 instruction.kind,
                 InstructionKind::BorrowPlaceAddress { .. }
@@ -2918,6 +2926,7 @@ fn check_function(
     }
     let (initialized_in, initialized_out) =
         initialization::reconstruct(function, &predecessors, &successors, &reachable, budget)?;
+    let mut invalid_read = None;
     for (b, block) in function.blocks.iter().enumerate() {
         initialized_in[b].check_claim(
             &plan.blocks[b].initialized_in, block.id, "entry",
@@ -2983,11 +2992,13 @@ fn check_function(
                 | InstructionKind::CallClosureShared { callee: local, .. }
                     if !initialized.has(local) =>
                 {
-                    return Err(reject(
+                    let error = reject(
                         "E-VERIFY-INITIALIZATION",
                         Some(instruction.span),
                         "load may read a local before initialization",
-                    ));
+                    );
+                    if !has_defer { return Err(error); }
+                    invalid_read.get_or_insert(error);
                 }
                 InstructionKind::UnpackVariant { local, .. } | InstructionKind::UnpackTuple { local, .. }
                     if !initialized.has(local) =>
@@ -3025,7 +3036,7 @@ fn check_function(
                 if matches!(producer.kind, InstructionKind::BorrowLocal { .. }
                     | InstructionKind::BorrowLocalMut { .. })
                 {
-                    return Err(reject("E-BORROW-ESCAPE", Some(producer.span),
+                    escaping_stack_borrow.get_or_insert_with(|| reject("E-BORROW-ESCAPE", Some(producer.span),
                         "reference return takes an address of this activation's own local storage"));
                 }
             }
@@ -3039,6 +3050,13 @@ fn check_function(
         package_views,
         role_data_uses,
     };
+    // A misplaced deferred cleanup can itself cause a later read of vacant
+    // storage. Reconstruct its schedule from the complete structural CFG
+    // before reporting the consequent invalid read.
+    if let Some(error) = invalid_read {
+        defers::check(module, function, &graph, budget)?;
+        return Err(error);
+    }
     foreign::check_regions(function, &graph, budget)?;
     cleanup::check_function(module, function, &graph, budget)?;
     Ok(graph)

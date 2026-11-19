@@ -10,6 +10,12 @@ impl CheckedOriginal {
         if kind==CallKind::Suspend{*old=CallKind::Suspend;}
         Ok(())
     }
+    pub(super) fn check_original_effect_bound(&self, id: SemanticDefinitionId, declared: CallKind) -> Check<()> {
+        if declared == CallKind::Direct && self.executing_effects.get(&id) == Some(&CallKind::Suspend) {
+            return Err(bad("original body may suspend beyond its fixed Direct call convention"));
+        }
+        Ok(())
+    }
     pub(super) fn check_effects(&self,b:&mut Budget)->Check<()> {
         // Every admitted cleanup edge has already proved original SyncDrop.
         // It therefore adds no Suspend edge. Unknown cleanup was rejected,
@@ -17,7 +23,7 @@ impl CheckedOriginal {
         for (id,prototype) in &self.prototypes {
             b.spend(1)?;
             if !self.checked.contains(id){return Err(bad("original effect graph contains an unchecked body"));}
-            if prototype.call_kind==CallKind::Direct&&self.executing_effects.get(id)==Some(&CallKind::Suspend){return Err(bad("original body may suspend beyond its fixed Direct call convention"));}
+            self.check_original_effect_bound(*id, prototype.call_kind)?;
         }
         // Static recursive edges use fixed callee uppers. Checking every body
         // against that same upper closes the graph without treating an active

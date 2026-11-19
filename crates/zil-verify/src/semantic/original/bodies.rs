@@ -196,8 +196,17 @@ impl CheckedOriginal {
                         if self.in_defer.get(&owner).copied().unwrap_or(0) != 0 {
                             return Err(bad("original cleanup cannot register a nested defer"));
                         }
-                        let (action, result, _) = body.deferred_action().ok_or_else(||
-                            bad("defer has no actual source closure operand"))?;
+                        let Some((action, result, _)) = body.deferred_action() else {
+                            // An unelaborated body still has independently checkable
+                            // effects at cleanup. Preserve that reason when its owner
+                            // promises Direct, and still require the registration site.
+                            self.block(module, context, body, env, &mut bindings.clone(),
+                                &Ty::Atom(Type::Unit), loops, active, b)?;
+                            let declared = self.prototypes.get(&owner)
+                                .ok_or_else(|| bad("deferred body lacks its original signature"))?.call_kind;
+                            self.check_original_effect_bound(owner, declared)?;
+                            return Err(bad("defer has no actual source closure operand"));
+                        };
                         if result != &SemanticTypeRecipe::Atom(Type::Unit) {
                             return Err(bad("original defer action must return Unit"));
                         }
