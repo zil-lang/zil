@@ -376,7 +376,7 @@ fn direct_call_uses_its_original_scalar_field_and_computed_argument() {
 fn direct_call_preserves_scalar_conversions_literals_and_inferred_arguments() {
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
-    let text = "fn same<T:Value>(value:T)->T{return value}\nfn read(a:i32)->i64{return same(i64(a)+(-3i64))}\nfn real(v:f64)->f64{return v}\nfn floating()->f64{return real(-2.5f64)}\nfn main(){}";
+    let text = "fn same<T:Value>(value:T)->T{return value}\nfn read(a:i32)->i64{return same(i64(a)+(-3i64))}\nfn real(v:f64)->f64{return v}\nfn floating()->f64{return real(-2.5f64)}\nfn piped()->i64{return 7i64 |> same}\nfn nested(x:i64)->i64{let n=x+1;return ((n |> same) |> same)}\nfn main(){}";
     let source = SourceUnit::new(FileId(0), ModuleId(0), "scalar-forms.zil", text);
     let core = original_core(source, &limits, &target);
     let typed = zil_types::check(&core, &target, &limits).unwrap();
@@ -384,4 +384,25 @@ fn direct_call_preserves_scalar_conversions_literals_and_inferred_arguments() {
     zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
     let bytes = wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
     zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    let mut changed = typed;
+    let piped = changed.functions.iter_mut().find(|function|function.name == "piped").unwrap();
+    let mut edits = 0;
+    for instruction in piped.blocks.iter_mut().flat_map(|block| &mut block.instructions) {
+        if let InstructionKind::Constant(Constant::I64(number @ 7)) = &mut instruction.kind {
+            *number = 8;
+            edits += 1;
+        }
+    }
+    assert_eq!(edits, 1);
+    let errors = zil_analyze::analyze(&changed, &limits).unwrap_err();
+    assert!(errors.iter().any(|d| d.message.contains("actual scalar Call argument")), "{errors:?}");
+    require_semantic_rejection(errors);
+    let mut forged_plan = plan;
+    forged_plan.module_fingerprint = changed.fingerprint();
+    let bytes = wire::encode_module_candidate(&changed, &forged_plan, &limits).unwrap();
+    for errors in [zil_verify::verify_module(changed, forged_plan, &target, &limits).unwrap_err(),
+        zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err()] {
+        assert!(errors.iter().any(|d| d.notes.iter().any(|note|note.contains("actual scalar call"))), "{errors:?}");
+        require_semantic_rejection(errors);
+    }
 }

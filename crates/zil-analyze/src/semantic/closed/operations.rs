@@ -21,6 +21,13 @@ impl Check<'_, '_> {
         }
         for ((source, &operand), ty) in inputs.iter().zip(arguments).zip(parameters) {
             if !ty.is_b0_scalar() { continue; }
+            let initializer = if matches!(source.kind, CoreExprKind::Name(_)) {
+                self.original.prepared_initializer(instance.definition, source.id, b)?
+            } else { None };
+            let source = match initializer {
+                Some(node) => original.get_expr(node, b)?,
+                None => source,
+            };
             if let Some(emitted) = self.original_subject_value(instance, function, source.id, b)? {
                 if (emitted == operand || self.operation_operand_matches(function, operand, emitted, b)?)
                     && self.scalar_call_projection(instance, function, source, emitted, b)?
@@ -29,6 +36,15 @@ impl Check<'_, '_> {
                 }
             } else if self.copy_expression_source(instance, function, source, operand, b, 0)? {
                 continue;
+            } else if initializer.is_some() {
+                let mut proven = true;
+                for value in self.call_operand_origins(function, operand, b)? {
+                    if !self.copy_expression_source(instance, function, source, value, b, 0)? {
+                        proven = false;
+                        break;
+                    }
+                }
+                if proven { continue; }
             }
             return Err(fail(&format!("actual scalar Call argument selects another original expression {:?}, SSA {:?}", source.id, operand)));
         }

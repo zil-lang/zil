@@ -92,6 +92,21 @@ impl CheckedOriginal {
         };
         Ok((current, path, gives))
     }
+    pub(in crate::semantic) fn scalar_initializer(&self, owner: SemanticDefinitionId, node: NodeId, b: &mut Budget) -> Check<Option<NodeId>> {
+        b.spend(self.value_bindings.len().checked_ilog2().map_or(1, |n| n as usize + 1))?;
+        let Some(Binder::Local { definition, node: producer, .. }) = self.value_bindings.get(&(owner, node)) else { return Ok(None); };
+        b.spend(self.scalar_initializers.len().checked_ilog2().map_or(1, |n| n as usize + 1))?;
+        if *definition != owner || !self.scalar_initializers.contains(&(owner, *producer)) { return Ok(None); }
+        let syntax = self.source_grammar.as_ref().ok_or_else(|| bad("prepared scalar has no checked original body"))?.place_syntax(owner, b)?;
+        let mut value = *producer;
+        loop {
+            use index::PlaceOperation as Operation;
+            match syntax.expression(value, b)?.operation {
+                Operation::Group(inner) | Operation::Ascribed(inner) | Operation::Sequence(inner) => value = inner,
+                _ => return Ok(Some(value)),
+            }
+        }
+    }
     pub(in crate::semantic) fn scalar_product_field(&self, definition: SemanticDefinitionId, mut node: NodeId, b: &mut Budget) -> Check<bool> {
         use index::PlaceOperation as Operation;
         let syntax = self.source_grammar.as_ref().ok_or_else(|| bad("scalar field has no original body"))?.place_syntax(definition, b)?;

@@ -22,8 +22,14 @@ impl Solver<'_, '_> {
             let local = frame.locals.get(index)
                 .ok_or_else(|| fail("original name read loses its lexical binding"))?;
             let Some(anchor) = local.anchor else {
-                // A source-only synthetic binder has no physical local
-                // receipt. Any actual transport query must still reject it.
+                if let Some(initializer) = local.prepared_at {
+                    b.lookup(self.state.prepared_reads.len(), WORK)?;
+                    if self.state.prepared_reads.insert((frame.definition, node), initializer)
+                        .is_some_and(|old| old != initializer)
+                    {
+                        return Err(fail("one prepared name reads competing original initializers"));
+                    }
+                }
                 return Ok(());
             };
             b.lookup(self.state.local_reads.len(), WORK)?;
@@ -427,6 +433,11 @@ impl Checked {
             },
         } = &recipe.kind else { return Ok(None); };
         self.local_read_anchor(definition, *node, b)
+    }
+
+    pub(in crate::semantic) fn prepared_initializer(&self, owner: SemanticDefinitionId, node: NodeId, b: &mut Budget) -> CompileResult<Option<NodeId>> {
+        b.lookup(self.prepared_reads.len(), WORK)?;
+        Ok(self.prepared_reads.get(&(owner, node)).copied())
     }
 
     pub(in crate::semantic) fn local_read_anchor(

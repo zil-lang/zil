@@ -984,7 +984,9 @@ impl CheckedContext {
             for ((argument, recipe), (expected, _)) in arguments.iter().zip(recipes).zip(&signature.parameters) {
                 if !expected.ty.is_b0_scalar() { continue; }
                 let (node, _, _) = recipe.ok_or_else(|| bad("scalar call argument lacks its original occurrence"))?;
-                self.exact_expression_value(module, caller, f, *argument, node, b)
+                let source = self.original.borrow().as_ref().ok_or_else(||bad("scalar Call has no checked original body"))?
+                    .scalar_initializer(caller.definition, node, b)?.unwrap_or(node);
+                self.exact_expression_value(module, caller, f, *argument, source, b)
                     .map_err(|error| error.with_note(format!("actual scalar call {:?} SSA {:?} original expression {:?}", site.recipe, argument, node)))?;
             }
         }
