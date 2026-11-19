@@ -598,13 +598,7 @@ pub(super) fn runtime(layouts: &LayoutContext<'_>,
     limits: &zil_base::Limits,
     meter: &tasks::Meter,
 ) -> CompileResult<m::Code> {
-    meter.spend(
-        existing
-            .0
-            .len()
-            .saturating_add(lir.functions.len())
-            .saturating_add(1024),
-    )?;
+    meter.spend(lir.functions.len().saturating_add(1024))?;
     if lir.target.triple != "x86_64-unknown-linux-gnu" {
         return unsupported("retained registration currently requires Linux x64", None);
     }
@@ -620,58 +614,7 @@ pub(super) fn runtime(layouts: &LayoutContext<'_>,
             );
         }
     }
-    let mut out = m::Code::new();
-    for (name, ret, params) in [
-        ("calloc", m::Ty::Ptr, vec![m::Ty::Int(64), m::Ty::Int(64)]),
-        ("free", m::Ty::Void, vec![m::Ty::Ptr]),
-    ] {
-        if let Some(f) = lir
-            .functions
-            .iter()
-            .find(|f| f.foreign.as_ref().is_some_and(|a| a.symbol == name))
-        {
-            meter.spend(f.parameters.len().saturating_add(1))?;
-            let before = meter.remaining();
-            let mut left = before;
-            for local in &f.parameters {
-                copy_aggregates::reserve_enum_metadata(
-                    &f.locals[local.0 as usize].ty,
-                    &mut left,
-                    0,
-                    limits,
-                )?;
-            }
-            copy_aggregates::reserve_enum_metadata(&f.return_type, &mut left, 0, limits)?;
-            meter.spend(before - left)?;
-            let signature = f
-                .parameters
-                .iter()
-                .map(|id| layouts.value_type(&f.locals[id.0 as usize].ty))
-                .collect::<CompileResult<Vec<_>>>()?;
-            if signature != params || layouts.value_type(&f.return_type)? != ret {
-                return invalid(
-                    "E-CODEGEN-FOREIGN",
-                    "allocator signature conflicts with registration runtime",
-                    Some(f.span),
-                );
-            }
-        } else if !existing
-            .0
-            .iter()
-            .any(|event| matches!(event,m::Event::Declare(f) if f.name==name))
-        {
-            out.push(m::Event::Declare(m::Function {
-                name: name.into(),
-                linkage: m::Linkage::External,
-                signature: m::Signature::new(
-                    ret,
-                    params.into_iter().map(m::Param::unnamed).collect(),
-                ),
-                attrs: vec![],
-                blocks: None,
-            }));
-        }
-    }
+    let mut out = allocators::calloc_and_free(layouts, lir, existing, limits, meter)?;
     let instruction =
         |name: Option<&str>, op| m::Event::Instruction(m::Inst::new(name.map(str::to_owned), op));
     out.push(m::Event::Begin(m::Function {

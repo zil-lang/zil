@@ -751,6 +751,10 @@ pub(super) fn frame_protocol_aggregate(module: &TypedModule, f: &TypedFunction, 
                     // The independent registration/Task resource and frame
                     // kernels still prove the actual root and every live drop.
                     protocol_leaf = true;
+                } else if matches!(payload.as_ref(), Type::Mutex { .. }) {
+                    if !crate::stored_owned::target_free_product_or_sum(module, ty, b)? {
+                        return Ok(false);
+                    }
                 } else if !crate::stored_owned::target_free_value(module, ty, b)? {
                     return Ok(false);
                 }

@@ -478,6 +478,17 @@ fn target_free_tree<'a>(
                 }
             },
             Type::Managed(inner)=>{
+                if let Type::Mutex { payload } = inner.as_ref() {
+                    if matches!(role, TargetFreeRole::Store) {
+                        return Ok(false);
+                    }
+                    // This transfers the existing sealed owner, including
+                    // its synchronous payload cleanup. Recursively prove the
+                    // full payload has no retained address permission.
+                    crate::resources::check_type_for(module, ty, None, b)?;
+                    pending.push((payload, depth + 1, TargetFreeRole::Ordinary));
+                    continue;
+                }
                 let payload = if !matches!(role, TargetFreeRole::Store) && matches!(inner.as_ref(), Type::Record { .. }) {
                     TargetFreeRole::ResourcePayload(ty)
                 } else {

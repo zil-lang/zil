@@ -1,3 +1,4 @@
+mod allocators;
 mod arrays;
 mod byte_buffer;
 mod cleanup_tails;
@@ -403,6 +404,7 @@ fn prepare_emission<'a>(verified:&VerifiedModule,bound:BoundModule<'a>,layout_co
     text.append(dyn_dispatch::runtime(layouts, lir)?);
     text.append(tasks::runtime(layouts,
         lir,
+        &text,
         verified.uses_scalar_tasks(),
         verified.limits(),
         &task_meter,

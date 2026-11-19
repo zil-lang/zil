@@ -120,6 +120,7 @@ pub(super) fn kind(operation:&InstructionKind)->Kind{
         |InstructionKind::DropOwnedArrayElement{..}
         |InstructionKind::DropPackage{..}
         |InstructionKind::DropPackageField{..}
+        |InstructionKind::MutexCreate{..}
         |InstructionKind::DropTuple{..}=>Kind::Cleanup,
         InstructionKind::CommitPlaceReplace{..}
         |InstructionKind::Store{..}
@@ -152,7 +153,6 @@ pub(super) fn kind(operation:&InstructionKind)->Kind{
         |InstructionKind::AsyncRegistrationFinishDestroyChecked{..}=>Kind::ClosedFinish,
         InstructionKind::CallIndirect{..}
         |InstructionKind::DropMutexGuard{..}
-        |InstructionKind::MutexCreate{..}
         |InstructionKind::MutexLock{..}
         |InstructionKind::MutexUnlock{..}
         |InstructionKind::MutexValue{..}
@@ -192,6 +192,9 @@ pub(super) fn cleanup_roots<'a>(
             Some(old)
         },
         InstructionKind::TaskFinishDestroy{task}=>Some(value_type(f,*task,span)?),
+        // Allocation or initialization can fail after the actual payload has
+        // transferred. The existing cleanup graph must follow that payload.
+        InstructionKind::MutexCreate{value}=>Some(value_type(f,*value,span)?),
         InstructionKind::RegistrationClose{registration}|InstructionKind::AsyncRegistrationFinishDestroy{registration}|InstructionKind::AsyncRegistrationFinishDestroyChecked{registration}=>Some(value_type(f,*registration,span)?),
         InstructionKind::RegistrationStart{callback,..}|InstructionKind::AsyncRegistrationStart{callback,..}=>Some(value_type(f,*callback,span)?),
         InstructionKind::CallClosureOnce{callee,..}=>Some(value_type(f,*callee,span)?),

@@ -370,6 +370,11 @@ fn frame_storage_instruction(
     {
         return Ok(true);
     }
+    if f.call_kind == CallKind::Direct && matches!(instruction.kind, InstructionKind::MutexCreate { .. }) {
+        // The canonical Mutex checker already checks this actual operation,
+        // including the failure cleanup of its entire transferred payload.
+        return Ok(true);
+    }
     Ok(matches!(
         &instruction.kind,
         InstructionKind::Constant(_)
@@ -522,7 +527,7 @@ fn complete_aggregate(module: &TypedModule, t: &Type, budget: &mut Budget) -> Co
             t if scalar(t) => {}
             Type::BorrowedStorage { storage, .. } => work.push(storage),
             Type::Managed(payload) => {
-                if matches!(payload.as_ref(), Type::OwnedStore { .. } | Type::Task { .. } | Type::AsyncRegistration { .. }) {
+                if matches!(payload.as_ref(), Type::OwnedStore { .. } | Type::Mutex { .. } | Type::Task { .. } | Type::AsyncRegistration { .. }) {
                     if !pollable_storage(module, t, budget)? {
                         return Ok(false);
                     }
@@ -952,6 +957,10 @@ fn pollable_storage_at(module: &TypedModule, t: &Type, budget: &mut Budget,
             crate::ownership_store::payload_definition(module, p, budget)?;
             Ok(super::input_scope::known_zero(module, p, budget)?)
         }
+        Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::Mutex { .. }) => {
+            frame_resource(module, p, budget, None)?;
+            Ok(super::input_scope::known_zero(module, p, budget)?)
+        }
         // An owned child head is a real asynchronous cleanup obligation. Its
         // constructor is separately traced by Task origin/migration checks.
         Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::Task { .. }) => {
@@ -1091,6 +1100,20 @@ fn frame_resource<'a>(
         return Ok(resource);
     }
     let expected = match payload {
+        Type::Mutex { payload: child } => {
+            crate::generic_mutex::payload(module, child, budget, span.unwrap_or_default())?;
+            for leaf in aggregate_resources(module, child, budget)? {
+                let Type::Managed(nested) = leaf else { unreachable!() };
+                if matches!(nested.as_ref(), Type::TaskI32 | Type::Task { .. } | Type::AsyncRegistration { .. }) {
+                    return Err(reject("E-VERIFY-TASK", span,
+                        "frame Mutex payload lacks synchronous ownership cleanup"));
+                }
+                let resource = frame_resource(module, nested, budget, span)?;
+                if let Some(drop) = resource.teardown { cleanup(module, drop, budget, span)?; }
+            }
+            budget.type_work(child, false, "Task frame sealed Mutex identity")?;
+            Some(format!("@builtin:Mutex<{}>", child.fingerprint()))
+        }
         Type::Task { .. } => {
             super::require_closed_context(payload)?;
             budget.type_work(payload, false, "Task frame sealed resource identity")?;

@@ -1698,6 +1698,7 @@ fn lower_worker(layouts: &LayoutContext<'_>,
 
 pub(super) fn runtime(layouts: &LayoutContext<'_>,
     lir: &LirView<'_>,
+    existing: &m::Code,
     enabled: bool,
     limits: &zil_base::Limits,
     meter: &Meter,
@@ -1731,60 +1732,7 @@ pub(super) fn runtime(layouts: &LayoutContext<'_>,
             );
         }
     }
-    let byte_allocator = lir
-        .resources
-        .iter()
-        .any(|r| r.payload == Type::ByteBuffer || matches!(r.payload, Type::OwnedStore { .. }));
-    for (n, result, params) in [
-        ("calloc", m::Ty::Ptr, vec![m::Ty::Int(64), m::Ty::Int(64)]),
-        ("free", m::Ty::Void, vec![m::Ty::Ptr]),
-    ] {
-        if n == "free" && byte_allocator {
-            continue;
-        }
-        if let Some(f) = lir.functions.iter().find(|f| {
-            f.foreign
-                .as_ref()
-                .is_some_and(|foreign| foreign.symbol == n)
-        }) {
-            meter.spend(f.parameters.len().saturating_add(1))?;
-            let before = meter.remaining();
-            let mut left = before;
-            for local in &f.parameters {
-                copy_aggregates::reserve_enum_metadata(
-                    &f.locals[local.0 as usize].ty,
-                    &mut left,
-                    0,
-                    limits,
-                )?;
-            }
-            copy_aggregates::reserve_enum_metadata(&f.return_type, &mut left, 0, limits)?;
-            meter.spend(before - left)?;
-            let actual = f
-                .parameters
-                .iter()
-                .map(|id| layouts.value_type(&f.locals[id.0 as usize].ty))
-                .collect::<CompileResult<Vec<_>>>()?;
-            if actual != params || layouts.value_type(&f.return_type)? != result {
-                return invalid(
-                    "E-CODEGEN-FOREIGN",
-                    format!("{n} conflicts with task allocation ABI"),
-                    Some(f.span),
-                );
-            }
-        } else {
-            items.push(m::Item::Function(m::Function {
-                name: n.into(),
-                linkage: m::Linkage::External,
-                signature: m::Signature::new(
-                    result,
-                    params.into_iter().map(m::Param::unnamed).collect(),
-                ),
-                attrs: vec![],
-                blocks: None,
-            }));
-        }
-    }
+    let mut code = allocators::calloc_and_free(layouts, lir, existing, limits, meter)?;
     let frame = m::Ty::Struct(header());
     for (operation, index, result, empty) in [
         ("poll", 0, result_ty(), Some(4)),
@@ -1996,7 +1944,6 @@ pub(super) fn runtime(layouts: &LayoutContext<'_>,
             ],
         ));
     }
-    let mut code = m::Code::new();
     for item in items {
         match item {
             m::Item::Function(f) if f.blocks.is_none() => code.push(m::Event::Declare(f)),

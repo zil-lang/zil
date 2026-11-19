@@ -37,7 +37,7 @@ fn guard_type(payload: &Type) -> Type {
     }
 }
 
-fn payload(module: &TypedModule, ty: &Type, budget: &mut Budget, span: Span) -> CompileResult<()> {
+pub(crate) fn payload(module: &TypedModule, ty: &Type, budget: &mut Budget, span: Span) -> CompileResult<()> {
     let mut pending = vec![ty];
     while let Some(ty) = pending.pop() {
         budget.spend(2, "mutex payload shape")?;
