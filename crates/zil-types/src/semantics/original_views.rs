@@ -36,6 +36,7 @@ pub(crate) enum ViewBorrowStepKind {
     ReadLocal {
         binding: NodeId,
     },
+    PreparedShared,
     Field {
         definition: SemanticDefinitionId,
         ordinal: u32,
@@ -1625,6 +1626,27 @@ impl Check<'_, '_> {
             _ => Ok(()),
         }
     }
+    /// Preparing the left operand does not create a new source lifetime.
+    /// Carry the verified original place and bound into this argument use.
+    pub(super) fn prepared_input_view_bound(
+        &mut self,
+        owner: SemanticDefinitionId,
+        source: &SemanticOriginalExpr,
+        argument: NodeId,
+        variables: &BTreeMap<String, Binding>,
+        depth: usize,
+    ) -> R<()> {
+        self.place_borrow_bound(owner, source, variables, depth + 1)?;
+        self.pay(self.proof.view_bounds.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+        let Some(bound) = self.proof.view_bounds.get(&(owner, Query::Expression(source.id))) else {
+            return Ok(());
+        };
+        let mut bound = snapshot_bound(bound, self.limits, self.left, depth + 1)?;
+        self.pay(1, depth)?;
+        bound.steps.push(ViewBorrowStep { node: argument, kind: ViewBorrowStepKind::PreparedShared });
+        self.insert_view_bound(owner, Query::Expression(argument), bound, depth + 1)
+    }
+
     pub(super) fn life_outlives(
         &mut self,
         owner: SemanticDefinitionId,
@@ -1656,7 +1678,8 @@ pub(in crate::semantics) fn local_source_copy(
             | ViewBorrowStepKind::BytesBorrow { .. } | ViewBorrowStepKind::Capture { .. }
             | ViewBorrowStepKind::ProjectedLocal { .. } | ViewBorrowStepKind::Local { .. }
             | ViewBorrowStepKind::Field { .. } | ViewBorrowStepKind::StoreBorrow { .. }
-            | ViewBorrowStepKind::Borrow => return false,
+            | ViewBorrowStepKind::Borrow
+            | ViewBorrowStepKind::PreparedShared => return false,
         }
     }
     read

@@ -1446,6 +1446,7 @@ impl<'a> Check<'a, '_> {
             return Err(bad("original prepared shared Address requires an address input"));
         };
         self.record_expression_type(owner, input.id, source)?;
+        self.prepared_input_view_bound(owner, input, argument.id, variables, depth + 1)?;
         Ok(Some(SemanticTypeRecipe::Address { mutable: false, lifetime, inner }))
     }
     fn rehome(

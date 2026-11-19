@@ -586,6 +586,12 @@ impl Checked {
     pub(in crate::semantic) fn call_input_anchor(
         &self, owner: SemanticDefinitionId, node: NodeId, b: &mut Budget,
     ) -> CompileResult<Option<LocalAnchor>> {
+        if !self.prepared_address_inputs.is_empty() {
+            b.lookup(self.prepared_address_inputs.len(), WORK)?;
+            if let Some(anchor) = self.prepared_address_inputs.get(&(owner, node)) {
+                return Ok(Some(*anchor));
+            }
+        }
         b.lookup(self.local_reads.len(), WORK)?;
         if let Some(anchor) = self.local_reads.get(&(owner, node)) { return Ok(Some(*anchor)); }
         b.lookup(self.environment_reads.len(), WORK)?;

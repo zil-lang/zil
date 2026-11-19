@@ -1052,6 +1052,35 @@ fn trace_steps(
                 cursor = Cursor::Value(store);
                 through_store = true;
             }
+            ViewBorrowStepKind::PreparedShared => {
+                let Cursor::Value(value) = cursor else {
+                    return Err(bad("prepared shared loan has no actual value"));
+                };
+                let (operation, block, at) = producer(world, function, value)?;
+                let InstructionKind::Load(local) = operation else {
+                    return Err(bad("prepared shared loan must read its temporary"));
+                };
+                let local_ty = &function.locals.get(local.0 as usize)
+                    .ok_or_else(|| bad("prepared shared loan has no actual local"))?.ty;
+                if !matches!(local_ty, Type::Address { mutable: false, .. })
+                    || !private_pointer_slot(world, function, *local)?
+                {
+                    return Err(bad("prepared shared loan lacks private shared address storage"));
+                }
+                let sources = reaching_values(world, function, *local, (block, at))?;
+                let [ActivationSource::Value(source)] = sources.as_slice() else {
+                    return Err(bad("prepared shared loan must have one initialized reaching value"));
+                };
+                let (source_operation, _, _) = producer(world, function, *source)?;
+                let InstructionKind::ReborrowAddress { address, mutable: false } = source_operation
+                else {
+                    return Err(bad("prepared shared loan changes its actual source reborrow"));
+                };
+                let actual = world.get(values, value)?;
+                let stored = world.get(values, *source)?;
+                world.same(instance.id, &actual, &stored, implicit)?;
+                cursor = Cursor::Value(*address);
+            }
             ViewBorrowStepKind::Alias { binding } => {
                 let local = binding_local(world, instance, original, *binding, step.node)?;
                 // An actual load or move reads the previous occupant. At a
