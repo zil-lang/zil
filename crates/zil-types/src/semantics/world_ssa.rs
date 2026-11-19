@@ -2,7 +2,7 @@
 //! class values can be shared between sibling snapshots until a real write.
 use super::*;
 
-const PAGE_LEN: usize = u64::BITS as usize;
+pub(super) const PAGE_LEN: usize = u64::BITS as usize;
 
 #[derive(Clone)]
 pub(super) struct Page {
@@ -80,22 +80,27 @@ impl Values {
         })
     }
     pub(super) fn classed(&self) -> impl Iterator<Item = &SharedType> {
-        self.pages.iter().flatten().flat_map(|page| {
-            page.entries_for(page.classed).map(|(_, value)| value)
+        self.classed_entries().map(|(_, value)| value)
+    }
+    pub(super) fn classed_entries(&self) -> impl Iterator<Item = (usize, &SharedType)> {
+        self.pages.iter().enumerate().flat_map(|(number, page)| {
+            page.iter().flat_map(move |page| page.entries_for(page.classed).map(move |(offset, value)| {
+                (number * PAGE_LEN + offset, value)
+            }))
         })
     }
     pub(super) fn retain(
         &mut self,
         world: &mut World<'_, '_>,
-        mut keep: impl FnMut(usize) -> bool,
+        keep: &[u64],
     ) -> R<()> {
-        world.pay(self.pages.len())?;
-        for (number, slot) in self.pages.iter_mut().enumerate() {
+        world.pay(self.pages.len().saturating_add(1))?;
+        if keep.len() != self.pages.len() {
+            return Err(bad("SSA dominance mask changes the whole value directory"));
+        }
+        for (slot, keep) in self.pages.iter_mut().zip(keep) {
             let Some(page) = slot else { continue; };
-            world.pay(page.present.count_ones() as usize)?;
-            let remove = Occupied(page.present)
-                .filter(|offset| !keep(number * PAGE_LEN + *offset))
-                .fold(0u64, |bits, offset| bits | 1u64 << offset);
+            let remove = page.present & !keep;
             if remove == 0 { continue; }
             if page.present == remove {
                 *slot = None;

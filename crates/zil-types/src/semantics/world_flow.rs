@@ -449,7 +449,9 @@ impl LiveMetadata {
         Ok(())
     }
     fn image(&mut self, world: &mut World<'_, '_>, image: &SemanticClassExpr) -> R<()> {
-        crate::dyn_metadata::semantic_operand_snapshot(image, world.limits, world.left, 1)?;
+        // Only heads contribute an edge. Paths, access modes and binder
+        // geometry remain attached to the original image in reaching state.
+        world.pay(1)?;
         if let Some(value) = image_value(image) {
             self.value_id(world, value)?;
         }
@@ -1104,12 +1106,39 @@ pub(super) struct Shape {
     schema: FunctionId,
     blocks: BTreeMap<BlockId, usize>,
     definitions: Vec<(usize, usize)>,
+    definition_pages: Vec<Vec<(usize, u64)>>,
+    strict_ssa_masks: Vec<std::cell::RefCell<Option<Rc<Vec<u64>>>>>,
     dominators: Vec<BlockSet>,
     components: Vec<usize>,
     predecessors: Vec<Vec<usize>>,
     pub(super) protocol_relevance: std::cell::Cell<Option<bool>>,
 }
 impl Shape {
+    fn strictly_dominating_ssa(
+        &self,
+        world: &mut World<'_, '_>,
+        block: usize,
+    ) -> R<Rc<Vec<u64>>> {
+        world.pay(1)?;
+        let mut mask = self.strict_ssa_masks[block].borrow_mut();
+        if let Some(mask) = mask.as_ref() {
+            return Ok(mask.clone());
+        }
+        world.pay(self.definition_pages.len().saturating_add(1))?;
+        let mut retained = Vec::with_capacity(self.definition_pages.len());
+        for page in &self.definition_pages {
+            world.pay(page.len())?;
+            let mut bits = 0;
+            for &(definition, values) in page {
+                if definition != block && self.dominators[block].contains(definition) {
+                    bits |= values;
+                }
+            }
+            retained.push(bits);
+        }
+        Ok(mask.insert(Rc::new(retained)).clone())
+    }
+
     pub(super) fn producer<'a>(
         &self,
         world: &mut World<'_, '_>,
@@ -1296,6 +1325,23 @@ impl Cfg {
                 break;
             }
         }
+        let pages = definitions.len().div_ceil(ssa::PAGE_LEN);
+        world.pay(definitions.len().saturating_add(pages).saturating_add(count))?;
+        let mut definition_pages = Vec::with_capacity(pages);
+        for definitions in definitions.chunks(ssa::PAGE_LEN) {
+            let mut page = Vec::<(usize, u64)>::new();
+            for (bit, &(definition, _)) in definitions.iter().enumerate() {
+                let value = 1u64 << bit;
+                if let Some((previous, values)) = page.last_mut()
+                    && *previous == definition
+                {
+                    *values |= value;
+                } else {
+                    page.push((definition, value));
+                }
+            }
+            definition_pages.push(page);
+        }
         for incoming in &mut predecessors {
             world.pay(incoming.len().saturating_add(1))?;
             incoming.retain(|ordinal| reachable.contains(*ordinal));
@@ -1307,6 +1353,8 @@ impl Cfg {
             schema,
             blocks,
             definitions,
+            definition_pages,
+            strict_ssa_masks: (0..count).map(|_| Default::default()).collect(),
             dominators,
             components,
         })
@@ -1566,7 +1614,7 @@ impl Cfg {
                 }
             }
             world.pay(state.values.pages.len())?;
-            for (ordinal, value) in state.values.iter() {
+            for (ordinal, value) in state.values.classed_entries() {
                 world.pay(1)?;
                 if self.loop_occurrence(world, index, Some(value), &state.implicit, false)? {
                     state.stale_values.insert(ValueId(ordinal as u32));
@@ -1597,10 +1645,8 @@ impl Cfg {
         // Only definitions strictly dominating entry to this block survive.
         // In particular a previous loop iteration cannot initialize this
         // iteration's SSA, and a sibling branch cannot donate a same-numbered value.
-        state.values.retain(world, |ordinal| {
-            let (definition, _) = self.definitions[ordinal];
-            definition != index && self.dominators[index].contains(definition)
-        })?;
+        let surviving = self.strictly_dominating_ssa(world, index)?;
+        state.values.retain(world, &surviving)?;
         world.pay(state.stale_values.len()
             .saturating_add(state.stale_locals.len())
             .saturating_add(state.role_sources.len())
