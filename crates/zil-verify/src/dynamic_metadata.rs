@@ -3,7 +3,7 @@
 use super::*;
 mod structure;
 pub(crate) use structure::{check_store_resource_payloads, source_program_bounds, store_definition_known, store_definition_success, sum_shape_known, sum_shape_success};
-pub(crate) use structure::{Structure,owner_known,owner_success,lexical_scopes,program_lexical_scopes,dyn_declarations,trait_providers,nominal_declarations,nominal_instances,nominal_scope_instances,resource_known,resource_success,store_element_known,store_element_success,stored_type_known,stored_type_success,adopt_type_cell};
+pub(crate) use structure::{compare_type_cells,Structure,owner_known,owner_success,lexical_scopes,program_lexical_scopes,dyn_declarations,trait_providers,nominal_declarations,nominal_instances,nominal_scope_instances,resource_known,resource_success,store_element_known,store_element_success,stored_type_known,stored_type_success,adopt_type_cell};
 fn pay(b: &mut Budget, nodes: &mut usize, cap: usize, n: usize) -> Check<()> {
     *nodes = nodes
         .checked_add(n)

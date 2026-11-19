@@ -3,6 +3,9 @@
 use super::*;
 use std::any::TypeId;
 
+mod physical_pairs;
+pub(crate) use physical_pairs::compare_type_cells;
+
 type Profile=(usize,usize);
 type RecipeKey=(TypeId,usize);
 type OwnerKey=(u8,zil_base::ModuleId,zil_base::NodeId,bool,u32);
@@ -82,6 +85,7 @@ struct TypeSnapshot {
 
 pub(crate) struct Structure{
     scope_identity: std::rc::Rc<()>,
+    physical_pairs: physical_pairs::Pairs,
     module:usize,
     program:Option<usize>,
     declarations:(usize,usize),
@@ -128,6 +132,7 @@ impl Structure{
         let mut result=Self{
             module:module as *const TypedModule as usize,
             scope_identity: std::rc::Rc::new(()),
+            physical_pairs: physical_pairs::Pairs::new(&b.limits),
             program:module.semantic.as_ref().map(|program|program as *const SemanticModule as usize),
             declarations:(module.dyn_declarations.as_ptr() as usize,module.dyn_declarations.len()),
             types:BTreeSet::new(),recipes:BTreeSet::new(),program_bounds:BTreeSet::new(),declaration_nodes:BTreeSet::new(),

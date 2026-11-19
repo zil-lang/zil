@@ -165,9 +165,7 @@ impl CheckedType {
             b.spend(2)?;
             return Ok(self.ty == other.ty);
         }
-        crate::dynamic_metadata::ty(&self.ty,b)?;
-        crate::dynamic_metadata::ty(&other.ty,b)?;
-        Ok(self.ty==other.ty)
+        crate::dynamic_metadata::compare_type_cells(&self.type_cell,&other.type_cell,b)
     }
     pub(crate) fn charge_clone(&self,b:&mut crate::Budget)->crate::Check<()>{
         b.spend(1)?;
