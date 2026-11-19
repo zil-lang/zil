@@ -146,7 +146,7 @@ impl<'a, 'b> Request<'a, 'b> {
         }
         self.budget.spend(2)?; // Optional-record selection and complete Slots borrow.
         let Function { binding, slots } = function;
-        run_with_slots(
+        let written = run_with_slots(
             self.module,
             binding,
             &slots.as_ref().expect("complete resource slot layout").slots,
@@ -155,7 +155,23 @@ impl<'a, 'b> Request<'a, 'b> {
             sum_rows,
             self.budget,
             self.replacements,
-        )
+        )?;
+        if validate && !written.is_empty() && f.parameters.is_empty() && f.environment.is_none() {
+            return Err(bad(f.span, "resource write has no actual input or capture root"));
+        }
+        Ok(written)
+    }
+
+    fn infer_writes(&mut self, index: usize, effects: &[BTreeSet<Root>]) -> Check<BTreeSet<Root>> {
+        // An activation without inputs or an environment cannot export an
+        // access to a formal or capture. Local, field and array roots stay
+        // private. The validating run still checks every reachable operation.
+        self.budget.spend(3)?;
+        let f = self.functions[index].binding.function();
+        if f.parameters.is_empty() && f.environment.is_none() {
+            return Ok(BTreeSet::new());
+        }
+        self.run(index, effects, false, None)
     }
 
     pub(super) fn infer_effects(&mut self) -> Check<Vec<BTreeSet<Root>>> {
@@ -171,7 +187,7 @@ impl<'a, 'b> Request<'a, 'b> {
                 self.budget.spend(1)?;
                 #[cfg(test)]
                 TEST_EFFECT_SOLVES.with(|value| value.set(value.get() + 1));
-                effects[index] = self.run(index, &effects, false, None)?;
+                effects[index] = self.infer_writes(index, &effects)?;
             }
             return Ok(effects);
         }
@@ -186,7 +202,7 @@ impl<'a, 'b> Request<'a, 'b> {
                 scheduled[index] = false;
                 #[cfg(test)]
                 TEST_EFFECT_SOLVES.with(|value| value.set(value.get() + 1));
-                let found = self.run(index, &effects, false, None)?;
+                let found = self.infer_writes(index, &effects)?;
                 self.budget
                     .spend(found.len().saturating_add(effects[index].len()))?;
                 let before = effects[index].len();

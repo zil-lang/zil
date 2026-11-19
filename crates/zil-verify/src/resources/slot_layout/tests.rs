@@ -975,3 +975,20 @@ fn slot_layout_foreign_and_empty_functions_keep_the_original_early_returns() {
         assert_eq!(request.slots(0).is_none(), foreign);
     }
 }
+
+#[test]
+fn a_private_frame_has_no_exported_writes_and_still_checks_actual_accesses() {
+    let mut module = effect_fixture(&[vec![], vec![]], &[1, 2]);
+    module.functions[0].parameters.clear();
+    let gs = graphs(&module);
+    let mut b = budget(ROOM);
+    configure(&module, &mut b);
+    let mut request = Request::new(&module, &gs, None, None, &mut b).unwrap();
+    let effects = request.infer_effects().unwrap();
+    assert!(effects[0].is_empty());
+    assert!(request.slots(0).is_none());
+    assert_eq!(effects[1], BTreeSet::from([Root::Parameter(1)]));
+    let error = request.run(0, &effects, true, None).unwrap_err();
+    assert_eq!(error.category, zil_base::ResultCategory::SafeReject);
+    assert!(error.message.contains("grounded"), "{error:?}");
+}
