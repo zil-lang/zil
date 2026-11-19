@@ -75,7 +75,8 @@ impl Check<'_, '_> {
         expected: &SemanticSignatureRecipe,
         depth: usize,
     ) -> R<SemanticTypeRecipe> {
-        if !self.captures.get(&child.id).is_some_and(|captures| captures.is_empty()) {
+        self.pay(self.proof.capture_names.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+        if !self.proof.capture_names.get(&child.id).is_some_and(|captures| captures.is_empty()) {
             return Err(bad("function pointer conversion requires a closure with no captures"));
         }
         if self.function_value_copy(owner, SemanticCodeKind::FunctionPointer, expected, depth + 1)? != Some(true) {

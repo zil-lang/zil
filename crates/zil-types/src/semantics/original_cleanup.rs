@@ -26,7 +26,7 @@ fn with_check<T>(
         left,
         proof: ProofAccess::Owned(std::mem::take(proof)),
         active: BTreeSet::new(),
-        captures: BTreeMap::new(),
+        capture_writes: BTreeMap::new(),
         loops: Vec::new(),
         trait_active: Vec::new(),
         contexts: vec![owner],

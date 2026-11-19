@@ -37,7 +37,7 @@ pub(super) fn borrowed_check<'a, 'b>(
         left,
         proof: ProofAccess::Borrowed(proof),
         active: BTreeSet::new(),
-        captures: BTreeMap::new(),
+        capture_writes: BTreeMap::new(),
         loops: Vec::new(),
         trait_active: Vec::new(),
         contexts: vec![owner],
