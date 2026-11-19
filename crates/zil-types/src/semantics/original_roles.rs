@@ -325,7 +325,7 @@ impl Check<'_, '_> {
             && binding.origin_owner == role_owner && binding.origin == Query::Binding(statement));
         let (name, target) = targets.next().ok_or_else(|| bad("captured role write has no exact inherited lexical binder"))?;
         if targets.next().is_some() { return Err(bad("captured role write has ambiguous lexical binders")); }
-        let SemanticTypeRecipe::Environment { scope: SemanticScopeRef::Ancestor(0), ordinal } = &target.ty else {
+        let SemanticTypeRecipe::Environment { scope: SemanticScopeRef::Ancestor(0), ordinal } = target.ty.as_ref() else {
             return Err(bad("captured role write lost its sealed whole-Type environment selection"));
         };
         let ordinal = *ordinal;
@@ -525,7 +525,7 @@ impl Check<'_, '_> {
                     let binding = variables
                         .get(name)
                         .ok_or_else(|| bad("original projected borrow has no lexical source"))?;
-                    if matches!(binding.ty, SemanticTypeRecipe::Address { .. }) {
+                    if matches!(binding.ty.as_ref(), SemanticTypeRecipe::Address { .. }) {
                         if let Query::Parameter(parameter) = binding.origin {
                             return Ok(OriginalRoleEscape::Input {
                                 owner: binding.origin_owner,

@@ -332,7 +332,9 @@ pub(super) struct LocalRole {
 }
 #[derive(Clone)]
 struct Binding {
-    ty: SemanticTypeRecipe,
+    // A branch can change the occupant and replace its recipe. Other
+    // branches keep their own state and share only an immutable recipe.
+    ty: std::rc::Rc<SemanticTypeRecipe>,
     mutable: bool,
     used: bool,
     observed: bool,
@@ -346,7 +348,7 @@ struct Binding {
     taken_fields: BTreeSet<String>,
     // Source shadowing preserves the state of the hidden binder. It must be
     // recovered by its original binding identity when the lexical scope exits.
-    shadowed: Option<Box<Binding>>,
+    shadowed: Option<std::rc::Rc<Binding>>,
 }
 struct IntegerInitializer {
     expression: NodeId,
@@ -1518,25 +1520,30 @@ impl<'a> Check<'a, '_> {
             self.left,
         )
     }
+    fn charge_binding_clone(&mut self, binding: &Binding) -> R<()> {
+        self.pay(
+            binding.origin.copy_work()
+                .saturating_add(binding.taken_fields.len())
+                .saturating_add(1),
+            0,
+        )?;
+        for field in &binding.taken_fields {
+            self.pay(field.len(), 0)?;
+        }
+        Ok(())
+    }
+    fn same_binding_type(&mut self, a: &Binding, b: &Binding) -> R<()> {
+        self.pay(1, 0)?;
+        if std::rc::Rc::ptr_eq(&a.ty, &b.ty) {
+            return Ok(());
+        }
+        self.same(&a.ty, &b.ty)
+    }
     fn charge_variables(&mut self, variables: &BTreeMap<String, Binding>) -> R<()> {
         self.pay(variables.len(), 0)?;
-        for (name, value) in variables {
+        for (name, binding) in variables {
             self.pay(name.len(), 0)?;
-            let mut current = Some(value);
-            while let Some(value) = current {
-                self.pay(1, 0)?;
-                crate::dyn_metadata::semantic_operand_snapshot(
-                    &value.ty,
-                    self.limits,
-                    self.left,
-                    1,
-                )?;
-                self.pay(value.taken_fields.len(), 0)?;
-                for field in &value.taken_fields {
-                    self.pay(field.len(), 0)?;
-                }
-                current = value.shadowed.as_deref();
-            }
+            self.charge_binding_clone(binding)?;
         }
         Ok(())
     }
@@ -3768,11 +3775,13 @@ impl<'a> Check<'a, '_> {
                 if let SemanticTypeRecipe::OriginalType {
                     scope: SemanticScopeRef::Ancestor(0),
                     source: SemanticOriginalTypeSource::Parameter(ordinal),
-                } = value.ty
+                } = value.ty.as_ref()
                     && value.origin_owner == owner
-                    && value.origin == Query::Parameter(ordinal)
+                    && value.origin == Query::Parameter(*ordinal)
                 {
-                    value.ty = self.closure_scalar_input(owner, ordinal, wanted, depth + 1)?;
+                    value.ty = std::rc::Rc::new(
+                        self.closure_scalar_input(owner, *ordinal, wanted, depth + 1)?,
+                    );
                 }
                 let integer = self.binding_integer(value, wanted, depth + 1)?;
                 value.observed = true;
@@ -3834,7 +3843,7 @@ impl<'a> Check<'a, '_> {
                     }
                     self.pay(name.len().saturating_add(1), depth)?;
                     self.insert_binding(variables, name.clone(), Binding {
-                        ty, mutable: false, used: false, observed: false, capture: false,
+                        ty: std::rc::Rc::new(ty), mutable: false, used: false, observed: false, capture: false,
                         borrowed: false, origin: Query::Expression(source.id), origin_owner: owner,
                         initialized: true, written: false, resource_root: None,
                         taken_fields: BTreeSet::new(), shadowed: None,
@@ -4492,7 +4501,7 @@ impl<'a> Check<'a, '_> {
                 }
                 let moved = *move_capture || inferred;
                 let mut value = Binding {
-                    ty: copy_recipe(&value.ty, self.limits, self.left)?,
+                    ty: value.ty.clone(),
                     mutable: value.mutable,
                     used: value.used,
                     observed: value.observed,
@@ -4562,11 +4571,11 @@ impl<'a> Check<'a, '_> {
                         }
                     }
                 }
-                value.ty = if let Some(sealed) = sealed {
+                value.ty = std::rc::Rc::new(if let Some(sealed) = sealed {
                     sealed
                 } else {
                     self.rehome(owner, child, &value.ty, depth + 1)?
-                };
+                });
                 captured.insert(name.clone(), value);
             }
             let result_goal = match wanted {
@@ -4769,7 +4778,7 @@ impl<'a> Check<'a, '_> {
             history = value.shadowed.as_deref();
         }
         self.pay(1, level)?;
-        binding.shadowed = variables.remove(&name).map(Box::new);
+        binding.shadowed = variables.remove(&name).map(std::rc::Rc::new);
         variables.insert(name, binding);
         Ok(())
     }
@@ -4796,7 +4805,7 @@ impl<'a> Check<'a, '_> {
         let mut taken_fields = BTreeSet::new();
         for branch in branches {
             let inner = self.binding_at(branch, &output.origin)?;
-            self.same(&output.ty, &inner.ty)?;
+            self.same_binding_type(output, inner)?;
             used |= inner.used;
             output.observed |= inner.observed;
             output.written |= inner.written;
@@ -4813,7 +4822,10 @@ impl<'a> Check<'a, '_> {
         output.used = used;
         output.initialized = initialized;
         if let Some(hidden) = &mut output.shadowed {
-            self.merge_binding(hidden, branches, depth + 1)?;
+            if std::rc::Rc::strong_count(hidden) > 1 {
+                self.charge_binding_clone(hidden)?;
+            }
+            self.merge_binding(std::rc::Rc::make_mut(hidden), branches, depth + 1)?;
         }
         Ok(())
     }
@@ -5094,7 +5106,7 @@ impl<'a> Check<'a, '_> {
                     variables,
                     name.clone(),
                     Binding {
-                        ty: binding_type,
+                        ty: std::rc::Rc::new(binding_type),
                         mutable,
                         used: false,
                         observed: false,
@@ -5485,7 +5497,7 @@ impl<'a> Check<'a, '_> {
                         .ok_or_else(|| bad("original loop edge loses its lexical name"))?,
                     &before.origin,
                 )?;
-                self.same(&before.ty, &after.ty)?;
+                self.same_binding_type(before, after)?;
                 self.pay(after.taken_fields.len(), depth)?;
                 if after
                     .taken_fields
@@ -6159,7 +6171,7 @@ impl<'a> Check<'a, '_> {
             variables,
             name.clone(),
             Binding {
-                ty: value,
+                ty: std::rc::Rc::new(value),
                 mutable: *mutable,
                 used: false,
                 observed: false,
@@ -6447,7 +6459,7 @@ impl<'a> Check<'a, '_> {
             variables,
             name.to_owned(),
             Binding {
-                ty,
+                ty: std::rc::Rc::new(ty),
                 mutable: false,
                 used: false,
                 observed: false,
@@ -6601,7 +6613,7 @@ impl<'a> Check<'a, '_> {
             variables.insert(
                 binder.name.clone(),
                 Binding {
-                    ty,
+                    ty: std::rc::Rc::new(ty),
                     mutable: false,
                     used: false,
                     observed: false,

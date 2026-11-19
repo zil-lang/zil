@@ -756,7 +756,7 @@ impl Check<'_, '_> {
             return Ok(None);
         };
         if !matches!(
-            binding.ty,
+            binding.ty.as_ref(),
             SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }
         ) {
             return Ok(None);
@@ -969,7 +969,7 @@ impl Check<'_, '_> {
                     if !binding.capture {
                         return Ok(());
                     }
-                    let lifetime = match &binding.ty {
+                    let lifetime = match binding.ty.as_ref() {
                         SemanticTypeRecipe::Address { lifetime, .. }
                         | SemanticTypeRecipe::Desc { lifetime, .. } => Some(lifetime.clone()),
                         _ => None,
@@ -1033,7 +1033,7 @@ impl Check<'_, '_> {
                     );
                 }
                 if let Query::BindingProjection { statement, pattern } = &binding.origin {
-                    let lifetime = match &binding.ty {
+                    let lifetime = match binding.ty.as_ref() {
                         SemanticTypeRecipe::Address { lifetime, .. }
                         | SemanticTypeRecipe::Desc { lifetime, .. } => lifetime,
                         _ => return Ok(()),
@@ -1067,13 +1067,13 @@ impl Check<'_, '_> {
                     return Ok(());
                 };
                 if !matches!(
-                    binding.ty,
+                    binding.ty.as_ref(),
                     SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }
                 ) {
                     return Ok(());
                 }
                 if binding.mutable || binding.written {
-                    let lifetime = match &binding.ty {
+                    let lifetime = match binding.ty.as_ref() {
                         SemanticTypeRecipe::Address { lifetime, .. }
                         | SemanticTypeRecipe::Desc { lifetime, .. } => lifetime,
                         _ => return Ok(()),
@@ -1529,7 +1529,7 @@ impl Check<'_, '_> {
                 if let Query::Parameter(parameter) = binding.origin {
                     if binding.origin_owner != owner
                         || matches!(
-                            binding.ty,
+                            binding.ty.as_ref(),
                             SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }
                         )
                     {
@@ -1552,7 +1552,7 @@ impl Check<'_, '_> {
                 if let Query::BindingProjection { statement, pattern } = &binding.origin {
                     if binding.origin_owner != owner
                         || matches!(
-                            binding.ty,
+                            binding.ty.as_ref(),
                             SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }
                         )
                     {
@@ -1582,7 +1582,7 @@ impl Check<'_, '_> {
                 };
                 if binding.origin_owner != owner
                     || matches!(
-                        binding.ty,
+                        binding.ty.as_ref(),
                         SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }
                     )
                 {

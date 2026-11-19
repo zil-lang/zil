@@ -984,7 +984,7 @@ impl<'a> Check<'a, '_> {
                 let CoreExprKind::Name(name) = &source.kind else { continue; };
                 self.pay(name.len(), depth)?;
                 if !variables.get(name).is_some_and(|binding|
-                    matches!(binding.ty, SemanticTypeRecipe::Address { mutable: false, .. }))
+                    matches!(binding.ty.as_ref(), SemanticTypeRecipe::Address { mutable: false, .. }))
                 {
                     continue;
                 }

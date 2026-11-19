@@ -735,7 +735,9 @@ pub(crate) fn check_with_frozen(
         shift: 1,
     };
     for variable in variables.values_mut() {
-        variable.ty = substitute::ty(&variable.ty, &substitution, limits, check.left)?;
+        variable.ty = std::rc::Rc::new(substitute::ty(
+            &variable.ty, &substitution, limits, check.left,
+        )?);
     }
     check.function(wrapper, Some(variables))?;
     let expected = normalized_expression(
