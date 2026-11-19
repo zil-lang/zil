@@ -103,6 +103,10 @@ pub(crate) struct TypeEntry {
     pub nominal: Option<(usize, usize, usize)>, // module, type-depth limit, row
     type_id: usize,
     coordinate: intern::Node,
+    // For an immutable input root, the map key addresses the actual source
+    // rather than the retained equal Type. Only its original published input
+    // directory authenticates that address. This attests no lifetime image.
+    input: Option<Arc<BTreeSet<usize>>>,
 }
 
 pub(super) struct Inputs {
@@ -521,6 +525,7 @@ impl Inputs {
         } else {
             let value = copy_geometry(ty, life, budget)?;
             if registered_type {
+                self.remember_input_type(ty, &value, budget)?;
                 budget.lookup(
                     self.type_roots.borrow().len(),
                     "semantic geometry input Type publication",
@@ -542,6 +547,42 @@ impl Inputs {
             self.resolved.borrow_mut().insert(key, Arc::clone(&value));
         }
         Ok(value)
+    }
+    fn remember_input_type(
+        &self,
+        ty: &Type,
+        owner: &Arc<Geometry>,
+        budget: &mut Budget,
+    ) -> CompileResult<()> {
+        // The caller has checked membership in self.types, then bounded and
+        // compared this actual Type in the request-local interner.
+        let Some((module, roots)) = &budget.input_type_coordinates else {
+            return Ok(());
+        };
+        if Some(*module) != self.module || !Arc::ptr_eq(roots, &self.types) {
+            return Ok(());
+        }
+        let receipt = intern::owned(owner, budget)?;
+        let key = ty as *const Type as usize;
+        budget.lookup(
+            budget.geometry_types.len(),
+            "immutable input Type receipt publication",
+        )?;
+        budget.spend(2, "immutable input Type retained proof")?;
+        budget.geometry_types.insert(
+            key,
+            TypeEntry {
+                owner: Arc::clone(owner),
+                raw_work: receipt.raw_work,
+                raw_limits: self.raw_limits,
+                module: self.module,
+                nominal: None,
+                type_id: receipt.type_id,
+                coordinate: intern::Node::Root,
+                input: Some(Arc::clone(&self.types)),
+            },
+        );
+        Ok(())
     }
     pub(super) fn nominal(
         &self,
@@ -635,12 +676,19 @@ fn registered_type(ty: &Type, budget: &mut Budget) -> CompileResult<Option<(usiz
             entry.raw_limits == (budget.partial_depth, budget.helper_nodes)
                 && entry.module == budget.geometry_module
         });
-    match entry {
-        Some(entry) if std::ptr::eq(intern::node(&entry.owner, entry.coordinate)?, ty) => {
-            Ok(Some((entry.type_id, entry.raw_work)))
-        }
-        _ => Ok(None),
-    }
+    let Some(entry) = entry else {
+        return Ok(None);
+    };
+    let exact = match &entry.input {
+        Some(roots) => budget
+            .input_type_coordinates
+            .as_ref()
+            .is_some_and(|(module, current)| {
+                Some(*module) == entry.module && Arc::ptr_eq(current, roots)
+            }),
+        None => std::ptr::eq(intern::node(&entry.owner, entry.coordinate)?, ty),
+    };
+    Ok(exact.then_some((entry.type_id, entry.raw_work)))
 }
 
 /// Exact Type equality only. Cached roots are owned until this request ends;
@@ -776,6 +824,36 @@ mod tests {
         assert_eq!(moved.resolved.borrow().len(), 1);
         budget.partial_depth = 0;
         assert!(moved.resolved(&input_type, &merged, &mut budget).is_err());
+    }
+    #[test]
+    fn complete_type_receipts_require_the_published_input_coordinate_and_limits() {
+        let mut b = Budget::new(&zil_base::Limits::default());
+        let ty = Type::Tuple(vec![Type::I32, Type::U64]);
+        let other = Type::Tuple(vec![Type::U32, Type::U64]);
+        let scope = 17;
+        let mut inputs = Inputs {
+            module: Some(scope),
+            raw_limits: (b.partial_depth, b.helper_nodes),
+            ..Inputs::default()
+        };
+        inputs.register_type(&ty, &mut b).unwrap();
+        inputs.register_type(&other, &mut b).unwrap();
+        b.geometry_module = inputs.module;
+        b.input_type_coordinates = Some((scope, Arc::clone(&inputs.types)));
+        let actual = inputs.type_value(&ty, None, &mut b).unwrap();
+        let sibling = inputs.type_value(&other, None, &mut b).unwrap();
+        let first = registered_type(&ty, &mut b).unwrap().unwrap().0;
+        assert_eq!(first, intern::owned(&actual, &mut b).unwrap().type_id);
+        assert_ne!(first, intern::owned(&sibling, &mut b).unwrap().type_id);
+        assert!(registered_type(&ty.clone(), &mut b).unwrap().is_none());
+
+        let limits = b.partial_depth;
+        b.partial_depth = limits - 1;
+        assert!(registered_type(&ty, &mut b).unwrap().is_none());
+        b.partial_depth = limits;
+        b.input_type_coordinates = Some((scope, Arc::new((*inputs.types).clone())));
+        assert!(registered_type(&ty, &mut b).unwrap().is_none());
+        assert!(registered_type(&actual.ty, &mut b).unwrap().is_some());
     }
     #[test]
     fn physical_field_equalities_keep_complete_coordinate_and_type_identity() {

@@ -829,6 +829,7 @@ impl Check<'_, '_> {
         Ok(())
     }
     fn instances(&self, b: &mut Budget) -> CompileResult<()> {
+        let mut admitted_functions = BTreeSet::new();
         for instance in &self.program.instances {
             self.inventory.profile_instance(instance, b);
             let definition = self.inventory.definition(instance.definition, b)?;
@@ -1132,19 +1133,20 @@ impl Check<'_, '_> {
                     "actual result differs from the original instantiated signature",
                 ));
             }
-            self.ordinary_type(&function.return_type, b)?;
+            // Physical locals and SSA types belong to this immutable CFG. All
+            // original substitutions, actual operand and header relations above
+            // and below this point still run for every instance of the function.
+            b.lookup(admitted_functions.len(), "physical function type admission")?;
+            if admitted_functions.insert(function.id) {
+                self.ordinary_type(&function.return_type, b)?;
+                for ty in function.locals.iter().map(|local| &local.ty).chain(&function.values) {
+                    self.actual_type(ty, b)?;
+                }
+                if let Some(closure) = function.environment {
+                    self.capture_directory(closure, b)?;
+                }
+            }
             self.header_relation(instance, function, signature, b)?;
-            for ty in function
-                .locals
-                .iter()
-                .map(|local| &local.ty)
-                .chain(&function.values)
-            {
-                self.actual_type(ty, b)?;
-            }
-            if let Some(closure) = function.environment {
-                self.capture_directory(closure, b)?;
-            }
         }
         for function in &self.module.functions {
             if self.function_worlds(function.id, b)?.is_empty() {

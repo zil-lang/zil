@@ -10,7 +10,7 @@ pub(super) struct Receipt {
     module: Option<usize>,
     pub(super) type_id: usize,
     pub(super) geometry_id: usize,
-    raw_work: usize,
+    pub(super) raw_work: usize,
     shape_work: usize,
 }
 #[derive(Clone, Copy)]
@@ -132,19 +132,105 @@ impl Hasher for PaidHash<'_> {
         self.number(n as usize as u128);
     }
 }
-fn hash<T: Hash + ?Sized>(value: &T, b: &mut Budget) -> CompileResult<u64> {
+fn paid_hash(b: &mut Budget, visit: impl FnOnce(&mut PaidHash<'_>)) -> CompileResult<u64> {
     let mut hash = PaidHash {
         inner: std::collections::hash_map::DefaultHasher::new(),
         budget: b,
         error: None,
     };
-    value.hash(&mut hash);
+    visit(&mut hash);
     let digest = hash.finish();
     if let Some(error) = hash.error {
         Err(error)
     } else {
         Ok(digest)
     }
+}
+fn hash<T: Hash + ?Sized>(value: &T, b: &mut Budget) -> CompileResult<u64> {
+    paid_hash(b, |hasher| value.hash(hasher))
+}
+
+// Select candidates using the actual constructors and nominal head. The
+// complete raw type was bounded before this query. Every selected row still
+// has to match in all fields, projections, retained domains and code roles.
+fn type_bucket(mut ty: &Type, b: &mut Budget) -> CompileResult<u64> {
+    use Type::*;
+    paid_hash(b, |key| {
+        loop {
+            std::mem::discriminant(ty).hash(key);
+            match ty {
+                Record { name, fields } | Package { name, fields } => {
+                    name.hash(key);
+                    fields.len().hash(key);
+                }
+                Enum { name, variants } => {
+                    name.hash(key);
+                    variants.len().hash(key);
+                }
+                Tuple(fields) => {
+                    fields.len().hash(key);
+                    if let Some(first) = fields.first() {
+                        std::mem::discriminant(first).hash(key);
+                    }
+                    if let Some(last) = fields.last() {
+                        std::mem::discriminant(last).hash(key);
+                    }
+                }
+                FunctionPointer { parameters, result }
+                | ForeignCallback { parameters, result }
+                | BorrowedFunctionPointer {
+                    parameters, result, ..
+                } => {
+                    parameters.len().hash(key);
+                    if let Some(first) = parameters.first() {
+                        std::mem::discriminant(first).hash(key);
+                    }
+                    ty = result;
+                    continue;
+                }
+                Named(name) | Unsupported(name) => name.hash(key),
+                Dyn { interface } | OwnedDyn { interface } => interface.hash(key),
+                Closure(id) => id.hash(key),
+                Opaque { identity, .. } => identity.hash(key),
+                SyncCell(kind) => kind.hash(key),
+                BorrowedStorage { storage, life } => {
+                    life.binder_count.hash(key);
+                    ty = storage;
+                    continue;
+                }
+                Address { mutable, inner } => {
+                    mutable.hash(key);
+                    ty = inner;
+                    continue;
+                }
+                Array { length, element } => {
+                    length.hash(key);
+                    ty = element;
+                    continue;
+                }
+                ErrorUnion { error, result } => {
+                    std::mem::discriminant(&**error).hash(key);
+                    ty = result;
+                    continue;
+                }
+                Managed(inner)
+                | Desc(inner)
+                | OwnedStore { element: inner }
+                | Slice { element: inner }
+                | Mutex { payload: inner }
+                | MutexGuard { payload: inner, .. }
+                | Task { result: inner, .. }
+                | Registration { environment: inner }
+                | AsyncRegistration { environment: inner } => {
+                    ty = inner;
+                    continue;
+                }
+                Unit | Bool | I32 | I64 | U64 | Usize | F32 | F64 | U8 | U16 | U32 | I8 | I16
+                | Isize | ByteBuffer | ForeignHandle | TaskI32 | CWideString => {}
+            }
+            break;
+        }
+    })
 }
 pub(super) fn node(owner: &Geometry, selector: Node) -> CompileResult<&Type> {
     let Node::Child(child) = selector else {
@@ -205,7 +291,7 @@ fn structural_type_candidate(
     raw_work: usize,
     b: &mut Budget,
 ) -> CompileResult<(u64, Option<usize>)> {
-    let digest = hash(ty, b)?;
+    let digest = type_bucket(ty, b)?;
     let key = (b.geometry_module, limits(b), digest);
     b.lookup(
         b.geometry_type_catalog.len(),
@@ -354,6 +440,7 @@ fn register(owner: &Arc<Geometry>, receipt: &Receipt, b: &mut Budget) -> Compile
             nominal: None,
             type_id: receipt.type_id,
             coordinate: Node::Root,
+            input: None,
         },
     );
     let _ = owner.receipt.set(receipt.clone());
@@ -405,6 +492,7 @@ pub(super) fn retain_payload(parent: &Type, payload: &Type, b: &mut Budget) -> C
             nominal: None,
             type_id,
             coordinate: Node::Child(Child::Inner),
+            input: None,
         },
     );
     Ok(())
@@ -426,7 +514,10 @@ pub(super) fn type_identity(ty: &Type, b: &mut Budget) -> CompileResult<usize> {
     if let Some(identity) = identity {
         return Ok(identity);
     }
-    b.spend(work.saturating_add(1), "semantic geometry Type-only owned copy")?;
+    b.spend(
+        work.saturating_add(1),
+        "semantic geometry Type-only owned copy",
+    )?;
     let owner = Arc::new(Geometry::new(ty.clone(), value::empty()));
     add_type(&owner, Node::Root, digest, work, b)
 }
@@ -732,6 +823,7 @@ fn child_type(owner: &Arc<Geometry>, child: Child, b: &mut Budget) -> CompileRes
             nominal: None,
             type_id: id,
             coordinate: Node::Child(child),
+            input: None,
         },
     );
     Ok(id)
@@ -767,4 +859,32 @@ pub(super) fn field_equal(
     // Every current class image and nominal field obligation stays separate.
     let expected = owned(expected, b)?;
     Ok(id == expected.type_id)
+}
+
+#[cfg(test)]
+mod bucket_tests {
+    use super::*;
+
+    #[test]
+    fn equal_nominal_heads_keep_different_children_and_domains_separate() {
+        let mut b = Budget::new(&zil_base::Limits::default());
+        let entry = |leaf| {
+            Type::Managed(Box::new(Type::OwnedStore {
+                element: Box::new(Type::Record {
+                    name: "Entry".into(),
+                    fields: vec![("key".into(), leaf)],
+                }),
+            }))
+        };
+        let signed = entry(Type::I64);
+        let unsigned = entry(Type::U64);
+        assert_eq!(
+            type_bucket(&signed, &mut b).unwrap(),
+            type_bucket(&unsigned, &mut b).unwrap()
+        );
+        let first = type_identity(&signed, &mut b).unwrap();
+        let second = type_identity(&unsigned, &mut b).unwrap();
+        assert_ne!(first, second);
+        assert_eq!(first, type_identity(&signed.clone(), &mut b).unwrap());
+    }
 }
