@@ -4,6 +4,7 @@ use super::*;
 mod callbacks;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum IntrinsicKind {
+    TakeStored(calls::MethodReceiverPlace),
     DynCall {
         receiver_node: NodeId,
         declaration: SemanticDefinitionId,
@@ -121,6 +122,22 @@ impl Check<'_, '_> {
             if self.declaration_target(owner, path, depth + 1)?.is_some() {
                 return Ok(None);
             }
+        }
+        if matches!((&callee.kind, &path), (CoreExprKind::Name(name), Some(path)) if name == "move_out" && path.len() == 1) {
+            let [target] = arguments.as_slice() else { return Err(bad("move_out requires one actual stored field")); };
+            if !matches!(target.kind, CoreExprKind::Member { .. }) { return Err(bad("move_out requires an original field place")); }
+            let result = self.writable(owner, target, variables, depth + 1)?;
+            if !matches!(result, SemanticTypeRecipe::Address { .. }) {
+                return Err(bad("move_out must transfer a declared address slot"));
+            }
+            let place = self.method_receiver_place(owner, target, variables, depth + 1)?
+                .ok_or_else(|| pending("move_out requires the complete original storage root and field path"))?;
+            let Some((parent, _)) = place.fields.last() else { return Err(bad("move_out has no original field")); };
+            if !matches!(self.definition(*parent)?.body, SemanticDefinitionBody::Nominal {
+                kind: LifeNominalKind::Record | LifeNominalKind::Package, body: SemanticNominalBody::Product { .. }, ..
+            }) { return Err(bad("move_out requires a nominal stored address field")); }
+            self.record_intrinsic(owner, site, IntrinsicKind::TakeStored(place), Vec::new(), &result, wanted, depth + 1)?;
+            return Ok(Some(result));
         }
         if let Some(result) =
             self.store_intrinsic(owner, site, expression, variables, wanted, depth + 1)?
@@ -577,6 +594,7 @@ impl Check<'_, '_> {
             | IntrinsicKind::TaskCreate { .. }
             | IntrinsicKind::DynCall { .. }
             | IntrinsicKind::TaskYield
+            | IntrinsicKind::TakeStored(_)
             | IntrinsicKind::TaskOperation(_)
             | IntrinsicKind::RegistrationStart { .. }
             | IntrinsicKind::RegistrationOperation(_)

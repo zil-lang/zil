@@ -7,6 +7,7 @@ use super::*;
 pub(in crate::semantic) enum Intrinsic {
     NumericConvert(Number),
     SliceLength,
+    TakeStored,
     OwnedDyn,
     CCallback,
     TaskYield,
@@ -118,6 +119,7 @@ impl Intrinsic {
             "bytes_truncate" => Self::BytesTruncate,
             "bytes_view" => Self::BytesView { mutable: false },
             "bytes_view_mut" => Self::BytesView { mutable: true },
+            "move_out" => Self::TakeStored,
             "store_new" => Self::StoreNew,
             "store_reserve" => Self::StoreReserve,
             "store_push" => Self::StorePush,

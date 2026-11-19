@@ -13,43 +13,50 @@ impl Check<'_, '_> {
             let SemanticSiteAction::TypeUse { subject: SemanticOperand::Value(value), .. } = &site.action else { continue; };
             if *value != result { continue; }
             let Some(SemanticOriginalNode::Expression(node)) = source.site_node(site.recipe, b)? else { continue; };
-            let mut expression = source.get_expr(node, b)?;
-            let mut names = Vec::new();
-            loop {
-                expression = match &expression.kind {
-                    CoreExprKind::Member { object, member, .. } => {
-                        b.spend(1, WORK)?;
-                        names.push(member);
-                        object
-                    }
-                    CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } => {
-                        b.spend(1, WORK)?;
-                        inner
-                    }
-                    _ => break,
-                };
-            }
-            if names.is_empty() { continue; }
-            let (mut ty, prefix) = self.stored_carrier_root(instance, function, storage, expression, b)?;
-            if names.len() != prefix.len().saturating_add(path.len()) {
-                return Err(fail("stored reborrow changes its complete original field path"));
-            }
-            let physical_path = prefix.into_iter().map(PlaceProjection::Field).chain(path.iter().copied());
-            for (step, name) in physical_path.zip(names.into_iter().rev()) {
-                let PlaceProjection::Field(index) = step else { return Err(fail("stored reborrow changes its original field projection")); };
-                let physical = match ty { Type::BorrowedStorage { storage, .. } => storage.as_ref(), other => other };
-                let fields = match physical { Type::Record { fields, .. } | Type::Package { fields, .. } => fields, _ => return Err(fail("stored reborrow crosses another original carrier")) };
-                let (selected, child) = fields.get(index as usize).ok_or_else(|| fail("stored reborrow selects an absent field"))?;
-                b.spend(name.len().saturating_add(selected.len()), WORK)?;
-                if name != selected { return Err(fail("stored reborrow selects another original field")); }
-                ty = child;
-            }
+            if !self.original_stored_slot(instance, function, storage, path, source.get_expr(node, b)?, b)? { continue; }
             let recipe = source.recipe(site.recipe, b)?;
             let ordinal = self.inventory.implicit_ordinal(instance.definition, &recipe.occurrence_path, b)?
                 .ok_or_else(|| fail("stored reborrow lacks its original occurrence lifetime"))?;
             return Ok(Class::Implicit(instance.id, ordinal));
         }
         Err(unknown("stored reborrow lacks its exact original field occurrence"))
+    }
+
+    pub(super) fn original_stored_slot(
+        &self, instance: &SemanticInstance, function: &TypedFunction,
+        storage: ValueId, path: &[PlaceProjection], mut expression: &SemanticOriginalExpr, b: &mut Budget,
+    ) -> CompileResult<bool> {
+        let mut names = Vec::new();
+        loop {
+            expression = match &expression.kind {
+                CoreExprKind::Member { object, member, .. } => {
+                    b.spend(1, WORK)?;
+                    names.push(member);
+                    object
+                }
+                CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } => {
+                    b.spend(1, WORK)?;
+                    inner
+                }
+                _ => break,
+            };
+        }
+        if names.is_empty() { return Ok(false); }
+        let (mut ty, prefix) = self.stored_carrier_root(instance, function, storage, expression, b)?;
+        if names.len() != prefix.len().saturating_add(path.len()) {
+            return Err(fail("stored reborrow changes its complete original field path"));
+        }
+        let physical_path = prefix.into_iter().map(PlaceProjection::Field).chain(path.iter().copied());
+        for (step, name) in physical_path.zip(names.into_iter().rev()) {
+            let PlaceProjection::Field(index) = step else { return Err(fail("stored reborrow changes its original field projection")); };
+            let physical = match ty { Type::BorrowedStorage { storage, .. } => storage.as_ref(), other => other };
+            let fields = match physical { Type::Record { fields, .. } | Type::Package { fields, .. } => fields, _ => return Err(fail("stored reborrow crosses another original carrier")) };
+            let (selected, child) = fields.get(index as usize).ok_or_else(|| fail("stored reborrow selects an absent field"))?;
+            b.spend(name.len().saturating_add(selected.len()), WORK)?;
+            if name != selected { return Err(fail("stored reborrow selects another original field")); }
+            ty = child;
+        }
+        Ok(true)
     }
 
     pub(super) fn actual_nominal_field(&self, parent: &Value, field: u32,

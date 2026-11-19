@@ -164,3 +164,55 @@ pub(super) fn local_tag(
         .ok_or_else(|| bad("actual tag local has no initialized shell"))?;
     tag_type(world, World::type_of(value)?, path, enum_only)
 }
+
+/// A partially initialized shell can supply a destination address only when
+/// every use of that address is part of the exact path to its vacant slot.
+pub(super) fn borrow_source(
+    world: &mut World<'_, '_>, function: &TypedFunction, block: BlockId, at: usize,
+    locals: &[Option<SharedType>], local: LocalId,
+) -> R<SharedType> {
+    world.pay(world.vacant.len())?;
+    if !world.vacant.iter().any(|(owner, _)| *owner == local) {
+        return world.local_shell(locals, local);
+    }
+    let instruction = function.blocks.get(block.0 as usize).and_then(|bb| bb.instructions.get(at));
+    let Some(Instruction {kind: InstructionKind::BorrowLocalMut { local: source }, result: Some(value), ..}) = instruction
+        else { return Err(bad("whole local reads an uninitialized projected occupant")); };
+    if *source != local { return Err(bad("partial shell belongs to another borrowed local")); }
+    let mut value = *value;
+    let mut after = at;
+    let mut path = Vec::new();
+    loop {
+        let mut consumer = None;
+        for bb in &function.blocks {
+            world.pay(bb.instructions.len().saturating_add(1))?;
+            if matches!(bb.terminator, Terminator::Return(Some(operand)) | Terminator::Branch { condition: operand, .. } if operand == value) {
+                return Err(bad("vacant shell address escapes its refill"));
+            }
+            for (index, next) in bb.instructions.iter().enumerate() {
+                for operand in next.kind.value_operands() {
+                    world.pay(1)?;
+                    if operand != value { continue; }
+                    if bb.id != block || index <= after || consumer.replace((index,next)).is_some() {
+                        return Err(bad("vacant shell address has another access besides its refill"));
+                    }
+                }
+            }
+        }
+        match consumer {
+            Some((index, Instruction {kind: InstructionKind::AddressField { address, index: field }, result: Some(child), ..})) if *address == value => {
+                if path.len() >= world.limits.max_call_depth { return Err(Diagnostic::limit(Phase::Types, "stored refill path depth exceeded", None)); }
+                path.push(PlaceProjection::Field(*field));
+                value = *child;
+                after = index;
+            }
+            Some((_, Instruction {kind: InstructionKind::StoreStoredBorrow { storage, path: tail, .. }, ..})) if *storage == value => {
+                world.pay(path.len().saturating_add(tail.len()).saturating_add(1))?;
+                path.extend_from_slice(tail);
+                if !world.vacant.contains(&(local,path)) { return Err(bad("partial shell refill selects another stored slot")); }
+                return world.local_shell(locals, local);
+            }
+            _ => return Err(bad("whole local with a vacant field may only prepare its actual refill")),
+        }
+    }
+}

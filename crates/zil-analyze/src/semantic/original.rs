@@ -2655,6 +2655,23 @@ impl Solver<'_, '_> {
                                 }
                                 return Ok(output);
                             }
+                            sealed::Resolution::Intrinsic(sealed::Intrinsic::TakeStored) => {
+                                let [field] = arguments.as_slice() else { return Err(fail("move_out requires one original stored field")); };
+                                if !written.is_empty() || !matches!(field.kind, CoreExprKind::Member { .. }) {
+                                    return Err(fail("move_out requires its exact original field place"));
+                                }
+                                let slot = self.borrow_place(frame, field, b, depth + 1)?;
+                                if !slot.mutable || !matches!(self.state.arena[self.type_root(slot.inner, b)?], Kind::Address { .. }) {
+                                    return Err(fail("move_out requires an actual address slot of a mutable holder"));
+                                }
+                                b.lookup(self.state.intrinsics.len(), WORK)?;
+                                b.lookup(frame.expressions.len(), WORK)?;
+                                if self.state.intrinsics.insert((frame.definition, value.id), sealed::Intrinsic::TakeStored).is_some()
+                                    || frame.expressions.insert(value.id, slot.inner).is_some() {
+                                    return Err(fail("move_out repeats its actual original occurrence"));
+                                }
+                                return Ok(slot.inner);
+                            }
                             sealed::Resolution::Intrinsic(sealed::Intrinsic::OwnedDyn) => {
                                 let result = self.owned_dyn_call(
                                     frame,

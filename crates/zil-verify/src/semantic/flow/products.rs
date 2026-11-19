@@ -20,7 +20,25 @@ impl CheckedContext{
                     *child.origins.get_mut(slot.binder as usize).ok_or_else(||bad("stored child outer origin is absent"))?=IntrinsicOrigin::DerivedClass{source:key};
                 }
                 match mode{
-                    StoredBorrowLoad::CopyShared|StoredBorrowLoad::CopyDescription|StoredBorrowLoad::Take=>Ok(Some(child)),
+                    StoredBorrowLoad::CopyShared|StoredBorrowLoad::CopyDescription=>Ok(Some(child)),
+                    StoredBorrowLoad::Take=>{
+                        let mut calls = sites.iter().filter(|site| matches!(site.action, SemanticSiteAction::BodyCall { .. }));
+                        if let Some(site) = calls.next() {
+                            if calls.next().is_some() || !matches!(&site.action, SemanticSiteAction::BodyCall { actuals } if actuals.is_empty())
+                                || !matches!(parent.ty, Type::Address { mutable: true, .. }) || !matches!(child.ty, Type::Address { .. }) {
+                                return Err(bad("stored take changes its declared field, access or original occurrence"));
+                            }
+                            let operation = self.original.borrow().as_ref().ok_or_else(|| bad("stored take lacks its original call"))?
+                                .intrinsic(instance.definition, site.recipe, b)?;
+                            let Some(original::intrinsics::BufferSource::Place { definition, node }) = operation.buffer
+                                else { return Err(bad("stored take lacks its selected original field")); };
+                            if operation.kind != original::intrinsics::Intrinsic::TakeStored || definition != instance.definition {
+                                return Err(bad("stored take selects a different original call"));
+                            }
+                            self.stored_field_source(module, instance, f, *storage, path, node, b)?;
+                        }
+                        Ok(Some(child))
+                    },
                     StoredBorrowLoad::Reborrow{mutable}=>{
                         let inner=self.child_value(module,&child,&[LifeTypeProjection::Pointee],b)?;
                         let Type::Address{mutable:parent_mutable,..}=&parent.ty else{return Err(bad("stored reborrow has no actual parent Address"));};

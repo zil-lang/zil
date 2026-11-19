@@ -14,7 +14,7 @@ pub(crate) struct MethodCall {
     pub receiver_borrow: Option<SemanticTypeRecipe>,
     pub receiver_place: Option<MethodReceiverPlace>,
 }
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MethodReceiverPlace {
     pub owner: SemanticDefinitionId,
     pub root: SemanticOriginalTypeSource,

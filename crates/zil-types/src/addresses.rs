@@ -82,18 +82,26 @@ impl Builder<'_, '_> {
         if let Some(expected) = expected {
             self.same(&ty, expected, span)?;
         }
-        Ok((
-            self.value(
-                InstructionKind::LoadStoredBorrow {
-                    storage,
-                    path,
-                    mode: StoredBorrowLoad::Take,
-                },
-                ty.clone(),
-                span,
-            )?,
-            ty,
-        ))
+        let value = self.value(
+            InstructionKind::LoadStoredBorrow {
+                storage,
+                path,
+                mode: StoredBorrowLoad::Take,
+            },
+            ty.clone(),
+            span,
+        )?;
+        let block = self.current.ok_or_else(|| error("E-SEMANTIC-EMISSION", target.span, "stored field take has no actual block"))?;
+        self.closures.semantic_place(
+            self.function.id,
+            target,
+            SemanticOperand::Value(value),
+            crate::semantics::emission::Point {
+                block,
+                instruction: self.function.blocks[block.0 as usize].instructions.len(),
+            },
+        )?;
+        Ok((value, ty))
     }
     pub(super) fn affine_type(&self, ty: &Type) -> bool {
         fn contains_exclusive_slot(ty: &Type) -> bool {

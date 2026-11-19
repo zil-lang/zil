@@ -37,30 +37,10 @@ pub(super) fn permits(
     Ok(false)
 }
 
-pub(super) fn seal(
-    world: &mut World<'_, '_>,
-    caller: &SemanticInstance,
-    original: &SemanticDefinition,
-    site: &SemanticSite,
-    method: &MethodCall,
-    arguments: &[ValueId],
-    values: &ssa::Values,
-    locals: &[Option<SharedType>],
-    implicit: &mut BTreeMap<u32, SemanticClassExpr>,
-) -> R<()> {
-    let Some(borrow) = &method.receiver_borrow else {
-        return Ok(());
-    };
-    let parameter = method
-        .receiver_parameter
-        .ok_or_else(|| bad("method borrow has no original receiver parameter"))?;
-    let node = method
-        .receiver_node
-        .ok_or_else(|| bad("method borrow has no original receiver occurrence"))?;
-    let place = method
-        .receiver_place
-        .as_ref()
-        .ok_or_else(|| pending("method borrow lacks its complete original storage root"))?;
+pub(super) fn original_place_roots<'p>(
+    world: &mut World<'p, '_>, caller: &SemanticInstance, original: &SemanticDefinition,
+    place: &crate::semantics::original::MethodReceiverPlace, locals: &[Option<SharedType>],
+) -> R<(&'p TypedFunction, std::collections::BTreeSet<arguments::Root>)> {
     if place.owner != original.id {
         return Err(pending(
             "method capture borrow requires its complete creator storage relocation",
@@ -195,6 +175,34 @@ pub(super) fn seal(
         }
         expected = next;
     }
+    Ok((function, expected))
+}
+
+pub(super) fn seal(
+    world: &mut World<'_, '_>,
+    caller: &SemanticInstance,
+    original: &SemanticDefinition,
+    site: &SemanticSite,
+    method: &MethodCall,
+    arguments: &[ValueId],
+    values: &ssa::Values,
+    locals: &[Option<SharedType>],
+    implicit: &mut BTreeMap<u32, SemanticClassExpr>,
+) -> R<()> {
+    let Some(borrow) = &method.receiver_borrow else {
+        return Ok(());
+    };
+    let parameter = method
+        .receiver_parameter
+        .ok_or_else(|| bad("method borrow has no original receiver parameter"))?;
+    let node = method
+        .receiver_node
+        .ok_or_else(|| bad("method borrow has no original receiver occurrence"))?;
+    let place = method
+        .receiver_place
+        .as_ref()
+        .ok_or_else(|| pending("method borrow lacks its complete original storage root"))?;
+    let (function, expected) = original_place_roots(world, caller, original, place, locals)?;
     let operand = *arguments
         .get(parameter as usize)
         .ok_or_else(|| bad("method actual receiver argument is absent"))?;

@@ -143,6 +143,31 @@ pub(super) fn evaluate<'p>(
         return Ok(None);
     };
     world.pay(call.parameters.len())?;
+    if let IntrinsicKind::TakeStored(place) = &call.kind {
+        let operands = operand_ids(&call.kind, instruction)?;
+        let [storage] = operands.as_slice() else { return Err(bad("move_out loses its actual holder")); };
+        let storage = *storage;
+        let parent = world.get(values, storage)?;
+        places::address_mutable(world, &parent, true)?;
+        let InstructionKind::LoadStoredBorrow { path, .. } = instruction else { unreachable!() };
+        let (_, expected) = receiver::original_place_roots(world, instance, original, place, locals)?;
+        let mut actual = std::collections::BTreeSet::new();
+        for mut root in arguments::roots(world, storage, &parent)? {
+            world.pay(root.path.len().saturating_add(path.len()).saturating_add(1))?;
+            root.path.extend_from_slice(path);
+            actual.insert(root);
+        }
+        world.pay(actual.len().saturating_mul(expected.len().saturating_add(1)))?;
+        if expected.is_empty() || expected != actual {
+            return Err(bad("move_out selects another actual root or stored field"));
+        }
+        let parent = world.pointee(&parent)?;
+        let selected = places::path(world, &parent, path)?;
+        let expected = world.physical_type(instance.id, &call.result, World::type_of(&selected)?)?;
+        world.same(instance.id, &selected, &expected, implicit)?;
+        // The ordinary opcode transfer below records the vacancy at every possible root.
+        return Ok(None);
+    }
     identity(world, instance, site, call, instruction, ty, implicit)?;
     let actual_effect = if let IntrinsicKind::DynCall { call_kind, .. } = &call.kind {
         *call_kind
@@ -287,6 +312,9 @@ pub(super) fn operand_work(instruction: &InstructionKind) -> usize {
 }
 pub(super) fn operand_ids(kind: &IntrinsicKind, instruction: &InstructionKind) -> R<Vec<ValueId>> {
     Ok(match (kind, instruction) {
+        (IntrinsicKind::TakeStored(place), InstructionKind::LoadStoredBorrow {
+            storage, path, mode: StoredBorrowLoad::Take,
+        }) if place.fields.last().is_some_and(|(_, field)| path.as_slice() == [PlaceProjection::Field(*field)]) => vec![*storage],
         (IntrinsicKind::ForeignCallback { .. }, InstructionKind::ForeignFunctionRef { .. }) => {
             Vec::new()
         }

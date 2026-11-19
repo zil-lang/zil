@@ -388,6 +388,10 @@ fn clone_proof(
                 crate::dyn_metadata::semantic_operand_snapshot(actual, limits, left, 1)?;
             }
         }
+        if let IntrinsicKind::TakeStored(place) = &call.kind {
+            crate::dyn_metadata::semantic_operand_snapshot(&place.root, limits, left, 1)?;
+            spend(left, place.fields.len(), 0, limits)?;
+        }
         if let IntrinsicKind::RegistrationStart { providers, .. } = &call.kind {
             spend(left, providers.len(), 0, limits)?;
         }

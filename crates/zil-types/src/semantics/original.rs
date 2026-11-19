@@ -70,7 +70,7 @@ mod value_predicate;
 mod values;
 #[path = "original_views.rs"]
 mod views;
-pub(super) use calls::{CallableCall, MethodCall};
+pub(super) use calls::{CallableCall, MethodCall, MethodReceiverPlace};
 pub(super) use places::FieldReborrow;
 pub(super) use values::FunctionValue;
 pub(super) use views::{BorrowRole, ViewBorrowRoot, ViewBorrowStep, ViewBorrowStepKind, local_source_copy};

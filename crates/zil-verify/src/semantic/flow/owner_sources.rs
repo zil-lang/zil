@@ -78,14 +78,25 @@ impl CheckedContext{
             let original = self.original.borrow();
             let original = original.as_ref().ok_or_else(|| bad("stored reborrow has no independent source proof"))?;
             let Some((node, ordinal)) = original.original_stored_member(caller.definition, site.recipe, b)? else { continue; };
-            let (root, names) = original.address_place(module, caller.definition, node, b)?;
-            let Type::Address { inner, .. } = &f.values[storage.0 as usize] else { return Err(bad("stored reborrow lacks its original addressed carrier")); };
-            let consumed = consume_reserved_fields(inner, path, &names, b)?;
-            self.original_projection_path(module, caller, f, storage, caller.definition,
-                root, &names[consumed..], PlaceUse::Address, b)?;
+            self.stored_field_source(module, caller, f, storage, path, node, b)?;
             return Ok(Some(ClassKey::Implicit { scope: ScopeKey::Instance(caller.id), ordinal }));
         }
         Ok(None)
+    }
+
+    pub(in crate::semantic::flow) fn stored_field_source(
+        &self, module: &TypedModule, caller: &SemanticInstance, f: &TypedFunction,
+        storage: ValueId, path: &[PlaceProjection], node: NodeId, b: &mut Budget,
+    ) -> Check<()> {
+        let (root, names) = self.original.borrow().as_ref()
+            .ok_or_else(|| bad("stored field lacks its original checked place"))?
+            .address_place(module, caller.definition, node, b)?;
+        let Type::Address { inner, .. } = value_type(f, storage, None)? else {
+            return Err(bad("stored field lacks its actual addressed carrier"));
+        };
+        let consumed = consume_reserved_fields(inner, path, &names, b)?;
+        self.original_projection_path(module, caller, f, storage, caller.definition,
+            root, &names[consumed..], PlaceUse::Address, b)
     }
 
     pub(in crate::semantic::flow) fn affine_field_declaration(

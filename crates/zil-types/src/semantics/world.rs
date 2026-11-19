@@ -689,6 +689,9 @@ impl<'a> World<'a, '_> {
         if self.vacant.iter().any(|(local, _)| *local == id) {
             return Err(bad("whole local reads an uninitialized projected occupant"));
         }
+        self.local_shell(locals, id)
+    }
+    fn local_shell(&mut self, locals: &[Option<SharedType>], id: LocalId) -> R<SharedType> {
         if self.stale_locals.contains(&id) {
             return Err(bad(
                 "loop-carried occupant requires a distinct live occurrence correspondence",
@@ -1513,6 +1516,8 @@ impl<'p> World<'p, '_> {
                         SemanticOperand::Local(local) => {
                             if self.ledger.logical_local_type(function, *local, self.limits, self.left)?.is_persistent_closure() {
                                 self.projected_local(locals, *local, &[PlaceProjection::Field(0)])?
+                            } else if let SemanticSiteAddress::Typed { block, instruction, edge: SemanticSiteEdge::Before } = site.at {
+                                places::borrow_source(self, function, block, instruction as usize, locals, *local)?
                             } else { self.local(locals, *local)? }
                         },
                         SemanticOperand::Parameter(parameter) => self.local(
@@ -3384,7 +3389,7 @@ impl<'p> World<'p, '_> {
                         }
                         InstructionKind::BorrowLocal { local }
                         | InstructionKind::BorrowLocalMut { local } => {
-                            let inner = self.local(&locals, *local)?;
+                            let inner = places::borrow_source(self, f, block.id, index, &locals, *local)?;
                             let result = instruction
                                 .result
                                 .ok_or_else(|| bad("borrow has no result"))?;

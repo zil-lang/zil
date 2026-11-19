@@ -43,6 +43,24 @@ impl CheckedOriginal {
             return Err(bad("operational intrinsic has unexpected mixed actuals"));
         }
         let result = match kind {
+            Intrinsic::TakeStored => {
+                self.operation_arity(arguments, 1)?;
+                let slot = &arguments[0];
+                if !matches!(slot.kind, CoreExprKind::Member { .. }) {
+                    return Err(bad("stored take requires a declared original field"));
+                }
+                let (ty, place) = self.place(module, context, slot, env, bindings, active, b)?;
+                self.mutable_place(module, context, slot, env, bindings, active, b)?;
+                if !matches!(self.resolved(&ty, b)?, Ty::Address { .. }) {
+                    return Err(bad("stored take requires the original field's declared address"));
+                }
+                if let Some(place) = place {
+                    self.read_original(module, context, &place, &ty, env, false, active, b)?;
+                }
+                self.observed_argument(slot, &ty, env, b)?;
+                use_.buffer = Some(BufferSource::Place { definition: env.current()?, node: slot.id });
+                ty
+            }
             Intrinsic::StoreNew => {
                 if !arguments.is_empty() || written.len() > 1 {
                     return Err(bad("store_new has another complete scheme arity"));

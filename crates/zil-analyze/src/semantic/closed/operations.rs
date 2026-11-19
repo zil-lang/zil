@@ -1213,6 +1213,27 @@ impl Check<'_, '_> {
                         .intrinsic(instance, site.recipe, self.inventory, b)?
                 {
                     match intrinsic {
+                        original::sealed::Intrinsic::TakeStored => {
+                            let Some(op) = instruction else { return Err(fail("move_out lacks its actual instruction")); };
+                            let InstructionKind::LoadStoredBorrow { storage, path, mode: StoredBorrowLoad::Take } = &op.kind
+                                else { return Err(fail("move_out must consume the actual declared stored slot")); };
+                            let source = self.inventory.original_index(instance.definition, b)?;
+                            let Some(SemanticOriginalNode::Expression(node)) = source.site_node(site.recipe, b)? else {
+                                return Err(fail("move_out lacks its original call"));
+                            };
+                            let CoreExprKind::Call { arguments, .. } = &source.get_expr(node, b)?.kind else {
+                                return Err(fail("move_out changes its original call operation"));
+                            };
+                            let [field] = arguments.as_slice() else { return Err(fail("move_out changes its original field arity")); };
+                            if !actuals.is_empty() || !self.original_stored_slot(instance, point.function, *storage, path, field, b)? {
+                                return Err(fail("move_out changes its complete original stored field"));
+                            }
+                            let result = op.result.ok_or_else(|| fail("move_out has no actual result"))?;
+                            let selected = self.ssa_value(instance, point.function, result, b, 0)?;
+                            let expected = self.original.intrinsic_output(instance, site.recipe, self.program, self.inventory, b)?;
+                            if !selected.equal_paid(&expected, b)? { return Err(fail("move_out changes its complete original stored lifetime")); }
+                            return Ok(());
+                        }
                         original::sealed::Intrinsic::OwnedDyn => {
                             let output = self.dyn_owned_operation(
                                 instance,
