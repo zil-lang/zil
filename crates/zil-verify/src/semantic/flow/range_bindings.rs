@@ -16,7 +16,7 @@ pub(super) fn check(producers: &sites::Producers, module:&TypedModule,f:&TypedFu
         ||f.locals.iter().filter(|other|other.name==range.name&&other.span==range.span&&!other.mutable&&other.ty.is_integer()).count()!=1{
         return Err(bad("range changes its unique original iteration binding"));
     }
-    let iteration=scalar_preparations::slot(f,local,true,b)?.ok_or_else(||bad("range iteration storage is aliased, replaced or lacks an activation"))?;
+    let iteration=scalar_preparations::iteration_slot(f,local,b)?.ok_or_else(||bad("range iteration storage is aliased, replaced or lacks an activation"))?;
     let [(body,store_at,current)]=iteration.stores.as_slice()else{return Err(bad("range iteration binding does not have one actual snapshot producer"));};
     let(head,load_at,load)=producers.get(f,*current,b)?;
     crate::check_instruction(module,f,load,b)?;
@@ -98,7 +98,7 @@ pub(super) fn check(producers: &sites::Producers, module:&TypedModule,f:&TypedFu
         b.spend(predecessors[step.0 as usize].len())?;
         if predecessors[step.0 as usize].iter().any(|parent|!region[parent.0 as usize]){return Err(bad("range step is entered outside its original body"));}
     }
-    for &(block,_,_)in &iteration.loads {b.spend(1)?;if !region[block.0 as usize]{return Err(bad("range binding is read outside its current guarded iteration"));}}
+    for &(block,at,_)in &iteration.loads {b.spend(1)?;if !region[block.0 as usize] || (block==*body && at<=*store_at) {return Err(bad("range binding is read outside its current guarded iteration"));}}
     for &(block,_)in iteration.dead.iter().chain(&counter_slot.dead){
         b.spend(1)?;
         if block!=after&&!matches!(f.blocks[block.0 as usize].terminator,Terminator::Return(_)|Terminator::Trap|Terminator::Unreachable){return Err(bad("range storage is ended before its current iteration stage settles"));}

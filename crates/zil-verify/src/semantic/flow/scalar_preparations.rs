@@ -18,6 +18,13 @@ pub(super) fn slot(
 ) -> Check<Option<Slot>> {
     slot_kind(f, local, readonly, SlotKind::Scalar, None, b)
 }
+/// The range binding is immutable storage freshly populated on the guarded
+/// body edge. Its shared observations may form loans; the caller checks that
+/// every observation occurs inside that activation, and ordinary loan flow
+/// checks its last use. The private counter continues to forbid all aliases.
+pub(super) fn iteration_slot(f: &TypedFunction, local: LocalId, b: &mut Budget) -> Check<Option<Slot>> {
+    slot_kind(f, local, true, SlotKind::Iteration, None, b)
+}
 pub(super) fn unpacked_slot(
     f: &TypedFunction,
     local: LocalId,
@@ -27,7 +34,7 @@ pub(super) fn unpacked_slot(
     slot_kind(f, local, true, SlotKind::Scalar, Some(at), b)
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum SlotKind { Scalar, Owned, Managed, CopyValue, SharedAddress }
+enum SlotKind { Scalar, Iteration, Owned, Managed, CopyValue, SharedAddress }
 fn slot_kind(
     f: &TypedFunction,
     local: LocalId,
@@ -49,6 +56,7 @@ fn slot_kind(
     let eligible=match kind {
         SlotKind::Owned=>matches!(ty, Type::Closure(_)),
         SlotKind::Managed=>matches!(ty, Type::Managed(_)),
+        SlotKind::Iteration=>ty.is_integer(),
         SlotKind::Scalar=>ty.is_integer()||ty.is_float()||matches!(ty,Type::Unit|Type::Bool),
         SlotKind::SharedAddress => matches!(ty, Type::Address { mutable: false, .. }),
         SlotKind::CopyValue=>{
@@ -80,6 +88,18 @@ fn slot_kind(
                     }
                     b.spend(1)?;
                     stores.push((body.id, index, *value));
+                }
+                InstructionKind::BorrowLocal { local: actual }
+                | InstructionKind::BorrowPlaceLocal { local: actual, mutable: false, .. }
+                    if *actual == local && kind == SlotKind::Iteration => {
+                    if matches!(&instruction.kind, InstructionKind::BorrowPlaceLocal { path, .. } if !path.is_empty())
+                        || !matches!(instruction.result.and_then(|id| f.values.get(id.0 as usize)),
+                            Some(Type::Address { mutable: false, inner }) if inner.as_ref() == ty) {
+                        return Ok(None);
+                    }
+                    if loads.len() == loads.capacity() { b.spend(loads.len().saturating_add(1))?; }
+                    b.spend(1)?;
+                    loads.push((body.id, index, instruction.result));
                 }
                 InstructionKind::BorrowDynOwned { local: actual, .. }
                 | InstructionKind::DropDynOwned { local: actual }
