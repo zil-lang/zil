@@ -206,7 +206,11 @@ impl Structure{
         }
         for table in &module.dyn_vtables{result.ty(&table.self_type,b)?;if let Some(rows)=&table.implementation_witnesses{for row in rows{result.visit(row,b)?;}}}
         if let Some(program)=&module.semantic{
-            result.visit(program,b)?;
+            result.recipe(program,b)?;
+            let key=profile(b);
+            program.visit_dyn_metadata(&mut RegisterProgram { structure: &mut result, bounds: super::RecipeWork { b, nodes: 0 } },0)?;
+            b.spend(lookup(result.program_bounds.len()).saturating_add(2))?;
+            result.program_bounds.insert(key);
             for(index,instance)in program.instances.iter().enumerate(){
                 b.spend(1)?;
                 if instance.target==SemanticInstanceTarget::Scope{add_index(&mut result.scope_instances,instance.definition,index,b)?;}
@@ -279,6 +283,29 @@ impl Structure{
         }Ok(())
     }
 }
+// Register Type allocations of the held program while performing the
+// original complete grammar and metadata limits walk. Publication happens
+// only after every original edge and leaf succeeds under this profile.
+struct RegisterProgram<'a> {
+    structure: &'a mut Structure,
+    bounds: super::RecipeWork<'a>,
+}
+impl DynRecipeVisitor for RegisterProgram<'_> {
+    type Error=Diagnostic;
+    fn node(&mut self,d:usize)->Check<()> { self.bounds.node(d) }
+    fn rows(&mut self,n:usize,d:usize)->Check<()> { self.bounds.rows(n,d) }
+    fn scratch(&mut self,n:usize,_:usize)->Check<()> { self.bounds.b.spend(n) }
+    fn ty(&mut self,value:&Type,d:usize)->Check<()> {
+        self.bounds.ty(value,d)?;
+        self.structure.ty(value,self.bounds.b)
+    }
+    fn life(&mut self,value:&StorageLifeShape,d:usize)->Check<()> { self.bounds.life(value,d) }
+    fn identity(&mut self,value:&LifeDeclarationIdentity,d:usize)->Check<()> { self.bounds.identity(value,d) }
+    fn position(&mut self,value:&StoragePosition,d:usize)->Check<()> { self.bounds.position(value,d) }
+    fn constant(&mut self,value:&Constant,d:usize)->Check<()> { self.bounds.constant(value,d) }
+    fn text(&mut self,value:&str,d:usize)->Check<()> { self.bounds.text(value,d) }
+}
+
 struct Register<'a>{structure:&'a mut Structure,b:&'a mut Budget}
 impl DynRecipeVisitor for Register<'_>{
     type Error=Diagnostic;
@@ -806,6 +833,36 @@ mod tests{
         let mut b=Budget::new(&Limits::default());
         b.structural=Some(Structure::register(module,&mut b).unwrap());b
     }
+    #[test]
+    fn held_program_publishes_the_full_grammar_bounds_only_after_registration() {
+        let limits=Limits::default();
+        let (module,_) = zil_ir::wire::decode_module_candidate(
+            include_bytes!("../semantic/fixtures/phantom-closure-complete-creator.wire"),&limits,
+        ).unwrap();
+        let program=module.semantic.as_ref().unwrap();
+        for cap in [1,16,limits.max_nodes] {
+            let mut profile=limits.clone();
+            profile.max_nodes=cap;
+            let expected=super::super::recipe(program,&mut Budget::new(&profile));
+            let actual=Structure::register(&module,&mut Budget::new(&profile));
+            match (expected,actual) {
+                (Ok(()),Ok(_))=>{},
+                (Err(a),Err(z))=>assert_eq!((a.code,a.message),(z.code,z.message)),
+                _=>panic!("registration and complete metadata disagree for max_nodes {cap}"),
+            }
+        }
+        let mut b=budget(&module);
+        let before=b.remaining;
+        source_program_bounds(program,&mut b).unwrap();
+        let hit=before-b.remaining;
+        let copy=program.clone();
+        let before=b.remaining;
+        source_program_bounds(&copy,&mut b).unwrap();
+        assert!(before-b.remaining>hit);
+        b.limits.max_nodes=1;
+        assert_eq!(source_program_bounds(program,&mut b).unwrap_err().category,zil_base::ResultCategory::ResourceLimit);
+    }
+
     #[test]
     fn recipe_and_dynamic_declaration_hits_require_registered_originals_profiles_and_owner() {
         let limits = Limits::default();
