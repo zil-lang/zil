@@ -544,7 +544,29 @@ impl CheckedOriginal {
             _=>self.expression(module,context,expression,env,bindings,Some(expected),active,b),
         }?;
         self.require_input_address_wf(module,context,&actual,expected,active,b)?;
+        if matches!(mode, PassingMode::Infer | PassingMode::BorrowMut)
+            && matches!(self.resolved(expected, b)?, Ty::Address { mutable: true, .. })
+            && matches!(self.resolved(&actual, b)?, Ty::Address { mutable: true, .. })
+            && let Some(root) = zil_ir::original_capture_syntax::exclusive_place_root(expression, |_, _| b.spend(1))?
+        {
+            self.record_exclusive_argument_capture(env.current()?, root.node, b)?;
+        }
         Ok(actual)
+    }
+
+    fn record_exclusive_argument_capture(
+        &mut self, owner: SemanticDefinitionId, root: NodeId,
+        b: &mut Budget,
+    ) -> Check<()> {
+        b.spend(self.value_bindings.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
+        if let Some(binding @ Binder::Capture { .. }) = self.value_bindings.get(&(owner, root)) {
+            b.spend(self.written.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
+            b.spend(self.written.get(&owner).map_or(1, |rows|
+                rows.len().checked_ilog2().map_or(1, |n| n as usize + 2)))?;
+            binding.charge_clone(b)?;
+            self.written.entry(owner).or_default().insert(binding.clone());
+        }
+        Ok(())
     }
 }
 

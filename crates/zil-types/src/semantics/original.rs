@@ -2816,8 +2816,13 @@ impl<'a> Check<'a, '_> {
             // A direct local borrow has its own source occurrence. A prior
             // invariant argument can fix the formal's lifetime, but only the
             // separate call-site reborrow may use that selected lifetime.
+            let mut ungrouped = *argument;
+            while let CoreExprKind::Group(inner) = &ungrouped.kind {
+                self.pay(1, depth)?;
+                ungrouped = inner;
+            }
             let direct_borrow = matches!(parameter.ty, SemanticTypeRecipe::Address { .. })
-                && matches!(&argument.kind, CoreExprKind::Unary { op: UnaryOp::Borrow | UnaryOp::BorrowMut, operand }
+                && matches!(&ungrouped.kind, CoreExprKind::Unary { op: UnaryOp::Borrow | UnaryOp::BorrowMut, operand }
                     if matches!(operand.kind, CoreExprKind::Name(_)));
             let hint = if authenticates_context || direct_borrow || matches!(parameter.ty, SemanticTypeRecipe::Desc { .. }) {
                 // Describe receives the existing descriptor or an observation
@@ -2870,7 +2875,7 @@ impl<'a> Check<'a, '_> {
                     // exclusive source or consume/copy that exclusive value.
                     view
                 } else if matches!(&parameter.ty, SemanticTypeRecipe::Address { .. })
-                    && matches!(&argument.kind, CoreExprKind::Name(_))
+                    && matches!(&ungrouped.kind, CoreExprKind::Name(_))
                 {
                     self.place(owner, argument, variables, depth + 1)?
                 } else {
@@ -2962,6 +2967,14 @@ impl<'a> Check<'a, '_> {
                     &mut invocation,
                     depth + 1,
                 )?;
+                // An ordinary helper receives the same exclusive authority
+                // as an explicit write through this capture. Record it before
+                // finalizing the original callable's access mode.
+                if matches!(parameter.mode, PassingMode::Infer | PassingMode::BorrowMut)
+                    && matches!(&parameter.ty, SemanticTypeRecipe::Address { mutable: true, .. })
+                {
+                    self.observe_exclusive_capture(owner, argument, variables, depth + 1)?;
+                }
                 let variable = call_regions::variable(expected);
                 let selector = if let Some(variable) = variable {
                     Some(match variable {
@@ -5056,34 +5069,21 @@ impl<'a> Check<'a, '_> {
     fn observe_exclusive_capture(
         &mut self,
         owner: SemanticDefinitionId,
-        mut expression: &SemanticOriginalExpr,
+        expression: &SemanticOriginalExpr,
         variables: &mut BTreeMap<String, Binding>,
-        mut depth: usize,
+        depth: usize,
     ) -> R<()> {
-        loop {
-            self.pay(1, depth)?;
-            expression = match &expression.kind {
-                CoreExprKind::Name(name) => {
-                    self.pay(name.len(), depth)?;
-                    if let Some(value) = variables.get_mut(name).filter(|value| value.capture) {
-                        value.written = true;
-                        value.observed = true;
-                        self.observe_capture(owner, name, value, depth + 1)?;
-                    }
-                    return Ok(());
-                }
-                CoreExprKind::Group(inner)
-                | CoreExprKind::Unary {
-                    op: UnaryOp::Dereference,
-                    operand: inner,
-                } => inner,
-                CoreExprKind::Member { object, .. }
-                | CoreExprKind::Index { object, .. }
-                | CoreExprKind::Slice { object, .. } => object,
-                _ => return Ok(()),
-            };
-            depth += 1;
+        let Some(root) = zil_ir::original_capture_syntax::exclusive_place_root(
+            expression, |step, _| self.pay(1, depth.saturating_add(step)),
+        )? else { return Ok(()); };
+        let name = root.name;
+        self.pay(name.len().saturating_add(variables.len().saturating_add(1).ilog2() as usize), depth)?;
+        if let Some(value) = variables.get_mut(name).filter(|value| value.capture) {
+            value.written = true;
+            value.observed = true;
+            self.observe_capture(owner, name, value, depth + 1)?;
         }
+        Ok(())
     }
     fn writable(
         &mut self,

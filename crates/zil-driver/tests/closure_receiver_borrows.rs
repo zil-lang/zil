@@ -314,10 +314,10 @@ mod additional_source_cases {
                 .iter()
                 .any(|r| r.position.base == StorageBase::Receiver)
         );
-        super::accepted_typed("captured-holder-fixed-data-result", text, module);
+        super::accepted_typed("shared-capture-fixed-result", text, module);
         let early_write = text.replace(
-            " let old=*pointer\n a=21",
-            " a=21\n let old=*pointer",
+            " let result=*pointer\n value=43",
+            " value=43\n let result=*pointer",
         );
         let errors = zil_analyze::analyze(&typed(&early_write), &Limits::default()).unwrap_err();
         assert_eq!(errors[0].code, "E-BORROW-CONFLICT");
@@ -1450,4 +1450,34 @@ fn consuming_static_slice_result_keeps_an_unrelated_real_argument_separate() {
             "../../../tests/fixtures/returned-owning-holders/fnonce-static-slice-argument-result.zil"
         ),
     );
+}
+
+#[test]
+fn ordinary_helpers_preserve_their_checked_capture_access_mode() {
+    let exclusive = include_str!(
+        "../../../tests/language-readiness/terminal/library-and-ui/growing-hash-collections/callback-helper-replacement.zil"
+    );
+    let mut module = typed_with_original_source("callback-helper-replacement", exclusive);
+    assert_eq!(module.closures[0].kind, zil_ir::CallableKind::FnMut);
+    accepted_typed("callback-helper-replacement", exclusive, module.clone());
+
+    let shared = "struct Cell{value:i32}\n\
+        fn read(target:&Cell)->i32{return target.value}\n\
+        fn main()->i32{\n\
+            var cell=Cell{value:22}\n\
+            let target=&mut cell\n\
+            let callback=move()=>{return read(target)}\n\
+            return callback()-22\n\
+        }";
+    let readonly = typed_with_original_source("callback-helper-shared", shared);
+    assert_eq!(readonly.closures[0].kind, zil_ir::CallableKind::Fn);
+    accepted_typed("callback-helper-shared", shared, readonly);
+
+    let limits = Limits::default();
+    let mut claim = zil_analyze::analyze(&module, &limits).unwrap();
+    module.closures[0].kind = zil_ir::CallableKind::Fn;
+    claim.module_fingerprint = module.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &claim, &limits).unwrap();
+    assert!(zil_verify::verify_module(module.clone(), claim, &module.target, &limits).is_err());
+    assert!(zil_verify::verify_module_bytes(&wire, &module.target, &limits).is_err());
 }

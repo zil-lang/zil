@@ -2,6 +2,45 @@
 //! It proves no type, original environment correspondence or transfer.
 use super::*;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NamedPlaceRoot<'a> {
+    pub node: NodeId,
+    pub name: &'a str,
+}
+
+/// Find the named source occurrence behind a syntactically exclusive place
+/// use. The caller still proves the binder, address mode and actual permission.
+pub fn exclusive_place_root<Annotation, E>(
+    mut expression: &CoreExpr<Annotation>,
+    mut visit: impl FnMut(usize, Span) -> Result<(), E>,
+) -> Result<Option<NamedPlaceRoot<'_>>, E> {
+    use CoreExprKind as X;
+    let mut depth = 0usize;
+    loop {
+        visit(depth, expression.span)?;
+        expression = match &expression.kind {
+            X::Name(name) => return Ok(Some(NamedPlaceRoot { node: expression.id, name })),
+            X::Group(base) | X::Ascribed { value: base, .. }
+            | X::Sequence { value: base, .. }
+            | X::Unary { op: UnaryOp::BorrowMut | UnaryOp::Dereference, operand: base }
+            | X::Member { object: base, .. } | X::Index { object: base, .. }
+            | X::Slice { object: base, .. } => base,
+            X::Unary { op: UnaryOp::Borrow | UnaryOp::Give | UnaryOp::Negate | UnaryOp::Not | UnaryOp::BitNot, .. }
+            | X::ReceiverMember(_) | X::MakeDynBorrow { .. } | X::MakeDynOwned { .. }
+            | X::CallDynSlot { .. } | X::Literal(_) | X::Integer(_) | X::Float(_)
+            | X::Bool(_) | X::String(_) | X::Character(_) | X::Unit
+            | X::NumericConvert { .. } | X::IntegerConvert { .. } | X::Binary { .. }
+            | X::TypeApply { .. } | X::GenericApply { .. } | X::Call { .. }
+            | X::Tuple(_) | X::Array(_) | X::Record { .. } | X::RecordUpdate { .. }
+            | X::RecordConstructor { .. } | X::CompileTime(_) | X::CompileTimeBlock(_)
+            | X::Try(_) | X::Closure { .. } | X::If { .. } | X::Unsupported(_)
+            | X::Spread(_) | X::Range { .. } | X::Pipeline { .. } | X::Splice(_)
+            | X::SyntaxQuote { .. } | X::SyntaxIsland { .. } => return Ok(None),
+        };
+        depth = depth.saturating_add(1);
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum CaptureUse {
     /// The first name occurrence owned by this declaration. Children have
@@ -418,6 +457,24 @@ mod tests {
         };
         search.expression(value, 0).unwrap();
         search.found
+    }
+
+    #[test]
+    fn exclusive_place_syntax_selects_the_actual_name_occurrence() {
+        let borrow = |op| expression(1, CoreExprKind::Unary {
+            op, operand: Box::new(expression(2, CoreExprKind::Group(Box::new(name(3))))),
+        });
+        let exclusive = borrow(UnaryOp::BorrowMut);
+        let mut visited = Vec::new();
+        assert_eq!(exclusive_place_root(&exclusive, |depth, _| {
+            visited.push(depth);
+            Ok::<(), ()>(())
+        }), Ok(Some(NamedPlaceRoot { node: NodeId(3), name: "captured" })));
+        assert_eq!(visited, [0, 1, 2]);
+        for value in [borrow(UnaryOp::Borrow), borrow(UnaryOp::Give),
+            expression(4, CoreExprKind::String("\"static\"".into()))] {
+            assert_eq!(exclusive_place_root(&value, |_, _| Ok::<(), ()>(())), Ok(None));
+        }
     }
 
     #[test]
