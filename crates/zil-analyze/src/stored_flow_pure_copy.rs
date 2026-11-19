@@ -197,11 +197,11 @@ pub(super) fn ordinary_package_borrow(
     else {
         return Ok(false);
     };
-    let parent = &f
+    let declaration = f
         .locals
         .get(local.0 as usize)
-        .ok_or_else(|| failure("borrowed Package local absent"))?
-        .ty;
+        .ok_or_else(|| failure("borrowed Package local absent"))?;
+    let parent = &declaration.ty;
     let Type::Package { fields, .. } = resources::package_storage(parent) else {
         return Ok(false);
     };
@@ -216,8 +216,9 @@ pub(super) fn ordinary_package_borrow(
             d.id == *id && (d.kind == CallableKind::Fn || mutable && d.kind == CallableKind::FnMut))
             && crate::callable_fields::environment(module, *id, b)?
     } else { false };
-    let ordinary = callable || !mutable
-        && (field.is_copy_value() && pure(module, field, b, 0)? || owned::ordinary_value(module, field, b)?);
+    let ordinary = callable
+        || field.is_copy_value() && pure(module, field, b, 0)?
+        || !mutable && owned::ordinary_value(module, field, b)?;
     if ordinary {
         resources::product::admit_owned(module, parent, b)?;
     } else {
@@ -237,6 +238,9 @@ pub(super) fn ordinary_package_borrow(
             }
             _ => return Ok(false),
         }
+    }
+    if mutable && !declaration.mutable {
+        return Err(failure("exclusive Package field borrow requires mutable storage"));
     }
     if !matches!(value_type(f, i.result.ok_or_else(|| failure("Package field borrow lacks result"))?)?,
         Type::Address { mutable: actual, inner } if *actual == mutable && inner.as_ref() == field)

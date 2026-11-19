@@ -79,7 +79,7 @@ fn conflict(label: &str, s: &str) {
         "{}",
         report.to_json()
     );
-    assert_eq!(report.phase, Phase::Verify);
+    assert!(matches!(report.phase, Phase::Analyze | Phase::Verify), "{}", report.to_json());
     assert!(
         report
             .diagnostics
@@ -120,7 +120,7 @@ fn nested_helpers_keep_owned_environment_and_explicit_field_arguments_separate()
 #[test]
 fn raw_read_retargeting_keeps_actual_parent_identity() {
     let s = "resource R{n:i32}package P{manages r:R;x:i32}fn main()->i32{var a=P{r:R{n:1},x:20};let b=P{r:R{n:2},x:1};let p=&mut a.x;let old=b.x;*p+=old;return *p-21}";
-    let (mut m, mut p) = baseline(s);
+    let (mut m, p) = baseline(s);
     let f = m.functions.iter_mut().find(|f| f.name == "main").unwrap();
     let borrowed = f
         .blocks
@@ -144,10 +144,33 @@ fn raw_read_retargeting_keeps_actual_parent_identity() {
         }
     }
     assert_eq!(changes, 1);
+    reject_actual_read("retarget-parent-raw", s, m, p);
+}
+
+#[test]
+fn raw_read_of_a_sibling_field_preserves_its_own_ordinal() {
+    let source = "resource R{n:i32}package P{manages r:R;a:i32;b:i32}fn main()->i32{var state=P{r:R{n:0},a:20,b:1};let p=&mut state.a;let old=state.b;*p+=old;return *p-21}";
+    native("borrow-a-read-b", source, b"", 0);
+    conflict("borrow-a-read-a", &source.replace("old=state.b", "old=state.a"));
+    let (mut module, plan) = baseline(source);
+    let main = module.functions.iter_mut().find(|f| f.name == "main").unwrap();
+    let mut changed = 0;
+    for instruction in main.blocks.iter_mut().flat_map(|block| &mut block.instructions) {
+        if let I::ReadPackageField { index, .. } = &mut instruction.kind {
+            assert_eq!(*index, 2);
+            *index = 1;
+            changed += 1;
+        }
+    }
+    assert_eq!(changed, 1);
+    reject_actual_read("retarget-sibling-raw", source, module, plan);
+}
+
+fn reject_actual_read(label: &str, s: &str, m: TypedModule, mut p: CandidatePlan) {
     p.module_fingerprint = m.fingerprint();
     let limits = Limits::default();
     let wire = zil_ir::wire::encode_module_candidate(&m, &p, &limits).unwrap();
-    let d = dir("retarget-parent-raw");
+    let d = dir(label);
     fs::write(d.join("source.zil"), s).unwrap();
     fs::write(d.join("module.txt"), format!("{m:#?}")).unwrap();
     fs::write(d.join("candidate.txt"), format!("{p:#?}")).unwrap();

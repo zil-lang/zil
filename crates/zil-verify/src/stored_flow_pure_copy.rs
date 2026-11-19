@@ -189,10 +189,9 @@ pub(super) fn ordinary_copy_field_borrow(
     else {
         return Ok(false);
     };
-    if !b.store_option_results {
-        return Ok(false);
-    }
-    let Some(Type::Package { fields, .. }) = f.locals.get(local.0 as usize).map(|l| &l.ty) else {
+    let declaration = f.locals.get(local.0 as usize)
+        .ok_or_else(|| err("ordinary Copy field borrow has no actual local"))?;
+    let Type::Package { fields, .. } = &declaration.ty else {
         return Ok(false);
     };
     let field = &fields
@@ -223,6 +222,9 @@ pub(super) fn ordinary_copy_field_borrow(
             | Type::ErrorUnion { .. }
     ) {
         return Ok(false);
+    }
+    if mutable && !declaration.mutable {
+        return Err(err("exclusive Package field borrow requires mutable storage"));
     }
     super::type_work(field, &b.limits.clone(), b)?;
     let mut pending = vec![(field, 0usize)];
@@ -1225,8 +1227,10 @@ mod copy_field_borrow_tests {
         ]));
         let (f, i) = request(complete.clone(), address(complete));
         let mut budget = Budget::new(&Limits::default());
-        budget.store_option_results = true;
-        assert!(ordinary_copy_field_borrow(&f, &i, &mut budget).unwrap());
+        for has_store_option in [false, true] {
+            budget.store_option_results = has_store_option;
+            assert!(ordinary_copy_field_borrow(&f, &i, &mut budget).unwrap());
+        }
         for hidden in [
             address(Type::I32),
             Type::Desc(Box::new(Type::ByteBuffer)),
