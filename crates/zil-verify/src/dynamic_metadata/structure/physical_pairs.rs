@@ -73,7 +73,7 @@ pub(super) fn representative(ty: &Type, b: &mut Budget) -> Check<Representative>
     if let Some(known)=known {
         // Complete equality with the bounded representative proves the same
         // geometry. A collision falls through to the caller's full cold check.
-        let equal = crate::physical_type_equality::compare(&known.ty, ty, b, super::super::ty)?;
+        let equal = crate::physical_type_equality::compare(&known.ty, ty, b)?;
         return Ok(if equal { Representative::Existing(known) } else { Representative::New(None) });
     }
     super::super::bounds_type(ty,b)?;

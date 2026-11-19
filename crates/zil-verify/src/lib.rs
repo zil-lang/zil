@@ -3226,19 +3226,13 @@ fn local_type(function: &TypedFunction, local: LocalId, span: Option<Span>) -> C
         })
 }
 /// Compare two borrowed physical types. After the raw table preflight an
-/// equality is decided by identity or constructor first. A recursive comparison
-/// charges the left tree, an upper bound for the equal prefix of the two trees.
+/// equality is decided by identity or constructor first. Comparisons of
+/// children and attached metadata charge each inspected member.
 fn transport_equal(left: &Type, right: &Type, meter_read: bool, b: &mut Budget) -> Check<bool> {
     if !meter_read {
         return Ok(std::ptr::eq(left, right) || left == right);
     }
-    physical_type_equality::compare(left, right, b, |ty, b| {
-        if b.pod_stores {
-            resources::charge_payload(ty, b)
-        } else {
-            stored_flow::type_work(ty, &b.limits.clone(), b)
-        }
-    })
+    physical_type_equality::compare(left, right, b)
 }
 
 fn check_instruction(
