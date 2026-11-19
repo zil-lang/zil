@@ -6219,6 +6219,19 @@ fn transfer(
             });
         }
     }
+    if b.qualified_package_returns
+        && matches!(i.kind, InstructionKind::Call { .. } | InstructionKind::SuspendCall { .. })
+        && let Some(result) = i.result
+        && let Some((Type::Package { .. }, shape)) = pointed_carrier(value_type(f, result)?)
+    {
+        // A returned whole Package address retains the stored targets at
+        // every possible actual manager, after this call's checked effects.
+        fee(b, shape.slots.len())?;
+        for slot in &shape.slots {
+            let at = select(state, &out.pointer, &slot.path, b)?;
+            dyn_address::upper_union(&mut out.pointee_holds, &at.targets, b)?;
+        }
+    }
     if b.qualified_head_returns
         && let Some(result) = i.result
         && let Some((storage, shape)) = pointed_carrier(value_type(f, result)?)

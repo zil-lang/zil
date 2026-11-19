@@ -1118,6 +1118,30 @@ impl Check<'_, '_, '_> {
             })
         })
     }
+    // A direct borrowed parameter constrains its retained pointee invariantly.
+    // Its outer lifetime is an upper on the call loan. Multiple actual heads
+    // can contribute to that upper without equating the original addresses.
+    fn infer_call_input(
+        &mut self, formal: &Fact, actual: &Fact, map: &mut Substitutions,
+        uppers: &mut Substitutions, span: Span, invariant: bool,
+    ) -> R<()> {
+        if let (Fact::Address(formal_life, pointee), Fact::Address(actual_life, actual_pointee)) = (formal, actual) {
+            self.infer(pointee, actual_pointee, map, span, invariant)?;
+            if let (Some(expected), Some(source)) = (formal_life, actual_life) {
+                self.infer(expected, source, uppers, span, false)?;
+            }
+            Ok(())
+        } else {
+            self.infer(formal, actual, map, span, invariant)
+        }
+    }
+    fn finish_call_uppers(&mut self, map: &mut Substitutions, uppers: Substitutions, span: Span) -> R<()> {
+        for (binder, upper) in uppers {
+            self.lookup(map.len(), 2, span)?;
+            map.entry(binder).or_insert(upper);
+        }
+        Ok(())
+    }
     fn infer(
         &mut self,
         formal: &Fact,
@@ -1160,7 +1184,8 @@ impl Check<'_, '_, '_> {
                 // distinct declared inputs as a retained nominal class.
                 self.pay(span, map.len().saturating_add(1))?;
                 if let Some(prior) = map.get(b) {
-                    let same = matches!((prior,actual),(Fact::Class(a),Fact::Class(b)) if a==b);
+                    let same = matches!((prior,actual),(Fact::Class(a),Fact::Class(b)) if a==b)
+                        || matches!((prior,actual),(Fact::LocalClass(a),Fact::LocalClass(b)) if a==b);
                     if !same {
                         map.insert(*b, Fact::Unknown);
                     }
@@ -2030,11 +2055,13 @@ impl Check<'_, '_, '_> {
                 invariant |= formal.has_class();
                 formals.push(formal);
             }
+            let mut uppers = Substitutions::new();
             for (formal, actual) in formals.iter().zip(actuals) {
                 if let Some(actual) = actual {
-                    self.infer(formal, actual, &mut map, expression.span, invariant)?;
+                    self.infer_call_input(formal, actual, &mut map, &mut uppers, expression.span, invariant)?;
                 }
             }
+            self.finish_call_uppers(&mut map, uppers, expression.span)?;
             if let (Some(result), Some(wanted)) = (&function.return_type, wanted) {
                 let result = self.ty(result, &definition, depth + 1)?;
                 self.infer(
@@ -2437,9 +2464,11 @@ impl Check<'_, '_, '_> {
                     invariant |= f.has_class();
                     formals.push(f);
                 }
+                let mut uppers = Substitutions::new();
                 for (formal, actual) in formals.iter().zip(actuals) {
-                    self.infer(formal, actual, &mut map, e.span, invariant)?;
+                    self.infer_call_input(formal, actual, &mut map, &mut uppers, e.span, invariant)?;
                 }
+                self.finish_call_uppers(&mut map, uppers, e.span)?;
                 if let Some(result) = result {
                     output = self.substitute(&result, &map, e.span)?;
                 }
