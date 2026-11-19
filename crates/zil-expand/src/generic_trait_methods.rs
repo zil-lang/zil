@@ -1061,6 +1061,30 @@ impl Engine<'_> {
         let (provider, outer) =
             self.traits
                 .method_provider(&witness, &name, &mut self.budget, expression.span)?;
+        if self.products.semantic.is_some() {
+            let definition = self.semantic_impl_definition(witness.item)?;
+            let ordinary_scope = if self.semantic_impl_scopes.is_empty() {
+                None
+            } else {
+                let key = (
+                    trait_instances::copy_key(
+                        &witness.reference.key,
+                        &mut self.budget,
+                        expression.span,
+                    )?,
+                    type_key(&witness.actual, &mut self.budget)?,
+                );
+                self.budget.identity_work(self.semantic_impl_scopes.len().ilog2() as usize + 1, expression.span)?;
+                self.semantic_impl_scopes.get(&key).copied()
+            };
+            self.semantic_selected_method = Some((
+                std::ptr::from_ref(expression) as usize,
+                SemanticMethodSelection::Provider {
+                    definition,
+                    ordinary_scope,
+                },
+            ));
+        }
         let mut args = Vec::new();
         for actual in outer {
             self.budget.ty(&actual)?;

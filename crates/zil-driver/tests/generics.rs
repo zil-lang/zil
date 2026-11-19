@@ -354,6 +354,46 @@ fn explicit_method_type_arguments_preserve_the_real_borrowed_receiver() {
 }
 
 #[test]
+fn generic_trait_provider_keeps_the_selected_impl_scope() {
+    let declarations = r#"
+trait Ops<Tag:Copy> {
+    fn pick<U:Copy>(self:&Self,value:U)->i32;
+    fn steady(self:&Self)->i32;
+}
+struct Box<T:Copy>{value:T}
+impl<T:Copy> Ops<i32> for Box<T> {
+    fn pick<U:Copy>(self:&Self,value:U)->i32{return 20}
+    fn steady(self:&Self)->i32{return 42}
+}
+impl<T:Copy> Ops<bool> for Box<T> {
+    fn pick<U:Copy>(self:&Self,value:U)->i32{return 22}
+    fn steady(self:&Self)->i32{return 43}
+}
+fn ordinary<V:Ops<i32>>(value:&V)->i32{return value.steady()}
+fn first<V:Ops<i32>>(value:&V)->i32{return value.pick::<bool>(true)}
+fn second<V:Ops<bool>>(value:&V)->i32{return value.pick::<bool>(true)}
+"#;
+    for (expression, value) in [
+        ("ordinary(&p)", 42),
+        ("first(&p)+second(&p)", 42),
+        ("second(&p)+second(&p)", 44),
+    ] {
+        let text = format!(
+            "{declarations}fn main()->i32{{let p=Box::<bool>{{value:true}};return {expression}}}"
+        );
+        native(&text, value);
+    }
+    let text = format!(
+        "{declarations}fn main()->i32{{let p=Box::<bool>{{value:true}};return p.pick::<bool>(true)}}"
+    );
+    let report = compile_source(&source(&text), &CompileOptions::default());
+    assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+    assert_eq!(report.phase, Phase::Expand);
+    assert_eq!(report.diagnostics[0].code, "E-GENERIC-ARGUMENT");
+    assert!(report.diagnostics[0].message.contains("ambiguous"));
+}
+
+#[test]
 fn owned_replacement_generic_methods_specialize_ordinary_calls() {
     for text in [
         include_str!(

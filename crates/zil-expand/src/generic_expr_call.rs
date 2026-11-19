@@ -97,7 +97,8 @@ impl Engine<'_> {
                     && let Some((signature, scope)) =
                         self.realized_method(projection_shape(&actual), member, callee.span)?
                 {
-                    self.semantic_selected_scope = scope.map(|scope| (expression, scope));
+                    self.semantic_selected_method = scope
+                        .map(|scope| (expression, SemanticMethodSelection::ImplScope(scope)));
                     trait_signature = Some(signature);
                 }
                 if trait_signature.is_none()
@@ -119,11 +120,11 @@ impl Engine<'_> {
                         type_key(&witness.actual, &mut self.budget)?,
                     );
                     self.realize_witness(witness)?;
-                    self.semantic_selected_scope = self
+                    self.semantic_selected_method = self
                         .semantic_impl_scopes
                         .get(&key)
                         .copied()
-                        .map(|scope| (expression, scope));
+                        .map(|scope| (expression, SemanticMethodSelection::ImplScope(scope)));
                     self.budget.text(&target, callee.span)?;
                     member.clone_from(&target);
                     trait_signature = Some(signature);

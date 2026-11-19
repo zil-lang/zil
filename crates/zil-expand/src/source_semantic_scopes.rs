@@ -1,6 +1,7 @@
 //! Actual impl materializations retain lexical scope requests from the selected
 //! original method call. These records do not solve or authenticate a provider.
 use super::*;
+use std::collections::BTreeSet;
 pub(super) struct Application {
     pub id: SemanticInstanceId,
     pub definition: SemanticDefinitionId,
@@ -32,6 +33,36 @@ impl Program {
                 "generic default method requires its complete method substitution",
             ));
         }
+        let id = self.inherited_method_scope(method, implementation, selected, budget, span)?;
+        let index = self.templates.len();
+        let marker = u32::try_from(index)
+            .ok()
+            .filter(|index| *index < TEMPLATE)
+            .ok_or_else(|| error(span, "default method template space exhausted"))?;
+        budget.lineage_push(
+            &mut self.templates,
+            FunctionTemplate {
+                definition: method,
+                parameters: Vec::new(),
+            },
+            span,
+        )?;
+        budget.lineage_bytes(
+            12 * std::mem::size_of::<(usize, SemanticInstanceId)>(),
+            span,
+        )?;
+        self.default_scopes.insert(index, id);
+        Ok(s::SemanticContextMarker::untrusted(TEMPLATE | marker))
+    }
+
+    fn inherited_method_scope(
+        &mut self,
+        method: SemanticDefinitionId,
+        implementation: SemanticDefinitionId,
+        selected: Option<SemanticInstanceId>,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<SemanticInstanceId> {
         let implementation_scope = if let Some(selected) = selected {
             budget.identity_work(self.scope_applications.len(), span)?;
             if !self
@@ -145,25 +176,196 @@ impl Program {
             },
             span,
         )?;
-        let index = self.templates.len();
-        let marker = u32::try_from(index)
-            .ok()
-            .filter(|index| *index < TEMPLATE)
-            .ok_or_else(|| error(span, "default method template space exhausted"))?;
+        Ok(id)
+    }
+
+    fn add_impl_application(
+        &mut self,
+        definition: SemanticDefinitionId,
+        parameters: usize,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<SemanticInstanceId> {
+        let id = SemanticInstanceId {
+            module: definition.module,
+            index: self.next_instance,
+        };
+        self.next_instance = self
+            .next_instance
+            .checked_add(1)
+            .ok_or_else(|| error(span, "impl scope instance namespace exhausted"))?;
         budget.lineage_push(
-            &mut self.templates,
-            FunctionTemplate {
-                definition: method,
-                parameters: Vec::new(),
+            &mut self.scope_applications,
+            Application {
+                id,
+                definition,
+                parameters,
             },
             span,
         )?;
-        budget.lineage_bytes(
-            12 * std::mem::size_of::<(usize, SemanticInstanceId)>(),
+        Ok(id)
+    }
+
+    fn specialization_definition(
+        &self,
+        definition: SemanticDefinitionId,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<&SemanticDefinition> {
+        budget.identity_work(self.modules.len(), span)?;
+        let (_, module) = self
+            .modules
+            .iter()
+            .find(|(id, _)| *id == definition.module)
+            .ok_or_else(|| error(span, "specialization original module is absent"))?;
+        budget.identity_work(module.definitions.len(), span)?;
+        module
+            .definitions
+            .iter()
+            .find(|row| row.id == definition)
+            .ok_or_else(|| error(span, "specialization original declaration is absent"))
+    }
+
+    pub(super) fn bind_specialized_parent(
+        &mut self,
+        instance: SemanticInstanceId,
+        method: SemanticDefinitionId,
+        implementation: SemanticDefinitionId,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<SemanticInstanceId> {
+        budget.identity_work(
+            self.provider_parents.len().checked_ilog2().unwrap_or(0) as usize + 1,
             span,
         )?;
-        self.default_scopes.insert(index, id);
-        Ok(s::SemanticContextMarker::untrusted(TEMPLATE | marker))
+        if let Some(&(previous, request)) = self.provider_parents.get(&instance) {
+            if implementation != previous {
+                return Err(error(
+                    span,
+                    "one emitted method selected different original implementations",
+                ));
+            }
+            return Ok(request);
+        }
+        let original = self.specialization_definition(implementation, budget, span)?;
+        if !matches!(
+            original.body,
+            SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl { .. })
+        ) {
+            return Err(error(
+                span,
+                "selected provider has no original trait implementation",
+            ));
+        }
+        let parameters = original.parameters.len();
+        let selected = if parameters == 0 {
+            None
+        } else {
+            Some(self.add_impl_application(implementation, parameters, budget, span)?)
+        };
+        let original_parent = self
+            .specialization_definition(method, budget, span)?
+            .parent
+            .ok_or_else(|| error(span, "specialized method lost its original lexical parent"))?;
+        let lexical_parent = if original_parent == implementation {
+            match selected {
+                Some(scope) => scope,
+                None => self.closed_lexical_scope(implementation, budget, 0)?,
+            }
+        } else {
+            self.inherited_method_scope(method, implementation, selected, budget, span)?
+        };
+        budget.lineage_bytes(
+            12 * std::mem::size_of::<(SemanticInstanceId, (SemanticDefinitionId, SemanticInstanceId))>()
+                + 12 * std::mem::size_of::<(SemanticInstanceId, SemanticInstanceId)>(),
+            span,
+        )?;
+        if self.scope_owners.insert(instance, lexical_parent).is_some() {
+            return Err(error(
+                span,
+                "specialized method was attached to different lexical parents",
+            ));
+        }
+        let request = selected.unwrap_or(instance);
+        self.provider_parents.insert(instance, (implementation, request));
+        Ok(request)
+    }
+
+    pub(super) fn record_provider_sibling_scope(
+        &mut self,
+        ordinary: SemanticInstanceId,
+        provider: SemanticInstanceId,
+        implementation: SemanticDefinitionId,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<()> {
+        budget.identity_work(self.scope_applications.len(), span)?;
+        let mut matching = self.scope_applications.iter().filter(|scope| {
+            (scope.id == ordinary || scope.id == provider) && scope.definition == implementation
+        });
+        if ordinary == provider || matching.next().is_none() || matching.next().is_none() {
+            return Err(error(span, "provider and ordinary scope do not share one original impl"));
+        }
+        budget.identity_work(
+            self.provider_sibling_scopes.len().checked_ilog2().unwrap_or(0) as usize + 1,
+            span,
+        )?;
+        budget.lineage_bytes(12 * std::mem::size_of::<(SemanticInstanceId, SemanticInstanceId)>(), span)?;
+        self.provider_sibling_scopes.entry(ordinary).or_insert(provider);
+        Ok(())
+    }
+
+    pub(super) fn reuse_uncalled_impl_scopes(
+        &mut self,
+        budget: &mut Budget<'_>,
+    ) -> R<BTreeSet<SemanticInstanceId>> {
+        let mut members = BTreeSet::new();
+        if self.provider_sibling_scopes.is_empty() {
+            return Ok(members);
+        }
+        let span = Span::default();
+        let mut called = BTreeSet::new();
+        for request in &self.scope_requests {
+            budget.identity_work(called.len().saturating_add(1).ilog2() as usize + 1, span)?;
+            budget.lineage_bytes(12 * std::mem::size_of::<SemanticInstanceId>(), span)?;
+            called.insert(request.callee);
+        }
+        let mut replacements = std::mem::take(&mut self.provider_sibling_scopes);
+        budget.identity_work(replacements.len().saturating_mul(called.len().saturating_add(1).ilog2() as usize + 1), span)?;
+        replacements.retain(|scope, _| !called.contains(scope));
+        if replacements.is_empty() {
+            return Ok(members);
+        }
+        // These ordinary members were physically emitted but have no direct
+        // call. Their exact witness already has a real provider call, whose
+        // implementation scope can own those members without a new request.
+        let lookup = replacements.len().ilog2() as usize + 1;
+        budget.identity_work(self.scope_owners.len().saturating_mul(lookup), span)?;
+        for (member, scope) in &mut self.scope_owners {
+            if let Some(replacement) = replacements.get(scope) {
+                *scope = *replacement;
+                budget.lineage_bytes(12 * std::mem::size_of::<SemanticInstanceId>(), span)?;
+                members.insert(*member);
+            }
+        }
+        budget.identity_work(self.modules.len(), span)?;
+        for (_, module) in &mut self.modules {
+            budget.identity_work(module.instances.len().saturating_mul(lookup), span)?;
+            for row in &mut module.instances {
+                if matches!(row.target, SemanticInstanceTarget::Scope)
+                    && let Some(SemanticTypeValue::Core { scope, .. }) = &row.self_type
+                    && replacements.contains_key(scope)
+                {
+                    budget.identity_work(row.actuals.len().saturating_add(3).saturating_mul(lookup), span)?;
+                    requests::instance(row, &replacements);
+                    budget.lineage_bytes(12 * std::mem::size_of::<SemanticInstanceId>(), span)?;
+                    members.insert(row.id);
+                }
+            }
+        }
+        budget.identity_work(self.scope_applications.len().saturating_mul(lookup), span)?;
+        self.scope_applications.retain(|scope| !replacements.contains_key(&scope.id));
+        Ok(members)
     }
 
     pub(crate) fn realize_impl_scope(
@@ -173,6 +375,7 @@ impl Program {
         budget: &mut Budget<'_>,
         span: Span,
     ) -> R<Option<SemanticInstanceId>> {
+        let mut has_emitted_method = definition.is_some();
         for member in &implementation.members {
             budget.node(member.span, 0)?;
             let s::ItemKind::Function(function) = &member.kind else {
@@ -181,6 +384,7 @@ impl Program {
             let Some(raw) = function.semantic.raw_index() else {
                 continue;
             };
+            has_emitted_method |= function.generics.is_empty();
             if raw & TEMPLATE == 0 {
                 return Err(error(
                     member.span,
@@ -230,32 +434,18 @@ impl Program {
                 "actual impl scope does not name its original implementation",
             ));
         }
-        if original.parameters.is_empty() {
+        if original.parameters.is_empty() || !has_emitted_method {
             return Ok(None);
         }
-        let parameters = original.parameters.len();
-        let id = SemanticInstanceId {
-            module: definition.module,
-            index: self.next_instance,
-        };
-        self.next_instance = self
-            .next_instance
-            .checked_add(1)
-            .ok_or_else(|| error(span, "impl scope instance namespace exhausted"))?;
-        budget.lineage_push(
-            &mut self.scope_applications,
-            Application {
-                id,
-                definition,
-                parameters,
-            },
-            span,
-        )?;
+        let id = self.add_impl_application(definition, original.parameters.len(), budget, span)?;
         for member in &mut implementation.members {
             let s::ItemKind::Function(function) = &mut member.kind else {
                 continue;
             };
-            if function.semantic.raw_index().is_none() {
+            // Generic members are lifted as separate providers. The witness
+            // supplies their original impl scope, but only the selected
+            // provider specialization can mint a function owner.
+            if !function.generics.is_empty() || function.semantic.raw_index().is_none() {
                 continue;
             }
             self.ensure_function(function, budget)?;

@@ -8,6 +8,11 @@ pub(super) struct Request {
     pub call: SemanticSiteId,
     pub callee: SemanticInstanceId,
 }
+pub(super) struct Pending {
+    pub holder: SemanticInstanceId,
+    pub count: usize,
+    pub root: SemanticInstanceId,
+}
 fn push<T>(output: &mut Vec<T>, value: T, budget: &mut Budget<'_>) -> R<()> {
     budget.lineage_push(output, value, Span::default())
 }
@@ -30,7 +35,7 @@ fn actual(value: &mut SemanticActual, map: &BTreeMap<SemanticInstanceId, Semanti
         SemanticActual::Life(_) => {}
     }
 }
-fn instance(value: &mut SemanticInstance, map: &BTreeMap<SemanticInstanceId, SemanticInstanceId>) {
+pub(super) fn instance(value: &mut SemanticInstance, map: &BTreeMap<SemanticInstanceId, SemanticInstanceId>) {
     remap(&mut value.id, map);
     if let Some(parent) = &mut value.parent {
         remap(parent, map);
@@ -116,7 +121,8 @@ fn reserve_rows<T>(rows: &mut Vec<T>, extra: usize, budget: &mut Budget<'_>) -> 
 pub(super) fn expand(
     modules: &mut [(ModuleId, SemanticModule)],
     requests: &[Request],
-    pending: &[(SemanticInstanceId, usize)],
+    pending: &[Pending],
+    uncalled_members: &BTreeSet<SemanticInstanceId>,
     next: &mut u32,
     budget: &mut Budget<'_>,
 ) -> R<()> {
@@ -128,22 +134,36 @@ pub(super) fn expand(
     // repeated activation needs to copy their complete recipes.
     struct Prototype {
         base: SemanticInstanceId,
-        root: (usize, usize),
-        count: usize,
         descendants: BTreeSet<SemanticInstanceId>,
+        uncalled_members: BTreeSet<SemanticInstanceId>,
         instances: Vec<(usize, usize)>,
         sites: Vec<(usize, usize)>,
         calls: Vec<Request>,
+        actuals: BTreeMap<SemanticInstanceId, usize>,
         used: bool,
+    }
+    let mut holders = BTreeMap::new();
+    for row in pending {
+        budget.identity_work(holders.len().saturating_add(1).ilog2() as usize + 1, span)?;
+        budget.lineage_bytes(
+            12 * std::mem::size_of::<(SemanticInstanceId, Vec<(SemanticInstanceId, usize)>)>(),
+            span,
+        )?;
+        budget.lineage_push(
+            holders.entry(row.root).or_insert_with(Vec::new),
+            (row.holder, row.count),
+            span,
+        )?;
     }
     let mut prototypes = Vec::new();
     let mut roots = BTreeMap::new();
     let mut owned = BTreeSet::new();
-    for (base, count) in pending {
+    for (base, holders) in holders {
         let mut descendants = BTreeSet::new();
         let mut inherited = BTreeSet::new();
+        let mut uncalled_descendants = BTreeSet::new();
         budget.lineage_bytes(12 * std::mem::size_of::<SemanticInstanceId>(), span)?;
-        descendants.insert(*base);
+        descendants.insert(base);
         loop {
             let before = descendants.len();
             for (_, module) in modules.iter() {
@@ -159,6 +179,20 @@ pub(super) fn expand(
                         budget
                             .lineage_bytes(12 * std::mem::size_of::<SemanticInstanceId>(), span)?;
                         descendants.insert(row.id);
+                        if !uncalled_members.is_empty() {
+                            budget.identity_work(
+                                uncalled_members.len().ilog2() as usize
+                                    + uncalled_descendants.len().saturating_add(1).ilog2() as usize
+                                    + 2,
+                                span,
+                            )?;
+                            if uncalled_members.contains(&row.id)
+                                || row.parent.is_some_and(|parent| uncalled_descendants.contains(&parent))
+                            {
+                                budget.lineage_bytes(12 * std::mem::size_of::<SemanticInstanceId>(), span)?;
+                                uncalled_descendants.insert(row.id);
+                            }
+                        }
                         if default_scope
                             || row.parent.is_some_and(|parent| inherited.contains(&parent))
                         {
@@ -178,7 +212,18 @@ pub(super) fn expand(
         let mut instances = Vec::new();
         let mut sites = Vec::new();
         let mut calls = Vec::new();
-        let mut root = None;
+        let mut actuals = BTreeMap::new();
+        for (holder, count) in holders {
+            budget.identity_work(descendants.len().checked_ilog2().unwrap_or(0) as usize + 1, span)?;
+            budget.lineage_bytes(12 * std::mem::size_of::<(SemanticInstanceId, usize)>(), span)?;
+            if !descendants.contains(&holder) || actuals.insert(holder, count).is_some() {
+                return Err(error(span, "call request has an invalid actual holder"));
+            }
+        }
+        if !actuals.contains_key(&base) {
+            return Err(error(span, "actual call target has no Source instance"));
+        }
+        let mut found = BTreeSet::new();
         for (module_index, (module_id, module)) in modules.iter().enumerate() {
             for (index, row) in module.instances.iter().enumerate() {
                 budget.node(span, 0)?;
@@ -186,7 +231,9 @@ pub(super) fn expand(
                     if row.id.module != *module_id {
                         return Err(error(span, "specialization prototype has another owner module"));
                     }
-                    if row.id == *base && root.replace((module_index, index)).is_some() {
+                    budget.identity_work(found.len().checked_ilog2().unwrap_or(0) as usize + 1, span)?;
+                    budget.lineage_bytes(12 * std::mem::size_of::<SemanticInstanceId>(), span)?;
+                    if !found.insert(row.id) {
                         return Err(error(span, "actual specialization prototype is ambiguous"));
                     }
                     push(&mut instances, (module_index, index), budget)?;
@@ -202,10 +249,13 @@ pub(super) fn expand(
                 }
             }
         }
+        if found.len() != descendants.len() {
+            return Err(error(span, "call request has no emitted holder instance"));
+        }
         for request in requests {
             budget.node(span, 0)?;
             if descendants.contains(&request.caller)
-                && !(request.callee == *base && inherited.contains(&request.caller))
+                && !(request.callee == base && inherited.contains(&request.caller))
             {
                 push(&mut calls, *request, budget)?;
             }
@@ -218,19 +268,19 @@ pub(super) fn expand(
             12 * std::mem::size_of::<(SemanticInstanceId, usize)>(),
             span,
         )?;
-        if roots.insert(*base, prototypes.len()).is_some() {
+        if roots.insert(base, prototypes.len()).is_some() {
             return Err(error(span, "duplicate actual specialization request root"));
         }
         push(
             &mut prototypes,
             Prototype {
-                base: *base,
-                root: root.ok_or_else(|| error(span, "actual call target has no Source instance"))?,
-                count: *count,
+                base,
                 descendants,
+                uncalled_members: uncalled_descendants,
                 instances,
                 sites,
                 calls,
+                actuals,
                 used: false,
             },
             budget,
@@ -301,6 +351,10 @@ pub(super) fn expand(
         let copies = if prototype.used {
             let mut map = BTreeMap::new();
             for old in &prototype.descendants {
+                budget.identity_work(prototype.uncalled_members.len().saturating_add(1).ilog2() as usize + 1, span)?;
+                if prototype.uncalled_members.contains(old) {
+                    continue;
+                }
                 let id = SemanticInstanceId {
                     module: old.module,
                     index: *next,
@@ -314,13 +368,20 @@ pub(super) fn expand(
                 )?;
                 map.insert(*old, id);
             }
-            for (module, _) in &prototype.instances {
-                budget.identity_work(1, span)?;
+            let lookup = map.len().saturating_add(1).ilog2() as usize + 1;
+            for (module, row) in &prototype.instances {
+                budget.identity_work(lookup, span)?;
+                if !map.contains_key(&modules[*module].1.instances[*row].id) {
+                    continue;
+                }
                 extra_rows[*module].0 = extra_rows[*module].0.checked_add(1)
                     .ok_or_else(|| error(span, "specialization instance count overflow"))?;
             }
-            for (module, _) in &prototype.sites {
-                budget.identity_work(1, span)?;
+            for (module, row) in &prototype.sites {
+                budget.identity_work(lookup, span)?;
+                if !map.contains_key(&modules[*module].1.sites[*row].instance) {
+                    continue;
+                }
                 extra_rows[*module].1 = extra_rows[*module].1.checked_add(1)
                     .ok_or_else(|| error(span, "specialization operation count overflow"))?;
             }
@@ -331,8 +392,19 @@ pub(super) fn expand(
         prototype.used = true;
         for dependency in &prototype.calls {
             let caller = match &copies {
-                Some(map) => *map.get(&dependency.caller)
-                    .ok_or_else(|| error(span, "nested call request lost its actual caller owner"))?,
+                Some(map) => {
+                    budget.identity_work(map.len().saturating_add(1).ilog2() as usize + 1, span)?;
+                    let Some(caller) = map.get(&dependency.caller) else {
+                        // This source body was emitted once with a real scope
+                        // but was never itself invoked by this specialization.
+                        budget.identity_work(prototype.uncalled_members.len().saturating_add(1).ilog2() as usize + 1, span)?;
+                        if prototype.uncalled_members.contains(&dependency.caller) {
+                            continue;
+                        }
+                        return Err(error(span, "nested call request lost its actual caller owner"));
+                    };
+                    *caller
+                }
                 None => dependency.caller,
             };
             push(
@@ -371,19 +443,29 @@ pub(super) fn expand(
             continue;
         };
         let prototype = &prototypes[publication.prototype];
+        let lookup = map.len().saturating_add(1).ilog2() as usize + 1;
         for &(module, index) in &prototype.instances {
             let original = &modules[module].1.instances[index];
+            budget.identity_work(lookup, span)?;
+            if !map.contains_key(&original.id) {
+                continue;
+            }
             prepay_recipe(original, budget, span, 0)?;
             let mut row = original.clone();
             instance(&mut row, map);
-            if original.id == prototype.base {
-                row.actuals = inferred(publication.request, prototype.count, budget)?;
+            budget.identity_work(prototype.actuals.len().checked_ilog2().unwrap_or(0) as usize + 1, span)?;
+            if let Some(count) = prototype.actuals.get(&original.id) {
+                row.actuals = inferred(publication.request, *count, budget)?;
             }
             budget.node(span, 0)?;
             modules[module].1.instances.push(row);
         }
         for &(module, index) in &prototype.sites {
             let original = &modules[module].1.sites[index];
+            budget.identity_work(lookup, span)?;
+            if !map.contains_key(&original.instance) {
+                continue;
+            }
             prepay_recipe(original, budget, span, 0)?;
             let mut row = original.clone();
             site(&mut row, map);
@@ -397,9 +479,13 @@ pub(super) fn expand(
         budget.node(span, 0)?;
         if publication.copies.is_none() {
             let prototype = &prototypes[publication.prototype];
-            let (module, index) = prototype.root;
-            modules[module].1.instances[index].actuals =
-                inferred(publication.request, prototype.count, budget)?;
+            for &(module, index) in &prototype.instances {
+                let row = &mut modules[module].1.instances[index];
+                budget.identity_work(prototype.actuals.len().checked_ilog2().unwrap_or(0) as usize + 1, span)?;
+                if let Some(count) = prototype.actuals.get(&row.id) {
+                    row.actuals = inferred(publication.request, *count, budget)?;
+                }
+            }
         }
     }
     Ok(())

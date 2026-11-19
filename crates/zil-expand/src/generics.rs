@@ -660,7 +660,7 @@ struct Engine<'a> {
     instances: instance_index::Instances,
     realized_impls: BTreeSet<(trait_instances::Key, String)>,
     semantic_impl_scopes: BTreeMap<(trait_instances::Key, String), zil_ir::SemanticInstanceId>,
-    semantic_selected_scope: Option<(usize, zil_ir::SemanticInstanceId)>,
+    semantic_selected_method: Option<(usize, SemanticMethodSelection)>,
     realized_references: Vec<(trait_instances::Reference, TypeRef)>,
     impl_definitions: BTreeMap<(usize, usize), String>,
     impl_error_arms: BTreeMap<(usize, usize), error_injection::Choices>,
@@ -693,6 +693,15 @@ fn named(name: &str, span: Span) -> TypeRef {
         span,
     }
 }
+#[derive(Clone, Copy)]
+enum SemanticMethodSelection {
+    ImplScope(zil_ir::SemanticInstanceId),
+    Provider {
+        definition: zil_ir::SemanticDefinitionId,
+        ordinary_scope: Option<zil_ir::SemanticInstanceId>,
+    },
+}
+
 fn params(item: &Item) -> &[GenericParam] {
     match &item.kind {
         ItemKind::Function(f) if !super::lifetimes::only_life(f) => &f.generics,
@@ -782,7 +791,7 @@ impl<'a> Engine<'a> {
             instances: instance_index::Instances::default(),
             realized_impls: BTreeSet::new(),
             semantic_impl_scopes: BTreeMap::new(),
-            semantic_selected_scope: None,
+            semantic_selected_method: None,
             realized_references: Vec::new(),
             impl_definitions: BTreeMap::new(),
             impl_error_arms: BTreeMap::new(),
@@ -3358,10 +3367,10 @@ impl<'a> Engine<'a> {
         // Any genuinely new event at the same root must be joined by the
         // producer; silently replacing one bundle would lose source identity.
         let marker = std::mem::take(&mut e.semantic);
-        let outer_scope = self.semantic_selected_scope.take();
+        let outer_method = self.semantic_selected_method.take();
         let result = self.expr_expected_inner(e, env, expected, depth);
-        let selected_scope = self.semantic_selected_scope.take();
-        self.semantic_selected_scope = outer_scope;
+        let selected_method = self.semantic_selected_method.take();
+        self.semantic_selected_method = outer_method;
         if marker.raw_index().is_some() {
             if e.semantic.raw_index().is_some() {
                 return Err(error(
@@ -3371,8 +3380,9 @@ impl<'a> Engine<'a> {
             }
             e.semantic = marker;
         }
+        let mut implementation = None;
         if result.is_ok()
-            && let Some((expression, scope)) = selected_scope
+            && let Some((expression, selection)) = selected_method
         {
             // Contextual re-entry may evaluate this same AST object while its
             // root token is temporarily held by the outer adapter. The private
@@ -3385,9 +3395,19 @@ impl<'a> Engine<'a> {
                 ));
             }
             if e.semantic.raw_index().is_none() {
-                self.semantic_selected_scope = Some((expression, scope));
+                self.semantic_selected_method = Some((expression, selection));
             } else if let Some(program) = self.products.semantic.as_mut() {
-                program.record_scope_call(e.semantic, scope, &mut self.budget, e.span)?;
+                match selection {
+                    SemanticMethodSelection::ImplScope(scope) => {
+                        program.record_scope_call(e.semantic, scope, &mut self.budget, e.span)?;
+                    }
+                    SemanticMethodSelection::Provider {
+                        definition,
+                        ordinary_scope,
+                    } => {
+                        implementation = Some((definition, ordinary_scope));
+                    }
+                }
             }
         }
         // expr_expected_inner temporarily owns an unmarked root during
@@ -3414,6 +3434,7 @@ impl<'a> Engine<'a> {
                     e.semantic,
                     self.original_module.id,
                     generated,
+                    implementation,
                     &mut self.budget,
                     e.span,
                 )?;

@@ -44,6 +44,8 @@ pub(crate) struct Program {
     scope_applications: Vec<scopes::Application>,
     default_scopes: BTreeMap<usize, SemanticInstanceId>,
     scope_owners: BTreeMap<SemanticInstanceId, SemanticInstanceId>,
+    provider_parents: BTreeMap<SemanticInstanceId, (SemanticDefinitionId, SemanticInstanceId)>,
+    provider_sibling_scopes: BTreeMap<SemanticInstanceId, SemanticInstanceId>,
     scope_requests: Vec<requests::Request>,
     default_helpers: Vec<defaults::Helper>,
 }
@@ -293,6 +295,7 @@ impl Program {
         marker: s::SemanticContextMarker,
         module: ModuleId,
         generated: &str,
+        implementation: Option<(SemanticDefinitionId, Option<SemanticInstanceId>)>,
         budget: &mut Budget<'_>,
         span: Span,
     ) -> R<()> {
@@ -324,11 +327,21 @@ impl Program {
                 "generic call lacks its actual original operation token",
             )
         })?;
-        let callee = self
+        let target = self
             .instances
             .get(target)
-            .ok_or_else(|| error(span, "generic call target emission owner is absent"))?
-            .id;
+            .ok_or_else(|| error(span, "generic call target emission owner is absent"))?;
+        let callee = if let Some((implementation, ordinary_scope)) = implementation {
+            let method = self.templates[target.template].definition;
+            let owner = target.id;
+            let scope = self.bind_specialized_parent(owner, method, implementation, budget, span)?;
+            if let Some(ordinary) = ordinary_scope {
+                self.record_provider_sibling_scope(ordinary, scope, implementation, budget, span)?;
+            }
+            scope
+        } else {
+            target.id
+        };
         budget.identity_work(self.call_requests.len(), span)?;
         if let Some(previous) = self
             .call_requests
@@ -976,6 +989,7 @@ impl Program {
         budget: &mut Budget<'_>,
     ) -> R<()> {
         self.ledger.finish(budget, Span::default())?;
+        let uncalled_members = self.reuse_uncalled_impl_scopes(budget)?;
         // Closed and rigid Life lexical scopes come from their complete
         // originals. Type/Const scopes need actual caller substitutions and
         // are never silently represented by empty actuals.
@@ -1135,20 +1149,24 @@ impl Program {
         let mut pending = Vec::new();
         for instance in &self.instances {
             if instance.from_call {
-                budget.lineage_bytes(
-                    std::mem::size_of::<(SemanticInstanceId, usize)>(),
-                    Span::default(),
-                )?;
-                pending.push((
-                    instance.id,
-                    self.templates[instance.template].parameters.len(),
-                ));
+                budget.identity_work(self.provider_parents.len().checked_ilog2().unwrap_or(0) as usize + 1, Span::default())?;
+                let root = self.provider_parents.get(&instance.id)
+                    .map_or(instance.id, |(_, request)| *request);
+                budget.lineage_push(&mut pending, requests::Pending {
+                    holder: instance.id,
+                    count: self.templates[instance.template].parameters.len(),
+                    root,
+                }, Span::default())?;
             }
         }
         for application in &self.scope_applications {
             budget.lineage_push(
                 &mut pending,
-                (application.id, application.parameters),
+                requests::Pending {
+                    holder: application.id,
+                    count: application.parameters,
+                    root: application.id,
+                },
                 Span::default(),
             )?;
         }
@@ -1160,6 +1178,7 @@ impl Program {
             &mut self.modules,
             &requests,
             &pending,
+            &uncalled_members,
             &mut self.next_instance,
             budget,
         )?;
