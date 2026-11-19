@@ -4,15 +4,16 @@ use super::head_access::{Requirement, Summary};
 use super::*;
 use std::collections::BTreeMap;
 use zil_base::Span;
+mod store_fields;
+pub(super) use store_fields::borrowed_store_field;
 type Loans = BTreeSet<usize>;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum LoanRoot {
     Static,
     Local(LocalId),
-    LocalStoreField(LocalId, u32),
+    StoreField(HoldRoot, u32),
     Parameter(u32, Vec<u32>),
     Capture(u32, Vec<u32>),
-    CaptureStoreField(u32, u32),
 }
 impl LoanRoot {
     fn from_hold(root: HoldRoot) -> Self {
@@ -27,8 +28,7 @@ impl LoanRoot {
         match self {
             Self::Static
             | Self::Local(_)
-            | Self::LocalStoreField(..)
-            | Self::CaptureStoreField(..) => &[],
+            | Self::StoreField(..) => &[],
             Self::Parameter(_, p) | Self::Capture(_, p) => p,
         }
     }
@@ -256,13 +256,13 @@ fn overlap(a: &[LoanRoot], c: &[LoanRoot], b: &mut Budget) -> CompileResult<bool
     )?;
     Ok(a.iter().any(|r| {
         c.iter().any(|s| match (r, s) {
-            (LoanRoot::Local(x), LoanRoot::LocalStoreField(y, _))
-            | (LoanRoot::LocalStoreField(y, _), LoanRoot::Local(x)) => x == y,
-            (LoanRoot::LocalStoreField(x, i), LoanRoot::LocalStoreField(y, j)) => x == y && i == j,
-            (LoanRoot::Capture(x, _), LoanRoot::CaptureStoreField(y, _))
-            | (LoanRoot::CaptureStoreField(y, _), LoanRoot::Capture(x, _)) => x == y,
-            (LoanRoot::CaptureStoreField(x, i), LoanRoot::CaptureStoreField(y, j)) => {
-                x == y && i == j
+            (LoanRoot::Local(x), LoanRoot::StoreField(HoldRoot::Local(y), _))
+            | (LoanRoot::StoreField(HoldRoot::Local(y), _), LoanRoot::Local(x)) => x == y,
+            (LoanRoot::Capture(x, _), LoanRoot::StoreField(HoldRoot::Capture(y), _))
+            | (LoanRoot::StoreField(HoldRoot::Capture(y), _), LoanRoot::Capture(x, _)) => x == y,
+            (LoanRoot::Parameter(x, path), LoanRoot::StoreField(HoldRoot::Parameter(y), _))
+            | (LoanRoot::StoreField(HoldRoot::Parameter(y), _), LoanRoot::Parameter(x, path)) => {
+                x == y && path.is_empty()
             }
             _ => r == s,
         })
@@ -277,8 +277,7 @@ fn external(
     let (mut ty, path) = match root {
         LoanRoot::Static
         | LoanRoot::Local(_)
-        | LoanRoot::LocalStoreField(..)
-        | LoanRoot::CaptureStoreField(..) => return Ok(false),
+        | LoanRoot::StoreField(..) => return Ok(false),
         LoanRoot::Parameter(i, path) => (&f.locals[f.parameters[*i as usize].0 as usize].ty, path),
         LoanRoot::Capture(i, path) => (
             &module.closures[f
@@ -319,6 +318,16 @@ fn require_apart(
             // Equality, canonical ordering and cloning precede the ordered-set
             // insertion; each tree comparison can inspect a common path prefix.
             fee(b, checked_mul(4, checked_add(paths, 1)?)?)?;
+            // Distinct fields of one actual incoming package are disjoint here.
+            // For different symbolic inputs the caller must separate the owners.
+            let owner = |root: &LoanRoot| match root {
+                LoanRoot::StoreField(HoldRoot::Parameter(p), _) => Some(LoanRoot::Parameter(*p, Vec::new())),
+                _ => None,
+            };
+            let left_owner = owner(a);
+            let right_owner = owner(c);
+            let a = left_owner.as_ref().unwrap_or(a);
+            let c = right_owner.as_ref().unwrap_or(c);
             if a != c && external(a, context, b)? && external(c, context, b)? {
                 fee(b, checked_mul(apart.len(), checked_add(paths, 1)?)?)?;
                 apart.insert(if a < c {
@@ -358,8 +367,7 @@ fn actual_root(
         }
         LoanRoot::Static
         | LoanRoot::Local(_)
-        | LoanRoot::LocalStoreField(..)
-        | LoanRoot::CaptureStoreField(..) => {
+        | LoanRoot::StoreField(..) => {
             return Err(bad(
                 "local or static root cannot enter a head separation contract",
             ));
@@ -523,31 +531,16 @@ fn pairs(
     }
     Ok(())
 }
+fn owner(local: LocalId, bound: &BTreeMap<LocalId, u32>) -> HoldRoot {
+    bound.get(&local).map_or(HoldRoot::Local(local), |index| HoldRoot::Capture(*index))
+}
 fn shell(local: LocalId, bound: &BTreeMap<LocalId, u32>) -> LoanRoot {
-    bound.get(&local).map_or(LoanRoot::Local(local), |index| {
-        LoanRoot::Capture(*index, vec![])
-    })
+    LoanRoot::from_hold(owner(local, bound))
 }
 pub(super) fn is_owned_store_field(f: &TypedFunction, local: LocalId, index: u32) -> bool {
     matches!(f.locals.get(local.0 as usize).map(|decl| &decl.ty),
         Some(Type::Package { fields, .. }) if fields.get(index as usize)
             .is_some_and(|(_, ty)| super::dynamic_store::is_owned_carrier(ty)))
-}
-fn store_field(
-    f: &TypedFunction,
-    local: LocalId,
-    index: u32,
-    bound: &BTreeMap<LocalId, u32>,
-) -> LoanRoot {
-    if is_owned_store_field(f, local, index) {
-        bound
-            .get(&local)
-            .map_or(LoanRoot::LocalStoreField(local, index), |capture| {
-                LoanRoot::CaptureStoreField(*capture, index)
-            })
-    } else {
-        shell(local, bound)
-    }
 }
 #[allow(clippy::too_many_arguments)]
 fn check_function(
@@ -565,7 +558,8 @@ fn check_function(
     if !b.store_field_functions.is_empty() {
         b.lookup(b.store_field_functions.len(), "actual Store field function lookup")?;
     }
-    let store_fields = b.store_field_functions.contains(&f.id) || b
+    let has_field = b.store_field_functions.contains(&f.id);
+    let store_fields = has_field || b
         .ordinary_store_functions
         .get(f.id.0 as usize)
         .copied()
@@ -595,6 +589,11 @@ fn check_function(
             }
         }
     }
+    let field_roots = if has_field {
+        Some(store_fields::solve(f, graph, &bound, b)?)
+    } else {
+        None
+    };
     let v = f.values.len();
     let count = v.saturating_add(f.parameters.len());
     fee(
@@ -708,10 +707,6 @@ fn check_function(
                 }
             }
             inputs[index] = state_copy(&state, b)?;
-            // A same-block Store establishes one definite local address
-            // source. Incoming CFG state stays coarse: a missing predecessor
-            // must never turn a known branch into an alias certificate.
-            let mut exact_locals = BTreeSet::new();
             for i in &block.instructions {
                 fee(b, 1)?;
                 if let Some(result) = i.result {
@@ -872,10 +867,10 @@ fn check_function(
                                 fresh = true;
                             }
                         }
-                        InstructionKind::DescribePackageField { local, index } => {
+                        InstructionKind::DescribePackageField { local, .. } => {
                             fresh = matches!(f.values[id], Type::Address { .. } | Type::Desc(_));
                             if store_fields && fresh {
-                                nodes[id].roots = vec![store_field(f, *local, *index, &bound)];
+                                nodes[id].roots = vec![shell(*local, &bound)];
                             }
                         }
                         InstructionKind::DescribeLocal { .. }
@@ -945,49 +940,9 @@ fn check_function(
                             fresh = true;
                         }
                     }
-                    // Direct projections and a same-block, definitely stored
-                    // local address inherit a certified Store field owner.
-                    // Calls and CFG joins keep the coarse Hold root.
-                    if store_fields
-                        && matches!(f.values[id], Type::Address { .. } | Type::Desc(_))
-                        && (matches!(
-                            i.kind,
-                            InstructionKind::OwnedStoreBorrow { .. }
-                                | InstructionKind::OwnedStoreBorrowMut { .. }
-                                | InstructionKind::ReborrowAddress { .. }
-                                | InstructionKind::DescribeAddress { .. }
-                                | InstructionKind::AddressField { .. }
-                                | InstructionKind::AddressSlice { .. }
-                                | InstructionKind::AddressIndex { .. }
-                        ) || matches!(i.kind, InstructionKind::Load(local) if exact_locals.contains(&local)))
-                    {
-                        fee(b, parents.len())?;
-                        let source = if fresh {
-                            parents.clone()
-                        } else {
-                            direct(&carrier, b)?
-                        };
-                        if source.len() == 1 {
-                            let parent = *source.iter().next().expect("one actual source");
-                            fee(b, nodes[parent].roots.len())?;
-                            let precise_root = match nodes[parent].roots.as_slice() {
-                                [
-                                    root @ (LoanRoot::LocalStoreField(..)
-                                    | LoanRoot::CaptureStoreField(..)),
-                                ] => {
-                                    fee(b, 1)?;
-                                    Some(root.clone())
-                                }
-                                _ => None,
-                            };
-                            if let Some(root) = precise_root {
-                                fee(b, 1)?;
-                                if nodes[id].roots.as_slice() != std::slice::from_ref(&root) {
-                                    nodes[id].roots = vec![root];
-                                    changed = true;
-                                }
-                            }
-                        }
+                    if let Some(root) = field_roots.as_ref().and_then(|roots| roots[id].as_ref()) {
+                        fee(b, 1)?;
+                        nodes[id].roots = vec![root.clone()];
                     }
                     if fresh
                         && b.task_borrowed_results
@@ -1061,30 +1016,6 @@ fn check_function(
                         changed |= union(&mut nodes[id].parents, &parents, b)?;
                     }
                     changed |= merge(&mut values[id], &carrier, b)?;
-                }
-                if store_fields {
-                    match i.kind {
-                        InstructionKind::Store { local, value } => {
-                            b.lookup(exact_locals.len(), "Store field exact local source")?;
-                            let precise = matches!(
-                                nodes[value.0 as usize].roots.as_slice(),
-                                [LoanRoot::LocalStoreField(..) | LoanRoot::CaptureStoreField(..)]
-                            ) && direct(&values[value.0 as usize], b)?.len() == 1;
-                            if precise {
-                                fee(b, 1)?;
-                                exact_locals.insert(local);
-                            } else {
-                                exact_locals.remove(&local);
-                            }
-                        }
-                        InstructionKind::StorageLive(local)
-                        | InstructionKind::StorageDead(local)
-                        | InstructionKind::TakeLocal { local }
-                        | InstructionKind::DropClosure { local } => {
-                            exact_locals.remove(&local);
-                        }
-                        _ => {}
-                    }
                 }
                 transfer(&mut state, i, &values, b)?;
             }
@@ -1293,7 +1224,7 @@ fn check_function(
                 {
                     access(
                         &empty,
-                        &[store_field(f, *local, *index, &bound)],
+                        &[LoanRoot::StoreField(owner(*local, &bound), *index)],
                         true,
                         &active,
                         ignore,
@@ -1380,8 +1311,8 @@ mod store_field_tests {
     fn actual_store_field_windows_keep_parent_overlap() {
         let mut budget = Budget::new(&Limits::default());
         let parent = LoanRoot::Local(LocalId(3));
-        let first = LoanRoot::LocalStoreField(LocalId(3), 0);
-        let second = LoanRoot::LocalStoreField(LocalId(3), 1);
+        let first = LoanRoot::StoreField(HoldRoot::Local(LocalId(3)), 0);
+        let second = LoanRoot::StoreField(HoldRoot::Local(LocalId(3)), 1);
         assert!(!overlap(std::slice::from_ref(&first), &[second], &mut budget).unwrap());
         assert!(
             overlap(
@@ -1394,7 +1325,7 @@ mod store_field_tests {
         assert!(
             overlap(
                 &[parent],
-                &[LoanRoot::LocalStoreField(LocalId(3), 0)],
+                &[LoanRoot::StoreField(HoldRoot::Local(LocalId(3)), 0)],
                 &mut budget
             )
             .unwrap()

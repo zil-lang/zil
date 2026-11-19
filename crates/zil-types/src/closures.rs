@@ -3388,9 +3388,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             let Type::Address { inner, .. } = ty else {
                 unreachable!()
             };
-            // This is shape admission, not origin authority. Analyze and Verify
-            // independently exclude dynamic Store and unknown incoming roots.
-            packages::product::validate(inner, self.work_left, self.limits.max_call_depth, span)?;
+            // The captured address borrows the complete ordinary owner, including
+            // its Store fields. Analyze and Verify check the actual source and loan.
+            packages::product::validate_owned(inner, self.work_left, self.limits.max_call_depth, span)?;
         }
         if ty.is_shared_resource_head_address() {
             return Err(unsupported(

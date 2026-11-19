@@ -70,7 +70,7 @@ pub(super) fn unknown_pairs(
             // Only actual intervals within one known address establish
             // separation here. Different symbolic environment captures still
             // require caller substitution, even when they share a coarse root.
-            let disjoint_windows = matches!((*a, *b),
+            let disjoint_windows = matches!((a.header(), b.header()),
                 (Root::Window(origin, start, end), Root::Window(other, lo, hi))
                     if origin == other && (end <= lo || hi <= start));
             let own_task_shell = matches!((*a,*b),

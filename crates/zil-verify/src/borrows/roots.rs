@@ -120,12 +120,14 @@ impl Root {
             | Self::ParameterPort(index, _) => HoldRoot::Parameter(index),
         }
     }
-    pub(super) fn intersects(self, other: Self) -> bool {
-        let header = |root: Self| match root {
+    pub(super) fn header(self) -> Self {
+        match self {
             Self::StoreElementWindow(origin, start, end, ..) => Self::Window(origin, start, end),
             root => root,
-        };
-        let (left, right) = (header(self), header(other));
+        }
+    }
+    pub(super) fn intersects(self, other: Self) -> bool {
+        let (left, right) = (self.header(), other.header());
         // An incoming environment position is distinct from its externally
         // captured targets. Different capture slots are symbolic: the actual
         // caller must instantiate them before proving any separation.

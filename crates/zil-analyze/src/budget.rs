@@ -1605,13 +1605,12 @@ pub(super) fn preflight(
                     if depth == 0
                         && matches!(inner.as_ref(), Type::Package { .. })
                         && store_element.is_none()
-                        && capture_owner.is_none()
                         && !resource_head =>
                 {
-                    // A concrete borrowed Package receiver still contains its
-                    // actual owning fields. The address itself grants no Store
-                    // ownership; field admission and live-loan checks run on
-                    // the complete underlying Package and its real source.
+                    // A captured address has the same ordinary pointee as a
+                    // borrowed receiver. The Address edge clears capture_owner
+                    // below: only the pointee owns these fields. The actual
+                    // MakeClosure operand and its loans are checked separately.
                     child = SumContext::default();
                 }
                 Type::Array { .. }
@@ -3418,6 +3417,12 @@ pub(super) fn preflight(
                         if local.0 as usize >= function.locals.len() =>
                     {
                         return Err(bad("local ID outside table"));
+                    }
+                    InstructionKind::AddressField { address, index }
+                        if super::head_loans::borrowed_store_field(function, *address, *index) =>
+                    {
+                        budget.lookup(budget.store_field_functions.len(), "borrowed Store field function")?;
+                        budget.store_field_functions.insert(function.id);
                     }
                     InstructionKind::DescribePackageField { local, index }
                     | InstructionKind::TakePackageField { local, index }
