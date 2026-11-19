@@ -168,6 +168,16 @@ fn empty(life: &StorageLifeShape) -> bool {
         && life.nominal_arguments.is_empty()
 }
 
+/// A catalogue row has one physical position. Only an actual element of this
+/// slice may reuse its formation result, even if a detached row is equal.
+fn position_of(rows: &[LifeNominalInstance], instance: &LifeNominalInstance) -> Option<usize> {
+    let offset = std::ptr::from_ref(instance).addr().checked_sub(rows.as_ptr().addr())?;
+    let position = offset / std::mem::size_of::<LifeNominalInstance>();
+    rows.get(position)
+        .filter(|row| std::ptr::eq(*row, instance))
+        .map(|_| position)
+}
+
 fn instance_zero_at(
     module: &TypedModule,
     instance: &LifeNominalInstance,
@@ -188,11 +198,8 @@ fn instance_zero_at(
     // A deep occurrence still runs its own depth-bounded proof. Reusing only
     // depth-zero successes cannot hide a longer current dependency path.
     let cache = if purpose == TypePurpose::Physical && depth == 0 && active.is_empty() {
-        fee(b, module.life_instances.len().saturating_add(8))?;
-        let root = module
-            .life_instances
-            .iter()
-            .position(|actual| std::ptr::eq(actual, instance));
+        fee(b, 10)?;
+        let root = position_of(&module.life_instances, instance);
         let phase = [
             b.semantic_zero_closures.len(),
             b.semantic_closures_proven.len(),
@@ -707,5 +714,27 @@ fn type_zero_at(
         | Type::Unsupported(_) => Err(failure(
             "plain nominal dependency has no complete zero-domain proof",
         )),
+    }
+}
+
+#[cfg(test)]
+mod positions {
+    use super::*;
+
+    #[test]
+    fn only_the_actual_catalogue_row_has_its_position() {
+        let prototype = LifeNominalInstance {
+            declaration: zil_ir::builtin_life::OPTION,
+            ty: Type::I32,
+            arguments: Vec::new(),
+        };
+        let rows = vec![prototype.clone(); 3];
+        for (position, row) in rows.iter().enumerate() {
+            assert_eq!(position_of(&rows, row), Some(position));
+        }
+        assert_eq!(position_of(&rows, &prototype), None);
+        assert_eq!(position_of(&rows[1..], &rows[0]), None);
+        assert_eq!(position_of(&rows[..2], &rows[2]), None);
+        assert_eq!(position_of(&[], &rows[0]), None);
     }
 }

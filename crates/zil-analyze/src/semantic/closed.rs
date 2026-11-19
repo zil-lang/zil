@@ -87,6 +87,8 @@ struct Check<'a, 'i> {
     program: &'a SemanticModule,
     inventory: &'i Inventory<'a>,
     original: &'i original::Checked,
+    // Set after every function instance's complete instantiated header has passed.
+    checked_header_bounds: std::cell::Cell<Option<(usize, usize)>>,
     scope_queries: std::cell::RefCell<BTreeSet<ClosureId>>,
     // All worlds of this exact target have proved the same closed Type vector.
     // Each caller still binds its argument occurrence, roles and return value.
@@ -123,6 +125,7 @@ pub(super) fn coordinate_field(
         program,
         inventory,
         original,
+        checked_header_bounds: Default::default(),
         scope_queries: Default::default(),
         closed_call_targets: Default::default(),
         capture_directories: Default::default(),
@@ -1095,14 +1098,8 @@ impl Check<'_, '_> {
                 ));
             }
             self.requirements(instance, &definition.requirements, b)?;
-            b.spend(
-                function
-                    .parameters
-                    .len()
-                    .saturating_add(function.values.len())
-                    .saturating_add(function.locals.len()),
-                WORK,
-            )?;
+            b.spend(function.parameters.len(), WORK)?;
+            let mut parameter_values = Vec::new();
             if function.parameters.len() != signature.parameters.len()
                 || function.call_kind != signature.call_kind
             {
@@ -1143,6 +1140,7 @@ impl Check<'_, '_> {
                         "actual parameter changes its complete original nominal substitution",
                     ));
                 }
+                self.push_value(&mut parameter_values, expected_value, b)?;
             }
             let expected_result = self.recipe_value(instance, &signature.result, b, 0)?;
             if !geometry::same_type(&function.return_type, &expected_result.ty, b)?
@@ -1158,6 +1156,7 @@ impl Check<'_, '_> {
             // and below this point still run for every instance of the function.
             b.lookup(admitted_functions.len(), "physical function type admission")?;
             if admitted_functions.insert(function.id) {
+                b.spend(function.values.len().saturating_add(function.locals.len()), WORK)?;
                 self.ordinary_type(&function.return_type, b)?;
                 for ty in function.locals.iter().map(|local| &local.ty).chain(&function.values) {
                     self.actual_type(ty, b)?;
@@ -1166,7 +1165,7 @@ impl Check<'_, '_> {
                     self.capture_directory(closure, b)?;
                 }
             }
-            self.header_relation(instance, function, signature, b)?;
+            self.header_value_relation(instance, function, &parameter_values, &expected_result, b)?;
         }
         for function in &self.module.functions {
             if self.function_worlds(function.id, b)?.is_empty() {
@@ -1189,6 +1188,7 @@ pub(super) fn check(
         program,
         inventory,
         original,
+        checked_header_bounds: Default::default(),
         scope_queries: std::cell::RefCell::new(BTreeSet::new()),
         closed_call_targets: Default::default(),
         capture_directories: Default::default(),
@@ -1205,6 +1205,9 @@ pub(super) fn check(
     checker.dyn_tables(b)?;
     inventory.profile_stage("instances", b);
     checker.instances(b)?;
+    if std::ptr::eq(program, inventory.program) && std::ptr::eq(module, inventory.module) {
+        checker.checked_header_bounds.set(Some((b.partial_depth, b.helper_nodes)));
+    }
     inventory.profile_stage("complete captured directories", b);
     for closure in &module.closures {
         checker.capture_directory(closure.id, b)?;

@@ -4188,12 +4188,38 @@ impl Check<'_, '_> {
         signature: &SemanticSignatureRecipe,
         b: &mut Budget,
     ) -> CompileResult<()> {
+        // Each function world was checked against its own original definition,
+        // even where several worlds share code. Authenticate all three rows
+        // before consuming that immutable result for an actual call.
+        if self.checked_header_bounds.get() == Some((b.partial_depth, b.helper_nodes))
+            && std::ptr::eq(self.inventory.instance(instance.id, b)?, instance)
+            && let SemanticInstanceTarget::Function(target) = &instance.target
+            && std::ptr::eq(self.inventory.function(target, b)?, function)
+            && let SemanticDefinitionBody::FunctionWithBody { signature: original, .. } =
+                &self.inventory.definition(instance.definition, b)?.body
+            && std::ptr::eq(original, signature)
+        {
+            return Ok(());
+        }
         let mut parameters = Vec::new();
         for parameter in &signature.parameters {
             let value = self.recipe_value(instance, &parameter.ty, b, 0)?;
             self.push_value(&mut parameters, value, b)?;
         }
         let result = self.recipe_value(instance, &signature.result, b, 0)?;
+        self.header_value_relation(instance, function, &parameters, &result, b)
+    }
+
+    /// Consume the exact parameter and result values formed in this instance.
+    /// The actual signature still supplies every slot, embedding and binder.
+    pub(super) fn header_value_relation(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        parameters: &[Value],
+        result: &Value,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
         let captures = if let Some(id) = function.environment {
             self.capture_directory(id, b)?;
             true
@@ -4215,8 +4241,8 @@ impl Check<'_, '_> {
         crate::signature_life::charge(contract, b)?;
         self.original_static_header(
             instance,
-            &parameters,
-            &result,
+            parameters,
+            result,
             function.environment,
             contract,
             b,
@@ -4282,7 +4308,7 @@ impl Check<'_, '_> {
             .iter()
             .enumerate()
             .map(|(index, value)| (StorageBase::Parameter(index as u32), value))
-            .chain(std::iter::once((StorageBase::Result, &result)))
+            .chain(std::iter::once((StorageBase::Result, result)))
         {
             for slot in &value.life.slots {
                 let expected = value
