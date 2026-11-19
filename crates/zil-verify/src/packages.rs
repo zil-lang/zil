@@ -23,6 +23,15 @@ impl CaptureViews {
     pub(super) fn capture(&self, local: LocalId) -> Option<u32> {
         self.by_local.get(local.0 as usize).copied().flatten()
     }
+
+    /// Public Hold names the environment cell behind an executable Bind.
+    /// Private CFG proofs retain the local to enforce its End boundary.
+    pub(super) fn owner(&self, root: HoldRoot) -> HoldRoot {
+        match root {
+            HoldRoot::Local(local) => self.capture(local).map_or(root, HoldRoot::Capture),
+            _ => root,
+        }
+    }
 }
 
 pub(super) fn capture_views(

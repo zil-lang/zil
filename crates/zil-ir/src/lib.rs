@@ -3035,9 +3035,12 @@ pub struct ValueHold {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum HoldRoot {
-    /// A position in the enclosing function. Names are not identities.
+    /// A position owned by the current activation, indexed by LocalId.
     Local(LocalId),
-    /// An incoming shared address environment field, held by the caller.
+    /// The actual environment field, indexed by its declaration ordinal.
+    /// BindPackageCapture lends a local view of this cell until its End;
+    /// borrows through that view retain this root for public Hold. Exact
+    /// permission, projection and liveness remain operation-specific.
     Capture(u32),
     /// Target of an incoming shared reference, indexed by source parameter order.
     Parameter(u32),

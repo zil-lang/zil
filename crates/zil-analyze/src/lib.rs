@@ -359,9 +359,7 @@ fn analyze_budgeted_context(
             for f in &module.functions {
                 stored_flow::header(module, f, budget)?;
             }
-            for (f, package) in module.functions.iter().zip(&package_functions) {
-                scopes::check(module, f, *package, budget)?;
-            }
+            let capture_bindings = scopes::check_module(module, &package_functions, budget)?;
             let actual = stored_flow::infer(
                 module, &hold_graphs, stored_flow::ResourcePass::StoredOnly, budget,
             )?;
@@ -371,7 +369,7 @@ fn analyze_budgeted_context(
             dyn_dispatch::check_roots(module, &plan.functions, budget)?;
             retained::check_pending_sources(budget)?;
             helpers::finish_deferred(module, budget)?;
-            publish_holds(module, &mut plan, budget)?;
+            publish_holds(module, &mut plan, capture_bindings, budget)?;
             return Ok(plan);
         }
     }
@@ -388,9 +386,7 @@ fn analyze_budgeted_context(
     generic_mutex::check(module, budget)?;
     tasks::check(module, budget)?;
     registration::check(module, budget)?;
-    for (function, package) in module.functions.iter().zip(package_functions) {
-        scopes::check(module, function, package, budget)?;
-    }
+    let capture_bindings = scopes::check_module(module, &package_functions, budget)?;
     callable_fields::check(module, budget)?;
     helpers::check(module, budget)?;
     owned_callbacks::check(module, budget)?;
@@ -559,7 +555,7 @@ fn analyze_budgeted_context(
     stored_flow::task_calls::finish(module, budget)?;
     retained::check_pending_sources(budget)?;
     helpers::finish_deferred(module, budget)?;
-    publish_holds(module, &mut plan, budget)?;
+    publish_holds(module, &mut plan, capture_bindings, budget)?;
     Ok(plan)
 }
 
@@ -571,6 +567,7 @@ fn analyze_budgeted_context(
 fn publish_holds(
     module: &TypedModule,
     plan: &mut CandidatePlan,
+    capture_bindings: scopes::CaptureBindings,
     budget: &mut Budget,
 ) -> CompileResult<()> {
     budget.spend(budget.semantic_receiver_views.len().saturating_mul(4)
@@ -628,6 +625,32 @@ fn publish_holds(
         }
         budget.spend(row.roots.len(), "weak description public metadata release")?;
         row.roots.clear();
+    }
+    // Both solvers may keep a local for the private lifetime of an active view.
+    // Its public owner is the exact closure field bound on function entry.
+    for (id, bindings) in capture_bindings {
+        let function = plan.functions.get_mut(id.0 as usize)
+            .filter(|function| function.function == id)
+            .ok_or_else(|| bad("capture bindings lost their owning function"))?;
+        budget.spend(function.holds.len(), "publish bound capture owners")?;
+        for hold in &mut function.holds {
+            let mut changed = false;
+            for root in &mut hold.roots {
+                if let HoldRoot::Local(local) = root {
+                    budget.lookup(bindings.len(), "actual view owner")?;
+                    if let Some(index) = bindings.get(local) {
+                        *root = HoldRoot::Capture(*index);
+                        changed = true;
+                    }
+                }
+            }
+            if changed && hold.roots.len() > 1 {
+                budget.spend(hold.roots.len().saturating_mul(hold.roots.len().ilog2() as usize + 1),
+                    "canonical bound owner order")?;
+                hold.roots.sort_unstable();
+                hold.roots.dedup();
+            }
+        }
     }
     Ok(())
 }

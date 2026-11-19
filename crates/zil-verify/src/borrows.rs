@@ -409,6 +409,20 @@ fn check(
         if matches!(f.values[claim.value.0 as usize], Type::Desc(_)) {
             coarse.clear();
         }
+        if !graph.package_views.by_local.is_empty() && !coarse.is_empty() {
+            budget.spend(coarse.len())?;
+            let mut changed = false;
+            for root in &mut coarse {
+                let owner = graph.package_views.owner(*root);
+                changed |= *root != owner;
+                *root = owner;
+            }
+            if changed && coarse.len() > 1 {
+                budget.spend(coarse.len().saturating_mul(coarse.len().ilog2() as usize + 1))?;
+                coarse.sort_unstable();
+                coarse.dedup();
+            }
+        }
         if claim.roots != coarse {
             return Err(reject(
                 "E-VERIFY-HOLD",

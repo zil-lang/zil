@@ -9078,15 +9078,7 @@ fn solve_check(
                 // The private activation-local alias makes End/liveness
                 // explicit. Its public owner identity comes from the unique
                 // executable Bind checked by capture_views, never its type.
-                let base = match root.base {
-                    HoldRoot::Local(local) => {
-                        graphs[index]
-                            .package_views
-                            .capture(local)
-                            .map_or(root.base, HoldRoot::Capture)
-                    }
-                    _ => root.base,
-                };
+                let base = graphs[index].package_views.owner(root.base);
                 // The private ledger above still proves descriptor accesses
                 // and retirement. Public Hold denotes strong address debt.
                 if !weak_description {

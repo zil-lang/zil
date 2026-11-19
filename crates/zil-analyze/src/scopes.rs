@@ -9,14 +9,34 @@ struct State {
     live: BTreeMap<LocalId, ScopeId>,
 }
 
-pub(super) fn check(
+/// One-to-one entry bindings proven by this scope walk. Private loan and
+/// initialization facts continue to use their actual activation locals.
+pub(super) type CaptureBindings = Vec<(FunctionId, BTreeMap<LocalId, u32>)>;
+
+pub(super) fn check_module(
+    module: &TypedModule,
+    package_functions: &[bool],
+    budget: &mut Budget,
+) -> CompileResult<CaptureBindings> {
+    let mut bindings = Vec::new();
+    for (function, package) in module.functions.iter().zip(package_functions) {
+        let views = check(module, function, *package, budget)?;
+        if !views.is_empty() {
+            budget.spend(1, "retain checked entry capture bindings")?;
+            bindings.push((function.id, views));
+        }
+    }
+    Ok(bindings)
+}
+
+fn check(
     module: &TypedModule,
     function: &TypedFunction,
     mut package: bool,
     budget: &mut Budget,
-) -> CompileResult<()> {
+) -> CompileResult<BTreeMap<LocalId, u32>> {
     if function.foreign.is_some() {
-        return Ok(());
+        return Ok(BTreeMap::new());
     }
     let mut entries = BTreeSet::new();
     let mut scoped = false;
@@ -189,7 +209,7 @@ pub(super) fn check(
         if package {
             return Err(bad("package operations require explicit storage scopes"));
         }
-        return Ok(());
+        return Ok(views);
     }
     let Some(Instruction {
         kind: InstructionKind::ScopeEnter { scope: root },
@@ -359,5 +379,5 @@ pub(super) fn check(
     if deferred {
         super::defers::check(module, function, budget)?;
     }
-    Ok(())
+    Ok(views)
 }
