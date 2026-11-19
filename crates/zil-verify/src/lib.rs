@@ -493,6 +493,8 @@ impl std::fmt::Debug for InlineStoreRoots {
 }
 
 struct Budget {
+    /// Earliest structural stack escape, pending the current module's CFG loan checks.
+    escaping_stack_borrow: Option<Diagnostic>,
     remaining: usize,
     original_input: Option<OriginalInput>,
     structural: Option<dynamic_metadata::Structure>,
@@ -644,6 +646,7 @@ impl Budget {
 
     fn new(limits: &Limits) -> Self {
         Self {
+            escaping_stack_borrow: None,
             remaining: limits.max_analysis_steps,
             original_input: None,
             structural: None,
@@ -1115,6 +1118,7 @@ fn check_module_budget(
 
     budget.function_count = module.functions.len();
     let prior_structure = budget.structural.take();
+    let prior_stack_borrow = budget.escaping_stack_borrow.take();
     let prior_capture_classes = std::mem::take(&mut budget.semantic_capture_classes);
     let prior_progress = budget.diagnostic_progress;
     let prior_body_definitions = budget.diagnostic_body_definitions.take();
@@ -1630,7 +1634,6 @@ fn check_module_budget(
         }
         budget.diagnostic_stage("actual CFG structure and retained bodies");
         let mut graphs = Vec::with_capacity(module.functions.len());
-        let mut escaping_stack_borrow = None;
         for (function, function_plan) in module.functions.iter().zip(&plan.functions) {
             if function_plan.function != function.id {
                 return Err(reject(
@@ -1639,7 +1642,7 @@ fn check_module_budget(
                     "candidate function order or identity is incorrect",
                 ));
             }
-            let graph = check_function(module, function, function_plan, &mut escaping_stack_borrow, &mut budget)?;
+            let graph = check_function(module, function, function_plan, &mut budget)?;
             if budget
                 .private_slot_functions
                 .as_ref()
@@ -1705,7 +1708,7 @@ fn check_module_budget(
         // Every reachable direct return of this activation's own address is
         // invalid. The loan CFG can additionally identify the earlier access
         // that already invalidated the returned loan, with its actual site.
-        if let Some(error) = escaping_stack_borrow { return Err(error); }
+        if let Some(error) = budget.escaping_stack_borrow.take() { return Err(error); }
         budget.diagnostic_stage("actual deferred sources and head access");
         if !budget.pending_callable_sources.is_empty() {
             return Err(reject(
@@ -1776,6 +1779,7 @@ fn check_module_budget(
         })
     })();
     budget.structural = prior_structure;
+    budget.escaping_stack_borrow = prior_stack_borrow;
     budget.semantic_capture_classes = prior_capture_classes;
     if report_scans && let Some(progress) = budget.diagnostic_progress {
         eprintln!("verify-original-body completed={} walks={} revisits={} statement_and_expression_visits={} cfg_block_visits={}",
@@ -2665,7 +2669,6 @@ fn check_function(
     module: &TypedModule,
     function: &TypedFunction,
     plan: &FunctionPlan,
-    escaping_stack_borrow: &mut Option<Diagnostic>,
     budget: &mut Budget,
 ) -> Check<FunctionGraph> {
     let fail = |code, message| reject(code, Some(function.span), message);
@@ -3036,7 +3039,7 @@ fn check_function(
                 if matches!(producer.kind, InstructionKind::BorrowLocal { .. }
                     | InstructionKind::BorrowLocalMut { .. })
                 {
-                    escaping_stack_borrow.get_or_insert_with(|| reject("E-BORROW-ESCAPE", Some(producer.span),
+                    budget.escaping_stack_borrow.get_or_insert_with(|| reject("E-BORROW-ESCAPE", Some(producer.span),
                         "reference return takes an address of this activation's own local storage"));
                 }
             }

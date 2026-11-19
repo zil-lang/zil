@@ -219,105 +219,12 @@ impl CheckedOriginal {
                 CoreExprKind::Record{ty,fields}=>{let ty=self.ty(module,context,ty,env,active,b)?;self.record(module,context,&ty,fields,None,env,bindings,active,b)?;self.constructed_resource(module,context,ty,expression,env,b)?},
                 CoreExprKind::RecordConstructor{definition,fields}=>self.record_constructor(module,context,expression,*definition,fields,env,bindings,expected,active,b)?,
                 CoreExprKind::RecordUpdate{ty,base,fields}=>{let annotation=ty.as_ref().map(|ty|self.ty(module,context,ty,env,active,b)).transpose()?;let base=self.expression(module,context,base,env,bindings,annotation.as_ref().or(expected),active,b)?;self.record(module,context,&base,fields,Some(&base),env,bindings,active,b)?;base},
-                CoreExprKind::Sequence { bindings:initializers, value } => {
-                    let before = self.live_keys(env,b)?;
-                    let mut locals = bindings.clone();
-                    let mut prepared = self.prepared_shared_address(
-                        module, context, initializers, value, env, bindings, active, b,
-                    )?;
-                    for (name, initializer) in initializers {
-                        b.spend(name.len().saturating_add(1))?;
-                        if !name.starts_with('$') || locals.contains_key(name) {
-                            return Err(bad("original sequence repeats or exposes a generated temporary"));
-                        }
-                        let actual = match prepared.take() {
-                            Some(description) => description,
-                            None => match self.description_binding(module, context, initializer,
-                                None, env, &locals, active, b)? {
-                                Some(description) => description,
-                                None => self.expression(module,context,initializer,env,&locals,None,active,b)?,
-                            },
-                        };
-                        let binding = Binding { ty:actual, mutable:false,
-                            identity:Binder::Local { definition:id, node:initializer.id, name:name.clone() } };
-                        let resolved = self.resolved(&binding.ty, b)?;
-                        if matches!(&resolved, Ty::Atom(ty) if ty.is_b0_scalar()) || matches!(resolved, Ty::Variable(..) | Ty::SelfType(_)) {
-                            b.spend(self.scalar_initializers.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
-                            self.scalar_initializers.insert((id, initializer.id));
-                        }
-                        if matches!(resolved, Ty::Managed(_)) {
-                            binding.identity.charge_clone(b)?;
-                            b.spend(1)?;
-                            let producer = self.temporary_description_producer(initializer, b)?
-                                .unwrap_or(initializer.id);
-                            self.prepared_locals.insert(binding.identity.clone(), producer);
-                        }
-                        self.declare(env,&binding,b)?;
-                        locals.insert(name.clone(),binding);
-                    }
-                    let value = self.expression(module,context,value,env,&locals,expected,active,b)?;
-                    self.exit_scope(env,&before,b)?;
-                    value
-                },
-                CoreExprKind::If{condition,then_value,else_value}=>{
-                    self.condition_original(module,context,condition,env,bindings,active,b)?;let before=self.use_snapshot(env,b)?;
-                    let(yes,yes_uses,no,no_uses)=if Self::contextual_numeric_literal(then_value,b)?{
-                        // A pure unsuffixed arm has no value-use/effect order
-                        // to execute. Collect its peer's carrier first, while
-                        // checking both original arms from the same live Γ.
-                        let no=self.expression(module,context,else_value,env,bindings,expected,active,b)?;let no_uses=self.use_snapshot(env,b)?;self.set_uses(env,before)?;
-                        let yes=self.expression(module,context,then_value,env,bindings,Some(&no),active,b)?;let yes_uses=self.use_snapshot(env,b)?;(yes,yes_uses,no,no_uses)
-                    }else{
-                        let yes=self.expression(module,context,then_value,env,bindings,expected,active,b)?;let yes_uses=self.use_snapshot(env,b)?;self.set_uses(env,before)?;
-                        let no=self.expression(module,context,else_value,env,bindings,Some(&yes),active,b)?;let no_uses=self.use_snapshot(env,b)?;(yes,yes_uses,no,no_uses)
-                    };
-                    self.unify(&yes,&no,b)?;self.join_uses(env,&yes_uses,&no_uses,b)?;yes
-                },
-                CoreExprKind::Closure{..}=>{
-                    let original=context.definition(module,id,b)?;let SemanticDefinitionBody::FunctionWithBody{sites,site_nodes,..}=&original.body else{return Err(bad("closure creator has no original operations"));};
-                    let mut children=site_nodes.iter().filter_map(|row|if row.node==SemanticOriginalNode::Expression(expression.id){sites.iter().find(|site|site.id==row.site).and_then(|site|if let SemanticSiteRecipeKind::Closure{definition,..}=site.kind{Some((definition,row.site))}else{None})}else{None});
-                    let (child,site)=children.next().ok_or_else(||bad("original closure lacks its exact creation site"))?;if children.next().is_some(){return Err(bad("original closure has ambiguous child definitions"));}
-                    if let Some(previous)=self.free_values.get(&child){if previous!=bindings{return Err(bad("original closure free values differ between creator sites"));}}else{self.free_values.insert(child,bindings.clone());}
-                    let child_definition=context.definition(module,child,b)?;
-                    for formal in &child_definition.environment{if let SemanticFormal::Type{requirements}=&formal.kind{for requirement in requirements{self.obligation(module,context,requirement,env,env,active,b)?;}}}
-                    let CoreExprKind::Closure{move_capture,..}=expression.kind else{unreachable!()};self.creator_moves.insert(child,move_capture);
-                    if !move_capture {
-                        self.infer_owner_captures(child_definition, bindings, b)?;
-                    }
-                    self.contextual_opaque_closure(module,context,child,expected,env,active,b)?;
-                    let thin=self.contextual_code_inputs(child_definition,expected,b)?;
-                    if self.is_cleanup_operand(id, expression.id, b)? {
-                        b.spend(self.in_defer.len().saturating_add(1).ilog2() as usize + 1)?;
-                        self.in_defer.insert(child, 1);
-                    }
-                    self.definition(module,context,child,active,b)?;
-                    let used=self.used.get(&child).cloned().unwrap_or_default();let consumed=self.uses.get(&child).cloned().unwrap_or_default();
-                    for binding in bindings.values(){let child_key=Binder::Capture{definition:child,source:Box::new(binding.identity.clone())};if !used.contains(&child_key){continue;}
-                        if matches!(binding.identity, Binder::Capture { .. }) {
-                            // A constructor reads its actually used free inputs in this
-                            // activation, including an input forwarded by a deeper child.
-                            for _ in 0..=self.forwarded_creators.len().max(1).ilog2() {
-                                binding.identity.charge_clone(b)?;
-                            }
-                            b.spend(1)?;
-                            self.forwarded_creators.entry((id, binding.identity.clone())).or_insert(expression.id);
-                        }
-                        let owned = self.capture_owns(&child_key, b)?;
-                        let moved=consumed.moved.iter().any(|place|place.binder==child_key);
-                        if !owned&&moved&&!self.is_copy(module,context,&binding.ty,env,active,b)?{return Err(unsupported("default closure capture cannot consume an unproved borrowed generic value",None));}
-                        self.read_original(module,context,&Place{binder:binding.identity.clone(),fields:vec![]},&binding.ty,env,owned,active,b)?;
-                    }
-                    let child_env=self.environment(module,context,child,active,b)?;let frame=child_env.lexical.first().ok_or_else(||bad("original child scope absent"))?;
-                    if let CoreExprKind::Closure{return_type:Some(annotation),..}=&expression.kind {
-                        let declared=self.ty(module,context,annotation,&child_env,active,b)?;
-                        let result=self.results.get(&child).cloned().ok_or_else(||bad("closure literal has no proved original result"))?;
-                        self.unify(&declared,&result,b)?;
-                    }
-                    if let Some(code)=thin {
-                        self.finish_contextual_code(id,expression.id,child,site,&code,b)?;
-                        code
-                    }else{Ty::Closure(child,frame.actuals.clone(),frame.environment.clone())}
-                },
+                CoreExprKind::Sequence { bindings:initializers, value } =>
+                    self.sequence_value(module, context, initializers, value, id, env, bindings, expected, active, b)?,
+                CoreExprKind::If{condition,then_value,else_value}=>
+                    self.conditional_value(module, context, condition, then_value, else_value, env, bindings, expected, active, b)?,
+                CoreExprKind::Closure{..}=>
+                    self.closure_literal(module, context, expression, id, env, bindings, expected, active, b)?,
                 CoreExprKind::Try(value)=>{let source=self.expression(module,context,value,env,bindings,None,active,b)?;self.propagate_error(source,env,b)?},
                 _=>return Err(unsupported("original expression has no complete symbolic operation rule",Some(expression.span))),
             }};
@@ -327,6 +234,304 @@ impl CheckedOriginal {
             self.expressions.insert((id,expression.id),actual.clone());if let Some(expected)=expected{self.contextual_borrow_value(&actual,expected,b)}else{Ok(actual)}
         }).map_err(|mut error|{error.message.push_str(&format!(" [original definition {:?}, expression {:?}]",env.current().ok(),expression.id));if error.span.is_none(){error.span=Some(expression.span);}error})
     }
+    #[allow(clippy::too_many_arguments)]
+    fn sequence_value(
+        &mut self,
+        module: &TypedModule,
+        context: &CheckedContext,
+        initializers: &[(String, SemanticOriginalExpr)],
+        value: &SemanticOriginalExpr,
+        id: SemanticDefinitionId,
+        env: &Env,
+        bindings: &BTreeMap<String, Binding>,
+        expected: Option<&Ty>,
+        active: &mut ActiveQueries,
+        b: &mut Budget,
+    ) -> Check<Ty> {
+        let before = self.live_keys(env, b)?;
+        let mut locals = bindings.clone();
+        let mut prepared = self.prepared_shared_address(
+            module,
+            context,
+            initializers,
+            value,
+            env,
+            bindings,
+            active,
+            b,
+        )?;
+        for (name, initializer) in initializers {
+            b.spend(name.len().saturating_add(1))?;
+            if !name.starts_with('$') || locals.contains_key(name) {
+                return Err(bad(
+                    "original sequence repeats or exposes a generated temporary",
+                ));
+            }
+            let actual = match prepared.take() {
+                Some(description) => description,
+                None => match self.description_binding(
+                    module,
+                    context,
+                    initializer,
+                    None,
+                    env,
+                    &locals,
+                    active,
+                    b,
+                )? {
+                    Some(description) => description,
+                    None => self.expression(
+                        module,
+                        context,
+                        initializer,
+                        env,
+                        &locals,
+                        None,
+                        active,
+                        b,
+                    )?,
+                },
+            };
+            let binding = Binding {
+                ty: actual,
+                mutable: false,
+                identity: Binder::Local {
+                    definition: id,
+                    node: initializer.id,
+                    name: name.clone(),
+                },
+            };
+            let resolved = self.resolved(&binding.ty, b)?;
+            if matches!(&resolved, Ty::Atom(ty) if ty.is_b0_scalar())
+                || matches!(resolved, Ty::Variable(..) | Ty::SelfType(_))
+            {
+                b.spend(
+                    self.scalar_initializers
+                        .len()
+                        .checked_ilog2()
+                        .map_or(1, |n| n as usize + 2),
+                )?;
+                self.scalar_initializers.insert((id, initializer.id));
+            }
+            if matches!(resolved, Ty::Managed(_)) {
+                binding.identity.charge_clone(b)?;
+                b.spend(1)?;
+                let producer = self
+                    .temporary_description_producer(initializer, b)?
+                    .unwrap_or(initializer.id);
+                self.prepared_locals
+                    .insert(binding.identity.clone(), producer);
+            }
+            self.declare(env, &binding, b)?;
+            locals.insert(name.clone(), binding);
+        }
+        let value = self.expression(module, context, value, env, &locals, expected, active, b)?;
+        self.exit_scope(env, &before, b)?;
+        Ok(value)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn conditional_value(
+        &mut self,
+        module: &TypedModule,
+        context: &CheckedContext,
+        condition: &SemanticOriginalExpr,
+        then_value: &SemanticOriginalExpr,
+        else_value: &SemanticOriginalExpr,
+        env: &Env,
+        bindings: &BTreeMap<String, Binding>,
+        expected: Option<&Ty>,
+        active: &mut ActiveQueries,
+        b: &mut Budget,
+    ) -> Check<Ty> {
+        self.condition_original(module, context, condition, env, bindings, active, b)?;
+        let before = self.use_snapshot(env, b)?;
+        let (yes, yes_uses, no, no_uses) = if Self::contextual_numeric_literal(then_value, b)? {
+            // A pure unsuffixed arm has no value-use/effect order
+            // to execute. Collect its peer's carrier first, while
+            // checking both original arms from the same live Γ.
+            let no = self.expression(
+                module, context, else_value, env, bindings, expected, active, b,
+            )?;
+            let no_uses = self.use_snapshot(env, b)?;
+            self.set_uses(env, before)?;
+            let yes = self.expression(
+                module,
+                context,
+                then_value,
+                env,
+                bindings,
+                Some(&no),
+                active,
+                b,
+            )?;
+            let yes_uses = self.use_snapshot(env, b)?;
+            (yes, yes_uses, no, no_uses)
+        } else {
+            let yes = self.expression(
+                module, context, then_value, env, bindings, expected, active, b,
+            )?;
+            let yes_uses = self.use_snapshot(env, b)?;
+            self.set_uses(env, before)?;
+            let no = self.expression(
+                module,
+                context,
+                else_value,
+                env,
+                bindings,
+                Some(&yes),
+                active,
+                b,
+            )?;
+            let no_uses = self.use_snapshot(env, b)?;
+            (yes, yes_uses, no, no_uses)
+        };
+        self.unify(&yes, &no, b)?;
+        self.join_uses(env, &yes_uses, &no_uses, b)?;
+        Ok(yes)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn closure_literal(
+        &mut self,
+        module: &TypedModule,
+        context: &CheckedContext,
+        expression: &SemanticOriginalExpr,
+        id: SemanticDefinitionId,
+        env: &Env,
+        bindings: &BTreeMap<String, Binding>,
+        expected: Option<&Ty>,
+        active: &mut ActiveQueries,
+        b: &mut Budget,
+    ) -> Check<Ty> {
+        let grammar = self
+            .source_grammar
+            .as_ref()
+            .ok_or_else(|| bad("original closure has no checked source inventory"))?;
+        let rows = grammar.recipes(
+            id,
+            SemanticOriginalNode::Expression(expression.id),
+            &[index::Role::Closure],
+            b,
+        )?;
+        let [(position, site)] = rows.as_slice() else {
+            return Err(bad("original closure has no unique creation site"));
+        };
+        let original = context.definition(module, id, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { sites, .. } = &original.body else {
+            return Err(bad("closure creator has no original operations"));
+        };
+        let recipe = sites
+            .get(*position)
+            .filter(|row| row.id == *site)
+            .ok_or_else(|| bad("closure recipe differs from its checked original position"))?;
+        let SemanticSiteRecipeKind::Closure {
+            definition: child, ..
+        } = recipe.kind
+        else {
+            return Err(bad("original creation site is not a closure"));
+        };
+        let site = *site;
+        if let Some(previous) = self.free_values.get(&child) {
+            if previous != bindings {
+                return Err(bad(
+                    "original closure free values differ between creator sites",
+                ));
+            }
+        } else {
+            self.free_values.insert(child, bindings.clone());
+        }
+        let child_definition = context.definition(module, child, b)?;
+        for formal in &child_definition.environment {
+            if let SemanticFormal::Type { requirements } = &formal.kind {
+                for requirement in requirements {
+                    self.obligation(module, context, requirement, env, env, active, b)?;
+                }
+            }
+        }
+        let CoreExprKind::Closure { move_capture, .. } = expression.kind else {
+            unreachable!()
+        };
+        self.creator_moves.insert(child, move_capture);
+        if !move_capture {
+            self.infer_owner_captures(child_definition, bindings, b)?;
+        }
+        self.contextual_opaque_closure(module, context, child, expected, env, active, b)?;
+        let thin = self.contextual_code_inputs(child_definition, expected, b)?;
+        if self.is_cleanup_operand(id, expression.id, b)? {
+            b.spend(self.in_defer.len().saturating_add(1).ilog2() as usize + 1)?;
+            self.in_defer.insert(child, 1);
+        }
+        self.definition(module, context, child, active, b)?;
+        let used = self.used.get(&child).cloned().unwrap_or_default();
+        let consumed = self.uses.get(&child).cloned().unwrap_or_default();
+        for binding in bindings.values() {
+            let child_key = Binder::Capture {
+                definition: child,
+                source: Box::new(binding.identity.clone()),
+            };
+            if !used.contains(&child_key) {
+                continue;
+            }
+            if matches!(binding.identity, Binder::Capture { .. }) {
+                // A constructor reads its actually used free inputs in this
+                // activation, including an input forwarded by a deeper child.
+                for _ in 0..=self.forwarded_creators.len().max(1).ilog2() {
+                    binding.identity.charge_clone(b)?;
+                }
+                b.spend(1)?;
+                self.forwarded_creators
+                    .entry((id, binding.identity.clone()))
+                    .or_insert(expression.id);
+            }
+            let owned = self.capture_owns(&child_key, b)?;
+            let moved = consumed.moved.iter().any(|place| place.binder == child_key);
+            if !owned && moved && !self.is_copy(module, context, &binding.ty, env, active, b)? {
+                return Err(unsupported(
+                    "default closure capture cannot consume an unproved borrowed generic value",
+                    None,
+                ));
+            }
+            self.read_original(
+                module,
+                context,
+                &Place {
+                    binder: binding.identity.clone(),
+                    fields: vec![],
+                },
+                &binding.ty,
+                env,
+                owned,
+                active,
+                b,
+            )?;
+        }
+        let child_env = self.environment(module, context, child, active, b)?;
+        let frame = child_env
+            .lexical
+            .first()
+            .ok_or_else(|| bad("original child scope absent"))?;
+        if let CoreExprKind::Closure {
+            return_type: Some(annotation),
+            ..
+        } = &expression.kind
+        {
+            let declared = self.ty(module, context, annotation, &child_env, active, b)?;
+            let result = self
+                .results
+                .get(&child)
+                .cloned()
+                .ok_or_else(|| bad("closure literal has no proved original result"))?;
+            self.unify(&declared, &result, b)?;
+        }
+        Ok(if let Some(code) = thin {
+            self.finish_contextual_code(id, expression.id, child, site, &code, b)?;
+            code
+        } else {
+            Ty::Closure(child, frame.actuals.clone(), frame.environment.clone())
+        })
+    }
+
     pub(super) fn literal_original(&self,module:&TypedModule,text:&str,floating:bool,expected:Option<&Ty>,b:&mut Budget)->Check<Ty>{
         self.literal_original_sign(module,text,floating,false,expected,b)
     }
