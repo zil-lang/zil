@@ -59,6 +59,7 @@ pub(super) fn operand(site: &SemanticSite) -> Option<OperandKey> {
         | SemanticSiteAction::BodyCall { .. } => None,
     }
 }
+#[derive(Default)]
 pub(super) struct Index {
     addresses: BTreeMap<Address, Vec<usize>>,
     operands: BTreeMap<(SemanticInstanceId, OperandKey), Vec<usize>>,
@@ -86,6 +87,28 @@ pub(super) fn append<K: Ord, T>(
     Ok(())
 }
 impl Index {
+    // The Actual Inventory already rejected duplicate world IDs and validated
+    // each original definition's recipe-to-node relation. Borrow those rows
+    // only for the same program. A frozen Source view builds its own directory.
+    pub(super) fn from_actual(inventory: &Inventory<'_>, b: &mut Budget) -> CompileResult<Self> {
+        let mut index = Self::default();
+        let mut previous: Option<(SemanticInstanceId, std::sync::Arc<original_index::Index<'_>>)> = None;
+        for (position, site) in inventory.program.sites.iter().enumerate() {
+            b.spend(1, WORK)?;
+            if previous.as_ref().is_none_or(|(id, _)| *id != site.instance) {
+                let instance = inventory.instance(site.instance, b)?;
+                previous = Some((instance.id, inventory.original_index(instance.definition, b)?));
+            }
+            let (_, directory) = previous.as_ref()
+                .ok_or_else(|| fail("actual event has no original declaration directory"))?;
+            if let Some(SemanticOriginalNode::Expression(node)) = directory.site_node(site.recipe, b)? {
+                append(&mut index.expressions, (site.instance, node), position, b)?;
+            }
+            index.physical(site, position, b)?;
+        }
+        Ok(index)
+    }
+
     pub(super) fn new(program: &SemanticModule, b: &mut Budget) -> CompileResult<Self> {
         let mut index = Self {
             addresses: BTreeMap::new(),
@@ -122,24 +145,28 @@ impl Index {
                     append(&mut index.expressions,(site.instance,*original),position,b)?;
                 }
             }
-            if let SemanticSiteAddress::Typed {
-                block,
-                instruction,
-                edge: boundary,
-            } = site.at
-            {
-                append(
-                    &mut index.addresses,
-                    (site.instance, block, instruction, edge(boundary)),
-                    position,
-                    b,
-                )?;
-            }
-            if let Some(operand) = operand(site) {
-                append(&mut index.operands, (site.instance, operand), position, b)?;
-            }
+            index.physical(site, position, b)?;
         }
         Ok(index)
+    }
+    fn physical(&mut self, site: &SemanticSite, position: usize, b: &mut Budget) -> CompileResult<()> {
+        if let SemanticSiteAddress::Typed {
+            block,
+            instruction,
+            edge: boundary,
+        } = site.at
+        {
+            append(
+                &mut self.addresses,
+                (site.instance, block, instruction, edge(boundary)),
+                position,
+                b,
+            )?;
+        }
+        if let Some(operand) = operand(site) {
+            append(&mut self.operands, (site.instance, operand), position, b)?;
+        }
+        Ok(())
     }
     pub(super) fn address(&self, key: Address, b: &mut Budget) -> CompileResult<&[usize]> {
         b.lookup(self.addresses.len(), WORK)?;

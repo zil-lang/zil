@@ -70,7 +70,8 @@ struct Inventory<'a> {
     definitions: BTreeMap<SemanticDefinitionId, &'a SemanticDefinition>,
     // Immutable validated source structure; Arc preserves covariance of the
     // borrowed original nodes and grants no original or actual value fact.
-    original_indexes: BTreeMap<SemanticDefinitionId, std::sync::Arc<original_index::Index<'a>>>,
+    original_indexes: Vec<(SemanticDefinitionId, std::sync::Arc<original_index::Index<'a>>)>,
+    last_original_index: std::cell::Cell<usize>,
     instances: BTreeMap<SemanticInstanceId, &'a SemanticInstance>,
     functions: BTreeMap<FunctionId, &'a TypedFunction>,
     // Pure original declarations, indexed only for missing-Names shadow
@@ -114,7 +115,8 @@ impl<'a> Inventory<'a> {
             source: None,
             frozen_wrapper: None,
             definitions: BTreeMap::new(),
-            original_indexes: BTreeMap::new(),
+            original_indexes: Vec::new(),
+            last_original_index: std::cell::Cell::new(usize::MAX),
             instances: BTreeMap::new(),
             functions: BTreeMap::new(),
             top_level_names: BTreeMap::new(),
@@ -213,11 +215,15 @@ impl<'a> Inventory<'a> {
         for (position, instance) in module.life_instances.iter().enumerate() {
             site_index::append(&mut inventory.life_instances, instance.declaration, position, b)?;
         }
+        // The declaration map is ordered by verified semantic definition ID.
+        b.spend(inventory.definitions.len(), WORK)?;
+        inventory.original_indexes.try_reserve_exact(inventory.definitions.len())
+            .map_err(|_| fail("original index directory allocation failed"))?;
         for definition in inventory.definitions.values() {
             if matches!(definition.body, SemanticDefinitionBody::FunctionWithBody { .. }) {
                 let index = original_index::index(definition, b)?;
-                b.lookup(inventory.original_indexes.len(), WORK)?;
-                inventory.original_indexes.insert(definition.id, std::sync::Arc::new(index));
+                b.spend(1, WORK)?;
+                inventory.original_indexes.push((definition.id, std::sync::Arc::new(index)));
             }
         }
         Ok(inventory)
@@ -343,10 +349,17 @@ impl<'a> Inventory<'a> {
         owner: SemanticDefinitionId,
         b: &mut Budget,
     ) -> CompileResult<std::sync::Arc<original_index::Index<'a>>> {
-        b.lookup(self.original_indexes.len(), WORK)?;
         b.spend(1, WORK)?;
-        self.original_indexes.get(&owner).cloned()
-            .ok_or_else(|| fail("original function has no complete structural directory"))
+        if let Some((id, row)) = self.original_indexes.get(self.last_original_index.get())
+            && *id == owner {
+            return Ok(std::sync::Arc::clone(row));
+        }
+        b.lookup(self.original_indexes.len(), WORK)?;
+        let index = self.original_indexes.binary_search_by_key(&owner, |(id, _)| *id)
+            .map_err(|_| fail("original function has no complete structural directory"))?;
+        b.spend(1, WORK)?;
+        self.last_original_index.set(index);
+        Ok(std::sync::Arc::clone(&self.original_indexes[index].1))
     }
     fn source_key(&self) -> usize {
         self.source
@@ -437,7 +450,11 @@ impl<'a> Inventory<'a> {
         let owner = program as *const SemanticModule as usize;
         b.lookup(self.actual_site_indexes.borrow().len(), WORK)?;
         if !self.actual_site_indexes.borrow().contains_key(&owner) {
-            let index = site_index::Index::new(program, b)?;
+            let index = if std::ptr::eq(self.program, program) {
+                site_index::Index::from_actual(self, b)?
+            } else {
+                site_index::Index::new(program, b)?
+            };
             b.lookup(self.actual_site_indexes.borrow().len(), WORK)?;
             self.actual_site_indexes.borrow_mut().insert(owner, index);
         }
@@ -906,24 +923,29 @@ impl<'a> Inventory<'a> {
         // One original occurrence in one instance can identify only one
         // emission. Keep its checked position for subsequent source queries.
         let mut consumed = BTreeMap::new();
+        let mut previous: Option<(&SemanticInstance, &TypedFunction, std::sync::Arc<original_index::Index<'_>>)> = None;
         for (position, site) in program.sites.iter().enumerate() {
-            let instance = self.instance(site.instance, b)?;
-            let definition = self.definition(instance.definition, b)?;
-            let (
-                SemanticInstanceTarget::Function(target),
-                SemanticDefinitionBody::FunctionWithBody { .. },
-            ) = (&instance.target, &definition.body)
-            else {
-                return Err(fail("emission site does not belong to an actual function"));
-            };
-            let function = self.function(target, b)?;
+            b.spend(1, WORK)?;
+            if previous.as_ref().is_none_or(|(instance, _, _)| instance.id != site.instance) {
+                let instance = self.instance(site.instance, b)?;
+                let definition = self.definition(instance.definition, b)?;
+                let (
+                    SemanticInstanceTarget::Function(target),
+                    SemanticDefinitionBody::FunctionWithBody { .. },
+                ) = (&instance.target, &definition.body)
+                else {
+                    return Err(fail("emission site does not belong to an actual function"));
+                };
+                previous = Some((instance, self.function(target, b)?, self.original_index(definition.id, b)?));
+            }
+            let (instance, function, directory) = previous.as_ref()
+                .ok_or_else(|| fail("emission site lacks its actual world"))?;
             b.lookup(consumed.len(), WORK)?;
             if consumed.insert((site.instance, site.recipe), position).is_some() {
                 return Err(fail(
                     "one original semantic event is claimed by multiple actual emissions",
                 ));
             }
-            let directory = self.original_index(definition.id, b)?;
             let recipe = directory.recipe(site.recipe, b)?;
             let SemanticSiteAddress::Typed {
                 block,
