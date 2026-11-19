@@ -1256,9 +1256,12 @@ impl<'p> World<'p, '_> {
             if std::ptr::eq(a, b) {
                 return Ok(());
             }
-            crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
-            crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
-            if a_ty != b_ty || a_life != b_life || a_images != b_images {
+            if !crate::dyn_metadata::same_resolved_geometry(
+                a_ty, a_life, b_ty, b_life, self.limits, self.left,
+            )? || !crate::dyn_metadata::same_live_classes(
+                &a_images, &b_images, self.limits, self.left,
+            )? {
+
                 crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
                 crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
                 let mut diagnostic = bad("actual whole type or rigid original classes disagree");
@@ -1341,7 +1344,7 @@ impl<'p> World<'p, '_> {
         &mut self,
         instance: &SemanticInstance,
         original: &SemanticDefinition,
-        function: &TypedFunction,
+        function: &'p TypedFunction,
         sites: &[&SemanticSite],
         block: BlockId,
         instruction: usize,
@@ -1378,7 +1381,8 @@ impl<'p> World<'p, '_> {
                 ) => {
                     let logical = self.ledger.logical_local_type(function, *local, self.limits, self.left)?;
                     let persistent = logical.is_persistent_closure();
-                    let actual = self.logical_type(instance.id, recipe, super::materialize::LogicalExpected::local(logical))?;
+                    let actual = super::materialize::LogicalExpected::local(logical)
+                        .materialize(|hint| self.actual_type(instance.id, recipe, hint))?;
                     self.same(instance.id, expected, &actual, implicit)?;
                     let storage = if persistent {
                         persistent_slots::array(self, &actual)?
@@ -1577,7 +1581,7 @@ impl<'p> World<'p, '_> {
         block: BlockId,
         index: usize,
         result: ValueId,
-        ty: &Type,
+        ty: &'p Type,
         implicit: &BTreeMap<u32, SemanticClassExpr>,
     ) -> R<Option<SharedType>> {
         let mut selected = None;
@@ -1598,7 +1602,7 @@ impl<'p> World<'p, '_> {
                 return Err(bad("constructor changes its original recipe kind"));
             };
             let recipe = self.construction_recipe(original, site.recipe, recipe)?;
-            let expected = self.physical_type(instance.id, &recipe, ty)?;
+            let expected = self.actual_type(instance.id, &recipe, ty)?;
             self.same(instance.id, claimed, &expected, implicit)?;
             selected = Some(expected);
         }
@@ -1637,7 +1641,7 @@ impl<'p> World<'p, '_> {
                     return Err(bad("constructor changes original recipe kind"));
                 };
                 let recipe = self.construction_recipe(original, site.recipe, recipe)?;
-                let expected = self.physical_type(instance.id, &recipe, &f.values[result.0 as usize])?;
+                let expected = self.actual_type(instance.id, &recipe, &f.values[result.0 as usize])?;
                 self.same(instance.id, claimed, &expected, implicit)?;
                 let symbolic = self.symbolic(instance.id, &recipe)?;
                 let symbolic = match &symbolic {

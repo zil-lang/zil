@@ -213,7 +213,7 @@ pub(super) fn evaluate<'a>(
     instance: &SemanticInstance,
     original: &SemanticDefinition,
     callee: &SemanticInstance,
-    function: &TypedFunction,
+    function: &'a TypedFunction,
     site: &'a SemanticSite,
     arguments: &[ValueId],
     values: &ssa::Values,
@@ -499,7 +499,7 @@ pub(super) fn evaluate<'a>(
             .get(local.0 as usize)
             .ok_or_else(|| bad("method entry parameter local is absent"))?
             .ty;
-        let expected = world.physical_type(instance.id, &parameter.ty, ty)?;
+        let expected = world.actual_type(instance.id, &parameter.ty, ty)?;
         let actual = world.get(values, *argument)?;
         arguments::satisfy(
             world,
@@ -1290,7 +1290,7 @@ pub(super) fn direct<'a>(
             .ty;
         let expected = match captured_call_type(world, instance, site, &parameter.ty, ty)? {
             Some(value) => value,
-            None => world.physical_type(instance.id, &parameter.ty, ty)?,
+            None => world.actual_type(instance.id, &parameter.ty, ty)?,
         };
         let actual = world.get(values, *argument)?;
         arguments::satisfy(

@@ -551,6 +551,65 @@ pub(crate) fn semantic_operand_snapshot(
     })
 }
 
+/// Compare borrowed immutable geometry. A comparison visits matched fields
+/// within the first complete tree, including the first mismatch, so the
+/// bound on that tree also pays for the paired reads. The candidate already
+/// carries its independently materialized shape, and neither tree is copied.
+pub(crate) fn same_resolved_geometry(
+    ty: &Type,
+    life: &StorageLifeShape,
+    other_ty: &Type,
+    other_life: &StorageLifeShape,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<bool> {
+    let mut work = Work { limits, left, copies: 1, nodes: 0 };
+    if !std::ptr::eq(ty, other_ty) {
+        DynRecipeVisitor::ty(&mut work, ty, 2)?;
+        if ty != other_ty {
+            return Ok(false);
+        }
+    }
+    if !std::ptr::eq(life, other_life) {
+        DynRecipeVisitor::life(&mut work, life, 2)?;
+        if life != other_life {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+/// Compare the complete normalized images in the current actual world.
+pub(crate) fn same_live_classes(
+    a: &[SemanticClassExpr],
+    b: &[SemanticClassExpr],
+    limits: &Limits,
+    left: &mut usize,
+) -> R<bool> {
+    let mut work = Work { limits, left, copies: 1, nodes: 0 };
+    work.fee(1)?;
+    if a.len() != b.len() {
+        return Ok(false);
+    }
+    if std::ptr::eq(a, b) {
+        return Ok(true);
+    }
+    DynRecipeVisitor::rows(&mut work, a.len(), 2)?;
+    for (a, b) in a.iter().zip(b) {
+        if std::ptr::eq(a, b) {
+            continue;
+        }
+        // Equality can visit only paired fields through the first difference.
+        // Meter the full left expression and bound every nested path before
+        // comparing, even when both classes were constructed by this pass.
+        a.visit_dyn_metadata(&mut work, 2)?;
+        if a != b {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
 /// Bounded snapshots of actual runtime Dyn data use the same traversal as
 /// Core transport. Recipe metadata visitors cannot stand in for these fields.
 pub(crate) fn actual_declaration_snapshot(
