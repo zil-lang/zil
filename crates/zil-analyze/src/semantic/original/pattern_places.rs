@@ -2,6 +2,7 @@
 //! directory supplies identities only; initialized tags and loans are checked
 //! by the actual storage kernels.
 use super::*;
+use zil_base::Span;
 
 pub(in crate::semantic) struct PatternSubject {
     pub(in crate::semantic) node: NodeId,
@@ -21,6 +22,7 @@ pub(in crate::semantic) struct PatternOrigin {
     pub(in crate::semantic) subject: PatternSubject,
     pub(in crate::semantic) path: Vec<PlaceProjection>,
     pub(in crate::semantic) borrow: Option<PatternBorrow>,
+    pub(in crate::semantic) binding: Option<(Span, String)>,
 }
 impl PatternSubject {
     fn value(source: &SemanticOriginalExpr, b: &mut Budget) -> CompileResult<Self> {
@@ -131,9 +133,11 @@ impl Solver<'_, '_> {
         source: &PatternSubject,
         path: &[PlaceProjection],
         borrow: Option<PatternBorrow>,
+        binding: Option<(Span, &str)>,
         b: &mut Budget,
     ) -> CompileResult<LocalAnchor> {
         b.spend(source.path.len().saturating_add(path.len() + 1), WORK)?;
+        if let Some((_, name)) = binding { b.spend(name.len(), WORK)?; }
         let index = u32::try_from(self.state.pattern_origins.len())
             .map_err(|_| resource("original pattern origin ordinal overflow"))?;
         Self::push(
@@ -149,6 +153,7 @@ impl Solver<'_, '_> {
                 },
                 path: path.to_vec(),
                 borrow,
+                binding: binding.map(|(span, name)| (span, name.to_owned())),
             },
             b,
         )?;

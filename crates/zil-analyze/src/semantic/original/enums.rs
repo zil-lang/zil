@@ -385,7 +385,7 @@ impl Solver<'_, '_> {
                     self.retire_lexical_place(frame, source.anchor, &selected, b)?;
                 }
                 self.bind(frame, name, subject, false, b)?;
-                let anchor = self.pattern_anchor(frame.definition, source, physical, None, b)?;
+                let anchor = self.pattern_anchor(frame.definition, source, physical, None, Some((pattern.span, name)), b)?;
                 frame
                     .locals
                     .last_mut()
@@ -431,7 +431,7 @@ impl Solver<'_, '_> {
                     path.pop();
                     self.bind(frame, name, address, false, b)?;
                     let anchor = self.pattern_anchor(frame.definition, source, physical,
-                        Some(pattern_places::PatternBorrow { mutable: *mutable, ordinal, span: pattern.span }), b)?;
+                        Some(pattern_places::PatternBorrow { mutable: *mutable, ordinal, span: pattern.span }), Some((inner.span, name)), b)?;
                     frame.locals.last_mut().ok_or_else(|| fail("original reference pattern loses its binder"))?.anchor = Some(anchor);
                 }
                 Ok(true)

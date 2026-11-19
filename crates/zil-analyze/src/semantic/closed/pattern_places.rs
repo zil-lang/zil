@@ -2,6 +2,7 @@
 //! tag/field selection and destination Store operations. Names and equal
 //! physical types do not choose a destination.
 use super::*;
+use zil_base::Span;
 use crate::semantic::value::Class;
 
 impl Check<'_, '_> {
@@ -542,6 +543,57 @@ impl Check<'_, '_> {
         )
     }
 
+    /// An unpack can initialize the lexical binding directly or first place an
+    /// affine field in a staging local. Follow only the actual transfer from
+    /// this unpack to the original declaration in the same activation.
+    fn unpack_binding_local(
+        &self, function: &TypedFunction, block: &BasicBlock, unpack: usize, field: LocalId,
+        binding: Option<&(Span, String)>, b: &mut Budget,
+    ) -> CompileResult<LocalId> {
+        let Some((span, name)) = binding else { return Ok(field); };
+        let local = function.locals.get(field.0 as usize)
+            .filter(|row| row.id == field).ok_or_else(|| fail("unpack field has no actual local"))?;
+        b.spend(local.name.len().saturating_add(name.len()), WORK)?;
+        if local.span == *span && local.name == *name { return Ok(field); }
+        let mut moved = None;
+        for (at, instruction) in block.instructions.iter().enumerate().skip(unpack + 1) {
+            b.spend(1, WORK)?;
+            if let Some(source) = moved {
+                if let InstructionKind::Store { local: destination, value } = instruction.kind
+                    && value == source
+                {
+                    let dest = function.locals.get(destination.0 as usize)
+                        .filter(|row| row.id == destination).ok_or_else(|| fail("unpack transfer has no destination"))?;
+                    b.spend(dest.name.len().saturating_add(name.len()), WORK)?;
+                    if dest.name != *name || dest.span != *span || instruction.span != *span
+                        || !matches!(block.instructions[at-1].kind, InstructionKind::StorageLive(actual) if actual == destination)
+                        || !geometry::same_type(&local.ty, &dest.ty, b)?
+                    { return Err(fail("unpacked value is transferred to another original declaration")); }
+                    operations::available_before(function, (block.id, at, SemanticSiteEdge::Before), source, b)?;
+                    return Ok(destination);
+                }
+            } else {
+                if matches!(instruction.kind, InstructionKind::TakeLocal { local } if local == field)
+                    && instruction.span == *span
+                {
+                    moved = Some(instruction.result.ok_or_else(|| fail("unpack transfer has no SSA result"))?);
+                    continue;
+                }
+                self.head_projection_barrier(function, field, &[], &instruction.kind, b)?;
+                match crate::incremental::Operation::of(&instruction.kind) {
+                    crate::incremental::Operation::Read(id) | crate::incremental::Operation::Store(id)
+                    | crate::incremental::Operation::Take(id) | crate::incremental::Operation::Kill(id)
+                        if id == field => break,
+                    crate::incremental::Operation::Unpack { source, fields } => {
+                        b.spend(fields.len(), WORK)?;
+                        if source == field || fields.contains(&field) { break; }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Ok(field)
+    }
     pub(super) fn pattern_local(
         &self,
         instance: &SemanticInstance,
@@ -589,9 +641,14 @@ impl Check<'_, '_> {
                 let valid = self.pattern_subject_root(instance, function, origin.subject.node, value,
                     anchor, &origin.subject.path, b, depth + 1)?;
                 if !valid {
-                    return Err(fail(
-                        "pattern subject reads another original root or field path",
-                    ));
+                    let (block, at, producer) = self.defining(function, value, b)?;
+                    b.spend(origin.subject.path.len().saturating_mul(12).saturating_add(128), WORK)?;
+                    let mut errors = fail("pattern subject reads another original root or field path");
+                    errors[0].span = Some(producer.span);
+                    errors[0].notes.push(format!(
+                        "Original expression {} requires local {} with fields {:?}. Actual SSA {} is produced in block {} at instruction {}.",
+                        origin.subject.node.0, anchor.0, origin.subject.path, value.0, block.0, at));
+                    return Err(errors);
                 }
             }
             // A borrowed/Copy pattern can select an SSA subject directly.
@@ -679,7 +736,7 @@ impl Check<'_, '_> {
             accept(local)?;
         }
         for block in &function.blocks {
-            for instruction in &block.instructions {
+            for (at, instruction) in block.instructions.iter().enumerate() {
                 b.spend(1, WORK)?;
                 match &instruction.kind {
                     InstructionKind::BorrowPlaceLocal { local, path: actual, mutable: false }
@@ -733,7 +790,7 @@ impl Check<'_, '_> {
                             && let Some(local) = fields.get(*index as usize)
                         {
                             b.spend(fields.len(), WORK)?;
-                            accept(*local)?;
+                            accept(self.unpack_binding_local(function, block, at, *local, origin.binding.as_ref(), b)?)?;
                         }
                     }
                     InstructionKind::UnpackVariant {
@@ -754,7 +811,7 @@ impl Check<'_, '_> {
                             && let Some(local) = fields.get(index as usize)
                         {
                             b.spend(fields.len(), WORK)?;
-                            accept(*local)?;
+                            accept(self.unpack_binding_local(function, block, at, *local, origin.binding.as_ref(), b)?)?;
                         }
                     }
                     _ => {}

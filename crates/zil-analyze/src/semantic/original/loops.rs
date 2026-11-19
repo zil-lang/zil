@@ -227,7 +227,7 @@ impl Solver<'_, '_> {
                         .locals
                         .last_mut()
                         .ok_or_else(|| fail("range induction binding disappeared"))?
-                        .anchor = Some(self.pattern_anchor(frame.definition, &source, &[], None, b)?);
+                        .anchor = Some(self.pattern_anchor(frame.definition, &source, &[], None, None, b)?);
                 }
                 RangeBinding::Pattern(pattern) => {
                     if !self.pattern_bind(
