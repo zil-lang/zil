@@ -20,6 +20,29 @@ fn tracked_desc(ty: &Type, descriptor_origins: bool) -> bool {
     matches!(ty, Type::Desc(inner)
         if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. } | Type::Mutex { .. }))
 }
+// A call that returns a carrier with actual retained ports needs the complete
+// interprocedural source proof even if its physical result is a plain scalar Task.
+pub(crate) fn returned_call_ports(module: &TypedModule, b: &mut Budget) -> Check<bool> {
+    for function in &module.functions {
+        b.spend(function.blocks.len().saturating_add(1))?;
+        for block in &function.blocks {
+            b.spend(block.instructions.len())?;
+            for instruction in &block.instructions {
+                if !matches!(instruction.kind, InstructionKind::Call { .. }
+                    | InstructionKind::SuspendCall { .. } | InstructionKind::CallClosureOnce { .. }) {
+                    continue;
+                }
+                if let Some(result) = instruction.result {
+                    let ty = function.values.get(result.0 as usize)
+                        .ok_or_else(|| reject("E-VERIFY-TASK-PORT", Some(instruction.span), "returned Task call result is absent"))?;
+                    if port_facts::owned(module, ty, b)? { return Ok(true); }
+                }
+            }
+        }
+    }
+    Ok(false)
+}
+
 fn retained_task_value(ty: &Type) -> bool {
     if let Some(owner) = tasks::transfer::outcome_owner(ty) {
         return retained_task_value(owner);

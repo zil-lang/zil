@@ -23,6 +23,29 @@ struct Debt {
 type Carrier = BTreeMap<Path, Debt>;
 type State = BTreeMap<Owner, Carrier>;
 
+// A call that returns a carrier with actual retained ports needs the complete
+// interprocedural source proof even if its physical result is a plain scalar Task.
+pub(crate) fn returned_call_ports(module: &TypedModule, b: &mut Budget) -> CompileResult<bool> {
+    for function in &module.functions {
+        fee(b, function.blocks.len().saturating_add(1))?;
+        for block in &function.blocks {
+            fee(b, block.instructions.len())?;
+            for instruction in &block.instructions {
+                if !matches!(instruction.kind, InstructionKind::Call { .. }
+                    | InstructionKind::SuspendCall { .. } | InstructionKind::CallClosureOnce { .. }) {
+                    continue;
+                }
+                if let Some(result) = instruction.result {
+                    let ty = function.values.get(result.0 as usize)
+                        .ok_or_else(|| bad("returned Task call result is absent"))?;
+                    if !carriers::shape(module, ty, b)?.is_empty() { return Ok(true); }
+                }
+            }
+        }
+    }
+    Ok(false)
+}
+
 fn retained_shape(ty: &Type) -> Option<&zil_ir::RetainedLifeShape> {
     if let Some(owner) = super::transfer::outcome_owner(ty) {
         return retained_shape(owner);

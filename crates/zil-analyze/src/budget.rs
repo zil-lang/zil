@@ -243,6 +243,7 @@ pub(super) struct Budget {
     // Derived only by the complete paid raw-type preflight, never producer metadata.
     pub(super) task_origin_roots: bool,
     pub(super) borrowed_task_ports: bool,
+    pub(super) task_call_return_sources: bool,
     pub(super) invocation_callbacks: bool,
     pub(super) head_descriptions: bool,
     pub(super) registrations: bool,
@@ -330,7 +331,7 @@ impl Budget {
     }
 
     pub(super) fn task_sources(&self) -> bool {
-        self.task_borrowed_results || self.task_failure_carriers || self.task_retained_environments
+        self.task_call_return_sources || self.task_borrowed_results || self.task_failure_carriers || self.task_retained_environments
             // Actual nonempty capture/source relations schedule the full
             // solver; a proved empty relation stays in the ordinary ledgers.
             || self.task_origin_roots && self.capture_relations
@@ -447,6 +448,7 @@ impl Budget {
             full_stored_task_flow: false,
             task_origin_roots: false,
             borrowed_task_ports: false,
+            task_call_return_sources: false,
             invocation_callbacks: false,
             head_descriptions: false,
             registrations: false,

@@ -165,6 +165,7 @@ fn analyze_budgeted_context(
     budget.stored_task_frame_functions.clear();
     budget.stored_task_frame_pending = false;
     budget.full_stored_task_flow = false;
+    budget.task_call_return_sources = false;
     // The common incremental/reuse entry cannot bypass the public raw entry's
     // semantic-program gate. No partial ghost model enters fingerprinting.
     match context {
@@ -180,6 +181,9 @@ fn analyze_budgeted_context(
     // Raw callers need not have passed through types. In particular, reject
     // oversized metadata and unsupported recursive types before encoding a hash.
     let (package_functions, store_profiles) = preflight(module, limits, budget)?;
+    if budget.borrowed_task_ports && !budget.task_sources() {
+        budget.task_call_return_sources = tasks::returned_call_ports(module, budget)?;
+    }
     let original_task_cleanup = !budget.semantic_cleanup_sites.is_empty()
         || !budget.semantic_capture_cleanups.is_empty();
     if (budget.task_sources() || budget.task_origin_roots)

@@ -1,6 +1,7 @@
 //! Producer checks reconstruct the scalar task profile and actual suspension.
 use super::*;
 mod borrowed_loans;
+pub(crate) use borrowed_loans::returned_call_ports;
 mod context_work;
 mod drop_sync;
 pub(super) mod transfer;

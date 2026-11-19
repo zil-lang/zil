@@ -12,7 +12,7 @@ pub(super) struct Catalog {
     pub(super) locals: Vec<Shape>,
     pub(super) captures: Vec<Shape>,
 }
-fn shape(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<Shape> {
+pub(super) fn shape(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<Shape> {
     let mut result = Shape::new();
     let mut pending = vec![(ty, Path::new(), 0usize)];
     while let Some((ty, path, depth)) = pending.pop() {

@@ -527,6 +527,7 @@ struct Budget {
     // Independent paid raw-type inventory; this only enables a proof, not permission.
     task_origin_roots: bool,
     borrowed_task_ports: bool,
+    task_call_return_sources: bool,
     dyn_contexts: bool,
     // Paid source-expression inventory only; never an actual reborrow proof.
     dyn_reborrow_sources: bool,
@@ -631,7 +632,7 @@ impl Budget {
     }
 
     fn task_sources(&self) -> bool {
-        self.raw_reference_cells
+        self.task_call_return_sources || self.raw_reference_cells
             || self.task_borrowed_results
             || self.task_failure_carriers
             || self.task_retained_environments
@@ -673,6 +674,7 @@ impl Budget {
             tasks: false,
             task_origin_roots: false,
             borrowed_task_ports: false,
+            task_call_return_sources: false,
             dyn_contexts: false,
             dyn_reborrow_sources: false,
             pending_dyn_tables: BTreeSet::new(),
@@ -1565,11 +1567,17 @@ fn check_module_budget(
         }
         // Deep unsupported type trees have already been rejected without recursing.
         // A candidate's digest is an identity check, not evidence of correctness.
+        if budget.borrowed_task_ports && !budget.task_sources() {
+            budget.task_call_return_sources = borrows::returned_call_ports(module, &mut budget)?;
+        }
         let mut stored_partition = if budget.stored_borrows
-            && !budget.task_sources()
+            && (!budget.task_sources() || budget.task_call_return_sources)
             && (budget.tasks || budget.registrations)
         {
             let partition = stored_partition::mixed(module, &mut budget)?;
+            // Validate the actual mixed edges before selecting coverage. A call
+            // returning a retained frame also needs the complete source solution.
+            let partition = if budget.task_call_return_sources { None } else { partition };
             budget.full_stored_task_flow = partition.is_none() && budget.tasks;
             partition
         } else {

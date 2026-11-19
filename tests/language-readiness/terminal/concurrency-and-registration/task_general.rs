@@ -650,6 +650,38 @@ fn joint_task_and_holder_loans_still_conflict_at_the_actual_write() {
 }
 
 #[test]
+fn retained_task_factory_call_keeps_the_actual_input_until_close() {
+    let factory = SHARED_INPUT.replace(
+        "->TaskCreateError!Task<i32> contract",
+        "->TaskCreateError!Task<i32,&'a i32> contract",
+    );
+    let with_neighbor = factory.replace("var value=32;", "var sibling=11; var value=32;");
+    let legal = with_neighbor.replace("var task=give created;", "var task=give created; sibling=65;");
+    let invalid = with_neighbor.replace("var task=give created;", "var task=give created; value=65;");
+    assert_ne!(legal, invalid);
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    for original in [false, true] {
+        let module = mixed_holder_types(&legal, original);
+        let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+        let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+        zil_verify::verify_module(module, plan.clone(), &target, &limits).unwrap();
+        zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+        let module = mixed_holder_types(&invalid, original);
+        let errors = zil_analyze::analyze(&module, &limits).unwrap_err();
+        assert_eq!(errors[0].code, "E-BORROW-CONFLICT", "{errors:?}");
+        plan.module_fingerprint = module.fingerprint();
+        let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+        for errors in [
+            zil_verify::verify_module(module, plan, &target, &limits).unwrap_err(),
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err(),
+        ] {
+            assert_eq!(errors[0].code, "E-BORROW-CONFLICT", "{errors:?}");
+        }
+    }
+}
+
+#[test]
 fn shared_task_and_holder_partition_rejects_false_raw_and_wire_proofs() {
     use zil_ir::{CallKind, InstructionKind, Type};
 
