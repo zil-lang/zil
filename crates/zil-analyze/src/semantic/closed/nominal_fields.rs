@@ -4,6 +4,55 @@ use super::*;
 use crate::semantic::value::{self, Argument, Class, Value};
 
 impl Check<'_, '_> {
+    pub(super) fn stored_reborrow_class(
+        &self, instance: &SemanticInstance, function: &TypedFunction, result: ValueId,
+        storage: ValueId, path: &[PlaceProjection], b: &mut Budget,
+    ) -> CompileResult<Class> {
+        let (_, _, producer) = self.defining(function, storage, b)?;
+        let parent = match producer.kind {
+            InstructionKind::Load(local) | InstructionKind::BorrowLocalMut { local } => local,
+            _ => return Err(unknown("stored reborrow requires its actual lexical carrier source")),
+        };
+        let Type::Address { inner, .. } = &function.values[storage.0 as usize] else {
+            return Err(fail("stored reborrow requires an addressed carrier"));
+        };
+        let source = self.inventory.original_index(instance.definition, b)?;
+        for site in self.inventory.sites_for_value(self.program, instance.id, result, b)? {
+            let SemanticSiteAction::TypeUse { subject: SemanticOperand::Value(value), .. } = &site.action else { continue; };
+            if *value != result { continue; }
+            let Some(SemanticOriginalNode::Expression(node)) = source.site_node(site.recipe, b)? else { continue; };
+            let mut expression = source.get_expr(node, b)?;
+            let mut names = Vec::new();
+            while let CoreExprKind::Member { object, member, .. } = &expression.kind {
+                b.spend(1, WORK)?;
+                names.push(member);
+                expression = object;
+            }
+            if names.is_empty() { continue; }
+            let Some(anchor) = self.original.place_read_anchor(instance.definition, expression.id, b)? else {
+                return Err(unknown("stored reborrow requires its original carrier binder"));
+            };
+            if self.anchored_local(instance, function, anchor, b)? != parent || names.len() != path.len() {
+                return Err(fail("stored reborrow changes its original carrier or field path"));
+            }
+            let mut ty = inner.as_ref();
+            for (step, name) in path.iter().zip(names.into_iter().rev()) {
+                let PlaceProjection::Field(index) = step else { return Err(fail("stored reborrow changes its original field projection")); };
+                let physical = match ty { Type::BorrowedStorage { storage, .. } => storage.as_ref(), other => other };
+                let fields = match physical { Type::Record { fields, .. } | Type::Package { fields, .. } => fields, _ => return Err(fail("stored reborrow crosses another original carrier")) };
+                let (selected, child) = fields.get(*index as usize).ok_or_else(|| fail("stored reborrow selects an absent field"))?;
+                b.spend(name.len().saturating_add(selected.len()), WORK)?;
+                if name != selected { return Err(fail("stored reborrow selects another original field")); }
+                ty = child;
+            }
+            let recipe = source.recipe(site.recipe, b)?;
+            let ordinal = self.inventory.implicit_ordinal(instance.definition, &recipe.occurrence_path, b)?
+                .ok_or_else(|| fail("stored reborrow lacks its original occurrence lifetime"))?;
+            return Ok(Class::Implicit(instance.id, ordinal));
+        }
+        Err(unknown("stored reborrow lacks its exact original field occurrence"))
+    }
+
     pub(super) fn actual_nominal_field(&self, parent: &Value, field: u32,
         b: &mut Budget, depth: usize) -> CompileResult<Value> {
         b.spend(1, WORK)?;

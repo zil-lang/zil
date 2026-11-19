@@ -30,6 +30,9 @@ impl CheckedContext{
                             let mut statics=parent.statics.iter().filter(|row|matches!(row,StaticOccurrence::Direct{path,leaf,mode:StoredBorrowMode::SharedAddress}if path.is_empty()&&leaf==&parent.ty));
                             if *mutable||statics.next().is_none()||statics.next().is_some(){return Err(bad("stored reborrow lacks one bounded or shared Static actual carrier head"));}None
                         };
+                        let result = instruction.result.ok_or_else(|| bad("stored reborrow lacks its actual result"))?;
+                        let occurrence = self.stored_reborrow_occurrence(module, instance, f, result, *storage, path, b)?;
+                        let outer = occurrence.or(outer);
                         let mode=if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
                         dynamic_witness::semantic_external::construct(self,environment,dynamic_witness::semantic_external::Constructor::Address{mode,outer},&[inner],active,b).map(Some)
                     },

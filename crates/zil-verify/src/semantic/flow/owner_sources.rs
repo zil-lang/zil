@@ -65,6 +65,31 @@ fn pattern_initial_transfer(module: &TypedModule, f: &TypedFunction, local: Loca
 }
 
 impl CheckedContext{
+    pub(in crate::semantic::flow) fn stored_reborrow_occurrence(
+        &self, module: &TypedModule, caller: &SemanticInstance, f: &TypedFunction, value: ValueId,
+        storage: ValueId, path: &[PlaceProjection], b: &mut Budget,
+    ) -> Check<Option<ClassKey>> {
+        let program = module.semantic.as_ref().ok_or_else(|| bad("stored reborrow has no complete original grammar"))?;
+        for site in &program.sites {
+            b.spend(1)?;
+            if site.instance != caller.id || !matches!(site.action, SemanticSiteAction::TypeUse { subject: SemanticOperand::Value(id), .. } if id == value) {
+                continue;
+            }
+            let original = self.original.borrow();
+            let original = original.as_ref().ok_or_else(|| bad("stored reborrow has no independent source proof"))?;
+            let Some((node, ordinal)) = original.original_stored_member(caller.definition, site.recipe, b)? else { continue; };
+            let (root, names) = original.address_place(module, caller.definition, node, b)?;
+            let Type::Address { inner, .. } = &f.values[storage.0 as usize] else { return Err(bad("stored reborrow lacks its original addressed carrier")); };
+            if consume_reserved_fields(inner, path, &names, b)? != names.len() {
+                return Err(bad("stored reborrow omits an original field projection"));
+            }
+            let AddressRoot::Place(root) = root else { return Err(unsupported("stored reborrow requires its original lexical carrier", None)); };
+            self.projected_buffer_source(module, caller, f, storage, caller.definition, root, b)?;
+            return Ok(Some(ClassKey::Implicit { scope: ScopeKey::Instance(caller.id), ordinal }));
+        }
+        Ok(None)
+    }
+
     pub(in crate::semantic::flow) fn affine_field_declaration(
         &self, module: &TypedModule, caller: &SemanticInstance, f: &TypedFunction, site: SemanticSiteId,
         local: LocalId, block: &BasicBlock, ordinal: usize, b: &mut Budget,

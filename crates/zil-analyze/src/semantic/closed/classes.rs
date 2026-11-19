@@ -2655,7 +2655,19 @@ impl Check<'_, '_> {
                             || task_inputs && matches!(&selected.ty,
                                 Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Tuple(_)))
                     }
-                    StoredBorrowLoad::Reborrow { .. } => false,
+                    StoredBorrowLoad::Reborrow { mutable } => {
+                        if !matches!(root.ty, Type::Address { mutable: true, .. })
+                            || !matches!(selected.ty, Type::Address { mutable: true, .. })
+                        {
+                            return Err(fail("exclusive stored slot reborrow requires an exclusive carrier and slot"));
+                        }
+                        let class = self.stored_reborrow_class(instance, function, id, *storage, path, b)?;
+                        let output = value::address(*mutable, class, self.pointee(&selected, b)?, b)?;
+                        if !geometry::same_type(&output.ty, ty, b)? {
+                            return Err(fail("stored reborrow changes its selected original child or mode"));
+                        }
+                        return Ok(output);
+                    }
                 };
                 if !valid || !geometry::same_type(&selected.ty, ty, b)? {
                     return Err(unknown(

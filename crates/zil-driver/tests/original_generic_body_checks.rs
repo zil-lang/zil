@@ -817,6 +817,72 @@ fn scalar_call_reads_its_original_capture_after_description_storage() {
 }
 
 #[test]
+fn stored_exclusive_reborrow_keeps_its_selected_original_field() {
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "two-exclusive-slots.zil", r#"
+pub struct Pair<life a> { left:&'a mut i64, right:&'a mut i64 }
+pub fn make<life a>(left:&'a mut i64,right:&'a mut i64)->Pair<'a>{
+    return Pair::<'a>{left:left,right:right}
+}
+fn step<life a>(holder:&mut Pair<'a>){
+    let pointer=holder.left
+    *pointer=*pointer+1
+}
+fn main()->i32{
+    var x:i64=40
+    var y:i64=10
+    var pair=make(&mut x,&mut y)
+    step(&mut pair)
+    return i32(x-y)-31
+}
+"#);
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let core = original_core(source, &limits, &target);
+    let core = CoreProgram {
+        root: ModuleId(0), source_fingerprint: core.source_fingerprint,
+        modules: vec![ProgramModule { core, imports: vec![], exports: vec![] }],
+    };
+    let prepared = zil_types::infer_program_for_ct(&core, &limits).unwrap().into_prepared();
+    let mut module = zil_types::check_prepared_program(&prepared, &target, &limits).unwrap().module;
+    let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let wire = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+    let step = module.functions.iter_mut().find(|f| f.name == "step").unwrap();
+    let mut changed = 0;
+    for block in &mut step.blocks {
+        for instruction in &mut block.instructions {
+            let InstructionKind::LoadStoredBorrow {
+                storage, path, mode: StoredBorrowLoad::Reborrow { mutable: true },
+            } = &mut instruction.kind else { continue; };
+            let Type::Address { inner, .. } = &step.values[storage.0 as usize] else { panic!() };
+            let Type::BorrowedStorage { storage, .. } = inner.as_ref() else { panic!() };
+            let Type::Record { fields, .. } = storage.as_ref() else { panic!() };
+            assert_eq!((&fields[0].0[..], &fields[1].0[..]), ("left", "right"));
+            assert_eq!(fields[0].1, fields[1].1);
+            assert_eq!(path.as_slice(), &[PlaceProjection::Field(0)]);
+            path[0] = PlaceProjection::Field(1);
+            changed += 1;
+        }
+    }
+    assert_eq!(changed, 1);
+    let errors = zil_analyze::analyze(&module, &limits).unwrap_err();
+    assert!(errors[0].message.contains("stored reborrow selects another original field"), "{errors:?}");
+    require_semantic_rejection(errors);
+    plan.module_fingerprint = module.fingerprint();
+    let wire = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    for result in [
+        zil_verify::verify_module(module, plan, &target, &limits),
+        zil_verify::verify_module_bytes(&wire, &target, &limits),
+    ] {
+        let errors = result.err().expect("same-type sibling changed the actual stored target");
+        assert!(errors[0].message.contains("actual field index differs from the original ordered"), "{errors:?}");
+        require_semantic_rejection(errors);
+    }
+}
+
+#[test]
 fn affine_package_initializer_keeps_its_original_owning_enum_field() {
     let limits = Limits::default();
     let target = TargetProfile::default();

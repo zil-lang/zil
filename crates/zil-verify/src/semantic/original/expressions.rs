@@ -165,7 +165,14 @@ impl CheckedOriginal {
                     }
                     if let Some(ty)=self.static_call_type(module,context,expression,env,bindings,b)?{ty}else{
                         let(ty,place)=self.place(module,context,expression,env,bindings,active,b)?;
-                        if observe_bound_fields && matches!(expression.kind,CoreExprKind::Member{..})
+                        if matches!(expression.kind, CoreExprKind::Member { .. })
+                            && let Ty::Address { mutable: true, inner, .. } = self.resolved(&ty,b)?
+                        {
+                            self.mutable_place(module,context,expression,env,bindings,active,b)?;
+                            if let Some(place) = &place { self.read_original(module,context,place,&ty,env,false,active,b)?; }
+                            self.remember_borrow_parent(module,id,expression.id,expression.id,b)?;
+                            Ty::Address { mutable: true, life: Life::Local(id,expression.id), inner }
+                        } else if observe_bound_fields && matches!(expression.kind,CoreExprKind::Member{..})
                             && matches!(self.resolved(&ty,b)?,Ty::Managed(_)) && let Some(place)=place.as_ref()
                         {
                             // A bare selected manager is a scoped observation

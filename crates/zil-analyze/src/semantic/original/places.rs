@@ -234,6 +234,24 @@ impl Solver<'_, '_> {
         let selected = self.type_root(field, b)?;
         let description = matches!(self.state.arena[selected], Kind::Wrapped(Wrapper::Managed, _))
             && self.inline_package_field(&place, selected, b)?;
+        if let Kind::Address { mutable: true, inner, .. } = self.state.arena[selected] {
+            // A field read borrows the live slot through its writable carrier.
+            // Keep the original field lifetime in the slot and give the
+            // resulting view its own source occurrence.
+            let slot = self.borrow_place(frame, expression, b, depth + 1)?;
+            if !slot.mutable {
+                return Err(fail("exclusive stored field requires a mutable original holder"));
+            }
+            let ordinal = self.borrow_occurrence(frame.definition, expression.id, b)?;
+            self.remember_view_upper(frame.definition, ordinal, slot.source_life, b)?;
+            let life = self.term(Kind::Life(Life::Implicit(frame.definition, ordinal)), b)?;
+            let view = self.term(Kind::Address { mutable: true, life, inner }, b)?;
+            b.lookup(frame.expressions.len(), WORK)?;
+            let entry = frame.expressions.get_mut(&expression.id)
+                .ok_or_else(|| fail("original stored slot loses its checked field occurrence"))?;
+            *entry = view;
+            return Ok(Some(view));
+        }
         // Numeric inference is finalized after the complete original body.
         // Observing an array/tuple of pending numeric leaves can defer its Copy
         // obligation; it must not default a constructor's Type before later

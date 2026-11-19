@@ -25,6 +25,16 @@ pub(in crate::semantic) enum ScalarProjection {
 }
 
 impl CheckedOriginal {
+    pub(in crate::semantic) fn original_stored_member(
+        &self, owner: SemanticDefinitionId, site: SemanticSiteId, b: &mut Budget,
+    ) -> Check<Option<(NodeId, u32)>> {
+        let grammar = self.source_grammar.as_ref().ok_or_else(|| bad("stored reborrow has no checked original grammar"))?;
+        let Some(SemanticOriginalNode::Expression(node)) = grammar.site_node(owner, site, b)? else { return Ok(None); };
+        let syntax = grammar.place_syntax(owner, b)?;
+        if !matches!(syntax.expression(node, b)?.operation, index::PlaceOperation::Member { .. }) { return Ok(None); }
+        Ok(grammar.implicit_head(owner, node, b)?.map(|ordinal| (node, ordinal)))
+    }
+
     pub(in crate::semantic) fn affine_field_initializer(
         &self, module: &TypedModule, context: &CheckedContext, definition: SemanticDefinitionId,
         site: SemanticSiteId, b: &mut Budget,

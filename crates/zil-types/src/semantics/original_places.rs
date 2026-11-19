@@ -28,28 +28,30 @@ impl Check<'_, '_> {
             self.package_field(owner, object, member, variables, true, depth + 1)?
         {
             let value = self.observation_type(owner, &field, depth + 1)?;
-            if !matches!(
-                value,
-                SemanticTypeRecipe::Managed(_) | SemanticTypeRecipe::Desc { .. }
-            ) && !self.copy_type(owner, &value, depth + 1)?
-            {
-                let CoreExprKind::Name(name) = &object.kind else {
-                    unreachable!()
-                };
-                let binding = variables.get_mut(name).ok_or_else(|| {
-                    bad("original Package field transfer loses its owning binder")
-                })?;
-                if binding.borrowed {
-                    return Err(bad(
-                        "original affine field transfer uses a borrowed capture",
-                    ));
+            if !matches!(value, SemanticTypeRecipe::Address { mutable: true, .. }) {
+                if !matches!(
+                    value,
+                    SemanticTypeRecipe::Managed(_) | SemanticTypeRecipe::Desc { .. }
+                ) && !self.copy_type(owner, &value, depth + 1)?
+                {
+                    let CoreExprKind::Name(name) = &object.kind else {
+                        unreachable!()
+                    };
+                    let binding = variables.get_mut(name).ok_or_else(|| {
+                        bad("original Package field transfer loses its owning binder")
+                    })?;
+                    if binding.borrowed {
+                        return Err(bad(
+                            "original affine field transfer uses a borrowed capture",
+                        ));
+                    }
+                    self.pay(member.len().saturating_add(1), depth)?;
+                    binding.taken_fields.insert(member.clone());
+                    self.observe_capture(owner, name, binding, depth + 1)?;
+                    return Ok(value);
                 }
-                self.pay(member.len().saturating_add(1), depth)?;
-                binding.taken_fields.insert(member.clone());
-                self.observe_capture(owner, name, binding, depth + 1)?;
-                return Ok(value);
+                return self.observe_field(owner, expression, value, depth + 1);
             }
-            return self.observe_field(owner, expression, value, depth + 1);
         }
         let field = self.place(owner, expression, variables, depth + 1)?;
         let field = self.observation_type(owner, &field, depth + 1)?;
@@ -69,9 +71,10 @@ impl Check<'_, '_> {
             let base = copy_recipe(base, self.limits, self.left)?;
             let base = self.observation_type(owner, &base, depth + 1)?;
             if !matches!(base, SemanticTypeRecipe::Address { mutable: true, .. }) {
-                return Err(bad(
-                    "exclusive stored field requires a mutable original holder",
-                ));
+                if !matches!(base, SemanticTypeRecipe::Nominal { .. }) {
+                    return Err(bad("exclusive stored field requires a mutable original holder"));
+                }
+                self.writable(owner, object, variables, depth + 1)?;
             }
             let place = self
                 .method_receiver_place(owner, expression, variables, depth + 1)?
