@@ -72,7 +72,7 @@ pub(super) fn ordinary_owned_union(
     let Type::ErrorUnion { error, result } = union else {
         return Ok(false);
     };
-    if matches!(i.kind, InstructionKind::ReadErrorUnion { .. }) && !union.is_copy_value() {
+    if matches!(i.kind, InstructionKind::ReadErrorUnion { .. }) && !union.copy_value_with(&mut || b.spend(1))? {
         return Ok(false);
     }
     if !ordinary_union_shape(module,union, b)? {
@@ -595,8 +595,10 @@ fn ordinary_union_shape(module:&TypedModule,union: &Type, b: &mut Budget) -> Che
     let Type::ErrorUnion { error, result } = union else {
         return Ok(false);
     };
-    super::type_work(union, &b.limits.clone(), b)?;
-    if union.is_copy_value() && !b.task_failure_carriers {
+    // Qualification checks the complete physical bounds. Copy classification
+    // reads only the constructors up to the first owning leaf.
+    super::type_bounds(union, &b.limits.clone(), b)?;
+    if !b.task_failure_carriers && union.copy_value_with(&mut || b.spend(1))? {
         return Ok(false);
     }
     b.spend(2)?;

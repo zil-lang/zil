@@ -526,6 +526,9 @@ struct Budget {
     remaining: usize,
     work_stage: Option<&'static str>,
     usage: VerificationUsage,
+    // Exact module whose actual function and closure type tables completed
+    // physical preflight during this active request.
+    preflighted_module: Option<usize>,
     original_input: Option<OriginalInput>,
     structural: Option<dynamic_metadata::Structure>,
     diagnostic_costs: Option<BTreeMap<(&'static str, u32), (usize, usize)>>,
@@ -681,6 +684,7 @@ impl Budget {
             remaining: limits.max_analysis_steps,
             work_stage: None,
             usage: VerificationUsage::default(),
+            preflighted_module: None,
             original_input: None,
             structural: None,
             diagnostic_costs: std::env::var_os("ZIL_VERIFY_PROFILE_COSTS").map(|_| BTreeMap::new()),
@@ -1177,6 +1181,7 @@ fn check_module_budget(
 
     budget.function_count = module.functions.len();
     let prior_structure = budget.structural.take();
+    let prior_preflight = budget.preflighted_module.take();
     let prior_stack_borrow = budget.escaping_stack_borrow.take();
     let prior_usage = std::mem::take(&mut budget.usage);
     let prior_work_stage = budget.work_stage;
@@ -1351,6 +1356,7 @@ fn check_module_budget(
                 dynamic_store::register_actual_carrier_root(module, ty, &mut budget)?;
             }
         }
+        budget.preflighted_module = Some(module as *const TypedModule as usize);
         registration::storage(module, &mut budget)?;
         budget.diagnostic_stage("actual closure and executable definitions");
         closures::check_definitions(module, limits, &mut budget)?;
@@ -1824,6 +1830,7 @@ fn check_module_budget(
         budget.additional_escape = budget.escaping_stack_borrow.take();
     }
     budget.structural = prior_structure;
+    budget.preflighted_module = prior_preflight;
     budget.escaping_stack_borrow = prior_stack_borrow;
     budget.work_stage = prior_work_stage;
     budget.semantic_capture_classes = prior_capture_classes;
@@ -3214,6 +3221,30 @@ fn local_type(function: &TypedFunction, local: LocalId, span: Option<Span>) -> C
             )
         })
 }
+/// Compare two borrowed physical types. After the raw table preflight an
+/// equality is decided by identity or constructor first. A recursive comparison
+/// charges the left tree, an upper bound for the equal prefix of the two trees.
+fn transport_equal(left: &Type, right: &Type, meter_read: bool, b: &mut Budget) -> Check<bool> {
+    if meter_read {
+        b.spend(1)?;
+    }
+    if std::ptr::eq(left, right) {
+        return Ok(true);
+    }
+    if meter_read {
+        if std::mem::discriminant(left) != std::mem::discriminant(right) {
+            return Ok(false);
+        }
+        if b.pod_stores {
+            resources::charge_payload(left, b)?;
+        }
+        if b.stored_borrows {
+            stored_flow::type_work(left, &b.limits.clone(), b)?;
+        }
+    }
+    Ok(left == right)
+}
+
 fn check_instruction(
     module: &TypedModule,
     function: &TypedFunction,
@@ -3229,10 +3260,18 @@ fn check_instruction(
     {
         budget.qualified_package_returns = true;
     }
-    if budget.pod_stores {
+    let borrowed_transport = matches!(
+        instruction.kind,
+        InstructionKind::Store { .. } | InstructionKind::Call { .. }
+    )
+        && (budget.pod_stores || budget.stored_borrows)
+        && budget.preflighted_module == Some(module as *const TypedModule as usize)
+        && module.functions.get(function.id.0 as usize)
+            .is_some_and(|actual| std::ptr::eq(actual, function));
+    if budget.pod_stores && !borrowed_transport {
         dynamic_store::instruction_type_work(module, function, instruction, budget)?;
     }
-    if budget.stored_borrows {
+    if budget.stored_borrows && !borrowed_transport {
         stored_flow::instruction_work(function, instruction, budget)?;
     }
     let expected = match &instruction.kind {
@@ -3392,7 +3431,7 @@ fn check_instruction(
                     "error-union payload does not match its selected arm",
                 ));
             }
-            Some(ty.clone())
+            return check_result_type(function, instruction, Some(ty), false, budget);
         }
         InstructionKind::ErrorTag { value } => {
             if !matches!(value_type(function, *value, span)?, Type::ErrorUnion { .. }) {
@@ -3504,7 +3543,7 @@ fn check_instruction(
                 ));
             }
             budget.array_snapshot(ty, ty)?;
-            Some(ty.clone())
+            return check_result_type(function, instruction, Some(ty), false, budget);
         }
         InstructionKind::TakeLocal { local } => {
             let ty = local_type(function, *local, span)?;
@@ -3530,7 +3569,7 @@ fn check_instruction(
                     "TakeLocal requires a non-Copy address carrier",
                 ));
             }
-            Some(ty.clone())
+            return check_result_type(function, instruction, Some(ty), false, budget);
         }
         InstructionKind::BorrowLocal { local } => {
             let inner = local_type(function, *local, span)?;
@@ -3878,7 +3917,7 @@ fn check_instruction(
             // Copying a shared pointer value is discharged by the actual cell
             // and loan consumers, not by Type::is_copy_value on all addresses.
             stored_flow::type_work(inner, &budget.limits.clone(), budget)?;
-            Some(inner.as_ref().clone())
+            return check_result_type(function, instruction, Some(inner.as_ref()), false, budget);
         }
         InstructionKind::ReadAddress { address } => match value_type(function, *address, span)? {
             Type::Address { inner, .. }
@@ -3889,7 +3928,7 @@ fn check_instruction(
                     || stored_flow::pure_inline(module, inner, budget)? =>
             {
                 budget.array_snapshot(inner, value_type(function, *address, span)?)?;
-                Some(inner.as_ref().clone())
+                return check_result_type(function, instruction, Some(inner.as_ref()), false, budget);
             }
             _ => {
                 return Err(reject(
@@ -3904,7 +3943,10 @@ fn check_instruction(
             None
         }
         InstructionKind::Store { local, value } => {
-            if local_type(function, *local, span)? != value_type(function, *value, span)? {
+            if !transport_equal(
+                local_type(function, *local, span)?, value_type(function, *value, span)?,
+                borrowed_transport, budget,
+            )? {
                 return Err(reject(
                     "E-VERIFY-TYPE",
                     span,
@@ -3964,7 +4006,10 @@ fn check_instruction(
                 ));
             }
             for (argument, parameter) in arguments.iter().zip(&callee.parameters) {
-                if value_type(function, *argument, span)? != local_type(callee, *parameter, span)? {
+                if !transport_equal(
+                    value_type(function, *argument, span)?, local_type(callee, *parameter, span)?,
+                    borrowed_transport, budget,
+                )? {
                     return Err(reject(
                         "E-VERIFY-CALL",
                         span,
@@ -3972,12 +4017,11 @@ fn check_instruction(
                     ));
                 }
             }
-            if callee.return_type == Type::Unit {
-                None
-            } else {
+            if !borrowed_transport && callee.return_type != Type::Unit {
                 budget.array_snapshot(&callee.return_type, &callee.return_type)?;
-                Some(callee.return_type.clone())
             }
+            return check_result_type(function, instruction,
+                (callee.return_type != Type::Unit).then_some(&callee.return_type), borrowed_transport, budget);
         }
         InstructionKind::ForeignFunctionRef { function: target } => {
             Some(native_values::function_ref(module, *target, span, budget)?)
@@ -4086,7 +4130,7 @@ fn check_instruction(
             if **result == Type::Unit {
                 None
             } else {
-                Some((**result).clone())
+                return check_result_type(function, instruction, Some(result.as_ref()), false, budget);
             }
         }
         InstructionKind::ExtractIndex { aggregate, index } => {
@@ -4107,7 +4151,7 @@ fn check_instruction(
             let Type::Array { element, .. } = value_type(function, *aggregate, span)? else {
                 return Err(reject("E-VERIFY-INDEX", span, "index needs a fixed array"));
             };
-            Some((**element).clone())
+            return check_result_type(function, instruction, Some(element.as_ref()), false, budget);
         }
         InstructionKind::UpdateIndex {
             aggregate,
@@ -4143,7 +4187,7 @@ fn check_instruction(
                     "array update element type mismatch",
                 ));
             }
-            Some(ty.clone())
+            return check_result_type(function, instruction, Some(ty), false, budget);
         }
         InstructionKind::MakeAggregate { fields } => {
             let result = instruction.result.ok_or_else(|| {
@@ -4211,7 +4255,7 @@ fn check_instruction(
                 }
             }
             budget.array_snapshot(ty, ty)?;
-            Some(ty.clone())
+            return check_result_type(function, instruction, Some(ty), false, budget);
         }
         InstructionKind::MakeVariant { variant, fields } => {
             let result = instruction.result.ok_or_else(|| {
@@ -4248,7 +4292,7 @@ fn check_instruction(
                     ));
                 }
             }
-            Some(ty.clone())
+            return check_result_type(function, instruction, Some(ty), false, budget);
         }
         InstructionKind::VariantTag { value } => {
             let ty = value_type(function, *value, span)?;
@@ -4295,7 +4339,7 @@ fn check_instruction(
                         "payload variant or field index out of bounds",
                     )
                 })?;
-            Some(ty.clone())
+            return check_result_type(function, instruction, Some(ty), false, budget);
         }
         InstructionKind::ExtractField { aggregate, index } => {
             let ty = value_type(function, *aggregate, span)?;
@@ -4359,7 +4403,7 @@ fn check_instruction(
                     "field update index or value type mismatch",
                 ));
             }
-            Some(ty.clone())
+            return check_result_type(function, instruction, Some(ty), false, budget);
         }
         InstructionKind::MakeClosure { closure, captures } => {
             let definition = closures::definition(module, *closure, span)?;
@@ -4424,7 +4468,7 @@ fn check_instruction(
                     inner: inner.clone(),
                 })
             } else {
-                Some(ty.clone())
+                return check_result_type(function, instruction, Some(ty), false, budget);
             }
         }
         InstructionKind::WriteCapture { index, value } => {
@@ -4498,7 +4542,7 @@ fn check_instruction(
             if definition.result == Type::Unit {
                 None
             } else {
-                Some(definition.result.clone())
+                return check_result_type(function, instruction, Some(&definition.result), false, budget);
             }
         }
         InstructionKind::CallClosure { callee, arguments } => {
@@ -4538,7 +4582,7 @@ fn check_instruction(
             if definition.result == Type::Unit {
                 None
             } else {
-                Some(definition.result.clone())
+                return check_result_type(function, instruction, Some(&definition.result), false, budget);
             }
         }
         InstructionKind::MakeManaged { fields } => {
@@ -4591,7 +4635,7 @@ fn check_instruction(
                     ));
                 }
             }
-            Some(ty.clone())
+            return check_result_type(function, instruction, Some(ty), false, budget);
         }
         InstructionKind::DescribeAddress { address } => {
             budget.head_descriptions = true;
@@ -4662,7 +4706,7 @@ fn check_instruction(
                 }
                 None
             } else {
-                Some(field.clone())
+                return check_result_type(function, instruction, Some(field), false, budget);
             }
         }
         InstructionKind::DropManaged { local } => {
@@ -4682,9 +4726,17 @@ fn check_instruction(
             ));
         }
     };
+    check_result_type(function, instruction, expected.as_ref(), false, budget)
+}
+
+fn check_result_type(
+    function: &TypedFunction, instruction: &Instruction, expected: Option<&Type>,
+    meter_read: bool, budget: &mut Budget,
+) -> Check<()> {
+    let span = Some(instruction.span);
     match (instruction.result, expected) {
         (None, None) => Ok(()),
-        (Some(value), Some(ty)) if value_type(function, value, span)? == &ty => Ok(()),
+        (Some(value), Some(ty)) if transport_equal(value_type(function, value, span)?, ty, meter_read, budget)? => Ok(()),
         _ => Err(reject(
             "E-VERIFY-TYPE",
             span,

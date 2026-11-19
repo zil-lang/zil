@@ -810,6 +810,28 @@ impl Type {
     }
 
     pub fn is_copy_value(&self) -> bool {
+        match self.copy_value_with(&mut || Ok::<(), std::convert::Infallible>(())) {
+            Ok(copy) => copy,
+            Err(never) => match never {},
+        }
+    }
+
+    /// Classify the logical value. Visit each examined constructor and each
+    /// examined variant row, including empty variants. Copying code addresses
+    /// has no ownership effect on a future invocation's input or result.
+    pub fn copy_value_with<E>(&self, visit: &mut impl FnMut() -> Result<(), E>) -> Result<bool, E> {
+        fn all<'a, E>(
+            fields: impl IntoIterator<Item = &'a Type>,
+            visit: &mut impl FnMut() -> Result<(), E>,
+        ) -> Result<bool, E> {
+            for field in fields {
+                if !field.copy_value_with(visit)? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+        visit()?;
         match self {
             Self::Unit
             | Self::Bool
@@ -827,20 +849,28 @@ impl Type {
             | Self::U32
             | Self::ForeignHandle
             | Self::CWideString
-            | Self::ForeignCallback { .. } => true,
-            Self::Tuple(fields) => fields.iter().all(Self::is_copy_value),
-            Self::Array { element, .. } => element.is_copy_value(),
-            Self::Record { fields, .. } => fields.iter().all(|(_, ty)| ty.is_copy_value()),
-            Self::Enum { variants, .. } => variants
-                .iter()
-                .all(|(_, fields)| fields.iter().all(Self::is_copy_value)),
-            Self::ErrorUnion { error, result } => error.is_copy_value() && result.is_copy_value(),
+            | Self::ForeignCallback { .. } => Ok(true),
+            Self::Tuple(fields) => all(fields, visit),
+            Self::Array { element, .. } => element.copy_value_with(visit),
+            Self::Record { fields, .. } => all(fields.iter().map(|(_, field)| field), visit),
+            Self::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    visit()?;
+                    if !all(fields, visit)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Self::ErrorUnion { error, result } => {
+                Ok(error.copy_value_with(visit)? && result.copy_value_with(visit)?)
+            }
             Self::FunctionPointer { parameters, result } => {
-                parameters.iter().all(Self::is_copy_value) && result.is_copy_value()
+                Ok(all(parameters, visit)? && result.copy_value_with(visit)?)
             }
             // Copying the code address never copies its invocation payload.
             // Signature and relation eligibility must be validated separately.
-            Self::BorrowedFunctionPointer { .. } => true,
+            Self::BorrowedFunctionPointer { .. } => Ok(true),
             Self::Dyn { .. }
             | Self::OwnedDyn { .. }
             | Self::BorrowedStorage { .. }
@@ -861,7 +891,7 @@ impl Type {
             | Self::Desc(_)
             | Self::Closure(_)
             | Self::Opaque { .. }
-            | Self::Unsupported(_) => false,
+            | Self::Unsupported(_) => Ok(false),
         }
     }
     pub fn aggregate_fields(&self) -> Option<Vec<&Type>> {
