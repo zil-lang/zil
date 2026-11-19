@@ -377,12 +377,30 @@ pub(super) fn value_type(ty: &Type, b: &mut Budget) -> Check<()> {
 // A separate ordinary Store lane. The scalar Record capture premise above is
 // intentionally unchanged: these facts describe only a complete target-free
 // Store element domain, never an owner, allocation interval or live window.
-pub(super) fn ordinary_store_value<'a>(module:&'a TypedModule,ty:&'a Type,b:&mut Budget)->Check<bool>{
-    stored_flow::type_work(ty,&b.limits.clone(),b)?;
-    let head=match ty{Type::Address{inner,..}=>match inner.as_ref(){head @ (Type::Managed(_)|Type::OwnedStore{..})=>head,_=>return Ok(false)},ty=>ty};
-    let payload=match head{Type::Managed(inner)|Type::Desc(inner)=>inner.as_ref(),ty=>ty};
-    let Type::OwnedStore{element}=payload else{return Ok(false);};
-    target_free_value(module,element,b)
+pub(super) fn ordinary_store_value<'a>(
+    module: &'a TypedModule,
+    ty: &'a Type,
+    b: &mut Budget,
+) -> Check<bool> {
+    b.spend(1)?;
+    // A different outer constructor goes to its own admission lane. There
+    // is no recursive Store property to prove about it here.
+    let head = match ty {
+        Type::Address { inner, .. } => match inner.as_ref() {
+            head @ (Type::Managed(_) | Type::OwnedStore { .. }) => head,
+            _ => return Ok(false),
+        },
+        ty => ty,
+    };
+    let payload = match head {
+        Type::Managed(inner) | Type::Desc(inner) => inner.as_ref(),
+        ty => ty,
+    };
+    let Type::OwnedStore { element } = payload else {
+        return Ok(false);
+    };
+    stored_flow::type_bounds(ty, &b.limits.clone(), b)?;
+    target_free_value(module, element, b)
 }
 
 /// Complete ordinary data qualification, shared by owned products, sum tags
@@ -426,7 +444,7 @@ fn target_free_tree<'a>(
     role: TargetFreeRole<'a>,
     b: &mut Budget,
 ) -> Check<bool> {
-    stored_flow::type_work(ty,&b.limits.clone(),b)?;
+    stored_flow::type_bounds(ty, &b.limits.clone(), b)?;
     let mut pending=vec![(ty, 0usize, role)];
     while let Some((ty, depth, role))=pending.pop(){
         b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("ordinary Store target domain depth exceeded"));}
@@ -525,6 +543,41 @@ pub(super) fn ordinary_store_instruction(module:&TypedModule,f:&TypedFunction,i:
 #[cfg(test)]
 mod closure_store_tests{
     use super::*;
+
+    #[test]
+    fn carrier_selection_pays_only_the_selected_stored_type_raw_wire() {
+        let limits = Limits::default();
+        let direct = Limits { max_analysis_steps: 1, ..limits.clone() };
+        let record = |leaf| Type::Record {
+            name: "StoreCell".repeat(16),
+            fields: vec![("cell".into(), leaf)],
+        };
+        let store = |leaf| Type::Managed(Box::new(Type::OwnedStore {
+            element: Box::new(record(leaf)),
+        }));
+        let (mut module, _) = crate::tests::baseline();
+        module.functions[0].values = vec![
+            record(Type::I32),
+            store(Type::I32),
+            store(Type::Address { mutable: false, inner: Box::new(Type::I32) }),
+            Type::Managed(Box::new(Type::ByteBuffer)),
+        ];
+        let plan = CandidatePlan::empty_for(&module);
+        let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+        let (wire, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        for actual in [&module, &wire] {
+            let values = &actual.functions[0].values;
+            let mut budget = Budget::new(&direct);
+            assert!(!ordinary_store_value(actual, &values[0], &mut budget).unwrap());
+            assert_eq!(budget.remaining, 0);
+            assert!(!ordinary_byte_value(&values[0], &mut Budget::new(&direct)).unwrap());
+            assert!(ordinary_store_value(actual, &values[1], &mut Budget::new(&limits)).unwrap());
+            assert!(!ordinary_store_value(actual, &values[2], &mut Budget::new(&limits)).unwrap());
+            assert!(!ordinary_store_value(actual, &values[3], &mut Budget::new(&direct)).unwrap());
+            assert!(ordinary_byte_value(&values[3], &mut Budget::new(&direct)).unwrap());
+        }
+    }
+
     #[test]
     fn store_closure_lane_requires_known_zero_and_target_free_captures_raw_wire(){
         let limits=Limits::default();
@@ -552,9 +605,13 @@ mod closure_store_tests{
 
 // Canonical ByteBuffer has no stored child domain. This routes its existing
 // ordinary primitive operations without weakening the scalar capture premise.
-pub(super) fn ordinary_byte_value(ty:&Type,b:&mut Budget)->Check<bool>{
-    stored_flow::type_work(ty,&b.limits.clone(),b)?;
-    Ok(matches!(ty,Type::ByteBuffer)||matches!(ty,Type::Managed(inner)|Type::Desc(inner)if inner.as_ref()==&Type::ByteBuffer))
+pub(super) fn ordinary_byte_value(ty: &Type, b: &mut Budget) -> Check<bool> {
+    b.spend(1)?;
+    Ok(match ty {
+        Type::ByteBuffer => true,
+        Type::Managed(inner) | Type::Desc(inner) => matches!(inner.as_ref(), Type::ByteBuffer),
+        _ => false,
+    })
 }
 pub(super) fn ordinary_byte_instruction(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->Check<bool>{
     let candidate=match &i.kind{
