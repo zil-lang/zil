@@ -26,6 +26,10 @@ pub(super) fn has_projection(ty:&Ty,b:&mut Budget)->Check<bool>{
 impl CheckedOriginal{
     #[allow(clippy::too_many_arguments)]
     pub(super) fn associated_type(&mut self,module:&TypedModule,context:&CheckedContext,receiver:&Ty,declaration:LifeDeclarationId,arguments:&[Arg],member:u32,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
+        self.associated_type_for_projection(module, context, receiver, declaration, arguments, member, env, false, active, b)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn associated_type_for_projection(&mut self,module:&TypedModule,context:&CheckedContext,receiver:&Ty,declaration:LifeDeclarationId,arguments:&[Arg],member:u32,env:&Env,defer:bool,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
         let evidence=self.proof_environment(env,b)?;let env=&evidence;
         let receiver=self.resolved(receiver,b)?;let arguments=self.resolve_arguments(arguments,0,b)?;
         if let Ty::Dyn(value)=&receiver{for row in &value.associated{if row.member==member&&row.application.declaration==declaration&&self.same_arguments_readonly(&row.application.arguments,&arguments,b)?{return match &row.value{Arg::Type(ty)=>self.resolved(ty,b),_=>Err(bad("erased associated Type selects a Const member"))};}}return Err(bad("erased receiver omits its exact associated Type binding"));}
@@ -41,7 +45,7 @@ impl CheckedOriginal{
         b.spend(self.projection_terms.len())?;
         if let Some((_,_,_,_,ty))=self.projection_terms.iter().rev().find(|(old,decl,args,ordinal,_)|old==&receiver&&*decl==declaration&&args==&arguments&&*ordinal==member){return self.resolved(ty,b);}
         if !matches!(receiver,Ty::Variable(..)|Ty::SelfType(_)|Ty::Projection{..}|Ty::Infer(_)) {
-            if let Some(provider)=self.original_provider(module,context,&receiver,declaration,&arguments,env,active,b)?{
+            if let Some(provider)=self.original_provider_for_application(module,context,&receiver,declaration,&arguments,env,defer,active,b)?{
                 let selected=module.dyn_declarations.iter().find(|row|row.id==provider.declaration).ok_or_else(||bad("selected original impl has no complete declaration"))?;
                 b.spend(selected.members.len())?;
                 let name=&original.members[member as usize].name;
@@ -63,7 +67,18 @@ impl CheckedOriginal{
                 };
                 let recipe=dynamic_witness::semantic_external::original_type_recipe(module,owner,rhs,b)?;
                 let result=self.ty(module,context,&recipe,&environment,active,b)?;
-                self.scheme_term(module,context,&result,env,active,b)?;
+                if defer && usage::has_inference(&result, &self.substitutions, b)? {
+                    // A known provider may map its Item directly to an
+                    // integer constraint that is already owned by the caller.
+                    // Keep other incomplete shapes opaque until their full
+                    // original formation can be checked.
+                    b.spend(self.integer_variables.len().saturating_add(1).ilog2() as usize + 1)?;
+                    if !self.integer_variable(&self.resolved(&result, b)?) {
+                        return Ok(Ty::Projection { receiver: Box::new(receiver), declaration, arguments, member });
+                    }
+                } else {
+                    self.scheme_term(module,context,&result,env,active,b)?;
+                }
                 b.spend(arguments.len().saturating_add(1))?;
                 let key_receiver=self.resolved(&receiver,b)?;let key_arguments=self.resolve_arguments(&arguments,0,b)?;let key_result=self.resolved(&result,b)?;
                 self.projection_terms.push((key_receiver,declaration,key_arguments,member,key_result));
@@ -79,7 +94,7 @@ impl CheckedOriginal{
                 return proved;
             }
         }
-        if !self.trait_premise(module,context,&receiver,declaration,&arguments,env,active,b)?{
+        if !defer && !self.trait_premise(module,context,&receiver,declaration,&arguments,env,active,b)?{
             return Err(unsupported("original associated type has neither a caller trait premise nor a unique complete impl/RHS",None));
         }
         // This is a type term with an unknown intrinsic cardinality, not an

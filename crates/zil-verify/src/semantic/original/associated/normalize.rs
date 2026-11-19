@@ -12,8 +12,12 @@ impl CheckedOriginal {
             Ty::Projection{receiver,declaration,arguments,member}=>{
                 let receiver=self.normalize_original_type_at(module,context,&receiver,caller,active,depth+1,b)?;
                 let arguments=self.normalize_original_arguments(module,context,&arguments,caller,active,depth+1,b)?;
-                if usage::has_inference(&receiver,&self.substitutions,b)?{Ty::Projection{receiver:Box::new(receiver),declaration,arguments,member}}
-                else{self.associated_type(module,context,&receiver,declaration,&arguments,member,caller,active,b)?}
+                let pending = usage::has_inference(&receiver, &self.substitutions, b)?;
+                if pending && !matches!(receiver, Ty::Nominal(..)) {
+                    Ty::Projection{receiver:Box::new(receiver),declaration,arguments,member}
+                } else {
+                    self.associated_type_for_projection(module,context,&receiver,declaration,&arguments,member,caller,pending,active,b)?
+                }
             },
             Ty::Nominal(owner,args)=>Ty::Nominal(owner,self.normalize_original_arguments(module,context,&args,caller,active,depth+1,b)?),
             Ty::Opaque(owner,args)=>Ty::Opaque(owner,self.normalize_original_arguments(module,context,&args,caller,active,depth+1,b)?),

@@ -277,6 +277,10 @@ impl CheckedOriginal {
                 let ty = self.resolved(ty, b)?;
                 Ok(match &ty {
                     Ty::SealedError(_) => true,
+                    Ty::Infer(_) => {
+                        b.spend(self.integer_variables.len().saturating_add(1).ilog2() as usize + 1)?;
+                        self.integer_variable(&ty)
+                    }
                     Ty::Atom(ty) => {
                         ty.is_b0_scalar() || matches!(ty, Type::ForeignHandle | Type::CWideString)
                     }
