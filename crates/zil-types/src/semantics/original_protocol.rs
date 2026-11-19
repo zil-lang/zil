@@ -2490,6 +2490,16 @@ impl<'a> Engine<'a, '_> {
                     self.expr(owner, value, state, depth + 1)?;
                     Ok(Value::Plain)
                 }
+                CoreExprKind::Group(value) | CoreExprKind::Ascribed { value, .. } => {
+                    self.expr(owner, value, state, depth + 1)
+                }
+                CoreExprKind::TypeApply { callee, .. }
+                | CoreExprKind::GenericApply { callee, .. } => {
+                    self.expr(owner, callee, state, depth + 1)
+                }
+                CoreExprKind::Call { callee, arguments } => {
+                    self.call_value(owner, expr, callee, arguments, state, depth)
+                }
                 _ => self.operation_value(owner, expr, state, depth),
             }
         })();
@@ -2497,6 +2507,183 @@ impl<'a> Engine<'a, '_> {
         result
     }
 
+    fn call_value(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expr: &SemanticOriginalExpr,
+        callee: &SemanticOriginalExpr,
+        arguments: &[SemanticOriginalExpr],
+        state: &mut State,
+        depth: usize,
+    ) -> R<Value> {
+        let site = self.site(owner, expr.id, depth + 1)?;
+        let callback = if let Some(site) = site {
+            self.pay(lookup_work(self.proof.intrinsics.len()), depth)?;
+            self.proof
+                .intrinsics
+                .get(&(owner, site))
+                .is_some_and(|call| {
+                    matches!(call.kind, IntrinsicKind::ForeignCallback { .. })
+                })
+        } else {
+            false
+        };
+        if callback {
+            // The original scheme already authenticated the symbol. It
+            // is a code address formation, with no runtime operand.
+            return Ok(Value::Plain);
+        }
+        let once = if let Some(site) = site {
+            self.pay(lookup_work(self.proof.callable_calls.len()), depth)?;
+            self.proof
+                .callable_calls
+                .get(&(owner, site))
+                .is_some_and(|call| call.kind == CallableKind::FnOnce)
+        } else {
+            false
+        };
+        let mut receiver = None;
+        if let Some(site) = site {
+            self.pay(lookup_work(self.proof.method_calls.len()), depth)?;
+            if let Some(method) = self.proof.method_calls.get(&(owner, site)) {
+                let declaration_id = method.declaration;
+                crate::dyn_metadata::semantic_operand_snapshot(
+                    &method.signature,
+                    self.limits,
+                    self.left,
+                    1,
+                )?;
+                let signature = method.signature.clone();
+                let declaration = self.definition(declaration_id)?;
+                if let SemanticDefinitionBody::FunctionWithBody {
+                    receiver_parameter: Some(index),
+                    ..
+                } = &declaration.body
+                {
+                    let parameter=signature.parameters.get(*index as usize).ok_or_else(||failure("original method receiver ordinal is absent from its complete scheme"))?;
+                    receiver = Some((
+                        *index as usize,
+                        parameter.mode,
+                        copy_recipe(&parameter.ty, self.limits, self.left)?,
+                    ));
+                }
+            }
+        }
+        let dynamic = site
+            .and_then(|site| self.proof.intrinsics.get(&(owner, site)))
+            .is_some_and(|call| matches!(call.kind, IntrinsicKind::DynCall { .. }));
+        let mut callee_base = callee;
+        while let CoreExprKind::TypeApply { callee, .. }
+        | CoreExprKind::GenericApply { callee, .. } = &callee_base.kind
+        {
+            self.pay(1, depth)?;
+            callee_base = callee;
+        }
+        let object = if receiver.is_some() || dynamic {
+            let CoreExprKind::Member { object, .. } = &callee_base.kind else {
+                return Err(failure(
+                    "original receiver call has no actual source object",
+                ));
+            };
+            Some(object.as_ref())
+        } else {
+            None
+        };
+        let source = object.unwrap_or(callee);
+        let mut callee_value = self.observe(owner, source, state, depth + 1)?;
+        let callable = site.is_some_and(|site| self.proof.callable_calls.contains_key(&(owner, site)));
+        let graph_callee = if self.graph_requested.contains(&owner) {
+            Some(self.value_copy(&callee_value, depth + 1)?)
+        } else { None };
+        let consume_receiver = if let Some((_, mode, ty)) = &receiver {
+            matches!(mode, PassingMode::Give | PassingMode::Move)
+                || *mode == PassingMode::Infer
+                    && cleanup::category(
+                        self.program,
+                        self.proof,
+                        owner,
+                        ty,
+                        self.limits,
+                        self.left,
+                    )? == cleanup::Category::Own
+        } else {
+            false
+        };
+        let consume = once || consume_receiver;
+        let temporary = self.place_path(source, depth + 1)?.is_none();
+        let callee_slot = state.temporaries.len();
+        if consume && !temporary {
+            self.move_place(source, state, depth + 1)?;
+        }
+        let receiver_value = if object.is_some() {
+            let value = self.value_copy(&callee_value, depth + 1)?;
+            Some(self.view(value, depth + 1)?)
+        } else {
+            None
+        };
+        if !consume && !temporary {
+            callee_value = self.view(callee_value, depth + 1)?;
+        }
+        // The view of a real stored receiver remains in the same
+        // preparation inventory as owning callees. Argument-side
+        // replacement must invalidate that exact occurrence too.
+        if consume || temporary || callable {
+            self.pay(1, depth)?;
+            state.temporaries.push(callee_value);
+        }
+        // Provider symbols were checked in the declaration namespace. Only
+        // runtime operands can transfer values into the preparation inventory.
+        let runtime_arguments = if let Some(IntrinsicCall {
+            kind: IntrinsicKind::RegistrationStart { form, .. }, ..
+        }) = site.and_then(|site| self.proof.intrinsics.get(&(owner, site))) {
+            let operands = form.operands(arguments).ok_or_else(||
+                failure("registration loses its declared operand roles"))?;
+            &arguments[operands.providers.len()..]
+        } else { arguments };
+        let mut values = self.items(owner, runtime_arguments, state, depth + 1)?;
+        if let Some(value) = receiver_value {
+            let ordinal = receiver.as_ref().map_or(0, |(index, _, _)| *index);
+            if ordinal > values.len() {
+                return Err(failure(
+                    "original receiver ordinal changes complete argument arity",
+                ));
+            }
+            self.pay(values.len().saturating_add(1), depth)?;
+            values.insert(ordinal, value);
+        }
+        let consuming_incoming = if once && state.reachable { Some(self.consumption_state(state, depth + 1)?) } else { None };
+        let result = if state.reachable {
+            if let (Some(site), Some(callee)) = (site, graph_callee) {
+                self.record_graph_call(owner, site, callee, &values, state, depth + 1)?;
+            }
+            // Preserve this exact invocation's returned owner and
+            // surviving input states before using unknown effects.
+            // A reusable receiver stays borrowed; its phase facts
+            // never establish cleanup of an uncalled environment.
+            let returned = if callable {
+                let prepared = self.value_copy(&state.temporaries[callee_slot], depth + 1)?;
+                self.task_return_callable(owner, expr.id, callee_base.id,
+                    &prepared, &values, state, depth + 1)?
+            } else { None };
+            if let Some(returned) = returned { returned }
+            else { self.call(owner, expr, arguments, &values, state, depth + 1)? }
+        } else {
+            Value::Plain
+        };
+        if consume || temporary || callable {
+            let callee = state.temporaries.remove(callee_slot);
+            if state.reachable {
+                if once {
+                    let operation = self.proof.callable_calls.get(&(owner, site.ok_or_else(|| failure("consuming call lost its original site"))?))
+                        .ok_or_else(|| failure("consuming call lost its complete original operation"))?.signature.call_kind;
+                    self.check_consuming_invocation(&callee, &values, operation, consuming_incoming.as_ref().ok_or_else(|| failure("consuming call lost its actual prepared inputs"))?, depth + 1)?;
+                } else if !consume {
+                    self.drop_value(&callee, state, depth + 1)?;
+                }
+            }
+        }
+        Ok(result)
+    }
     fn operation_value(
         &mut self,
         owner: SemanticDefinitionId,
@@ -2515,175 +2702,6 @@ impl<'a> Engine<'a, '_> {
                 } else {
                     Ok(Value::Plain)
                 }
-            }
-            CoreExprKind::Call { callee, arguments } => {
-                let site = self.site(owner, expr.id, depth + 1)?;
-                let callback = if let Some(site) = site {
-                    self.pay(lookup_work(self.proof.intrinsics.len()), depth)?;
-                    self.proof
-                        .intrinsics
-                        .get(&(owner, site))
-                        .is_some_and(|call| {
-                            matches!(call.kind, IntrinsicKind::ForeignCallback { .. })
-                        })
-                } else {
-                    false
-                };
-                if callback {
-                    // The original scheme already authenticated the symbol. It
-                    // is a code address formation, with no runtime operand.
-                    return Ok(Value::Plain);
-                }
-                let once = if let Some(site) = site {
-                    self.pay(lookup_work(self.proof.callable_calls.len()), depth)?;
-                    self.proof
-                        .callable_calls
-                        .get(&(owner, site))
-                        .is_some_and(|call| call.kind == CallableKind::FnOnce)
-                } else {
-                    false
-                };
-                let mut receiver = None;
-                if let Some(site) = site {
-                    self.pay(lookup_work(self.proof.method_calls.len()), depth)?;
-                    if let Some(method) = self.proof.method_calls.get(&(owner, site)) {
-                        let declaration_id = method.declaration;
-                        crate::dyn_metadata::semantic_operand_snapshot(
-                            &method.signature,
-                            self.limits,
-                            self.left,
-                            1,
-                        )?;
-                        let signature = method.signature.clone();
-                        let declaration = self.definition(declaration_id)?;
-                        if let SemanticDefinitionBody::FunctionWithBody {
-                            receiver_parameter: Some(index),
-                            ..
-                        } = &declaration.body
-                        {
-                            let parameter=signature.parameters.get(*index as usize).ok_or_else(||failure("original method receiver ordinal is absent from its complete scheme"))?;
-                            receiver = Some((
-                                *index as usize,
-                                parameter.mode,
-                                copy_recipe(&parameter.ty, self.limits, self.left)?,
-                            ));
-                        }
-                    }
-                }
-                let dynamic = site
-                    .and_then(|site| self.proof.intrinsics.get(&(owner, site)))
-                    .is_some_and(|call| matches!(call.kind, IntrinsicKind::DynCall { .. }));
-                let mut callee_base = callee.as_ref();
-                while let CoreExprKind::TypeApply { callee, .. }
-                | CoreExprKind::GenericApply { callee, .. } = &callee_base.kind
-                {
-                    self.pay(1, depth)?;
-                    callee_base = callee;
-                }
-                let object = if receiver.is_some() || dynamic {
-                    let CoreExprKind::Member { object, .. } = &callee_base.kind else {
-                        return Err(failure(
-                            "original receiver call has no actual source object",
-                        ));
-                    };
-                    Some(object.as_ref())
-                } else {
-                    None
-                };
-                let source = object.unwrap_or(callee.as_ref());
-                let mut callee_value = self.observe(owner, source, state, depth + 1)?;
-                let callable = site.is_some_and(|site| self.proof.callable_calls.contains_key(&(owner, site)));
-                let graph_callee = if self.graph_requested.contains(&owner) {
-                    Some(self.value_copy(&callee_value, depth + 1)?)
-                } else { None };
-                let consume_receiver = if let Some((_, mode, ty)) = &receiver {
-                    matches!(mode, PassingMode::Give | PassingMode::Move)
-                        || *mode == PassingMode::Infer
-                            && cleanup::category(
-                                self.program,
-                                self.proof,
-                                owner,
-                                ty,
-                                self.limits,
-                                self.left,
-                            )? == cleanup::Category::Own
-                } else {
-                    false
-                };
-                let consume = once || consume_receiver;
-                let temporary = self.place_path(source, depth + 1)?.is_none();
-                let callee_slot = state.temporaries.len();
-                if consume && !temporary {
-                    self.move_place(source, state, depth + 1)?;
-                }
-                let receiver_value = if object.is_some() {
-                    let value = self.value_copy(&callee_value, depth + 1)?;
-                    Some(self.view(value, depth + 1)?)
-                } else {
-                    None
-                };
-                if !consume && !temporary {
-                    callee_value = self.view(callee_value, depth + 1)?;
-                }
-                // The view of a real stored receiver remains in the same
-                // preparation inventory as owning callees. Argument-side
-                // replacement must invalidate that exact occurrence too.
-                if consume || temporary || callable {
-                    self.pay(1, depth)?;
-                    state.temporaries.push(callee_value);
-                }
-                // Provider symbols were checked in the declaration namespace. Only
-                // runtime operands can transfer values into the preparation inventory.
-                let runtime_arguments = if let Some(IntrinsicCall {
-                    kind: IntrinsicKind::RegistrationStart { form, .. }, ..
-                }) = site.and_then(|site| self.proof.intrinsics.get(&(owner, site))) {
-                    let operands = form.operands(arguments).ok_or_else(||
-                        failure("registration loses its declared operand roles"))?;
-                    &arguments[operands.providers.len()..]
-                } else { arguments.as_slice() };
-                let mut values = self.items(owner, runtime_arguments, state, depth + 1)?;
-                if let Some(value) = receiver_value {
-                    let ordinal = receiver.as_ref().map_or(0, |(index, _, _)| *index);
-                    if ordinal > values.len() {
-                        return Err(failure(
-                            "original receiver ordinal changes complete argument arity",
-                        ));
-                    }
-                    self.pay(values.len().saturating_add(1), depth)?;
-                    values.insert(ordinal, value);
-                }
-                let consuming_incoming = if once && state.reachable { Some(self.consumption_state(state, depth + 1)?) } else { None };
-                let result = if state.reachable {
-                    if let (Some(site), Some(callee)) = (site, graph_callee) {
-                        self.record_graph_call(owner, site, callee, &values, state, depth + 1)?;
-                    }
-                    // Preserve this exact invocation's returned owner and
-                    // surviving input states before using unknown effects.
-                    // A reusable receiver stays borrowed; its phase facts
-                    // never establish cleanup of an uncalled environment.
-                    let returned = if callable {
-                        let prepared = self.value_copy(&state.temporaries[callee_slot], depth + 1)?;
-                        self.task_return_callable(owner, expr.id, callee_base.id,
-                            &prepared, &values, state, depth + 1)?
-                    } else { None };
-                    if let Some(returned) = returned { returned }
-                    else { self.call(owner, expr, arguments, &values, state, depth + 1)? }
-                } else {
-                    Value::Plain
-                };
-                if consume || temporary || callable {
-                    let callee = state.temporaries.remove(callee_slot);
-                    if state.reachable {
-                        if once {
-                            let operation = self.proof.callable_calls.get(&(owner, site.ok_or_else(|| failure("consuming call lost its original site"))?))
-                                .ok_or_else(|| failure("consuming call lost its complete original operation"))?.signature.call_kind;
-                            self.check_consuming_invocation(&callee, &values, operation, consuming_incoming.as_ref().ok_or_else(|| failure("consuming call lost its actual prepared inputs"))?, depth + 1)?;
-                        } else if !consume {
-                            self.drop_value(&callee, state, depth + 1)?;
-                        }
-                    }
-                }
-                Ok(result)
             }
             CoreExprKind::Unary { op, operand } => {
                 let borrowing = matches!(
@@ -2736,13 +2754,6 @@ impl<'a> Engine<'a, '_> {
                 } else {
                     Ok(Value::Plain)
                 }
-            }
-            CoreExprKind::Group(value) | CoreExprKind::Ascribed { value, .. } => {
-                self.expr(owner, value, state, depth + 1)
-            }
-            CoreExprKind::TypeApply { callee, .. }
-            | CoreExprKind::GenericApply { callee, .. } => {
-                self.expr(owner, callee, state, depth + 1)
             }
             CoreExprKind::Tuple(items) | CoreExprKind::Array(items) => {
                 Ok(Value::Tuple(self.items(owner, items, state, depth + 1)?))

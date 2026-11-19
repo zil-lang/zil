@@ -2629,31 +2629,66 @@ impl<'a> Check<'a, '_> {
             depth,
         )
     }
-    fn solve_signature_roles(
+    fn caller_parameter_context(
+        &mut self,
+        parameter: &SemanticParameterRecipe,
+        formals: &[SemanticFormal],
+        solutions: &[Option<SemanticActualRecipe>],
+        implicit: &BTreeMap<u32, SemanticOuterLifeRecipe>,
+        invocation: &BTreeMap<u32, SemanticOuterLifeRecipe>,
+        depth: usize,
+    ) -> R<Option<SemanticTypeRecipe>> {
+        self.pay(solutions.len(), depth)?;
+        for actual in solutions.iter().flatten() {
+            crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
+        }
+        let mut partial_actuals = Vec::new();
+        for (ordinal, (formal, solution)) in formals.iter().zip(solutions).enumerate() {
+            let reference = SemanticFormalRef {
+                scope: SemanticScopeRef::Ancestor(u32::MAX),
+                ordinal: ordinal as u32,
+            };
+            partial_actuals.push(if let Some(actual) = solution {
+                actual.clone()
+            } else {
+                match formal {
+                    SemanticFormal::Lifetime => {
+                        SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(reference))
+                    }
+                    SemanticFormal::Type { .. } => {
+                        SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(reference))
+                    }
+                    SemanticFormal::Const { carrier } => SemanticActualRecipe::Const {
+                        carrier: copy_recipe(carrier, self.limits, self.left)?,
+                        value: SemanticConstRecipe::Formal(reference),
+                    },
+                }
+            });
+        }
+        let frames = [(u32::MAX, partial_actuals.as_slice())];
+        substitute::caller_context(
+            &parameter.ty,
+            &substitute::Substitution {
+                frames: &frames,
+                selves: &[],
+                environments: &[],
+                implicit,
+                invocation,
+                shift: 0,
+            },
+            self.limits,
+            self.left,
+        )
+    }
+    fn caller_signature_template(
         &mut self,
         owner: SemanticDefinitionId,
-        call: &SemanticOriginalExpr,
-        callee: &SemanticOriginalExpr,
-        arguments: &[&SemanticOriginalExpr],
         signature: &SemanticSignatureRecipe,
         formals: &[SemanticFormal],
-        written_actuals: &[SemanticActualRecipe],
-        variables: &mut BTreeMap<String, Binding>,
-        wanted: Option<&SemanticTypeRecipe>,
-        template_ready: bool,
         invocation_origins: &BTreeMap<u32, call_regions::Role>,
-        roles: &[(NodeId, SemanticTypeRecipe)],
-        parameter_offset: u32,
-        contextual_callee: Option<SemanticDefinitionId>,
-        declaration: Option<&SemanticDefinition>,
+        template_ready: bool,
         depth: usize,
-    ) -> R<(Vec<SemanticActualRecipe>, SemanticSignatureRecipe)> {
-        self.pay(arguments.len().saturating_add(formals.len()), depth)?;
-        if signature.parameters.len() != arguments.len() || written_actuals.len() != formals.len() {
-            return Err(bad(
-                "original call omits complete parameters or mixed actuals",
-            ));
-        }
+    ) -> R<(SemanticSignatureRecipe, BTreeMap<u32, call_regions::Role>)> {
         crate::dyn_metadata::semantic_operand_snapshot(signature, self.limits, self.left, 1)?;
         let mut signature = signature.clone();
         for parameter in &mut signature.parameters {
@@ -2682,6 +2717,36 @@ impl<'a> Check<'a, '_> {
         } else {
             self.inference_template(&signature, formals, true, depth + 1)?
         };
+        Ok((signature, invocation_origins))
+    }
+    fn solve_signature_roles(
+        &mut self,
+        owner: SemanticDefinitionId,
+        call: &SemanticOriginalExpr,
+        callee: &SemanticOriginalExpr,
+        arguments: &[&SemanticOriginalExpr],
+        signature: &SemanticSignatureRecipe,
+        formals: &[SemanticFormal],
+        written_actuals: &[SemanticActualRecipe],
+        variables: &mut BTreeMap<String, Binding>,
+        wanted: Option<&SemanticTypeRecipe>,
+        template_ready: bool,
+        invocation_origins: &BTreeMap<u32, call_regions::Role>,
+        roles: &[(NodeId, SemanticTypeRecipe)],
+        parameter_offset: u32,
+        contextual_callee: Option<SemanticDefinitionId>,
+        declaration: Option<&SemanticDefinition>,
+        depth: usize,
+    ) -> R<(Vec<SemanticActualRecipe>, SemanticSignatureRecipe)> {
+        self.pay(arguments.len().saturating_add(formals.len()), depth)?;
+        if signature.parameters.len() != arguments.len() || written_actuals.len() != formals.len() {
+            return Err(bad(
+                "original call omits complete parameters or mixed actuals",
+            ));
+        }
+        let (signature, invocation_origins) = self.caller_signature_template(
+            owner, signature, formals, invocation_origins, template_ready, depth,
+        )?;
         let signature = &signature;
         let mut solutions = self.written(owner, callee, formals, variables, depth + 1)?;
         for (slot, actual) in solutions.iter_mut().zip(written_actuals) {
@@ -2735,46 +2800,8 @@ impl<'a> Check<'a, '_> {
         {
             // Primitive context fixes unsuffixed literals without importing any
             // unsolved target inference variable into the caller's expression.
-            self.pay(solutions.len(), depth)?;
-            for actual in solutions.iter().flatten() {
-                crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
-            }
-            let mut partial_actuals = Vec::new();
-            for (ordinal, (formal, solution)) in formals.iter().zip(&solutions).enumerate() {
-                let reference = SemanticFormalRef {
-                    scope: SemanticScopeRef::Ancestor(u32::MAX),
-                    ordinal: ordinal as u32,
-                };
-                partial_actuals.push(if let Some(actual) = solution {
-                    actual.clone()
-                } else {
-                    match formal {
-                        SemanticFormal::Lifetime => {
-                            SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(reference))
-                        }
-                        SemanticFormal::Type { .. } => {
-                            SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(reference))
-                        }
-                        SemanticFormal::Const { carrier } => SemanticActualRecipe::Const {
-                            carrier: copy_recipe(carrier, self.limits, self.left)?,
-                            value: SemanticConstRecipe::Formal(reference),
-                        },
-                    }
-                });
-            }
-            let frames = [(u32::MAX, partial_actuals.as_slice())];
-            let complete_parameter = substitute::caller_context(
-                &parameter.ty,
-                &substitute::Substitution {
-                    frames: &frames,
-                    selves: &[],
-                    environments: &[],
-                    implicit: &implicit,
-                    invocation: &invocation,
-                    shift: 0,
-                },
-                self.limits,
-                self.left,
+            let complete_parameter = self.caller_parameter_context(
+                parameter, formals, &solutions, &implicit, &invocation, depth,
             )?;
             let authenticates_context = contextual_callee
                 .and_then(|child| self.contextual_code_inputs.get(&child))
@@ -3544,10 +3571,27 @@ impl<'a> Check<'a, '_> {
             SemanticOriginalNode::Expression(expression.id),
             variables,
         )?;
+        if let Some(result) = self.contextual_expr_result(owner, expression, variables, wanted, depth)? {
+            return Ok(result);
+        }
+        if let CoreExprKind::Call { arguments, .. } = &expression.kind {
+            return self.call_expression(owner, expression, arguments, variables, wanted, depth);
+        }
+        self.operand_expr_result(owner, expression, variables, wanted, depth)
+    }
+
+    fn contextual_expr_result(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        variables: &mut BTreeMap<String, Binding>,
+        wanted: Option<&SemanticTypeRecipe>,
+        depth: usize,
+    ) -> R<Option<SemanticTypeRecipe>> {
         if !matches!(&expression.kind, CoreExprKind::If { .. } | CoreExprKind::Sequence { .. })
             && let Some(union @ SemanticTypeRecipe::ErrorUnion { error, result }) = wanted
         {
-            return self.expected_error_expression(owner, expression, variables, union, error, result, depth);
+            return self.expected_error_expression(owner, expression, variables, union, error, result, depth).map(Some);
         }
         if matches!(
             &expression.kind,
@@ -3561,7 +3605,7 @@ impl<'a> Check<'a, '_> {
                     .proof_mut()?
                     .types
                     .insert((owner, Query::Expression(expression.id)), copy);
-                return Ok(result);
+                return Ok(Some(result));
             }
         }
         if matches!(
@@ -3584,14 +3628,22 @@ impl<'a> Check<'a, '_> {
                 .proof_mut()?
                 .types
                 .insert((owner, Query::Expression(expression.id)), copy);
-            return Ok(result);
+            return Ok(Some(result));
         }
+        Ok(None)
+    }
+
+    fn operand_expr_result(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        variables: &mut BTreeMap<String, Binding>,
+        wanted: Option<&SemanticTypeRecipe>,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
         // The operation's other alternatives can contain large checked values.
         // Keep each operation's storage in its own active frame.
         match &expression.kind {
-            CoreExprKind::Call { arguments, .. } => {
-                self.call_expression(owner, expression, arguments, variables, wanted, depth)
-            }
             CoreExprKind::Closure { .. } => {
                 self.closure_expression(owner, expression, variables, wanted, depth)
             }
@@ -4267,6 +4319,111 @@ impl<'a> Check<'a, '_> {
     }
     // Calls and closure literals may enter another complete original body.
     // Keep their operation-specific temporaries in the corresponding checker.
+    fn special_call_result(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        arguments: &[SemanticOriginalExpr],
+        variables: &mut BTreeMap<String, Binding>,
+        wanted: Option<&SemanticTypeRecipe>,
+        site: SemanticSiteId,
+        depth: usize,
+    ) -> R<Option<SemanticTypeRecipe>> {
+        if let Some(result) = self.dyn_call(owner, expression, variables, wanted, depth + 1)? {
+            return Ok(Some(result));
+        }
+        if let Some(result) = self.method_call(owner, site, expression, variables, wanted, depth + 1)? {
+            return Ok(Some(result));
+        }
+        if let Some(result) = self.intrinsic(owner, site, expression, variables, wanted, depth + 1)? {
+            self.intrinsic_resource_write(owner, site, arguments, variables, depth + 1)?;
+            return Ok(Some(result));
+        }
+        self.callable_call(owner, site, expression, variables, wanted, depth + 1)
+    }
+    fn original_call_target(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        variables: &mut BTreeMap<String, Binding>,
+        site: &SemanticSiteRecipe,
+        depth: usize,
+    ) -> R<(SemanticDefinitionId, Vec<SemanticActualRecipe>)> {
+        Ok(match &site.kind {
+            SemanticSiteRecipeKind::Call { target, actuals } => (*target, actuals.clone()),
+            SemanticSiteRecipeKind::CallableCall { .. } => {
+                let CoreExprKind::Call { callee, .. } = &expression.kind else {
+                    unreachable!()
+                };
+                let value = self.place(owner, callee, variables, depth + 1)?;
+                let value = if let SemanticTypeRecipe::Opaque { hidden, .. } = value {
+                    *hidden
+                } else {
+                    value
+                };
+                let SemanticTypeRecipe::Closure {
+                    definition,
+                    arguments,
+                    ..
+                } = value
+                else {
+                    return Err(pending(
+                        "abstract callable needs its complete declared original role premise",
+                    ));
+                };
+                (definition, arguments)
+            }
+            SemanticSiteRecipeKind::OriginalCall => {
+                let CoreExprKind::Call { callee, .. } = &expression.kind else {
+                    unreachable!()
+                };
+                let mut callee = callee.as_ref();
+                while let CoreExprKind::TypeApply { callee: inner, .. }
+                | CoreExprKind::GenericApply { callee: inner, .. } = &callee.kind
+                {
+                    callee = inner;
+                }
+                if let Some(path) = self.declaration_path(callee, variables, depth + 1)? {
+                    let target = self.declaration_target(owner, &path, depth + 1)?
+                        .ok_or_else(|| {
+                            if path.len() == 1 {
+                                bad("unbound original direct call name")
+                            } else {
+                                pending("original call path lacks its real declaration import binding")
+                            }
+                        })?;
+                    let target_definition = self.definition(target)?;
+                    self.pay(target_definition.parameters.len(), depth)?;
+                    (
+                        target,
+                        vec![
+                            SemanticActualRecipe::Infer;
+                            target_definition.parameters.len()
+                        ],
+                    )
+                } else {
+                    let value = self.place(owner, callee, variables, depth + 1)?;
+                    let value = if let SemanticTypeRecipe::Opaque { hidden, .. } = value {
+                        *hidden
+                    } else {
+                        value
+                    };
+                    let SemanticTypeRecipe::Closure {
+                        definition,
+                        arguments,
+                        ..
+                    } = value
+                    else {
+                        return Err(pending(
+                            "original callable requires its declared complete role premise",
+                        ));
+                    };
+                    (definition, arguments)
+                }
+            }
+            _ => return Err(bad("original call site has a different operation kind")),
+        })
+    }
     fn call_expression(
         &mut self,
         owner: SemanticDefinitionId,
@@ -4298,132 +4455,12 @@ impl<'a> Check<'a, '_> {
                     .cleanup_calls
                     .insert((owner, site.id));
             }
-            if matches!(
-                site.kind,
-                SemanticSiteRecipeKind::OriginalCall
-                    | SemanticSiteRecipeKind::CallableCall { .. }
-            ) {
-                if let Some(result) =
-                    self.dyn_call(owner, expression, variables, wanted, depth + 1)?
-                {
-                    let copy = copy_recipe(&result, self.limits, self.left)?;
-                    self.proof
-                        .proof_mut()?
-                        .types
-                        .insert((owner, Query::Expression(expression.id)), copy);
-                    return Ok(result);
-                }
-                if let Some(result) =
-                    self.method_call(owner, site.id, expression, variables, wanted, depth + 1)?
-                {
-                    let copy = copy_recipe(&result, self.limits, self.left)?;
-                    self.proof
-                        .proof_mut()?
-                        .types
-                        .insert((owner, Query::Expression(expression.id)), copy);
-                    return Ok(result);
-                }
-                if let Some(result) =
-                    self.intrinsic(owner, site.id, expression, variables, wanted, depth + 1)?
-                {
-                    self.intrinsic_resource_write(owner, site.id, arguments, variables, depth + 1)?;
-                    let copy = copy_recipe(&result, self.limits, self.left)?;
-                    self.proof
-                        .proof_mut()?
-                        .types
-                        .insert((owner, Query::Expression(expression.id)), copy);
-                    return Ok(result);
-                }
-                if let Some(result) = self.callable_call(
-                    owner,
-                    site.id,
-                    expression,
-                    variables,
-                    wanted,
-                    depth + 1,
-                )? {
-                    let copy = copy_recipe(&result, self.limits, self.left)?;
-                    self.proof
-                        .proof_mut()?
-                        .types
-                        .insert((owner, Query::Expression(expression.id)), copy);
-                    return Ok(result);
-                }
+            if matches!(site.kind, SemanticSiteRecipeKind::OriginalCall | SemanticSiteRecipeKind::CallableCall { .. })
+                && let Some(result) = self.special_call_result(owner, expression, arguments, variables, wanted, site.id, depth)?
+            {
+                return self.record_expression_type(owner, expression.id, result);
             }
-            let (target, actuals) = match &site.kind {
-                SemanticSiteRecipeKind::Call { target, actuals } => (*target, actuals.clone()),
-                SemanticSiteRecipeKind::CallableCall { .. } => {
-                    let CoreExprKind::Call { callee, .. } = &expression.kind else {
-                        unreachable!()
-                    };
-                    let value = self.place(owner, callee, variables, depth + 1)?;
-                    let value = if let SemanticTypeRecipe::Opaque { hidden, .. } = value {
-                        *hidden
-                    } else {
-                        value
-                    };
-                    let SemanticTypeRecipe::Closure {
-                        definition,
-                        arguments,
-                        ..
-                    } = value
-                    else {
-                        return Err(pending(
-                            "abstract callable needs its complete declared original role premise",
-                        ));
-                    };
-                    (definition, arguments)
-                }
-                SemanticSiteRecipeKind::OriginalCall => {
-                    let CoreExprKind::Call { callee, .. } = &expression.kind else {
-                        unreachable!()
-                    };
-                    let mut callee = callee.as_ref();
-                    while let CoreExprKind::TypeApply { callee: inner, .. }
-                    | CoreExprKind::GenericApply { callee: inner, .. } = &callee.kind
-                    {
-                        callee = inner;
-                    }
-                    if let Some(path) = self.declaration_path(callee, variables, depth + 1)? {
-                        let target = self.declaration_target(owner, &path, depth + 1)?
-                            .ok_or_else(|| {
-                                if path.len() == 1 {
-                                    bad("unbound original direct call name")
-                                } else {
-                                    pending("original call path lacks its real declaration import binding")
-                                }
-                            })?;
-                        let target_definition = self.definition(target)?;
-                        self.pay(target_definition.parameters.len(), depth)?;
-                        (
-                            target,
-                            vec![
-                                SemanticActualRecipe::Infer;
-                                target_definition.parameters.len()
-                            ],
-                        )
-                    } else {
-                        let value = self.place(owner, callee, variables, depth + 1)?;
-                        let value = if let SemanticTypeRecipe::Opaque { hidden, .. } = value {
-                            *hidden
-                        } else {
-                            value
-                        };
-                        let SemanticTypeRecipe::Closure {
-                            definition,
-                            arguments,
-                            ..
-                        } = value
-                        else {
-                            return Err(pending(
-                                "original callable requires its declared complete role premise",
-                            ));
-                        };
-                        (definition, arguments)
-                    }
-                }
-                _ => return Err(bad("original call site has a different operation kind")),
-            };
+            let (target, actuals) = self.original_call_target(owner, expression, variables, site, depth)?;
             let definition = self.definition(target)?;
             if !self.proof.complete.contains(&target)
                 && !self.active.contains(&target)

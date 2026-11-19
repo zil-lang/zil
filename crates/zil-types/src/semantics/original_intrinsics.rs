@@ -188,132 +188,7 @@ impl Check<'_, '_> {
                 "bytes_view" => (IntrinsicKind::BytesBorrow { mutable: false }, 1, None),
                 "bytes_view_mut" => (IntrinsicKind::BytesBorrow { mutable: true }, 1, None),
                 "thread_scope" => {
-                    if arguments.len() != 3 {
-                        return Err(bad(
-                            "original thread_scope changes its three-operand scheme",
-                        ));
-                    }
-                    let worker_path = self
-                        .declaration_path(&arguments[0], variables, depth + 1)?
-                        .ok_or_else(|| {
-                            bad("original thread worker is not a lexical static declaration")
-                        })?;
-                    let worker = self
-                        .declaration_target(owner, &worker_path, depth + 1)?
-                        .ok_or_else(|| bad("original thread worker has no real declaration"))?;
-                    let worker_definition = self.definition(worker)?;
-                    if worker_definition.kind != SemanticDefinitionKind::Function {
-                        return Err(bad(
-                            "original thread worker must be a real ordinary declaration",
-                        ));
-                    }
-                    if !self.proof.complete.contains(&worker) && !self.active.contains(&worker) {
-                        self.function(worker_definition, None)?;
-                    }
-                    let SemanticDefinitionBody::FunctionWithBody {
-                        signature,
-                        body: SemanticOriginalFunctionBody::Defined(_),
-                        ..
-                    } = &worker_definition.body
-                    else {
-                        return Err(bad("original thread worker must have a real language body"));
-                    };
-                    if signature.parameters.len() != 1 || signature.call_kind != CallKind::Direct {
-                        return Err(bad(
-                            "original thread worker has an incompatible call scheme",
-                        ));
-                    }
-                    let written = self.written(
-                        owner,
-                        &arguments[0],
-                        &worker_definition.parameters,
-                        variables,
-                        depth + 1,
-                    )?;
-                    self.pay(written.len(), depth)?;
-                    let written = written
-                        .into_iter()
-                        .map(|actual| actual.unwrap_or(SemanticActualRecipe::Infer))
-                        .collect::<Vec<_>>();
-                    let (worker_actuals, worker_signature) = self.solve_signature(
-                        worker_definition,
-                        owner,
-                        expression,
-                        &arguments[0],
-                        &[&arguments[1]],
-                        signature,
-                        &worker_definition.parameters,
-                        &written,
-                        variables,
-                        None,
-                        false,
-                        depth + 1,
-                    )?;
-                    self.call_requirements(owner, worker_definition, &worker_actuals, depth + 1)?;
-                    self.same(
-                        &worker_signature.result,
-                        &SemanticTypeRecipe::Atom(Type::I32),
-                    )?;
-                    let payload =
-                        copy_recipe(&worker_signature.parameters[0].ty, self.limits, self.left)?;
-                    let body_ty = self.expr(owner, &arguments[2], variables, None, depth + 1)?;
-                    let SemanticTypeRecipe::Closure {
-                        definition: body, ..
-                    } = &body_ty
-                    else {
-                        return Err(bad("original thread body is not a concrete closure"));
-                    };
-                    let body_definition = self.definition(*body)?;
-                    let SemanticDefinitionBody::FunctionWithBody {
-                        signature: body_signature,
-                        ..
-                    } = &body_definition.body
-                    else {
-                        return Err(bad("original thread body omits its complete scheme"));
-                    };
-                    if !body_signature.parameters.is_empty() {
-                        return Err(bad("original thread body requires a zero-argument scheme"));
-                    }
-                    let expected_body = SemanticSignatureRecipe {
-                        bound_lifetimes: 0,
-                        invocation_lifetimes: 0,
-                        parameters: Vec::new(),
-                        result: SemanticTypeRecipe::Atom(Type::I32),
-                        result_mode: PassingMode::Infer,
-                        call_kind: CallKind::Direct,
-                    };
-                    self.callable_requirement(
-                        owner,
-                        &body_ty,
-                        CallableKind::FnOnce,
-                        &expected_body,
-                        depth + 1,
-                    )?;
-                    let result = SemanticTypeRecipe::Tuple(vec![
-                        SemanticTypeRecipe::Atom(Type::Bool),
-                        SemanticTypeRecipe::Atom(Type::I32),
-                        SemanticTypeRecipe::Atom(Type::I32),
-                    ]);
-                    let kind = IntrinsicKind::ThreadScope {
-                        worker,
-                        body: *body,
-                    };
-                    self.record_intrinsic(
-                        owner,
-                        site,
-                        kind,
-                        vec![payload, body_ty],
-                        &result,
-                        wanted,
-                        depth + 1,
-                    )?;
-                    self.proof
-                        .proof_mut()?
-                        .intrinsics
-                        .get_mut(&(owner, site))
-                        .ok_or_else(|| bad("thread scheme receipt disappeared"))?
-                        .worker_scheme = Some((worker_signature, worker_actuals));
-                    return Ok(Some(result));
+                    return self.thread_scope_intrinsic(owner, site, expression, arguments, variables, wanted, depth);
                 }
                 "atomic_compare_exchange" => (IntrinsicKind::SyncCellCompareExchange, 3, None),
                 name => match crate::scoped_thread::sync_primitive(name) {
@@ -372,6 +247,159 @@ impl Check<'_, '_> {
             };
             parameters.push(self.expr(owner, argument, variables, expected.as_ref(), depth + 1)?);
         }
+        self.finish_intrinsic(owner, site, expression, kind, arguments, parameters, variables, wanted, depth)
+    }
+
+    fn thread_scope_intrinsic(
+        &mut self,
+        owner: SemanticDefinitionId,
+        site: SemanticSiteId,
+        expression: &SemanticOriginalExpr,
+        arguments: &[SemanticOriginalExpr],
+        variables: &mut BTreeMap<String, Binding>,
+        wanted: Option<&SemanticTypeRecipe>,
+        depth: usize,
+    ) -> R<Option<SemanticTypeRecipe>> {
+        if arguments.len() != 3 {
+            return Err(bad(
+                "original thread_scope changes its three-operand scheme",
+            ));
+        }
+        let worker_path = self
+            .declaration_path(&arguments[0], variables, depth + 1)?
+            .ok_or_else(|| {
+                bad("original thread worker is not a lexical static declaration")
+            })?;
+        let worker = self
+            .declaration_target(owner, &worker_path, depth + 1)?
+            .ok_or_else(|| bad("original thread worker has no real declaration"))?;
+        let worker_definition = self.definition(worker)?;
+        if worker_definition.kind != SemanticDefinitionKind::Function {
+            return Err(bad(
+                "original thread worker must be a real ordinary declaration",
+            ));
+        }
+        if !self.proof.complete.contains(&worker) && !self.active.contains(&worker) {
+            self.function(worker_definition, None)?;
+        }
+        let SemanticDefinitionBody::FunctionWithBody {
+            signature,
+            body: SemanticOriginalFunctionBody::Defined(_),
+            ..
+        } = &worker_definition.body
+        else {
+            return Err(bad("original thread worker must have a real language body"));
+        };
+        if signature.parameters.len() != 1 || signature.call_kind != CallKind::Direct {
+            return Err(bad(
+                "original thread worker has an incompatible call scheme",
+            ));
+        }
+        let written = self.written(
+            owner,
+            &arguments[0],
+            &worker_definition.parameters,
+            variables,
+            depth + 1,
+        )?;
+        self.pay(written.len(), depth)?;
+        let written = written
+            .into_iter()
+            .map(|actual| actual.unwrap_or(SemanticActualRecipe::Infer))
+            .collect::<Vec<_>>();
+        let (worker_actuals, worker_signature) = self.solve_signature(
+            worker_definition,
+            owner,
+            expression,
+            &arguments[0],
+            &[&arguments[1]],
+            signature,
+            &worker_definition.parameters,
+            &written,
+            variables,
+            None,
+            false,
+            depth + 1,
+        )?;
+        self.call_requirements(owner, worker_definition, &worker_actuals, depth + 1)?;
+        self.same(
+            &worker_signature.result,
+            &SemanticTypeRecipe::Atom(Type::I32),
+        )?;
+        let payload =
+            copy_recipe(&worker_signature.parameters[0].ty, self.limits, self.left)?;
+        let body_ty = self.expr(owner, &arguments[2], variables, None, depth + 1)?;
+        let SemanticTypeRecipe::Closure {
+            definition: body, ..
+        } = &body_ty
+        else {
+            return Err(bad("original thread body is not a concrete closure"));
+        };
+        let body_definition = self.definition(*body)?;
+        let SemanticDefinitionBody::FunctionWithBody {
+            signature: body_signature,
+            ..
+        } = &body_definition.body
+        else {
+            return Err(bad("original thread body omits its complete scheme"));
+        };
+        if !body_signature.parameters.is_empty() {
+            return Err(bad("original thread body requires a zero-argument scheme"));
+        }
+        let expected_body = SemanticSignatureRecipe {
+            bound_lifetimes: 0,
+            invocation_lifetimes: 0,
+            parameters: Vec::new(),
+            result: SemanticTypeRecipe::Atom(Type::I32),
+            result_mode: PassingMode::Infer,
+            call_kind: CallKind::Direct,
+        };
+        self.callable_requirement(
+            owner,
+            &body_ty,
+            CallableKind::FnOnce,
+            &expected_body,
+            depth + 1,
+        )?;
+        let result = SemanticTypeRecipe::Tuple(vec![
+            SemanticTypeRecipe::Atom(Type::Bool),
+            SemanticTypeRecipe::Atom(Type::I32),
+            SemanticTypeRecipe::Atom(Type::I32),
+        ]);
+        let kind = IntrinsicKind::ThreadScope {
+            worker,
+            body: *body,
+        };
+        self.record_intrinsic(
+            owner,
+            site,
+            kind,
+            vec![payload, body_ty],
+            &result,
+            wanted,
+            depth + 1,
+        )?;
+        self.proof
+            .proof_mut()?
+            .intrinsics
+            .get_mut(&(owner, site))
+            .ok_or_else(|| bad("thread scheme receipt disappeared"))?
+            .worker_scheme = Some((worker_signature, worker_actuals));
+        Ok(Some(result))
+    }
+
+    fn finish_intrinsic(
+        &mut self,
+        owner: SemanticDefinitionId,
+        site: SemanticSiteId,
+        expression: &SemanticOriginalExpr,
+        kind: IntrinsicKind,
+        arguments: &[SemanticOriginalExpr],
+        parameters: Vec<SemanticTypeRecipe>,
+        variables: &mut BTreeMap<String, Binding>,
+        wanted: Option<&SemanticTypeRecipe>,
+        depth: usize,
+    ) -> R<Option<SemanticTypeRecipe>> {
         let mut temporary_manager = None;
         let result = match &kind {
             IntrinsicKind::SyncCellScope(cell) => {
