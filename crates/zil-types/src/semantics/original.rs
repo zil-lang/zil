@@ -5175,12 +5175,33 @@ impl<'a> Check<'a, '_> {
         original_pattern_reference_mode(pattern, depth, &mut |depth| self.pay(1, depth))
     }
 
+    fn original_package_pattern(
+        &mut self, owner: SemanticDefinitionId, pattern: &SemanticOriginalPattern, depth: usize,
+    ) -> R<bool> {
+        let definition = match &pattern.kind {
+            CorePatternKind::RecordConstructor { definition, .. } => *definition,
+            CorePatternKind::Record { ty, .. } => match self.resolve(owner, ty, depth + 1)? {
+                SemanticTypeRecipe::Nominal { definition, .. } => Some(definition),
+                _ => None,
+            },
+            _ => None,
+        };
+        let Some(definition) = definition else { return Ok(false); };
+        Ok(matches!(self.definition(definition)?.body,
+            SemanticDefinitionBody::Nominal { kind: LifeNominalKind::Package, .. }))
+    }
+
     fn pattern_subject_type(
         &mut self, owner: SemanticDefinitionId, value: &SemanticOriginalExpr,
-        mode: Option<bool>, variables: &mut BTreeMap<String, Binding>,
+        mode: Option<bool>, package: bool, variables: &mut BTreeMap<String, Binding>,
         wanted: Option<&SemanticTypeRecipe>, depth: usize,
     ) -> R<SemanticTypeRecipe> {
         match mode {
+            None if package && matches!(value.kind,
+                CoreExprKind::Name(_) | CoreExprKind::Member { .. } | CoreExprKind::Group(_)) =>
+            {
+                self.place(owner, value, variables, depth)
+            }
             None => self.expr(owner, value, variables, wanted, depth),
             Some(false) => self.place(owner, value, variables, depth),
             Some(true) => {
@@ -5830,10 +5851,12 @@ impl<'a> Check<'a, '_> {
                         .map(|ty| self.resolve(owner, ty, depth + 1))
                         .transpose()?;
                     let mode = self.pattern_reference_mode(pattern, depth + 1)?;
+                    let package = mode.is_none() && self.original_package_pattern(owner, pattern, depth + 1)?;
                     let actual = self.pattern_subject_type(
                         owner,
                         initializer,
                         mode,
+                        package,
                         variables,
                         annotation.as_ref(),
                         depth + 1,
@@ -5865,7 +5888,8 @@ impl<'a> Check<'a, '_> {
                     else_body,
                 } => {
                     let mode = self.pattern_reference_mode(pattern, depth + 1)?;
-                    let ty = self.pattern_subject_type(owner, value, mode, variables, None, depth + 1)?;
+                    let package = mode.is_none() && self.original_package_pattern(owner, pattern, depth + 1)?;
+                    let ty = self.pattern_subject_type(owner, value, mode, package, variables, None, depth + 1)?;
                     self.pay(2, depth)?;
                     let mut branches = Vec::new();
                     let mut matched = self.clone_variables(variables)?;
@@ -5900,12 +5924,16 @@ impl<'a> Check<'a, '_> {
                 }
                 CoreStatementKind::Match { value, arms } => {
                     let mut mode = None;
+                    let mut package = false;
                     for arm in arms {
                         if let Some(mutable) = self.pattern_reference_mode(&arm.pattern, depth + 1)? {
                             mode = Some(mode.unwrap_or(false) || mutable);
                         }
+                        if mode.is_none() && !package {
+                            package = self.original_package_pattern(owner, &arm.pattern, depth + 1)?;
+                        }
                     }
-                    let ty = self.pattern_subject_type(owner, value, mode, variables, None, depth + 1)?;
+                    let ty = self.pattern_subject_type(owner, value, mode, package, variables, None, depth + 1)?;
                     self.pay(arms.len(), depth)?;
                     let mut branches = Vec::new();
                     for (ordinal, arm) in arms.iter().enumerate() {
@@ -5964,7 +5992,8 @@ impl<'a> Check<'a, '_> {
                     body,
                 } => {
                     let mode = self.pattern_reference_mode(pattern, depth + 1)?;
-                    let ty = self.pattern_subject_type(owner, value, mode, variables, None, depth + 1)?;
+                    let package = mode.is_none() && self.original_package_pattern(owner, pattern, depth + 1)?;
+                    let ty = self.pattern_subject_type(owner, value, mode, package, variables, None, depth + 1)?;
                     let mut iteration = self.clone_variables(variables)?;
                     self.pattern(
                         owner,

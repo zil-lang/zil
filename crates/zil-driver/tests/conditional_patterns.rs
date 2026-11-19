@@ -187,47 +187,70 @@ fn named_record_binding_preserves_the_selected_same_typed_field() {
 }
 #[test]
 fn named_package_pattern_selects_the_declared_owner_field() {
-    use zil_ir::PlaceProjection;
+    use zil_ir::PlaceProjection::{self, Field};
 
-    let input = source(
-        "resource R{n:i32} package P{manages left:R;manages right:R} fn result()->i32{let p=P{left:R{n:42},right:R{n:7}};let P{right:_,left:moved}=p;return moved.n}",
-    );
-    native(input.text.as_str(), 42);
+    let cases: [(&str, &[PlaceProjection]); 3] = [
+        (
+            "resource R{n:i32} package P{manages left:R;manages right:R} fn result()->i32{let p=P{left:R{n:42},right:R{n:7}};let P{right:_,left:moved}=p;return moved.n}",
+            &[Field(0)],
+        ),
+        (
+            "resource R{n:i32} package Leaf{manages a:R;manages b:R;n:i32} package Parent{left:Leaf;right:Leaf} fn result()->i32{let p=Parent{left:Leaf{a:R{n:4},b:R{n:9},n:1},right:Leaf{a:R{n:2},b:R{n:8},n:2}};let Leaf{b:_,n:_,a:moved}=p.left;return moved.n*10+p.right.n}",
+            &[Field(0), Field(0)],
+        ),
+        (
+            "resource R{n:i32} package Leaf{manages a:R;manages b:R;n:i32} package Parent{left:Leaf;right:Leaf} fn result()->i32{let p=Parent{left:Leaf{a:R{n:4},b:R{n:9},n:1},right:Leaf{a:R{n:2},b:R{n:8},n:2}};match p {Parent{left:Leaf{a:_,b:_,n:0},right:_}=>{return 0},Parent{left:Leaf{b:_,n:_,a:moved},right:_}=>{return moved.n*10+p.right.n}}}",
+            &[Field(0), Field(0)],
+        ),
+    ];
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
-    let syntax = zil_syntax::parse(&input).into_result().unwrap();
-    let core = zil_expand::expand_with_map_semantics(
-        &input,
-        &syntax,
-        &limits,
-        &target,
-        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
-            root: input.module_id,
-            aliases: &Default::default(),
-            declarations: zil_expand::source_context::DeclarationPlacement::Original,
-        },
-    ).unwrap().core;
-    let mut module = zil_types::check(&core, &target, &limits).unwrap();
-    assert!(module.semantic.is_some());
-    let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
-    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
-    let function = module.functions.iter_mut().find(|f| f.name == "result").unwrap();
-    let path = function.blocks.iter_mut().flat_map(|block| &mut block.instructions)
-        .find_map(|instruction| match &mut instruction.kind {
-            InstructionKind::TakeTupleField { path, .. }
-                if path.as_slice() == [PlaceProjection::Field(0)] => Some(path),
-            _ => None,
-        }).expect("named Package binding takes its first declared field");
-    path[0] = PlaceProjection::Field(1);
-    let errors = zil_analyze::analyze(&module, &limits).unwrap_err();
-    assert_eq!(errors[0].category, ResultCategory::SafeReject, "{errors:?}");
-    plan.module_fingerprint = module.fingerprint();
-    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
-    let raw = zil_verify::verify_module(module, plan, &target, &limits).unwrap_err();
-    let wire = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
-    for errors in [raw, wire] {
-        assert_eq!(errors[0].category, ResultCategory::SafeReject, "{errors:?}");
+    for (text, selected) in cases {
+        native(text, 42);
+        let input = source(text);
+        let syntax = zil_syntax::parse(&input).into_result().unwrap();
+        let core = zil_expand::expand_with_map_semantics(
+            &input,
+            &syntax,
+            &limits,
+            &target,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: input.module_id,
+                aliases: &Default::default(),
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+        ).unwrap().core;
+        let module = zil_types::check(&core, &target, &limits).unwrap();
+        assert!(module.semantic.is_some());
+        let plan = zil_analyze::analyze(&module, &limits).unwrap();
+        zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+        for changed in 0..selected.len() {
+            let mut module = module.clone();
+            let function = module.functions.iter_mut().find(|f| f.name == "result").unwrap();
+            let path = function.blocks.iter_mut().flat_map(|block| &mut block.instructions)
+                .find_map(|instruction| match &mut instruction.kind {
+                    InstructionKind::TakeTupleField { path, .. } if path.as_slice() == selected => Some(path),
+                    _ => None,
+                }).expect("named Package binding takes its declared field");
+            path[changed] = Field(1);
+            let errors = zil_analyze::analyze(&module, &limits).unwrap_err();
+            assert_eq!(errors[0].category, ResultCategory::SafeReject, "{errors:?}");
+            let mut plan = plan.clone();
+            plan.module_fingerprint = module.fingerprint();
+            let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+            let raw = zil_verify::verify_module(module, plan, &target, &limits).unwrap_err();
+            let wire = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
+            for errors in [raw, wire] {
+                assert_eq!(errors[0].category, ResultCategory::SafeReject, "{errors:?}");
+            }
+        }
     }
+}
+#[test]
+fn named_package_pattern_preserves_an_unmoved_sibling() {
+    let source = "resource R{n:i32} package P{manages left:R;manages right:R} fn result()->i32{let p=P{left:R{n:4},right:R{n:2}};let P{right:_,left:moved}=p;return moved.n*10+p.right.n}";
+    native(source, 42);
+    reject(&source.replace("p.right.n", "p.left.n"), "E-SEMANTIC-WORLD");
 }
 #[test]
 fn named_record_fields_reject_forged_core_nominal_and_labels() {

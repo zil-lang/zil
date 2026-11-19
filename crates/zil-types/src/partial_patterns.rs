@@ -35,7 +35,11 @@ impl Builder<'_, '_> {
                 && (reference_patterns::has_reference(p) || has_owned_tuple(p, ty))
     }
     fn owner_pattern_place(&mut self, e: &CoreExpr, consume: bool, extend: bool) -> R<Place> {
-        fn locate(this: &mut Builder<'_, '_>, e: &CoreExpr) -> R<Option<Place>> {
+        fn locate(this: &mut Builder<'_, '_>, mut e: &CoreExpr) -> R<Option<Place>> {
+            while let CoreExprKind::Group(inner) = &e.kind {
+                this.closures.snapshot(1, e.span)?;
+                e = inner;
+            }
             match &e.kind {
                 CoreExprKind::Name(name) => {
                     let Some(local) = this.lookup(name) else {
@@ -82,7 +86,12 @@ impl Builder<'_, '_> {
         }
         if !consume && let Some(place) = locate(self, e)? {
             if place.path.is_empty() {
-                self.semantic_local_place(e, place.local)?;
+                let mut source = e;
+                while let CoreExprKind::Group(inner) = &source.kind {
+                    self.closures.snapshot(1, source.span)?;
+                    source = inner;
+                }
+                self.semantic_local_place(source, place.local)?;
             }
             return Ok(place);
         }

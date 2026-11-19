@@ -3,7 +3,7 @@ use std::{
     process::Command,
     sync::atomic::{AtomicU64, Ordering},
 };
-use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
+use zil_base::{Diagnostic, FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, Stage, compile_source};
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -72,7 +72,7 @@ fn native_stdout(source: &str, expected: &str) {
     fs::remove_dir_all(&dir).unwrap();
 }
 
-fn reject(source: &str, code: &str) {
+fn reject(source: &str, code: &str) -> Diagnostic {
     let unit = SourceUnit::new(
         FileId(0),
         ModuleId(0),
@@ -87,6 +87,16 @@ fn reject(source: &str, code: &str) {
         report.to_json()
     );
     assert_eq!(report.diagnostics[0].code, code, "{}", report.to_json());
+    report.diagnostics.into_iter().next().unwrap()
+}
+
+fn reject_place(source: &str, reason: &str, operation: &str, physical_path: &str) {
+    let diagnostic = reject(source, "E-SEMANTIC-WORLD");
+    assert_eq!(diagnostic.phase, Phase::Types, "{diagnostic:?}");
+    assert_eq!(diagnostic.message, reason, "{diagnostic:?}");
+    let span = diagnostic.span.expect("the actual access has a source span");
+    assert_eq!(source.get(span.start as usize..span.end as usize), Some(operation), "{diagnostic:?}");
+    assert!(diagnostic.notes.iter().any(|note| note.contains(physical_path)), "{diagnostic:?}");
 }
 
 #[test]
@@ -196,15 +206,19 @@ fn named_owned_package_patterns_reject_invalid_owner_and_partial_parent_use() {
         ),
         "E-MATCH-FIELD",
     );
-    reject(
+    reject_place(
         &format!(
             "{HEAD}fn result()->i32{{let p=P{{r:R{{n:5}},n:7}};let P{{r:m,n:_}}=p;let whole=p;return whole.n}}"
         ),
-        "E-ANALYZE-IR",
+        "whole local reads an uninitialized projected occupant",
+        "p",
+        "uninitialized path in this local [Field(0)]",
     );
-    reject(
+    reject_place(
         "resource R{n:i32}package Child{manages r:R;n:i32}package Parent{child:Child;manages side:R}fn result()->i32{let p=Parent{child:Child{r:R{n:5},n:7},side:R{n:2}};let Parent{child:Child{r:m,n:_},side:_}=p;let whole=p;return whole.child.n}",
-        "E-ANALYZE-IR",
+        "whole local reads an uninitialized projected occupant",
+        "p",
+        "uninitialized path in this local [Field(0), Field(0)]",
     );
     reject(
         "resource R{n:i32}package Child{manages r:R;n:i32}package Parent{child:Child;manages side:R}fn result()->i32{let p=Parent{child:Child{r:R{n:5},n:7},side:R{n:2}};let Parent{child:Child{r:m,r:again},side:_}=p;return m.n}",
@@ -215,24 +229,48 @@ fn named_owned_package_patterns_reject_invalid_owner_and_partial_parent_use() {
 #[test]
 fn borrowed_package_child_blocks_stale_move_and_whole_parent_take() {
     const HEAD: &str = "resource R{n:i32}package Child{manages r:R;n:i32}package Parent{child:Child;code:i32}fn inspect(child:&Child)->i32{return child.n}";
-    reject(
+    reject_place(
         &format!(
             "{HEAD}fn result()->i32{{var p=Parent{{child:Child{{r:R{{n:5}},n:7}},code:1}};let view=&p.child;let moved=p.child;return inspect(view)}}"
         ),
-        "E-BORROW-CONFLICT",
+        "call outer-role adapter has a vacant actual parent projection",
+        "inspect(view)",
+        "uninitialized path in this local [Field(0)]",
     );
-    reject(
+    reject_place(
         &format!(
             "{HEAD}fn result()->i32{{var p=Parent{{child:Child{{r:R{{n:5}},n:7}},code:1}};let view=&p.child;let whole=p;return inspect(view)+whole.code}}"
         ),
-        "E-BORROW-CONFLICT",
+        "call outer-role adapter has an inactive actual parent storage root",
+        "inspect(view)",
+        "selects path [Field(0)]",
     );
+}
+
+#[test]
+fn ended_child_borrow_allows_transfer_and_a_fresh_view() {
+    const HEAD: &str = "resource R{n:i32}package Child{manages r:R;n:i32}package Parent{child:Child;code:i32}fn inspect(child:&Child)->i32{return child.n}";
+    for (body, expected) in [
+        ("let moved=p.child;return moved.n", 7),
+        ("let whole=p;return whole.code", 1),
+        ("let moved=p.child;p.child=Child{r:R{n:8},n:35};return inspect(&p.child)+moved.n", 42),
+        ("let whole=p;return inspect(&whole.child)+whole.code", 8),
+    ] {
+        let source = format!(
+            "{HEAD}fn result()->i32{{var p=Parent{{child:Child{{r:R{{n:5}},n:7}},code:1}};let view=&p.child;{body}}}"
+        );
+        native(&source, expected);
+    }
 }
 
 #[test]
 fn nested_consuming_member_pattern_preserves_the_real_parent() {
     native_stdout(
         "extern \"C\" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package Child{manages a:R;manages b:R;n:i32}package Middle{child:Child;manages side:R}package Parent{middle:Middle;manages tail:R}fn result()->i32{var p=Parent{middle:Middle{child:Child{a:R{n:65},b:R{n:66},n:7},side:R{n:67}},tail:R{n:68}};let Child{a:moved,b:_,n:n}=p.middle.child;return moved.n+n}",
+        "ABCD72\n",
+    );
+    native_stdout(
+        "extern \"C\" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package Child{manages a:R;manages b:R;n:i32}package Middle{child:Child;manages side:R}package Parent{middle:Middle;manages tail:R}fn result()->i32{var p=Parent{middle:Middle{child:Child{a:R{n:65},b:R{n:66},n:7},side:R{n:67}},tail:R{n:68}};let Child{a:moved,b:_,n:n}=((((p.middle).child)));return moved.n+n}",
         "ABCD72\n",
     );
 }

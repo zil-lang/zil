@@ -686,8 +686,10 @@ impl<'a> World<'a, '_> {
     }
     fn local(&mut self, locals: &[Option<SharedType>], id: LocalId) -> R<SharedType> {
         self.pay(self.vacant.len())?;
-        if self.vacant.iter().any(|(local, _)| *local == id) {
-            return Err(bad("whole local reads an uninitialized projected occupant"));
+        if let Some((_, vacant)) = self.vacant.iter().find(|(local, _)| *local == id) {
+            return Err(places::place_diagnostic(
+                self, "whole local reads an uninitialized projected occupant", id, &[], Some(vacant),
+            ));
         }
         self.local_shell(locals, id)
     }
@@ -726,10 +728,12 @@ impl<'a> World<'a, '_> {
                 .len()
                 .saturating_mul(path.len().saturating_add(1)),
         )?;
-        if self.vacant.iter().any(|(owner, vacant)| {
+        if let Some((_, vacant)) = self.vacant.iter().find(|(owner, vacant)| {
             *owner == local && (vacant.starts_with(path) || path.starts_with(vacant))
         }) {
-            return Err(bad("projected local reads an uninitialized occupant"));
+            return Err(places::place_diagnostic(
+                self, "projected local reads an uninitialized occupant", local, path, Some(vacant),
+            ));
         }
         if self.stale_locals.contains(&local) {
             return Err(bad(

@@ -833,6 +833,11 @@ fn operations(
     pattern_names.sort_unstable();
     let nodes = directory.nodes;
     for original in &nodes {
+        if matches!(original.kind, body::OriginalBodyNodeKind::SelectivePlace) {
+            // The bound fields verify this physical selector and its
+            // lexical parent. The selector produces no whole value.
+            continue;
+        }
         let observation = observation_operand(
             program,
             definition,

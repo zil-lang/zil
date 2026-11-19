@@ -2,6 +2,27 @@
 //! not read payload occupants or manufacture a payload permission.
 use super::*;
 
+pub(super) fn place_diagnostic(
+    world: &World<'_, '_>, message: &str, local: LocalId,
+    selected: &[PlaceProjection], missing: Option<&[PlaceProjection]>,
+) -> Diagnostic {
+    let mut diagnostic = bad(message);
+    if let Some((_, function, block, at, _)) = world.current_point
+        && let Some(instruction) = world.module.functions.get(function.0 as usize)
+            .filter(|entry| entry.id == function)
+            .and_then(|entry| entry.blocks.get(block.0 as usize))
+            .filter(|entry| entry.id == block)
+            .and_then(|entry| entry.instructions.get(at))
+    {
+        diagnostic.span = Some(instruction.span);
+    }
+    diagnostic.notes.push(format!("actual local {} selects path {selected:?}", local.0));
+    if let Some(missing) = missing {
+        diagnostic.notes.push(format!("uninitialized path in this local {missing:?}"));
+    }
+    diagnostic
+}
+
 pub(super) fn borrow_mode(ty: Option<&Type>, mutable: bool) -> R<()> {
     if !matches!(ty,Some(Type::Address{mutable:actual,..}) if *actual==mutable) {
         return Err(bad("actual borrow changes the opcode's exact outer mode"));
@@ -172,9 +193,9 @@ pub(super) fn borrow_source(
     locals: &[Option<SharedType>], local: LocalId,
 ) -> R<SharedType> {
     world.pay(world.vacant.len())?;
-    if !world.vacant.iter().any(|(owner, _)| *owner == local) {
+    let Some((_, vacant)) = world.vacant.iter().find(|(owner, _)| *owner == local) else {
         return world.local_shell(locals, local);
-    }
+    };
     let instruction = function.blocks.get(block.0 as usize).and_then(|bb| bb.instructions.get(at));
     let Some(instruction) = instruction else { return Err(bad("partial shell has no actual address preparation")); };
     match instruction.kind {
@@ -187,7 +208,9 @@ pub(super) fn borrow_source(
                 return Err(bad("partial holder refill lacks its actual incoming address root"));
             }
         }
-        _ => return Err(bad("whole local reads an uninitialized projected occupant")),
+        _ => return Err(place_diagnostic(
+            world, "whole local reads an uninitialized projected occupant", local, &[], Some(vacant),
+        )),
     }
     let mut value = instruction.result.ok_or_else(|| bad("partial shell has no actual addressed result"))?;
     let mut after = at;

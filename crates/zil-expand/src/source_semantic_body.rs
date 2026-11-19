@@ -10,6 +10,7 @@ pub(super) enum OriginalBodyNodeKind {
     Expression,
     ForeignLiteral,
     Binding { selective: bool },
+    SelectivePlace,
 }
 pub(super) struct OriginalBodyNode {
     pub path: Vec<u32>,
@@ -385,17 +386,24 @@ impl Builder<'_, '_, '_, '_> {
                     CorePatternKind::Record { ty: SemanticTypeRecipe::Nominal { definition, .. }, .. } => Some(*definition),
                     _ => None,
                 };
-                if let Some(declaration) = declaration {
+                let selective = if let Some(declaration) = declaration {
                     self.budget.identity_work(self.inventory.declarations.len(), span)?;
-                    if self.inventory.declarations.iter().any(|row| {
+                    self.inventory.declarations.iter().any(|row| {
                         row.module == declaration.module && row.declaration.0 == declaration.index
                             && matches!(&row.item.kind, s::ItemKind::Aggregate(aggregate)
                                 if aggregate.kind == s::AggregateKind::Package)
-                    }) {
-                        mint.nodes[binding].kind = OriginalBodyNodeKind::Binding { selective: true };
-                    }
+                    })
+                } else {
+                    false
+                };
+                if selective {
+                    mint.nodes[binding].kind = OriginalBodyNodeKind::Binding { selective };
                 }
+                let initializer = mint.nodes.len();
                 let value = self.body_child_expr(value, 0, mint, path, depth + 1)?;
+                if selective {
+                    self.mark_selective_place(mint, initializer, &value, depth + 1)?;
+                }
                 match pattern {
                     CorePattern {
                         kind: CorePatternKind::Name(name),
@@ -614,6 +622,34 @@ impl Builder<'_, '_, '_, '_> {
             _ => {}
         }
         Ok(CoreStatement { id, kind, span })
+    }
+
+    fn mark_selective_place(
+        &mut self, mint: &mut Mint, initializer: usize, value: &SemanticOriginalExpr, depth: usize,
+    ) -> R<()> {
+        let mut selected = value;
+        let mut index = initializer;
+        while let CoreExprKind::Group(inner) = &selected.kind {
+            self.budget.node(selected.span, depth + index - initializer)?;
+            selected = inner;
+            index += 1;
+        }
+        if !matches!(selected.kind, CoreExprKind::Member { .. }) { return Ok(()); }
+        let mut root = selected;
+        let mut place_depth = depth + index - initializer;
+        loop {
+            self.budget.node(root.span, place_depth)?;
+            root = match &root.kind {
+                CoreExprKind::Member { object, .. } | CoreExprKind::Group(object) => object,
+                CoreExprKind::Name(_) => break,
+                _ => return Ok(()),
+            };
+            place_depth += 1;
+        }
+        let original = mint.nodes.get_mut(index).filter(|entry| entry.id == selected.id)
+            .ok_or_else(|| error(selected.span, "selective initializer loses its original member node"))?;
+        original.kind = OriginalBodyNodeKind::SelectivePlace;
+        Ok(())
     }
 
     fn body_pattern_borrows(

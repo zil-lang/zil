@@ -28,6 +28,18 @@ pub(in crate::semantic) struct PatternSource {
 }
 
 impl CheckedOriginal {
+    pub(in crate::semantic) fn package_pattern_root(
+        &self, module: &TypedModule, definition: SemanticDefinitionId, subject: NodeId, b: &mut Budget,
+    ) -> Check<Option<(NodeId, intrinsics::BufferRoot, Vec<intrinsics::AddressProjection>)>> {
+        b.spend(1)?;
+        if !self.value_places.contains_key(&(definition, subject)) { return Ok(None); }
+        let (root, path) = self.address_place(module, definition, subject, b)?;
+        let intrinsics::AddressRoot::Place(root) = root else { return Ok(None); };
+        let (binder, fields) = self.buffer_place(definition, root, b)?;
+        if !fields.is_empty() { return Err(bad("Package pattern has no complete lexical root")); }
+        Ok(Some((root, binder, path)))
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn pattern(&mut self,module:&TypedModule,context:&CheckedContext,pattern:&SemanticOriginalPattern,subject:&Ty,mutable:bool,env:&Env,bindings:&mut BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<bool> {
         let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Type,token},b,|active,b|{

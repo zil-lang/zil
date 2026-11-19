@@ -198,17 +198,23 @@ fn satisfy_boundary(
                 .and_then(|value| value.as_ref())
                 .is_none()
         {
-            return Err(bad(
-                "call outer-role adapter has an inactive actual parent storage root",
-            ));
+            let mut diagnostic = places::place_diagnostic(
+                world, "call outer-role adapter has an inactive actual parent storage root",
+                root.local, &root.path, None,
+            );
+            diagnostic.notes.push(format!("call operand SSA {}", operand.0));
+            return Err(diagnostic);
         }
         world.pay(root.path.len())?;
-        if world.vacant.iter().any(|(local, path)| {
+        if let Some((_, vacant)) = world.vacant.iter().find(|(local, path)| {
             *local == root.local && (path.starts_with(&root.path) || root.path.starts_with(path))
         }) {
-            return Err(bad(
-                "call outer-role adapter has a vacant actual parent projection",
-            ));
+            let mut diagnostic = places::place_diagnostic(
+                world, "call outer-role adapter has a vacant actual parent projection",
+                root.local, &root.path, Some(vacant),
+            );
+            diagnostic.notes.push(format!("call operand SSA {}", operand.0));
+            return Err(diagnostic);
         }
     }
     let moved_capture = matches!(boundary, Boundary::Capture(_))
