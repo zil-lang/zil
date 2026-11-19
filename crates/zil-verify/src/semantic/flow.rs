@@ -717,6 +717,19 @@ impl CheckedContext {
         };
         if !valid{return Err(bad("actual sealed environment differs from the independently interpreted creator source"));}Ok(())
     }
+    fn check_header_image(&self, environment: &EvalEnv, owner: ScopeKey, actual: &ClassKey,
+        expected: &ClassKey, b: &mut Budget, message: impl FnOnce() -> String) -> Check<()> {
+        if self.same(environment, actual, expected, b)? { return Ok(()); }
+        // §8.1.2. The rigid definition must prove the relationship for every
+        // permitted image. same() has exhausted its original LifeEqual premises.
+        if matches!((actual, expected),
+            (ClassKey::Implicit { scope: a, .. }, ClassKey::Implicit { scope: e, .. })
+            if *a == owner && *e == owner)
+        {
+            return Err(bad(&message()));
+        }
+        Err(unsupported(message(), None))
+    }
     fn header(&self,module:&TypedModule,instance:&SemanticInstance,f:&TypedFunction,signature:&CheckedSignature,environment:&EvalEnv,b:&mut Budget)->Check<()> {
         let located = |base: StorageBase, mut error: zil_base::Diagnostic| {
             let span = match base {
@@ -788,12 +801,10 @@ impl CheckedContext {
             let actual=&images.iter().find(|(binder,_)|*binder==row.binder).ok_or_else(||failed(format!(
                 "actual header borrow {:?} binds {:?} without a lexical embedding", row.position, row.binder,
             )))?.1;
-            if !self.same(environment,actual,expected,b)? {
-                return Err(located(row.position.base, unsupported(format!(
+            self.check_header_image(environment, scope, actual, expected, b, || format!(
                     "actual header borrow {:?} binds {:?} to {actual:?}; original class ordinal {binder} requires {expected:?}",
                     row.position, row.binder,
-                ), None)));
-            }
+            )).map_err(|error| located(row.position.base, error))?;
         }
         for row in &header.classes {
             let value=base(row.position.base)?;
@@ -804,12 +815,10 @@ impl CheckedContext {
             };
             let expected=value.classes.get(class as usize).ok_or_else(||bad("actual header class escapes the complete original domain"))?;
             let actual=&images.iter().find(|(binder,_)|*binder==row.binder).ok_or_else(||bad("header class has no exact lexical embedding"))?.1;
-            if !self.same(environment,actual,expected,b)? {
-                return Err(located(row.position.base, unsupported(format!(
+            self.check_header_image(environment, scope, actual, expected, b, || format!(
                     "actual header class {:?} binds {:?} to {actual:?}; original class ordinal {class} requires {expected:?}",
                     row.position, row.binder,
-                ), None)));
-            }
+            )).map_err(|error| located(row.position.base, error))?;
         }
         for row in &header.static_bindings {
             let value=base(row.base)?;

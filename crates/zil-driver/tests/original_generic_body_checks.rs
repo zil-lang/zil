@@ -443,3 +443,38 @@ fn generic_pipeline_preserves_its_original_parameter_before_preparation() {
         require_semantic_rejection(errors);
     }
 }
+
+#[test]
+fn rigid_header_cannot_substitute_the_other_implicit_parameter() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "two-inputs.zil",
+        "fn sum(a:&i32,b:&i32)->i32{return *a + *b}\nfn main()->i32{let a=17;let b=25;return sum(&a,&b)-42}");
+    let core = original_core(source, &limits, &target);
+    let mut module = zil_types::check(&core, &target, &limits).unwrap();
+    let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let original = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&original, &target, &limits).unwrap();
+
+    let sum = module.functions.iter().find(|f| f.parameters.len() == 2).unwrap().id;
+    let world = module.semantic.as_mut().unwrap().instances.iter_mut()
+        .find(|w| w.target == SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(sum)))
+        .unwrap();
+    let [first, second] = world.header_embedding.as_mut_slice() else {
+        panic!("each independent reference parameter supplies one implicit header image");
+    };
+    assert!(matches!((&first.actual, &second.actual),
+        (SemanticClassExpr::Implicit { scope: a, ordinal: i }, SemanticClassExpr::Implicit { scope: b, ordinal: j })
+        if a == b && i != j));
+    first.actual = second.actual.clone();
+    plan.module_fingerprint = module.fingerprint();
+    let changed = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    for errors in [
+        zil_verify::verify_module(module, plan, &target, &limits).unwrap_err(),
+        zil_verify::verify_module_bytes(&changed, &target, &limits).unwrap_err(),
+    ] {
+        assert!(errors.iter().any(|d| d.message.contains("original class ordinal")));
+        require_semantic_rejection(errors);
+    }
+}
