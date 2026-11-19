@@ -3958,6 +3958,42 @@ fn main()->i32{let p=Point{n:1};let a=p.add(id(6));let b=Point.add(&p,id(6));if 
 }
 
 #[test]
+fn concrete_method_worlds_keep_each_call_type_and_result_lifetime() {
+    let regions = r#"
+trait Loan{fn read<life a>(self:&Self,x:&'a i32)->&'a i32;}
+struct P{n:i32}
+impl Loan for P{fn read<life a>(x:&'a i32)->&'a i32{return x}}
+fn main()->i32{let p=P{n:1};let a:i32=12;let b:i32=30;let pa=p.read(&a);let pb=p.read(&b);return *pa+*pb-42}
+"#;
+    native(&[("main", regions)]);
+    let route = format!("{regions}fn keep<life r>(x:&'r i32)->&'r i32{{let p=P{{n:1}};let a:i32=7;return x}}");
+    let retained = check(&route);
+    assert_eq!(retained.status, ResultCategory::Success, "{}", retained.to_json());
+    let expired = check(&route.replace("let a:i32=7;return x", "let a:i32=7;return p.read(&a)"));
+    assert_eq!(expired.status, ResultCategory::SafeReject, "{}", expired.to_json());
+    assert!(expired.diagnostics.iter().any(|d| d.message.contains("source lifetime bound")), "{}", expired.to_json());
+    let types = r#"
+trait Echo{fn echo<T:Copy>(self:&Self,x:T)->T;}
+struct P{n:i32}
+impl Echo for P{fn echo<T:Copy>(x:T)->T{return x}}
+fn main()->i32{let p=P{n:1};let a:i32=12;let b:i64=30;let aa=p.echo(a);let bb=p.echo(b);if aa!=12{return 1}if bb!=30{return 2}return 0}
+"#;
+    native(&[("main", types)]);
+    let wrong = check(&types.replace("p.echo(b)", "p.echo::<i32>(b)"));
+    assert_eq!(
+        wrong.status,
+        ResultCategory::SafeReject,
+        "{}",
+        wrong.to_json()
+    );
+    assert!(
+        wrong.diagnostics.iter().any(|d| d.message.contains("conflicting generic argument constraints")),
+        "{}",
+        wrong.to_json()
+    );
+}
+
+#[test]
 fn generic_trait_direct_ambiguity_does_not_reject_distinct_impl_headers() {
     let declarations = "trait Read<R>{fn read(self:&Self)->R;}struct P{n:i32}impl Read<i32> for P{fn read()->i32{return .n}}impl Read<i64> for P{fn read()->i64{return i64(.n)}}";
     let good = check(&format!("{declarations}fn main()->i32{{return 0}}"));

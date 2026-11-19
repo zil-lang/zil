@@ -634,9 +634,12 @@ impl<'a> Eval<'a, '_, '_> {
                 false
             };
             if row.parent == Some(holder) || inherited {
-                if provider.replace(row.definition).is_some() {
+                // This query specializes the lexical parent. Several call
+                // worlds of its one method can share the same emitted entry.
+                // The method's own actuals are checked in each world.
+                if provider.replace(row.definition).is_some_and(|id| id != row.definition) {
                     return Err(SourceFailure::Invalid(bad(
-                        "parent inference has several actual provider instances for its exact holder",
+                        "parent inference has different provider definitions for its exact holder and entry",
                     )));
                 }
             }
