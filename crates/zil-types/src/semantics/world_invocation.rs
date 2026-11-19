@@ -46,7 +46,7 @@ pub(super) fn static_input(
 }
 pub(super) fn map(
     world: &mut World<'_, '_>,
-    value: &SemanticTypeValue,
+    value: &SharedType,
     actuals: &[SemanticActual],
     environment: Option<(&StorageLifeContract, &SemanticInstance, &SemanticTypeValue, StorageBase)>,
     inputs: &Inputs,
@@ -54,6 +54,9 @@ pub(super) fn map(
     let mut binders = if let Some((header, _, _, base)) = environment {
         Some(world.boundary_binders(value, base, header)?)
     } else { None };
+    if inputs.statics.is_empty() {
+        return world.map_call_value(value, actuals, environment, &inputs.classes, binders.as_deref());
+    }
     let mut value = world.copy(value)?;
     let SemanticTypeValue::Resolved { ty, life, classes } = Rc::get_mut(&mut value)
         .ok_or_else(|| bad("fresh class mapping unexpectedly shares its value"))?

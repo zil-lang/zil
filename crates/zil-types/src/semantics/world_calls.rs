@@ -1,14 +1,48 @@
 //! Opcode, original call occurrence, fixed ABI and actual unsafe boundary must
 //! agree before the common complete P/R class transfer is used.
 use super::*;
+use std::collections::BTreeSet;
+
+/// Completed input proofs belong to this immutable emitted site and exact
+/// original target. Runtime argument values and current classes have separate
+/// equations at each reaching call.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) struct Site {
+    site: usize,
+    instance: SemanticInstanceId,
+    target: SemanticDefinitionId,
+}
+
+impl Site {
+    pub(super) fn new(
+        caller: &SemanticInstance,
+        site: &SemanticSite,
+        target: SemanticDefinitionId,
+        actuals: &[SemanticActual],
+    ) -> R<Self> {
+        let (SemanticSiteAction::Call { actuals: recorded, .. }
+        | SemanticSiteAction::BodyCall { actuals: recorded }) = &site.action else {
+            return Err(bad("call input proof has no actual call action"));
+        };
+        if site.instance != caller.id || !std::ptr::eq(recorded.as_slice(), actuals) {
+            return Err(bad("call input proof changes its exact world or emitted actuals"));
+        }
+        Ok(Self { site: site as *const SemanticSite as usize, instance: caller.id, target })
+    }
+}
+
+#[derive(Default)]
+pub(super) struct Proofs {
+    pub(super) body: BTreeSet<Site>,
+    pub(super) requirements: BTreeSet<Site>,
+    pub(super) specialized_headers: BTreeSet<(Site, SemanticInstanceId)>,
+}
 
 pub(super) fn abi(
     world: &mut World<'_, '_>,
     original: &SemanticDefinition,
     target: &TypedFunction,
-    sites: &[&SemanticSite],
-    block: BlockId,
-    index: usize,
+    site: &SemanticSite,
     instruction: &InstructionKind,
     unsafe_regions: &[u32],
 ) -> R<()> {
@@ -32,24 +66,9 @@ pub(super) fn abi(
                     "actual foreign call has no active actual unsafe region",
                 ));
             }
-            let mut source = None;
-            for site in world.point_sites(sites, block, index)? {
-                if matches!(
-                    site.action,
-                    SemanticSiteAction::Call { .. } | SemanticSiteAction::BodyCall { .. }
-                ) {
-                    if source.replace(site.recipe).is_some() {
-                        return Err(bad(
-                            "actual foreign call repeats its original operation seal",
-                        ));
-                    }
-                }
-            }
-            let source = source
-                .ok_or_else(|| bad("actual foreign call has no original operation occurrence"))?;
             if !super::super::original::protocol::unsafe_call(
                 original,
-                source,
+                site.recipe,
                 world.limits,
                 world.left,
             )? {

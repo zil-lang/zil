@@ -6,17 +6,17 @@ pub(super) struct OriginalSite {
     pub node: Option<SemanticOriginalNode>,
 }
 pub(super) type BlockPoints = BTreeMap<usize, Rc<Vec<usize>>>;
-pub(super) struct PointRows<'a> {
+pub(super) struct SiteRows<'a> {
     sites: &'a [SemanticSite],
     offsets: Option<Rc<Vec<usize>>>,
     next: usize,
 }
-impl<'a> PointRows<'a> {
+impl<'a> SiteRows<'a> {
     pub(super) fn new(sites: &'a [SemanticSite], offsets: Option<Rc<Vec<usize>>>) -> Self {
         Self { sites, offsets, next: 0 }
     }
 }
-impl<'a> Iterator for PointRows<'a> {
+impl<'a> Iterator for SiteRows<'a> {
     type Item = &'a SemanticSite;
     fn next(&mut self) -> Option<Self::Item> {
         let offset = *self.offsets.as_ref()?.get(self.next)?;
@@ -36,6 +36,7 @@ pub(super) struct Index {
     pub points: BTreeMap<(SemanticInstanceId, BlockId), Rc<BlockPoints>>,
     pub sites: BTreeMap<SemanticInstanceId, Vec<usize>>,
     pub recipes: BTreeMap<(SemanticDefinitionId, SemanticSiteId), OriginalSite>,
+    pub local_declarations: BTreeMap<(SemanticInstanceId, LocalId), Rc<Vec<usize>>>,
     pub expressions: BTreeMap<(FunctionId, ValueId), Vec<zil_base::NodeId>>,
     pub requested_calls: BTreeMap<(SemanticInstanceId, SemanticSiteId, FunctionId), Vec<usize>>,
     pub ordinary_calls: BTreeMap<FunctionId, Vec<usize>>,
@@ -111,6 +112,17 @@ impl Index {
             }
         }
         for (offset, row) in program.sites.iter().enumerate() {
+            if let SemanticSiteAction::DeclareLocal {
+                local: SemanticLocalTarget::Typed(local),
+                ..
+            } = row.action
+            {
+                pay(left, search(index.local_declarations.len()).saturating_add(1))?;
+                let offsets = index.local_declarations.entry((row.instance, local)).or_default();
+                Rc::get_mut(offsets)
+                    .expect("actual local directory is private while indexing")
+                    .push(offset);
+            }
             if matches!(
                 row.action,
                 SemanticSiteAction::Call { .. } | SemanticSiteAction::BodyCall { .. }

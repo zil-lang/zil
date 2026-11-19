@@ -103,7 +103,8 @@ pub(super) struct World<'a, 'b> {
     argument_witnesses: Vec<arguments::Witness>,
     receiver_adaptations: Vec<receiver::Adaptation>,
     index: index::Index,
-    types: types::Table,
+    call_proofs: calls::Proofs,
+    types: types::Table<'a>,
     zero_scalars: [Option<SharedType>; 14],
     cfg_shapes: BTreeMap<FunctionId, Rc<flow::Shape>>,
     view: super::materialize::ActualDirectory<'a>,
@@ -442,7 +443,7 @@ impl<'a> World<'a, '_> {
     fn emitted_value(
         &mut self,
         instance: &SemanticInstance,
-        function: &TypedFunction,
+        function: &'a TypedFunction,
         block: BlockId,
         index: usize,
         result: ValueId,
@@ -505,7 +506,7 @@ impl<'a> World<'a, '_> {
                         "emitted result changes its original type-use operation",
                     ));
                 };
-                let value = self.physical_type(
+                let value = self.actual_type(
                     instance.id,
                     expected,
                     function
@@ -536,6 +537,22 @@ impl<'a> World<'a, '_> {
         recipe: &SemanticTypeRecipe,
         hint: &Type,
     ) -> R<SharedType> {
+        self.type_with_hint(scope, recipe, types::Hint::Temporary(hint))
+    }
+    fn actual_type(
+        &mut self,
+        scope: SemanticInstanceId,
+        recipe: &SemanticTypeRecipe,
+        hint: &'a Type,
+    ) -> R<SharedType> {
+        self.type_with_hint(scope, recipe, types::Hint::Actual(hint))
+    }
+    fn type_with_hint(
+        &mut self,
+        scope: SemanticInstanceId,
+        recipe: &SemanticTypeRecipe,
+        hint: types::Hint<'a, '_>,
+    ) -> R<SharedType> {
         self.pay(index::search(self.index.type_contexts.len()))?;
         let shared_scope = if let Some(context) = self.index.type_contexts.get(&scope).copied()
             && let Some(proof) = self.ledger.original.borrow().as_ref()
@@ -555,7 +572,7 @@ impl<'a> World<'a, '_> {
             self.ledger,
             scope,
             recipe,
-            Some(hint),
+            Some(hint.as_type()),
             self.limits,
             self.left,
         );
@@ -569,29 +586,29 @@ impl<'a> World<'a, '_> {
             .insert(key, recipe, hint, &value, self.limits, self.left)?;
         Ok(value)
     }
-    fn parameter_value(
+    fn parameter_value<'h>(
         &mut self,
         scope: SemanticInstanceId,
         ordinal: usize,
-        hint: &Type,
+        hint: impl Into<types::Hint<'a, 'h>>,
     ) -> R<SharedType> {
-        self.physical_type(
+        self.type_with_hint(
             scope,
             &SemanticTypeRecipe::OriginalType {
                 scope: SemanticScopeRef::Ancestor(0),
                 source: SemanticOriginalTypeSource::Parameter(ordinal as u32),
             },
-            hint,
+            hint.into(),
         )
     }
-    fn result_value(&mut self, scope: SemanticInstanceId, hint: &Type) -> R<SharedType> {
-        self.physical_type(
+    fn result_value<'h>(&mut self, scope: SemanticInstanceId, hint: impl Into<types::Hint<'a, 'h>>) -> R<SharedType> {
+        self.type_with_hint(
             scope,
             &SemanticTypeRecipe::OriginalType {
                 scope: SemanticScopeRef::Ancestor(0),
                 source: SemanticOriginalTypeSource::Result,
             },
-            hint,
+            hint.into(),
         )
     }
     fn type_of(value: &SemanticTypeValue) -> R<&Type> {
@@ -916,7 +933,7 @@ impl<'a> World<'a, '_> {
     }
     fn map_value(
         &mut self,
-        value: &SemanticTypeValue,
+        value: &SharedType,
         actuals: &[SemanticActual],
         environment: Option<(&StorageLifeContract, &SemanticInstance, &SemanticTypeValue, StorageBase)>,
     ) -> R<SharedType> {
@@ -924,7 +941,7 @@ impl<'a> World<'a, '_> {
     }
     fn map_call_value(
         &mut self,
-        value: &SemanticTypeValue,
+        value: &SharedType,
         actuals: &[SemanticActual],
         environment: Option<(&StorageLifeContract, &SemanticInstance, &SemanticTypeValue, StorageBase)>,
         invocation: &[(SemanticClassExpr, SemanticClassExpr)],
@@ -939,16 +956,20 @@ impl<'a> World<'a, '_> {
             if prepared_binders.is_none() { owned_binders = Some(self.boundary_binders(value, base, header)?); }
         }
         let binders = prepared_binders.or(owned_binders.as_deref());
-        let mut value = self.copy(value)?;
-        let SemanticTypeValue::Resolved { classes, .. } = Rc::get_mut(&mut value)
-            .ok_or_else(|| bad("fresh class mapping unexpectedly shares its value"))?
-        else {
+        let SemanticTypeValue::Resolved { classes, .. } = value.as_ref() else {
             return Err(bad("Core type survives call interpretation"));
         };
         if let Some(binders) = binders {
             self.pay(binders.len())?;
             if binders.len() != classes.len() { return Err(bad("call boundary loses its complete local class ordinal map")); }
         }
+        if classes.is_empty() {
+            return self.share(value);
+        }
+        let mut value = self.copy(value)?;
+        let SemanticTypeValue::Resolved { classes, .. } = Rc::get_mut(&mut value)
+            .ok_or_else(|| bad("fresh class mapping unexpectedly shares its value"))?
+        else { unreachable!("checked complete call boundary") };
         for (ordinal, image) in classes.iter_mut().enumerate() {
             if let Some((header, child, SemanticTypeValue::Resolved { life, classes: actual_images, .. }, _)) = environment {
                 if actual_images.len() != life.binder_count as usize || life.binder_count != header.fixed_binder_count {
@@ -1280,18 +1301,28 @@ impl<'p> World<'p, '_> {
         sites: &[&SemanticSite],
         block: BlockId,
         instruction: usize,
-    ) -> R<index::PointRows<'p>> {
+    ) -> R<index::SiteRows<'p>> {
         let Some(first) = sites.first() else {
-            return Ok(index::PointRows::new(&self.program.sites, None));
+            return Ok(index::SiteRows::new(&self.program.sites, None));
         };
         self.point_rows(first.instance, block, instruction)
+    }
+    fn local_declarations(
+        &mut self,
+        instance: SemanticInstanceId,
+        local: LocalId,
+    ) -> R<index::SiteRows<'p>> {
+        self.pay(index::search(self.index.local_declarations.len()).saturating_add(1))?;
+        let positions = self.index.local_declarations.get(&(instance, local)).cloned();
+        self.pay(positions.as_ref().map_or(0, |positions| positions.len()))?;
+        Ok(index::SiteRows::new(&self.program.sites, positions))
     }
     fn point_rows(
         &mut self,
         instance: SemanticInstanceId,
         block: BlockId,
         instruction: usize,
-    ) -> R<index::PointRows<'p>> {
+    ) -> R<index::SiteRows<'p>> {
         let key = (instance, block);
         self.pay(1)?;
         if !self.last_point_block.as_ref().is_some_and(|(block, _)| *block == key) {
@@ -1299,12 +1330,12 @@ impl<'p> World<'p, '_> {
             self.last_point_block = Some((key, self.index.points.get(&key).cloned()));
         }
         let Some((_, Some(points))) = &self.last_point_block else {
-            return Ok(index::PointRows::new(&self.program.sites, None));
+            return Ok(index::SiteRows::new(&self.program.sites, None));
         };
         index::pay(self.left, index::search(points.len()))?;
         let offsets = points.get(&instruction).cloned();
         index::pay(self.left, offsets.as_ref().map_or(0, |rows| rows.len().saturating_add(1)))?;
-        Ok(index::PointRows::new(&self.program.sites, offsets))
+        Ok(index::SiteRows::new(&self.program.sites, offsets))
     }
     fn constraints(
         &mut self,
@@ -1577,7 +1608,7 @@ impl<'p> World<'p, '_> {
         &mut self,
         instance: &SemanticInstance,
         original: &SemanticDefinition,
-        f: &TypedFunction,
+        f: &'p TypedFunction,
         sites: &[&SemanticSite],
         block: BlockId,
         index: usize,
@@ -1803,7 +1834,7 @@ impl<'p> World<'p, '_> {
     fn rebuilt_package(
         &mut self,
         instance: &SemanticInstance,
-        function: &TypedFunction,
+        function: &'p TypedFunction,
         block: BlockId,
         index: usize,
         result: ValueId,
@@ -1858,37 +1889,37 @@ impl<'p> World<'p, '_> {
         &mut self,
         instance: &SemanticInstance,
         original: &SemanticDefinition,
-        site: &SemanticSite,
+        site: &'p SemanticSite,
         actuals: &[SemanticActual],
         target: SemanticDefinitionId,
     ) -> R<()> {
+        if original.id != instance.definition {
+            return Err(bad("body call changes its original caller definition"));
+        }
+        let key = calls::Site::new(instance, site, target, actuals)?;
+        self.pay(index::search(self.call_proofs.body.len()))?;
+        if self.call_proofs.body.contains(&key) {
+            return Ok(());
+        }
         if !matches!(
             self.original_recipe(original, site.recipe)?.kind,
             SemanticSiteRecipeKind::OriginalCall
         ) {
             return Err(bad("actual body call changes original operation kind"));
         }
-        let recipes = {
-            let proof = self.ledger.original.borrow();
-            let proof = proof
-                .as_ref()
-                .ok_or_else(|| bad("body call lacks complete original Gamma"))?;
-            let key = (original.id, site.recipe);
-            if proof.call_targets.get(&key) != Some(&target) {
-                return Err(bad("actual body call selects another original target"));
-            }
-            let recipes = proof
-                .calls
-                .get(&key)
-                .ok_or_else(|| bad("body call lacks original fresh actuals"))?;
-            if recipes.len() != actuals.len() {
-                return Err(bad("body call omits mixed actuals"));
-            }
-            for recipe in recipes {
-                crate::dyn_metadata::semantic_operand_snapshot(recipe, self.limits, self.left, 1)?;
-            }
-            recipes.clone()
-        };
+        let ledger = self.ledger;
+        let proof = ledger.original.borrow();
+        let proof = proof.as_ref().ok_or_else(|| bad("body call lacks complete original Gamma"))?;
+        self.pay(index::search(proof.call_targets.len()) + index::search(proof.calls.len()))?;
+        let coordinate = (original.id, site.recipe);
+        if proof.call_targets.get(&coordinate) != Some(&target) {
+            return Err(bad("actual body call selects another original target"));
+        }
+        let recipes = proof.calls.get(&coordinate)
+            .ok_or_else(|| bad("body call lacks original fresh actuals"))?;
+        if recipes.len() != actuals.len() {
+            return Err(bad("body call omits mixed actuals"));
+        }
         for (ordinal, (recipe, actual)) in recipes.iter().zip(actuals).enumerate() {
             let expected = super::materialize::call_actual_in_view(
                 self.program,
@@ -1907,6 +1938,8 @@ impl<'p> World<'p, '_> {
                 return Err(bad("body call actuals differ from original inference"));
             }
         }
+        self.pay(index::search(self.call_proofs.body.len()).saturating_add(1))?;
+        self.call_proofs.body.insert(key);
         Ok(())
     }
     fn requirements(
@@ -1914,76 +1947,58 @@ impl<'p> World<'p, '_> {
         instance: &SemanticInstance,
         original: &SemanticDefinition,
         actuals: Option<&[SemanticActual]>,
-        source: Option<SemanticSiteId>,
+        source: Option<&'p SemanticSite>,
         implicit: &BTreeMap<u32, SemanticClassExpr>,
     ) -> R<()> {
         let before = *self.left;
-        let recipes: R<Option<Rc<Vec<SemanticActualRecipe>>>> = (|| {
-            let original_proof = self.ledger.original.borrow();
-            let proof = original_proof
-                .as_ref()
-                .ok_or_else(|| bad("where requirement lacks independent original Gamma"))?;
-            if let Some(site) = source {
-                Ok(Some(proof.where_call(
-                    self.program,
-                    instance.definition,
-                    site,
-                    original.id,
-                    self.limits,
-                    self.left,
-                )?))
-            } else {
-                proof.where_entry(self.program, original.id, self.limits, self.left)?;
-                Ok(None)
-            }
-        })();
-        self.where_work = self
-            .where_work
-            .saturating_add(before.saturating_sub(*self.left));
-        let recipes = recipes?;
-        match (recipes.as_ref(), actuals, source) {
-            (Some(recipes), Some(actuals), Some(site)) => {
-                if recipes.len() != actuals.len() {
-                    return Err(bad("actual where boundary changes full mixed arity"));
-                }
-                for (ordinal, (recipe, actual)) in recipes.iter().zip(actuals).enumerate() {
-                    let expected = super::materialize::call_actual_in_view(
-                        self.program,
-                        &self.view,
-                        self.ledger,
-                        instance.id,
-                        site,
-                        ordinal as u32,
-                        recipe,
-                        self.limits,
-                        self.left,
+        let ledger = self.ledger;
+        match (actuals, source) {
+            (Some(actuals), Some(site)) => {
+                let key = calls::Site::new(instance, site, original.id, actuals)?;
+                self.pay(index::search(self.call_proofs.requirements.len()))?;
+                if !self.call_proofs.requirements.contains(&key) {
+                    let proof = ledger.original.borrow();
+                    let proof = proof.as_ref()
+                        .ok_or_else(|| bad("where requirement lacks independent original Gamma"))?;
+                    let recipes = proof.where_call(
+                        self.program, instance.definition, site.recipe, original.id,
+                        self.limits, self.left,
                     )?;
-                    crate::dyn_metadata::semantic_operand_snapshot(
-                        actual,
-                        self.limits,
-                        self.left,
-                        1,
-                    )?;
-                    crate::dyn_metadata::semantic_operand_snapshot(
-                        &expected,
-                        self.limits,
-                        self.left,
-                        1,
-                    )?;
-                    if actual != &expected {
-                        return Err(bad(
-                            "actual where boundary changes independently solved original mixed argument",
-                        ));
+                    if recipes.len() != actuals.len() {
+                        return Err(bad("actual where boundary changes full mixed arity"));
                     }
+                    // where_call returns the same original inferred recipe
+                    // vector that body_call proved at this exact occurrence.
+                    self.pay(index::search(self.call_proofs.body.len()))?;
+                    if !self.call_proofs.body.contains(&key) {
+                        for (ordinal, (recipe, actual)) in recipes.iter().zip(actuals).enumerate() {
+                            let expected = super::materialize::call_actual_in_view(
+                                self.program, &self.view, ledger, instance.id, site.recipe,
+                                ordinal as u32, recipe, self.limits, self.left,
+                            )?;
+                            crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
+                            crate::dyn_metadata::semantic_operand_snapshot(&expected, self.limits, self.left, 1)?;
+                            if actual != &expected {
+                                return Err(bad(
+                                    "actual where boundary changes independently solved original mixed argument",
+                                ));
+                            }
+                        }
+                    }
+                    self.pay(index::search(self.call_proofs.requirements.len()).saturating_add(1))?;
+                    self.call_proofs.requirements.insert(key);
                 }
             }
-            (None, None, None) => {}
+            (None, None) => ledger.original.borrow().as_ref()
+                .ok_or_else(|| bad("where requirement lacks independent original Gamma"))?
+                .where_entry(self.program, original.id, self.limits, self.left)?,
             _ => {
                 return Err(bad(
                     "actual where boundary omits its exact original call site or arguments",
                 ));
             }
         }
+        self.where_work = self.where_work.saturating_add(before.saturating_sub(*self.left));
         // Original Gamma establishes the entire requirement grammar in the
         // caller domain. Independently retain the actual rigid Life equality
         // check when both sides select full mixed arguments directly.
@@ -2016,7 +2031,7 @@ impl<'p> World<'p, '_> {
     }
 }
 
-impl World<'_, '_> {
+impl<'p> World<'p, '_> {
     fn header_value(
         &mut self,
         value: &SemanticTypeValue,
@@ -2380,12 +2395,12 @@ impl World<'_, '_> {
             .enumerate()
         {
             let expected =
-                self.parameter_value(child.id, ordinal, &target.locals[local.0 as usize].ty)?;
+                self.parameter_value(child.id, ordinal, types::Hint::Actual(&target.locals[local.0 as usize].ty))?;
             let expected = self.map_value(&expected, &[], Some((header, child, value, StorageBase::Parameter(ordinal as u32))))?;
             let actual = self.get(values, *argument)?;
             self.same(instance.id, &actual, &expected, implicit)?;
         }
-        let result = self.result_value(child.id, &target.return_type)?;
+        let result = self.result_value(child.id, types::Hint::Actual(&target.return_type))?;
         self.map_value(&result, &[], Some((header, child, value, StorageBase::Result)))
     }
     fn run(&mut self, instance: &SemanticInstance) -> R<()> {
@@ -2442,12 +2457,12 @@ impl World<'_, '_> {
                 .get(parameter.0 as usize)
                 .ok_or_else(|| bad("parameter is absent"))?
                 .ty;
-            let value = self.parameter_value(instance.id, ordinal, ty)?;
+            let value = self.parameter_value(instance.id, ordinal, types::Hint::Actual(ty))?;
             self.pay(2)?;
             locals[parameter.0 as usize] = Some(value.clone());
             declared.insert(*parameter, value);
         }
-        let expected_result = self.result_value(instance.id, &f.return_type)?;
+        let expected_result = self.result_value(instance.id, types::Hint::Actual(&f.return_type))?;
         self.check_header(instance, f, signature)?;
         if matches!(
             &original.body,
@@ -2801,7 +2816,7 @@ impl World<'_, '_> {
                                 Some(view)
                             } else {
                                 roles::store(
-                                    self, instance, original, &sites, *local, operand, &value,
+                                    self, instance, original, *local, operand, &value,
                                     &implicit,
                                 )?
                             };
@@ -3817,7 +3832,7 @@ impl World<'_, '_> {
                             function: target,
                             arguments,
                         } => {
-                            let callee = sourcecall::callee(
+                            let (callee, call_site) = sourcecall::resolve(
                                 self, instance, *target, &sites, block.id, index,
                             )?;
                             let target_function = self.function(*target)?;
@@ -3827,9 +3842,7 @@ impl World<'_, '_> {
                                 self,
                                 original,
                                 target_function,
-                                &sites,
-                                block.id,
-                                index,
+                                call_site,
                                 &instruction.kind,
                                 &unsafe_regions,
                             )?;
@@ -3839,9 +3852,7 @@ impl World<'_, '_> {
                                 original,
                                 callee,
                                 target_function,
-                                &sites,
-                                block.id,
-                                index,
+                                call_site,
                                 arguments,
                                 &values,
                                 &locals,
@@ -3854,9 +3865,7 @@ impl World<'_, '_> {
                                 original,
                                 callee,
                                 target_function,
-                                &sites,
-                                block.id,
-                                index,
+                                call_site,
                                 arguments,
                                 &values,
                                 &locals,
@@ -3876,122 +3885,115 @@ impl World<'_, '_> {
                                 else {
                                     return Err(bad("call target changes original scope kind"));
                                 };
-                                let mut selected = None;
-                                for site in self.point_sites(&sites, block.id, index)? {
-                                    let actuals = match &site.action {
-                                        SemanticSiteAction::BodyCall { actuals } => {
-                                            self.body_call(
-                                                instance,
-                                                original,
-                                                site,
-                                                actuals,
-                                                callee.definition,
-                                            )?;
-                                            actuals
-                                        }
-                                        SemanticSiteAction::Call {
-                                            target: SemanticFunctionTarget::Typed(target_id),
+                                let site = call_site;
+                                let actuals = match &site.action {
+                                    SemanticSiteAction::BodyCall { actuals } => {
+                                        self.body_call(
+                                            instance,
+                                            original,
+                                            site,
                                             actuals,
-                                        } => {
-                                            if target_id != target {
-                                                return Err(bad("call changes actual callee"));
-                                            }
-                                            let recipe =
-                                                self.original_recipe(original, site.recipe)?;
-                                            let SemanticSiteRecipeKind::Call {
-                                                target: definition,
-                                                actuals: recipes,
-                                            } = &recipe.kind
-                                            else {
-                                                return Err(bad(
-                                                    "call changes original recipe kind",
-                                                ));
-                                            };
-                                            if *definition != callee.definition
-                                                || recipes.len() != actuals.len()
-                                            {
-                                                return Err(bad("call omits original actuals"));
-                                            }
-                                            for (recipe, actual) in recipes.iter().zip(actuals) {
-                                                let expected = super::materialize::actual_in_view(
-                                                    self.program,
-                                                    &self.view,
-                                                    self.ledger,
-                                                    instance.id,
-                                                    recipe,
-                                                    self.limits,
-                                                    self.left,
-                                                )?;
-                                                crate::dyn_metadata::semantic_operand_snapshot(
-                                                    actual,
-                                                    self.limits,
-                                                    self.left,
-                                                    1,
-                                                )?;
-                                                crate::dyn_metadata::semantic_operand_snapshot(
-                                                    &expected,
-                                                    self.limits,
-                                                    self.left,
-                                                    1,
-                                                )?;
-                                                if actual != &expected {
-                                                    return Err(bad(
-                                                        "call changes original mixed actual expression",
-                                                    ));
-                                                }
-                                            }
-                                            actuals
+                                            callee.definition,
+                                        )?;
+                                        actuals
+                                    }
+                                    SemanticSiteAction::Call {
+                                        target: SemanticFunctionTarget::Typed(target_id),
+                                        actuals,
+                                    } => {
+                                        if target_id != target {
+                                            return Err(bad("call changes actual callee"));
                                         }
-                                        _ => continue,
-                                    };
-                                    if selected.is_some()
-                                        || actuals.len() != target_original.parameters.len()
+                                        let recipe =
+                                            self.original_recipe(original, site.recipe)?;
+                                        let SemanticSiteRecipeKind::Call {
+                                            target: definition,
+                                            actuals: recipes,
+                                        } = &recipe.kind
+                                        else {
+                                            return Err(bad(
+                                                "call changes original recipe kind",
+                                            ));
+                                        };
+                                        if *definition != callee.definition
+                                            || recipes.len() != actuals.len()
+                                        {
+                                            return Err(bad("call omits original actuals"));
+                                        }
+                                        for (recipe, actual) in recipes.iter().zip(actuals) {
+                                            let expected = super::materialize::actual_in_view(
+                                                self.program,
+                                                &self.view,
+                                                self.ledger,
+                                                instance.id,
+                                                recipe,
+                                                self.limits,
+                                                self.left,
+                                            )?;
+                                            crate::dyn_metadata::semantic_operand_snapshot(
+                                                actual,
+                                                self.limits,
+                                                self.left,
+                                                1,
+                                            )?;
+                                            crate::dyn_metadata::semantic_operand_snapshot(
+                                                &expected,
+                                                self.limits,
+                                                self.left,
+                                                1,
+                                            )?;
+                                            if actual != &expected {
+                                                return Err(bad(
+                                                    "call changes original mixed actual expression",
+                                                ));
+                                            }
+                                        }
+                                        actuals
+                                    }
+                                    _ => return Err(bad("actual call has no original full-actual site")),
+                                };
+                                if actuals.len() != target_original.parameters.len() {
+                                    return Err(bad(
+                                        "call has incomplete actual world",
+                                    ));
+                                }
+                                {
+                                    self.requirements(
+                                        instance,
+                                        target_original,
+                                        Some(actuals),
+                                        Some(site),
+                                        &implicit,
+                                    )?;
+                                    if arguments.len() != target_signature.parameters.len()
+                                        || arguments.len() != target_function.parameters.len()
                                     {
                                         return Err(bad(
-                                            "call has repeated or incomplete actual world",
+                                            "call omits actual original parameters",
                                         ));
                                     }
+                                    for (ordinal, ((argument, _recipe), local)) in arguments
+                                        .iter()
+                                        .zip(&target_signature.parameters)
+                                        .zip(&target_function.parameters)
+                                        .enumerate()
                                     {
-                                        self.requirements(
-                                            instance,
-                                            target_original,
-                                            Some(actuals),
-                                            Some(site.recipe),
-                                            &implicit,
-                                        )?;
-                                        if arguments.len() != target_signature.parameters.len()
-                                            || arguments.len() != target_function.parameters.len()
-                                        {
-                                            return Err(bad(
-                                                "call omits actual original parameters",
-                                            ));
-                                        }
-                                        for (ordinal, ((argument, _recipe), local)) in arguments
-                                            .iter()
-                                            .zip(&target_signature.parameters)
-                                            .zip(&target_function.parameters)
-                                            .enumerate()
-                                        {
-                                            let expected = self.parameter_value(
-                                                callee.id,
-                                                ordinal,
-                                                &target_function.locals[local.0 as usize].ty,
-                                            )?;
-                                            let expected =
-                                                self.map_value(&expected, actuals, None)?;
-                                            let value = self.get(&values, *argument)?;
-                                            self.same(instance.id, &value, &expected, &implicit)?;
-                                        }
-                                        let result = self.result_value(
+                                        let expected = self.parameter_value(
                                             callee.id,
-                                            &target_function.return_type,
+                                            ordinal,
+                                            types::Hint::Actual(&target_function.locals[local.0 as usize].ty),
                                         )?;
-                                        selected = Some(self.map_value(&result, actuals, None)?);
+                                        let expected =
+                                            self.map_value(&expected, actuals, None)?;
+                                        let value = self.get(&values, *argument)?;
+                                        self.same(instance.id, &value, &expected, &implicit)?;
                                     }
+                                    let result = self.result_value(
+                                        callee.id,
+                                        types::Hint::Actual(&target_function.return_type),
+                                    )?;
+                                    Some(self.map_value(&result, actuals, None)?)
                                 }
-                                Some(selected.ok_or_else(|| {
-                                    bad("actual call has no original full-actual site")
-                                })?)
                             }
                         }
                         InstructionKind::CallClosure { callee, arguments }
@@ -5005,6 +5007,7 @@ fn program_at(
         argument_witnesses: Vec::new(),
         receiver_adaptations: Vec::new(),
         index,
+        call_proofs: Default::default(),
         types: types::Table::default(),
         zero_scalars: Default::default(),
         cfg_shapes: BTreeMap::new(),

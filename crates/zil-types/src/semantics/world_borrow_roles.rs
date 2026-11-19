@@ -1930,14 +1930,7 @@ pub(super) fn shared_binding_view(
         }
     }
     let mut result = None;
-    for site in sites {
-        world.pay(1)?;
-        if !matches!(site.action, SemanticSiteAction::DeclareLocal {
-            local: SemanticLocalTarget::Typed(target), ..
-        } if target == local)
-        {
-            continue;
-        }
+    for site in world.local_declarations(instance.id, local)? {
         let SemanticSiteRecipeKind::DeclareLocal {
             expected:
                 SemanticTypeRecipe::OriginalType {

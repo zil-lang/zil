@@ -295,16 +295,10 @@ fn receipt(
     world: &mut World<'_, '_>,
     instance: &SemanticInstance,
     original: &SemanticDefinition,
-    sites: &[&SemanticSite],
     local: LocalId,
 ) -> R<Option<LocalRole>> {
-    world.pay(sites.len())?;
     let mut selected = None;
-    for site in sites {
-        if !matches!(site.action,SemanticSiteAction::DeclareLocal{local:SemanticLocalTarget::Typed(id),..}if id==local)
-        {
-            continue;
-        }
+    for site in world.local_declarations(instance.id, local)? {
         let recipe = world.original_recipe(original, site.recipe)?;
         let SemanticSiteRecipeKind::DeclareLocal {
             expected:
@@ -353,13 +347,12 @@ pub(super) fn store(
     world: &mut World<'_, '_>,
     instance: &SemanticInstance,
     original: &SemanticDefinition,
-    sites: &[&SemanticSite],
     local: LocalId,
     operand: ValueId,
     value: &SemanticTypeValue,
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<(SharedType, Source)>> {
-    let Some(role) = receipt(world, instance, original, sites, local)? else {
+    let Some(role) = receipt(world, instance, original, local)? else {
         return Ok(None);
     };
     let valid = matches!((role.kind,World::type_of(value)?),(LocalRoleKind::Address{mutable:a},Type::Address{mutable:b,..})if a==*b)

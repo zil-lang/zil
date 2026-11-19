@@ -208,119 +208,145 @@ pub(super) fn actual_specialization(
         )),
     }
 }
-pub(super) fn evaluate(
-    world: &mut World<'_, '_>,
+pub(super) fn evaluate<'a>(
+    world: &mut World<'a, '_>,
     instance: &SemanticInstance,
     original: &SemanticDefinition,
     callee: &SemanticInstance,
     function: &TypedFunction,
-    sites: &[&SemanticSite],
-    block: BlockId,
-    index: usize,
+    site: &'a SemanticSite,
     arguments: &[ValueId],
     values: &ssa::Values,
     locals: &[Option<SharedType>],
     implicit: &mut BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<SharedType>> {
-    let mut selected = None;
-    for site in world.point_sites(sites, block, index)? {
-        let SemanticSiteAction::BodyCall { actuals } = &site.action else {
-            continue;
+    let SemanticSiteAction::BodyCall { actuals } = &site.action else {
+        return Ok(None);
+    };
+    let (method, signature, recipes, parent_recipes) = {
+        let ledger = world.ledger;
+        let proof = ledger.original.borrow();
+        let proof = proof
+            .as_ref()
+            .ok_or_else(|| bad("method call lacks complete original Gamma"))?;
+        let Some(method) = proof.method_calls.get(&(original.id, site.recipe)) else {
+            return Ok(None);
         };
-        let (method, signature, recipes, parent_recipes) = {
-            let ledger = world.ledger;
-            let proof = ledger.original.borrow();
-            let proof = proof
-                .as_ref()
-                .ok_or_else(|| bad("method call lacks complete original Gamma"))?;
-            let Some(method) = proof.method_calls.get(&(original.id, site.recipe)) else {
-                continue;
-            };
-            if selected.is_some() {
-                return Err(bad("actual method call repeats its original scheme"));
-            }
-            let signature = proof
-                .provider_signature(
-                    original.id,
-                    site.recipe,
-                    callee.definition,
-                    world.limits,
-                    world.left,
-                )?
-                .ok_or_else(|| {
-                    bad("actual method provider has no quantified original conformance proof")
-                })?;
-            let recipes = proof
-                .calls
-                .get(&(original.id, site.recipe))
-                .ok_or_else(|| bad("method call omits independently solved method actuals"))?;
-            let target = world.definition(callee.definition)?;
-            let parent = target
-                .parent
-                .ok_or_else(|| bad("actual method provider has no original lexical scope"))?;
-            let parent_recipes = proof.scope_calls.get(&(original.id, site.recipe, parent));
+        let signature = proof
+            .provider_signature(
+                original.id,
+                site.recipe,
+                callee.definition,
+                world.limits,
+                world.left,
+            )?
+            .ok_or_else(|| {
+                bad("actual method provider has no quantified original conformance proof")
+            })?;
+        let recipes = proof
+            .calls
+            .get(&(original.id, site.recipe))
+            .ok_or_else(|| bad("method call omits independently solved method actuals"))?;
+        let target = world.definition(callee.definition)?;
+        let parent = target
+            .parent
+            .ok_or_else(|| bad("actual method provider has no original lexical scope"))?;
+        let parent_recipes = proof.scope_calls.get(&(original.id, site.recipe, parent));
+        crate::dyn_metadata::semantic_operand_snapshot(
+            &method.self_type,
+            world.limits,
+            world.left,
+            1,
+        )?;
+        if let Some(receiver) = &method.receiver_borrow {
             crate::dyn_metadata::semantic_operand_snapshot(
-                &method.self_type,
+                receiver,
                 world.limits,
                 world.left,
                 1,
             )?;
-            if let Some(receiver) = &method.receiver_borrow {
-                crate::dyn_metadata::semantic_operand_snapshot(
-                    receiver,
-                    world.limits,
-                    world.left,
-                    1,
-                )?;
-            }
-            if let Some(place) = &method.receiver_place {
-                crate::dyn_metadata::semantic_operand_snapshot(
-                    &place.root,
-                    world.limits,
-                    world.left,
-                    1,
-                )?;
-                world.pay(place.fields.len().saturating_add(1))?;
-            }
-            if let Some(application) = &method.application {
-                crate::dyn_metadata::semantic_operand_snapshot(
-                    application,
-                    world.limits,
-                    world.left,
-                    1,
-                )?;
-            }
-            world.pay(
-                recipes
-                    .len()
-                    .saturating_add(parent_recipes.map_or(0, Vec::len)),
+        }
+        if let Some(place) = &method.receiver_place {
+            crate::dyn_metadata::semantic_operand_snapshot(
+                &place.root,
+                world.limits,
+                world.left,
+                1,
             )?;
-            for recipe in recipes.iter().chain(parent_recipes.into_iter().flatten()) {
-                crate::dyn_metadata::semantic_operand_snapshot(
-                    recipe,
-                    world.limits,
-                    world.left,
-                    1,
-                )?;
-            }
-            (
-                method.clone(),
-                signature,
-                recipes.clone(),
-                parent_recipes.cloned(),
-            )
-        };
-        if !matches!(
-            world.original_recipe(original, site.recipe)?.kind,
-            SemanticSiteRecipeKind::OriginalCall
-        ) {
-            return Err(bad("method call changes its original operation kind"));
+            world.pay(place.fields.len().saturating_add(1))?;
         }
-        if recipes.len() != actuals.len() || actuals.len() != callee.actuals.len() {
-            return Err(bad("method call omits original mixed method actuals"));
+        if let Some(application) = &method.application {
+            crate::dyn_metadata::semantic_operand_snapshot(
+                application,
+                world.limits,
+                world.left,
+                1,
+            )?;
         }
-        for ((recipe, actual), specialized) in recipes.iter().zip(actuals).zip(&callee.actuals) {
-            let expected = super::super::materialize::actual_in_view(
+        world.pay(
+            recipes
+                .len()
+                .saturating_add(parent_recipes.map_or(0, Vec::len)),
+        )?;
+        for recipe in recipes.iter().chain(parent_recipes.into_iter().flatten()) {
+            crate::dyn_metadata::semantic_operand_snapshot(
+                recipe,
+                world.limits,
+                world.left,
+                1,
+            )?;
+        }
+        (
+            method.clone(),
+            signature,
+            recipes.clone(),
+            parent_recipes.cloned(),
+        )
+    };
+    if !matches!(
+        world.original_recipe(original, site.recipe)?.kind,
+        SemanticSiteRecipeKind::OriginalCall
+    ) {
+        return Err(bad("method call changes its original operation kind"));
+    }
+    if recipes.len() != actuals.len() || actuals.len() != callee.actuals.len() {
+        return Err(bad("method call omits original mixed method actuals"));
+    }
+    for ((recipe, actual), specialized) in recipes.iter().zip(actuals).zip(&callee.actuals) {
+        let expected = super::super::materialize::actual_in_view(
+            world.program,
+            &world.view,
+            world.ledger,
+            instance.id,
+            recipe,
+            world.limits,
+            world.left,
+        )?;
+        same_actual(world, instance.id, actual, &expected, implicit)?;
+        actual_specialization(world, specialized, &expected)?;
+    }
+    let target = world.definition(callee.definition)?;
+    let parent_id = target
+        .parent
+        .ok_or_else(|| bad("method provider has no original scope"))?;
+    let parent = world.definition(parent_id)?;
+    let parent_instance = world.instance(
+        callee
+            .parent
+            .ok_or_else(|| bad("method provider has no actual parent scope instance"))?,
+    )?;
+    if parent_instance.definition != parent_id
+        || !matches!(parent_instance.target, SemanticInstanceTarget::Scope)
+    {
+        return Err(bad(
+            "method provider actual parent differs from its real original scope",
+        ));
+    }
+    let parent_actuals = if let Some(parent_recipes) = &parent_recipes {
+        let mut expected = Vec::new();
+        world.pay(parent_recipes.len())?;
+        for recipe in parent_recipes {
+            expected.push(super::super::materialize::actual_in_view(
                 world.program,
                 &world.view,
                 world.ledger,
@@ -328,209 +354,174 @@ pub(super) fn evaluate(
                 recipe,
                 world.limits,
                 world.left,
-            )?;
-            same_actual(world, instance.id, actual, &expected, implicit)?;
-            actual_specialization(world, specialized, &expected)?;
+            )?);
         }
-        let target = world.definition(callee.definition)?;
-        let parent_id = target
-            .parent
-            .ok_or_else(|| bad("method provider has no original scope"))?;
-        let parent = world.definition(parent_id)?;
-        let parent_instance = world.instance(
-            callee
-                .parent
-                .ok_or_else(|| bad("method provider has no actual parent scope instance"))?,
-        )?;
-        if parent_instance.definition != parent_id
-            || !matches!(parent_instance.target, SemanticInstanceTarget::Scope)
-        {
+        expected
+    } else {
+        // The abstract declaration supplied a quantified trait premise;
+        // solve the concrete lexical parent in that original source Gamma,
+        // rather than treating its resolved actuals or Self as evidence.
+        super::super::materialize::parent_actuals_in_view(
+            world.program,
+            &world.view,
+            world.ledger,
+            instance.id,
+            site.recipe,
+            parent_instance.id,
+            world.limits,
+            world.left,
+        )?
+    };
+    if parent_actuals.len() != parent.parameters.len()
+        || parent_instance.actuals.len() != parent_actuals.len()
+    {
+        return Err(bad("method parent omits its complete mixed actuals"));
+    }
+    for (actual, expected) in parent_instance.actuals.iter().zip(&parent_actuals) {
+        actual_specialization(world, actual, expected)?;
+    }
+    let (actual_self, application, trait_scope) = match &parent.body {
+        SemanticDefinitionBody::Nominal { .. } => (
+            recipe_type(world, parent_instance.id, &SemanticTypeRecipe::SelfType {
+                scope: SemanticScopeRef::Ancestor(0),
+            })?,
+            None,
+            None,
+        ),
+        SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl {
+            self_type,
+            trait_application,
+            ..
+        }) => (
+            recipe_type(world, parent_instance.id, self_type)?,
+            Some(trait_application),
+            None,
+        ),
+        SemanticDefinitionBody::Scope(SemanticScopeRecipe::InherentImpl {
+            self_type, ..
+        }) => (
+            recipe_type(world, parent_instance.id, self_type)?,
+            None,
+            None,
+        ),
+        SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { declaration }) => {
+            let value = parent_instance.self_type.as_ref().ok_or_else(|| {
+                bad("default method actual trait scope omits its complete Self")
+            })?;
+            (world.copy(value)?, None, Some(*declaration))
+        }
+        _ => {
             return Err(bad(
-                "method provider actual parent differs from its real original scope",
+                "actual ordinary method provider has another lexical scope kind",
             ));
         }
-        let parent_actuals = if let Some(parent_recipes) = &parent_recipes {
-            let mut expected = Vec::new();
-            world.pay(parent_recipes.len())?;
-            for recipe in parent_recipes {
-                expected.push(super::super::materialize::actual_in_view(
+    };
+    if method.application.is_none()
+        && (method.declaration != callee.definition || method.parent != parent_id)
+    {
+        return Err(bad("direct method call selects another original provider"));
+    }
+    let actual_self = parent_value(world, &actual_self, &parent_actuals)?;
+    let expected_self = recipe_type(world, instance.id, &method.self_type)?;
+    world.same(instance.id, &actual_self, &expected_self, implicit)?;
+    match (&method.application, application, trait_scope) {
+        (Some(expected), Some(actual), None)
+            if expected.declaration == actual.declaration
+                && expected.arguments.len() == actual.arguments.len() =>
+        {
+            for (expected, actual) in expected.arguments.iter().zip(&actual.arguments) {
+                let expected = super::super::materialize::actual_in_view(
                     world.program,
                     &world.view,
                     world.ledger,
                     instance.id,
-                    recipe,
+                    expected,
                     world.limits,
                     world.left,
-                )?);
+                )?;
+                let actual = super::super::materialize::actual_in_view(
+                    world.program,
+                    &world.view,
+                    world.ledger,
+                    parent_instance.id,
+                    actual,
+                    world.limits,
+                    world.left,
+                )?;
+                let actual = parent_actual(world, &actual, &parent_actuals)?;
+                same_actual(world, instance.id, &actual, &expected, implicit)?;
             }
-            expected
-        } else {
-            // The abstract declaration supplied a quantified trait premise;
-            // solve the concrete lexical parent in that original source Gamma,
-            // rather than treating its resolved actuals or Self as evidence.
-            super::super::materialize::parent_actuals_in_view(
-                world.program,
-                &world.view,
-                world.ledger,
-                instance.id,
-                site.recipe,
-                parent_instance.id,
-                world.limits,
-                world.left,
-            )?
-        };
-        if parent_actuals.len() != parent.parameters.len()
-            || parent_instance.actuals.len() != parent_actuals.len()
+        }
+        (Some(expected), None, Some(actual))
+            if expected.declaration == actual
+                && expected.arguments.len() == parent_actuals.len() =>
         {
-            return Err(bad("method parent omits its complete mixed actuals"));
-        }
-        for (actual, expected) in parent_instance.actuals.iter().zip(&parent_actuals) {
-            actual_specialization(world, actual, expected)?;
-        }
-        let (actual_self, application, trait_scope) = match &parent.body {
-            SemanticDefinitionBody::Nominal { .. } => (
-                recipe_type(world, parent_instance.id, &SemanticTypeRecipe::SelfType {
-                    scope: SemanticScopeRef::Ancestor(0),
-                })?,
-                None,
-                None,
-            ),
-            SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl {
-                self_type,
-                trait_application,
-                ..
-            }) => (
-                recipe_type(world, parent_instance.id, self_type)?,
-                Some(trait_application),
-                None,
-            ),
-            SemanticDefinitionBody::Scope(SemanticScopeRecipe::InherentImpl {
-                self_type, ..
-            }) => (
-                recipe_type(world, parent_instance.id, self_type)?,
-                None,
-                None,
-            ),
-            SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { declaration }) => {
-                let value = parent_instance.self_type.as_ref().ok_or_else(|| {
-                    bad("default method actual trait scope omits its complete Self")
-                })?;
-                (world.copy(value)?, None, Some(*declaration))
-            }
-            _ => {
-                return Err(bad(
-                    "actual ordinary method provider has another lexical scope kind",
-                ));
-            }
-        };
-        if method.application.is_none()
-            && (method.declaration != callee.definition || method.parent != parent_id)
-        {
-            return Err(bad("direct method call selects another original provider"));
-        }
-        let actual_self = parent_value(world, &actual_self, &parent_actuals)?;
-        let expected_self = recipe_type(world, instance.id, &method.self_type)?;
-        world.same(instance.id, &actual_self, &expected_self, implicit)?;
-        match (&method.application, application, trait_scope) {
-            (Some(expected), Some(actual), None)
-                if expected.declaration == actual.declaration
-                    && expected.arguments.len() == actual.arguments.len() =>
-            {
-                for (expected, actual) in expected.arguments.iter().zip(&actual.arguments) {
-                    let expected = super::super::materialize::actual_in_view(
-                        world.program,
-                        &world.view,
-                        world.ledger,
-                        instance.id,
-                        expected,
-                        world.limits,
-                        world.left,
-                    )?;
-                    let actual = super::super::materialize::actual_in_view(
-                        world.program,
-                        &world.view,
-                        world.ledger,
-                        parent_instance.id,
-                        actual,
-                        world.limits,
-                        world.left,
-                    )?;
-                    let actual = parent_actual(world, &actual, &parent_actuals)?;
-                    same_actual(world, instance.id, &actual, &expected, implicit)?;
-                }
-            }
-            (Some(expected), None, Some(actual))
-                if expected.declaration == actual
-                    && expected.arguments.len() == parent_actuals.len() =>
-            {
-                for (expected, actual) in expected.arguments.iter().zip(&parent_actuals) {
-                    let expected = super::super::materialize::actual_in_view(
-                        world.program,
-                        &world.view,
-                        world.ledger,
-                        instance.id,
-                        expected,
-                        world.limits,
-                        world.left,
-                    )?;
-                    same_actual(world, instance.id, actual, &expected, implicit)?;
-                }
-            }
-            (None, _, _) => {}
-            _ => {
-                return Err(bad(
-                    "method provider changes the complete original trait application",
-                ));
+            for (expected, actual) in expected.arguments.iter().zip(&parent_actuals) {
+                let expected = super::super::materialize::actual_in_view(
+                    world.program,
+                    &world.view,
+                    world.ledger,
+                    instance.id,
+                    expected,
+                    world.limits,
+                    world.left,
+                )?;
+                same_actual(world, instance.id, actual, &expected, implicit)?;
             }
         }
-        if arguments.len() != signature.parameters.len()
-            || function.parameters.len() != arguments.len()
-            || function.call_kind != signature.call_kind
-            || function.result_mode != signature.result_mode
-        {
+        (None, _, _) => {}
+        _ => {
             return Err(bad(
-                "method actual entry changes its full original signature roles",
+                "method provider changes the complete original trait application",
             ));
         }
-        super::receiver::seal(
-            world, instance, original, site, &method, arguments, values, locals, implicit,
-        )?;
-        for (ordinal, ((argument, parameter), local)) in arguments
-            .iter()
-            .zip(&signature.parameters)
-            .zip(&function.parameters)
-            .enumerate()
-        {
-            let ty = &function
-                .locals
-                .get(local.0 as usize)
-                .ok_or_else(|| bad("method entry parameter local is absent"))?
-                .ty;
-            let expected = world.physical_type(instance.id, &parameter.ty, ty)?;
-            let actual = world.get(values, *argument)?;
-            arguments::satisfy(
-                world,
-                instance,
-                Some(callee),
-                site,
-                ordinal,
-                *argument,
-                &actual,
-                &expected,
-                values,
-                locals,
-                implicit,
-            )?;
-        }
-        selected = Some(call_result(
+    }
+    if arguments.len() != signature.parameters.len()
+        || function.parameters.len() != arguments.len()
+        || function.call_kind != signature.call_kind
+        || function.result_mode != signature.result_mode
+    {
+        return Err(bad(
+            "method actual entry changes its full original signature roles",
+        ));
+    }
+    super::receiver::seal(
+        world, instance, original, site, &method, arguments, values, locals, implicit,
+    )?;
+    for (ordinal, ((argument, parameter), local)) in arguments
+        .iter()
+        .zip(&signature.parameters)
+        .zip(&function.parameters)
+        .enumerate()
+    {
+        let ty = &function
+            .locals
+            .get(local.0 as usize)
+            .ok_or_else(|| bad("method entry parameter local is absent"))?
+            .ty;
+        let expected = world.physical_type(instance.id, &parameter.ty, ty)?;
+        let actual = world.get(values, *argument)?;
+        arguments::satisfy(
             world,
             instance,
+            Some(callee),
             site,
-            &signature.result,
-            &function.return_type,
-        )?);
+            ordinal,
+            *argument,
+            &actual,
+            &expected,
+            values,
+            locals,
+            implicit,
+        )?;
     }
-    Ok(selected)
+    call_result(
+        world,
+        instance,
+        site,
+        &signature.result,
+        &function.return_type,
+    ).map(Some)
 }
 
 /// A declaration-local anonymous input is universally instantiated only at
@@ -1227,155 +1218,135 @@ fn result_invocation(
     Ok(())
 }
 
-pub(super) fn direct(
-    world: &mut World<'_, '_>,
+pub(super) fn direct<'a>(
+    world: &mut World<'a, '_>,
     instance: &SemanticInstance,
     original: &SemanticDefinition,
     callee: &SemanticInstance,
-    function: &TypedFunction,
-    sites: &[&SemanticSite],
-    block: BlockId,
-    index: usize,
+    function: &'a TypedFunction,
+    site: &'a SemanticSite,
     arguments: &[ValueId],
     values: &ssa::Values,
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<SharedType>> {
-    let mut selected = None;
-    for site in world.point_sites(sites, block, index)? {
-        let SemanticSiteAction::BodyCall { actuals } = &site.action else {
-            continue;
-        };
-        let signature = {
-            let ledger = world.ledger;
-            let proof = ledger.original.borrow();
-            let proof = proof
-                .as_ref()
-                .ok_or_else(|| bad("direct call lacks complete original Gamma"))?;
-            let Some(signature) = proof.direct_calls.get(&(original.id, site.recipe)) else {
-                continue;
-            };
-            crate::dyn_metadata::semantic_operand_snapshot(signature, world.limits, world.left, 1)?;
-            signature.clone()
-        };
-        if selected.is_some() {
-            return Err(bad("actual direct call repeats its original solved scheme"));
-        }
-        world.body_call(instance, original, site, actuals, callee.definition)?;
+    let SemanticSiteAction::BodyCall { actuals } = &site.action else {
+        return Ok(None);
+    };
+    let ledger = world.ledger;
+    let proof = ledger.original.borrow();
+    let proof = proof.as_ref().ok_or_else(|| bad("direct call lacks complete original Gamma"))?;
+    world.pay(index::search(proof.direct_calls.len()))?;
+    let Some(signature) = proof.direct_calls.get(&(original.id, site.recipe)) else {
+        return Ok(None);
+    };
+    world.body_call(instance, original, site, actuals, callee.definition)?;
+    let key = (calls::Site::new(instance, site, callee.definition, actuals)?, callee.id);
+    world.pay(index::search(world.call_proofs.specialized_headers.len()))?;
+    if !world.call_proofs.specialized_headers.contains(&key) {
         if actuals.len() != callee.actuals.len() {
             return Err(bad("actual direct call omits original mixed formals"));
         }
         for (actual, specialized) in actuals.iter().zip(&callee.actuals) {
             actual_specialization(world, specialized, actual)?;
         }
-        if arguments.len() != signature.parameters.len()
+        if callee.target != SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id))
+            || arguments.len() != signature.parameters.len()
             || function.parameters.len() != arguments.len()
             || function.result_mode != signature.result_mode
             || function.call_kind != signature.call_kind
         {
-            return Err(bad(
-                "actual direct entry changes its complete original signature roles",
-            ));
+            return Err(bad("actual direct entry changes its complete original signature roles"));
         }
         let target = world.definition(callee.definition)?;
-        let (SemanticDefinitionBody::FunctionWithBody {
-            signature: target_signature,
-            ..
-        }
-        | SemanticDefinitionBody::Function {
-            signature: target_signature,
-            ..
-        }) = &target.body
-        else {
+        let (SemanticDefinitionBody::FunctionWithBody { signature: target_signature, .. }
+        | SemanticDefinitionBody::Function { signature: target_signature, .. }) = &target.body else {
             return Err(bad("direct entry has another original body kind"));
         };
         if target_signature.parameters.len() != signature.parameters.len() {
             return Err(bad("direct entry omits original value parameter roles"));
         }
-        let mut parameters = Vec::new();
         world.pay(signature.parameters.len())?;
-        for (ordinal, ((argument, parameter), local)) in arguments
-            .iter()
-            .zip(&signature.parameters)
-            .zip(&function.parameters)
-            .enumerate()
-        {
-            let ty = &function
-                .locals
-                .get(local.0 as usize)
-                .ok_or_else(|| bad("direct entry parameter local is absent"))?
-                .ty;
-            let expected = match captured_call_type(world, instance, site, &parameter.ty, ty)? {
-                Some(value) => value,
-                None => world.physical_type(instance.id, &parameter.ty, ty)?,
-            };
-            let actual = world.get(values, *argument)?;
-            arguments::satisfy(
-                world,
-                instance,
-                Some(callee),
-                site,
-                ordinal,
-                *argument,
-                &actual,
-                &expected,
-                values,
-                locals,
-                implicit,
-            )?;
-            parameters.push(expected);
-        }
-        let mut invocation = match &function.storage_life {
-            Some(header) => {
-                invocation_inputs(world, instance, callee, header, &parameters, implicit)?
-            }
-            None => invocation::Inputs::default(),
-        };
-        for (ordinal, (((parameter, expected), target_parameter), local)) in signature
-            .parameters
-            .iter()
-            .zip(&parameters)
-            .zip(&target_signature.parameters)
-            .zip(&function.parameters)
-            .enumerate()
-        {
+        for (parameter, target_parameter) in signature.parameters.iter().zip(&target_signature.parameters) {
             if parameter.mode != target_parameter.mode {
                 return Err(bad("direct entry changes an original passing mode"));
             }
-            let ty = &function
-                .locals
-                .get(local.0 as usize)
-                .ok_or_else(|| bad("direct entry parameter local is absent"))?
-                .ty;
-            let target = world.parameter_value(callee.id, ordinal, ty)?;
-            let target = invocation::map(world, &target, actuals, None, &invocation)?;
-            world.same(instance.id, &target, expected, implicit)?;
         }
-        let expected = call_result(
+        world.pay(index::search(world.call_proofs.specialized_headers.len()).saturating_add(1))?;
+        world.call_proofs.specialized_headers.insert(key);
+    }
+    let mut parameters = Vec::new();
+    world.pay(signature.parameters.len())?;
+    for (ordinal, ((argument, parameter), local)) in arguments
+        .iter()
+        .zip(&signature.parameters)
+        .zip(&function.parameters)
+        .enumerate()
+    {
+        let ty = &function
+            .locals
+            .get(local.0 as usize)
+            .ok_or_else(|| bad("direct entry parameter local is absent"))?
+            .ty;
+        let expected = match captured_call_type(world, instance, site, &parameter.ty, ty)? {
+            Some(value) => value,
+            None => world.physical_type(instance.id, &parameter.ty, ty)?,
+        };
+        let actual = world.get(values, *argument)?;
+        arguments::satisfy(
             world,
             instance,
+            Some(callee),
             site,
-            &signature.result,
-            &function.return_type,
+            ordinal,
+            *argument,
+            &actual,
+            &expected,
+            values,
+            locals,
+            implicit,
         )?;
-        let target = world.result_value(callee.id, &function.return_type)?;
-        if let Some(header) = &function.storage_life {
-            result_invocation(
-                world,
-                instance,
-                callee,
-                site,
-                header,
-                &target,
-                &expected,
-                &mut invocation,
-            )?;
-        }
-        let target = invocation::map(world, &target, actuals, None, &invocation)?;
-        world.same(instance.id, &target, &expected, implicit)?;
-        selected = Some(expected);
+        parameters.push(expected);
     }
-    Ok(selected)
+    let mut invocation = match &function.storage_life {
+        Some(header) => {
+            invocation_inputs(world, instance, callee, header, &parameters, implicit)?
+        }
+        None => invocation::Inputs::default(),
+    };
+    for (ordinal, (expected, local)) in parameters.iter().zip(&function.parameters).enumerate() {
+        let ty = &function
+            .locals
+            .get(local.0 as usize)
+            .ok_or_else(|| bad("direct entry parameter local is absent"))?
+            .ty;
+        let target = world.parameter_value(callee.id, ordinal, types::Hint::Actual(ty))?;
+        let target = invocation::map(world, &target, actuals, None, &invocation)?;
+        world.same(instance.id, &target, expected, implicit)?;
+    }
+    let expected = call_result(
+        world,
+        instance,
+        site,
+        &signature.result,
+        &function.return_type,
+    )?;
+    let target = world.result_value(callee.id, types::Hint::Actual(&function.return_type))?;
+    if let Some(header) = &function.storage_life {
+        result_invocation(
+            world,
+            instance,
+            callee,
+            site,
+            header,
+            &target,
+            &expected,
+            &mut invocation,
+        )?;
+    }
+    let target = invocation::map(world, &target, actuals, None, &invocation)?;
+    world.same(instance.id, &target, &expected, implicit)?;
+    Ok(Some(expected))
 }
 
 /// A sealed task/thread operation carries a separately solved original worker

@@ -1,6 +1,7 @@
 //! Memoized interpretation of immutable type recipes, not live class/loan
 //! validation. Instance and complete hint belong to every request-local key.
 use super::*;
+use std::borrow::Cow;
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum RecipeKey {
     Formal(u32, u32),
@@ -11,14 +12,36 @@ pub(super) enum RecipeKey {
     Structural(zil_base::Fingerprint, zil_base::Fingerprint),
 }
 type Key = (SemanticInstanceId, RecipeKey);
-struct Entry {
+
+#[derive(Clone, Copy)]
+pub(super) enum Hint<'a, 'h> {
+    Actual(&'a Type),
+    Temporary(&'h Type),
+}
+
+impl<'h> From<&'h Type> for Hint<'_, 'h> {
+    fn from(ty: &'h Type) -> Self {
+        Self::Temporary(ty)
+    }
+}
+
+impl Hint<'_, '_> {
+    pub(super) fn as_type(&self) -> &Type {
+        match self {
+            Self::Actual(ty) => ty,
+            Self::Temporary(ty) => ty,
+        }
+    }
+}
+
+struct Entry<'a> {
     recipe: Option<SemanticTypeRecipe>,
-    hint: Type,
+    hint: Cow<'a, Type>,
     value: SharedType,
 }
 #[derive(Default)]
-pub(super) struct Table {
-    buckets: BTreeMap<Key, Vec<Entry>>,
+pub(super) struct Table<'a> {
+    buckets: BTreeMap<Key, Vec<Entry<'a>>>,
     entries: usize,
     portable: BTreeMap<(SemanticDefinitionId, RecipeKey), bool>,
     pub hits: usize,
@@ -26,7 +49,7 @@ pub(super) struct Table {
     pub lookup_work: usize,
     pub evaluation_work: usize,
 }
-impl Table {
+impl<'a> Table<'a> {
     fn compact_key(recipe: &SemanticTypeRecipe) -> Option<RecipeKey> {
         match recipe {
             SemanticTypeRecipe::Formal(SemanticFormalRef {
@@ -98,14 +121,14 @@ impl Table {
         &mut self,
         scope: SemanticInstanceId,
         recipe: &SemanticTypeRecipe,
-        hint: &Type,
+        hint: Hint<'a, '_>,
         limits: &Limits,
         left: &mut usize,
     ) -> R<(Key, Option<SharedType>)> {
         let before = *left;
-        let key = (scope, Self::recipe_key(recipe, hint, limits, left)?);
+        let key = (scope, Self::recipe_key(recipe, hint.as_type(), limits, left)?);
         index::pay(left, index::search(self.buckets.len()))?;
-        if let Some(bucket) = self.buckets.get(&key) {
+        if let Some(bucket) = self.buckets.get_mut(&key) {
             index::pay(left, bucket.len())?;
             for entry in bucket {
                 if let Some(expected) = &entry.recipe {
@@ -115,10 +138,23 @@ impl Table {
                         continue;
                     }
                 }
-                inference::charge_type_snapshot(&entry.hint, Span::default(), limits, left, 1)?;
-                inference::charge_type_snapshot(hint, Span::default(), limits, left, 1)?;
-                if entry.hint == *hint {
+                // A borrowed hint is part of the actual Typed module, which
+                // outlives this table. Address equality is therefore exact.
+                // Temporary whole types still require their full comparison.
+                let same_hint = if std::ptr::eq(entry.hint.as_ref(), hint.as_type()) {
+                    true
+                } else {
+                    inference::charge_type_snapshot(&entry.hint, Span::default(), limits, left, 1)?;
+                    inference::charge_type_snapshot(hint.as_type(), Span::default(), limits, left, 1)?;
+                    entry.hint.as_ref() == hint.as_type()
+                };
+                if same_hint {
                     index::pay(left, 1)?;
+                    if let Hint::Actual(hint) = hint
+                        && matches!(entry.hint, Cow::Owned(_))
+                    {
+                        entry.hint = Cow::Borrowed(hint);
+                    }
                     self.hits = self.hits.saturating_add(1);
                     self.lookup_work = self
                         .lookup_work
@@ -137,7 +173,7 @@ impl Table {
         &mut self,
         key: Key,
         recipe: &SemanticTypeRecipe,
-        hint: &Type,
+        hint: Hint<'a, '_>,
         value: &SharedType,
         limits: &Limits,
         left: &mut usize,
@@ -157,7 +193,13 @@ impl Table {
         } else {
             None
         };
-        inference::charge_type_snapshot(hint, Span::default(), limits, left, 1)?;
+        let hint = match hint {
+            Hint::Actual(hint) => Cow::Borrowed(hint),
+            Hint::Temporary(hint) => {
+                inference::charge_type_snapshot(hint, Span::default(), limits, left, 1)?;
+                Cow::Owned(hint.clone())
+            }
+        };
         index::pay(left, 1)?;
         index::pay(
             left,
@@ -167,7 +209,7 @@ impl Table {
         )?;
         self.buckets.entry(key).or_default().push(Entry {
             recipe,
-            hint: hint.clone(),
+            hint,
             value: value.clone(),
         });
         self.entries += 1;
@@ -193,11 +235,11 @@ mod tests {
         let same_name = |child| Type::Record { name: "Record".into(), fields: vec![("field".into(), child)] };
         let hint = same_name(Type::I32);
         let alternate = same_name(Type::I64);
-        let (key, found) = table.lookup(scope, &expected, &hint, &limits, &mut left).unwrap();
+        let (key, found) = table.lookup(scope, &expected, Hint::Temporary(&hint), &limits, &mut left).unwrap();
         assert!(found.is_none());
         let value = Rc::new(SemanticTypeValue::Resolved { ty: hint.clone(), life: empty(), classes: Vec::new() });
-        table.insert(key, &expected, &hint, &value, &limits, &mut left).unwrap();
-        let (_, found) = table.lookup(scope, &expected, &hint, &limits, &mut left).unwrap();
+        table.insert(key, &expected, Hint::Temporary(&hint), &value, &limits, &mut left).unwrap();
+        let (_, found) = table.lookup(scope, &expected, Hint::Temporary(&hint), &limits, &mut left).unwrap();
         assert!(Rc::ptr_eq(&found.unwrap(), &value));
         for (scope, recipe, hint) in [
             (scope, expected, &alternate),
@@ -205,7 +247,7 @@ mod tests {
             (scope, recipe(0, SemanticOriginalTypeSource::Binding(id)), &hint),
             (SemanticInstanceId { index: 2, ..scope }, recipe(0, SemanticOriginalTypeSource::Expression(id)), &hint),
         ] {
-            assert!(table.lookup(scope, &recipe, hint, &limits, &mut left).unwrap().1.is_none());
+            assert!(table.lookup(scope, &recipe, Hint::Temporary(hint), &limits, &mut left).unwrap().1.is_none());
         }
     }
 }

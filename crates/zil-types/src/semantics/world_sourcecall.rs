@@ -10,29 +10,41 @@ pub(super) fn callee<'a>(
     block: BlockId,
     instruction: usize,
 ) -> R<&'a SemanticInstance> {
+    resolve(world, caller, target, sites, block, instruction).map(|(callee, _)| callee)
+}
+
+pub(super) fn resolve<'a>(
+    world: &mut World<'a, '_>,
+    caller: &SemanticInstance,
+    target: FunctionId,
+    sites: &[&SemanticSite],
+    block: BlockId,
+    instruction: usize,
+) -> R<(&'a SemanticInstance, &'a SemanticSite)> {
     let mut occurrence = None;
     for site in world.point_sites(sites, block, instruction)? {
         if matches!(
             site.action,
             SemanticSiteAction::Call { .. } | SemanticSiteAction::BodyCall { .. }
         ) {
-            if occurrence.replace(site.recipe).is_some() {
+            if occurrence.replace(site).is_some() {
                 return Err(bad("actual call repeats its original source occurrence"));
             }
         }
     }
-    let occurrence =
+    let site =
         occurrence.ok_or_else(|| bad("actual call has no original source occurrence"))?;
+    let occurrence = site.recipe;
     world.pay(index::search(world.index.requested_calls.len()).saturating_add(1))?;
     if let Some(positions) = world.index.requested_calls.get(&(caller.id, occurrence, target)) {
         let [position] = positions.as_slice() else {
             return Err(bad("actual call has multiple worlds for its exact source request"));
         };
-        return Ok(&world.program.instances[*position]);
+        return Ok((&world.program.instances[*position], site));
     }
     world.pay(index::search(world.index.ordinary_calls.len()).saturating_add(1))?;
     if let Some([position]) = world.index.ordinary_calls.get(&target).map(Vec::as_slice) {
-        return Ok(&world.program.instances[*position]);
+        return Ok((&world.program.instances[*position], site));
     }
     let mut diagnostic = bad("actual call has no unique world for its exact original request");
     diagnostic.notes.push(format!(
