@@ -1151,3 +1151,104 @@ fn main()->i32{return run(true)+run(false)-43}
         require_semantic_rejection(errors);
     }
 }
+
+#[test]
+fn borrowed_store_field_observations_keep_the_original_sibling_and_parent_permission() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let mut declarations = String::from("package Holder { manages left:Store<i64>; manages right:Store<i64> }\n");
+    let mut owner = String::from("Holder{left:give left,right:give right}");
+    let mut ty = String::from("Holder");
+    let mut path = String::from("pointer.");
+    for depth in 0..=2 {
+        for borrow in ["&", "&mut "] {
+            let source = format!("{declarations}fn main()->i32 {{
+                let left:Store<i64>=store_new()
+                let right:Store<i64>=store_new()
+                if !store_reserve(left,1) || !store_reserve(right,1) {{return 1}}
+                store_push(left,11)
+                store_push(right,22)
+                var owner={owner}
+                var pointer={borrow}owner
+                let old={path}left
+                let value=*store_at(old,0)
+                pointer={borrow}owner
+                let fresh={path}right
+                return i32(value+*store_at(fresh,0))-33
+            }}");
+            let mut module = stored_original_module(&source, &limits, &target);
+            let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+            let wire = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+            zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+            zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+            // The two actual fields are identically typed, initialized and live.
+            // Redirect just the first observation and retain valid SSA/Hold roots.
+            let mut edits = 0;
+            for f in &mut module.functions {
+                for i in f.blocks.iter_mut().flat_map(|block| &mut block.instructions) {
+                    let InstructionKind::AddressField { address, index } = &mut i.kind else { continue };
+                    let Type::Address { inner, .. } = &f.values[address.0 as usize] else { continue };
+                    let Type::Package { fields, .. } = inner.as_ref() else { continue };
+                    if *index == 0 && matches!(fields.as_slice(), [(left, _), (right, _)]
+                        if left == "left" && right == "right")
+                    {
+                        assert_eq!(fields[0].1, fields[1].1);
+                        *index = 1;
+                        edits += 1;
+                    }
+                }
+            }
+            assert_eq!(edits, 1);
+            let errors = zil_analyze::analyze(&module, &limits).unwrap_err();
+            require_semantic_rejection(errors);
+            plan.module_fingerprint = module.fingerprint();
+            let wire = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+            require_semantic_rejection(zil_verify::verify_module(module, plan, &target, &limits).unwrap_err());
+            require_semantic_rejection(zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err());
+
+            let bad = if borrow == "&" {
+                source.replace(&format!("let fresh={path}right"),
+                    &format!("let x=store_at_mut({path}right,0)\n*x=23\nlet fresh={path}right"))
+            } else {
+                source.replace("let value=*store_at(old,0)\n                pointer=&mut owner",
+                    "pointer=&mut owner\n                let value=*store_at(old,0)")
+            };
+            assert_ne!(source, bad);
+            let invalid = stored_original_module(&bad, &limits, &target);
+            if borrow == "&" {
+                let writable = bad.replace("pointer=&owner", "pointer=&mut owner");
+                let writable = stored_original_module(&writable, &limits, &target);
+                let mut candidate = zil_analyze::analyze(&writable, &limits).unwrap();
+                candidate.module_fingerprint = invalid.fingerprint();
+                let bytes = wire::encode_module_candidate(&invalid, &candidate, &limits).unwrap();
+                for result in [
+                    zil_verify::verify_module(invalid.clone(), candidate, &target, &limits),
+                    zil_verify::verify_module_bytes(&bytes, &target, &limits),
+                ] {
+                    let errors = result.unwrap_err();
+                    assert!(errors.iter().any(|d| d.category == ResultCategory::SafeReject
+                        && d.message.contains("shared actual parent loan")), "{errors:?}");
+                }
+                let replace = source.replace(&format!("let fresh={path}right"), &format!(
+                    "let next:Store<i64>=store_new()\n{path}right=give next\nlet fresh={path}right"));
+                let input = SourceUnit::new(FileId(0), ModuleId(0), "shared-replacement.zil", &replace);
+                let report = zil_driver::compile_source(&input, &zil_driver::CompileOptions {
+                    stop_after: zil_driver::Stage::Verify, ..Default::default()
+                });
+                assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+                assert!(report.diagnostics.iter().any(|d| d.message.contains("shared address")),
+                    "{}", report.to_json());
+            }
+            let errors = zil_analyze::analyze(&invalid, &limits).unwrap_err();
+            assert!(errors.iter().any(|d| d.category == ResultCategory::SafeReject
+                && (d.code == "E-BORROW-CONFLICT" || d.message.contains("parent loan"))),
+                "{depth}/{borrow}: {errors:?}");
+        }
+        let wrapper = format!("Wrap{depth}");
+        declarations.push_str(&format!("package {wrapper} {{ nested:{ty} }}\n"));
+        owner = format!("{wrapper}{{nested:{owner}}}");
+        ty = wrapper;
+        path.push_str("nested.");
+    }
+}

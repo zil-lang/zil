@@ -38,6 +38,35 @@ impl<'step> Access<'step> {
         }
         Ok(self.reads.as_ref().unwrap())
     }
+    /// A descriptor can carry a delegated head loan. Before exempting its
+    /// ancestors from conflicts, check that they authorize this actual write.
+    pub(super) fn check_head(
+        &mut self,
+        permission: &Permission,
+        write: bool,
+        apart: &mut BTreeSet<(Target, Target)>,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        if !write || permission.loans.is_empty() {
+            return self.check(permission, write, apart, b);
+        }
+        permission_head(permission, true, b)?;
+        let parents = ancestry(&permission.loans, self.loans, b)?;
+        for id in &parents {
+            fee(b, 1)?;
+            let loan = &self.loans[*id];
+            if !loan.mutable {
+                for target in &permission.targets {
+                    for parent in &loan.targets {
+                        if intersects(target, parent, b)? {
+                            return Err(failure("descriptor mutation requires an exclusive overlapping parent loan"));
+                        }
+                    }
+                }
+            }
+        }
+        permission_tail(permission, true, self.all, self.loans, &parents, apart, b)
+    }
     pub(super) fn check(
         &mut self,
         permission: &Permission,

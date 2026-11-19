@@ -7219,7 +7219,7 @@ fn windows(
                     if actual.targets.is_empty() {
                         return Err(failure("head operation has no actual descriptor source"));
                     }
-                    access.check(actual, write, apart, b)?;
+                    access.check_head(actual, write, apart, b)?;
                     record_head_access(head_accesses, actual, write, b)?;
                 }
                 match &i.kind {
@@ -8013,7 +8013,7 @@ fn windows(
                                         "callee head effect has no actual caller manager",
                                     ));
                                 }
-                                access.check(&actual, *write, apart, b)?;
+                                access.check_head(&actual, *write, apart, b)?;
                                 record_head_access(head_accesses, &actual, *write, b)?;
                             }
                         }

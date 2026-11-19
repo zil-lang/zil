@@ -239,7 +239,8 @@ pub(super) fn check_shared_product_type(
                     return Err(unsupported("borrowed Product callback requires its complete callable environment", span));
                 }
             } else if !(field.is_copy_value()
-                || matches!(field, Type::Managed(payload) if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. })))
+                || matches!(field, Type::Managed(payload) if matches!(payload.as_ref(),
+                    Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. })))
             {
                 return Err(unsupported("borrowed Product heads require finite value fields", span));
             }
