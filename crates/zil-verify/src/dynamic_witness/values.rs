@@ -69,6 +69,66 @@ pub(crate) fn active_contains(active: &[&Type], ty: &Type, b: &mut Budget) -> Ch
     }
     Ok(false)
 }
+/// Resolve the unique immutable declaration and compare its entire machine
+/// signature with the actual entry. Domain recursion, static occurrences and
+/// resource checks depend on the current use and are replayed by the caller.
+fn closure_abi<'a>(module: &'a TypedModule, id: ClosureId, b: &mut Budget)
+    -> Check<(&'a ClosureDefinition, &'a TypedFunction, &'a StorageLifeContract)>
+{
+    let cost = b.structural.as_ref().map_or(0, |state| state.closure_abi_cost());
+    if b.structural.is_some() {
+        b.spend(cost.saturating_add(1))?;
+        if let Some(row) = b.structural.as_ref().unwrap().closure_abi(module, id, &b.limits) {
+            let declaration = &module.closures[row];
+            let entry = &module.functions[declaration.function.0 as usize];
+            return Ok((declaration, entry, declaration.storage_life.as_ref().unwrap()));
+        }
+    }
+    b.spend(module.closures.len().saturating_add(1))?;
+    let mut rows = module.closures.iter().enumerate().filter(|(_, row)| row.id == id);
+    let (ordinal, d) = rows.next().ok_or_else(|| bad("opaque Closure definition is absent"))?;
+    if rows.next().is_some() { return Err(bad("opaque Closure definition identity is ambiguous")); }
+    let entry = module.functions.get(d.function.0 as usize)
+        .ok_or_else(|| bad("opaque Closure exact entry is absent"))?;
+    if entry.id != d.function
+        || entry.environment != Some(id)
+        || entry.parameters.len() != d.parameters.len()
+    {
+        return Err(bad("opaque Closure actual entry identity differs"));
+    }
+    // A missing relation is Unknown even for an apparently empty
+    // capture list. Invocation classes are not free Fixed classes.
+    let relation = d
+        .storage_life
+        .as_ref()
+        .ok_or_else(|| bad("opaque Closure complete relation is Unknown"))?;
+    signature_life::charge(relation, b)?;
+    if entry.storage_life.as_ref() != Some(relation) {
+        return Err(bad("opaque Closure and actual entry relations differ"));
+    }
+    for (parameter, expected) in entry.parameters.iter().zip(&d.parameters) {
+        b.spend(1)?;
+        let actual = entry
+            .locals
+            .get(parameter.0 as usize)
+            .ok_or_else(|| bad("opaque Closure actual parameter is absent"))?;
+        dynamic_metadata::ty(&actual.ty, b)?;
+        dynamic_metadata::ty(expected, b)?;
+        if actual.ty != *expected {
+            return Err(bad("opaque Closure actual parameter type differs"));
+        }
+    }
+    dynamic_metadata::ty(&d.result, b)?;
+    dynamic_metadata::ty(&entry.return_type, b)?;
+    if d.result != entry.return_type {
+        return Err(bad("opaque Closure actual result type differs"));
+    }
+    if b.structural.is_some() {
+        b.spend(cost.saturating_add(13))?;
+        b.structural.as_mut().unwrap().remember_closure_abi(module, id, ordinal, &b.limits);
+    }
+    Ok((d, entry, relation))
+}
 impl<'a> Inventory<'a> {
     pub(super) fn raw_scope(&mut self, ty: &'a Type, b: &mut Budget) -> Check<(StorageLifeShape, Domain)> {
         if !matches!(ty, Type::Address { .. } | Type::Desc(_)) {
@@ -129,57 +189,7 @@ impl<'a> Inventory<'a> {
                 })
             }
             Type::Closure(id) => {
-                b.spend(
-                    self.module
-                        .closures
-                        .len()
-                        .saturating_add(self.module.functions.len()),
-                )?;
-                let mut rows = self.module.closures.iter().filter(|row| row.id == *id);
-                let d = rows
-                    .next()
-                    .ok_or_else(|| bad("opaque Closure definition is absent"))?;
-                if rows.next().is_some() {
-                    return Err(bad("opaque Closure definition identity is ambiguous"));
-                }
-                let entry = self
-                    .module
-                    .functions
-                    .get(d.function.0 as usize)
-                    .ok_or_else(|| bad("opaque Closure exact entry is absent"))?;
-                if entry.id != d.function
-                    || entry.environment != Some(*id)
-                    || entry.parameters.len() != d.parameters.len()
-                {
-                    return Err(bad("opaque Closure actual entry identity differs"));
-                }
-                // A missing relation is Unknown even for an apparently empty
-                // capture list. Invocation classes are not free Fixed classes.
-                let relation = d
-                    .storage_life
-                    .as_ref()
-                    .ok_or_else(|| bad("opaque Closure complete relation is Unknown"))?;
-                signature_life::charge(relation, b)?;
-                if entry.storage_life.as_ref() != Some(relation) {
-                    return Err(bad("opaque Closure and actual entry relations differ"));
-                }
-                for (parameter, expected) in entry.parameters.iter().zip(&d.parameters) {
-                    b.spend(1)?;
-                    let actual = entry
-                        .locals
-                        .get(parameter.0 as usize)
-                        .ok_or_else(|| bad("opaque Closure actual parameter is absent"))?;
-                    dynamic_metadata::ty(&actual.ty, b)?;
-                    dynamic_metadata::ty(expected, b)?;
-                    if actual.ty != *expected {
-                        return Err(bad("opaque Closure actual parameter type differs"));
-                    }
-                }
-                dynamic_metadata::ty(&d.result, b)?;
-                dynamic_metadata::ty(&entry.return_type, b)?;
-                if d.result != entry.return_type {
-                    return Err(bad("opaque Closure actual result type differs"));
-                }
+                let (d, entry, relation) = closure_abi(self.module, *id, b)?;
                 // Independently checks every capture and complete P/R class
                 // occurrence against the real definition, not a Self directory.
                 if relation.fixed_binder_count == 0 && relation.invocation_binder_count == 0 {
@@ -642,6 +652,36 @@ fn query_consumer<T>(result:Check<T>,caller:&std::panic::Location<'_>,b:&mut Bud
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn closure_machine_signature_receipt_is_local_to_the_immutable_module_and_bounds() {
+        let limits = Limits::default();
+        let (module, _) = zil_ir::wire::decode_module_candidate(
+            include_bytes!("../semantic/fixtures/local-closure-complete-head.wire"), &limits,
+        ).unwrap();
+        let id = module.closures[0].id;
+        let mut b = Budget::new(&limits);
+        b.structural = Some(dynamic_metadata::Structure::register(&module, &mut b).unwrap());
+        closure_abi(&module, id, &mut b).unwrap();
+        assert_eq!(b.structural.as_ref().unwrap().closure_abi(&module, id, &limits), Some(0));
+        let warm = b.remaining;
+        closure_abi(&module, id, &mut b).unwrap();
+        assert!(b.remaining < warm);
+
+        b.limits.max_nodes = 0;
+        assert_eq!(closure_abi(&module, id, &mut b).unwrap_err().category, zil_base::ResultCategory::ResourceLimit);
+        b.limits = limits;
+        for changed in 0..3 {
+            let mut wrong = module.clone();
+            let entry = wrong.closures[0].function.0 as usize;
+            match changed {
+                0 => wrong.functions[entry].return_type = Type::Tuple(vec![Type::U64]),
+                1 => wrong.closures.push(wrong.closures[0].clone()),
+                _ => wrong.functions[entry].storage_life = None,
+            }
+            assert_eq!(closure_abi(&wrong, id, &mut b).unwrap_err().category, zil_base::ResultCategory::SafeReject);
+        }
+        closure_abi(&module, id, &mut b).unwrap();
+    }
     #[test]
     fn structural_inventory_preserves_nonzero_children_without_claiming_a_bare_parent_domain_raw_wire(){
         let mut m=closure(1);

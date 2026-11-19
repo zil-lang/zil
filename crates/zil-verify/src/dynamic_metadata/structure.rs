@@ -110,6 +110,7 @@ pub(crate) struct Structure{
     trait_providers:Option<BTreeMap<LifeDeclarationId,Vec<(usize,SemanticDefinitionId)>>>,
     nominal_declarations:BTreeMap<LifeDeclarationId,Vec<usize>>,
     borrowed_callback_domains:BTreeMap<ClosureId,u32>,
+    closure_abis: BTreeMap<ClosureId, (Limits, usize)>,
     nominal_instances:BTreeMap<LifeDeclarationId,Vec<usize>>,
     scope_instances:BTreeMap<SemanticDefinitionId,Vec<usize>>,
     // The original pointer and the copied root can both refer to the same
@@ -120,6 +121,18 @@ pub(crate) struct Structure{
 impl Structure{
     pub(crate) fn identity_for(&self, module: &TypedModule) -> Option<std::rc::Rc<()>> {
         (self.module == module as *const TypedModule as usize).then(|| self.scope_identity.clone())
+    }
+    pub(crate) fn closure_abi(&self, module: &TypedModule, id: ClosureId, limits: &Limits) -> Option<usize> {
+        if self.module != module as *const TypedModule as usize { return None; }
+        self.closure_abis.get(&id).and_then(|(old, row)| (old == limits).then_some(*row))
+    }
+
+    pub(crate) fn closure_abi_cost(&self) -> usize { lookup(self.closure_abis.len()) }
+
+    pub(crate) fn remember_closure_abi(&mut self, module: &TypedModule, id: ClosureId, row: usize, limits: &Limits) {
+        if self.module == module as *const TypedModule as usize {
+            self.closure_abis.insert(id, (limits.clone(), row));
+        }
     }
     pub(crate) fn borrowed_callback_domain(&self,id:ClosureId)->Option<u32>{
         self.borrowed_callback_domains.get(&id).copied()
@@ -136,7 +149,7 @@ impl Structure{
             program:module.semantic.as_ref().map(|program|program as *const SemanticModule as usize),
             declarations:(module.dyn_declarations.as_ptr() as usize,module.dyn_declarations.len()),
             types:BTreeSet::new(),recipes:BTreeSet::new(),program_bounds:BTreeSet::new(),declaration_nodes:BTreeSet::new(),
-            type_success:TypeFacts::default(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),sum_shapes:BTreeMap::new(),store_definitions:BTreeSet::new(),scalar_store_definitions:BTreeSet::new(),store_resource_payloads:BTreeSet::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),lexical_scopes:BTreeMap::new(),dyn_declarations:BTreeMap::new(),trait_providers:None,nominal_declarations:BTreeMap::new(),nominal_instances:BTreeMap::new(),scope_instances:BTreeMap::new(),type_cells:BTreeMap::new(),borrowed_callback_domains:BTreeMap::new(),
+            type_success:TypeFacts::default(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),sum_shapes:BTreeMap::new(),store_definitions:BTreeSet::new(),scalar_store_definitions:BTreeSet::new(),store_resource_payloads:BTreeSet::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),lexical_scopes:BTreeMap::new(),dyn_declarations:BTreeMap::new(),trait_providers:None,nominal_declarations:BTreeMap::new(),nominal_instances:BTreeMap::new(),scope_instances:BTreeMap::new(),type_cells:BTreeMap::new(),borrowed_callback_domains:BTreeMap::new(),closure_abis:BTreeMap::new(),
         };
         for function in &module.functions{
             result.ty(&function.return_type,b)?;

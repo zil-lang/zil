@@ -676,10 +676,25 @@ impl CheckedContext {
 }
 
 fn consume_field(ty:&Type,index:u32,fields:&mut Vec<String>,b:&mut Budget)->Check<()>{
-    dynamic_metadata::ty(ty,b)?;let name=fields.pop().ok_or_else(||bad("actual buffer projection adds a field absent from its original Place"))?;
+    dynamic_metadata::bounds_type(ty,b)?;let name=fields.pop().ok_or_else(||bad("actual buffer projection adds a field absent from its original Place"))?;
     let mut storage=ty;
     loop{b.spend(1)?;match storage{Type::BorrowedStorage{storage:inner,..}|Type::Managed(inner)|Type::Address{inner,..}|Type::Desc(inner)=>storage=inner,_=>break,}}
-    let correct=match storage{Type::Record{fields,..}|Type::Package{fields,..}=>fields.get(index as usize).is_some_and(|(actual,_)|actual==&name),Type::Tuple(fields)=>(index as usize)<fields.len()&&index.to_string()==name,_=>false};
+    let correct = match storage {
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
+            if let Some((actual, _)) = fields.get(index as usize) {
+                b.spend(1)?;
+                if actual.len() == name.len() {
+                    b.spend(actual.len().saturating_add(name.len()))?;
+                    actual == &name
+                } else { false }
+            } else { false }
+        }
+        Type::Tuple(fields) => {
+            b.spend(11)?; // A u32 ordinal has at most ten decimal digits.
+            (index as usize) < fields.len() && index.to_string() == name
+        }
+        _ => false,
+    };
     if !correct {
         let actual = match storage {
             Type::Record { fields, .. } | Type::Package { fields, .. } =>
