@@ -32,6 +32,7 @@ struct Graph<'c, 'a, 'i, 'f> {
     producer: Option<ValueId>,
     producers: Option<BTreeSet<ValueId>>,
     probe: bool,
+    expected_capture: Option<u32>,
     untouched_whole: bool,
     scalar_mirror: Option<(LocalId, u32)>,
     indices: BTreeMap<Query, usize>,
@@ -61,6 +62,7 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
             producer: None,
             producers: None,
             probe: false,
+            expected_capture: None,
             untouched_whole: false,
             scalar_mirror: None,
             indices: BTreeMap::new(),
@@ -93,6 +95,24 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
         self.indices.insert(query, index);
         Ok(index)
     }
+    fn select_spill(&mut self, local: LocalId, capture: u32, b: &mut Budget) -> CompileResult<()> {
+        self.capture(capture, b)?;
+        let definition = self.function.environment.and_then(|id| self.check.module.closures.get(id.0 as usize))
+            .ok_or_else(|| fail("spilled capture has no creator environment"))?;
+        let field = definition.captures.get(capture as usize)
+            .ok_or_else(|| fail("spilled capture has no physical field"))?;
+        if definition.kind != CallableKind::Fn && field.is_b0_scalar()
+            && self.function.locals.get(local.0 as usize).is_some_and(|row| row.id == local && row.ty == *field)
+        {
+            self.scalar_mirror = Some((local, capture));
+        }
+        Ok(())
+    }
+
+    fn capture_seed(&self, index: u32) -> u32 {
+        if self.probe { u32::from(self.expected_capture != Some(index)) } else { index }
+    }
+
     fn capture(&self, index: u32, b: &mut Budget) -> CompileResult<()> {
         if self.producer.is_some() && !self.probe {
             return Err(fail("original expression transport selects another actual environment source"));
@@ -245,7 +265,7 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
                     index,
                 } if *target == local => {
                     self.capture(*index, b)?;
-                    return Ok((Some(if self.probe {1}else{*index}), Vec::new()));
+                    return Ok((Some(self.capture_seed(*index)), Vec::new()));
                 }
                 InstructionKind::EndPackageCapture { local: target, .. } if *target == local => {
                     return Err(fail(
@@ -402,7 +422,7 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
                     | InstructionKind::DescribeCapture { index }
                     | InstructionKind::BorrowCapture { index, .. } => {
                         self.capture(index, b)?;
-                        Ok((Some(if self.probe {1}else{index}), Vec::new()))
+                        Ok((Some(self.capture_seed(index)), Vec::new()))
                     }
                     InstructionKind::ReborrowAddress { address, .. }
                     | InstructionKind::DescribeAddress { address } => Ok((
@@ -634,21 +654,26 @@ impl Check<'_, '_> {
         graph.solve(Query::Local(local, at.0, at.1), b)?;
         Ok(())
     }
+    /// Reconstruct whether every reaching path to this creator operand starts at
+    /// the selected physical field. Other candidate fields can have independent
+    /// origins. A synchronized scalar spill preserves its binding across writes.
+    pub(super) fn capture_operand_matches(
+        &self, function: &TypedFunction, local: LocalId, operand: ValueId,
+        expected: u32, b: &mut Budget,
+    ) -> CompileResult<bool> {
+        let mut graph = Graph::new(self, function, b)?;
+        graph.probe = true;
+        graph.expected_capture = Some(expected);
+        graph.select_spill(local, expected, b)?;
+        Ok(graph.solve(Query::Value(operand), b)? == 0)
+    }
+
     pub(super) fn spilled_capture_name(
         &self, function: &TypedFunction, local: LocalId, value: ValueId,
         capture: u32, b: &mut Budget,
     ) -> CompileResult<u32> {
         let mut graph = Graph::new(self, function, b)?;
-        graph.capture(capture, b)?;
-        let definition = function.environment.and_then(|id| self.module.closures.get(id.0 as usize))
-            .ok_or_else(|| fail("spilled capture has no original environment"))?;
-        let field = definition.captures.get(capture as usize)
-            .ok_or_else(|| fail("spilled capture has no physical field"))?;
-        if definition.kind != CallableKind::Fn && field.is_b0_scalar()
-            && function.locals.get(local.0 as usize).is_some_and(|l| l.id == local && l.ty == *field)
-        {
-            graph.scalar_mirror = Some((local, capture));
-        }
+        graph.select_spill(local, capture, b)?;
         graph.solve(Query::Value(value), b)
     }
     pub(super) fn capture_origin_value(

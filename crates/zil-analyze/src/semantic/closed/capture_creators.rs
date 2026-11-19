@@ -575,9 +575,16 @@ impl Check<'_, '_> {
         match anchor {
             original::LocalAnchor::Environment(ordinal) => {
                 let expected = self.environment_capture(instance, function, ordinal, b)?;
-                Ok(
-                    matches!(instruction.kind,InstructionKind::ReadCapture {index}|InstructionKind::TakeCapture {index}|InstructionKind::BorrowCapture {index,..}|InstructionKind::DescribeCapture {index} if index==expected),
-                )
+                match instruction.kind {
+                    InstructionKind::ReadCapture { index } | InstructionKind::TakeCapture { index }
+                    | InstructionKind::BorrowCapture { index, .. } | InstructionKind::DescribeCapture { index } =>
+                        Ok(index == expected),
+                    InstructionKind::Load(local) | InstructionKind::TakeLocal { local }
+                    | InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local }
+                    | InstructionKind::DescribeLocal { local } =>
+                        self.capture_operand_matches(function, local, value, expected, b),
+                    _ => Ok(false),
+                }
             }
             anchor => {
                 let expected = self.anchored_local(instance, function, anchor, b)?;
