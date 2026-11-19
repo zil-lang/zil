@@ -69,7 +69,7 @@ fn component(module: &TypedModule, plan: &CandidatePlan, limit: usize) -> Check<
         .functions
         .iter()
         .zip(&plan.functions)
-        .map(|(f, p)| check_function(module, f, p, &mut budget, &limits))
+        .map(|(f, p)| check_function(module, f, p, &mut budget))
         .collect::<Check<Vec<_>>>()?;
     qualifications(module, &limits, None, &mut budget)?;
     for f in &module.functions {

@@ -533,7 +533,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
                 format!("mode={mode}"),
                 module,
                 plan,
-                Some([5584, 5922, 7699][mode as usize]),
+                Some([5601, 5939, 7714][mode as usize]),
             )
         })
         .collect();
@@ -545,7 +545,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
             format!("Store indirect={indirect}"),
             module,
             plan,
-            Some(if indirect { 20531 } else { 17350 }),
+            Some(if indirect { 20574 } else { 17379 }),
         ));
     }
     // Each fixture has one closure whose capture list selects the fixed point.
@@ -597,11 +597,9 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
             minima.push(hi);
         }
         assert_eq!(minima[0], minima[1]);
-        // Pin measured work after immutable input registration, deterministic
-        // complete type-fact searches, explicit empty capture-source checks,
-        // and four actual finite-inline environment input directory visits.
-        // The same raw and Wire inputs retain complete N-1 rejection and
-        // fresh N acceptance.
+        // The pinned minima include reconstruction of immediate dominators,
+        // definite-initialization transfers and sorted boundary claims.
+        // Both transports independently rerun the original module at N and N-1.
         if let Some(expected) = expected {
             observed.push((label.clone(), minima[0]));
             recorded.push((label, expected));

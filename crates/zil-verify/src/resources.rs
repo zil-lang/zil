@@ -3556,7 +3556,6 @@ pub(super) fn assert_public_helper_effect_independence(
         f,
         &verified.plan().functions[caller.0 as usize],
         &mut Budget::new(&limits),
-        &limits,
     )
     .unwrap();
     let empty_rows = vec![BTreeSet::new(); module.functions.len()];

@@ -154,17 +154,11 @@ pub(super) fn plan(module: &TypedModule) -> CandidatePlan {
             }
         }
         let reachable = reachability(f.entry.0 as usize, &successors, &mut budget).unwrap();
-        let mut params = vec![false; f.locals.len()];
-        for p in &f.parameters {
-            params[p.0 as usize] = true;
-        }
-        let (ins, outs) =
-            initialization(f, &predecessors, &reachable, &params, &mut budget).unwrap();
-        let ids = |row: &[bool]| {
-            row.iter()
-                .enumerate()
-                .filter_map(|(i, b)| b.then_some(LocalId(i as u32)))
-                .collect()
+        let (ins, outs) = initialization::reconstruct(
+            f, &predecessors, &successors, &reachable, &mut budget,
+        ).unwrap();
+        let ids = |row: &initialization::Row| {
+            f.locals.iter().map(|local| local.id).filter(|&id| row.has(id)).collect()
         };
         plan.functions.push(FunctionPlan {
             function: f.id,

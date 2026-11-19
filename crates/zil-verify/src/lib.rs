@@ -122,6 +122,8 @@ pub use resources::task_frames::{
     TaskDebtBoundary, TaskOwner, TaskOwnerAction, TaskOwnerActions, TaskOwnerSlot, TaskOwnership,
 };
 mod class_flow;
+mod dominance;
+mod initialization;
 mod ordinary_heads;
 mod retained;
 #[cfg(test)]
@@ -1507,7 +1509,7 @@ fn check_module_budget(
                     "candidate function order or identity is incorrect",
                 ));
             }
-            let graph = check_function(module, function, function_plan, &mut budget, limits)?;
+            let graph = check_function(module, function, function_plan, &mut budget)?;
             if budget
                 .private_slot_functions
                 .as_ref()
@@ -2528,7 +2530,6 @@ fn check_function(
     function: &TypedFunction,
     plan: &FunctionPlan,
     budget: &mut Budget,
-    limits: &Limits,
 ) -> Check<FunctionGraph> {
     let fail = |code, message| reject(code, Some(function.span), message);
     let n = function.blocks.len();
@@ -2777,17 +2778,7 @@ fn check_function(
             ));
         }
     }
-    // Bounding matrix cells before allocation closes a memory-exhaustion path.
-    let cells = n.checked_mul(n).and_then(|x| {
-        n.checked_mul(m)
-            .and_then(|y| x.checked_add(y.saturating_mul(2)))
-    });
-    if cells.is_none_or(|x| x > limits.max_analysis_steps) {
-        return Err(limit(
-            "verification data-flow matrices exceed the work/memory budget",
-        ));
-    }
-    let dominators = dominators(function.entry.0 as usize, &predecessors, &reachable, budget)?;
+    let dominators = dominance::Dominance::build(function.entry.0 as usize, &successors, &predecessors, budget)?;
     if addressed_sums {
         address_sums::check(function, &successors, &reachable, budget)?;
     }
@@ -2795,18 +2786,17 @@ fn check_function(
         mixed_address_sums::check(function, &successors, &reachable, budget)?;
     }
     let (initialized_in, initialized_out) =
-        initialization(function, &predecessors, &reachable, &parameters, budget)?;
+        initialization::reconstruct(function, &predecessors, &successors, &reachable, budget)?;
     for (b, block) in function.blocks.iter().enumerate() {
-        check_claimed_set(
-            &plan.blocks[b].initialized_in,
-            &initialized_in[b],
-            function.span,
+        initialized_in[b].check_claim(
+            &plan.blocks[b].initialized_in, block.id, "entry",
+            block.instructions.first().map_or(function.span, |op| op.span), budget,
         )?;
-        check_claimed_set(
-            &plan.blocks[b].initialized_out,
-            &initialized_out[b],
-            function.span,
+        initialized_out[b].check_claim(
+            &plan.blocks[b].initialized_out, block.id, "exit",
+            block.instructions.last().map_or(function.span, |op| op.span), budget,
         )?;
+        budget.spend(m.div_ceil(64))?;
         let mut initialized = initialized_in[b].clone();
         for (i, instruction) in block.instructions.iter().enumerate() {
             budget.spend(1)?;
@@ -2860,7 +2850,7 @@ fn check_function(
                 | InstructionKind::TakeLocal { local }
                 | InstructionKind::CallClosureMut { callee: local, .. }
                 | InstructionKind::CallClosureShared { callee: local, .. }
-                    if !initialized[local.0 as usize] =>
+                    if !initialized.has(local) =>
                 {
                     return Err(reject(
                         "E-VERIFY-INITIALIZATION",
@@ -2868,40 +2858,16 @@ fn check_function(
                         "load may read a local before initialization",
                     ));
                 }
-                InstructionKind::Store { local, .. }
-                | InstructionKind::BindPackageCapture { local, .. } => {
-                    initialized[local.0 as usize] = true
+                InstructionKind::UnpackVariant { local, .. } | InstructionKind::UnpackTuple { local, .. }
+                    if !initialized.has(local) =>
+                {
+                    return Err(reject(
+                        "E-VERIFY-INITIALIZATION", Some(instruction.span), "Unpack source is not initialized",
+                    ));
                 }
-                InstructionKind::UnpackVariant {
-                    local, ref fields, ..
-                }
-                | InstructionKind::UnpackTuple { local, ref fields } => {
-                    if !initialized[local.0 as usize] {
-                        return Err(reject(
-                            "E-VERIFY-INITIALIZATION",
-                            Some(instruction.span),
-                            "Unpack source is not initialized",
-                        ));
-                    }
-                    initialized[local.0 as usize] = false;
-                    budget.spend(fields.len())?;
-                    for target in fields {
-                        initialized[target.0 as usize] = true;
-                    }
-                }
-                InstructionKind::TakeLocal { local }
-                | InstructionKind::DropManaged { local }
-                | InstructionKind::DropClosure { local }
-                | InstructionKind::DropErrorUnion { local }
-                | InstructionKind::DropEnum { local }
-                | InstructionKind::DropTuple { local }
-                | InstructionKind::DropPackage { local }
-                | InstructionKind::DropOwnedArray { local }
-                | InstructionKind::EndPackageCapture { local, .. }
-                | InstructionKind::StorageLive(local)
-                | InstructionKind::StorageDead(local) => initialized[local.0 as usize] = false,
                 _ => {}
             }
+            initialized.apply(&instruction.kind, budget)?;
         }
         let term_use = match block.terminator {
             Terminator::Return(value) => value,
@@ -4816,186 +4782,12 @@ fn reachability(entry: usize, successors: &[Vec<usize>], budget: &mut Budget) ->
     }
     Ok(reachable)
 }
-fn dominators(
-    entry: usize,
-    predecessors: &[Vec<usize>],
-    reachable: &[bool],
-    budget: &mut Budget,
-) -> Check<Vec<Vec<bool>>> {
-    let n = predecessors.len();
-    let mut dom = vec![reachable.to_vec(); n];
-    for b in 0..n {
-        if b == entry || !reachable[b] {
-            dom[b].fill(false);
-            dom[b][b] = true;
-        }
-    }
-    loop {
-        let mut changed = false;
-        for b in 0..n {
-            if b == entry || !reachable[b] {
-                continue;
-            }
-            let mut next = reachable.to_vec();
-            for &p in &predecessors[b] {
-                if !reachable[p] {
-                    continue;
-                }
-                budget.spend(n)?;
-                for (bit, &previous) in next.iter_mut().zip(&dom[p]) {
-                    *bit &= previous;
-                }
-            }
-            next[b] = true;
-            if next != dom[b] {
-                dom[b] = next;
-                changed = true;
-            }
-        }
-        if !changed {
-            break;
-        }
-    }
-    Ok(dom)
-}
-type InitializationSets = (Vec<Vec<bool>>, Vec<Vec<bool>>);
-fn initialization(
-    function: &TypedFunction,
-    predecessors: &[Vec<usize>],
-    reachable: &[bool],
-    parameters: &[bool],
-    budget: &mut Budget,
-) -> Check<InitializationSets> {
-    let n = function.blocks.len();
-    let m = function.locals.len();
-    let entry = function.entry.0 as usize;
-    let mut inputs = vec![vec![true; m]; n];
-    let mut outputs = inputs.clone();
-    for b in 0..n {
-        if b == entry {
-            inputs[b] = parameters.to_vec();
-        } else if !reachable[b] {
-            inputs[b].fill(false);
-        }
-        outputs[b] = inputs[b].clone();
-        for instruction in &function.blocks[b].instructions {
-            match instruction.kind {
-                InstructionKind::Store { local, .. }
-                | InstructionKind::BindPackageCapture { local, .. } => {
-                    outputs[b][local.0 as usize] = true
-                }
-                InstructionKind::UnpackVariant {
-                    local, ref fields, ..
-                }
-                | InstructionKind::UnpackTuple { local, ref fields } => {
-                    outputs[b][local.0 as usize] = false;
-                    for target in fields {
-                        outputs[b][target.0 as usize] = true;
-                    }
-                }
-                InstructionKind::TakeLocal { local }
-                | InstructionKind::DropManaged { local }
-                | InstructionKind::DropClosure { local }
-                | InstructionKind::DropErrorUnion { local }
-                | InstructionKind::DropEnum { local }
-                | InstructionKind::DropTuple { local }
-                | InstructionKind::DropPackage { local }
-                | InstructionKind::DropOwnedArray { local }
-                | InstructionKind::EndPackageCapture { local, .. }
-                | InstructionKind::StorageLive(local)
-                | InstructionKind::StorageDead(local) => outputs[b][local.0 as usize] = false,
-                _ => {}
-            }
-        }
-    }
-    loop {
-        let mut changed = false;
-        for b in 0..n {
-            let mut next = if b == entry {
-                parameters.to_vec()
-            } else if !reachable[b] {
-                vec![false; m]
-            } else {
-                vec![true; m]
-            };
-            if b != entry && reachable[b] {
-                for &p in &predecessors[b] {
-                    if !reachable[p] {
-                        continue;
-                    }
-                    budget.spend(m.max(1))?;
-                    for (bit, &previous) in next.iter_mut().zip(&outputs[p]) {
-                        *bit &= previous;
-                    }
-                }
-            }
-            let mut out = next.clone();
-            for instruction in &function.blocks[b].instructions {
-                budget.spend(1)?;
-                match instruction.kind {
-                    InstructionKind::Store { local, .. }
-                    | InstructionKind::BindPackageCapture { local, .. } => {
-                        out[local.0 as usize] = true
-                    }
-                    InstructionKind::UnpackVariant {
-                        local, ref fields, ..
-                    }
-                    | InstructionKind::UnpackTuple { local, ref fields } => {
-                        out[local.0 as usize] = false;
-                        budget.spend(fields.len())?;
-                        for target in fields {
-                            out[target.0 as usize] = true;
-                        }
-                    }
-                    InstructionKind::TakeLocal { local }
-                    | InstructionKind::DropManaged { local }
-                    | InstructionKind::DropClosure { local }
-                    | InstructionKind::DropErrorUnion { local }
-                    | InstructionKind::DropEnum { local }
-                    | InstructionKind::DropTuple { local }
-                    | InstructionKind::DropPackage { local }
-                    | InstructionKind::DropOwnedArray { local }
-                    | InstructionKind::EndPackageCapture { local, .. }
-                    | InstructionKind::StorageLive(local)
-                    | InstructionKind::StorageDead(local) => out[local.0 as usize] = false,
-                    _ => {}
-                }
-            }
-            if inputs[b] != next || outputs[b] != out {
-                inputs[b] = next;
-                outputs[b] = out;
-                changed = true;
-            }
-        }
-        if !changed {
-            break;
-        }
-    }
-    Ok((inputs, outputs))
-}
-fn check_claimed_set(claim: &[LocalId], actual: &[bool], span: Span) -> Check<()> {
-    let expected: Vec<LocalId> = actual
-        .iter()
-        .enumerate()
-        .filter(|(_, present)| **present)
-        .map(|(i, _)| LocalId(i as u32))
-        .collect();
-    if claim != expected {
-        Err(reject(
-            "E-VERIFY-INITIALIZATION-CLAIM",
-            Some(span),
-            "candidate initialization set differs from independently checked CFG facts",
-        ))
-    } else {
-        Ok(())
-    }
-}
 fn check_use(
     value: ValueId,
     block: usize,
     before_instruction: usize,
     definitions: &[Option<(usize, usize)>],
-    dom: &[Vec<bool>],
+    dom: &dominance::Dominance,
     span: Span,
 ) -> Check<()> {
     let &(definition_block, instruction) = definitions
@@ -5003,12 +4795,12 @@ fn check_use(
         .and_then(Option::as_ref)
         .ok_or_else(|| reject("E-VERIFY-SSA", Some(span), "operand has no definition"))?;
     if (definition_block == block && instruction >= before_instruction)
-        || !dom[block][definition_block]
+        || !dom.dominates(definition_block, block)
     {
         return Err(reject(
             "E-VERIFY-DOMINANCE",
             Some(span),
-            "SSA definition does not precede and dominate its use",
+            format!("SSA definition does not precede and dominate its use: value {} is defined at block {definition_block} instruction {instruction}, used at block {block} instruction {before_instruction}", value.0),
         ));
     }
     Ok(())
