@@ -130,8 +130,11 @@ fn lookup(n: usize) -> usize {
     n.checked_ilog2().map_or(1, |n| n as usize + 2)
 }
 impl Index {
+    pub(super) fn same_module(&self, module: &TypedModule) -> bool {
+        self.module == module as *const TypedModule as usize
+    }
     pub(super) fn same_input(&self, module: &TypedModule, b: &Budget) -> bool {
-        self.module == module as *const TypedModule as usize && self.limits == b.limits
+        self.same_module(module) && self.limits == b.limits
     }
 
     pub(super) fn new(module: &TypedModule, b: &mut Budget) -> Check<Self> {
@@ -333,6 +336,27 @@ impl CheckedContext {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn retained_tables_resolve_full_ids_after_reordering() {
+        let limits=super::Limits::default();
+        let (mut module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+        let program=module.semantic.as_mut().unwrap();
+        program.definitions.reverse();
+        program.instances.reverse();
+        let mut b=super::Budget::new(&limits);
+        let context=super::CheckedContext::catalogue(&module,&mut b).unwrap();
+        let program=module.semantic.as_ref().unwrap();
+        for row in &program.definitions {
+            assert!(std::ptr::eq(row,context.definition(&module,row.id,&mut b).unwrap()));
+        }
+        for row in &program.instances {
+            assert!(std::ptr::eq(row,context.instance(&module,row.id,&mut b).unwrap()));
+        }
+        let mut other=program.definitions[0].id;
+        other.module=zil_base::ModuleId(u32::MAX);
+        assert!(context.definition(&module,other,&mut b).unwrap_err().message.contains("absent"));
+    }
+
     #[test]
     fn original_lookup_preserves_sparse_and_reordered_ids() {
         let make=|id:u32| super::SemanticSiteRecipe{

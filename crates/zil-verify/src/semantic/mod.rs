@@ -330,6 +330,14 @@ impl CheckedContext {
         id: SemanticDefinitionId,
         b: &mut Budget,
     ) -> Check<&'m SemanticDefinition> {
+        let program = module.semantic.as_ref().ok_or_else(|| bad("semantic programme is absent"))?;
+        b.spend(2)?;
+        let ordinal = id.index as usize;
+        if self.site_index.same_module(module) && ordinal < self.definitions.len()
+            && let Some(row) = program.definitions.get(ordinal).filter(|row| row.id == id)
+        {
+            return Ok(row);
+        }
         b.spend(
             self.definitions
                 .len()
@@ -340,10 +348,7 @@ impl CheckedContext {
             .definitions
             .get(&id)
             .ok_or_else(|| bad("semantic definition is absent"))?;
-        module
-            .semantic
-            .as_ref()
-            .and_then(|program| program.definitions.get(*row))
+        program.definitions.get(*row).filter(|row| row.id == id)
             .ok_or_else(|| bad("semantic definition index has no actual candidate row"))
     }
     pub(crate) fn instance<'m>(
@@ -352,6 +357,14 @@ impl CheckedContext {
         id: SemanticInstanceId,
         b: &mut Budget,
     ) -> Check<&'m SemanticInstance> {
+        let program = module.semantic.as_ref().ok_or_else(|| bad("semantic programme is absent"))?;
+        b.spend(2)?;
+        let ordinal = id.index as usize;
+        if self.site_index.same_module(module) && ordinal < self.instances.len()
+            && let Some(row) = program.instances.get(ordinal).filter(|row| row.id == id)
+        {
+            return Ok(row);
+        }
         b.spend(
             self.instances
                 .len()
@@ -362,10 +375,7 @@ impl CheckedContext {
             .instances
             .get(&id)
             .ok_or_else(|| bad("semantic instance is absent"))?;
-        module
-            .semantic
-            .as_ref()
-            .and_then(|program| program.instances.get(*row))
+        program.instances.get(*row).filter(|row| row.id == id)
             .ok_or_else(|| bad("semantic instance index has no actual candidate row"))
     }
 }

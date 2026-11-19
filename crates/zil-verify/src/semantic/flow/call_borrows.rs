@@ -397,6 +397,31 @@ fn shared_reborrow_adapter(producers:&sites::Producers,module:&TypedModule,f:&Ty
 mod shared_view_tests{
     use super::*;
     #[test]
+    fn a_proved_empty_pointee_still_checks_this_occurrences_head_and_profile() {
+        let limits=Limits::default();
+        let (module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+        let mut b=Budget::new(&limits);
+        b.structural=Some(dynamic_metadata::Structure::register(&module,&mut b).unwrap());
+        let context=CheckedContext::catalogue(&module,&mut b).unwrap();
+        let scope=ScopeKey::Instance(module.semantic.as_ref().unwrap().instances[0].id);
+        let key=ClassKey::Implicit{scope,ordinal:0};
+        let env=EvalEnv{lexical:vec![],assumptions:vec![],images:vec![],bounds:vec![],invocations:vec![],at:None};
+        let mut parent=CheckedType{
+            type_cell:CheckedTypeData::new(Type::Address{mutable:false,inner:Box::new(Type::I32)}),
+            life:StorageLifeShape{binder_count:1,slots:vec![StorageLifeSlot{path:vec![],binder:0,mode:StoredBorrowMode::SharedAddress}],retained:vec![],nominal_arguments:vec![]},
+            classes:vec![key.clone()],origins:vec![IntrinsicOrigin::DerivedClass{source:key}],statics:vec![],
+        };
+        context.record_address_validity(&module,&parent,&env,&mut b).unwrap();
+        let owner=b.structural.as_ref().unwrap().identity_for(&module).unwrap();
+        assert!(context.empty_domains.borrow().checked_pointee(&owner,&parent.type_cell,&mut b).unwrap());
+        parent.life.slots[0].binder=1;
+        assert!(context.record_address_validity(&module,&parent,&env,&mut b).unwrap_err().message.contains("outer class is absent"));
+        parent.life.slots[0].binder=0;
+        b.limits.max_nodes=0;
+        assert_eq!(context.record_address_validity(&module,&parent,&env,&mut b).unwrap_err().category,zil_base::ResultCategory::ResourceLimit);
+    }
+
+    #[test]
     fn exclusive_call_view_keeps_every_inner_origin_even_when_outside_images_are_equal(){
         let limits=Limits::default();let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../fixtures/phantom-closure-complete-creator.wire"),&limits).unwrap();
         let mut b=Budget::new(&limits);let context=CheckedContext::catalogue(&module,&mut b).unwrap();let instance=module.semantic.as_ref().unwrap().instances[0].id;let scope=ScopeKey::Instance(instance);
@@ -469,7 +494,24 @@ impl CheckedContext {
         let mut heads=value.life.slots.iter().filter(|row|row.path.is_empty());
         let Some(head)=heads.next()else{return Ok(());};if heads.next().is_some(){return Err(bad("actual Address validity has ambiguous outer heads"));}
         let target=value.classes.get(head.binder as usize).ok_or_else(||bad("actual Address validity outer class is absent"))?;
+        let simple_head = matches!((&value.ty,head.mode),
+            (Type::Address { mutable:false,.. },StoredBorrowMode::SharedAddress) |
+            (Type::Address { mutable:true,.. },StoredBorrowMode::ExclusiveAddress))
+            && value.life.binder_count == 1 && head.binder == 0 && value.life.slots.len() == 1
+            && value.life.retained.is_empty() && value.life.nominal_arguments.is_empty()
+            && value.classes.len() == 1 && value.origins.len() == 1 && value.statics.is_empty();
+        let scope = if simple_head {
+            b.structural.as_ref().and_then(|state|state.identity_for(module))
+        } else { None };
+        if let Some(scope)=&scope && self.empty_domains.borrow().checked_pointee(scope,&value.type_cell,b)? {
+            return Ok(());
+        }
         let child=self.child_value(module,value,&[LifeTypeProjection::Pointee],b)?;
+        if let Some(scope)=scope && child.life==empty_life() && child.classes.is_empty()
+            && child.origins.is_empty() && child.statics.is_empty()
+        {
+            self.empty_domains.borrow_mut().record_pointee(scope,&value.type_cell,b)?;
+        }
         let mut edges=Vec::new();
         b.spend(child.life.slots.len())?;
         for slot in &child.life.slots{if matches!(slot.mode,StoredBorrowMode::SharedAddress|StoredBorrowMode::ExclusiveAddress){

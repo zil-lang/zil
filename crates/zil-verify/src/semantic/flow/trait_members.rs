@@ -75,18 +75,35 @@ impl Boundary{
         b.spend(self.classes.len().saturating_add(self.scopes.len()).saturating_add(1))?;
         b.spend(self.ambiguous_fixed.len())?;
         if self.ambiguous_fixed.contains(key){return Err(unsupported("closure signature needs an exact occurrence for a shared creator lifetime",None));}
-        if let Some((_,image))=self.classes.iter().find(|(source,_)|source==key){return Ok(image.clone());}
+        let copy = |key: &ClassKey, b: &mut Budget| -> Check<ClassKey> {
+            if let ClassKey::Outer { path, .. } | ClassKey::Intrinsic { path, .. } = key {
+                b.spend(path.len())?;
+            }
+            Ok(key.clone())
+        };
+        if let Some((_,image))=self.classes.iter().find(|(source,_)|source==key){return copy(image,b);}
         // An inferred outer occurrence belongs to this fresh call frame. Its
         // correspondence is a role substitution, never global equality.
         if let ClassKey::Implicit{scope,ordinal}=key{if let Some((_,image))=self.scopes.iter().find(|(source,_)|source==scope){return Ok(ClassKey::Implicit{scope:*image,ordinal:*ordinal});}}
-        Ok(key.clone())
+        copy(key,b)
     }
     pub(super) fn project_type(&mut self,context:&CheckedContext,env:&EvalEnv,value:&CheckedType,b:&mut Budget)->Check<CheckedType>{
         charge_value(value,b)?;
         let mut output=value.clone();
-        for(key,source)in output.classes.iter_mut().zip(&value.classes){*key=self.image(source,b)?;}
-        for(origin,source)in output.origins.iter_mut().zip(&value.origins){*origin=self.project_origin(context,env,source,0,b)?;}
+        self.project_in_place(context,env,&mut output,b)?;
         Ok(output)
+    }
+    fn project_in_place(&self, context: &CheckedContext, env: &EvalEnv, value: &mut CheckedType, b: &mut Budget) -> Check<()> {
+        b.spend(value.classes.len().saturating_add(value.origins.len()))?;
+        for key in &mut value.classes { *key = self.image(key,b)?; }
+        for origin in &mut value.origins { *origin = self.project_origin(context,env,origin,0,b)?; }
+        Ok(())
+    }
+    pub(super) fn project_entry(&self, context: &CheckedContext, env: &EvalEnv, entry: &mut CheckedSignature, b: &mut Budget) -> Check<()> {
+        for (parameter, _) in &mut entry.parameters {
+            self.project_in_place(context,env,parameter,b)?;
+        }
+        self.project_in_place(context,env,&mut entry.result,b)
     }
     fn project_origin(&self,context:&CheckedContext,env:&EvalEnv,origin:&IntrinsicOrigin,depth:usize,b:&mut Budget)->Check<IntrinsicOrigin>{
         if depth>b.limits.max_call_depth.min(128){return Err(limit("Call boundary intrinsic origin depth exceeded"));}

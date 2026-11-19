@@ -70,6 +70,9 @@ impl CheckedContext{
 #[derive(Default)]
 pub(super) struct EmptyDomains {
     by_type: BTreeMap<usize, (Rc<()>, Rc<CheckedTypeData>, Limits)>,
+    // A separately proved absence of physical child bounds on this Address.
+    // The enclosing value has its own unique, current outer loan.
+    by_address: BTreeMap<usize, (Rc<()>, Rc<CheckedTypeData>, Limits)>,
 }
 
 impl EmptyDomains {
@@ -79,6 +82,19 @@ impl EmptyDomains {
         let Some((module, owner, limits)) = self.by_type.get(&key) else { return Ok(false) };
         b.spend(13)?;
         Ok(Rc::ptr_eq(module, scope) && Rc::ptr_eq(owner, cell) && *limits == b.limits)
+    }
+    pub(super) fn checked_pointee(&self, scope: &Rc<()>, address: &Rc<CheckedTypeData>, b: &mut Budget) -> Check<bool> {
+        b.spend(self.by_address.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
+        let Some((module, owner, limits))=self.by_address.get(&(Rc::as_ptr(address) as usize)) else { return Ok(false); };
+        b.spend(13)?;
+        Ok(Rc::ptr_eq(scope,module) && Rc::ptr_eq(address,owner) && *limits==b.limits)
+    }
+    pub(super) fn record_pointee(&mut self, scope: Rc<()>, address: &Rc<CheckedTypeData>, b: &mut Budget) -> Check<()> {
+        let Type::Address { inner,.. } = &address.ty else { return Ok(()); };
+        if !closed_storage(inner,b)? { return Ok(()); }
+        b.spend(self.by_address.len().checked_ilog2().map_or(1, |n| n as usize + 2).saturating_add(14))?;
+        self.by_address.insert(Rc::as_ptr(address) as usize,(scope,address.clone(),b.limits.clone()));
+        Ok(())
     }
     pub(super) fn record(&mut self, scope: Rc<()>, cell: &Rc<CheckedTypeData>, b: &mut Budget) -> Check<()> {
         if !closed_storage(&cell.ty, b)? { return Ok(()); }

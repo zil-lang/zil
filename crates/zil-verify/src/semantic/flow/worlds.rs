@@ -65,7 +65,7 @@ impl CheckedContext {
     pub(super) fn world_signature(&self,module:&TypedModule,recipe:&SemanticSignatureRecipe,worlds:Vec<CallWorld>,caller:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<CheckedSignature>{
         let multiple = worlds.len() > 1;
         let mut selected:Option<CheckedSignature>=None;
-        for mut world in worlds{
+        for world in worlds{
             let definition=self.definition(module,world.environment.lexical.first().ok_or_else(||bad("Call world has no current original definition"))?.definition,b)?;
             if !multiple || !self.world_declarations_present(module,definition,recipe,&world,active,b)? {
                 self.evaluate_requirements(module,&definition.requirements,&world.environment,RequirementMode::DeclarationPremise,external,active,b)?;
@@ -76,14 +76,12 @@ impl CheckedContext {
             } else {
                 self.entry_signature(module,definition,recipe,&world.environment,external,active,b)?
             };
-            for(parameter,_)in &mut signature.parameters{*parameter=world.boundary.project_type(self,caller,parameter,b)?;}
-            signature.result=world.boundary.project_type(self,caller,&signature.result,b)?;
+            world.boundary.project_entry(self,caller,&mut signature,b)?;
             if let Some(expected)=&selected{
                 if signature.bound.len()!=expected.bound.len()||signature.invocation.len()!=expected.invocation.len()||signature.call_kind!=expected.call_kind||signature.result_mode!=expected.result_mode||signature.parameters.len()!=expected.parameters.len(){return Err(bad("compatible Call worlds disagree on their complete original signature"));}
                 let mut alpha=trait_members::Boundary::default();
                 for(a,z)in signature.bound.iter().zip(&expected.bound).chain(signature.invocation.iter().zip(&expected.invocation)){alpha.class(self,caller,a,z,b)?;}
-                for(parameter,_)in &mut signature.parameters{*parameter=alpha.project_type(self,caller,parameter,b)?;}
-                signature.result=alpha.project_type(self,caller,&signature.result,b)?;
+                alpha.project_entry(self,caller,&mut signature,b)?;
                 for((actual,mode),(expected,expected_mode))in signature.parameters.iter().zip(&expected.parameters){if mode!=expected_mode||!self.same_type(caller,actual,expected,b)?{return Err(unsupported("compatible Call worlds retain distinct original parameter domains",None));}}
                 if !self.same_type(caller,&signature.result,&expected.result,b)?{return Err(unsupported("compatible Call worlds retain distinct original result domains",None));}
             }else{selected=Some(signature);}
