@@ -144,6 +144,7 @@ pub(super) fn instruction(
     let Type::Closure(body_id) = value_type(caller, body, span)? else {
         return Err(bad(span, "body requires a concrete closure value"));
     };
+    tasks::require_synchronous_value(module, caller, body, budget, span)?;
     let body = closures::definition(module, *body_id, span)?;
     budget.spend(
         body.parameters
@@ -167,8 +168,13 @@ pub(super) fn instruction(
             "body must admit one consuming zero-argument i32 invocation",
         ));
     }
-    // register-null still disposes of the concrete captured body.
-    dynamic_witness::structural_actual(module, &Type::Closure(*body_id), DynStructuralBound::SyncDrop, budget)?;
+    // On register-null the actual closure environment is discarded before
+    // invocation. Its concrete entry and capture relation are validated by
+    // check_definitions. Each physical capture owes synchronous cleanup.
+    budget.spend(body.captures.len())?;
+    for capture in &body.captures {
+        dynamic_witness::structural_actual(module, capture, DynStructuralBound::SyncDrop, budget)?;
+    }
     budget.spend(3)?;
     Ok(Some(Type::Tuple(vec![Type::Bool, Type::I32])))
 }
