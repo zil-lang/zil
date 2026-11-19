@@ -56,7 +56,7 @@ pub fn grow<F: FnMut() -> i32>(state: State<F>, capacity: i64) -> State<F> {
     return next
 }
 
-pub fn take_then_exit<F: FnMut() -> i32>(state: State<F>) -> i32 {
+pub fn take_then_exit<F: FnMut() -> i32 + SyncDrop>(state: State<F>) -> i32 {
     var current = state
     var callback = current.callback
     let children = give current.children

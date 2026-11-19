@@ -38,6 +38,28 @@ def main():
             record['timeout']=True;raise
         finally: write(p/'record.json',record);records.append(record)
     try:
+        historical = repo / 'tests/fixtures/state-store-without-sync-drop'
+        summary['unbounded_cleanup_controls'] = []
+        summary['unbounded_source_hashes'] = {
+            source.name: sha(source) for source in sorted(historical.glob('*.zil'))
+        }
+        for entry in ('main', 'field_exit'):
+            result = command([cli, 'check', historical / (entry + '.zil'), '--json'],
+                             'original-cleanup/' + entry)
+            report = json.loads(result.stdout)
+            diagnostic = next((d for d in report['diagnostics']
+                               if d['code'] == 'E-ORIGINAL-CLEANUP'
+                               and 'SyncDrop' in d['message']
+                               and any('original scope cleanup binding "callback"' in note
+                                       for note in d.get('notes', []))), None)
+            accepted_control = (result.returncode != 0 and report['status'] == 'SafeReject'
+                                and report['phase'] == 'types' and diagnostic is not None)
+            summary['unbounded_cleanup_controls'].append({
+                'entry': entry, 'status': report['status'], 'phase': report['phase'],
+                'diagnostic': diagnostic, 'passed': accepted_control,
+            })
+            if not accepted_control:
+                raise AssertionError(f'{entry}: expected a missing SyncDrop proof for callback, got {report}')
         probe=out/'allocator.o'
         c=command([clang,'-O0','-c',repo/'tools/language/composed-store-closures/allocator_probe.c','-o',probe],'prepare-probe')
         assert c.returncode==0,c.stderr
@@ -81,6 +103,10 @@ def main():
                                 else:assert not run.stderr,run.stderr
                                 summary['observations'].append({'case':name+'/'+row['name'],'fail_at':at,'exit':run.returncode,'stdout':run.stdout.decode(),'allocation':allocation})
                         write(out/'summary.json',summary)
+        observed = (len(summary['builds']), len(summary['observations']),
+                    sum(row['fail_at'] > 0 for row in summary['observations']))
+        if observed != (16, 128, 56):
+            raise AssertionError(f'incomplete State/Store business matrix {observed}')
         summary['status']='Pass'
     except Exception as error:
         summary['status']='Fail';summary['error']=repr(error);raise
