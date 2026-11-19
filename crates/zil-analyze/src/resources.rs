@@ -1447,6 +1447,31 @@ struct Flow<'a> {
     replacements: Option<&'a replacements::Program>,
 }
 impl Flow<'_> {
+    /// A successful first occupant fixes a local's place in this activation.
+    /// A join can contain both a first initialization and a refill. In that
+    /// case extend the possible order and retain the older edges on the refill path.
+    fn initialize_position(&self, state: &mut State, local: LocalId, budget: &mut Budget) -> CompileResult<()> {
+        budget.lookup(state.cells.len(), "resource slot activation")?;
+        let target = state.cells.get(&Place::Local(local))
+            .ok_or_else(|| error("owning initializer lacks its actual destination slot"))?;
+        if !target.life.contains(&Life::Vacant) { return Ok(()); }
+        if !self.views.is_empty() {
+            budget.lookup(self.views.len(), "Package view order exclusion")?;
+            if self.views.contains_key(&local) { return Ok(()); }
+        }
+        for (place, fact) in state.cells.iter() {
+            budget.spend(1, "resource successful initialization order")?;
+            let Place::Local(older) = place else { continue; };
+            if *older == local || !fact.life.iter().any(|life| *life != Life::Vacant) { continue; }
+            if !self.views.is_empty() {
+                budget.lookup(self.views.len(), "Package view order exclusion")?;
+                if self.views.contains_key(older) { continue; }
+            }
+            state.later.insert((*older, local), budget, true, "resource order insertion")?;
+        }
+        Ok(())
+    }
+
     fn task_once_result(
         &self,
         definition: &ClosureDefinition,
@@ -1854,7 +1879,6 @@ impl Flow<'_> {
                     }
                     source.life = BTreeSet::from([Life::Transferred]);
                     replace(state, Place::Local(*local), source, budget)?;
-                    forget_order(state, *local, budget)?;
                     for (index, target) in fields.iter().enumerate().rev() {
                         if self
                             .shapes
@@ -1862,21 +1886,7 @@ impl Flow<'_> {
                             .is_some_and(|s| s.owned)
                         {
                             let birth = state.sums.unpack_birth(*local, variant, index, budget)?;
-                            forget_order(state, *target, budget)?;
-                            for (place, fact) in state.cells.iter() {
-                                budget.spend(1, "Unpack actual initialization order")?;
-                                if let Place::Local(older) = place
-                                    && older != target
-                                    && fact.life.contains(&Life::Available)
-                                {
-                                    state.later.insert(
-                                        (*older, *target),
-                                        budget,
-                                        true,
-                                        "Unpack order insertion",
-                                    )?;
-                                }
-                            }
+                            self.initialize_position(state, *target, budget)?;
                             replace(
                                 state,
                                 Place::Local(*target),
@@ -2088,7 +2098,6 @@ impl Flow<'_> {
                             budget,
                         )?;
                     }
-                    forget_order(state, *local, budget)?;
                 }
                 InstructionKind::TaskPoll { .. } => {
                     if out_shape.is_some_and(|s| s.owned) {
@@ -3277,8 +3286,7 @@ impl Flow<'_> {
                             fact.life = BTreeSet::from([Life::Transferred]);
                             fact.sources.clear();
                             replace(state, Place::Local(*local), fact, budget)?;
-                            forget_order(state, *local, budget)?;
-                        } else {
+                                } else {
                             produced = Some(fact);
                         }
                     }
@@ -3302,37 +3310,7 @@ impl Flow<'_> {
                                 )?;
                             }
                             self.consume(state, *value, check, budget)?;
-                            forget_order(state, *local, budget)?;
-                            for (place, fact) in state.cells.iter() {
-                                budget.spend(1, "resource successful initialization order")?;
-                                if let Place::Local(other) = place
-                                    && *other != *local
-                                    && fact.life.contains(&Life::Available)
-                                {
-                                    if !self.views.is_empty() {
-                                        budget.lookup(
-                                            self.views.len(),
-                                            "Package view order exclusion",
-                                        )?;
-                                        if self.views.contains_key(local) {
-                                            continue;
-                                        }
-                                        budget.lookup(
-                                            self.views.len(),
-                                            "Package view order exclusion",
-                                        )?;
-                                        if self.views.contains_key(other) {
-                                            continue;
-                                        }
-                                    }
-                                    state.later.insert(
-                                        (*other, *local),
-                                        budget,
-                                        true,
-                                        "resource order insertion",
-                                    )?;
-                                }
-                            }
+                            self.initialize_position(state, *local, budget)?;
                             source.life = BTreeSet::from([Life::Available]);
                             package_transition(f, state, *local, Life::Available, check, budget)?;
                             if let Type::Package { fields, .. } =
@@ -3514,7 +3492,6 @@ impl Flow<'_> {
                     package_transition(f, state, *local, Life::Cleaned, check, budget)?;
                     fact.sources.clear();
                     replace(state, Place::Local(*local), fact, budget)?;
-                    forget_order(state, *local, budget)?;
                     if check && !budget.semantic_cleanup_sites.is_empty()
                         && (matches!(i.kind, InstructionKind::DropManaged { .. }) || cleanup_closure.is_some()
                             || f.call_kind == CallKind::Suspend && matches!(i.kind,

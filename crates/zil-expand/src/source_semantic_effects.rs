@@ -7,7 +7,7 @@ use super::*;
 #[path = "source_semantic_cleanup_candidates.rs"]
 mod cleanup_candidates;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Target {
     Definition(usize),
     AppliedDefinition { owner: usize, application: usize },
@@ -2212,11 +2212,15 @@ impl<'a> Scan<'a, '_, '_, '_> {
             // Creation does not execute the child's body. Each authored child
             // definition is a separate graph vertex with its own full body.
             E::Closure { .. } => {
-                let Target::Definition(child) = self.target(expression, depth + 1)? else {
-                    return Err(error(
-                        expression.span,
-                        "effect closure has no exact original definition",
+                let target = self.target(expression, depth + 1)?;
+                let Target::Definition(child) = target else {
+                    let owner = self.definitions[self.owner];
+                    let mut diagnostic = error(expression.span, "effect closure has no exact original definition");
+                    diagnostic.notes.push(format!(
+                        "Closure expression {:?} in declaration {:?} requires its lexical child, resolved to {target:?}.",
+                        expression.id, owner.id
                     ));
+                    return Err(diagnostic);
                 };
                 let definition = self.definitions[child];
                 if definition.parent != Some(self.definitions[self.owner].id) {

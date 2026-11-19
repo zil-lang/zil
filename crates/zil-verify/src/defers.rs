@@ -7,12 +7,20 @@ const STORED: u8 = 1;
 const REGISTERED: u8 = 2;
 const CALLED: u8 = 3;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Initialization {
+    Never,
+    Always,
+    Conditional,
+}
+
 #[derive(Clone, PartialEq, Eq)]
 struct Activation {
     stack: Vec<ScopeId>,
     owner: Vec<Option<ScopeId>>,
     action: Vec<u8>,
     resource: Vec<bool>,
+    initialized: Vec<Initialization>,
     newer: BTreeSet<(usize, usize)>,
 }
 
@@ -21,7 +29,7 @@ impl Activation {
         budget.spend(
             self.stack
                 .len()
-                .saturating_add(self.owner.len().saturating_mul(3))
+                .saturating_add(self.owner.len().saturating_mul(4))
                 .saturating_add(self.newer.len())
                 .saturating_add(1),
         )
@@ -29,17 +37,27 @@ impl Activation {
 
     fn retire(&mut self, local: usize, budget: &mut Budget) -> Check<()> {
         budget.spend(self.newer.len().saturating_add(1))?;
-        self.resource[local] = false;
+        self.empty(local);
+        self.initialized[local] = Initialization::Never;
         self.newer
             .retain(|&(older, newer)| older != local && newer != local);
         Ok(())
     }
 
+    fn empty(&mut self, local: usize) {
+        self.resource[local] = false;
+    }
+
     fn born(&mut self, local: usize, budget: &mut Budget) -> Check<()> {
-        self.retire(local, budget)?;
-        budget.spend(self.resource.len())?;
-        for (older, &live) in self.resource.iter().enumerate() {
-            if live {
+        self.resource[local] = true;
+        if self.initialized[local] == Initialization::Always {
+            return Ok(());
+        }
+        // The first successful initialization fixes the cleanup position of
+        // this storage activation. A move or a replacement changes its contents.
+        budget.spend(self.initialized.len())?;
+        for (older, &initialized) in self.initialized.iter().enumerate() {
+            if older != local && initialized != Initialization::Never {
                 budget.spend(
                     self.newer
                         .len()
@@ -49,11 +67,14 @@ impl Activation {
                 self.newer.insert((older, local));
             }
         }
-        self.resource[local] = true;
+        self.initialized[local] = Initialization::Always;
         Ok(())
     }
 
     fn check_last(&self, local: usize, span: Span, budget: &mut Budget) -> Check<()> {
+        if !self.resource[local] {
+            return Ok(());
+        }
         budget.spend(self.newer.len())?;
         if self
             .newer
@@ -71,6 +92,47 @@ impl Activation {
 
 fn fail(span: Span, message: &str) -> Diagnostic {
     reject("E-VERIFY-DEFER", Some(span), message)
+}
+
+pub(crate) fn registration_value(
+    block: &BasicBlock,
+    position: usize,
+    local: LocalId,
+    span: Span,
+) -> Check<ValueId> {
+    if let Some(Instruction {
+        kind: InstructionKind::Store {
+            local: target,
+            value,
+        },
+        result: None,
+        ..
+    }) = position
+        .checked_sub(1)
+        .and_then(|before| block.instructions.get(before))
+        && *target == local
+    {
+        return Ok(*value);
+    }
+    Err(fail(
+        span,
+        "RegisterDefer must immediately follow its action's initial Store",
+    ))
+}
+
+pub(crate) fn invokes_action(instruction: &Instruction, value: ValueId) -> bool {
+    instruction.result.is_none()
+        && matches!(&instruction.kind,
+        InstructionKind::CallClosureOnce { callee, arguments }
+            if *callee == value && arguments.is_empty())
+}
+
+pub(crate) fn preceding_take(block: &BasicBlock, position: usize) -> Option<(LocalId, ValueId)> {
+    let take = block.instructions.get(position.checked_sub(1)?)?;
+    let InstructionKind::TakeLocal { local } = take.kind else {
+        return None;
+    };
+    Some((local, take.result?))
 }
 
 fn is_owner(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bool> {
@@ -114,11 +176,11 @@ fn suffix(
             InstructionKind::ScopeExit { scope: owner, .. } if *owner == scope => return Ok(()),
             InstructionKind::TakeLocal { local } if actions[local.0 as usize] == Some(scope) => {
                 budget.spend(1)?;
-                if !block.instructions.get(cursor + 1).is_some_and(|next| {
-                    next.result.is_none()
-                        && matches!(&next.kind,
-                        InstructionKind::CallClosureOnce { callee, arguments }
-                        if Some(*callee) == instruction.result && arguments.is_empty())
+                if !instruction.result.is_some_and(|value| {
+                    block
+                        .instructions
+                        .get(cursor + 1)
+                        .is_some_and(|next| invokes_action(next, value))
                 }) {
                     return Err(fail(
                         instruction.span,
@@ -232,17 +294,13 @@ pub(super) fn check(
                     "registration requires one reachable hidden zero-argument Unit FnOnce local",
                 ));
             }
-            if !position.checked_sub(1).and_then(|p| block.instructions.get(p)).is_some_and(|previous|
-                previous.result.is_none() && matches!(previous.kind, InstructionKind::Store { local: target, .. } if target == local))
-            {
-                return Err(fail(instruction.span, "RegisterDefer must immediately follow its action's initial Store"));
-            }
+            registration_value(block, position, local, instruction.span)?;
             actions[index] = Some(scope);
         }
     }
     budget.spend(
         count
-            .saturating_mul(3)
+            .saturating_mul(4)
             .saturating_add(f.blocks.len())
             .saturating_add(1),
     )?;
@@ -251,6 +309,7 @@ pub(super) fn check(
         owner: vec![None; count],
         action: vec![UNSET; count],
         resource: vec![false; count],
+        initialized: vec![Initialization::Never; count],
         newer: BTreeSet::new(),
     };
     budget.spend(f.parameters.len())?;
@@ -272,10 +331,7 @@ pub(super) fn check(
         for (position, instruction) in block.instructions.iter().enumerate() {
             budget.spend(1)?;
             if let Some((local, value)) = taken.take() {
-                if !matches!(&instruction.kind, InstructionKind::CallClosureOnce { callee, arguments }
-                    if *callee == value && arguments.is_empty())
-                    || instruction.result.is_some()
-                {
+                if !invokes_action(instruction, value) {
                     return Err(fail(
                         instruction.span,
                         "only an adjacent matching zero-argument CallClosureOnce fulfills defer",
@@ -283,7 +339,7 @@ pub(super) fn check(
                 }
                 state.check_last(local, instruction.span, budget)?;
                 state.action[local] = CALLED;
-                state.retire(local, budget)?;
+                state.empty(local);
                 continue;
             }
             match instruction.kind {
@@ -319,7 +375,7 @@ pub(super) fn check(
                 InstructionKind::UnpackVariant {
                     local, ref fields, ..
                 } => {
-                    state.retire(local.0 as usize, budget)?;
+                    state.empty(local.0 as usize);
                     budget.spend(fields.len())?;
                     for target in fields.iter().rev() {
                         if owning[target.0 as usize] {
@@ -355,7 +411,7 @@ pub(super) fn check(
                             Some((index, instruction.result.expect("checked TakeLocal result")));
                         // Do not forget age or the pending action on TakeLocal.
                     } else {
-                        state.retire(index, budget)?;
+                        state.empty(index);
                     }
                 }
                 InstructionKind::DropManaged { local }
@@ -372,7 +428,7 @@ pub(super) fn check(
                         ));
                     }
                     state.check_last(index, instruction.span, budget)?;
-                    state.retire(index, budget)?;
+                    state.empty(index);
                 }
                 InstructionKind::Load(local)
                 | InstructionKind::BorrowLocal { local }
@@ -452,10 +508,16 @@ pub(super) fn check(
                         ));
                     }
                     let mut changed = false;
-                    budget.spend(count)?;
+                    budget.spend(count.saturating_mul(2))?;
                     for (target, &source) in prior.resource.iter_mut().zip(&state.resource) {
                         changed |= source && !*target;
                         *target |= source;
+                    }
+                    for (target, &source) in prior.initialized.iter_mut().zip(&state.initialized) {
+                        if *target != source && *target != Initialization::Conditional {
+                            *target = Initialization::Conditional;
+                            changed = true;
+                        }
                     }
                     let before = prior.newer.len();
                     prior.newer.extend(&state.newer);

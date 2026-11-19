@@ -10,19 +10,22 @@ impl Builder<'_, '_> {
                 "nested defer is not supported",
             ));
         }
+        let (action, result, body) = body.deferred_action().ok_or_else(||
+            error("E-DEFER-ACTION", span, "defer requires its actual zero-argument cleanup closure"))?;
+        self.same(result, &Type::Unit, action.span)?;
         self.validate_defer_block(body, 0, 0, true)?;
-        let (value, ty) = self.closure_expression(
+        let (value, ty) = self.emit_expression(action, |builder| builder.closure_expression(
             closures::Input {
                 defer_action: true,
                 move_capture: false,
                 parameters: &[],
-                result: Some(&Type::Unit),
+                result: Some(result),
                 body,
-                span,
+                span: action.span,
             },
             None,
-            None,
-        )?;
+            Some(action.id),
+        ))?;
         // This is ordinary lexical storage, not a full-expression temporary.
         // Reserving a temporary would move registration storage before earlier
         // exits and would let finish_resource_temps clean the action too soon.
@@ -39,13 +42,15 @@ impl Builder<'_, '_> {
         )?;
         self.closures
             .snapshot(self.defer_locals.len().saturating_add(1), span)?;
-        self.defer_locals.insert(local);
+        self.defer_locals.insert(local, action.id);
         Ok(())
     }
 
     pub(super) fn invoke_defer(&mut self, local: LocalId, span: Span) -> R<()> {
         let ty = self.function.locals[local.0 as usize].ty.clone();
         let callee = self.value(InstructionKind::TakeLocal { local }, ty, span)?;
+        let block = self.current.ok_or_else(|| error("E-DEFER-CONTROL", span,
+            "scope exit has no active block for its registered action"))?;
         self.emit(
             InstructionKind::CallClosureOnce {
                 callee,
@@ -54,6 +59,13 @@ impl Builder<'_, '_> {
             None,
             span,
         )?;
+        let before = self.closures.remaining_work();
+        let mut left = before;
+        let origin = *self.defer_locals.get(&local).ok_or_else(||
+            error("E-DEFER-ACTION", span, "scope exit has no registered lexical cleanup operand"))?;
+        self.closures.semantic_emission.cleanup_call(self.function.id, origin, block,
+            local, callee, &mut left, span)?;
+        self.closures.snapshot(before - left, span)?;
         Ok(())
     }
 

@@ -10,6 +10,7 @@ enum Carrier {
 
 pub(super) struct LoopFlow {
     scope: usize,
+    retained: usize,
     breaks: Vec<State>,
     continues: Vec<State>,
 }
@@ -20,16 +21,17 @@ impl Proof<'_, '_> {
         is_break: bool,
         b: &mut Budget,
     ) -> CompileResult<()> {
-        let scope = self
+        let (scope, retained) = self
             .loops
             .borrow()
             .last()
-            .map(|flow| flow.scope)
+            .map(|flow| (flow.scope, flow.retained))
             .ok_or_else(|| fail("original protocol jump has no actual enclosing loop"))?;
         let mut exit = state.copy(b)?;
         if exit.locals.len() < scope {
             return Err(fail("original protocol jump crosses a lexical boundary"));
         }
+        self.unwind(&mut exit, retained, b, 0)?;
         exit.locals.truncate(scope);
         let mut loops = self.loops.borrow_mut();
         let flow = loops
@@ -84,7 +86,7 @@ impl Proof<'_, '_> {
             Solver::push(
                 &mut self.loops.borrow_mut(),
                 LoopFlow {
-                    scope,
+                    scope, retained: iteration.deferred.len(),
                     breaks: Vec::new(),
                     continues: Vec::new(),
                 },
@@ -507,7 +509,7 @@ impl Proof<'_, '_> {
                 Solver::push(
                     &mut self.loops.borrow_mut(),
                     LoopFlow {
-                        scope,
+                        scope, retained: branch.deferred.len(),
                         breaks: Vec::new(),
                         continues: Vec::new(),
                     },

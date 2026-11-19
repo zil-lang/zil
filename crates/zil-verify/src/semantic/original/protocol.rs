@@ -21,6 +21,8 @@ pub(super) struct EnumCleanup {
 }
 
 pub(super) struct CaptureExit{root:Place,generation:u64,phase:u8,sources:Sources,exit:ProtocolExit,unchanged:bool}
+type RegisteredAction = (Binder, SemanticDefinitionId);
+
 struct Engine<'a> {
     original: &'a CheckedOriginal,
     module: &'a TypedModule,
@@ -40,7 +42,7 @@ struct Engine<'a> {
     result_sources_by_function:&'a BTreeMap<SemanticDefinitionId,ResultSources>,
     returned_sources:Option<ResultSources>,
     fallible_task_result:bool,
-    error_unwind: Vec<&'a SemanticOriginalBlock>,
+    error_unwind: Vec<RegisteredAction>,
     task_loop_keys: Vec<BTreeSet<Binder>>,
     result_shapes:BTreeMap<NodeId,tasks::Shape>,
     callable_roles:BTreeMap<NodeId,(CallableKind,Vec<PassingMode>)>,

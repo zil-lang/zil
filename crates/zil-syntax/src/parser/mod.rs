@@ -191,6 +191,14 @@ impl Parser<'_> {
         self.soft_newlines = saved;
         result
     }
+    fn synthetic_nodes(&mut self, count: usize, span: Span) -> P<()> {
+        if count > self.limits.max_nodes.saturating_sub(self.nodes) {
+            self.diagnostics.push(Diagnostic::limit(Phase::Parse, "syntax node limit exceeded", Some(span)));
+            return Err(());
+        }
+        self.nodes += count;
+        Ok(())
+    }
     fn nested<T>(&mut self, f: impl FnOnce(&mut Self) -> P<T>) -> P<T> {
         if self.depth >= self.limits.max_call_depth || self.nodes >= self.limits.max_nodes {
             let span = self.peek().span;

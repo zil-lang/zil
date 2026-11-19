@@ -2,6 +2,12 @@
 //! creator environments and independent parameter/result intrinsic domains.
 //! Borrowing an environment supplies no permission beyond the normal kernels.
 use super::*;
+
+#[derive(Clone, Copy)]
+pub(super) enum ClosureCall<'a> {
+    Original(&'a SemanticSite),
+    Defer(defer_actions::Action),
+}
 fn cursor_actual_work(value: &CheckedActual, b: &mut Budget) -> Check<()> {
     match value {
         CheckedActual::Type(value) => value.charge_clone(b),
@@ -333,7 +339,7 @@ impl CheckedContext {
         &self,
         module: &TypedModule,
         caller: &SemanticInstance,
-        site: &SemanticSite,
+        operation: ClosureCall<'_>,
         id: ClosureId,
         receiver: &CheckedType,
         arguments: &[ValueId],
@@ -353,6 +359,23 @@ impl CheckedContext {
             .storage_life
             .as_ref()
             .ok_or_else(|| bad("closure call actual complete environment header is Unknown"))?;
+        let has_receiver = crate::signature_life::outer(header, StorageBase::Receiver).is_some();
+        let site = match operation {
+            ClosureCall::Original(site) => Some(site),
+            ClosureCall::Defer(action) => {
+                let seals = self.seals.borrow();
+                b.spend(seals.len().saturating_add(1).ilog2() as usize + 1)?;
+                if action.closure != id || closure.kind != CallableKind::FnOnce
+                    || !arguments.is_empty() || !closure.parameters.is_empty()
+                    || entry.call_kind != CallKind::Direct || entry.return_type != Type::Unit
+                    || closure.result != Type::Unit || has_receiver
+                    || !seals.contains_key(&action.child)
+                {
+                    return Err(bad("defer invocation changes its registered synchronous Unit environment"));
+                }
+                None
+            }
+        };
         if entry.storage_life.as_ref() != Some(header)
             || receiver.ty != Type::Closure(id)
             || receiver.classes.len() != header.fixed_binder_count as usize
@@ -377,10 +400,20 @@ impl CheckedContext {
             .semantic
             .as_ref()
             .ok_or_else(|| bad("closure call has no original entry world directory"))?;
-        b.spend(programme.instances.len().saturating_add(arguments.len()))?;
+        let candidates = match operation {
+            ClosureCall::Original(_) => programme.instances.as_slice(),
+            ClosureCall::Defer(action) => {
+                let instance = self.instance(module, action.child, b)?;
+                if instance.parent != Some(caller.id) {
+                    return Err(bad("defer invocation changes its actual original creator instance"));
+                }
+                std::slice::from_ref(instance)
+            }
+        };
+        b.spend(candidates.len().saturating_add(arguments.len()))?;
         let mut result: Option<CheckedType> = None;
         let mut worlds = 0usize;
-        for instance in programme.instances.iter().filter(|row|matches!(row.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))if function==closure.function)){
+        for instance in candidates.iter().filter(|row|matches!(row.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))if function==closure.function)){
             let definition=self.definition(module,instance.definition,b)?;
             if definition.kind!=SemanticDefinitionKind::Closure||instance.environment.as_ref().is_none_or(|row|row.closure!=SemanticClosureTarget::Typed(id)){return Err(bad("closure call actual entry world changes its exact original closure identity"));}
             let SemanticDefinitionBody::FunctionWithBody{signature:recipe,..}=&definition.body else{return Err(bad("closure call original entry omits its complete body/signature"));};
@@ -402,6 +435,11 @@ impl CheckedContext {
             for formal in &definition.parameters{if let SemanticFormal::Type{requirements}=formal{self.evaluate_requirements(module,requirements,&world,RequirementMode::DeclarationPremise,external,active,b)?;}}
             let mut signature=self.evaluate_signature(module,recipe,&world,external,active,b)?;
             if signature.parameters.len()!=arguments.len()||signature.parameters.iter().map(|(value,_)|&value.ty).ne(closure.parameters.iter())||signature.result.ty!=closure.result||signature.result.ty!=entry.return_type||signature.result_mode!=entry.result_mode||signature.call_kind!=entry.call_kind{return Err(bad("closure call world changes its complete original parameter/result ABI"));}
+            if matches!(operation, ClosureCall::Defer(_))
+                && (!signature.bound.is_empty() || !signature.invocation.is_empty())
+            {
+                return Err(bad("registered defer action adds invocation lifetime parameters"));
+            }
             let call_key=ScopeKey::Witness{definition:definition.id,frame:active.fresh(b)?};
             let mut boundary=trait_members::Boundary::default();boundary.scope(ScopeKey::Instance(instance.id),call_key,b)?;
             let mut free=Vec::new();
@@ -421,7 +459,8 @@ impl CheckedContext {
                 self.register_closure_cursor(module,instance.id,&parent,&world.lexical[0].actuals,&world.lexical[0].environment,&owner,b)?;
             }
             boundary.closure_receiver(self,environment,&owner,receiver,b)?;
-            if crate::signature_life::outer(header,StorageBase::Receiver).is_some(){
+            if has_receiver {
+                let site = site.ok_or_else(|| bad("receiver call has no original invocation site"))?;
                 let node=self.original.borrow().as_ref().ok_or_else(||bad("Receiver call has no original whole caller"))?.original_call_node(module,caller.definition,site.recipe,b)?;
                 let recipe=self.original.borrow().as_ref().ok_or_else(||bad("Receiver call loses its original callee occurrence"))?.receiver_role(module,caller.definition,node,StoredBorrowMode::SharedAddress,environment,b)?;
                 let target=self.class(module,&recipe,environment,b)?;
@@ -430,7 +469,8 @@ impl CheckedContext {
             }
             for(parameter,_)in &mut signature.parameters{*parameter=boundary.project_type(self,environment,parameter,b)?;}
             signature.result=boundary.project_type(self,environment,&signature.result,b)?;
-            if crate::signature_life::outer(header,StorageBase::Receiver).is_some(){
+            if has_receiver {
+                let site = site.ok_or_else(|| bad("receiver result has no original invocation site"))?;
                 let node=self.original.borrow().as_ref().ok_or_else(||bad("Receiver result has no original caller"))?.original_call_node(module,caller.definition,site.recipe,b)?;
                 let recipe=self.original.borrow().as_ref().ok_or_else(||bad("Receiver result has no exact call access role"))?.receiver_role(module,caller.definition,node,StoredBorrowMode::SharedAddress,environment,b)?;
                 let target=self.class(module,&recipe,environment,b)?;
@@ -447,10 +487,12 @@ impl CheckedContext {
                 }
                 }else if !signature.result.statics.iter().any(|row|matches!(row,StaticOccurrence::Direct{path,mode:StoredBorrowMode::SharedAddress,..}if path.is_empty())||matches!(row,StaticOccurrence::Logical{position,mode:StoredBorrowMode::SharedAddress,..}if position.base==StorageBase::Result&&position.path.is_empty())){return Err(bad("Receiver result has neither its exact variable source nor complete Static obligation"));}
             }
-            let(source_inputs,source_checks)=self.original_call_inputs(module,caller,site,&signature,call_key,arguments,values,environment,external,active,b)?;
-            let inputs=source_inputs.iter().collect::<Vec<_>>();
-            self.instantiate_original_call_heads(module,caller,site,&mut signature,&inputs,call_key,environment,b)?;
-            for(index,((expected,_),argument))in signature.parameters.iter().zip(arguments).enumerate(){if !self.call_argument(module,caller,*argument,values,expected,environment,source_checks[index],b)?{return Err(bad("closure call argument changes a complete original world/borrow/child occurrence"));}}
+            if let Some(site) = site {
+                let(source_inputs,source_checks)=self.original_call_inputs(module,caller,site,&signature,call_key,arguments,values,environment,external,active,b)?;
+                let inputs=source_inputs.iter().collect::<Vec<_>>();
+                self.instantiate_original_call_heads(module,caller,site,&mut signature,&inputs,call_key,environment,b)?;
+                for(index,((expected,_),argument))in signature.parameters.iter().zip(arguments).enumerate(){if !self.call_argument(module,caller,*argument,values,expected,environment,source_checks[index],b)?{return Err(bad("closure call argument changes a complete original world/borrow/child occurrence"));}}
+            }
             self.check_call_input_wf(module,&signature,arguments,values,environment,b)?;
             if let Some(expected)=&result{if !self.same_type(environment,expected,&signature.result,b)?{return Err(bad("closure entry worlds disagree on the complete actual result domain"));}}else{result=Some(signature.result);}
             worlds+=1;
@@ -461,12 +503,13 @@ impl CheckedContext {
             ));
         }
         let result = result.ok_or_else(|| bad("closure call omits its complete result domain"))?;
-        if crate::signature_life::outer(header, StorageBase::Receiver).is_some() {
+        if has_receiver {
             // Only the completed actual call may expose its original directed
             // publication bounds. The full callee/receiver, every entry world,
             // argument and result above have been checked first. These edges
             // serve both final Return and later observations of this result;
             // they neither rename its inner domain nor grant a data target.
+            let site = site.ok_or_else(|| bad("receiver flow has no original invocation site"))?;
             self.prepare_receiver_role_flows(module, caller, site, environment, b)?;
         }
         Ok((result.ty != Type::Unit).then_some(result))

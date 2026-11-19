@@ -42,7 +42,7 @@ fn returned_input_owner_cannot_disappear_through_a_nested_aggregate_or_opaque_ca
     let checked = super::super::check(&module, program, &inventory, &mut budget).unwrap();
     let definition = program.definitions.iter().find(|definition|
         matches!(definition.body, SemanticDefinitionBody::FunctionWithBody { .. })).unwrap();
-    let proof = Proof { definition, inventory: &inventory, checked: &checked,
+    let proof = Proof { definition, root: definition, births: Default::default(), inventory: &inventory, checked: &checked,
         contract: None, input: None, loops: std::cell::RefCell::new(Vec::new()) };
 
     // A successful Task owner and a returned input are distinct occurrences
@@ -57,7 +57,7 @@ fn returned_input_owner_cannot_disappear_through_a_nested_aggregate_or_opaque_ca
     assert!(inputs.sources.has_any());
     assert!(inputs.sources.opaque_exposure(), "returned opaque input exposure survives the same selected carrier");
     assert_eq!(inputs.sources.only_exact_root(), None);
-    let mut state = State { phases: BTreeMap::from([(input_role, CLOSED), (task_role, 0)]),
+    let mut state = State { deferred: Vec::new(), invalidated: false, phases: BTreeMap::from([(input_role, CLOSED), (task_role, 0)]),
         locals: vec![("inputs".into(), inputs)], alive: true, cleanup_unknown: false };
     let name = CorePattern { kind: CorePatternKind::Name("returned".into()),
         span: zil_base::Span::default() };

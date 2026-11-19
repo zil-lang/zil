@@ -280,6 +280,10 @@ impl CheckedOriginal {
                     }
                     self.contextual_opaque_closure(module,context,child,expected,env,active,b)?;
                     let thin=self.contextual_code_inputs(child_definition,expected,b)?;
+                    if self.is_cleanup_operand(id, expression.id, b)? {
+                        b.spend(self.in_defer.len().saturating_add(1).ilog2() as usize + 1)?;
+                        self.in_defer.insert(child, 1);
+                    }
                     self.definition(module,context,child,active,b)?;
                     let used=self.used.get(&child).cloned().unwrap_or_default();let consumed=self.uses.get(&child).cloned().unwrap_or_default();
                     for binding in bindings.values(){let child_key=Binder::Capture{definition:child,source:Box::new(binding.identity.clone())};if !used.contains(&child_key){continue;}

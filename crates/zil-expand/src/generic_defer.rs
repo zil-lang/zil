@@ -58,6 +58,17 @@ impl Check<'_, '_, '_> {
             ));
         }
         self.budget.node(span, 0)?;
+        let [Stmt { kind: StmtKind::Expression(Expr { kind: ExprKind::Closure {
+            params, move_capture: false, return_type: Some(TypeRef { kind: TypeKind::Tuple(result_fields), .. }),
+            body: ArrowBody::Block(body), ..
+        }, .. }), .. }] = body.statements.as_slice() else {
+            return Err(Diagnostic::error(Phase::Expand, "E-DEFER-ACTION", Some(span),
+                "defer requires its lexical cleanup action"));
+        };
+        if !params.is_empty() || !result_fields.is_empty() {
+            return Err(Diagnostic::error(Phase::Expand, "E-DEFER-ACTION", Some(span),
+                "defer action must accept no parameters and return Unit"));
+        }
         let mut child = self.clone_loop_state(state, span)?;
         let mut outer = BTreeSet::new();
         for local in state.locals.values() {

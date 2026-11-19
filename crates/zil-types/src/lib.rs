@@ -900,7 +900,7 @@ struct Builder<'a, 'c> {
     closures: &'c mut closures::State,
     first_closure: usize,
     defer_body: bool,
-    defer_locals: std::collections::BTreeSet<LocalId>,
+    defer_locals: BTreeMap<LocalId, zil_base::NodeId>,
     borrowed_captures: BTreeMap<LocalId, Type>,
     // Genuine capture field behind an activation-local borrowed view.
     borrowed_capture_places: BTreeMap<LocalId, u32>,
@@ -1159,7 +1159,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             closures,
             first_closure,
             defer_body: false,
-            defer_locals: std::collections::BTreeSet::new(),
+            defer_locals: BTreeMap::new(),
             borrowed_captures: BTreeMap::new(),
             borrowed_capture_places: BTreeMap::new(),
             written_captures: BTreeMap::new(),
@@ -1767,7 +1767,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                     false
                 } else {
                     self.closures.snapshot(self.defer_locals.len(), span)?;
-                    self.defer_locals.contains(&local)
+                    self.defer_locals.contains_key(&local)
                 };
                 if deferred {
                     self.invoke_defer(local, span)?;
@@ -1833,6 +1833,49 @@ impl<'a, 'c> Builder<'a, 'c> {
         self.pop_scope();
         Ok(())
     }
+    // A direct assignment publishes its post-store local at this dispatch.
+    // A rewritten owning slot or a borrowed capture has already been selected
+    // by the actual address operation and does not enter this path.
+    fn assign_named_local(&mut self, l: LocalId, name: &str, target_span: Span, value: &CoreExpr, span: Span) -> R<()> {
+        let actual = &self.function.locals[l.0 as usize];
+        self.closures.array_snapshot(&actual.ty, 1, span)?;
+        if self.closures.array_billing {
+            self.closures.snapshot(actual.name.len(), span)?;
+        }
+        let d = self.function.locals[l.0 as usize].clone();
+        if self.closure_slots.contains_key(&l) {
+            return self.assign_closure_slot(l, value, span);
+        }
+        if matches!(d.ty, Type::Managed(_)) {
+            return Err(unsupported(
+                span,
+                "resource/package replacement is not implemented",
+            ));
+        }
+        if !d.mutable {
+            return Err(error(
+                "E-IMMUTABLE-ASSIGNMENT",
+                target_span,
+                format!("{name} is not mutable"),
+            ));
+        }
+        if self.replace_sum_slot(l, value, span)? {
+            return Ok(());
+        }
+        if self.replace_product(l, &d.ty, value, span)? {
+            return Ok(());
+        }
+        if errors::owned(&d.ty) {
+            return Err(unsupported(
+                span,
+                "owned error-union whole-local reassignment requires a retained slot",
+            ));
+        }
+        let (v, t) = self.transfer_expr(value, Some(&d.ty))?;
+        self.same(&t, &d.ty, value.span)?;
+        self.store(l, v, span)?;
+        Ok(())
+    }
     fn stmt(&mut self, s: &CoreStatement) -> R<()> {
         let previous = self.resource_temp_floor;
         let replacement_floor = self.prepared_replacements.len();
@@ -1853,19 +1896,6 @@ impl<'a, 'c> Builder<'a, 'c> {
             Ok(())
         })();
         self.resource_temp_floor = previous;
-        if result.is_ok()
-            && let CoreStatementKind::Assign { target, .. } = &s.kind
-            && let CoreExprKind::Name(name) = &target.kind
-            && let Some(local) = self.lookup(name)
-            // A borrowed capture already selected its place while forming the
-            // write address. Only a direct assignment initializes a local here.
-            && !self.borrowed_captures.contains_key(&local)
-        {
-            // A plain local target has no evaluation effects. Its type-use
-            // witness is the real post-store occupant, including the first
-            // assignment of a declared but previously uninitialized local.
-            self.semantic_local_place(target, local)?;
-        }
         if result.is_ok()
             && !self.closures.semantic_emission.frames.is_empty()
             && let CoreStatementKind::Binding { name, .. } = &s.kind
@@ -2050,43 +2080,8 @@ impl<'a, 'c> Builder<'a, 'c> {
                         format!("unknown variable {name}"),
                     )
                 })?;
-                let actual = &self.function.locals[l.0 as usize];
-                self.closures.array_snapshot(&actual.ty, 1, s.span)?;
-                if self.closures.array_billing {
-                    self.closures.snapshot(actual.name.len(), s.span)?;
-                }
-                let d = self.function.locals[l.0 as usize].clone();
-                if self.closure_slots.contains_key(&l) {
-                    return self.assign_closure_slot(l, value, s.span);
-                }
-                if matches!(d.ty, Type::Managed(_)) {
-                    return Err(unsupported(
-                        s.span,
-                        "resource/package replacement is not implemented",
-                    ));
-                }
-                if !d.mutable {
-                    return Err(error(
-                        "E-IMMUTABLE-ASSIGNMENT",
-                        target.span,
-                        format!("{name} is not mutable"),
-                    ));
-                }
-                if self.replace_sum_slot(l, value, s.span)? {
-                    return Ok(());
-                }
-                if self.replace_product(l, &d.ty, value, s.span)? {
-                    return Ok(());
-                }
-                if errors::owned(&d.ty) {
-                    return Err(unsupported(
-                        s.span,
-                        "owned error-union whole-local reassignment requires a retained slot",
-                    ));
-                }
-                let (v, t) = self.transfer_expr(value, Some(&d.ty))?;
-                self.same(&t, &d.ty, value.span)?;
-                self.store(l, v, s.span)?;
+                self.assign_named_local(l, name, target.span, value, s.span)?;
+                self.semantic_local_place(target, l)?;
             }
             CoreStatementKind::Expression(e) => {
                 let closure = !matches!(
@@ -2445,8 +2440,15 @@ impl<'a, 'c> Builder<'a, 'c> {
         }
     }
     fn expr(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        self.emit_expression(e, |builder| builder.expr_context(e, expected))
+    }
+    fn emit_expression(
+        &mut self,
+        e: &CoreExpr,
+        emit: impl FnOnce(&mut Self) -> R<(ValueId, Type)>,
+    ) -> R<(ValueId, Type)> {
         let entered = self.closures.semantic_begin(self.function.id, e)?;
-        let result = self.expr_context(e, expected);
+        let result = emit(self);
         self.closures.semantic_end(
             self.function.id,
             e.id,

@@ -223,6 +223,7 @@ pub(super) struct Proof {
     pub associated_complete: BTreeSet<LifeDeclarationId>,
     pub capture_names: BTreeMap<SemanticDefinitionId, Vec<String>>,
     pub closure_move: BTreeMap<SemanticDefinitionId, bool>,
+    pub(super) cleanup_actions: BTreeSet<SemanticDefinitionId>,
     inferred_capture_moves: BTreeMap<SemanticDefinitionId, BTreeSet<String>>,
     pub injections: BTreeMap<(SemanticDefinitionId, NodeId), Injection>,
     pub types: BTreeMap<(SemanticDefinitionId, Query), SemanticTypeRecipe>,
@@ -364,7 +365,7 @@ struct Check<'a, 'b> {
     left: &'b mut usize,
     proof: ProofAccess<'a>,
     active: BTreeSet<SemanticDefinitionId>,
-    captures: BTreeMap<SemanticDefinitionId, Vec<String>>,
+    capture_writes: BTreeMap<SemanticDefinitionId, BTreeSet<String>>,
     loops: Vec<LoopFrame>,
     trait_active: Vec<(SemanticTypeRecipe, SemanticTraitRecipe)>,
     contexts: Vec<SemanticDefinitionId>,
@@ -459,6 +460,10 @@ impl<'a> Check<'a, '_> {
             names.push(name.to_owned());
         }
         let observed = if value.written {
+            self.pay((self.capture_writes.len().saturating_add(1).ilog2() as usize + 1).saturating_add(name.len() + 1), depth)?;
+            let width = self.capture_writes.get(&owner).map_or(0, BTreeSet::len);
+            self.pay((width.saturating_add(1).ilog2() as usize + 1).saturating_mul(name.len() + 1), depth)?;
+            self.capture_writes.entry(owner).or_default().insert(name.to_owned());
             CallableKind::FnMut
         } else {
             CallableKind::Fn
@@ -3553,6 +3558,9 @@ impl<'a> Check<'a, '_> {
                 let result = self.expr(owner, value, variables, wanted, depth + 1)?;
                 self.record_expression_type(owner, expression.id, result)
             }
+            CoreExprKind::Try(_) if self.cleanup_depth != 0 => {
+                Err(error("E-DEFER-CONTROL", expression.span, "a deferred action cannot propagate an error from its activation"))
+            }
             CoreExprKind::Try(value) => {
                 let result = self.propagate_expression(owner, value, variables, depth)?;
                 self.record_expression_type(owner, expression.id, result)
@@ -4661,12 +4669,12 @@ impl<'a> Check<'a, '_> {
                 });
             }
             checked?;
-            let captures = self.captures.get(definition).ok_or_else(|| {
+            let captures = self.proof.capture_names.get(definition).ok_or_else(|| {
                 bad("original closure lacks a completed lexical capture set")
             })?;
             let cost = captures.iter().map(|name| name.len().saturating_add(1)).sum();
             self.pay(cost, depth)?;
-            let captures = self.captures.get(definition).cloned().ok_or_else(|| {
+            let captures = self.proof.capture_names.get(definition).cloned().ok_or_else(|| {
                 bad("original closure lacks a completed lexical capture set")
             })?;
             for name in captures {
@@ -4677,6 +4685,18 @@ impl<'a> Check<'a, '_> {
                 }
                 let value = variables.get_mut(&name)
                     .ok_or_else(|| bad("original capture lost its creator binder"))?;
+                if value.capture {
+                    // Forming a nested closure uses this specific enclosing
+                    // capture even when the parent body never reads it directly.
+                    value.observed = true;
+                    if !*move_capture && !given.contains(&name) {
+                        let width = self.capture_writes.get(&child.id).map_or(0, BTreeSet::len);
+                        self.pay((self.capture_writes.len().saturating_add(1).ilog2() as usize + 1)
+                            .saturating_add((width.saturating_add(1).ilog2() as usize + 1).saturating_mul(name.len() + 1)), depth)?;
+                        value.written |= self.capture_writes.get(&child.id).is_some_and(|writes| writes.contains(&name));
+                    }
+                    self.observe_capture(owner, &name, value, depth + 1)?;
+                }
                 if !*move_capture && !given.contains(&name) {
                     let ty = self.observation_type(owner, &value.ty, depth + 1)?;
                     if !matches!(ty, SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }) {
@@ -5658,6 +5678,9 @@ impl<'a> Check<'a, '_> {
                 CoreStatementKind::Binding { .. } => {
                     self.binding_statement(owner, statement, variables, depth)?;
                 }
+                CoreStatementKind::Return(_) if self.cleanup_depth != 0 => {
+                    return Err(error("E-DEFER-CONTROL", statement.span, "a deferred action cannot return from its activation"));
+                }
                 CoreStatementKind::Return(Some(value)) => {
                     self.return_statement(owner, statement, value, result, variables, depth)?;
                     live = false;
@@ -5712,30 +5735,22 @@ impl<'a> Check<'a, '_> {
                     }
                 }
                 CoreStatementKind::Defer(body) => {
-                    // Check the cleanup at its declaration environment. Reserving
-                    // its affine transfers also prevents another transfer before exit.
-                    let mut cleanup = self.clone_variables(variables)?;
-                    let outer_cleanup = self.cleanup_depth;
-                    let next_cleanup = outer_cleanup
-                        .checked_add(1)
-                        .ok_or_else(|| bad("original cleanup nesting overflows"))?;
-                    let outer_loops = std::mem::take(&mut self.loops);
-                    self.cleanup_depth = next_cleanup;
-                    let cleanup_result = self.block(
-                        owner,
-                        body,
-                        &mut cleanup,
-                        &SemanticTypeRecipe::Atom(Type::Unit),
-                        depth + 1,
-                    );
-                    self.loops = outer_loops;
-                    self.cleanup_depth = outer_cleanup;
-                    if !cleanup_result? {
-                        return Err(bad(
-                            "original deferred cleanup escapes its own exit boundary",
-                        ));
+                    if self.cleanup_depth != 0 {
+                        return Err(error("E-DEFER-NESTED", statement.span, "a deferred action cannot register a nested defer"));
                     }
-                    self.merge_variables(variables, &[cleanup])?;
+                    let (action, result, _) = body.deferred_action().ok_or_else(||
+                        bad("defer requires its original lexical action"))?;
+                    if result != &SemanticTypeRecipe::Atom(Type::Unit) {
+                        return Err(bad("original cleanup must return Unit"));
+                    }
+                    let site = self.site(owner, SemanticOriginalNode::Expression(action.id))?
+                        .ok_or_else(|| bad("defer action lacks its original declaration"))?;
+                    let SemanticSiteRecipeKind::Closure { definition, .. } = site.kind else {
+                        return Err(bad("defer operand is not the declared lexical closure"));
+                    };
+                    self.pay(self.proof.cleanup_actions.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+                    self.proof.proof_mut()?.cleanup_actions.insert(definition);
+                    self.expr(owner, action, variables, None, depth + 1)?;
                 }
                 CoreStatementKind::Assign { target, value }
                 | CoreStatementKind::CompoundAssign { target, value, .. } => {
@@ -6684,7 +6699,11 @@ impl<'a> Check<'a, '_> {
         let result = self.mode_type(definition.id, signature.result_mode, result, 0)?;
         let outer_loops = std::mem::take(&mut self.loops);
         let outer_stage = std::mem::replace(&mut self.stage_depth, 0);
-        let outer_cleanup = std::mem::replace(&mut self.cleanup_depth, 0);
+        let cleanup = !self.proof.cleanup_actions.is_empty() && {
+            self.pay(self.proof.cleanup_actions.len().saturating_add(1).ilog2() as usize + 1, 0)?;
+            self.proof.cleanup_actions.contains(&definition.id)
+        };
+        let outer_cleanup = std::mem::replace(&mut self.cleanup_depth, usize::from(cleanup));
         let body_result: R<()> = (|| {
             match body {
                 SemanticOriginalFunctionBody::Defined(body) => {
@@ -6793,11 +6812,7 @@ impl<'a> Check<'a, '_> {
         for name in &names {
             self.pay(name.len(), 0)?;
         }
-        self.proof
-            .proof_mut()?
-            .capture_names
-            .insert(definition.id, names.clone());
-        self.captures.insert(definition.id, names);
+        self.proof.proof_mut()?.capture_names.insert(definition.id, names);
         self.finish_task_result(definition.id, 0)?;
         if !self
             .proof
@@ -6950,7 +6965,7 @@ fn check_requested(
                 ..Proof::default()
             }),
             active: BTreeSet::new(),
-            captures: BTreeMap::new(),
+            capture_writes: BTreeMap::new(),
             loops: Vec::new(),
             trait_active: Vec::new(),
             contexts: Vec::new(),

@@ -3,6 +3,7 @@
 //! them. Actual generations, loans, provider drain and cleanup remain separate.
 use super::*;
 mod canonical;
+mod cleanup_actions;
 mod control;
 mod outcomes;
 mod owners;
@@ -163,6 +164,14 @@ impl Data {
         b.spend(work, WORK)?;
         Ok(self.clone())
     }
+    fn join_value(&mut self, other: &Self, b: &mut Budget) -> CompileResult<()> {
+        let work = self.outcomes.iter().chain(&other.outcomes)
+            .fold(1_usize, |n, (_, states)| n.saturating_add(states.len() + 1));
+        b.spend(work, WORK)?;
+        self.sources.join(&other.sources, b)?;
+        if self.outcomes != other.outcomes { self.outcomes.clear(); }
+        Ok(())
+    }
     fn charge_sources(&self, b: &mut Budget) -> CompileResult<()> { self.sources.charge(b) }
     fn borrow_exposure(&self) -> bool {
         self.sources.has_any() || !self.outcomes.is_empty()
@@ -184,12 +193,18 @@ impl Data {
 #[derive(Clone, PartialEq, Eq)]
 struct State {
     phases: BTreeMap<u32, u8>,
+    deferred: Vec<cleanup_actions::Action>,
+    invalidated: bool,
     locals: Vec<(String, Data)>,
     alive: bool,
     cleanup_unknown: bool,
 }
 struct Proof<'a, 'i> {
     definition: &'a SemanticDefinition,
+    root: &'a SemanticDefinition,
+    // Each program point in the real lexical definition gets one private source
+    // role. Nested cleanup definitions share this directory with the activation.
+    births: std::rc::Rc<std::cell::RefCell<BTreeMap<(SemanticDefinitionId, NodeId), u32>>>,
     inventory: &'i Inventory<'a>,
     checked: &'i Checked,
     contract: Option<&'a FunctionProtocolContract>,
@@ -203,8 +218,11 @@ impl State {
             b.spend(name.len().saturating_add(1), WORK)?;
             Solver::push(&mut locals, (name.clone(), data.copy(b)?), b)?;
         }
+        let mut deferred = Vec::new();
+        for action in &self.deferred { Solver::push(&mut deferred, action.copy(b)?, b)?; }
         b.spend(self.phases.len(), WORK)?;
         Ok(Self {
+            deferred, invalidated: self.invalidated,
             phases: self.phases.clone(),
             locals,
             alive: self.alive,
@@ -212,6 +230,8 @@ impl State {
         })
     }
     fn invalidate(&mut self, b: &mut Budget) -> CompileResult<()> {
+        self.invalidated = true;
+        for action in &mut self.deferred { action.invalidate(b)?; }
         for (_, data) in &mut self.locals {
             b.spend(data.outcomes.len().saturating_add(1), WORK)?;
             data.outcomes.clear();
@@ -242,37 +262,17 @@ impl State {
             ));
         }
         self.cleanup_unknown |= other.cleanup_unknown;
+        self.invalidated |= other.invalidated;
+        if self.deferred.len() != other.deferred.len() { return Err(fail("original branch loses an enclosing defer")); }
+        for (action, other) in self.deferred.iter_mut().zip(&other.deferred) { action.join(other, b)?; }
         for (role, value) in &other.phases {
             b.lookup(self.phases.len(), WORK)?;
             *self.phases.entry(*role).or_insert(0) |= *value;
         }
         for ((name, data), (other_name, other_data)) in self.locals.iter_mut().zip(&other.locals) {
-            data.charge_sources(b)?;
-            other_data.charge_sources(b)?;
-            b.spend(
-                name.len().saturating_add(
-                    other_name.len()
-                        + data
-                            .outcomes
-                            .iter()
-                            .map(|(_, states)| states.len() + 1)
-                            .sum::<usize>()
-                        + other_data
-                            .outcomes
-                            .iter()
-                            .map(|(_, states)| states.len() + 1)
-                            .sum::<usize>()
-                        + 1,
-                ),
-                WORK,
-            )?;
-            if name != other_name {
-                return Err(fail("original protocol join changes a lexical binder"));
-            }
-            data.sources.join(&other_data.sources, b)?;
-            if data.outcomes != other_data.outcomes {
-                data.outcomes.clear();
-            }
+            b.spend(name.len().saturating_add(other_name.len() + 1), WORK)?;
+            if name != other_name { return Err(fail("original protocol join changes a lexical binder")); }
+            data.join_value(other_data, b)?;
         }
         Ok(())
     }
@@ -346,6 +346,25 @@ impl Proof<'_, '_> {
         }
     }
     fn exit(&self, state: &State, data: &Data, b: &mut Budget) -> CompileResult<()> {
+        if state.deferred.is_empty() || !state.alive { return self.exit_after(state, data, b); }
+        if data.outcomes.is_empty() {
+            let mut exit = state.copy(b)?;
+            self.unwind(&mut exit, 0, b, 0)?;
+            return self.exit_after(&exit, data, b);
+        }
+        for (tag, phases) in &data.outcomes {
+            let mut exit = state.copy(b)?;
+            b.spend(phases.len(), WORK)?;
+            exit.phases = phases.clone();
+            self.unwind(&mut exit, 0, b, 0)?;
+            let mut selected = data.payload(b)?;
+            b.spend(exit.phases.len(), WORK)?;
+            selected.outcomes.push((*tag, exit.phases.clone()));
+            self.exit_after(&exit, &selected, b)?;
+        }
+        Ok(())
+    }
+    fn exit_after(&self, state: &State, data: &Data, b: &mut Budget) -> CompileResult<()> {
         if !state.alive {
             return Ok(());
         }
@@ -1022,6 +1041,7 @@ impl Proof<'_, '_> {
     ) -> CompileResult<()> {
         self.step(b, depth)?;
         let scope = state.locals.len();
+        let retained = state.deferred.len();
         for statement in &body.statements {
             self.step(b, depth + 1)?;
             if !state.alive {
@@ -1053,6 +1073,7 @@ impl Proof<'_, '_> {
                     b.spend(name.len(), WORK)?;
                     Solver::push(&mut state.locals, (name.clone(), data), b)?;
                 }
+                CoreStatementKind::Defer(body) => self.register_action(state, body, b)?,
                 CoreStatementKind::Expression(value) => {
                     self.expression(state, value, b, depth + 1)?;
                 }
@@ -1196,6 +1217,7 @@ impl Proof<'_, '_> {
                 }
             }
         }
+        if state.alive { self.unwind(state, retained, b, depth + 1)?; }
         state.locals.truncate(scope);
         Ok(())
     }
@@ -1279,7 +1301,7 @@ pub(super) fn check(
                 let mut phases = BTreeMap::new();
                 let mut locals = Vec::new();
                 let proof = Proof {
-                    definition,
+                    definition, root: definition, births: Default::default(),
                     inventory,
                     checked,
                     contract: None,
@@ -1313,7 +1335,7 @@ pub(super) fn check(
                     )?;
                 }
                 let mut state = State {
-                    phases,
+                    phases, deferred: Vec::new(), invalidated: false,
                     locals,
                     alive: true,
                     cleanup_unknown: true,
@@ -1345,13 +1367,13 @@ pub(super) fn check(
                     Solver::push(&mut locals, (parameter.name.clone(), data), b)?;
                 }
                 let mut state = State {
-                    phases,
+                    phases, deferred: Vec::new(), invalidated: false,
                     locals,
                     alive: true,
                     cleanup_unknown: false,
                 };
                 let proof = Proof {
-                    definition,
+                    definition, root: definition, births: Default::default(),
                     inventory,
                     checked,
                     contract: Some(contract),

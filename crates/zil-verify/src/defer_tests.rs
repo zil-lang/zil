@@ -422,6 +422,93 @@ fn registration_uses_current_scope_unique_initial_store_and_actual_age() {
 }
 
 #[test]
+fn replacing_a_live_owner_preserves_its_cleanup_position_before_a_registered_action() {
+    let mut module = fixture(1, false, true);
+    let f = &mut module.functions[0];
+    let older = LocalId(0);
+    let newer = LocalId(2);
+    let temporary = LocalId(3);
+    let ty = f.locals[older.0 as usize].ty.clone();
+    f.locals.push(LocalDecl {
+        id: temporary,
+        name: "old_owner".into(),
+        ty: ty.clone(),
+        mutable: true,
+        span: s(),
+    });
+    let old = ValueId(f.values.len() as u32);
+    let field = ValueId(old.0 + 1);
+    let replacement = ValueId(old.0 + 2);
+    f.values.extend([ty.clone(), Type::I32, ty]);
+    let instructions = &mut f.blocks[0].instructions;
+    let cleanup = instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::DropManaged { local } if local == newer))
+        .unwrap();
+    instructions.splice(
+        cleanup..cleanup,
+        [
+            op(None, InstructionKind::StorageLive(temporary)),
+            op(Some(old), InstructionKind::TakeLocal { local: older }),
+            op(
+                None,
+                InstructionKind::Store {
+                    local: temporary,
+                    value: old,
+                },
+            ),
+            op(None, InstructionKind::DropManaged { local: temporary }),
+            op(None, InstructionKind::StorageDead(temporary)),
+            op(Some(field), InstructionKind::Constant(Constant::I32(2))),
+            op(
+                Some(replacement),
+                InstructionKind::MakeManaged {
+                    fields: vec![field],
+                },
+            ),
+            op(
+                None,
+                InstructionKind::Store {
+                    local: older,
+                    value: replacement,
+                },
+            ),
+        ],
+    );
+
+    let limits = Limits::default();
+    let plan = resource_tests::plan(&module);
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    checked(&module, &limits).unwrap();
+    verify_module_bytes(&bytes, &module.target, &limits).unwrap();
+
+    let take = take_index(&module);
+    let instructions = &mut module.functions[0].blocks[0].instructions;
+    let replacement = instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::DropManaged { local } if local == older))
+        .unwrap();
+    let early_drop: Vec<_> = instructions.drain(replacement..replacement + 2).collect();
+    instructions.splice(take..take, early_drop);
+    let plan = resource_tests::plan(&module);
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    for result in [
+        verify_module(module.clone(), plan, &module.target, &limits),
+        verify_module_bytes(&bytes, &module.target, &limits),
+    ] {
+        let errors =
+            result.expect_err("even a replacement must be dropped after the registered action");
+        assert_eq!(errors[0].code, "E-VERIFY-DEFER", "{errors:?}");
+        assert!(
+            errors[0]
+                .message
+                .contains("reverse successful construction/registration order"),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
 fn registration_shape_initialization_and_call_source_are_not_frontend_claims() {
     let mut module = fixture(1, false, false);
     module.closures[0].kind = CallableKind::Fn;

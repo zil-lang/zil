@@ -2152,6 +2152,7 @@ pub(super) fn qualifications(
                             | InstructionKind::ConvertNumber { .. }
                             | InstructionKind::ScopeEnter { .. }
                             | InstructionKind::ScopeExit { .. }
+                            | InstructionKind::RegisterDefer { .. }
                             | InstructionKind::LoadStoredBorrow {
                                 mode: StoredBorrowLoad::CopyShared
                                     | StoredBorrowLoad::Reborrow { .. }
@@ -5203,6 +5204,10 @@ static_dependency: StaticProvenance::NotStatic,
         | InstructionKind::SliceLength { .. }
         | InstructionKind::ScopeEnter { .. }
         | InstructionKind::ScopeExit { .. } => {}
+        // Registration introduces a cleanup obligation, but the stored target
+        // does not change. The executable defer checker proves activation and
+        // the actual exit call, which follows ordinary stored call transfer.
+        InstructionKind::RegisterDefer { .. } => {}
         _ if ordinary_enum_operation(module, f, i, b)? => {}
         _ => {
             return Err(unsupported(

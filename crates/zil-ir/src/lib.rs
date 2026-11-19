@@ -1470,6 +1470,17 @@ pub struct CoreBlock<Annotation = Type> {
     pub statements: Vec<CoreStatement<Annotation>>,
     pub span: Span,
 }
+impl<Annotation> CoreBlock<Annotation> {
+    /// Select the actual closure operand of a synchronous defer registration.
+    /// The consumer checks the result annotation in its own type domain.
+    pub fn deferred_action(&self) -> Option<(&CoreExpr<Annotation>, &Annotation, &Self)> {
+        let [CoreStatement { kind: CoreStatementKind::Expression(action), .. }] =
+            self.statements.as_slice() else { return None };
+        let CoreExprKind::Closure { move_capture: false, parameters, return_type: Some(result), body } =
+            &action.kind else { return None };
+        parameters.is_empty().then_some((action, result, body))
+    }
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreStatement<Annotation = Type> {
     pub id: NodeId,
@@ -1534,7 +1545,10 @@ pub enum CoreStatementKind<Annotation = Type> {
         arms: Vec<CoreMatchArm<Annotation>>,
     },
     Block(CoreBlock<Annotation>),
-    /// Register an ordinary synchronous cleanup body at this declaration point.
+    /// §7.1. The block contains the single lexical closure expression for
+    /// this registration. Construct that environment once at the statement,
+    /// register its local after initialization, then consume it once on each
+    /// reached scope exit. Its body owns its original operation coordinates.
     Defer(CoreBlock<Annotation>),
     Unsafe(CoreBlock<Annotation>),
     Break,

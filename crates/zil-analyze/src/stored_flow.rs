@@ -6145,7 +6145,10 @@ fn transfer(
         | InstructionKind::Binary { .. }
         | InstructionKind::SliceLength { .. }
         | InstructionKind::ScopeEnter { .. }
-        | InstructionKind::ScopeExit { .. } => {}
+        | InstructionKind::ScopeExit { .. }
+        // Scope validation authenticates the slot and discharges each registration.
+        // RegisterDefer itself neither reads nor moves the stored references.
+        | InstructionKind::RegisterDefer { .. } => {}
         // The profile checked a class-free managed destination for this ticket.
         // The ordinary pin and resource ledgers apply its commit and retirement.
         InstructionKind::ReservePlaceLocal { .. }
@@ -10116,6 +10119,7 @@ fn actual_instructions(
                         | InstructionKind::ConvertNumber { .. }
                         | InstructionKind::ScopeEnter { .. }
                         | InstructionKind::ScopeExit { .. }
+                        | InstructionKind::RegisterDefer { .. }
                         | InstructionKind::BindPackageCapture { .. }
                         | InstructionKind::EndPackageCapture { .. }
                         | InstructionKind::LoadStoredBorrow {

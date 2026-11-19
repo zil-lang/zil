@@ -26,6 +26,7 @@ pub(super) struct Index<'a, T = SemanticTypeRecipe> {
     nodes: BTreeMap<NodeId, Node<'a, T>>,
     erased: BTreeSet<NodeId>,
     navigation: BTreeSet<NodeId>,
+    defer_operands: BTreeSet<NodeId>,
     names: NameRows<'a>,
     declarations: BTreeMap<NodeId, SemanticSiteId>,
     recipe_rows: &'a [SemanticSiteRecipe],
@@ -108,6 +109,12 @@ impl<'a> Index<'a> {
         -> CompileResult<Option<SemanticOriginalNode>> {
         b.lookup(self.site_nodes.len(), WORK)?;
         Ok(self.site_nodes.get(&site.0).copied())
+    }
+    pub(super) fn is_defer_operand(&self, site: SemanticSiteId, b: &mut Budget) -> CompileResult<bool> {
+        if self.defer_operands.is_empty() { return Ok(false); }
+        let Some(SemanticOriginalNode::Expression(id)) = self.site_node(site, b)? else { return Ok(false); };
+        b.lookup(self.defer_operands.len(), WORK)?;
+        Ok(self.defer_operands.contains(&id))
     }
     pub(super) fn event_site(&self, node: NodeId, role: EventRole, b: &mut Budget)
         -> CompileResult<Option<SemanticSiteId>> {
@@ -221,6 +228,7 @@ fn walk_from<'a, T>(root: Work<'a, T>, b: &mut Budget) -> CompileResult<Index<'a
     let mut nodes = BTreeMap::new();
     let mut erased = BTreeSet::new();
     let mut navigation = BTreeSet::new();
+    let mut defer_operands = BTreeSet::new();
     let mut erased_depth = 0usize;
     let mut stack = Vec::new();
     push(&mut stack, root, b)?;
@@ -323,8 +331,16 @@ fn walk_from<'a, T>(root: Work<'a, T>, b: &mut Budget) -> CompileResult<Index<'a
                         }
                         push(&mut stack, Work::Expr(value), b)?;
                     }
+                    CoreStatementKind::Defer(body) => {
+                        let (action, _, _) = body.deferred_action().ok_or_else(||
+                            bad("defer requires its own lexical closure operand"))?;
+                        b.lookup(defer_operands.len(), WORK)?;
+                        if !defer_operands.insert(action.id) {
+                            return Err(bad("one lexical action is registered by two defer declarations"));
+                        }
+                        push(&mut stack, Work::Block(body), b)?;
+                    }
                     CoreStatementKind::Block(body)
-                    | CoreStatementKind::Defer(body)
                     | CoreStatementKind::Unsafe(body)
                     | CoreStatementKind::Loop(body) => push(&mut stack, Work::Block(body), b)?,
                     CoreStatementKind::CompileTime(inner) => {
@@ -498,6 +514,7 @@ fn walk_from<'a, T>(root: Work<'a, T>, b: &mut Budget) -> CompileResult<Index<'a
         nodes,
         erased,
         navigation,
+        defer_operands,
         names: Default::default(),
         declarations: BTreeMap::new(),
         recipe_rows: &[],
@@ -910,6 +927,7 @@ pub(super) fn index<'a>(
                 nodes: BTreeMap::new(),
                 erased: BTreeSet::new(),
                 navigation: BTreeSet::new(),
+                defer_operands: BTreeSet::new(),
                 names: Default::default(),
                 declarations: BTreeMap::new(),
                 recipe_rows: &[],

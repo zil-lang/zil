@@ -2095,6 +2095,11 @@ impl Check<'_, '_> {
             b.spend(recipes.len(), "original recipe coverage")?;
             let mut emitted_recipes = vec![false; recipes.len()];
             let mut operation_sites = BTreeMap::new();
+            // Original registration -> actual constructed value -> actual affine slot.
+            // Scope activation, each dynamic take and LIFO ordering are checked by defers.
+            let mut defer_actions = BTreeMap::new();
+            let mut registered_actions = BTreeMap::new();
+            let mut cleanup_takes = Vec::new();
             for &site in sites {
                 self.inventory.profile_site(site, b);
                 b.spend(1, WORK)?;
@@ -2122,7 +2127,23 @@ impl Check<'_, '_> {
                     return Err(fail("one original semantic event is claimed by multiple actual emissions"));
                 }
                 let requires_binding = match &site.action {
-                    SemanticSiteAction::Closure { closure: SemanticClosureTarget::Typed(id), .. } => {
+                    SemanticSiteAction::Closure { closure: SemanticClosureTarget::Typed(id), result, .. } => {
+                        if original_nodes.is_defer_operand(site.recipe, b)? {
+                            let SemanticOperand::Value(mint) = result else {
+                                return Err(fail("defer registration lacks its closure construction SSA"));
+                            };
+                            let entry = self.module.closures.get(id.0 as usize)
+                                .filter(|entry| entry.id == *id && entry.kind == CallableKind::FnOnce
+                                    && entry.parameters.is_empty() && entry.result == Type::Unit)
+                                .ok_or_else(|| fail("defer requires a zero-parameter FnOnce Unit action"))?;
+                            if self.inventory.function(&SemanticFunctionTarget::Typed(entry.function), b)?.call_kind != CallKind::Direct {
+                                return Err(fail("defer action must be synchronous"));
+                            }
+                            b.lookup(defer_actions.len(), WORK)?;
+                            if defer_actions.insert(*mint, (*id, block.id, instruction as usize)).is_some() {
+                                return Err(fail("two original defer actions claim one closure construction"));
+                            }
+                        }
                         b.lookup(created_closures.len(), WORK)?;
                         created_closures.insert(*id);
                         true
@@ -2244,6 +2265,29 @@ impl Check<'_, '_> {
                 for (index, instruction) in block.instructions.iter().enumerate() {
                     self.inventory.profile_operation(block.id, index, b);
                     b.spend(1, WORK)?;
+                    if let InstructionKind::RegisterDefer { local, .. } = instruction.kind {
+                        let producer = index.checked_sub(1).and_then(|pos| block.instructions.get(pos));
+                        let Some(Instruction { kind: InstructionKind::Store { local: slot, value }, .. }) = producer else {
+                            return Err(fail("defer registration must immediately follow its closure Store"));
+                        };
+                        b.lookup(defer_actions.len(), WORK)?;
+                        let Some((closure, origin, formation)) = defer_actions.remove(value) else {
+                            return Err(fail("defer Store operand differs from the closure formed at its original registration"));
+                        };
+                        let intervening = formation.checked_add(1).zip(index.checked_sub(1))
+                            .and_then(|(start, end)| block.instructions.get(start..end))
+                            .ok_or_else(|| fail("defer registration must follow its own creation point"))?;
+                        b.spend(intervening.len(), WORK)?;
+                        if origin != block.id || intervening.iter().any(|instruction|
+                            !matches!(instruction.kind, InstructionKind::StorageLive(slot) if slot == local)) {
+                            return Err(fail("defer registration is separated from its original action by another effect or CFG edge"));
+                        }
+                        b.lookup(registered_actions.len(), WORK)?;
+                        if *slot != local || function.locals.get(local.0 as usize).map(|v| &v.ty) != Some(&Type::Closure(closure))
+                            || registered_actions.insert(local, closure).is_some() {
+                            return Err(fail("defer registration changes or reuses the actual closure slot"));
+                        }
+                    }
                     if let InstructionKind::WriteCapture { index: field, value } = instruction.kind
                         && function.values.get(value.0 as usize)
                             .is_some_and(|ty| matches!(ty, Type::Address { mutable: false, .. }))
@@ -2404,6 +2448,15 @@ impl Check<'_, '_> {
                         let count = rows.iter().copied().filter(|site| site.instance == instance.id
                             && matches!(site.at, SemanticSiteAddress::Typed { block: actual, instruction, .. } if actual == block.id && instruction as usize == index)
                             && matches!((&site.action, kind), (SemanticSiteAction::Call { .. }, 0) | (SemanticSiteAction::CallableCall { .. }, 1) | (SemanticSiteAction::Closure { .. }, 2) | (SemanticSiteAction::BodyCall { .. }, 0 | 1 | 3))).count();
+                        if count == 0 && let InstructionKind::CallClosureOnce { callee, arguments } = &instruction.kind
+                            && instruction.result.is_none() && arguments.is_empty()
+                            && let Some(previous) = index.checked_sub(1).and_then(|pos| block.instructions.get(pos))
+                            && previous.result == Some(*callee)
+                            && let InstructionKind::TakeLocal { local } = previous.kind {
+                            b.spend(1, WORK)?;
+                            cleanup_takes.push((local, *callee));
+                            continue;
+                        }
                         if count != 1 {
                             return Err(fail(
                                 "actual call or closure creation omits or duplicates its complete original recipe",
@@ -2470,6 +2523,18 @@ impl Check<'_, '_> {
                             ));
                         }
                     }
+                }
+            }
+            if !defer_actions.is_empty() {
+                return Err(fail("original defer action is never registered in its actual closure slot"));
+            }
+            for (local, callee) in cleanup_takes {
+                b.lookup(registered_actions.len(), WORK)?;
+                let Some(closure) = registered_actions.get(&local) else {
+                    return Err(fail("implicit cleanup calls a slot without an original defer registration"));
+                };
+                if function.values.get(callee.0 as usize) != Some(&Type::Closure(*closure)) {
+                    return Err(fail("implicit cleanup take loses its registered closure identity"));
                 }
             }
         }

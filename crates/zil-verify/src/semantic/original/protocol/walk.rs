@@ -22,13 +22,13 @@ impl<'a> Engine<'a> {
         &mut self,
         body: &'a SemanticOriginalBlock,
         state: State,
-        unwind: &[&'a SemanticOriginalBlock],
+        unwind: &[RegisteredAction],
         loop_start: Option<usize>,
         depth: usize,
         b: &mut Budget,
     ) -> Check<Outcome> {
         self.depth(depth, b)?;
-        b.spend(unwind.len().saturating_add(state.values.len()))?;
+        b.spend(unwind.len().saturating_mul(10).saturating_add(state.values.len()))?;
         let before = state.values.keys().cloned().collect::<BTreeSet<_>>();
         let mut deferred = unwind.to_vec();
         let start = deferred.len();
@@ -37,16 +37,36 @@ impl<'a> Engine<'a> {
             ..Outcome::default()
         };
         for statement in &body.statements {
-            let Some(state) = output.fall.take() else {
+            let Some(mut state) = output.fall.take() else {
                 break;
             };
             if let CoreStatementKind::Defer(body) = &statement.kind {
-                b.spend(1)?;
-                deferred.push(body);
+                let (action, result, _) = body.deferred_action().ok_or_else(||
+                    bad("defer registration has no original lexical cleanup action"))?;
+                if result != &SemanticTypeRecipe::Atom(Type::Unit) {
+                    return Err(bad("defer action has a non-Unit result"));
+                }
+                b.spend(2)?;
+                let child = *self.function()?.closures.get(&action.id).ok_or_else(||
+                    bad("defer action has no exact original creator"))?;
+                let prototype = self.original.prototypes.get(&child).ok_or_else(||
+                    bad("defer action has no independently checked signature"))?;
+                if prototype.call_kind != CallKind::Direct || !prototype.parameters.is_empty()
+                    || prototype.result != Ty::Atom(Type::Unit) {
+                    return Err(bad("defer action requires a synchronous zero-argument Unit signature"));
+                }
+                let value = self.expression(action, &mut state, depth + 1, b)?;
+                let receiver = Binder::Local {
+                    definition: self.current, node: statement.id, name: "$defer".to_owned(),
+                };
+                if state.values.insert(receiver.clone(), value).is_some() {
+                    return Err(bad("defer registration reinitializes an action during its activation"));
+                }
+                deferred.push((receiver, child));
                 output.fall = Some(state);
                 continue;
             }
-            b.spend(deferred.len())?;
+            b.spend(deferred.len().saturating_mul(10))?;
             self.error_unwind = deferred.clone();
             let next = self.statement(statement, state, &deferred, loop_start, depth + 1, b)?;
             self.collect(&mut output, next, b)?;
@@ -61,26 +81,24 @@ impl<'a> Engine<'a> {
     pub(super) fn unwind(
         &mut self,
         mut state: State,
-        deferred: &[&'a SemanticOriginalBlock],
+        deferred: &[RegisteredAction],
         start: usize,
         depth: usize,
         b: &mut Budget,
     ) -> Check<State> {
-        for body in deferred
-            .get(start..)
-            .ok_or_else(|| bad("original protocol cleanup scope is invalid"))?
-            .iter()
-            .rev()
+        for registration in deferred.get(start..)
+            .ok_or_else(|| bad("original cleanup scope is invalid"))?.iter().rev()
         {
-            let result = self.block(body, state, &[], None, depth + 1, b)?;
-            if result.breaks.is_some() || result.continues.is_some() {
-                return Err(bad(
-                    "original protocol cleanup transfers control outside its body",
-                ));
+            let (receiver, target) = registration;
+            self.depth(depth, b)?;
+            let action = state.values.remove(receiver).ok_or_else(||
+                bad("scope exit lost the actual registered action operand"))?;
+            let sources = self.result_sources(&state, &action, b)?;
+            let before = state.copy(b)?;
+            self.task_transfer_value(&mut state, &action, b)?;
+            if self.apply_capture_poststate(&mut state, &action, &before, &sources, &[], *target, b)?.is_some() {
+                return Err(bad("synchronous Unit cleanup changes its result to Poll"));
             }
-            state = result.fall.ok_or_else(|| {
-                bad("original protocol cleanup returns instead of completing its caller exit")
-            })?;
         }
         Ok(state)
     }
@@ -88,7 +106,7 @@ impl<'a> Engine<'a> {
         &mut self,
         statement: &'a SemanticOriginalStatement,
         mut state: State,
-        deferred: &[&'a SemanticOriginalBlock],
+        deferred: &[RegisteredAction],
         loop_start: Option<usize>,
         depth: usize,
         b: &mut Budget,
@@ -336,7 +354,7 @@ impl<'a> Engine<'a> {
         &mut self,
         body: &'a SemanticOriginalBlock,
         state: State,
-        deferred: &[&'a SemanticOriginalBlock],
+        deferred: &[RegisteredAction],
         depth: usize,
         b: &mut Budget,
     ) -> Check<Outcome> {
@@ -350,7 +368,7 @@ impl<'a> Engine<'a> {
         condition: Option<&'a SemanticOriginalExpr>,
         pattern: Option<(NodeId, &'a SemanticOriginalPattern)>,
         state: State,
-        deferred: &[&'a SemanticOriginalBlock],
+        deferred: &[RegisteredAction],
         depth: usize,
         b: &mut Budget,
     ) -> Check<Outcome> {
@@ -373,7 +391,7 @@ impl<'a> Engine<'a> {
         condition: Option<&'a SemanticOriginalExpr>,
         pattern: Option<(NodeId, &'a SemanticOriginalPattern)>,
         mut entry: State,
-        deferred: &[&'a SemanticOriginalBlock],
+        deferred: &[RegisteredAction],
         zero_exit: bool,
         depth: usize,
         b: &mut Budget,

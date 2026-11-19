@@ -202,6 +202,20 @@ impl Check<'_, '_> {
             original::LocalAnchor::Environment(ordinal) => {
                 let expected = self.environment_capture(world, function, ordinal, b)?;
                 match operation {
+                    InstructionKind::ReadAddress { address } => {
+                        let Some(Type::Address { inner, .. }) = function.values.get(address.0 as usize) else {
+                            return Ok(Some(false));
+                        };
+                        let Some(closure) = function.environment.and_then(|id| self.module.closures.get(id.0 as usize)) else {
+                            return Ok(Some(false));
+                        };
+                        let field = closure.captures.get(expected as usize);
+                        if field != function.values.get(address.0 as usize)
+                            || function.values.get(value.0 as usize) != Some(inner.as_ref()) {
+                            return Ok(Some(false));
+                        }
+                        self.capture_origin_value(function, *address, b, 0)? == expected
+                    }
                     InstructionKind::ReadCapture { index } | InstructionKind::DescribeCapture { index } =>
                         *index == expected,
                     InstructionKind::Load(local) | InstructionKind::DescribeLocal { local } =>
@@ -285,7 +299,7 @@ impl Check<'_, '_> {
                 self.copy_expression_source(world, function, operand, union, b, depth + 1)?
             }
             (CoreExprKind::Name(_), operation @ (InstructionKind::Load(_) | InstructionKind::DescribeLocal { .. }
-                | InstructionKind::ReadCapture { .. } | InstructionKind::DescribeCapture { .. })) => {
+                | InstructionKind::ReadAddress { .. } | InstructionKind::ReadCapture { .. } | InstructionKind::DescribeCapture { .. })) => {
                 self.copied_name_source(world, function, source.id, actual, operation, b)?.unwrap_or(false)
             }
             (

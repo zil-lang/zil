@@ -191,11 +191,30 @@ impl CheckedOriginal {
                     },
                     CoreStatementKind::Block(body)=>self.block(module,context,body,env,&mut bindings.clone(),result,loops,active,b)?,
                     CoreStatementKind::Unsafe(body)=>{let id=env.current()?;*self.unsafe_depth.entry(id).or_default()+=1;let checked=self.block(module,context,body,env,&mut bindings.clone(),result,loops,active,b);*self.unsafe_depth.entry(id).or_default()-=1;checked?},
-                    CoreStatementKind::Defer(body)=>{
-                        let before=self.use_snapshot(env,b)?;let id=env.current()?;*self.in_defer.entry(id).or_default()+=1;
-                        let checked=self.block(module,context,body,env,&mut bindings.clone(),&Ty::Atom(Type::Unit),0,active,b);*self.in_defer.entry(id).or_default()-=1;checked?;
-                        let after=self.use_snapshot(env,b)?;self.set_uses(env,before.clone())?;
-                        if after.moved.difference(&before.moved).any(|place|bindings.values().any(|binding|binding.identity==place.binder)){return Err(unsupported("original deferred value transfer requires its complete scope-exit use schedule",None));}false
+                    CoreStatementKind::Defer(body) => {
+                        let owner = env.current()?;
+                        if self.in_defer.get(&owner).copied().unwrap_or(0) != 0 {
+                            return Err(bad("original cleanup cannot register a nested defer"));
+                        }
+                        let (action, result, _) = body.deferred_action().ok_or_else(||
+                            bad("defer has no actual source closure operand"))?;
+                        if result != &SemanticTypeRecipe::Atom(Type::Unit) {
+                            return Err(bad("original defer action must return Unit"));
+                        }
+                        b.spend(self.cleanup_operands.len().saturating_add(1).ilog2() as usize + 1)?;
+                        self.cleanup_operands.insert((owner, action.id));
+                        let actual = self.expression(module, context, action, env, bindings, None, active, b)?;
+                        let Ty::Closure(child, _, _) = actual else {
+                            return Err(bad("defer operand did not produce the registered closure"));
+                        };
+                        let prototype = self.prototypes.get(&child)
+                            .ok_or_else(|| bad("defer action lacks its checked original signature"))?;
+                        if prototype.call_kind != CallKind::Direct || !prototype.parameters.is_empty()
+                            || prototype.result != Ty::Atom(Type::Unit)
+                        {
+                            return Err(bad("defer action must have a synchronous zero-argument Unit signature"));
+                        }
+                        false
                     },
                     CoreStatementKind::Loop(body)=>{let before=self.use_snapshot(env,b)?;let returns=self.block(module,context,body,env,&mut bindings.clone(),result,loops+1,active,b)?;let after=self.use_snapshot(env,b)?;if !returns{self.loop_uses(module,context,env,&before,&after,bindings,active,b)?;}!Self::loop_break(body,b)?},
                     CoreStatementKind::Break|CoreStatementKind::Continue if loops!=0=>false,

@@ -127,6 +127,21 @@ fn fallthrough_return_and_local_drop_share_construction_order() {
     native("order-return", &source, "BADCARE", 0);
 }
 #[test]
+fn replacement_keeps_its_storage_position_relative_to_deferred_captures() {
+    let source = format!(r#"{IO}
+fn run(early:bool){{
+    var ticket=Ticket{{code:65}}
+    let letter=66
+    defer{{emit(letter)}}
+    let marker=Ticket{{code:67}}
+    if early{{return}}
+    ticket=Ticket{{code:68}}
+}}
+fn main()->i32{{run(true);run(false);return 0}}"#);
+    native("replacement-position", &source, "CBAACBD", 0);
+}
+
+#[test]
 fn each_loop_activation_and_conditional_registration_settle_once() {
     let source = format!(
         "{IO}\nfn main()->i32{{defer{{emit(90)}}if false{{defer{{emit(88)}}}}for i in 0..4{{defer{{emit(65+i)}}if i==0{{continue}}if i==2{{break}}}}return 0}}"

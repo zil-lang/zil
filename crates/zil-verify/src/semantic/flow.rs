@@ -28,8 +28,12 @@ mod callable_sources;
 mod local_roles;
 mod replacements;
 mod persistent_slots;
+mod defer_actions;
 #[derive(Clone,PartialEq,Eq)]
-struct State {locals:Vec<Option<CheckedType>>}
+struct State {
+    locals: Vec<Option<CheckedType>>,
+    deferred: BTreeMap<LocalId, defer_actions::Registered>,
+}
 /// Constructed only after this interpreter checks the actual complete body.
 /// A catalogue entry, metadata flag or equal Type cannot manufacture it.
 pub(super) struct BodyChecked {instance:SemanticInstanceId,definition:SemanticDefinitionId,function:FunctionId,environment:EvalEnv,result:CheckedType}
@@ -221,7 +225,7 @@ impl CheckedContext {
                 if expected.is_some_and(|entries|entries.len()!=matched.len()) {return Err(bad("original foreign literal has no matching actual constant"));}
             }
         }
-        let mut initial=State{locals:vec![None;f.locals.len()]};
+        let mut initial=State{locals:vec![None;f.locals.len()],deferred:BTreeMap::new()};
         for (index,(parameter,(expected,_))) in f.parameters.iter().zip(&signature.parameters).enumerate() {
             let local=f.locals.get(parameter.0 as usize).ok_or_else(||bad("actual parameter local is absent"))?;
             if local.ty!=expected.ty {return Err(bad("actual parameter whole type differs from its original recipe"));}
@@ -244,13 +248,16 @@ impl CheckedContext {
         let mut queue=VecDeque::from([entry]);
         let mut values=vec![None;f.values.len()];
         let mut constraints=vec![None;f.locals.len()];
+        let mut defer_actions=defer_actions::Actions::default();
         let reified_data=self.reified_data(module,instance,original_definition,f,environment,external,active,b)?;
         // Only the operation and its observation edge vary during this body.
         // Retained obligations take their own environment when they are formed.
         let mut point_environment = environment.clone();
         while let Some(block_id)=queue.pop_front() {
             b.spend(1)?;
-            let mut state=states[block_id].clone().ok_or_else(||bad("reachable semantic block has no incoming state"))?;
+            let incoming=states[block_id].as_ref().ok_or_else(||bad("reachable semantic block has no incoming state"))?;
+            b.spend(incoming.deferred.len())?;
+            let mut state=incoming.clone();
             let block=&f.blocks[block_id];
             let ordered_sites=self.site_index.block_from(module,instance.id,block.id,0,b)?;
             let mut remaining_sites=ordered_sites.as_slice();
@@ -354,6 +361,7 @@ impl CheckedContext {
                         if !self.compatible(&environment,value,&child,b)?{return Err(bad("actual address write changes its complete child type/domain"));}None
                     }
                     InstructionKind::Store{local,value}=>{
+                        defer_actions::unregistered_slot(&state,*local,b)?;
                         let actual=*value;
                         let value=value_at(&values,*value)?;
                         let mut normalized=None;let mut local_role=false;
@@ -370,7 +378,15 @@ impl CheckedContext {
                         if local_role{if let Some(value)=&normalized{self.record_local_role_write(instance,*local,actual,value,&environment,b)?;}}
                         state.locals[local.0 as usize]=Some(match normalized{Some(value)=>value,None=>value.clone()});None
                     }
-                    InstructionKind::StorageLive(local)|InstructionKind::StorageDead(local)=>{state.locals[local.0 as usize]=None;None},
+                    InstructionKind::StorageLive(local)|InstructionKind::StorageDead(local)=>{
+                        defer_actions::unregistered_slot(&state,*local,b)?;
+                        state.locals[local.0 as usize]=None;None
+                    },
+                    InstructionKind::RegisterDefer{scope,local}=>{
+                        if instruction.result.is_some(){return Err(bad("defer registration cannot produce an actual result"));}
+                        defer_actions.register(self,block,ordinal,*scope,*local,&mut state,&values,environment,b)?;
+                        None
+                    },
                     InstructionKind::MakeAggregate{fields}|InstructionKind::MakePackage{fields}|InstructionKind::MakeManaged{fields}|InstructionKind::MakeOwnedTuple{fields}|InstructionKind::MakeOwnedArray{elements:fields}=>{
                         let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::Construct{..}));
                         let site=declarations.next();
@@ -458,15 +474,34 @@ impl CheckedContext {
                         let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::Closure{..}));
                         let site=declarations.next().ok_or_else(||bad("actual Closure creation has no original semantic site"))?;
                         if declarations.next().is_some() {return Err(bad("actual Closure creation has duplicate semantic claims"));}
-                        Some(self.seal_closure(module,instance,site,*closure,captures,&values,&environment,external,active,b)?)
+                        let (value,action)=self.seal_closure(module,instance,site,*closure,captures,&values,&environment,external,active,b)?;
+                        if let Some(action)=action {
+                            let result=instruction.result.ok_or_else(||bad("original defer closure lacks its actual SSA result"))?;
+                            if !matches!(site.action,SemanticSiteAction::Closure{result:SemanticOperand::Value(actual),..} if actual==result){
+                                return Err(bad("original defer creation claims another actual SSA result"));
+                            }
+                            defer_actions.created(result,action,block.id,ordinal,b)?;
+                        }
+                        Some(value)
                     }
                     InstructionKind::CallIndirect{..}|InstructionKind::CallClosure{..}|InstructionKind::CallClosureOnce{..}|InstructionKind::CallClosureBorrowed{..}|InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..}=>{
                         let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::CallableCall{..}|SemanticSiteAction::BodyCall{..}));
-                        let site=declarations.next().ok_or_else(||bad("actual CallableCall has no original callee recipe"))?;
-                        if declarations.next().is_some(){return Err(bad("actual CallableCall has duplicate original claims"));}
-                        self.scalar_callable(module,instance,site,&instruction.kind,&state,&values,&environment,external,active,b)?
+                        if let Some((callee,action))=defer_actions::taken(block,ordinal,&mut state,b)? {
+                            if declarations.next().is_some(){return Err(bad("registered defer invocation cannot assert a second original call recipe"));}
+                            self.closure_call(module,instance,closure_calls::ClosureCall::Defer(action),action.closure,
+                                value_at(&values,callee)?,&[],&values,environment,external,active,b)?
+                        }else{
+                            let site=declarations.next().ok_or_else(||bad("actual CallableCall has no original callee recipe"))?;
+                            if declarations.next().is_some(){return Err(bad("actual CallableCall has duplicate original claims"));}
+                            self.scalar_callable(module,instance,site,&instruction.kind,&state,&values,&environment,external,active,b)?
+                        }
                     }
-                    InstructionKind::ScopeEnter{..}|InstructionKind::ScopeExit{..}|InstructionKind::UnsafeEnter{..}|InstructionKind::UnsafeExit{..}=>None,
+                    InstructionKind::ScopeExit{scope,..}=>{
+                        b.spend(state.deferred.len())?;
+                        if state.deferred.values().any(|row|row.scope==*scope){return Err(bad("actual ScopeExit leaves an original defer action uninvoked"));}
+                        None
+                    }
+                    InstructionKind::ScopeEnter{..}|InstructionKind::UnsafeEnter{..}|InstructionKind::UnsafeExit{..}=>None,
                     InstructionKind::Unary{operand,..}=>{let value=value_at(&values,*operand)?;if !value.ty.is_b0_scalar() {return Err(bad("unary operation changes a semantic carrier"));}Some(atomic(f.values.get(instruction.result.ok_or_else(||bad("unary result is absent"))?.0 as usize).ok_or_else(||bad("unary result type is absent"))?,b)?)},
                     InstructionKind::Binary{op,left,right}=>{let l=&value_at(&values,*left)?.ty;let r=&value_at(&values,*right)?.ty;let handle_eq=matches!(op,BinaryOp::Equal|BinaryOp::NotEqual)&&*l==Type::ForeignHandle&&*r==Type::ForeignHandle&&instruction.result.and_then(|v|f.values.get(v.0 as usize))==Some(&Type::Bool);if !handle_eq&&(!l.is_b0_scalar()||!r.is_b0_scalar()) {return Err(bad("binary operation changes a semantic carrier"));}Some(atomic(f.values.get(instruction.result.ok_or_else(||bad("binary result is absent"))?.0 as usize).ok_or_else(||bad("binary result type is absent"))?,b)?)},
                     _=>return Err(unsupported("actual instruction lacks complete independent semantic transfer",Some(instruction.span))),
@@ -485,6 +520,7 @@ impl CheckedContext {
                     }
                 }
             }
+            if matches!(block.terminator,Terminator::Return(_))&&!state.deferred.is_empty(){return Err(bad("actual Return leaves an original defer action uninvoked"));}
             let successors=match &block.terminator {
                 Terminator::Return(Some(value))=>{
                     let actual = value_at(&values,*value)?;
@@ -509,6 +545,8 @@ impl CheckedContext {
                 let target=target.0 as usize;
                 if target>=states.len() {return Err(bad("actual semantic successor is absent"));}
                 let changed=if let Some(old)=&mut states[target] {
+                    b.spend(old.deferred.len().saturating_add(state.deferred.len()))?;
+                    if old.deferred!=state.deferred{return Err(bad("actual CFG join changes active original defer registrations"));}
                     let mut changed=false;
                     for (old,new) in old.locals.iter_mut().zip(&state.locals) {
                         b.spend(1)?;
@@ -518,14 +556,15 @@ impl CheckedContext {
                         }
                     }
                     changed
-                }else{states[target]=Some(state.clone());true};
+                }else{b.spend(state.deferred.len())?;states[target]=Some(state.clone());true};
                 if changed {queue.push_back(target);}
             }
         }
+        defer_actions.finish(b)?;
         self.mark_task_worker_checked(module,instance,signature,b)?;
         Ok(BodyChecked{instance:instance.id,definition:instance.definition,function,environment:checked_environment,result:checked_signature.result})
     }
-    fn seal_closure(&self,module:&TypedModule,creator:&SemanticInstance,site:&SemanticSite,closure:ClosureId,captures:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<CheckedType> {
+    fn seal_closure(&self,module:&TypedModule,creator:&SemanticInstance,site:&SemanticSite,closure:ClosureId,captures:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<(CheckedType,Option<defer_actions::Action>)> {
         let creator_definition=self.definition(module,creator.definition,b)?;
         let SemanticDefinitionBody::FunctionWithBody{sites,..}=&creator_definition.body else{return Err(bad("actual Closure creator has no original body"));};
         let recipe=sites.iter().find(|row|row.id==site.recipe).ok_or_else(||bad("actual Closure has no original creation occurrence"))?;
@@ -691,9 +730,7 @@ impl CheckedContext {
         }
         let mut life=empty_life();life.binder_count=classes.len() as u32;
         let value=CheckedType{type_cell: crate::semantic::CheckedTypeData::new(Type::Closure(closure)),life,classes,origins,statics};
-        let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&creator_definition.body else{unreachable!()};
-        let node=site_nodes.iter().find(|row|row.site==site.recipe).ok_or_else(||bad("Closure creator has no exact original node"))?;
-        let SemanticOriginalNode::Expression(node)=node.node else{return Err(bad("Closure creator original node is not an expression"));};
+        let node=creation_node;
         let at=environment.at.ok_or_else(||bad("Closure creator has no actual CFG point"))?;
         let creator_scope=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?.key;
         let mut boundaries=self.closure_boundaries.borrow_mut();
@@ -701,7 +738,10 @@ impl CheckedContext {
         if let Some(old)=boundaries.iter().find(|row|row.creator==creator_scope&&row.node==node&&row.at==at) {
             if old.child!=child.id||old.value!=value{return Err(bad("actual Closure creation changes its complete intrinsic domain or outside image"));}
         }else{boundaries.push(ClosureBoundary{creator:creator_scope,node,at,child:child.id,value:value.clone()});}
-        Ok(value)
+        let selected=self.original.borrow();
+        let original=selected.as_ref().ok_or_else(||bad("closure creation lacks its independently checked original body"))?;
+        let action=original.is_cleanup_operand(creator.definition,node,b)?.then_some(defer_actions::Action{node,child:child.id,closure});
+        Ok((value,action))
     }
     fn actual_same(&self,environment:&EvalEnv,left:&CheckedActual,right:&CheckedActual,b:&mut Budget)->Check<bool> {
         match (left,right) {
@@ -897,7 +937,7 @@ impl CheckedContext {
         let definition=definitions.next().ok_or_else(||bad("actual callable definition is absent"))?;
         if definitions.next().is_some()||definition.parameters.len()!=arguments.len(){return Err(bad("actual callable identity or arity differs"));}
         let receiver=if matches!(actual.ty,Type::Address{..}){self.child_value(module,actual,&[LifeTypeProjection::Pointee],b)?}else{actual.clone()};
-        self.closure_call(module,caller,site,id,&receiver,arguments,values,environment,external,active,b)
+        self.closure_call(module,caller,closure_calls::ClosureCall::Original(site),id,&receiver,arguments,values,environment,external,active,b)
 
     }
     fn actual_call(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,callee:FunctionId,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut dynamic_witness::semantic_external::Proofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>> {

@@ -60,6 +60,7 @@ impl Engine<'_, '_> {
             control: Control::Next,
             returned: Value::Plain,
             temporaries: Vec::new(),
+            deferred: Vec::new(),
         };
         let mut values = Vec::new();
         for index in 0..parameters.len() {
@@ -439,6 +440,7 @@ impl Engine<'_, '_> {
             control: Control::Next,
             returned: Value::Plain,
             temporaries: Vec::new(),
+            deferred: Vec::new(),
         })
     }
 

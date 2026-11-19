@@ -358,6 +358,7 @@ struct Solver<'a, 'i> {
     preparations: Vec<cleanup::Preparation>,
     callable_needs: Vec<CallableNeed>,
     mutating_closures: BTreeSet<SemanticDefinitionId>,
+    cleanup_actions: BTreeSet<SemanticDefinitionId>,
     role_frames: Vec<roles::RoleFrame>,
     bound_frames: Vec<roles::BoundFrame>,
     next_role: u32,
@@ -2076,6 +2077,12 @@ impl Solver<'_, '_> {
                     result
                 }
                 CoreExprKind::Try(value) => {
+                    if !self.cleanup_actions.is_empty() {
+                        b.lookup(self.cleanup_actions.len(), WORK)?;
+                        if self.cleanup_actions.contains(&frame.definition) {
+                            return Err(fail("original deferred cleanup exits before completing its action"));
+                        }
+                    }
                     let value = self.expression(frame, value, b, depth + 1)?;
                     let Kind::ErrorUnion { error, result } =
                         self.state.arena[self.type_root(value, b)?]
@@ -3522,6 +3529,31 @@ impl Solver<'_, '_> {
                         depth + 1,
                     )?;
                 }
+                CoreStatementKind::Defer(body) => {
+                    let (action, result, _) = body.deferred_action().ok_or_else(||
+                        fail("original defer has no zero-parameter nonmoving lexical action"))?;
+                    if result != &SemanticTypeRecipe::Atom(Type::Unit) {
+                        return Err(fail("original defer action changes its Unit result"));
+                    }
+                    let registration = self.inventory.definition(frame.definition, b)?;
+                    let recipe = self.original_site(registration, action.id, b)?;
+                    let SemanticSiteRecipeKind::Closure { definition, .. } = recipe.kind else {
+                        return Err(fail("original defer operand does not create its lexical closure"));
+                    };
+                    b.lookup(self.cleanup_actions.len(), WORK)?;
+                    if self.cleanup_actions.contains(&frame.definition) {
+                        return Err(fail("original cleanup action attempts a nested defer"));
+                    }
+                    let child = self.inventory.definition(definition, b)?;
+                    if !matches!(&child.body, SemanticDefinitionBody::FunctionWithBody { signature, .. }
+                        if signature.call_kind == CallKind::Direct && signature.parameters.is_empty()) {
+                        return Err(fail("original defer action has an asynchronous or nonempty call signature"));
+                    }
+                    self.cleanup_actions.insert(definition);
+                    // Normal closure formation binds the declared child, captures, ownership
+                    // transfers and result. The registration retains it until scope exit.
+                    self.expression(frame, action, b, depth + 1)?;
+                }
                 CoreStatementKind::Expression(value) => {
                     let discarded = self.expression(frame, value, b, depth + 1)?;
                     if frame.alive {
@@ -3529,6 +3561,12 @@ impl Solver<'_, '_> {
                     }
                 }
                 CoreStatementKind::Return(value) => {
+                    if !self.cleanup_actions.is_empty() {
+                        b.lookup(self.cleanup_actions.len(), WORK)?;
+                        if self.cleanup_actions.contains(&frame.definition) {
+                            return Err(fail("original deferred cleanup exits before completing its action"));
+                        }
+                    }
                     let returned_node = value.as_ref().map(|value| value.id);
                     let receiving = frame.result;
                     let value = match value {
@@ -4366,7 +4404,7 @@ fn normalize_block(
             }
             CoreStatementKind::Loop(body) => normalize_block(body, b, depth + 1)?,
             CoreStatementKind::Break | CoreStatementKind::Continue => {}
-            CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
+            CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) | CoreStatementKind::Defer(body) => {
                 normalize_block(body, b, depth + 1)?
             }
             _ => {
@@ -4638,6 +4676,7 @@ pub(super) fn check(
         preparations: Vec::new(),
         callable_needs: Vec::new(),
         mutating_closures: BTreeSet::new(),
+        cleanup_actions: BTreeSet::new(),
         role_frames: Vec::new(),
         bound_frames: Vec::new(),
         next_role: 0,

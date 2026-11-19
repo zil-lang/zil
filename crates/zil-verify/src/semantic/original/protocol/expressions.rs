@@ -161,6 +161,7 @@ impl Engine<'_> {
                     for input in inputs {
                         self.task_transfer_value(&mut failed, input, b)?;
                     }
+                    b.spend(self.error_unwind.len().saturating_mul(10))?;
                     let pending = self.error_unwind.clone();
                     let failed = self.unwind(failed, &pending, 0, depth + 1, b)?;
                     self.error_unwind = pending;
@@ -178,7 +179,7 @@ impl Engine<'_> {
                         Some(node.span),
                     )),
                 };
-                b.spend(self.error_unwind.len())?;
+                b.spend(self.error_unwind.len().saturating_mul(10))?;
                 let deferred = self.error_unwind.clone();
                 let failed = self.unwind(state.copy(b)?, &deferred, 0, depth + 1, b)?;
                 self.error_unwind = deferred;

@@ -134,7 +134,7 @@ impl Proof<'_, '_> {
         exposed: bool,
         b: &mut Budget,
     ) -> CompileResult<(Data, u32)> {
-        let SemanticDefinitionBody::FunctionWithBody { parameters, .. } = &self.definition.body
+        let SemanticDefinitionBody::FunctionWithBody { parameters, .. } = &self.root.body
         else {
             return Err(fail(
                 "original owner result has no complete function domain",
@@ -143,7 +143,7 @@ impl Proof<'_, '_> {
         let frame = self
             .checked
             .frames
-            .get(&self.definition.id)
+            .get(&self.root.id)
             .ok_or_else(|| fail("original owner construction has no checked lexical frame"))?;
         // Formal parameters, original inherited roots and construction sites
         // occupy disjoint namespaces. Equal node/slot numbers confer nothing.
@@ -154,9 +154,12 @@ impl Proof<'_, '_> {
                 .ok_or_else(|| resource("original owner role domain overflow"))?,
         )
         .map_err(|_| resource("original owner role ordinal overflow"))?;
-        let role = base
-            .checked_add(node.0)
-            .ok_or_else(|| resource("original owner-result occurrence overflow"))?;
+        let mut births = self.births.borrow_mut();
+        b.lookup(births.len(), WORK)?;
+        let ordinal = u32::try_from(births.len()).map_err(|_| resource("original owner site count overflow"))?;
+        let role = *births.entry((self.definition.id, node)).or_insert(base.checked_add(ordinal)
+            .ok_or_else(|| resource("original owner role domain overflow"))?);
+        drop(births);
         b.lookup(state.phases.len(), WORK)?;
         if state.phases.get(&role).is_some_and(|phase| *phase != 0) {
             return Err(unknown(

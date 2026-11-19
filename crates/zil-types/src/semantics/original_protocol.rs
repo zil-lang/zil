@@ -264,30 +264,30 @@ struct State {
     control: Control,
     returned: Value,
     temporaries: Vec<Value>,
+    // Successful lexical registrations, in construction order. Each entry
+    // owns the actual captured operands until a reached exit consumes it.
+    deferred: Vec<Value>,
+}
+fn source_binding_work(bindings: Option<&SourceBindings>) -> usize {
+    bindings.map_or(0, |bindings| bindings.iter().fold(1usize, |work, (query, sources)| {
+        let paths = sources.as_ref().map_or(1, |sources| sources.iter().fold(1usize, |n, source| {
+            n.saturating_add(source.result_path.len())
+                .saturating_add(source.input_path.len()).saturating_add(4)
+        }));
+        work.saturating_add(query.copy_work()).saturating_add(paths)
+    }))
 }
 impl State {
     fn work(&self) -> usize {
         self.names.iter().fold(
             self.abrupt.iter().fold(
-                self.temporaries.iter().fold(
+                self.temporaries.iter().chain(&self.deferred).fold(
                     self.roots
                         .len()
                         .saturating_add(self.tasks.len())
                         .saturating_add(self.task_sync.values().fold(0usize, |n, r| n.saturating_add(r.len()).saturating_add(1)))
                         .saturating_add(self.returned.work())
-                        .saturating_add(self.task_sources.as_ref().map_or(0, |bindings| {
-                            bindings.iter().fold(1usize, |work, (query, sources)| {
-                                work.saturating_add(query.copy_work()).saturating_add(
-                                    sources.as_ref().map_or(1, |sources| {
-                                        sources.iter().fold(1usize, |work, source| {
-                                            work.saturating_add(source.result_path.len())
-                                                .saturating_add(source.input_path.len())
-                                                .saturating_add(4)
-                                        })
-                                    }),
-                                )
-                            })
-                        }))
+                        .saturating_add(source_binding_work(self.task_sources.as_ref()))
                         .saturating_add(1),
                     |w, v| w.saturating_add(v.work()),
                 ),
@@ -754,6 +754,7 @@ impl<'a> Engine<'a, '_> {
                 .values()
                 .flatten()
                 .chain(&state.temporaries)
+                .chain(&state.deferred)
                 .chain(std::iter::once(&state.returned))
             {
                 self.charge_value(value, depth + 1)?;
@@ -831,7 +832,7 @@ impl<'a> Engine<'a, '_> {
                 }
             }
             state.returned.invalidate(root, replace, previous);
-            for value in &mut state.temporaries {
+            for value in state.temporaries.iter_mut().chain(&mut state.deferred) {
                 value.invalidate(root, replace, previous);
             }
             if replace {
@@ -3118,7 +3119,11 @@ impl<'a> Engine<'a, '_> {
                     ));
                 }
             }
-            for (value, other) in output.temporaries.iter_mut().zip(&b.temporaries) {
+            if output.deferred.len() != b.deferred.len() || output.temporaries.len() != b.temporaries.len() {
+                return Err(failure("original join changes the register or preparation stack"));
+            }
+            for (value, other) in output.temporaries.iter_mut().zip(&b.temporaries)
+                .chain(output.deferred.iter_mut().zip(&b.deferred)) {
                 if value != other {
                     let old = self.value_copy(value, depth + 1)?;
                     let incoming = self.value_copy(other, depth + 1)?;
@@ -3907,35 +3912,18 @@ impl<'a> Engine<'a, '_> {
     fn hide_for_defer(
         &mut self,
         state: &mut State,
-        visible: &[(String, usize)],
         depth: usize,
     ) -> R<(Vec<(String, usize)>, usize)> {
         let cost_before = *self.left;
         let cost_children = self.method_cost_total;
         let result: R<(Vec<(String, usize)>, usize)> = (|| {
-            self.pay(
-                state.work().saturating_mul(visible.len().saturating_add(1)),
-                depth,
-            )?;
+            self.pay(state.work(), depth)?;
             let start = state.temporaries.len();
-            let mut hidden = Vec::new();
-            for (name, values) in &mut state.names {
-                let keep = visible
-                    .iter()
-                    .find(|(key, _)| key == name)
-                    .map_or(0, |(_, keep)| *keep);
-                if keep > values.len() {
-                    return Err(failure(
-                        "defer source binding no longer has its original lexical stack",
-                    ));
-                }
-                if values.len() > keep {
-                    self.pay(name.len().saturating_add(values.len() - keep), depth)?;
-                    hidden.push((name.clone(), values.len() - keep));
-                    state.temporaries.extend(values.drain(keep..));
-                }
+            let mut hidden = Vec::with_capacity(state.names.len());
+            for (name, values) in std::mem::take(&mut state.names) {
+                hidden.push((name, values.len()));
+                state.temporaries.extend(values);
             }
-            state.names.retain(|_, values| !values.is_empty());
             Ok((hidden, start))
         })();
         self.record_cost("hide_for_defer", cost_before, cost_children);
@@ -3980,11 +3968,53 @@ impl<'a> Engine<'a, '_> {
         self.record_cost("restore_defer", cost_before, cost_children);
         result
     }
+    fn invoke_deferred(
+        &mut self,
+        child: SemanticDefinitionId,
+        body: &SemanticOriginalBlock,
+        action: Value,
+        mut state: State,
+        depth: usize,
+    ) -> R<Vec<State>> {
+        self.pay(action.work(), depth)?;
+        if let Value::Choice(alternatives) = action {
+            let mut outputs = Vec::new();
+            for alternative in alternatives {
+                let branch = self.copy(&state, depth + 1)?;
+                outputs.extend(self.invoke_deferred(child, body, alternative, branch, depth + 1)?);
+            }
+            return Ok(outputs);
+        }
+        let Value::Closure { definition, captures } = action else {
+            return Err(failure("scope exit operand is not the registered cleanup environment"));
+        };
+        if definition != child {
+            return Err(failure("scope exit changes the declaration of the registered cleanup"));
+        }
+        let (hidden, start) = self.hide_for_defer(&mut state, depth + 1)?;
+        let caller = std::mem::replace(&mut state.owner, definition);
+        let caller_sources = state.task_sources.take();
+        for (name, value) in captures {
+            state.names.insert(name, vec![value]);
+        }
+        state.control = Control::Next;
+        let mut exits = self.block(definition, body, state, depth + 1)?;
+        for exit in &mut exits {
+            if exit.control != Control::Next {
+                return Err(failure("original cleanup escapes its lexical exit"));
+            }
+            self.leave(exit, &[], depth + 1)?;
+            self.restore_defer(exit, &hidden, start, depth + 1)?;
+            exit.owner = caller;
+            self.pay(source_binding_work(caller_sources.as_ref()), depth)?;
+            exit.task_sources = caller_sources.clone();
+        }
+        Ok(exits)
+    }
     fn cleanup(
         &mut self,
-        owner: SemanticDefinitionId,
         state: State,
-        defers: &[(&SemanticOriginalBlock, Vec<(String, usize)>)],
+        defers: &[(SemanticDefinitionId, &SemanticOriginalBlock)],
         scope: &[(String, usize)],
         depth: usize,
     ) -> R<Vec<State>> {
@@ -3997,21 +4027,12 @@ impl<'a> Engine<'a, '_> {
             }
             let control = state.control;
             let mut states = vec![state];
-            for (cleanup, visible) in defers.iter().rev() {
+            for &(child, body) in defers.iter().rev() {
                 let mut next = Vec::new();
                 for mut state in states {
-                    let (hidden, start) = self.hide_for_defer(&mut state, visible, depth + 1)?;
-                    state.control = Control::Next;
-                    for mut state in self.block(owner, cleanup, state, depth + 1)? {
-                        self.restore_defer(&mut state, &hidden, start, depth + 1)?;
-                        if state.control != Control::Next {
-                            return Err(failure(
-                                "original protocol cleanup escapes its lexical exit",
-                            ));
-                        }
-                        self.pay(1, depth)?;
-                        next.push(state);
-                    }
+                    let action = state.deferred.pop().ok_or_else(||
+                        failure("scope exit has no matching registered cleanup environment"))?;
+                    next.extend(self.invoke_deferred(child, body, action, state, depth + 1)?);
                 }
                 states = next;
             }
@@ -4054,13 +4075,17 @@ impl<'a> Engine<'a, '_> {
                 }
                 if let CoreStatementKind::Defer(cleanup) = &statement.kind {
                     self.pay(1, depth)?;
-                    let visible = self.scope(
-                        active.first().ok_or_else(|| {
-                            failure("defer registration has no reaching original state")
-                        })?,
-                        depth + 1,
-                    )?;
-                    defers.push((cleanup, visible));
+                    let (action, result, body) = cleanup.deferred_action().ok_or_else(||
+                        failure("defer registration lacks its actual lexical closure operand"))?;
+                    if result != &SemanticTypeRecipe::Atom(Type::Unit) {
+                        return Err(failure("defer action must return Unit"));
+                    }
+                    let child = self.closure_child(owner, action.id, depth + 1)?.id;
+                    for state in &mut active {
+                        let value = self.expr(owner, action, state, depth + 1)?;
+                        state.deferred.push(value);
+                    }
+                    defers.push((child, body));
                     continue;
                 }
                 let mut next = Vec::new();
@@ -4079,7 +4104,7 @@ impl<'a> Engine<'a, '_> {
                     )? {
                         self.pay(1, depth)?;
                         for exit in std::mem::take(&mut state.abrupt) {
-                            ended.extend(self.cleanup(owner, exit, &defers, &scope, depth + 1)?);
+                            ended.extend(self.cleanup(exit, &defers, &scope, depth + 1)?);
                         }
                         if !state.reachable {
                             continue;
@@ -4087,14 +4112,14 @@ impl<'a> Engine<'a, '_> {
                         if state.control == Control::Next {
                             next.push(state);
                         } else {
-                            ended.extend(self.cleanup(owner, state, &defers, &scope, depth + 1)?);
+                            ended.extend(self.cleanup(state, &defers, &scope, depth + 1)?);
                         }
                     }
                 }
                 active = next;
             }
             for state in active {
-                ended.extend(self.cleanup(owner, state, &defers, &scope, depth + 1)?);
+                ended.extend(self.cleanup(state, &defers, &scope, depth + 1)?);
             }
             Ok(ended)
         })();
@@ -4619,6 +4644,7 @@ impl<'a> Engine<'a, '_> {
                     control: Control::Next,
                     returned: Value::Plain,
                     temporaries: Vec::new(),
+                    deferred: Vec::new(),
                 };
                 let mut capture_inputs = Vec::new();
                 let mut borrowed_task_inputs = Vec::new();

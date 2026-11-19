@@ -236,7 +236,7 @@ impl Builder<'_, '_> {
         }
         if self
             .defer_locals
-            .iter()
+            .keys()
             .any(|local| scope_of.contains_key(local))
         {
             // Defer effects retain their existing lexical order.

@@ -13,6 +13,10 @@ struct State {
     stored: BTreeSet<LocalId>,
     pending: BTreeMap<LocalId, ScopeId>,
     invoked: BTreeSet<LocalId>,
+    // First successful construction fixes the position of this storage activation.
+    // The occupant may move out, be replaced, or be absent on the failure edge.
+    ordered: BTreeSet<LocalId>,
+    definitely_ordered: BTreeSet<LocalId>,
     owned: BTreeSet<LocalId>,
     later: BTreeSet<(LocalId, LocalId)>,
 }
@@ -30,6 +34,8 @@ fn cost(state: &State, budget: &mut Budget) -> CompileResult<()> {
             .saturating_add(state.stored.len())
             .saturating_add(state.pending.len())
             .saturating_add(state.invoked.len())
+            .saturating_add(state.ordered.len())
+            .saturating_add(state.definitely_ordered.len())
             .saturating_add(state.owned.len())
             .saturating_add(state.later.len())
             .saturating_add(1),
@@ -37,36 +43,44 @@ fn cost(state: &State, budget: &mut Budget) -> CompileResult<()> {
     )
 }
 
-fn forget(state: &mut State, local: LocalId, budget: &mut Budget) -> CompileResult<()> {
+fn end_slot(state: &mut State, local: LocalId, budget: &mut Budget) -> CompileResult<()> {
     budget.spend(state.later.len().saturating_add(1), "defer order removal")?;
+    state.ordered.remove(&local);
+    state.definitely_ordered.remove(&local);
     state.owned.remove(&local);
     state.later.retain(|(a, b)| *a != local && *b != local);
     Ok(())
 }
 
 fn construct(state: &mut State, local: LocalId, budget: &mut Budget) -> CompileResult<()> {
-    forget(state, local, budget)?;
+    budget.lookup(state.owned.len(), "defer occupant initialization")?;
+    state.owned.insert(local);
+    budget.lookup(state.ordered.len(), "defer initialized slot position")?;
+    if !state.definitely_ordered.insert(local) { return Ok(()); }
     budget.spend(
-        state.owned.len().saturating_add(1),
+        state.ordered.len().saturating_add(1),
         "defer construction inventory",
     )?;
-    for &older in &state.owned {
+    for &older in &state.ordered {
+        if older == local { continue; }
         budget.lookup(state.later.len(), "defer mixed order insertion")?;
         state.later.insert((older, local));
     }
-    state.owned.insert(local);
+    state.ordered.insert(local);
     Ok(())
 }
 
-fn reverse(state: &State, local: LocalId, budget: &mut Budget) -> CompileResult<()> {
+fn reverse(state: &State, local: LocalId, f: &TypedFunction, block: BlockId, position: usize, budget: &mut Budget) -> CompileResult<()> {
+    budget.lookup(state.owned.len(), "defer conditional cleanup")?;
+    if !state.owned.contains(&local) { return Ok(()); }
     for &(older, newer) in &state.later {
         budget.spend(1, "defer mixed cleanup order")?;
         if older == local {
             budget.lookup(state.owned.len(), "defer newer live lookup")?;
             if state.owned.contains(&newer) {
-                return Err(error(
-                    "cleanup is not reverse successful construction/registration order",
-                ));
+                let mut errors = error("cleanup is not reverse successful construction/registration order");
+                errors[0].notes.push(format!("Original storage activation {local:?} must outlive later live slot {newer:?}; actual cleanup in {:?}, {block:?}, instruction {position}.", f.id));
+                return Err(errors);
             }
         }
     }
@@ -248,11 +262,12 @@ pub(super) fn check(
                         "TakeLocal must be immediately followed by its zero-argument CallClosureOnce",
                     ));
                 }
-                reverse(&state, local, budget)?;
+                reverse(&state, local, f, block.id, position, budget)?;
                 budget.lookup(state.pending.len(), "defer actual call discharge")?;
                 state.pending.remove(&local);
                 state.invoked.insert(local);
-                forget(&mut state, local, budget)?;
+                budget.lookup(state.owned.len(), "defer occupant transfer")?;
+                state.owned.remove(&local);
                 continue;
             }
             if let Some(value) = writeback.take() {
@@ -351,7 +366,8 @@ pub(super) fn check(
                     {
                         return Err(error("Unpack cannot alias registered action storage"));
                     }
-                    forget(&mut state, local, budget)?;
+                    budget.lookup(state.owned.len(), "defer occupant transfer")?;
+                    state.owned.remove(&local);
                     for target in fields.iter().rev() {
                         if owning[target.0 as usize] {
                             construct(&mut state, *target, budget)?;
@@ -390,7 +406,8 @@ pub(super) fn check(
                         call = Some((local, value));
                         // Deliberately keep both pending and mixed-order edges.
                     } else {
-                        forget(&mut state, local, budget)?;
+                        budget.lookup(state.owned.len(), "defer occupant transfer")?;
+                        state.owned.remove(&local);
                     }
                 }
                 InstructionKind::DropEnum { local }
@@ -403,8 +420,9 @@ pub(super) fn check(
                     if state.pending.contains_key(&local) {
                         return Err(error("Drop cannot cancel a registered cleanup action"));
                     }
-                    reverse(&state, local, budget)?;
-                    forget(&mut state, local, budget)?;
+                    reverse(&state, local, f, block.id, position, budget)?;
+                    budget.lookup(state.owned.len(), "defer occupant transfer")?;
+                    state.owned.remove(&local);
                 }
                 InstructionKind::Load(local)
                 | InstructionKind::BorrowLocal { local }
@@ -427,7 +445,7 @@ pub(super) fn check(
                     state.storage.remove(&local);
                     state.stored.remove(&local);
                     state.invoked.remove(&local);
-                    forget(&mut state, local, budget)?;
+                    end_slot(&mut state, local, budget)?;
                 }
                 InstructionKind::ScopeExit { scope, .. } => {
                     budget.spend(state.pending.len(), "defer scope obligations")?;
@@ -481,10 +499,15 @@ pub(super) fn check(
                         "CFG join or backedge has incompatible action activations",
                     ));
                 }
-                let before = (previous.owned.len(), previous.later.len());
+                let before = (previous.definitely_ordered.len(), previous.ordered.len(), previous.owned.len(), previous.later.len());
+                budget.spend(previous.definitely_ordered.len().saturating_mul(
+                    state.definitely_ordered.len().checked_ilog2().map_or(1, |n| n as usize + 2)),
+                    "defer joined activation positions")?;
+                previous.definitely_ordered.retain(|local| state.definitely_ordered.contains(local));
+                previous.ordered.extend(&state.ordered);
                 previous.owned.extend(&state.owned);
                 previous.later.extend(&state.later);
-                if before != (previous.owned.len(), previous.later.len()) {
+                if before != (previous.definitely_ordered.len(), previous.ordered.len(), previous.owned.len(), previous.later.len()) {
                     budget.spend(1, "defer fixed-point queue growth")?;
                     queue.push_back(target.0 as usize);
                 }

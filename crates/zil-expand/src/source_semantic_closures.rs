@@ -372,23 +372,17 @@ impl Builder<'_, '_, '_, '_> {
                     },
                     span,
                 )?;
-                let use_node = original
-                    .nodes
-                    .iter()
-                    .find(|row| row.id == occurrence)
-                    .ok_or_else(|| error(span, "closure free use has no original operation"))?;
-                self.budget.lineage_bytes(use_node.path.len() * 4, span)?;
-                let path = use_node.path.clone();
-                if !*move_capture {
-                    self.budget.lineage_bytes((path.len() + 1) * 4, span)?;
-                    let mut occurrence_path = Vec::with_capacity(path.len() + 1);
-                    // One original name occurrence supplies both this
-                    // implicit capture-head obligation and its TypeUse event.
-                    // Consumers compare the declared identity directly; no
-                    // private prefix conversion or ordinal guess is required.
-                    occurrence_path.push(40);
-                    occurrence_path.extend_from_slice(&path);
-                    self.implicit(&occurrence_path, span)?;
+                if let Some(occurrence) = occurrence {
+                    self.push(&mut uses, ClosureUse { node: occurrence }, span)?;
+                    if !*move_capture {
+                        let use_node = original.nodes.iter().find(|node| node.id == occurrence)
+                            .ok_or_else(|| error(span, "closure free use has no original operation"))?;
+                        self.budget.lineage_bytes((use_node.path.len() + 1) * 4, span)?;
+                        let mut occurrence_path = Vec::with_capacity(use_node.path.len() + 1);
+                        occurrence_path.push(40);
+                        occurrence_path.extend_from_slice(&use_node.path);
+                        self.implicit(&occurrence_path, span)?;
+                    }
                 }
                 let ty = SemanticTypeRecipe::Environment {
                     scope: SemanticScopeRef::Ancestor(0),
@@ -396,7 +390,6 @@ impl Builder<'_, '_, '_, '_> {
                 };
                 prepay_recipe(&ty, self.budget, span, 0)?;
                 self.push(&mut captured, (name, ty), span)?;
-                self.push(&mut uses, ClosureUse { node: occurrence }, span)?;
             }
             // Recursively inventory child templates using the child's true
             // lexical directory. No creator value ID is reused as a child ID.

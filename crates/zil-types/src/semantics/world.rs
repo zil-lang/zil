@@ -2555,7 +2555,31 @@ impl<'p> World<'p, '_> {
             }
         }
         if !selected {
-            return Err(bad("actual callable call has no original operand site"));
+            let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(caller)) = instance.target else {
+                return Err(bad("callable occurrence has no actual caller"));
+            };
+            self.pay(index::search(self.ledger.cleanup_calls.len()))?;
+            let SemanticOperand::Value(callee) = *operand else {
+                return Err(bad("unclaimed callable operation has no actual SSA receiver"));
+            };
+            let Some(&(action, registered_block, local)) = self.ledger.cleanup_calls.get(&(caller, callee)) else {
+                return Err(bad(&format!("call in {caller:?} {block:?} instruction {index} on {callee:?} has neither an original invocation nor a registered exit operand")));
+            };
+            let caller_fn = self.function(caller)?;
+            let take = index.checked_sub(1).and_then(|at| caller_fn.blocks.get(block.0 as usize)?.instructions.get(at));
+            self.pay(index::search(self.ledger.frames.len()))?;
+            let frame = self.ledger.frames.get(&d.function);
+            if requested != CallableKind::FnOnce || !arguments.is_empty()
+                || registered_block != block
+                || child.parent != Some(instance.id)
+                || frame.is_none_or(|frame| frame.origin.closure != Some(action)
+                    || frame.parent != Some((caller, Some(d.id))))
+                || take.is_none_or(|take| take.result != Some(callee)
+                    || !matches!(take.kind, InstructionKind::TakeLocal { local: slot } if slot == local))
+                || caller_fn.locals.get(local.0 as usize).is_none_or(|slot| slot.ty != Type::Closure(d.id))
+                || target.return_type != Type::Unit || target.call_kind != CallKind::Direct {
+                return Err(bad("scope exit changes the registered declaration, receiver, or synchronous Unit signature"));
+            }
         }
         if let Some(result) = checked_result {
             return Ok(result);

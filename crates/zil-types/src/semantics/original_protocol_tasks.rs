@@ -346,6 +346,7 @@ impl Engine<'_, '_> {
         // replacement must never make an old occurrence synchronously closed.
         snapshot.names.clear();
         snapshot.temporaries.clear();
+        snapshot.deferred.clear();
         snapshot.abrupt.clear();
         snapshot.returned = Value::Plain;
         snapshot.task_sources = None;

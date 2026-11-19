@@ -335,7 +335,7 @@ prepare/slot/publish/abort 是同一责任规则的实例：构造 RHS 先成功
 
 本片清理正文限同步Unit；拒绝向外return、`?`错误传播、跨清理边界break/continue和挂起。正文自身循环的局部break/continue可按普通规则处理；嵌套defer暂不开放。真实捕获借用持续到动作实际调用，较早移动、失效或销毁相交来源仍拒绝；动作产生的局部按自身普通清理规则结算。
 
-公开Core保留Defer正文；TypedIR增加 `RegisterDefer { scope, local }`，绑定当前真实scope及已初始化具体FnOnce、零参数、Unit局部。现有 `TakeLocal(local)` 后紧邻对其结果的零参数 `CallClosureOnce` 是唯一履行序列；Take本身不结清义务。注册槽不得通过普通Load、借用、再写、Drop或逃逸取消义务。Analyze和Verify各自重建每次激活的注册、实际调用及与资源构造的混合次序，拒绝漏调用、重复调用、错scope/来源、未履行离域及回边；不得信任前端履行位或仅凭FnOnce的至多一次性质。机器层注册无运行时动作，调用和环境剩余清理沿现有已核路径。
+公开 Core 的 Defer 登记一个真实词法闭包。登记发生点标识闭包的原声明，用户写的正文保留在这个子定义内。闭包环境在登记时构造一次，正文在每个实际离开该激活的出口调用一次。一个局部首次成功初始化后，在本次 storage 激活中取得清理位置。替换先准备右侧，在成功路径上清理旧值并回填同一局部。该局部与已登记动作的清理先后保持到 StorageDead，失败路径按仍存活的原值结算。TypedIR 的 `RegisterDefer { scope, local }`，绑定当前真实scope及已初始化具体FnOnce、零参数、Unit局部。现有 `TakeLocal(local)` 后紧邻对其结果的零参数 `CallClosureOnce` 是唯一履行序列；Take本身不结清义务。注册槽不得通过普通Load、借用、再写、Drop或逃逸取消义务。Analyze和Verify各自重建每次激活的注册、实际调用及与资源构造的混合次序，拒绝漏调用、重复调用、错scope/来源、未履行离域及回边；不得信任前端履行位或仅凭FnOnce的至多一次性质。机器层注册无运行时动作，调用和环境剩余清理沿现有已核路径。
 
 注册要求local实际归属当前scope、完整初始化且本次激活尚未注册；Register必须紧邻该槽唯一初始Store，以成功注册时点确定动作年龄，不能以预留StorageLive定序。Take不得提前遗忘用于逆序检查的责任。动作调用必须位于到其所属ScopeExit的可核清理suffix中；首片要求同一基本块，只允许既有清理、必要捕获回写、后续动作履行和scope退出，不允许返回普通正文或新注册。独立核不能把普通正文中的提前调用当作正确退出履行。
 

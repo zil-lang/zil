@@ -172,6 +172,9 @@ pub(super) struct CheckedOriginal {
     pattern_origin: Option<patterns::PatternOrigin>,
     pattern_borrows: BTreeMap<(SemanticDefinitionId, Span), patterns::PatternBorrow>,
     unsafe_depth: BTreeMap<SemanticDefinitionId, usize>,
+    // Exactly the operand of an original registration. Nested ordinary closure
+    // literals retain their own independent control boundary.
+    cleanup_operands: BTreeSet<(SemanticDefinitionId, NodeId)>,
     in_defer: BTreeMap<SemanticDefinitionId, usize>,
     created: BTreeSet<(SemanticDefinitionId, NodeId)>,
     created_bindings: BTreeSet<Binder>,
@@ -185,6 +188,16 @@ pub(super) struct CheckedOriginal {
     scoped_thread_workers: Vec<(SemanticDefinitionId, Ty, Env)>,
 }
 impl CheckedOriginal {
+    pub(in crate::semantic) fn is_cleanup_operand(
+        &self, owner: SemanticDefinitionId, node: NodeId, b: &mut Budget,
+    ) -> Check<bool> {
+        if self.cleanup_operands.is_empty() {
+            return Ok(false);
+        }
+        b.spend(self.cleanup_operands.len().saturating_add(1).ilog2() as usize + 1)?;
+        Ok(self.cleanup_operands.contains(&(owner, node)))
+    }
+
     pub(super) fn check(
         module: &TypedModule,
         context: &CheckedContext,

@@ -686,7 +686,8 @@ struct State {
     product_fresh: Vec<u8>,
     desc: Vec<BTreeSet<Root>>,
     retirement: Vec<replacements::Sources>,
-    // An edge a -> b means b may have been initialized later while a remained live.
+    // An edge a -> b means b's storage activation may have received its first
+    // owner later than a. Moving a value changes debt, not this position.
     newer: Vec<BTreeSet<usize>>,
 }
 
@@ -1140,6 +1141,21 @@ fn forget_order(state: &mut State, local: usize, budget: &mut Budget) -> Check<(
     state.newer[local].clear();
     for row in &mut state.newer {
         row.remove(&local);
+    }
+    Ok(())
+}
+
+fn initialize_order(state: &mut State, local: usize, slots: &Slots, budget: &mut Budget) -> Check<()> {
+    if slots.retained(local) || state.debt[local] & EMPTY == 0 {
+        return Ok(());
+    }
+    for other in 0..slots.local_count {
+        budget.spend(1)?;
+        if other != local && !slots.retained(other) && state.debt[other] & !EMPTY != 0 {
+            let row = &mut state.newer[other];
+            budget.spend(row.len().saturating_add(1).ilog2() as usize + 1)?;
+            row.insert(local);
+        }
     }
     Ok(())
 }
@@ -1649,19 +1665,9 @@ impl Transfer<'_> {
                         }
                     }
                     state.debt[source] = MOVED;
-                    forget_order(state, source, budget)?;
                     for &target in fields.iter().rev() {
                         if let Some(debt) = slots.managed_local[target.0 as usize] {
-                            forget_order(state, debt, budget)?;
-                            for other in 0..slots.local_count {
-                                budget.spend(1)?;
-                                if other != debt
-                                    && !slots.retained(other)
-                                    && state.debt[other] & LIVE != 0
-                                {
-                                    state.newer[other].insert(debt);
-                                }
-                            }
+                            initialize_order(state, debt, slots, budget)?;
                             state.debt[debt] = LIVE;
                             state.fresh[debt] = INPUT;
                             budget.spend(slots.fields(target).len())?;
@@ -2423,9 +2429,6 @@ impl Transfer<'_> {
                         for &field in fields.iter().flatten() {
                             state.debt[field] = MOVED;
                         }
-                        if !slots.retained(index) {
-                            forget_order(state, index, budget)?;
-                        }
                     }
                     if let Some(dst) = instruction
                         .result
@@ -2466,18 +2469,7 @@ impl Transfer<'_> {
                             slots.managed_value[value.0 as usize].expect("typed managed store");
                         let fresh = state.fresh[source];
                         self.consume(state, *value, span, validate)?;
-                        if !slots.retained(index) {
-                            forget_order(state, index, budget)?;
-                            for other in 0..slots.local_count {
-                                budget.spend(1)?;
-                                if other != index
-                                    && !slots.retained(other)
-                                    && state.debt[other] & LIVE != 0
-                                {
-                                    state.newer[other].insert(index);
-                                }
-                            }
-                        }
+                        initialize_order(state, index, slots, budget)?;
                         state.debt[index] = LIVE;
                         state.fresh[index] = fresh;
                         budget.spend(fields.len())?;
@@ -2575,6 +2567,7 @@ impl Transfer<'_> {
                             == Some(true);
                         if !slots.retained(index)
                             && !empty_failure
+                            && state.debt[index] & LIVE != 0
                             && state.newer[index]
                                 .iter()
                                 .any(|&newer| state.debt[newer] & LIVE != 0)
@@ -2593,9 +2586,6 @@ impl Transfer<'_> {
                     budget.spend(fields.len())?;
                     for &field in fields.iter().flatten() {
                         state.debt[field] = discharged(state.debt[field]);
-                    }
-                    if !slots.retained(index) {
-                        forget_order(state, index, budget)?;
                     }
                 }
                 InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
@@ -3255,12 +3245,7 @@ fn run_with_slots(
     }
     for (p, local) in f.parameters.iter().enumerate() {
         if let Some(index) = slots.managed_local[local.0 as usize] {
-            for old in 0..slots.local_count {
-                budget.spend(1)?;
-                if !slots.retained(old) && initial.debt[old] & LIVE != 0 {
-                    initial.newer[old].insert(index);
-                }
-            }
+            initialize_order(&mut initial, index, slots, budget)?;
             initial.debt[index] = LIVE;
             initial.fresh[index] = INPUT;
             let fields = slots.fields(*local);

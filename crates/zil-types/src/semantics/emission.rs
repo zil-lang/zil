@@ -95,6 +95,9 @@ pub(crate) struct Ledger {
     /// checked immutable source interface. It contributes no emitted frames.
     pub(super) frozen: Option<std::rc::Rc<super::frozen_context::FrozenSource>>,
     pub(super) original: super::original_context::Slot,
+    // One real source action can be invoked on several mutually exclusive
+    // scope exits. Each actual consumption records its own TakeLocal operand.
+    pub(super) cleanup_calls: BTreeMap<(FunctionId, ValueId), (NodeId, BlockId, LocalId)>,
     pub frames: BTreeMap<FunctionId, Frame>,
     // Each specialization has its own actual target. An origin alone can
     // select a target only when its complete set has one member.
@@ -141,6 +144,16 @@ fn lookup_cost(n: usize) -> usize {
     n.saturating_add(1).ilog2() as usize + 1
 }
 impl Ledger {
+    pub(crate) fn cleanup_call(&mut self, function: FunctionId, action: NodeId, block: BlockId,
+        local: LocalId, callee: ValueId, left: &mut usize, span: Span) -> R<()> {
+        if self.frames.is_empty() { return Ok(()); }
+        pay(left, lookup_cost(self.cleanup_calls.len()).saturating_add(1), span)?;
+        if self.cleanup_calls.insert((function, callee), (action, block, local)).is_some() {
+            return Err(invalid(span, "one emitted instruction consumes two registered actions"));
+        }
+        Ok(())
+    }
+
     /// A finished inner expression can be used while its enclosing Task call
     /// is still being prepared. The active outer expression is never evidence
     /// for its not-yet-emitted result.

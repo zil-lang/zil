@@ -223,7 +223,31 @@ impl Parser<'_> {
             StmtKind::Continue
         } else if self.eat_word("defer") {
             self.newlines();
-            StmtKind::Defer(self.block(false)?)
+            let body = self.block(false)?;
+            let span = body.span;
+            // §7.1. The registration owns an ordinary lexical closure. Its
+            // expression receives the same declaration and capture coordinates
+            // as any authored closure. Do not turn its last statement into a return.
+            self.synthetic_nodes(3, span)?;
+            let action = Expr {
+                kind: ExprKind::Closure {
+                    context: Default::default(),
+                    move_capture: false,
+                    params: Vec::new(),
+                    return_type: Some(TypeRef { kind: TypeKind::Tuple(Vec::new()), span }),
+                    body: ArrowBody::Block(body),
+                },
+                span,
+                semantic: Default::default(),
+            };
+            StmtKind::Defer(Block {
+                statements: vec![Stmt {
+                    kind: StmtKind::Expression(action),
+                    span,
+                    semantic: Default::default(),
+                }],
+                span,
+            })
         } else if self.eat_word("if") {
             let condition = self.condition()?;
             self.newlines();
