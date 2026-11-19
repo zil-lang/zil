@@ -67,8 +67,10 @@ impl CheckedContext {
         let mut selected:Option<CheckedSignature>=None;
         for mut world in worlds{
             let definition=self.definition(module,world.environment.lexical.first().ok_or_else(||bad("Call world has no current original definition"))?.definition,b)?;
-            self.evaluate_requirements(module,&definition.requirements,&world.environment,RequirementMode::DeclarationPremise,external,active,b)?;
-            for formal in &definition.parameters{if let SemanticFormal::Type{requirements}=formal{self.evaluate_requirements(module,requirements,&world.environment,RequirementMode::DeclarationPremise,external,active,b)?;}}
+            if !multiple || !self.world_declarations_present(module,definition,recipe,&world,active,b)? {
+                self.evaluate_requirements(module,&definition.requirements,&world.environment,RequirementMode::DeclarationPremise,external,active,b)?;
+                for formal in &definition.parameters{if let SemanticFormal::Type{requirements}=formal{self.evaluate_requirements(module,requirements,&world.environment,RequirementMode::DeclarationPremise,external,active,b)?;}}
+            }
             let mut signature=if multiple {
                 self.rigid_entry_signature(module,definition,recipe,&world,external,active,b)?
             } else {

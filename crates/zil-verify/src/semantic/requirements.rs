@@ -75,6 +75,7 @@ impl CheckedContext {
                     rows.relations.equalities.truncate(equalities);
                     rows.relations.outlives.truncate(outlives);
                     rows.external.truncate(external);
+                    rows.prefix = std::rc::Rc::new(());
                 }
             } else {
                 graph.remove(&key);
@@ -252,5 +253,6 @@ mod premise_rollback_tests {
         let graph = context.premises.borrow();
         assert_eq!(graph[&scope].relations, before.relations);
         assert_eq!(graph[&scope].external, before.external);
+        assert!(!std::rc::Rc::ptr_eq(&graph[&scope].prefix, &before.prefix));
     }
 }

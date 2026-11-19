@@ -46,6 +46,9 @@ pub(super) use frozen::FrozenContext;
 
 #[derive(Clone, Default)]
 struct Premises {
+    // Appending preserves the existing journal prefix. Retraction replaces
+    // this identity, including when its old length is subsequently restored.
+    prefix: std::rc::Rc<()>,
     relations: Relations,
     external: Vec<ExternalRequest>,
 }

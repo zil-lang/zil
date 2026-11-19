@@ -9,7 +9,19 @@ type Target = (SemanticDefinitionId, FunctionId);
 pub(in crate::semantic) struct RigidWorlds {
     by_target: Option<BTreeMap<Target, Vec<usize>>>,
     eligible: BTreeMap<SemanticDefinitionId, bool>,
-    signatures: BTreeMap<SemanticInstanceId, (Vec<CheckedActual>, CheckedSignature)>,
+    signatures: BTreeMap<SemanticInstanceId, Entry>,
+}
+
+struct Entry {
+    inputs: Vec<CheckedActual>,
+    signature: CheckedSignature,
+    declarations: Option<DeclarationPrefix>,
+}
+
+struct DeclarationPrefix {
+    scope: std::rc::Rc<()>,
+    length: usize,
+    callable_frames: usize,
 }
 
 fn lookup(len: usize) -> usize {
@@ -66,16 +78,15 @@ impl CheckedContext {
         Ok(rows.to_vec())
     }
 
-    pub(super) fn rigid_entry_signature(
+    fn rigid_inputs<'w>(
         &self,
         module: &TypedModule,
         definition: &SemanticDefinition,
         recipe: &SemanticSignatureRecipe,
-        world: &CallWorld,
-        external: &mut impl ExternalProofs,
-        active: &mut ActiveQueries,
-        b: &mut Budget,
-    ) -> Check<CheckedSignature> {
+        world: &'w CallWorld,
+        active: &ActiveQueries,
+        b: &Budget,
+    ) -> Option<&'w Vec<CheckedActual>> {
         let env = &world.environment;
         let actuals = match env.lexical.as_slice() {
             [frame]
@@ -86,7 +97,7 @@ impl CheckedContext {
             {
                 &frame.actuals
             }
-            _ => return self.entry_signature(module, definition, recipe, env, external, active, b),
+            _ => return None,
         };
         if !self.site_index.same_input(module, b)
             || self.domain_only.get()
@@ -99,8 +110,66 @@ impl CheckedContext {
             || !matches!(&definition.body, SemanticDefinitionBody::FunctionWithBody { signature, .. }
                 if std::ptr::eq(signature, recipe))
         {
-            return self.entry_signature(module, definition, recipe, env, external, active, b);
+            return None;
         }
+        Some(actuals)
+    }
+
+    pub(super) fn world_declarations_present(
+        &self,
+        module: &TypedModule,
+        definition: &SemanticDefinition,
+        recipe: &SemanticSignatureRecipe,
+        world: &CallWorld,
+        active: &mut ActiveQueries,
+        b: &mut Budget,
+    ) -> Check<bool> {
+        let Some(inputs) = self.rigid_inputs(module, definition, recipe, world, active, b) else {
+            return Ok(false);
+        };
+        let rigid = self.rigid_worlds.borrow();
+        b.spend(lookup(rigid.signatures.len()))?;
+        let Some(Entry {
+            inputs: prior,
+            declarations: Some(prefix),
+            ..
+        }) = rigid.signatures.get(&world.instance)
+        else {
+            return Ok(false);
+        };
+        let graph = self.premises.borrow();
+        b.spend(lookup(graph.len()))?;
+        let Some(rows) = graph.get(&ScopeKey::Instance(world.instance)) else {
+            return Ok(false);
+        };
+        if !std::rc::Rc::ptr_eq(&prefix.scope, &rows.prefix)
+            || rows.external.len() < prefix.length
+            || !same_inputs(prior, inputs, b)?
+        {
+            return Ok(false);
+        }
+        // Every admitted Callable in this journal has its own empty invocation
+        // frame. Caller obligations and the actual closure remain independent.
+        for _ in 0..prefix.callable_frames {
+            active.fresh(b)?;
+        }
+        Ok(true)
+    }
+
+    pub(super) fn rigid_entry_signature(
+        &self,
+        module: &TypedModule,
+        definition: &SemanticDefinition,
+        recipe: &SemanticSignatureRecipe,
+        world: &CallWorld,
+        external: &mut impl ExternalProofs,
+        active: &mut ActiveQueries,
+        b: &mut Budget,
+    ) -> Check<CheckedSignature> {
+        let env = &world.environment;
+        let Some(actuals) = self.rigid_inputs(module, definition, recipe, world, active, b) else {
+            return self.entry_signature(module, definition, recipe, env, external, active, b);
+        };
         // environment_for_instance always creates the real code's invocation frame.
         // A root signature creates its own invocation domain inside entry_signature;
         // eligibility below requires that domain to be empty, and permits only
@@ -108,30 +177,12 @@ impl CheckedContext {
         // relates those heads to the current actual invocation at its boundary.
         let mut cache = self.rigid_worlds.borrow_mut();
         b.spend(lookup(cache.signatures.len()))?;
-        if let Some((inputs, prior)) = cache.signatures.get(&world.instance) {
-            b.spend(inputs.len().saturating_add(1))?;
-            let mut same = inputs.len() == actuals.len();
-            for (old, current) in inputs.iter().zip(actuals) {
-                let (CheckedActual::Type(old), CheckedActual::Type(current)) = (old, current)
-                else {
-                    same = false;
-                    break;
-                };
-                if current.life != empty_life()
-                    || !current.statics.is_empty()
-                    || !current.origins.is_empty()
-                    || !current.classes.is_empty()
-                    || !old.same_raw_type(current, b)?
-                {
-                    same = false;
-                    break;
-                }
-            }
-            if same {
-                active.fresh(b)?; // This use still owns its empty invocation frame.
-                charge_signature(prior, b)?;
-                return Ok(prior.clone());
-            }
+        if let Some(prior) = cache.signatures.get(&world.instance)
+            && same_inputs(&prior.inputs, actuals, b)?
+        {
+            active.fresh(b)?;
+            charge_signature(&prior.signature, b)?;
+            return Ok(prior.signature.clone());
         }
         b.spend(lookup(cache.eligible.len()))?;
         let eligible = match cache.eligible.get(&definition.id) {
@@ -195,14 +246,106 @@ impl CheckedContext {
                         value.charge_clone(b)?;
                     }
                 }
-                self.rigid_worlds
-                    .borrow_mut()
-                    .signatures
-                    .insert(world.instance, (actuals.clone(), signature.clone()));
+                self.rigid_worlds.borrow_mut().signatures.insert(
+                    world.instance,
+                    Entry {
+                        inputs: actuals.clone(),
+                        signature: signature.clone(),
+                        declarations: self.declaration_prefix(definition, scope, b)?,
+                    },
+                );
             }
         }
         Ok(signature)
     }
+}
+
+impl CheckedContext {
+    // The complete original declaration was just checked in this exact world.
+    // For these leaf recipes its only lasting effect was appending each
+    // Structural/Callable request to this scope's external premise journal.
+    fn declaration_prefix(
+        &self,
+        definition: &SemanticDefinition,
+        scope: ScopeKey,
+        b: &mut Budget,
+    ) -> Check<Option<DeclarationPrefix>> {
+        let graph = self.premises.borrow();
+        b.spend(lookup(graph.len()))?;
+        let Some(rows) = graph.get(&scope) else {
+            return Ok(None);
+        };
+        let mut frames = 0;
+        for formal in &definition.parameters {
+            let SemanticFormal::Type { requirements } = formal else {
+                return Ok(None);
+            };
+            b.spend(requirements.len().saturating_add(1))?;
+            for req in requirements {
+                // independent_recipe has already checked that the receiver
+                // is exactly this formal of this root declaration.
+                match req {
+                    SemanticRequirementRecipe::Structural { .. } => {}
+                    SemanticRequirementRecipe::Callable {
+                        kind: CallableKind::Fn,
+                        signature,
+                        ..
+                    } => {
+                        if signature.bound_lifetimes != 0
+                            || signature.invocation_lifetimes != 0
+                            || signature.call_kind != CallKind::Direct
+                        {
+                            return Ok(None);
+                        }
+                        b.spend(signature.parameters.len().saturating_add(1))?;
+                        for ty in signature
+                            .parameters
+                            .iter()
+                            .map(|p| &p.ty)
+                            .chain([&signature.result])
+                        {
+                            match ty {
+                                SemanticTypeRecipe::Atom(ty) if ty.is_b0_scalar() => {}
+                                SemanticTypeRecipe::Formal(SemanticFormalRef {
+                                    scope: SemanticScopeRef::Ancestor(0),
+                                    ordinal,
+                                }) if (*ordinal as usize) < definition.parameters.len() => {}
+                                _ => return Ok(None),
+                            }
+                        }
+                        frames += 1;
+                    }
+                    _ => return Ok(None),
+                }
+            }
+        }
+        Ok(Some(DeclarationPrefix {
+            scope: rows.prefix.clone(),
+            length: rows.external.len(),
+            callable_frames: frames,
+        }))
+    }
+}
+
+fn same_inputs(inputs: &[CheckedActual], actuals: &[CheckedActual], b: &mut Budget) -> Check<bool> {
+    b.spend(inputs.len().saturating_add(1))?;
+    let mut same = inputs.len() == actuals.len();
+    for (old, current) in inputs.iter().zip(actuals) {
+        let (CheckedActual::Type(old), CheckedActual::Type(current)) = (old, current) else {
+            same = false;
+            break;
+        };
+        if current.life != empty_life()
+            || !current.statics.is_empty()
+            || !current.origins.is_empty()
+            || !current.classes.is_empty()
+            || !old.same_raw_type(current, b)?
+        {
+            same = false;
+            break;
+        }
+    }
+    Ok(same)
 }
 
 fn charge_signature(signature: &CheckedSignature, b: &mut Budget) -> Check<()> {
