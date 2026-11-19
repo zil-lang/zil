@@ -484,7 +484,11 @@ impl Builder<'_, '_> {
         let consume = !arms
             .iter()
             .any(|a| reference_patterns::has_reference(&a.pattern));
-        let place = self.owner_pattern_place(e, consume, false)?;
+        let named_package = arms.iter().any(|arm| matches!(&arm.pattern.kind,
+            CorePatternKind::Record { ty: Type::Package { .. }, .. }));
+        let first_temporary = self.function.locals.len();
+        let place = self.owner_pattern_place(e, consume && !named_package, false)?;
+        let consume = consume && (!named_package || place.local.0 as usize >= first_temporary);
         self.finish_partial_pattern_match(place, consume, arms, span)
     }
     pub(super) fn partial_pattern_match_value(

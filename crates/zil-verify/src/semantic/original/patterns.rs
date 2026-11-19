@@ -24,6 +24,7 @@ pub(in crate::semantic) struct PatternSource {
     pub reference: Option<Span>,
     pub preparation: Option<(NodeId, Span)>,
     pub record: bool,
+    pub package: bool,
 }
 
 impl CheckedOriginal {
@@ -102,15 +103,17 @@ impl CheckedOriginal {
                     }
                     let declaration = context.definition(module, actual, b)?;
                     let SemanticDefinitionBody::Nominal {
-                        kind: LifeNominalKind::Record,
+                        kind: kind @ (LifeNominalKind::Record | LifeNominalKind::Package),
                         body: SemanticNominalBody::Product { fields: declared }, ..
                     } = &declaration.body else {
-                        return Err(bad("original record pattern requires a Record declaration"));
+                        return Err(bad("original named pattern requires a Record or Package declaration"));
                     };
                     if fields.len() != declared.len() {
                         return Err(bad("original record pattern changes its complete field arity"));
                     }
-                    self.require_copy(module, context, subject, env, active, b)?;
+                    if *kind == LifeNominalKind::Record {
+                        self.require_copy(module, context, subject, env, active, b)?;
+                    }
                     let mut seen = BTreeSet::new();
                     let mut irrefutable = true;
                     for (index, (name, pattern)) in fields.iter().enumerate() {
@@ -146,6 +149,23 @@ impl CheckedOriginal {
 }
 
 impl CheckedOriginal {
+    pub(super) fn package_pattern(
+        &mut self, module: &TypedModule, context: &CheckedContext,
+        pattern: &SemanticOriginalPattern, env: &Env, active: &mut ActiveQueries, b: &mut Budget,
+    ) -> Check<bool> {
+        let definition = match &pattern.kind {
+            CorePatternKind::RecordConstructor { definition, .. } => *definition,
+            CorePatternKind::Record { ty, .. } => match self.ty(module, context, ty, env, active, b)? {
+                Ty::Nominal(definition, _) => Some(definition),
+                _ => None,
+            },
+            _ => None,
+        };
+        let Some(definition) = definition else { return Ok(false); };
+        Ok(matches!(context.definition(module, definition, b)?.body,
+            SemanticDefinitionBody::Nominal { kind: LifeNominalKind::Package, .. }))
+    }
+
     pub(in crate::semantic) fn record_pattern_sources(
         &self, module: &TypedModule, definition: SemanticDefinitionId, b: &mut Budget,
     ) -> Check<Vec<PatternSource>> {
@@ -187,7 +207,7 @@ impl CheckedOriginal {
         };
         let root_pattern = pattern;
         let binding_subject_span=subject.span;
-        let mut subject=subject;let mut projections=Vec::new();let mut reference=None;let mut record=false;
+        let mut subject=subject;let mut projections=Vec::new();let mut reference=None;let mut record=false;let mut package=false;
         loop{
             b.spend(1)?;
             if self.injections.contains_key(&(definition,subject.id)){break;}
@@ -218,7 +238,8 @@ impl CheckedOriginal {
                     record=true;
                     let(name,pattern)=fields.get(child).ok_or_else(||bad("record pattern child is absent"))?;
                     let Ty::Nominal(owner,_)=self.resolved(parent,b)? else{return Err(bad("record pattern parent lacks its exact original nominal identity"));};
-                    let definition=function_definition(module,owner,b)?;let SemanticDefinitionBody::Nominal{body:SemanticNominalBody::Product{fields},..}=&definition.body else{return Err(bad("record pattern owner is not its original product"));};
+                    let definition=function_definition(module,owner,b)?;let SemanticDefinitionBody::Nominal{kind,body:SemanticNominalBody::Product{fields},..}=&definition.body else{return Err(bad("record pattern owner is not its original product"));};
+                    package |= *kind == LifeNominalKind::Package;
                     b.spend(fields.len().saturating_mul(name.len().saturating_add(1)))?;let ordinal=fields.iter().position(|row|row.name==*name).ok_or_else(||bad("record pattern field is absent"))?;
                     projections.push(LifeTypeProjection::Place(PlaceProjection::Field(ordinal as u32)));pattern
                 },
@@ -227,14 +248,14 @@ impl CheckedOriginal {
         }
         let CorePatternKind::Name(name)=&pattern.kind else{return Err(bad("pattern source does not end at its actual original value binder"));};
         b.spend(name.len())?;
-        let preparation = if record && matches!(statement.kind, CoreStatementKind::TupleBinding { .. })
+        let preparation = if record && !package && matches!(statement.kind, CoreStatementKind::TupleBinding { .. })
             && Self::pattern_mode(root_pattern, b)?.is_none()
         {
             Some((statement.id, binding_subject_span))
         } else {
             None
         };
-        Ok(PatternSource { subject: subject.id, projections, name: name.clone(), span: pattern.span, mutable, reference, preparation, record })
+        Ok(PatternSource { subject: subject.id, projections, name: name.clone(), span: pattern.span, mutable, reference, preparation, record, package })
     }
 }
 
@@ -255,15 +276,15 @@ impl CheckedOriginal {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn pattern_subject(
         &mut self, module: &TypedModule, context: &CheckedContext, source: &SemanticOriginalExpr,
-        expected: Option<&Ty>, mode: Option<bool>, env: &Env, bindings: &BTreeMap<String, Binding>,
+        expected: Option<&Ty>, mode: Option<bool>, package: bool, env: &Env, bindings: &BTreeMap<String, Binding>,
         active: &mut ActiveQueries, b: &mut Budget,
     ) -> Check<(Ty, Option<Place>)> {
-        let Some(mutable) = mode else {
+        if mode.is_none() && !package {
             return Ok((self.expression(module,context,source,env,bindings,expected,active,b)?, None));
-        };
+        }
         let (ty, place) = self.place(module,context,source,env,bindings,active,b)?;
         if let Some(place) = &place {
-            if mutable { self.mutable_place(module,context,source,env,bindings,active,b)?; }
+            if mode == Some(true) { self.mutable_place(module,context,source,env,bindings,active,b)?; }
             self.read_original_parent(module,context,place,&ty,env,active,b)?;
         }
         if let Some(expected) = expected { self.relate_value(&ty,expected,b)?; }

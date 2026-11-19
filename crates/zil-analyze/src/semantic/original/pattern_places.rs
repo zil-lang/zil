@@ -91,6 +91,18 @@ impl Solver<'_, '_> {
         // an affine field out of this very place. The pattern binds that
         // produced value and must keep its origin across the transfer.
         let place = self.place(frame, source, mode.is_some(), b, depth + 1)?;
+        if record && mode.is_none() && let Some(place) = &place
+            && let Kind::Nominal { definition, .. } = self.state.arena[self.type_root(place.selected, b)?]
+            && matches!(self.inventory.definition(definition, b)?.body,
+                SemanticDefinitionBody::Nominal { kind: LifeNominalKind::Package, .. })
+        {
+            let place = self.place(frame, source, true, b, depth + 1)?
+                .ok_or_else(|| fail("original Package pattern loses its selected owner"))?;
+            return Ok((place.selected, PatternSubject {
+                node: source.id, success_projections: 0, anchor: place.anchor, path: place.path,
+                indirect: false, retained: Some(place.selected),
+            }));
+        }
         if let Some(mutable) = mode {
             if let Some(place) = place {
                 if mutable {

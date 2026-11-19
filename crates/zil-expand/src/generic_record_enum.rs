@@ -235,10 +235,16 @@ impl Engine<'_> {
         else {
             return Err(error(span, "record pattern requires a declared record"));
         };
-        if declaration.kind != AggregateKind::Struct {
-            return Err(error(span, "record pattern requires an ordinary struct"));
+        if !matches!(declaration.kind, AggregateKind::Struct | AggregateKind::Package) {
+            return Err(error(span, "named product pattern requires a struct or package"));
         }
         if path[0] != declaration.name || declaration.generics.len() != args.len() {
+            if declaration.kind == AggregateKind::Package {
+                return Err(Diagnostic::error(
+                    Phase::Expand, "E-MATCH-TYPE", Some(span),
+                    "named Package pattern has a different nominal type",
+                ));
+            }
             return Err(error(span, "record pattern has a different nominal type"));
         }
         if supplied.len() != declaration.fields.len() {

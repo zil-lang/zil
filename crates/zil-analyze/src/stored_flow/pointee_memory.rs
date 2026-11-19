@@ -896,31 +896,30 @@ fn install_root(value: &mut Value, payload: Projection, b: &mut Budget) -> Compi
 }
 pub(super) fn take_projections(
     parent: &mut Value,
-    index: u32,
+    prefix: &[PlaceProjection],
     out: &mut Value,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    let prefix = [PlaceProjection::Field(index)];
-    out.pointees = project_pointees(&parent.pointees, &prefix, b)?;
-    out.saved_heads = project_heads(&parent.saved_heads, &prefix, b)?;
+    out.pointees = project_pointees(&parent.pointees, prefix, b)?;
+    out.saved_heads = project_heads(&parent.saved_heads, prefix, b)?;
     for path in parent.pointees.keys() {
         fee(b, path.len().saturating_add(1))?;
     }
-    parent.pointees.retain(|path, _| !path.starts_with(&prefix));
+    parent.pointees.retain(|path, _| !path.starts_with(prefix));
     for path in &parent.saved_heads {
         fee(b, path.len().saturating_add(1))?;
     }
-    parent.saved_heads.retain(|path| !path.starts_with(&prefix));
+    parent.saved_heads.retain(|path| !path.starts_with(prefix));
     let mut selected = Vec::new();
     for (path, p) in &parent.projections {
         fee(b, path.len().saturating_add(1))?;
-        if path.starts_with(&prefix) {
+        if path.starts_with(prefix) {
             selected.push((path.clone(), copy_projection(p, b)?));
         }
     }
     for (path, p) in selected {
         parent.projections.remove(&path);
-        let tail = &path[1..];
+        let tail = &path[prefix.len()..];
         if tail.is_empty() {
             install_root(out, p, b)?;
         } else {

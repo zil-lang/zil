@@ -778,12 +778,12 @@ impl CheckedContext {
         } else {
             None
         };
-        self.pattern_projection_start(module, caller, f, initial, subject, &source.projections, &subjects, preparation, source.record, b)
+        self.pattern_projection_start(module, caller, f, initial, subject, &source.projections, &subjects, preparation, source.record, source.package, b)
     }
     fn pattern_projection_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,subject:NodeId,path:&[LifeTypeProjection],subjects:&BTreeSet<ValueId>,b:&mut Budget)->Check<()>{
-        self.pattern_projection_start(module, caller, f, PatternStart::Value(value), subject, path, subjects, None, false, b)
+        self.pattern_projection_start(module, caller, f, PatternStart::Value(value), subject, path, subjects, None, false, false, b)
     }
-    fn pattern_projection_start(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,start:PatternStart,subject:NodeId,path:&[LifeTypeProjection],subjects:&BTreeSet<ValueId>,preparation:Option<LocalId>,record:bool,b:&mut Budget)->Check<()>{
+    fn pattern_projection_start(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,start:PatternStart,subject:NodeId,path:&[LifeTypeProjection],subjects:&BTreeSet<ValueId>,preparation:Option<LocalId>,record:bool,package:bool,b:&mut Budget)->Check<()>{
         let (local, index) = match start { PatternStart::Value(value) => (false, value.0), PatternStart::Unpack { local, .. } => (true, local.0) };
         let mut pending=vec![(local,index,path.to_vec(),false)];let mut active=BTreeSet::new();let mut proven=BTreeSet::new();let mut rooted=false;
         while let Some((local,index,mut path,exit))=pending.pop(){
@@ -792,6 +792,23 @@ impl CheckedContext {
             if proven.contains(&key){continue;}
             if !active.insert(key.clone()){return Err(bad("pattern binding projection has a cyclic actual source"));}
             pending.push((local,index,path.clone(),true));
+            if local && package && path.is_empty() {
+                let root = {
+                    let original = self.original.borrow();
+                    let original = original.as_ref().ok_or_else(||bad("Package pattern has no original source"))?;
+                    if original.bound_value_name(caller.definition, subject, b)? {
+                        Some(original.buffer_place(caller.definition, subject, b)?)
+                    } else {
+                        None
+                    }
+                };
+                if let Some((root, fields)) = root {
+                    if !fields.is_empty() { return Err(bad("Package pattern omits its original parent fields")); }
+                    self.projected_local_root(module, caller, f, LocalId(index), root, subject, b)?;
+                    rooted = true;
+                    continue;
+                }
+            }
             if !local&&path.is_empty(){
                 if let Some(preparation) = preparation {
                     let (block, at, producer) = self.site_index.producers.get(f, ValueId(index), b)?;

@@ -2232,18 +2232,22 @@ impl Check<'_, '_> {
                         continue;
                     }
                     if let SemanticOriginalNode::Statement(statement) = node
-                        && matches!(recipe.kind, SemanticSiteRecipeKind::DeclareLocal { .. })
+                        && let SemanticSiteRecipeKind::DeclareLocal { expected } = &recipe.kind
                         && let CoreStatementKind::TupleBinding { pattern, .. } = &original_nodes.get_stmt(statement, b)?.kind
-                        && original_pattern_reference_mode(pattern, 0, &mut |depth| {
+                    {
+                        let reference = original_pattern_reference_mode(pattern, 0, &mut |depth| {
                             if depth > b.partial_depth {
                                 return Err(vec![zil_base::Diagnostic::limit(
                                     zil_base::Phase::Analyze, "reference binding syntax depth", Some(pattern.span),
                                 )]);
                             }
                             b.spend(1, WORK)
-                        })?.is_some()
-                    {
-                        continue;
+                        })?.is_some();
+                        if reference || matches!(pattern.kind, CorePatternKind::Record { .. } | CorePatternKind::RecordConstructor { .. })
+                            && matches!(self.recipe_value(instance, expected, b, 0)?.ty, Type::Package { .. })
+                        {
+                            continue;
+                        }
                     }
                     if let SemanticSiteRecipeKind::TypeUse { expected } = &recipe.kind
                         && original_nodes.navigation(id, b)?

@@ -186,6 +186,50 @@ fn named_record_binding_preserves_the_selected_same_typed_field() {
     }
 }
 #[test]
+fn named_package_pattern_selects_the_declared_owner_field() {
+    use zil_ir::PlaceProjection;
+
+    let input = source(
+        "resource R{n:i32} package P{manages left:R;manages right:R} fn result()->i32{let p=P{left:R{n:42},right:R{n:7}};let P{right:_,left:moved}=p;return moved.n}",
+    );
+    native(input.text.as_str(), 42);
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand_with_map_semantics(
+        &input,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: input.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    ).unwrap().core;
+    let mut module = zil_types::check(&core, &target, &limits).unwrap();
+    assert!(module.semantic.is_some());
+    let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    let function = module.functions.iter_mut().find(|f| f.name == "result").unwrap();
+    let path = function.blocks.iter_mut().flat_map(|block| &mut block.instructions)
+        .find_map(|instruction| match &mut instruction.kind {
+            InstructionKind::TakeTupleField { path, .. }
+                if path.as_slice() == [PlaceProjection::Field(0)] => Some(path),
+            _ => None,
+        }).expect("named Package binding takes its first declared field");
+    path[0] = PlaceProjection::Field(1);
+    let errors = zil_analyze::analyze(&module, &limits).unwrap_err();
+    assert_eq!(errors[0].category, ResultCategory::SafeReject, "{errors:?}");
+    plan.module_fingerprint = module.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    let raw = zil_verify::verify_module(module, plan, &target, &limits).unwrap_err();
+    let wire = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
+    for errors in [raw, wire] {
+        assert_eq!(errors[0].category, ResultCategory::SafeReject, "{errors:?}");
+    }
+}
+#[test]
 fn named_record_fields_reject_forged_core_nominal_and_labels() {
     let src = source(
         "struct Pair{left:i32,right:i32} struct Other{left:i32,right:i32} fn result()->i32{let Pair{left:a,right:b}=Pair{left:1,right:2};return a+b}",

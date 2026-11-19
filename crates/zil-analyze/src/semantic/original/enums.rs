@@ -470,7 +470,7 @@ impl Solver<'_, '_> {
                 let Kind::Nominal { definition, fields: payload, .. } =
                     &self.state.arena[self.type_root(subject, b)?]
                 else {
-                    return Err(fail("original record pattern requires a nominal Record"));
+                    return Err(fail("original named pattern requires a nominal product"));
                 };
                 if let CorePatternKind::RecordConstructor { definition: Some(expected), .. } = &pattern.kind
                     && definition != expected
@@ -479,18 +479,20 @@ impl Solver<'_, '_> {
                 }
                 let declaration = self.inventory.definition(*definition, b)?;
                 let SemanticDefinitionBody::Nominal {
-                    kind: LifeNominalKind::Record,
+                    kind: kind @ (LifeNominalKind::Record | LifeNominalKind::Package),
                     body: SemanticNominalBody::Product { fields: declared },
                     ..
                 } = &declaration.body
                 else {
-                    return Err(fail("original record pattern selects a non-Record declaration"));
+                    return Err(fail("original named pattern selects another declaration kind"));
                 };
                 if fields.len() != declared.len() || fields.len() != payload.len() {
                     return Err(fail("original record pattern changes its complete field arity"));
                 }
-                super::resources::ordinary_drop_absent(*definition, self.inventory, b)?;
-                Self::push(&mut self.needs, Need { term: subject, predicate: Predicate::Copy }, b)?;
+                if *kind == LifeNominalKind::Record {
+                    super::resources::ordinary_drop_absent(*definition, self.inventory, b)?;
+                    Self::push(&mut self.needs, Need { term: subject, predicate: Predicate::Copy }, b)?;
+                }
                 let mut seen = BTreeSet::new();
                 let mut irrefutable = true;
                 for (index, (name, pattern)) in fields.iter().enumerate() {
@@ -771,7 +773,7 @@ impl Solver<'_, '_> {
             } => {
                 let declaration = self.inventory.definition(*definition, b)?;
                 if let SemanticDefinitionBody::Nominal {
-                    kind: LifeNominalKind::Record,
+                    kind: LifeNominalKind::Record | LifeNominalKind::Package,
                     body: SemanticNominalBody::Product { fields: declared },
                     ..
                 } = &declaration.body
@@ -887,9 +889,9 @@ impl Solver<'_, '_> {
         let mut mode = None;
         let mut record = false;
         for arm in arms {
+            record |= pattern_places::record_subject(&arm.pattern);
             if let Some(mutable) = self.pattern_reference_mode(&arm.pattern, b, depth + 1)? {
                 mode = Some(mode.unwrap_or(false) || mutable);
-                record |= pattern_places::record_subject(&arm.pattern);
             }
         }
         let (subject, source) = self.observed_pattern_subject(frame, value, mode, record, b, depth + 1)?;

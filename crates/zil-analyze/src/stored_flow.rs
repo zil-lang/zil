@@ -1534,15 +1534,14 @@ fn slot<'a>(ty: &'a Type, path: &[PlaceProjection], b: &mut Budget) -> CompileRe
 
 fn take_package_field_slots(
     holder: &mut Value,
-    index: u32,
+    prefix: &[PlaceProjection],
     b: &mut Budget,
 ) -> CompileResult<BTreeMap<Path, Permission>> {
     fee(b, holder.slots.len())?;
-    let prefix = PlaceProjection::Field(index);
     let mut paths = Vec::new();
     for path in holder.slots.keys() {
         fee(b, path.len().saturating_add(1))?;
-        if path.first() == Some(&prefix) {
+        if path.starts_with(prefix) {
             paths.push(path.clone());
         }
     }
@@ -1552,7 +1551,7 @@ fn take_package_field_slots(
             .slots
             .remove(&path)
             .ok_or_else(|| failure("selected package field slot disappeared"))?;
-        let relative = path[1..].to_vec();
+        let relative = path[prefix.len()..].to_vec();
         ordered(b, extracted.len(), relative.len())?;
         extracted.insert(relative, permission);
     }
@@ -1564,25 +1563,30 @@ fn take_package_field_value(
     index: u32,
     b: &mut Budget,
 ) -> CompileResult<Value> {
-    let physical = [PlaceProjection::Field(index)];
-    let logical = [ContractProjection::Place(PlaceProjection::Field(index))];
+    let field = PlaceProjection::Field(index);
+    take_product_path(holder, &[field], &[ContractProjection::Place(field)], b)
+}
+
+fn take_product_path(
+    holder: &mut Value, physical: &[PlaceProjection], logical: &[ContractProjection], b: &mut Budget,
+) -> CompileResult<Value> {
     let mut out = Value::default();
     environment_memory::complete_held(holder, b)?;
-    pointee_memory::take_projections(holder, index, &mut out, b)?;
+    pointee_memory::take_projections(holder, physical, &mut out, b)?;
     pointee_memory::recompute_held(holder, b)?;
-    out.enum_variants = holder.enum_variants.project(&physical, b)?;
+    out.enum_variants = holder.enum_variants.project(physical, b)?;
     holder
         .enum_variants
-        .replace(&physical, &enum_address::Variants::default(), true, b)?;
-    out.slots = take_package_field_slots(holder, index, b)?;
-    out.environment = environment_memory::replace_value(holder, &physical, BTreeMap::new(), b)?;
+        .replace(physical, &enum_address::Variants::default(), true, b)?;
+    out.slots = take_package_field_slots(holder, physical, b)?;
+    out.environment = environment_memory::replace_value(holder, physical, BTreeMap::new(), b)?;
     for permission in out.environment.values() {
         union(&mut out.held, permission, b)?;
     }
     out.task_ports =
-        environment_memory::replace(&mut holder.task_ports, &logical, BTreeMap::new(), b)?;
+        environment_memory::replace(&mut holder.task_ports, logical, BTreeMap::new(), b)?;
     out.dyn_ports =
-        environment_memory::replace(&mut holder.dyn_ports, &logical, BTreeMap::new(), b)?;
+        environment_memory::replace(&mut holder.dyn_ports, logical, BTreeMap::new(), b)?;
     Ok(out)
 }
 
@@ -1967,11 +1971,19 @@ fn compound_move(
         .get(local.0 as usize)
         .ok_or_else(|| failure("compound take local absent"))?
         .ty;
-    if !affine_compound(module, parent, b)? {
+    if !(matches!(parent, Type::Package { .. }) && owned::ordinary_value(module, parent, b)?)
+        && !affine_compound(module, parent, b)?
+    {
         return Ok(false);
     }
+    if path.is_empty() { return Err(failure("compound take has no actual field path")); }
     let child = slot(parent, path, b)?;
-    if i.result.map(|result| value_type(f, result)).transpose()? != Some(child) {
+    let actual = value_type(f, i.result.ok_or_else(|| failure("compound take has no result"))?)?;
+    if matches!(parent, Type::Package { .. }) {
+        b.type_work(child, true, "selective Package complete endpoint")?;
+        b.type_work(actual, true, "selective Package actual endpoint")?;
+    }
+    if actual != child {
         return Err(failure("compound take changes complete actual field type"));
     }
     Ok(true)
@@ -6029,10 +6041,10 @@ fn transfer(
             }
         }
         InstructionKind::TakeTupleField{local,path} if compound_move(module,f,i,b)?=>{
-            let Some(PlaceProjection::Field(index))=path.first() else{return Err(failure("compound take lacks actual field"))};
-            if path.len()!=1{return Err(failure("compound take nested path needs its actual position consumer"))}
             let holder=state.locals.get_mut(local).ok_or_else(||failure("compound take source unavailable"))?;
-            out=take_package_field_value(holder,*index,b)?;
+            fee(b,path.len())?;
+            let logical=path.iter().copied().map(ContractProjection::Place).collect::<Vec<_>>();
+            out=take_product_path(holder,path,&logical,b)?;
         }
         InstructionKind::ExtractField {aggregate,index} if pointee_memory::aggregate(value_type(f,*aggregate)?)=> {
             let physical=carrier(value_type(f,*aggregate)?).map_or(value_type(f,*aggregate)?,|(storage,_)|storage);
@@ -6825,6 +6837,7 @@ fn reverse(
         InstructionKind::Load(local)
         | InstructionKind::DropMutexGuard { local }
         | InstructionKind::BorrowPlaceLocal { local, .. }
+        | InstructionKind::TakeTupleField { local, .. }
         | InstructionKind::BorrowFieldLocal { local, .. }
         | InstructionKind::BorrowVariantLocal { local, .. }
         | InstructionKind::VariantTagLocal { local, .. }
@@ -6907,6 +6920,7 @@ fn reverse_bool(
         InstructionKind::Load(local)
         | InstructionKind::DropMutexGuard { local }
         | InstructionKind::BorrowPlaceLocal { local, .. }
+        | InstructionKind::TakeTupleField { local, .. }
         | InstructionKind::BorrowFieldLocal { local, .. }
         | InstructionKind::BorrowVariantLocal { local, .. }
         | InstructionKind::VariantTagLocal { local, .. }
@@ -7365,7 +7379,7 @@ fn windows(
                         };
                         access.check(&actual, mode.unwrap_or(false), apart, b)?;
                     }
-                    InstructionKind::BorrowPlaceLocal { local, path, .. }
+                    InstructionKind::BorrowPlaceLocal { local, path, mutable }
                         if ordinary_error_borrow(module, f, i, b)? =>
                     {
                         fee(b, path.len().saturating_add(1))?;
@@ -7384,9 +7398,24 @@ fn windows(
                             }]),
                             loans: Loans::new(),
                         };
-                        access.check(&actual, false, apart, b)?;
+                        access.check(&actual, *mutable, apart, b)?;
                     }
                     InstructionKind::TakeVariantField { local, path } if ordinary_error_places => {
+                        fee(b, path.len().saturating_add(1))?;
+                        let actual = Permission {
+                            targets: BTreeSet::from([Target {
+                                retained_port: None,
+                                base: local_capture_base(&state, *local, b)?,
+                                stored: Vec::new(),
+                                place: path.clone(),
+                                heap_parents: Vec::new(),
+                                heap_element: None,
+                            }]),
+                            loans: Loans::new(),
+                        };
+                        access.check(&actual, true, apart, b)?;
+                    }
+                    InstructionKind::TakeTupleField { local, path } if compound_move(module, f, i, b)? => {
                         fee(b, path.len().saturating_add(1))?;
                         let actual = Permission {
                             targets: BTreeSet::from([Target {

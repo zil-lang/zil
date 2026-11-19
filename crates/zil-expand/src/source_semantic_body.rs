@@ -9,7 +9,7 @@ mod free_uses;
 pub(super) enum OriginalBodyNodeKind {
     Expression,
     ForeignLiteral,
-    Binding,
+    Binding { selective: bool },
 }
 pub(super) struct OriginalBodyNode {
     pub path: Vec<u32>,
@@ -364,7 +364,10 @@ impl Builder<'_, '_, '_, '_> {
         depth: usize,
     ) -> R<SemanticOriginalStatement> {
         let span = statement.span;
-        let id = self.body_id(mint, path, OriginalBodyNodeKind::Binding, span, depth)?;
+        let binding = mint.nodes.len();
+        let id = self.body_id(
+            mint, path, OriginalBodyNodeKind::Binding { selective: false }, span, depth,
+        )?;
         let kind = match &statement.kind {
             s::StmtKind::Binding {
                 mutable,
@@ -377,6 +380,21 @@ impl Builder<'_, '_, '_, '_> {
                     .map(|ty| self.body_local_annotation(ty, path, depth + 1))
                     .transpose()?;
                 let pattern = self.body_pattern(pattern, path, depth + 1)?;
+                let declaration = match &pattern.kind {
+                    CorePatternKind::RecordConstructor { definition, .. } => *definition,
+                    CorePatternKind::Record { ty: SemanticTypeRecipe::Nominal { definition, .. }, .. } => Some(*definition),
+                    _ => None,
+                };
+                if let Some(declaration) = declaration {
+                    self.budget.identity_work(self.inventory.declarations.len(), span)?;
+                    if self.inventory.declarations.iter().any(|row| {
+                        row.module == declaration.module && row.declaration.0 == declaration.index
+                            && matches!(&row.item.kind, s::ItemKind::Aggregate(aggregate)
+                                if aggregate.kind == s::AggregateKind::Package)
+                    }) {
+                        mint.nodes[binding].kind = OriginalBodyNodeKind::Binding { selective: true };
+                    }
+                }
                 let value = self.body_child_expr(value, 0, mint, path, depth + 1)?;
                 match pattern {
                     CorePattern {

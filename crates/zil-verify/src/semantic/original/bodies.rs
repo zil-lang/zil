@@ -139,7 +139,8 @@ impl CheckedOriginal {
                     CoreStatementKind::TupleBinding{pattern,mutable,ty,initializer}=>{
                         let expected=ty.as_ref().map(|recipe|self.ty(module,context,recipe,env,active,b)).transpose()?;
                         let mode=Self::pattern_mode(pattern,b)?;
-                        let(actual,retained)=self.pattern_subject(module,context,initializer,expected.as_ref(),mode,env,bindings,active,b)?;
+                        let package=mode.is_none()&&self.package_pattern(module,context,pattern,env,active,b)?;
+                        let(actual,retained)=self.pattern_subject(module,context,initializer,expected.as_ref(),mode,package,env,bindings,active,b)?;
                         if !self.pattern_root(module,context,statement.id,&[],pattern,&actual,retained,*mutable,env,bindings,active,b)? {
                             return Err(bad("original destructuring binding is refutable"));
                         }
@@ -172,7 +173,9 @@ impl CheckedOriginal {
                         self.branch_uses(env,&before,&yes,yes_terminal,&no,no_terminal,b)?;yes_terminal&&no_terminal
                     },
                     CoreStatementKind::IfLet{pattern,value,then_body,else_body}=>{
-                        let mode=Self::pattern_mode(pattern,b)?;let(actual,retained)=self.pattern_subject(module,context,value,None,mode,env,bindings,active,b)?;let before=self.use_snapshot(env,b)?;let live_before=self.live_keys(env,b)?;let mut branch=bindings.clone();let irrefutable=self.pattern_root(module,context,statement.id,&[],pattern,&actual,retained,false,env,&mut branch,active,b)?;
+                        let mode=Self::pattern_mode(pattern,b)?;
+                        let package=mode.is_none()&&self.package_pattern(module,context,pattern,env,active,b)?;
+                        let(actual,retained)=self.pattern_subject(module,context,value,None,mode,package,env,bindings,active,b)?;let before=self.use_snapshot(env,b)?;let live_before=self.live_keys(env,b)?;let mut branch=bindings.clone();let irrefutable=self.pattern_root(module,context,statement.id,&[],pattern,&actual,retained,false,env,&mut branch,active,b)?;
                         let yes_terminal=self.block(module,context,then_body,env,&mut branch,result,target.as_deref_mut(),capture.as_deref_mut(),active,b)?;if yes_terminal{self.forget_scope(env,&live_before,b)?;}else{self.exit_scope(env,&live_before,b)?;}let yes=self.use_snapshot(env,b)?;
                         self.set_uses(env,before.clone())?;
                         let mut unreachable=LoopExits::default();
@@ -191,7 +194,8 @@ impl CheckedOriginal {
                     CoreStatementKind::WhileLet{pattern,value,body}=>{
                         let entry=self.use_snapshot(env,b)?;
                         let mode=Self::pattern_mode(pattern,b)?;
-                        let(ty,retained)=self.pattern_subject(module,context,value,None,mode,env,bindings,active,b)?;
+                        let package=mode.is_none()&&self.package_pattern(module,context,pattern,env,active,b)?;
+                        let(ty,retained)=self.pattern_subject(module,context,value,None,mode,package,env,bindings,active,b)?;
                         // Bindings and their moves exist only on a successful match.
                         let after_condition=self.use_snapshot(env,b)?;
                         let scope=self.live_keys(env,b)?;
@@ -227,7 +231,13 @@ impl CheckedOriginal {
                     CoreStatementKind::Match{value,arms}=>{
                         let mut mode=None;
                         for arm in arms { if let Some(mutable)=Self::pattern_mode(&arm.pattern,b)? { mode=Some(mode.unwrap_or(false)||mutable); } }
-                        let(ty,retained)=self.pattern_subject(module,context,value,None,mode,env,bindings,active,b)?;
+                        let mut package=false;
+                        if mode.is_none() {
+                            for arm in arms {
+                                if self.package_pattern(module,context,&arm.pattern,env,active,b)? { package=true; break; }
+                            }
+                        }
+                        let(ty,retained)=self.pattern_subject(module,context,value,None,mode,package,env,bindings,active,b)?;
                         let before=self.use_snapshot(env,b)?;let mut continuing=None;let mut all=!arms.is_empty();
                         for(arm_index,arm)in arms.iter().enumerate(){self.set_uses(env,before.clone())?;let arm_live=self.live_keys(env,b)?;let mut inner=bindings.clone();self.pattern_root(module,context,statement.id,&[arm_index as u32],&arm.pattern,&ty,retained.clone(),false,env,&mut inner,active,b)?;
                             let terminal=self.block(module,context,&arm.body,env,&mut inner,result,target.as_deref_mut(),capture.as_deref_mut(),active,b)?;if terminal{self.forget_scope(env,&arm_live,b)?;}else{self.exit_scope(env,&arm_live,b)?;}all&=terminal;

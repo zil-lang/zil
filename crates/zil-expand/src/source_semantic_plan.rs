@@ -866,7 +866,7 @@ fn operations(
         path.push(40);
         path.extend_from_slice(&original.path);
         match (&original.kind, located.node) {
-            (body::OriginalBodyNodeKind::Binding, body_nodes::Node::Statement(statement)) => {
+            (body::OriginalBodyNodeKind::Binding { selective }, body_nodes::Node::Statement(statement)) => {
                 let s::StmtKind::Binding { pattern, .. } = &statement.kind else {
                     continue;
                 };
@@ -883,7 +883,7 @@ fn operations(
                 // A reference pattern observes the initializer place and
                 // creates its own leaf binders. There is no whole binding
                 // local at this statement to receive a storage constraint.
-                if !runtime || binding_observes_place(pattern, budget, 0)? {
+                if !runtime || *selective || binding_observes_place(pattern, budget, 0)? {
                     directory_site(
                         program,
                         definition,

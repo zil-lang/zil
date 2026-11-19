@@ -855,13 +855,18 @@ pub(super) fn ordinary_owned_tuple(module:&TypedModule,f:&TypedFunction,i:&Instr
         InstructionKind::UnpackTuple{local,..}|InstructionKind::DropTuple{local}|InstructionKind::TakeTupleField{local,..}=>&f.locals.get(local.0 as usize).ok_or_else(||err("ordinary owning Tuple has no actual local"))?.ty,
         _=>return Ok(false),
     };
-    if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() { return Ok(false); }
-    if !complete_owned_value(module, ty, b)? && !callable_tuple(module, ty, b)?
+    let package = matches!(i.kind, InstructionKind::TakeTupleField { .. }) && matches!(ty, Type::Package { .. });
+    if !package && (!matches!(ty, Type::Tuple(_)) || ty.is_copy_value()) { return Ok(false); }
+    if !complete_owned_value(module, ty, b)? && (package || !callable_tuple(module, ty, b)?
         && !frame_protocol_aggregate(module, f, ty, b)?
-    {
+    ) {
         return Ok(false);
     }
-    crate::sums::check_instruction(f,i,&b.limits.clone(),b)?;
+    if package {
+        crate::check_instruction(module, f, i, b)?;
+    } else {
+        crate::sums::check_instruction(f,i,&b.limits.clone(),b)?;
+    }
     Ok(true)
 }
 
@@ -893,9 +898,8 @@ pub(super) fn ordinary_tuple_transfer(f:&TypedFunction,i:&Instruction,state:&mut
     let _=f;Ok(())
 }
 
-// Only shared Copy endpoints of a complete address-free ordinary Package
-// can enter this no-stored-target lane. Current lifetime and moved-field
-// facts remain checked against the real local by the independent flow.
+// An address-free Package may lend an actual inline child without introducing
+// a stored permission inside that child. Init and loan facts remain local.
 fn ordinary_package_field_borrow(
     module: &TypedModule,
     f: &TypedFunction,
@@ -905,7 +909,7 @@ fn ordinary_package_field_borrow(
     let InstructionKind::BorrowPlaceLocal {
         local,
         path,
-        mutable: false,
+        mutable,
     } = &i.kind
     else {
         return Ok(false);
@@ -913,11 +917,11 @@ fn ordinary_package_field_borrow(
     if path.is_empty() {
         return Ok(false);
     }
-    let root = &f
+    let declaration = f
         .locals
         .get(local.0 as usize)
-        .ok_or_else(|| err("ordinary Package borrow local absent"))?
-        .ty;
+        .ok_or_else(|| err("ordinary Package borrow local absent"))?;
+    let root = &declaration.ty;
     if !matches!(root, Type::Package { .. }) {
         return Ok(false);
     }
@@ -938,13 +942,15 @@ fn ordinary_package_field_borrow(
     }
     if endpoint.is_copy_value() {
         ordinary(endpoint, b, 0)?;
-    } else if !matches!(endpoint, Type::Managed(_)) {
+    } else if !matches!(endpoint, Type::Package { .. })
+        && !(!*mutable && matches!(endpoint, Type::Managed(_)))
+    {
         return Ok(false);
     }
-    if !matches!(vt(f,i.result.ok_or_else(||err("ordinary Package Copy borrow lacks result"))?)?,Type::Address{mutable:false,inner} if inner.as_ref()==endpoint)
-    {
-        return Err(err("ordinary Package Copy borrow result differs"));
+    if *mutable && !declaration.mutable {
+        return Err(err("exclusive Package pattern borrow requires mutable storage"));
     }
+    crate::check_instruction(module, f, i, b)?;
     b.ordinary_error_places = true;
     Ok(true)
 }

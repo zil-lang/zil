@@ -739,7 +739,7 @@ fn ordinary_package_field_borrow(
     let InstructionKind::BorrowPlaceLocal {
         local,
         path,
-        mutable: false,
+        mutable,
     } = &i.kind
     else {
         return Ok(false);
@@ -747,11 +747,11 @@ fn ordinary_package_field_borrow(
     if path.is_empty() {
         return Ok(false);
     }
-    let root = &f
+    let declaration = f
         .locals
         .get(local.0 as usize)
-        .ok_or_else(|| failure("ordinary Package borrow local absent"))?
-        .ty;
+        .ok_or_else(|| failure("ordinary Package borrow local absent"))?;
+    let root = &declaration.ty;
     if !matches!(root, Type::Package { .. }) {
         return Ok(false);
     }
@@ -776,13 +776,15 @@ fn ordinary_package_field_borrow(
         if !pure(module, selected, b, 0)? {
             return Ok(false);
         }
-    } else if !matches!(selected, Type::Managed(_)) {
+    } else if !matches!(selected, Type::Package { .. })
+        && !(!*mutable && matches!(selected, Type::Managed(_)))
+    {
         return Ok(false);
     }
-    if !matches!(value_type(f,i.result.ok_or_else(||failure("ordinary Package Copy borrow lacks result"))?)?,Type::Address{mutable:false,inner} if inner.as_ref()==selected)
-    {
-        return Err(failure("ordinary Package Copy borrow result differs"));
+    if *mutable && !declaration.mutable {
+        return Err(failure("exclusive Package pattern borrow requires mutable storage"));
     }
+    address_result(f, i, *mutable, selected, b)?;
     b.ordinary_error_places = true;
     Ok(true)
 }

@@ -849,7 +849,17 @@ impl Check<'_, '_> {
                 ))).collect::<Vec<_>>())?
         };
         let mut selected = None;
-        let mut accept = |local| -> CompileResult<()> {
+        let mut accept = |local: LocalId, b: &mut Budget| -> CompileResult<()> {
+            if origin.record
+                && let Some((span, name)) = &origin.binding
+            {
+                let actual = function.locals.get(local.0 as usize)
+                    .ok_or_else(|| fail("named pattern has no actual destination local"))?;
+                b.spend(name.len(), WORK)?;
+                if actual.span != *span || actual.name != *name {
+                    return Ok(());
+                }
+            }
             if selected.is_some_and(|old| old != local) {
                 return Err(unknown(
                     "original pattern has several distinct extraction destinations",
@@ -862,7 +872,7 @@ impl Check<'_, '_> {
             && let Some(value) = emitted
             && let Some(local) = self.stored_pattern_value(function, value, b)?
         {
-            accept(local)?;
+            accept(local, b)?;
         }
         for block in &function.blocks {
             for (at, instruction) in block.instructions.iter().enumerate() {
@@ -880,15 +890,7 @@ impl Check<'_, '_> {
                             } else {
                                 self.copied_pattern_local(function, root, &path, value, b)?
                             };
-                            if let Some(local) = local
-                                && let Some((span, name)) = &origin.binding
-                                && let Some(declaration) = function.locals.get(local.0 as usize)
-                            {
-                                b.spend(name.len(), WORK)?;
-                                if declaration.span == *span && declaration.name == *name {
-                                    accept(local)?;
-                                }
-                            }
+                            if let Some(local) = local { accept(local, b)?; }
                         }
                     }
                     InstructionKind::BorrowPlaceLocal { local, path: actual, mutable: false }
@@ -897,7 +899,7 @@ impl Check<'_, '_> {
                         if *actual == path {
                             let address = instruction.result.ok_or_else(|| fail("actual Copy pattern avoids its shared address result"))?;
                             if let Some(local) = self.copied_pattern_local(function, root, &path, address, b)? {
-                                accept(local)?;
+                                accept(local, b)?;
                             }
                         }
                     }
@@ -907,7 +909,7 @@ impl Check<'_, '_> {
                         if *actual == path {
                             let value = instruction.result.ok_or_else(|| fail("actual pattern borrow has no SSA result"))?;
                             if let Some(local) = self.stored_pattern_value(function, value, b)? {
-                                accept(local)?;
+                                accept(local, b)?;
                             }
                         }
                     }
@@ -916,7 +918,7 @@ impl Check<'_, '_> {
                             borrow.mutable == matches!(instruction.kind, InstructionKind::BorrowLocalMut { .. })) => {
                         let value = instruction.result.ok_or_else(|| fail("actual pattern borrow has no SSA result"))?;
                         if let Some(local) = self.stored_pattern_value(function, value, b)? {
-                            accept(local)?;
+                            accept(local, b)?;
                         }
                     }
                     InstructionKind::TakeVariantField {
@@ -933,7 +935,7 @@ impl Check<'_, '_> {
                                 fail("actual pattern extraction has no SSA result")
                             })?;
                             if let Some(local) = self.stored_pattern_value(function, value, b)? {
-                                accept(local)?;
+                                accept(local, b)?;
                             }
                         }
                     }
@@ -942,7 +944,7 @@ impl Check<'_, '_> {
                             && let Some(local) = fields.get(*index as usize)
                         {
                             b.spend(fields.len(), WORK)?;
-                            accept(self.unpack_binding_local(function, block, at, *local, origin.binding.as_ref(), b)?)?;
+                            accept(self.unpack_binding_local(function, block, at, *local, origin.binding.as_ref(), b)?, b)?;
                         }
                     }
                     InstructionKind::UnpackVariant {
@@ -963,7 +965,7 @@ impl Check<'_, '_> {
                             && let Some(local) = fields.get(index as usize)
                         {
                             b.spend(fields.len(), WORK)?;
-                            accept(self.unpack_binding_local(function, block, at, *local, origin.binding.as_ref(), b)?)?;
+                            accept(self.unpack_binding_local(function, block, at, *local, origin.binding.as_ref(), b)?, b)?;
                         }
                     }
                     _ => {}

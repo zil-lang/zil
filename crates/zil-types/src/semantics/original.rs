@@ -5482,6 +5482,7 @@ impl<'a> Check<'a, '_> {
         };
         let definition = self.definition(*definition)?;
         let SemanticDefinitionBody::Nominal {
+            kind: LifeNominalKind::Record | LifeNominalKind::Package,
             body: SemanticNominalBody::Product { fields: declared },
             ..
         } = &definition.body
