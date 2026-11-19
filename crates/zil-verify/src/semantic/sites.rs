@@ -2,6 +2,17 @@
 //! visible; a lookup supplies no class, occupant, source or access permission.
 use super::*;
 
+/// Original IDs are unique in a checked declaration. Dense IDs often equal
+/// their directory position. Sparse and reordered directories use the same
+/// identity lookup, without treating any position as the source of an ID.
+pub(super) fn original_recipe<'a>(rows:&'a [SemanticSiteRecipe], id:SemanticSiteId, b:&mut Budget)->Check<Option<&'a SemanticSiteRecipe>> {
+    b.spend(1)?;
+    if let Some(row)=rows.get(id.0 as usize).filter(|row|row.id==id){return Ok(Some(row));}
+    b.spend(rows.len())?;
+    Ok(rows.iter().find(|row|row.id==id))
+}
+
+
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Action {
     Construct,
@@ -302,6 +313,20 @@ impl CheckedContext {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn original_lookup_preserves_sparse_and_reordered_ids() {
+        let make=|id:u32| super::SemanticSiteRecipe{
+            id:super::SemanticSiteId(id), occurrence_path:vec![id],
+            kind:super::SemanticSiteRecipeKind::OriginalCall,
+        };
+        let rows=[make(0),make(6),make(1)];
+        let mut b=super::Budget::new(&super::Limits::default());
+        for (id,index) in [(0,0),(6,1),(1,2)]{
+            assert!(std::ptr::eq(super::original_recipe(&rows,super::SemanticSiteId(id),&mut b).unwrap().unwrap(),&rows[index]));
+        }
+        assert!(super::original_recipe(&rows,super::SemanticSiteId(2),&mut b).unwrap().is_none());
+    }
+
     use super::*;
 
     #[test]

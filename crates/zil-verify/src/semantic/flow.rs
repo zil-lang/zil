@@ -891,7 +891,7 @@ impl CheckedContext {
     fn actual_call(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,callee:FunctionId,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut dynamic_witness::semantic_external::Proofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>> {
         let definition=self.definition(module,caller.definition,b)?;
         let SemanticDefinitionBody::FunctionWithBody{sites,..}=&definition.body else{return Err(bad("semantic caller has no original body"));};
-        let site_recipe=sites.iter().find(|row|row.id==site.recipe).ok_or_else(||bad("actual Call has no original recipe"))?;
+        let site_recipe=sites::original_recipe(sites,site.recipe,b)?.ok_or_else(||bad("actual Call has no original recipe"))?;
         if !matches!(site_recipe.kind,SemanticSiteRecipeKind::Call{..}|SemanticSiteRecipeKind::OriginalCall){return Err(bad("actual Call has another original operation role"));}
         let member=self.original.borrow().as_ref().ok_or_else(||bad("original member Call has no independent symbolic proof"))?.trait_call_recipes(module,caller.definition,site.recipe,environment,b)?;
         if let Some(member)=member{return self.actual_trait_member(module,caller,site,callee,arguments,values,environment,member,external,active,b);}
@@ -1092,8 +1092,7 @@ impl CheckedContext {
     fn site_expected(&self,module:&TypedModule,instance:&SemanticInstance,site:&SemanticSite,environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<CheckedType> {
         let definition=self.definition(module,instance.definition,b)?;
         let SemanticDefinitionBody::FunctionWithBody{sites,..}=&definition.body else{return Err(bad("semantic site has no original function"));};
-        b.spend(sites.len())?;
-        let recipe=sites.iter().find(|recipe|recipe.id==site.recipe).ok_or_else(||bad("semantic site has no original recipe"))?;
+        let recipe=sites::original_recipe(sites,site.recipe,b)?.ok_or_else(||bad("semantic site has no original recipe"))?;
         if let SemanticSiteRecipeKind::Closure{definition:child,..}=&recipe.kind {
             let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&definition.body else{unreachable!()};
             b.spend(site_nodes.len())?;

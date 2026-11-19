@@ -290,26 +290,23 @@ impl CheckedContext{
             .expression_sites(caller.definition, node, b)?;
         let mut sources = BTreeSet::new();
         for (_, recipe) in recipes {
-            for action in [sites::Action::TypeUse, sites::Action::Construct, sites::Action::Closure,
-                sites::Action::BodyCall, sites::Action::Call] {
-                for site in self.site_index.recipe(module, caller.id, recipe, action, b)? {
-                    let source = match site.action {
-                        SemanticSiteAction::TypeUse { subject: SemanticOperand::Value(value), .. }
-                        | SemanticSiteAction::Construct { result: SemanticOperand::Value(value), .. }
-                        | SemanticSiteAction::Closure { result: SemanticOperand::Value(value), .. } => Some(value),
-                        SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::Call { .. } => {
-                            let SemanticSiteAddress::Typed { block, instruction, .. } = site.at else {
-                                return Err(bad("address input retains a nonactual original call"));
-                            };
-                            f.blocks.get(block.0 as usize).and_then(|block| block.instructions.get(instruction as usize))
-                                .and_then(|instruction| instruction.result)
-                        }
-                        _ => None,
-                    };
-                    if let Some(value) = source {
-                        b.spend(sources.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
-                        sources.insert(value);
+            for site in self.site_index.all_roles(module, caller.id, recipe, b)? {
+                let source = match site.action {
+                    SemanticSiteAction::TypeUse { subject: SemanticOperand::Value(value), .. }
+                    | SemanticSiteAction::Construct { result: SemanticOperand::Value(value), .. }
+                    | SemanticSiteAction::Closure { result: SemanticOperand::Value(value), .. } => Some(value),
+                    SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::Call { .. } => {
+                        let SemanticSiteAddress::Typed { block, instruction, .. } = site.at else {
+                            return Err(bad("address input retains a nonactual original call"));
+                        };
+                        f.blocks.get(block.0 as usize).and_then(|block| block.instructions.get(instruction as usize))
+                            .and_then(|instruction| instruction.result)
                     }
+                    _ => None,
+                };
+                if let Some(value) = source {
+                    b.spend(sources.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
+                    sources.insert(value);
                 }
             }
         }

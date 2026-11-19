@@ -182,8 +182,7 @@ impl CheckedContext {
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=instance.target else {return Err(bad("semantic emission belongs to a nonexecutable instance"));};
         let definition=self.definition(module,instance.definition,b)?;
         let SemanticDefinitionBody::FunctionWithBody{sites,..}=&definition.body else {return Err(bad("semantic emission has no original function body"));};
-        b.spend(sites.len())?;
-        let recipe=sites.iter().find(|row|row.id==site.recipe).ok_or_else(||bad("actual semantic site has no original recipe"))?;
+        let recipe=sites::original_recipe(sites,site.recipe,b)?.ok_or_else(||bad("actual semantic site has no original recipe"))?;
         let SemanticSiteAddress::Typed{block,instruction,edge}=site.at else {return Err(bad("Typed semantic site retains a Core address"));};
         let f=module.functions.get(function.0 as usize).ok_or_else(||bad("semantic site actual function is absent"))?;
         let block=f.blocks.get(block.0 as usize).ok_or_else(||bad("semantic site actual block is absent"))?;

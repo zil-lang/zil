@@ -153,7 +153,11 @@ impl CheckedType {
     pub(crate) fn same_raw_type(&self,other:&Self,b:&mut crate::Budget)->crate::Check<bool>{
         b.spend(1)?;
         if std::rc::Rc::ptr_eq(&self.type_cell,&other.type_cell){
-            if self.ty.is_b0_scalar() && b.limits.max_nodes == 0 { return Err(crate::limit("dyn metadata node count exceeded")); }
+            if self.ty.is_b0_scalar() {
+                if b.limits.max_nodes == 0 { return Err(crate::limit("dyn metadata node count exceeded")); }
+            } else {
+                crate::dynamic_metadata::bounds_type(&self.ty,b)?;
+            }
             return Ok(true);
         }
         // Both actual carriers have one node and no nested metadata. Check
@@ -237,6 +241,8 @@ mod shared_type_tests {
         assert_eq!(original.life.binder_count,0);assert!(original.classes.is_empty());
         let mut b=crate::Budget::new(&Limits::default());
         assert!(original.same_raw_type(&copied,&mut b).unwrap());
+        let mut tighter=crate::Budget::new(&Limits {max_nodes:1,..Limits::default()});
+        assert_eq!(original.same_raw_type(&copied,&mut tighter).unwrap_err().category,zil_base::ResultCategory::ResourceLimit);
         assert_ne!(original,copied,"sharing type bytes does not identify current class domains");
         let before=b.remaining;original.charge_clone(&mut b).unwrap();let reference=before-b.remaining;
         let before=b.remaining;let raw=original.clone().into_raw_type(&mut b).unwrap();let deep=before-b.remaining;

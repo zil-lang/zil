@@ -345,6 +345,8 @@ fn a_reborrow_preserves_two_distinct_inner_origins_with_equal_outside_images() {
         classes:vec![key.clone(),key,old.clone()],origins:vec![origin(0),origin(1),IntrinsicOrigin::DerivedClass{source:old}],statics:vec![],
     };
     let child=context.reborrow_value(&parent,scope,ValueId(2),false,&mut budget).unwrap();
+    assert!(std::rc::Rc::ptr_eq(&parent.type_cell,&child.type_cell));
+    assert!(context.reborrow_value(&parent,scope,ValueId(2),true,&mut budget).unwrap_err().message.contains("upgrades a shared address"));
     assert_eq!(child.life.binder_count,3);
     let a=child.life.retained[0].binder as usize;let c=child.life.retained[1].binder as usize;
     assert_eq!(child.origins[a],origin(0));assert_eq!(child.origins[c],origin(1));assert_ne!(a,c);

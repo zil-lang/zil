@@ -19,10 +19,27 @@ impl Pairs {
 }
 
 pub(crate) fn compare_type_cells(left: &TypeCell, right: &TypeCell, b: &mut Budget) -> Check<bool> {
+    // These physical atoms contain only a tag and at most one fixed-width
+    // kind or table identity. Every occurrence still owns its separate domain.
+    if !super::cacheable(&left.ty) && !super::cacheable(&right.ty) {
+        if b.limits.max_nodes == 0 {
+            return Err(crate::limit("dyn metadata node count exceeded"));
+        }
+        b.spend(2)?;
+        return Ok(left.ty == right.ty);
+    }
+    if std::mem::discriminant(&left.ty) != std::mem::discriminant(&right.ty) {
+        // Equality stops at the constructor. Both complete input bounds are
+        // still checked, including under a tighter profile or a fresh scope.
+        super::super::bounds_type(&left.ty, b)?;
+        super::super::bounds_type(&right.ty, b)?;
+        b.spend(1)?;
+        return Ok(false);
+    }
     let Some(state) = &b.structural else {
         return compare(left, right, b);
     };
-    if state.physical_pairs.limits != b.limits || !cacheable(&left.ty) && !cacheable(&right.ty) {
+    if state.physical_pairs.limits != b.limits {
         return compare(left, right, b);
     }
     let pair = (Rc::as_ptr(left) as usize, Rc::as_ptr(right) as usize);
@@ -87,6 +104,22 @@ mod tests {
         b.limits.max_nodes = 1;
         assert_eq!(
             compare_type_cells(&a, &same, &mut b).unwrap_err().category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        let closure = crate::semantic::CheckedTypeData::new(Type::Closure(ClosureId(0)));
+        assert_eq!(
+            compare_type_cells(&closure, &a, &mut b)
+                .unwrap_err()
+                .category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        let other_closure = crate::semantic::CheckedTypeData::new(Type::Closure(ClosureId(1)));
+        assert!(!compare_type_cells(&closure, &other_closure, &mut b).unwrap());
+        b.limits.max_nodes = 0;
+        assert_eq!(
+            compare_type_cells(&closure, &other_closure, &mut b)
+                .unwrap_err()
+                .category,
             zil_base::ResultCategory::ResourceLimit
         );
         b.limits = limits;

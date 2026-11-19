@@ -103,8 +103,14 @@ impl CheckedContext {
         let Type::Address{mutable:old_mutable,inner}=&parent.ty else{return Err(bad("actual reborrow operand is not a complete address"));};
         if mutable&&!*old_mutable{return Err(bad("actual reborrow upgrades a shared address"));}
         let mode=if mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
-        parent.charge_clone(b)?;dynamic_metadata::ty(inner,b)?;
-        let mut value=parent.clone();value.replace_type(Type::Address{mutable,inner:inner.clone()});
+        parent.charge_clone(b)?;
+        let mut value=parent.clone();
+        if mutable == *old_mutable {
+            dynamic_metadata::bounds_type(inner,b)?;
+        } else {
+            dynamic_metadata::ty(inner,b)?;
+            value.replace_type(Type::Address{mutable,inner:inner.clone()});
+        }
         let mut outer=value.life.slots.iter().enumerate().filter(|(_,slot)|slot.path.is_empty());
         let Some(index)=outer.next().map(|(i,_)|i)else{
             let mut statics=parent.statics.iter().filter(|row|matches!(row,StaticOccurrence::Direct{path,leaf,mode:StoredBorrowMode::SharedAddress}if path.is_empty()&&leaf==&parent.ty));
