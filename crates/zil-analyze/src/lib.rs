@@ -207,9 +207,17 @@ fn analyze_budgeted_context(
             });
             continue;
         }
-        let initialization = match reuse.as_deref_mut() {
-            Some(reuse) => reuse.initialize(f, budget)?,
-            None => initialize(f, budget)?,
+        // Original-site checks may already have solved this exact physical
+        // CFG in this request. Transfer that finished solution into the plan.
+        let completed = if module.semantic.is_some() {
+            take_initialization(f, budget)?
+        } else {
+            None
+        };
+        let initialization = match (completed, reuse.as_deref_mut()) {
+            (Some(result), _) => result,
+            (None, Some(reuse)) => reuse.initialize(f, budget)?,
+            (None, None) => initialize(f, budget)?,
         };
         let Initialization {
             blocks,
@@ -294,7 +302,9 @@ fn analyze_budgeted_context(
                     stored_flow::header(module, function, budget)?;
                 }
             }
-            stored_holds = Some(stored_flow::infer(module, &hold_graphs, budget)?);
+            stored_holds = Some(stored_flow::infer(
+                module, &hold_graphs, stored_flow::ResourcePass::Joint, budget,
+            )?);
         } else if task_frame_calls || !budget.semantic_cleanup_sites.is_empty() || !budget.semantic_capture_cleanups.is_empty()
             || !budget.semantic_consuming_operations.is_empty() || receiver_views
             || budget.scoped_foreign || !budget.replacement_functions.is_empty()
@@ -311,7 +321,9 @@ fn analyze_budgeted_context(
             for f in &module.functions {
                 stored_flow::header(module, f, budget)?;
             }
-            stored_holds = Some(stored_flow::infer(module, &hold_graphs, budget)?);
+            stored_holds = Some(stored_flow::infer(
+                module, &hold_graphs, stored_flow::ResourcePass::Joint, budget,
+            )?);
         } else if ordinary_required && !synchronous_callbacks {
             let members = composition::partition(module, budget)?;
             if !members.iter().any(|member| *member) || !members.iter().any(|member| !*member) {
@@ -330,7 +342,9 @@ fn analyze_budgeted_context(
                     stored_flow::header(module, function, budget)?;
                 }
             }
-            stored_holds = Some(stored_flow::infer(module, &hold_graphs, budget)?);
+            stored_holds = Some(stored_flow::infer(
+                module, &hold_graphs, stored_flow::ResourcePass::Joint, budget,
+            )?);
         } else {
             if !module.closures.is_empty() {
                 stored_callables::definitions(module, budget)?;
@@ -342,7 +356,9 @@ fn analyze_budgeted_context(
             for (f, package) in module.functions.iter().zip(&package_functions) {
                 scopes::check(module, f, *package, budget)?;
             }
-            let actual = stored_flow::infer(module, &hold_graphs, budget)?;
+            let actual = stored_flow::infer(
+                module, &hold_graphs, stored_flow::ResourcePass::StoredOnly, budget,
+            )?;
             for (function, holds) in plan.functions.iter_mut().zip(actual) {
                 function.holds = holds;
             }
@@ -704,6 +720,31 @@ fn shared_initialization(
         *entry = Some(std::sync::Arc::clone(&result));
     }
     Ok(result)
+}
+
+/// Move the complete immutable result when the semantic readers are done.
+/// A still-held query keeps its snapshot and the planner solves independently.
+fn take_initialization(
+    function: &TypedFunction,
+    budget: &mut Budget,
+) -> CompileResult<Option<Initialization>> {
+    let key = function as *const TypedFunction as usize;
+    let width = budget.initialization.as_ref().map_or(0, |cache| cache.functions.len());
+    budget.lookup(width, "completed initialization transfer")?;
+    let Some((id, row)) = budget.initialization.as_mut().and_then(|cache| cache.functions.get_mut(&key)) else {
+        return Ok(None);
+    };
+    if *id != function.id {
+        return Ok(None);
+    }
+    match row.take().map(std::sync::Arc::try_unwrap) {
+        Some(Ok(result)) => Ok(Some(result)),
+        Some(Err(shared)) => {
+            *row = Some(shared);
+            Ok(None)
+        }
+        None => Ok(None),
+    }
 }
 
 fn shared_definitions(
@@ -1177,6 +1218,24 @@ mod tests {
                 .values()
                 .all(|(_, result)| result.is_none())
         );
+    }
+
+    #[test]
+    fn finished_initialization_moves_only_from_its_own_function_after_last_reader() {
+        let m = module(true);
+        let other = module(true);
+        let f = &m.functions[0];
+        let mut budget = Budget::new(&Limits::default());
+        bind_initialization(&m, &mut budget).unwrap();
+        let held = shared_initialization(f, &mut budget).unwrap();
+        assert!(take_initialization(&other.functions[0], &mut budget).unwrap().is_none());
+        assert!(take_initialization(f, &mut budget).unwrap().is_none());
+        let blocks = held.blocks.as_ptr();
+        drop(held);
+        let planned = take_initialization(f, &mut budget).unwrap().unwrap();
+        assert_eq!(planned.blocks.as_ptr(), blocks);
+        assert_eq!(planned.blocks, initialize(f, &mut budget).unwrap().blocks);
+        assert!(take_initialization(f, &mut budget).unwrap().is_none());
     }
 
     #[test]

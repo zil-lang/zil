@@ -464,38 +464,9 @@ pub(super) fn retain_payload(parent: &Type, payload: &Type, b: &mut Budget) -> C
     if !std::ptr::eq(node(&owner, Node::Child(Child::Inner))?, payload) {
         return Err(fail("retained payload changes its exact parent Type"));
     }
-    if registered_type(payload, b)?.is_some() {
-        return Ok(());
-    }
-    let before = b.remaining();
-    crate::dyn_metadata::ty(payload, b)?;
-    let raw_work = before - b.remaining();
-    let (digest, id) = structural_type_candidate(payload, raw_work, b)?;
-    let type_id = match id {
-        Some(id) => id,
-        None => add_type(&owner, Node::Child(Child::Inner), digest, raw_work, b)?,
-    };
-    b.lookup(
-        b.geometry_types.len(),
-        "semantic geometry payload publication",
-    )?;
-    b.spend(1, "semantic geometry shared result")?;
-    let raw_limits = limits(b);
-    let module = b.geometry_module;
-    b.geometry_types.insert(
-        payload as *const Type as usize,
-        TypeEntry {
-            owner,
-            raw_work,
-            raw_limits,
-            module,
-            nominal: None,
-            type_id,
-            coordinate: Node::Child(Child::Inner),
-            input: None,
-        },
-    );
-    Ok(())
+    // Use the same parent-Type/ordered-child relation as field projection.
+    // The actual payload pointer above still has to belong to this owner.
+    retain_child(&owner, Child::Inner, b)
 }
 /// The authenticated coordinate supplies both the type identity and the
 /// structural comparison bound. On a miss, measure the complete type once.

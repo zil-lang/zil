@@ -822,7 +822,8 @@ impl<'a> Inventory<'a> {
                 current = self.definition(id, b)?.parent;
             }
         }
-        for instance in &program.instances {
+        let mut function_worlds = BTreeMap::new();
+        for (position, instance) in program.instances.iter().enumerate() {
             let definition = self.definition(instance.definition, b)?;
             Self::actuals(&instance.actuals, metadata_checked, b)?;
             if let Some(value) = &instance.self_type {
@@ -857,7 +858,8 @@ impl<'a> Inventory<'a> {
                     SemanticInstanceTarget::Function(target),
                     SemanticDefinitionBody::FunctionWithBody { .. },
                 ) => {
-                    self.function(target, b)?;
+                    let function = self.function(target, b)?;
+                    site_index::append(&mut function_worlds, function.id, position, b)?;
                 }
                 (
                     SemanticInstanceTarget::Scope,
@@ -886,11 +888,14 @@ impl<'a> Inventory<'a> {
         // Some is a complete original program claim. An empty side table
         // cannot bypass declaration obligations for a real executable entry.
         for function in self.functions.values() {
-            b.spend(program.instances.len().saturating_add(1), WORK)?;
-            let count = program.instances.iter().filter(|instance| matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id == function.id)).count();
-            if count == 0 {
+            b.lookup(function_worlds.len(), WORK)?;
+            if !function_worlds.contains_key(&function.id) {
                 return Err(fail("actual function has no complete original instance"));
             }
+        }
+        if self.owns_program(program, b)? {
+            b.lookup(self.function_worlds.borrow().len(), WORK)?;
+            self.function_worlds.borrow_mut().insert(program as *const _ as usize, function_worlds);
         }
         Ok(())
     }
@@ -898,9 +903,10 @@ impl<'a> Inventory<'a> {
         // The complete recipe visitor already bounded every Type at these
         // immutable coordinates. Class and actual occurrence checks still run.
         let metadata_checked = self.metadata_is_current(program, b);
-        let mut emitted = BTreeSet::new();
-        let mut consumed = BTreeSet::new();
-        for site in &program.sites {
+        // One original occurrence in one instance can identify only one
+        // emission. Keep its checked position for subsequent source queries.
+        let mut consumed = BTreeMap::new();
+        for (position, site) in program.sites.iter().enumerate() {
             let instance = self.instance(site.instance, b)?;
             let definition = self.definition(instance.definition, b)?;
             let (
@@ -912,8 +918,7 @@ impl<'a> Inventory<'a> {
             };
             let function = self.function(target, b)?;
             b.lookup(consumed.len(), WORK)?;
-            b.lookup(emitted.len(), WORK)?;
-            if !consumed.insert((site.instance, site.recipe)) {
+            if consumed.insert((site.instance, site.recipe), position).is_some() {
                 return Err(fail(
                     "one original semantic event is claimed by multiple actual emissions",
                 ));
@@ -928,15 +933,6 @@ impl<'a> Inventory<'a> {
             else {
                 return Err(fail("executable program retains a Core emission site"));
             };
-            if !emitted.insert((
-                site.instance,
-                site.recipe,
-                block.0,
-                instruction,
-                edge == SemanticSiteEdge::After,
-            )) {
-                return Err(fail("actual emission boundary has competing ghost actions"));
-            }
             b.spend(1, WORK)?;
             let block = match function.blocks.get(block.0 as usize).filter(|actual| actual.id == block) {
                 Some(actual) => actual,
@@ -1080,6 +1076,10 @@ impl<'a> Inventory<'a> {
                 }
                 _ => return Err(fail("emission action changes its original recipe kind")),
             }
+        }
+        if self.owns_program(program, b)? {
+            b.lookup(self.emitted_sites.borrow().len(), WORK)?;
+            self.emitted_sites.borrow_mut().insert(program as *const _ as usize, consumed);
         }
         Ok(())
     }

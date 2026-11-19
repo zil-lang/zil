@@ -9329,9 +9329,18 @@ fn derive_cfg(
     Ok(summaries)
 }
 
+/// Where all physical resource and cleanup obligations are checked. The joint
+/// path always runs the complete resource solver before publishing its plan.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum ResourcePass {
+    Joint,
+    StoredOnly,
+}
+
 pub(super) fn infer(
     module: &TypedModule,
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    resource_pass: ResourcePass,
     b: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
     b.stored_completed_functions = None;
@@ -9516,7 +9525,7 @@ pub(super) fn infer(
     // still has one actual consumption obligation. The stored dispatcher must
     // not bypass the independent SSA/local responsibility ledger.
     fee(b, module.closures.len())?;
-    if b.generic_mutex
+    let needs_resources = b.generic_mutex
         || b.composition_stored.is_empty()
             && module
                 .closures
@@ -9531,8 +9540,8 @@ pub(super) fn infer(
         || (b.qualified_package_returns || b.byte_queries || ordinary_observations)
             && b.composition_stored.is_empty()
             && !b.task_sources()
-            && !b.masked_stored_tasks()
-    {
+            && !b.masked_stored_tasks();
+    if resource_pass == ResourcePass::StoredOnly && needs_resources {
         super::resources::check_module(module, graphs, b)?;
     }
     let mut result = Vec::new();

@@ -905,6 +905,26 @@ mod tests {
     }
 
     #[test]
+    fn payload_identity_is_shared_only_after_checking_each_actual_parent() {
+        let mut budget = Budget::new(&zil_base::Limits::default());
+        let store = |element| Type::Managed(Box::new(Type::OwnedStore { element: Box::new(element) }));
+        let values = [Type::I64, Type::I64, Type::U64].map(|element|
+            Arc::new(Geometry::new(store(element), value::empty())));
+        let mut identities = Vec::new();
+        for owner in &values {
+            retain(owner, &mut budget).unwrap();
+            let Type::Managed(payload) = &owner.ty else { unreachable!() };
+            retain_payload(&owner.ty, payload, &mut budget).unwrap();
+            identities.push(registered_type(payload, &mut budget).unwrap().unwrap().0);
+        }
+        assert_eq!(identities[0], identities[1]);
+        assert_ne!(identities[0], identities[2]);
+        let Type::Managed(other) = &values[1].ty else { unreachable!() };
+        assert!(retain_payload(&values[0].ty, other, &mut budget).is_err());
+        assert_eq!(budget.geometry_child_types.len(), 2);
+    }
+
+    #[test]
     fn immutable_raw_bounds_do_not_cross_changed_request_limits() {
         let mut budget = Budget::new(&zil_base::Limits::default());
         let geometry = copy_geometry(
