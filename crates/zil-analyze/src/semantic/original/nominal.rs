@@ -754,6 +754,8 @@ impl Solver<'_, '_> {
 
     pub(super) fn member(
         &mut self,
+        owner: SemanticDefinitionId,
+        occurrence: NodeId,
         term: Term,
         name: &str,
         b: &mut Budget,
@@ -761,8 +763,16 @@ impl Solver<'_, '_> {
     ) -> CompileResult<Term> {
         self.step(depth, b)?;
         let root = self.type_root(term, b)?;
-        if matches!(self.state.arena[root], Kind::Address { .. }) {
+        if let Kind::Address { mutable, life: parent, .. } = self.state.arena[root] {
             let (_, selected) = self.field(term, name, b, depth + 1)?;
+            if mutable && let Kind::Address { mutable: true, inner, .. } =
+                self.state.arena[self.type_root(selected, b)?]
+            {
+                let ordinal = self.borrow_occurrence(owner, occurrence, b)?;
+                self.remember_view_upper(owner, ordinal, Some(parent), b)?;
+                let life = self.term(Kind::Life(Life::Implicit(owner, ordinal)), b)?;
+                return self.term(Kind::Address { mutable: true, life, inner }, b);
+            }
             Self::push(&mut self.needs, Need { term: selected, predicate: Predicate::Copy }, b)?;
             return Ok(selected);
         }

@@ -953,14 +953,23 @@ impl CheckedOriginal {
         active: &mut ActiveQueries,
         b: &mut Budget,
     ) -> Check<()> {
-        let Ty::Address { inner, .. } = self.resolved(actual, b)? else {
+        let Ty::Address { life: actual_head, inner, .. } = self.resolved(actual, b)? else {
             return Ok(());
         };
         let Ty::Address { life: head, .. } = self.resolved(expected, b)? else {
             return Ok(());
         };
+        // A nested borrow must cover the actual outer address window.
+        // The argument itself induces the callee head, which may still be
+        // open. Using a pointee class as a second argument would invent a
+        // different lifetime actual for a call through a qualified holder.
+        let window = match &head {
+            Life::Infer(id) if self.outer_inferences.contains_key(id)
+                && !matches!(actual_head, Life::Infer(_)) => &actual_head,
+            _ => &head,
+        };
         for source in self.physical_address_lives(module, context, &inner, active, b)? {
-            self.relate_outer(&source, &head, b)?;
+            self.relate_outer(&source, window, b)?;
         }
         Ok(())
     }

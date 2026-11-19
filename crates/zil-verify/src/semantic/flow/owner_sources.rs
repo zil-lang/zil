@@ -80,11 +80,9 @@ impl CheckedContext{
             let Some((node, ordinal)) = original.original_stored_member(caller.definition, site.recipe, b)? else { continue; };
             let (root, names) = original.address_place(module, caller.definition, node, b)?;
             let Type::Address { inner, .. } = &f.values[storage.0 as usize] else { return Err(bad("stored reborrow lacks its original addressed carrier")); };
-            if consume_reserved_fields(inner, path, &names, b)? != names.len() {
-                return Err(bad("stored reborrow omits an original field projection"));
-            }
-            let AddressRoot::Place(root) = root else { return Err(unsupported("stored reborrow requires its original lexical carrier", None)); };
-            self.projected_buffer_source(module, caller, f, storage, caller.definition, root, b)?;
+            let consumed = consume_reserved_fields(inner, path, &names, b)?;
+            self.original_projection_path(module, caller, f, storage, caller.definition,
+                root, &names[consumed..], PlaceUse::Address, b)?;
             return Ok(Some(ClassKey::Implicit { scope: ScopeKey::Instance(caller.id), ordinal }));
         }
         Ok(None)

@@ -329,6 +329,42 @@ impl Check<'_, '_> {
         Ok(ty)
     }
 
+    pub(super) fn stored_carrier_root<'a>(
+        &self, instance: &SemanticInstance, function: &'a TypedFunction, storage: ValueId,
+        expression: &SemanticOriginalExpr, b: &mut Budget,
+    ) -> CompileResult<(&'a Type, Vec<u32>)> {
+        let origin = self.projected_borrow_origin(function, storage, b, 0)?;
+        if origin.index.is_some() { return Err(unknown("stored reborrow needs its exact original indexed source")); }
+        let actual = match origin.root {
+            Root::Local(local, block, index, loaded) => {
+                let declaration = &function.locals.get(local.0 as usize).ok_or_else(|| fail("stored reborrow root local is absent"))?.ty;
+                if let Some(anchor) = self.original.place_read_anchor(instance.definition, expression.id, b)? {
+                    if self.anchored_local(instance, function, anchor, b)? != local {
+                        return Err(fail("stored reborrow selects another original carrier"));
+                    }
+                    let root = if loaded {
+                        let Type::Address { inner, .. } = declaration else { return Err(fail("stored reborrow carrier load is not an address")); };
+                        inner.as_ref()
+                    } else { declaration };
+                    return Ok((root, origin.path));
+                }
+                function.blocks[block.0 as usize].instructions[index].result
+                    .ok_or_else(|| fail("stored reborrow has no actual returned carrier value"))?
+            }
+            Root::Expression(actual) => actual,
+            _ => return Err(unknown("stored reborrow requires its complete original capture or slot origin")),
+        };
+        let expected = self.original_subject_value(instance, function, expression.id, b)?
+            .ok_or_else(|| fail("stored reborrow carrier lacks its exact original producer"))?;
+        if actual != expected && !self.operation_operand_matches(function, actual, expected, b)? {
+            return Err(fail("stored reborrow selects another original receiver producer"));
+        }
+        let Type::Address { inner, .. } = &function.values[actual.0 as usize] else {
+            return Err(fail("returned stored reborrow root is not an address"));
+        };
+        Ok((inner.as_ref(), origin.path))
+    }
+
     fn projected_borrow_origin(
         &self,
         function: &TypedFunction,

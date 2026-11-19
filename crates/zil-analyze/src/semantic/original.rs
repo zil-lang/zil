@@ -3041,7 +3041,7 @@ impl Solver<'_, '_> {
                         let owner = self.recipe(frame, owner, b, depth + 1)?;
                         self.unify(term, owner, depth + 1, b)?;
                     }
-                    self.member(term, member, b, depth + 1)?
+                    self.member(frame.definition, value.id, term, member, b, depth + 1)?
                 }
                 CoreExprKind::Closure {
                     parameters,

@@ -518,13 +518,29 @@ impl Check<'_, '_> {
                     fields: Vec::new(),
                 }))
             }
+            CoreExprKind::Call { .. } => {
+                self.pay(self.proof.types.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+                if let Some(ty) = self.proof.types.get(&(owner, Query::Expression(expression.id))) {
+                    let ty = copy_recipe(ty, self.limits, self.left)?;
+                    if matches!(self.observation_type(owner, &ty, depth + 1)?, SemanticTypeRecipe::Address { mutable: true, .. }) {
+                        return Ok(Some(calls::MethodReceiverPlace { owner,
+                            root: SemanticOriginalTypeSource::Expression(expression.id), fields: Vec::new() }));
+                    }
+                }
+                Ok(None)
+            }
             CoreExprKind::Member { object, member, .. } => {
                 let Some(mut root) =
                     self.method_receiver_place(owner, object, variables, depth + 1)?
                 else {
                     return Ok(None);
                 };
-                let base = self.place(owner, object, variables, depth + 1)?;
+                let base = if matches!(root.root, SemanticOriginalTypeSource::Expression(_)) {
+                    self.pay(self.proof.types.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+                    let ty = self.proof.types.get(&(owner, Query::Expression(object.id)))
+                        .ok_or_else(|| bad("returned receiver projection lacks its evaluated original parent"))?;
+                    copy_recipe(ty, self.limits, self.left)?
+                } else { self.place(owner, object, variables, depth + 1)? };
                 let mut base = self.observation_type(owner, &base, depth + 1)?;
                 loop {
                     self.pay(1, depth)?;
