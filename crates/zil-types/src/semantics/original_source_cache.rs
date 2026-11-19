@@ -168,8 +168,9 @@ impl Cache {
         if let Some(bucket) = rows.rows.get(&key) {
             fee(left, bucket.len())?;
             for (candidate, value) in bucket {
+                // The query was bounded before hashing. The retained
+                // candidate bounds this exact paired comparison.
                 candidate.snapshot(limits, left)?;
-                query.snapshot(limits, left)?;
                 if candidate == query {
                     fee(left, 2)?;
                     return Ok((key, Some(value.clone())));

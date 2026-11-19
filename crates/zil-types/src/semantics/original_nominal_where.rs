@@ -204,7 +204,6 @@ impl<'a> NominalWhere<'a> {
                             left,
                             1,
                         )?;
-                        crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, left, 1)?;
                         if previous.caller == *caller && &previous.recipe == recipe {
                             duplicate = true;
                             break;
@@ -272,7 +271,6 @@ impl<'a> NominalWhere<'a> {
             if let Some(bucket) = proved.get(&key) {
                 for previous in bucket {
                     crate::dyn_metadata::semantic_operand_snapshot(previous, limits, left, 1)?;
-                    crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, left, 1)?;
                     if previous == recipe {
                         return Ok(());
                     }

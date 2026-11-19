@@ -58,8 +58,18 @@ impl<Row> NominalIndex<Row> {
         {
             // A physical name selects a bucket only. Every successful
             // candidate still matches the complete Type and declaration.
-            Self::pay(left, name.len().saturating_add(1))?;
-            return Ok(zil_base::Fingerprint::of(name.as_bytes()));
+            let name = name.as_bytes();
+            if name.len() <= 16 {
+                Self::pay(left, name.len().saturating_add(1))?;
+                return Ok(zil_base::Fingerprint::of(name));
+            }
+            const EDGE_BYTES: usize = 8;
+            Self::pay(left, EDGE_BYTES * 3 + 1)?;
+            let mut key = zil_base::FingerprintBuilder::new();
+            key.update(&(name.len() as u64).to_le_bytes());
+            key.update(&name[..EDGE_BYTES]);
+            key.update(&name[name.len() - EDGE_BYTES..]);
+            return Ok(key.digest());
         }
         inference::charge_type_snapshot(ty, Span::default(), limits, left, 1)?;
         let mut digest = zil_base::FingerprintBuilder::new();
@@ -68,11 +78,11 @@ impl<Row> NominalIndex<Row> {
     }
 
     fn lookup_fee(&self) -> usize {
-        self.buckets
-            .len()
-            .saturating_add(1)
-            .ilog2()
-            .saturating_add(2) as usize * 12
+        let count = self.buckets.len();
+        let node_bound = count.saturating_add(1).ilog2() as usize + 2;
+        // A search can compare at most twelve keys per visited node, and
+        // never visits more keys than this directory actually contains.
+        count.min(node_bound.saturating_mul(12)).saturating_add(1)
     }
 
     fn pay(left: &mut usize, amount: usize) -> R<()> {

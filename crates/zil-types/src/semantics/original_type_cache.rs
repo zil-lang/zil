@@ -46,13 +46,14 @@ impl<T: Copy> Table<T> {
         if let Some(bucket) = self.buckets.get(&key) {
             fee(left, bucket.len())?;
             for (candidate, result) in bucket {
+                // The query is already bounded by digest(). Equality only
+                // visits paired fields, so one candidate walk pays the match.
                 crate::dyn_metadata::semantic_operand_snapshot(
                     candidate.as_ref(),
                     limits,
                     left,
                     1,
                 )?;
-                crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, left, 1)?;
                 if candidate.as_ref() == recipe {
                     return Ok((key, Some(*result)));
                 }

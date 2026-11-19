@@ -279,7 +279,7 @@ pub(super) fn seal(
             },
             implicit,
         )?;
-        world.pay(world.receiver_adaptations.len().saturating_add(1))?;
+        world.pay(append_work(&world.receiver_adaptations, 1))?;
         world.receiver_adaptations.push(Adaptation {
             caller: caller.id,
             site: site.recipe,
@@ -359,7 +359,7 @@ pub(super) fn seal(
             ));
         }
         let image = world.occurrence(function, operand)?;
-        world.pay(world.receiver_adaptations.len().saturating_add(1))?;
+        world.pay(append_work(&world.receiver_adaptations, 1))?;
         let source = roles::snapshot_source(&source, world.limits, world.left)?;
         crate::dyn_metadata::semantic_operand_snapshot(&image, world.limits, world.left, 1)?;
         world.receiver_adaptations.push(Adaptation {

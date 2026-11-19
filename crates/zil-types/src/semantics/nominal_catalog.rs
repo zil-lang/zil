@@ -78,7 +78,6 @@ impl<'a> Check<'a, '_> {
     }
     fn same(&mut self, a: &Type, b: &Type) -> R<()> {
         inference::charge_type_snapshot(a, Span::default(), self.limits, self.left, 1)?;
-        inference::charge_type_snapshot(b, Span::default(), self.limits, self.left, 1)?;
         if a != b {
             return Err(bad(
                 "actual nominal field changes its original instantiated whole type",
@@ -136,7 +135,6 @@ impl<'a> Check<'a, '_> {
         let mut found: Option<&LifeNominalInstance> = None;
         for &row in candidates {
             inference::charge_type_snapshot(&row.ty, Span::default(), self.limits, self.left, 1)?;
-            inference::charge_type_snapshot(ty, Span::default(), self.limits, self.left, 1)?;
             if &row.ty != ty {
                 continue;
             }
@@ -1062,13 +1060,6 @@ impl<'a> Check<'a, '_> {
                 LifeNominalActual::Type(expected),
             ) => {
                 inference::charge_type_snapshot(&ty, Span::default(), self.limits, self.left, 1)?;
-                inference::charge_type_snapshot(
-                    expected,
-                    Span::default(),
-                    self.limits,
-                    self.left,
-                    1,
-                )?;
                 if &ty != expected {
                     return Ok(false);
                 }
@@ -1102,13 +1093,6 @@ impl<'a> Check<'a, '_> {
                 },
             ) => {
                 inference::charge_type_snapshot(&ty, Span::default(), self.limits, self.left, 1)?;
-                inference::charge_type_snapshot(
-                    expected,
-                    Span::default(),
-                    self.limits,
-                    self.left,
-                    1,
-                )?;
                 self.shape_work(&life)?;
                 self.shape_work(expected_life)?;
                 if &ty != expected || &life != expected_life {
@@ -1228,13 +1212,6 @@ impl<'a> Check<'a, '_> {
                     };
                     inference::charge_type_snapshot(
                         ty,
-                        Span::default(),
-                        self.limits,
-                        self.left,
-                        1,
-                    )?;
-                    inference::charge_type_snapshot(
-                        &owner.ty,
                         Span::default(),
                         self.limits,
                         self.left,

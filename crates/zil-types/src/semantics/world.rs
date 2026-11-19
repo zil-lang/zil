@@ -84,6 +84,13 @@ fn empty() -> StorageLifeShape {
         nominal_arguments: Vec::new(),
     }
 }
+fn append_work<T>(values: &Vec<T>, added: usize) -> usize {
+    if added > values.capacity().saturating_sub(values.len()) {
+        values.len().saturating_add(added)
+    } else {
+        added
+    }
+}
 pub(super) struct World<'a, 'b> {
     pub(super) program: &'a SemanticModule,
     pub(super) module: &'a TypedModule,
@@ -238,10 +245,12 @@ impl<'a> World<'a, '_> {
             .ok_or_else(|| bad("world has no actual function"))
     }
     fn closure_definition(&mut self, id: ClosureId) -> R<&'a ClosureDefinition> {
-        self.pay(self.module.closures.len())?;
-        let mut rows = self.module.closures.iter().filter(|row| row.id == id);
-        let definition = rows.next().ok_or_else(|| bad("actual closure is absent"))?;
-        if rows.next().is_some() { return Err(bad("actual closure identity repeats")); }
+        self.pay(index::search(self.index.closures.len()).saturating_add(1))?;
+        let offsets = self.index.closures.get(&id).ok_or_else(|| bad("actual closure is absent"))?;
+        let [offset] = offsets.as_slice() else {
+            return Err(bad("actual closure identity repeats"));
+        };
+        let definition = &self.module.closures[*offset];
         if self.function(definition.function)?.environment != Some(id) {
             return Err(bad("actual closure definition changes its exact entry environment"));
         }
@@ -287,12 +296,14 @@ impl<'a> World<'a, '_> {
     }
     fn child_worlds(&mut self, id: ClosureId) -> R<(&'a ClosureDefinition, Vec<&'a SemanticInstance>)> {
         let definition = self.closure_definition(id)?;
-        self.pay(self.program.instances.len().saturating_mul(2))?;
+        self.pay(index::search(self.index.closure_children.len()))?;
+        let offsets = self.index.closure_children.get(&id).cloned()
+            .ok_or_else(|| bad("actual closure has no complete original child worlds"))?;
+        self.pay(offsets.len().saturating_mul(2))?;
         let mut children = Vec::new();
-        for row in &self.program.instances {
-            if row.target == SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(definition.function))
-                && matches!(&row.environment, Some(environment)
-                    if environment.closure == SemanticClosureTarget::Typed(id)) {
+        for &offset in offsets.iter() {
+            let row = &self.program.instances[offset];
+            if row.target == SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(definition.function)) {
                 let (_, child) = self.child_at(id, row.id)?;
                 children.push(child);
             }
@@ -2399,7 +2410,7 @@ impl<'p> World<'p, '_> {
                 self.value_role_sources.remove(&output), self.value_roots.remove(&output),
             )).unwrap_or((None, None));
             let count = self.argument_witnesses.len().saturating_sub(witness_base);
-            self.pay(witnesses.len().saturating_add(count))?;
+            self.pay(append_work(&witnesses, count).saturating_add(count))?;
             witnesses.extend(self.argument_witnesses.split_off(witness_base));
             let count = self.receiver_adaptations.len().saturating_sub(adaptation_base);
             self.pay(count)?;
@@ -2418,10 +2429,10 @@ impl<'p> World<'p, '_> {
         // Retain every world's independent audit receipt (including child.id).
         // The caller result and output facts are committed once, after all
         // mapped worlds satisfy the same complete actual boundary contract.
-        self.pay(self.argument_witnesses.len().saturating_add(witnesses.len()))?;
+        self.pay(append_work(&self.argument_witnesses, witnesses.len()))?;
         self.argument_witnesses.extend(witnesses);
         let adaptations = adaptations.ok_or_else(|| bad("callable omits its checked adaptation inventory"))?;
-        self.pay(self.receiver_adaptations.len().saturating_add(adaptations.len()))?;
+        self.pay(append_work(&self.receiver_adaptations, adaptations.len()))?;
         self.receiver_adaptations.extend(adaptations);
         if let Some(output) = output {
             let (role, roots) = facts.ok_or_else(|| bad("callable omits its checked output facts"))?;

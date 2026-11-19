@@ -55,6 +55,8 @@ pub(super) struct Index {
     pub type_contexts: BTreeMap<SemanticInstanceId, type_contexts::Context>,
     pub instances: BTreeMap<SemanticInstanceId, usize>,
     pub functions: BTreeMap<FunctionId, usize>,
+    pub closures: BTreeMap<ClosureId, Vec<usize>>,
+    pub closure_children: BTreeMap<ClosureId, Rc<Vec<usize>>>,
     pub frozen_definitions: BTreeMap<SemanticDefinitionId, usize>,
     pub frozen_instances: BTreeMap<SemanticInstanceId, usize>,
     pub points: BTreeMap<(SemanticInstanceId, BlockId), Rc<BlockPoints>>,
@@ -118,6 +120,13 @@ impl Index {
                 else {
                     continue;
                 };
+                if let Some(SemanticEnvironmentInstance {
+                    closure: SemanticClosureTarget::Typed(closure), ..
+                }) = &row.environment {
+                    pay(left, search(index.closure_children.len()).saturating_add(1))?;
+                    let offsets = index.closure_children.entry(*closure).or_default();
+                    Rc::get_mut(offsets).expect("closure directory is private while indexing").push(offset);
+                }
                 pay(left, search(requests.len()))?;
                 if let Some(request) = requests.get(&row.id) {
                     if request.2 == target {
@@ -134,6 +143,11 @@ impl Index {
             if index.functions.insert(row.id, offset).is_some() {
                 return Err(bad("actual world repeats a function identity"));
             }
+        }
+        pay(left, module.closures.len())?;
+        for (offset, row) in module.closures.iter().enumerate() {
+            pay(left, search(index.closures.len()).saturating_add(1))?;
+            index.closures.entry(row.id).or_default().push(offset);
         }
         for (offset, row) in program.sites.iter().enumerate() {
             if let SemanticSiteAction::DeclareLocal {
