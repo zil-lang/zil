@@ -2537,6 +2537,7 @@ impl<'a> Walk<'a, '_, '_> {
         let early = std::mem::replace(&mut self.early_cleanup, Cleanup::NONE);
         let early_body = std::mem::replace(&mut self.early_body_cleanup, Cleanup::NONE);
         let operands = self.enter_operand_frame();
+        let caller_cache = self.last_plain_call.take();
         let mut flow = self.block(child, &mut captured, body, depth + 1)?;
         flow.cleanup |= self.early_cleanup;
         flow.body_cleanup |= self.early_body_cleanup;
@@ -2558,6 +2559,7 @@ impl<'a> Walk<'a, '_, '_> {
         self.held_captures = held;
         self.early_cleanup = early;
         self.early_body_cleanup = early_body;
+        self.last_plain_call = caller_cache;
         self.leave_operand_frame(operands);
         let value = Value::Callable {
             definition: Some(child),

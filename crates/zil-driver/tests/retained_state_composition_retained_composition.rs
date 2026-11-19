@@ -301,6 +301,50 @@ fn uncalled_subenvironment_and_siblings_follow_capture_cleanup_order() {
     );
 }
 #[test]
+fn sibling_closures_evaluate_each_plain_helper_operand() {
+    run(
+        r#"extern "C" fn putchar(value:i32)->i32;
+fn plain(value:i32)->i32{return value}
+fn observe(value:i32)->i32{unsafe{putchar(value)}return value}
+fn main()->i32{
+ let a=65;let b=66;
+ let first=()=>plain(observe(a));
+ let second=()=>plain(observe(b));
+ let x=first();let y=second();
+ return x+y-131
+}
+"#,
+        "sibling-plain-effects",
+        "AB",
+    );
+}
+#[test]
+fn sibling_closures_poll_each_owned_task_to_completion() {
+    run(
+        r#"extern "C" fn putchar(value:i32)->i32;
+fn worker()->i32{task_yield();unsafe{putchar(84)}return 7}
+fn drive(give original:Task<i32>)->i32 {
+ var task=give original;var answer=0;
+ loop {match task_poll(&mut task){.ok(p)=>{match p{Poll.Pending()=>{continue;},Poll.Ready(value)=>{answer=value;break;}}},.err(_)=>{break;}}}
+ task_request_cancel(&mut task);
+ loop {match task_poll_close(&mut task){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}
+ task_finish_destroy(give task);return answer;
+}
+fn main()->TaskCreateError!i32 {
+ let first=task_create(worker)?;
+ let left=move()=>drive(give first);
+ let x=left();
+ let second=task_create(worker)?;
+ let right=move()=>drive(give second);
+ let y=right();
+ return x+y-14;
+}
+"#,
+        "sibling-async-input",
+        "TT",
+    );
+}
+#[test]
 fn nested_error_exit_cleans_inner_activation_then_recursive_environment() {
     let source = format!(
         "{DROP}enum E{{Fail}}fn fail()->E!i32{{return E.Fail}}fn make()->impl Fn()->E!i32{{let a=R{{code:65}};return move ()->E!i32=>{{let b=R{{code:66}};let n=a.code;return fail()?}}}}fn wrap()->impl Fn()->E!i32{{let f=make();return move ()->E!i32=>f()}}fn main()->E!i32{{let f=wrap();return f()?}}"

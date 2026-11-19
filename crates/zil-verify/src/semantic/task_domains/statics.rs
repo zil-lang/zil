@@ -32,8 +32,26 @@ pub(super) fn occurrence(module:&TypedModule,id:ClosureId,position:&StoragePosit
 /// The complete raw declaration tree supplies obligations only. In particular,
 /// this does not inspect a candidate's roots or turn a missing slot into Static.
 pub(super) fn pending(module:&TypedModule,root:&Type,b:&mut Budget)->Check<Vec<StaticOccurrence>>{
-    let mut work=vec![(root,0usize)];let mut out=Vec::new();
-    while let Some((ty,depth))=work.pop(){
+    enum Visit<'a> {
+        Node(&'a Type, usize),
+        Remaining { element: &'a Type, depth: usize, count: u32, before: usize },
+    }
+    use Visit::Node;
+    let mut work = vec![Node(root, 0)];
+    let mut out = Vec::new();
+    while let Some(step) = work.pop() {
+        let (ty, depth) = match step {
+            Node(ty, depth) => (ty, depth),
+            Visit::Remaining { element, depth, count, before } => {
+                // Each index has the same declaration. A checked element with
+                // no Static occurrence contributes no rows at later indices.
+                if out.len() != before {
+                    b.spend(count as usize)?;
+                    work.extend((0..count).map(|_| Node(element, depth)));
+                }
+                continue;
+            }
+        };
         b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("Task static occurrence tree exceeds selected depth"));}
         match ty{
             Type::Closure(id)=>{
@@ -42,12 +60,23 @@ pub(super) fn pending(module:&TypedModule,root:&Type,b:&mut Budget)->Check<Vec<S
                 // A nested opaque environment owns its own occurrence table;
                 // header selectors, not artificial physical fields, name it.
             },
-            Type::BorrowedStorage{storage:child,..}|Type::Address{inner:child,..}|Type::Desc(child)|Type::Managed(child)|Type::OwnedStore{element:child}|Type::Mutex{payload:child}|Type::Registration{environment:child}|Type::AsyncRegistration{environment:child}|Type::Opaque{hidden:child,..}=>work.push((child,depth+1)),
-            Type::Array{element,length}=>{if *length as usize>b.limits.max_nodes{return Err(limit("Task static array occurrence inventory exceeded"));}b.spend(*length as usize)?;work.extend((0..*length).map(|_|(element.as_ref(),depth+1)));},
-            Type::Tuple(fields)=>{b.spend(fields.len())?;work.extend(fields.iter().rev().map(|child|(child,depth+1)));},
-            Type::Record{fields,..}|Type::Package{fields,..}=>{b.spend(fields.len())?;work.extend(fields.iter().rev().map(|(_,child)|(child,depth+1)));},
-            Type::Enum{variants,..}=>{for(_,fields)in variants.iter().rev(){b.spend(fields.len())?;work.extend(fields.iter().rev().map(|child|(child,depth+1)));}},
-            Type::ErrorUnion{error,result}=>{work.push((result,depth+1));work.push((error,depth+1));},
+            Type::BorrowedStorage{storage:child,..}|Type::Address{inner:child,..}|Type::Desc(child)|Type::Managed(child)|Type::OwnedStore{element:child}|Type::Mutex{payload:child}|Type::Registration{environment:child}|Type::AsyncRegistration{environment:child}|Type::Opaque{hidden:child,..}=>work.push(Node(child,depth+1)),
+            Type::Array { element, length } => {
+                if *length as usize > b.limits.max_nodes {
+                    return Err(limit("Task static array occurrence inventory exceeded"));
+                }
+                if *length != 0 {
+                    b.spend(1)?;
+                    if *length > 1 {
+                        work.push(Visit::Remaining { element, depth: depth + 1, count: length - 1, before: out.len() });
+                    }
+                    work.push(Node(element, depth + 1));
+                }
+            }
+            Type::Tuple(fields)=>{b.spend(fields.len())?;work.extend(fields.iter().rev().map(|child|Node(child,depth+1)));},
+            Type::Record{fields,..}|Type::Package{fields,..}=>{b.spend(fields.len())?;work.extend(fields.iter().rev().map(|(_,child)|Node(child,depth+1)));},
+            Type::Enum{variants,..}=>{for(_,fields)in variants.iter().rev(){b.spend(fields.len())?;work.extend(fields.iter().rev().map(|child|Node(child,depth+1)));}},
+            Type::ErrorUnion{error,result}=>{work.push(Node(result,depth+1));work.push(Node(error,depth+1));},
             // An existing opaque carrier's result/phantom Type directory is
             // not an initialized child value in this input. Its actual stored
             // ports and whole class map retain their separate consumers.
