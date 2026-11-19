@@ -14,6 +14,7 @@ import tarfile
 
 ROOT = Path(__file__).resolve().parents[2]
 INPUTS = ROOT / 'validation/inputs/fixed-projects'
+WORK_PROFILES = json.loads((ROOT / 'validation/language-alpha-resource-profile.json').read_bytes())['profiles']
 
 
 def digest(data):
@@ -96,9 +97,16 @@ def verified(invocation, report):
             and report.get('verification_runs') == 1)
 
 
+def matches_work_profile(report, work_profile):
+    policy = WORK_PROFILES[work_profile]
+    return (report.get('work_profile') == work_profile
+            and report.get('work_profile_revision') == policy['revision']
+            and report.get('effective_limits') == policy['effective_limits'])
+
+
 def matches_native_build(report, backend, opt, work_profile):
     codegen = report.get('native_codegen') or {}
-    if (report.get('phase') != 'link' or report.get('work_profile') != work_profile
+    if (report.get('phase') != 'link' or not matches_work_profile(report, work_profile)
             or codegen.get('backend') != backend or 'fallback' not in codegen
             or codegen['fallback'] is not None):
         return False
@@ -129,7 +137,9 @@ def check_source(args, directory, source, expected=None, stem='check'):
             source_file = report.get('source_files', {}).get(str((first.get('span') or {}).get('file')))
             passed = (first.get('code') == expected['code'] and first.get('message') == expected['message']
                       and source_file is not None and Path(source_file).name == expected['file'])
-    return {'passed': passed, 'invocation': invocation, 'status': report.get('status'),
+    return {'passed': passed and matches_work_profile(report, args.work_profile),
+            'work_profile': report.get('work_profile'), 'work_profile_revision': report.get('work_profile_revision'),
+            'effective_limits': report.get('effective_limits'), 'invocation': invocation, 'status': report.get('status'),
             'phase': report.get('phase'), 'verification_runs': report.get('verification_runs'),
             'verification_usage': report.get('verification_usage'), 'diagnostics': diagnostics}
 
