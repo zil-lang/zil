@@ -1947,6 +1947,29 @@ impl<'a> Walk<'a, '_, '_> {
         &mut self,
         owner: usize,
         env: &mut Env<'a>,
+        mut expression: &'a SemanticOriginalExpr,
+        mut depth: usize,
+    ) -> R<Value<'a>> {
+        let outer_depth = depth;
+        while let CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. }
+            | CoreExprKind::Spread(inner) | CoreExprKind::TypeApply { callee: inner, .. }
+            | CoreExprKind::GenericApply { callee: inner, .. } = &expression.kind
+        {
+            self.budget.node(expression.span, depth)?;
+            expression = inner;
+            depth += 1;
+        }
+        let mut value = self.expr_core(owner, env, expression, depth)?;
+        while depth > outer_depth {
+            depth -= 1;
+            value = self.finish_expr(value, depth)?;
+        }
+        Ok(value)
+    }
+    fn expr_core(
+        &mut self,
+        owner: usize,
+        env: &mut Env<'a>,
         expression: &'a SemanticOriginalExpr,
         depth: usize,
     ) -> R<Value<'a>> {
@@ -1995,9 +2018,6 @@ impl<'a> Walk<'a, '_, '_> {
                     self.target(owner, env, expression, depth + 1)?
                         .map_or(Value::Unknown, Value::Function)
                 }
-            }
-            E::Group(value) | E::Ascribed { value, .. } | E::Spread(value) => {
-                self.expr(owner, env, value, depth + 1)?
             }
             E::Try(value) => {
                 let value = self.expr(owner, env, value, depth + 1)?;
@@ -2109,9 +2129,6 @@ impl<'a> Walk<'a, '_, '_> {
                 self.early_body_cleanup |= cleanup;
                 env.truncate(base);
                 value
-            }
-            E::TypeApply { callee, .. } | E::GenericApply { callee, .. } => {
-                self.expr(owner, env, callee, depth + 1)?
             }
             E::Literal(_)
             | E::Integer(_)

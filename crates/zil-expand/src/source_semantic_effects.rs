@@ -1182,7 +1182,12 @@ impl<'a> Scan<'a, '_, '_, '_> {
         Ok(self.application(owner, self.owner, Arguments::InferredTargets(index), None, span)?
             .map_or(target, |application| Target::AppliedDefinition { owner, application }))
     }
-    fn target(&mut self, expression: &'a SemanticOriginalExpr, depth: usize) -> R<Target> {
+    fn target(&mut self, mut expression: &'a SemanticOriginalExpr, mut depth: usize) -> R<Target> {
+        while let CoreExprKind::Group(inner) = &expression.kind {
+            self.budget.node(expression.span, depth)?;
+            expression = inner;
+            depth += 1;
+        }
         self.budget.node(expression.span, depth)?;
         match &expression.kind {
             CoreExprKind::If { then_value, else_value, .. } => {
@@ -2092,56 +2097,100 @@ impl<'a> Scan<'a, '_, '_, '_> {
         }
         Ok(())
     }
-    fn expression(&mut self, expression: &'a SemanticOriginalExpr, depth: usize) -> R<()> {
-        self.budget.node(expression.span, depth)?;
+    fn expression(&mut self, root: &'a SemanticOriginalExpr, depth: usize) -> R<()> {
+        use CoreExprKind as E;
+        enum Step<'e> {
+            Visit(&'e SemanticOriginalExpr),
+            List(&'e [SemanticOriginalExpr]),
+            Call(&'e SemanticOriginalExpr, &'e SemanticOriginalExpr, &'e [SemanticOriginalExpr]),
+        }
+        let mut pending = vec![(Step::Visit(root), depth)];
+        while let Some((step, depth)) = pending.pop() {
+            let expression = match step {
+                Step::Visit(expression) => expression,
+                Step::List(values) => {
+                    if let Some((value, rest)) = values.split_first() {
+                        pending.push((Step::List(rest), depth));
+                        pending.push((Step::Visit(value), depth));
+                    }
+                    continue;
+                }
+                Step::Call(expression, callee, arguments) => {
+                    self.call_effects(expression, callee, arguments, depth)?;
+                    continue;
+                }
+            };
+            self.budget.node(expression.span, depth)?;
+            match &expression.kind {
+                E::Call { callee, arguments } | E::CallDynSlot { callee, arguments, .. } => {
+                    pending.push((Step::Call(expression, callee, arguments), depth));
+                    pending.push((Step::List(arguments), depth + 1));
+                    pending.push((Step::Visit(callee), depth + 1));
+                }
+                E::MakeDynBorrow { source: value, .. } | E::MakeDynOwned { source: value, .. }
+                | E::Ascribed { value, .. } | E::NumericConvert { value, .. }
+                | E::IntegerConvert { value, .. } | E::Unary { operand: value, .. }
+                | E::Try(value) | E::Spread(value) | E::Group(value)
+                | E::TypeApply { callee: value, .. } | E::GenericApply { callee: value, .. }
+                | E::Member { object: value, .. } => pending.push((Step::Visit(value), depth + 1)),
+                E::Binary { left, right, .. } | E::Range { start: left, end: right }
+                | E::Index { object: left, index: right } => {
+                    pending.push((Step::Visit(right), depth + 1));
+                    pending.push((Step::Visit(left), depth + 1));
+                }
+                E::Tuple(values) | E::Array(values) => pending.push((Step::List(values), depth + 1)),
+                _ => self.expression_effects(expression, depth)?,
+            }
+        }
+        Ok(())
+    }
+
+    fn call_effects(&mut self, expression: &'a SemanticOriginalExpr, callee: &'a SemanticOriginalExpr,
+        arguments: &'a [SemanticOriginalExpr], depth: usize) -> R<()> {
+        use CoreExprKind as E;
+        self.budget
+            .identity_work(arguments.len(), expression.span)?;
+        let arity = (!arguments
+            .iter()
+            .any(|argument| matches!(argument.kind, E::Spread(_))))
+        .then_some(arguments.len());
+        let previous = self.call;
+        self.call = Some(expression.id);
+        let previous_collect = self.collect_targets;
+        let previous_targets = std::mem::take(&mut self.resolved_targets);
+        self.collect_targets = true;
+        self.invoke(callee, arity, depth + 1)?;
+        self.collect_targets = previous_collect;
+        let targets = std::mem::replace(&mut self.resolved_targets, previous_targets);
+        let mut head = callee;
+        while let E::Group(inner) | E::TypeApply { callee: inner, .. } | E::GenericApply { callee: inner, .. } = &head.kind { head = inner; }
+        let receiver = matches!(head.kind, E::Member { .. } | E::ReceiverMember(_));
+        for target in &targets {
+            self.forwarded_inputs(*target, arguments, receiver, expression.span, depth + 1)?;
+            if matches!(expression.kind, E::Call { .. }) && arity.is_some() {
+                self.contextual_arguments(*target, arguments, depth + 1, expression.span)?;
+            }
+        }
+        self.budget.drop_lineage_vec(targets, expression.span)?;
+        // A worker invocation is an actual call of the original worker
+        // prototype, at this builtin call's real occurrence.
+        if let Some(worker) = arguments.first() {
+            let mut builtin = callee;
+            while let E::Group(inner) | E::TypeApply { callee: inner, .. } | E::GenericApply { callee: inner, .. } = &builtin.kind { builtin = inner; }
+            if matches!(&builtin.kind, E::Name(name) if matches!(name.as_str(), "thread_scope" | "task_create" | "task_create_owned" | "task_await"))
+                && matches!(self.target(callee, depth + 1)?, Target::Kind(_)) {
+                let target = self.target(worker, depth + 1)?;
+                self.observe_target(expression.id, target, expression.span)?;
+                self.forwarded_inputs(target, &arguments[1..], false, expression.span, depth + 1)?;
+            }
+        }
+        self.call = previous;
+        Ok(())
+    }
+
+    fn expression_effects(&mut self, expression: &'a SemanticOriginalExpr, depth: usize) -> R<()> {
         use CoreExprKind as E;
         match &expression.kind {
-            E::Call { callee, arguments }
-            | E::CallDynSlot {
-                callee, arguments, ..
-            } => {
-                self.expression(callee, depth + 1)?;
-                for argument in arguments {
-                    self.expression(argument, depth + 1)?
-                }
-                self.budget
-                    .identity_work(arguments.len(), expression.span)?;
-                let arity = (!arguments
-                    .iter()
-                    .any(|argument| matches!(argument.kind, E::Spread(_))))
-                .then_some(arguments.len());
-                let previous = self.call;
-                self.call = Some(expression.id);
-                let previous_collect = self.collect_targets;
-                let previous_targets = std::mem::take(&mut self.resolved_targets);
-                self.collect_targets = true;
-                self.invoke(callee, arity, depth + 1)?;
-                self.collect_targets = previous_collect;
-                let targets = std::mem::replace(&mut self.resolved_targets, previous_targets);
-                let mut head = callee.as_ref();
-                while let E::Group(inner) | E::TypeApply { callee: inner, .. } | E::GenericApply { callee: inner, .. } = &head.kind { head = inner; }
-                let receiver = matches!(head.kind, E::Member { .. } | E::ReceiverMember(_));
-                for target in &targets {
-                    self.forwarded_inputs(*target, arguments, receiver, expression.span, depth + 1)?;
-                    if matches!(expression.kind, E::Call { .. }) && arity.is_some() {
-                        self.contextual_arguments(*target, arguments, depth + 1, expression.span)?;
-                    }
-                }
-                self.budget.drop_lineage_vec(targets, expression.span)?;
-                // A worker invocation is an actual call of the original worker
-                // prototype, at this builtin call's real occurrence.
-                if let Some(worker) = arguments.first() {
-                    let mut builtin = callee.as_ref();
-                    while let E::Group(inner) | E::TypeApply { callee: inner, .. } | E::GenericApply { callee: inner, .. } = &builtin.kind { builtin = inner; }
-                    if matches!(&builtin.kind, E::Name(name) if matches!(name.as_str(), "thread_scope" | "task_create" | "task_create_owned" | "task_await"))
-                        && matches!(self.target(callee, depth + 1)?, Target::Kind(_)) {
-                        let target = self.target(worker, depth + 1)?;
-                        self.observe_target(expression.id, target, expression.span)?;
-                        self.forwarded_inputs(target, &arguments[1..], false, expression.span, depth + 1)?;
-                    }
-                }
-                self.call = previous;
-            }
             E::Pipeline { input, target } => {
                 self.expression(input, depth + 1)?;
                 self.expression(target, depth + 1)?;
@@ -2151,42 +2200,17 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 self.forwarded_inputs(called, arguments, false, expression.span, depth + 1)?;
                 self.contextual_arguments(called, arguments, depth + 1, expression.span)?;
             }
-            E::MakeDynBorrow { source: value, .. }
-            | E::MakeDynOwned { source: value, .. }
-            | E::Ascribed { value, .. }
-            | E::NumericConvert { value, .. }
-            | E::IntegerConvert { value, .. }
-            | E::Unary { operand: value, .. }
-            | E::Try(value)
-            | E::Spread(value)
-            | E::Group(value) => self.expression(value, depth + 1)?,
-            E::Binary { left, right, .. }
-            | E::Range {
-                start: left,
-                end: right,
-            }
-            | E::Index {
-                object: left,
-                index: right,
-            } => {
-                self.expression(left, depth + 1)?;
-                self.expression(right, depth + 1)?;
-            }
-            E::TypeApply { callee, .. } | E::GenericApply { callee, .. } => {
-                self.expression(callee, depth + 1)?
-            }
-            E::Tuple(values) | E::Array(values) => {
-                for value in values {
-                    self.expression(value, depth + 1)?
-                }
-            }
+            E::Call { .. } | E::CallDynSlot { .. } | E::MakeDynBorrow { .. } | E::MakeDynOwned { .. }
+            | E::Ascribed { .. } | E::NumericConvert { .. } | E::IntegerConvert { .. }
+            | E::Unary { .. } | E::Try(_) | E::Spread(_) | E::Group(_) | E::Binary { .. }
+            | E::Range { .. } | E::Index { .. } | E::TypeApply { .. } | E::GenericApply { .. }
+            | E::Tuple(_) | E::Array(_) | E::Member { .. } => unreachable!("scheduled expression"),
             E::Slice { object, start, end } => {
                 self.expression(object, depth + 1)?;
                 for value in [start, end].into_iter().flatten() {
                     self.expression(value, depth + 1)?
                 }
             }
-            E::Member { object, .. } => self.expression(object, depth + 1)?,
             E::Record { fields, .. } | E::RecordConstructor { fields, .. } => {
                 for (_, value) in fields {
                     self.expression(value, depth + 1)?

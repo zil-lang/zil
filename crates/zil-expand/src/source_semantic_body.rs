@@ -5,6 +5,8 @@ use super::*;
 use zil_base::NodeId;
 #[path = "source_semantic_free_uses.rs"]
 mod free_uses;
+#[path = "source_semantic_expr_tree.rs"]
+mod expression_tree;
 
 pub(super) enum OriginalBodyNodeKind {
     Expression,
@@ -1104,42 +1106,6 @@ impl Builder<'_, '_, '_, '_> {
             arguments: result,
         })
     }
-    fn body_call(
-        &mut self,
-        callee: &s::Expr,
-        arguments: &[s::Argument],
-        span: Span,
-        mint: &mut Mint,
-        path: &mut Vec<u32>,
-        depth: usize,
-    ) -> R<SemanticOriginalExprKind> {
-        let callee = self.body_child_expr(callee, 0, mint, path, depth + 1)?;
-        let mut result = Vec::new();
-        for (index, argument) in arguments.iter().enumerate() {
-            let spread_id = if argument.spread {
-                Some(self.body_generated_id(mint, argument.span, depth + 1)?)
-            } else {
-                None
-            };
-            let value = self.body_child_expr(&argument.value, index + 1, mint, path, depth + 1)?;
-            let value = if let Some(spread_id) = spread_id {
-                // This node is source Call syntax, not a second
-                // evaluation of its actual argument expression.
-                CoreExpr {
-                    id: spread_id,
-                    kind: CoreExprKind::Spread(self.body_box(value, span)?),
-                    span: argument.span,
-                }
-            } else {
-                value
-            };
-            self.push(&mut result, value, span)?;
-        }
-        Ok(CoreExprKind::Call {
-            callee: self.body_box(callee, span)?,
-            arguments: result,
-        })
-    }
     fn body_record(
         &mut self,
         ty: Option<&s::Expr>,
@@ -1242,7 +1208,7 @@ impl Builder<'_, '_, '_, '_> {
         };
         Ok(CoreExpr { id, kind, span })
     }
-    fn body_expr(
+    fn body_expr_other(
         &mut self,
         value: &s::Expr,
         mint: &mut Mint,
@@ -1250,28 +1216,6 @@ impl Builder<'_, '_, '_, '_> {
         depth: usize,
     ) -> R<SemanticOriginalExpr> {
         let span = value.span;
-        if let s::ExprKind::Call { callee, arguments } = &value.kind
-            && let Some(literal) = crate::foreign::literal_constructor(callee, arguments, span)
-        {
-            let literal = literal?;
-            if let Constant::WideString(units) = &literal {
-                self.budget.identity_work(units.len(), span)?;
-                self.budget
-                    .lineage_bytes(std::mem::size_of_val(units.as_slice()), span)?;
-            }
-            let id = self.body_id(
-                mint,
-                path,
-                OriginalBodyNodeKind::ForeignLiteral,
-                span,
-                depth,
-            )?;
-            return Ok(CoreExpr {
-                id,
-                kind: CoreExprKind::Literal(literal),
-                span,
-            });
-        }
         let id = self.body_id(mint, path, OriginalBodyNodeKind::Expression, span, depth)?;
         let kind = match &value.kind {
             s::ExprKind::Literal(s::Literal::Integer(text)) => {
@@ -1287,10 +1231,7 @@ impl Builder<'_, '_, '_, '_> {
             s::ExprKind::Literal(s::Literal::Char(text)) => {
                 CoreExprKind::Character(self.text(text, span)?)
             }
-            s::ExprKind::Group(inner) => {
-                let inner = self.body_child_expr(inner, 0, mint, path, depth + 1)?;
-                CoreExprKind::Group(self.body_box(inner, span)?)
-            }
+            s::ExprKind::Group(_) | s::ExprKind::Binary { .. } | s::ExprKind::Call { .. } => unreachable!("handled by the expression traversal"),
             s::ExprKind::Pipeline { input, target } => {
                 return self.body_pipeline(input, target, id, span, mint, path, depth);
             }
@@ -1367,30 +1308,8 @@ impl Builder<'_, '_, '_, '_> {
                     operand: self.body_box(operand, span)?,
                 }
             }
-            s::ExprKind::Binary { op, left, right } => {
-                let left = self.body_child_expr(left, 0, mint, path, depth + 1)?;
-                let right = self.body_child_expr(right, 1, mint, path, depth + 1)?;
-                if *op == s::BinaryOp::Range {
-                    CoreExprKind::Range {
-                        start: self.body_box(left, span)?,
-                        end: self.body_box(right, span)?,
-                    }
-                } else {
-                    let op = crate::binary(*op).ok_or_else(|| {
-                        error(span, "ordinary binary operation has no exact Core operator")
-                    })?;
-                    CoreExprKind::Binary {
-                        op,
-                        left: self.body_box(left, span)?,
-                        right: self.body_box(right, span)?,
-                    }
-                }
-            }
             s::ExprKind::TypeApply { callee, arguments } => {
                 self.body_generic_apply(callee, arguments, span, mint, path, depth)?
-            }
-            s::ExprKind::Call { callee, arguments } => {
-                self.body_call(callee, arguments, span, mint, path, depth)?
             }
             s::ExprKind::Member { object, member } => {
                 let object = self.body_child_expr(object, 0, mint, path, depth + 1)?;

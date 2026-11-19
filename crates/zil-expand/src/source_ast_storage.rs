@@ -461,43 +461,111 @@ impl Retained for s::PatternKind {
 }
 impl Retained for s::ExprKind {
     fn retained(&self, cost: &mut Cost<'_, '_>) -> R<()> {
-        cost.step()?;
-        match self {
-            Self::Literal(v) => v.retained(cost),
-            Self::Name(v) | Self::ReceiverMember(v) => v.retained(cost),
-            Self::Group(v) | Self::Try(v) | Self::MetaEval(v) | Self::MetaSplice(v) => {
-                v.retained(cost)
-            }
-            Self::Ascribed { ty, value } => fields!(cost;ty,value),
-            Self::Tuple(v) | Self::Array(v) => v.retained(cost),
-            Self::Unary { op: _, operand } => operand.retained(cost),
-            Self::Binary { op: _, left, right } => fields!(cost;left,right),
-            Self::Pipeline { input, target } => fields!(cost;input,target),
-            Self::Member { object, member } => fields!(cost;object,member),
-            Self::TypeApply { callee, arguments } => fields!(cost;callee,arguments),
-            Self::Call { callee, arguments } => fields!(cost;callee,arguments),
-            Self::Index { object, index } => fields!(cost;object,index),
-            Self::Slice { object, start, end } => fields!(cost;object,start,end),
-            Self::Record { ty, base, fields } => fields!(cost;ty,base,fields),
-            Self::Closure {
-                context: _,
-                move_capture: _,
-                params,
-                return_type,
-                body,
-            } => fields!(cost;params,return_type,body),
-            Self::If {
-                condition,
-                then_value,
-                else_value,
-            } => fields!(cost;condition,then_value,else_value),
-            Self::Quote {
-                category: _,
-                template,
-            } => template.retained(cost),
-            Self::MetaBlock(v) => v.retained(cost),
-            Self::SyntaxIsland { path, tree } => fields!(cost;path,tree),
+        enum Child<'a> {
+            Kind(&'a s::ExprKind),
+            Boxed(&'a s::Expr),
+            Arguments(&'a [s::Argument]),
+            Remaining(&'a [s::Argument]),
         }
+        let mut pending = vec![Child::Kind(self)];
+        while let Some(child) = pending.pop() {
+            match child {
+                Child::Boxed(expr) => {
+                    cost.bytes(size_of::<s::Expr>())?;
+                    cost.step()?; // inline Expr record
+                    let s::Expr {
+                        kind,
+                        semantic: _,
+                        span: _,
+                    } = expr;
+                    pending.push(Child::Kind(kind));
+                }
+                Child::Arguments(args) => {
+                    let bytes = args
+                        .len()
+                        .checked_mul(size_of::<s::Argument>())
+                        .ok_or_else(|| bad(cost.span, "original AST vector storage overflow"))?;
+                    cost.bytes(bytes)?;
+                    pending.push(Child::Remaining(args));
+                }
+                Child::Remaining(args) => {
+                    if let Some((arg, rest)) = args.split_first() {
+                        cost.step()?; // Argument
+                        cost.step()?; // inline Expr
+                        pending.push(Child::Remaining(rest));
+                        let s::Argument {
+                            spread: _,
+                            value,
+                            span: _,
+                        } = arg;
+                        let s::Expr {
+                            kind,
+                            semantic: _,
+                            span: _,
+                        } = value;
+                        pending.push(Child::Kind(kind));
+                    }
+                }
+                Child::Kind(kind) => {
+                    cost.step()?;
+                    match kind {
+                        Self::Group(inner)
+                        | Self::Try(inner)
+                        | Self::MetaEval(inner)
+                        | Self::MetaSplice(inner)
+                        | Self::Unary { operand: inner, .. } => {
+                            pending.push(Child::Boxed(inner));
+                            continue;
+                        }
+                        Self::Binary { left, right, .. }
+                        | Self::Pipeline {
+                            input: left,
+                            target: right,
+                        }
+                        | Self::Index {
+                            object: left,
+                            index: right,
+                        } => {
+                            pending.push(Child::Boxed(right));
+                            pending.push(Child::Boxed(left));
+                            continue;
+                        }
+                        Self::Call { callee, arguments } => {
+                            pending.push(Child::Arguments(arguments));
+                            pending.push(Child::Boxed(callee));
+                            continue;
+                        }
+                        Self::Literal(v) => v.retained(cost),
+                        Self::Name(v) | Self::ReceiverMember(v) => v.retained(cost),
+                        Self::Ascribed { ty, value } => fields!(cost;ty,value),
+                        Self::Tuple(v) | Self::Array(v) => v.retained(cost),
+                        Self::Member { object, member } => fields!(cost;object,member),
+                        Self::TypeApply { callee, arguments } => fields!(cost;callee,arguments),
+                        Self::Slice { object, start, end } => fields!(cost;object,start,end),
+                        Self::Record { ty, base, fields } => fields!(cost;ty,base,fields),
+                        Self::Closure {
+                            context: _,
+                            move_capture: _,
+                            params,
+                            return_type,
+                            body,
+                        } => fields!(cost;params,return_type,body),
+                        Self::If {
+                            condition,
+                            then_value,
+                            else_value,
+                        } => fields!(cost;condition,then_value,else_value),
+                        Self::Quote {
+                            category: _,
+                            template,
+                        } => template.retained(cost),
+                        Self::MetaBlock(v) => v.retained(cost),
+                        Self::SyntaxIsland { path, tree } => fields!(cost;path,tree),
+                    }?;
+                }
+            }
+        }
+        Ok(())
     }
 }
 impl Retained for s::Literal {

@@ -200,6 +200,12 @@ impl Parser<'_> {
         Ok(())
     }
     fn nested<T>(&mut self, f: impl FnOnce(&mut Self) -> P<T>) -> P<T> {
+        self.enter_nested()?;
+        let result = f(self);
+        self.depth -= 1;
+        result
+    }
+    fn enter_nested(&mut self) -> P<()> {
         if self.depth >= self.limits.max_call_depth || self.nodes >= self.limits.max_nodes {
             let span = self.peek().span;
             self.diagnostics.push(Diagnostic::limit(
@@ -211,9 +217,7 @@ impl Parser<'_> {
         }
         self.depth += 1;
         self.nodes += 1;
-        let result = f(self);
-        self.depth -= 1;
-        result
+        Ok(())
     }
     fn end(&mut self) -> P<()> {
         let kind = self.peek().kind;

@@ -140,7 +140,10 @@ impl Parser<'_> {
         self.nested(|p| p.pratt_inner(min, record))
     }
     fn pratt_inner(&mut self, min: u8, record: bool) -> P<Expr> {
-        let mut left = self.prefix(record)?;
+        let left = self.prefix(record)?;
+        self.pratt_tail(left, min, record)
+    }
+    fn pratt_tail(&mut self, mut left: Expr, min: u8, record: bool) -> P<Expr> {
         let mut chain_depth = 0usize;
         loop {
             let token = self.peek();
@@ -276,26 +279,7 @@ impl Parser<'_> {
             return Ok(self.quote_dummy(self.span_from(start)));
         }
         let kind = if self.eat(Symbol::LParen) {
-            self.scoped(true, |p| {
-                if p.eat(Symbol::RParen) {
-                    return Ok(ExprKind::Tuple(Vec::new()));
-                }
-                let first = p.expr(true)?;
-                if p.eat(Symbol::Comma) {
-                    let mut elements = vec![first];
-                    while !p.at(Symbol::RParen) {
-                        elements.push(p.expr(true)?);
-                        if !p.eat(Symbol::Comma) {
-                            break;
-                        }
-                    }
-                    p.expect(Symbol::RParen)?;
-                    Ok(ExprKind::Tuple(elements))
-                } else {
-                    p.expect(Symbol::RParen)?;
-                    Ok(ExprKind::Group(Box::new(first)))
-                }
-            })?
+            return self.parenthesized(start);
         } else if self.eat(Symbol::LBracket) {
             let values = self.scoped(true, |p| {
                 let mut values = Vec::new();
@@ -379,6 +363,45 @@ impl Parser<'_> {
             kind,
             span: self.span_from(start),
         })
+    }
+    fn parenthesized(&mut self, start: Span) -> P<Expr> {
+        let saved_depth = self.depth;
+        let saved_const = std::mem::replace(&mut self.type_const_expression, false);
+        let result = self.scoped(true, |p| {
+            let mut openings = vec![start];
+            // Each nested ordinary expression still enters its expr and Pratt
+            // nodes. Its postfix/infix continuation resumes after the group.
+            while p.at(Symbol::LParen) && !p.closure_ahead() {
+                p.enter_nested()?;
+                p.enter_nested()?;
+                openings.push(p.bump().span);
+            }
+            let mut first = if p.at(Symbol::RParen) { None } else { Some(p.expr(true)?) };
+            loop {
+                let kind = match first.take() {
+                    None => ExprKind::Tuple(Vec::new()),
+                    Some(value) if p.eat(Symbol::Comma) => {
+                        let mut elements = vec![value];
+                        while !p.at(Symbol::RParen) {
+                            elements.push(p.expr(true)?);
+                            if !p.eat(Symbol::Comma) { break; }
+                        }
+                        ExprKind::Tuple(elements)
+                    }
+                    Some(value) => ExprKind::Group(Box::new(value)),
+                };
+                p.expect(Symbol::RParen)?;
+                let start = openings.pop().expect("current parenthesis");
+                let value = Expr { semantic: Default::default(), kind, span: p.span_from(start) };
+                if openings.is_empty() { return Ok(value); }
+                let value = p.postfix(value, true)?;
+                first = Some(p.pratt_tail(value, 0, true)?);
+                p.depth -= 2;
+            }
+        });
+        self.depth = saved_depth;
+        self.type_const_expression = saved_const;
+        result
     }
     fn postfix(&mut self, mut object: Expr, record: bool) -> P<Expr> {
         let mut chain_depth = 0usize;

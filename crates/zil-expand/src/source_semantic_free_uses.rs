@@ -477,7 +477,34 @@ impl Builder<'_, '_, '_, '_> {
         free: &mut Free<'_>,
         depth: usize,
     ) -> R<()> {
-        self.budget.node(value.span, depth)?;
+        use CoreExprKind as E;
+        let mut pending = vec![(value, depth)];
+        while let Some((value, depth)) = pending.pop() {
+            self.budget.node(value.span, depth)?;
+            match &value.kind {
+                E::MakeDynBorrow { source: inner, .. } | E::MakeDynOwned { source: inner, .. }
+                | E::Ascribed { value: inner, .. } | E::NumericConvert { value: inner, .. }
+                | E::IntegerConvert { value: inner, .. } | E::Unary { operand: inner, .. }
+                | E::Group(inner) | E::Spread(inner) | E::Try(inner)
+                | E::TypeApply { callee: inner, .. } | E::Member { object: inner, .. } => {
+                    pending.push((inner, depth + 1));
+                }
+                E::Binary { left, right, .. } | E::Range { start: left, end: right }
+                | E::Pipeline { input: left, target: right } | E::Index { object: left, index: right } => {
+                    pending.push((right, depth + 1));
+                    pending.push((left, depth + 1));
+                }
+                _ => self.free_expr_scope(value, free, depth)?,
+            }
+        }
+        Ok(())
+    }
+    fn free_expr_scope(
+        &mut self,
+        value: &SemanticOriginalExpr,
+        free: &mut Free<'_>,
+        depth: usize,
+    ) -> R<()> {
         match &value.kind {
             CoreExprKind::Name(name) => self.free_name(name, value.id, free, value.span)?,
             CoreExprKind::ReceiverMember(_) => {
@@ -486,30 +513,13 @@ impl Builder<'_, '_, '_, '_> {
                     "implicit receiver capture requires its actual separate original head node",
                 ));
             }
-            CoreExprKind::MakeDynBorrow { source, .. }
-            | CoreExprKind::MakeDynOwned { source, .. } => {
-                self.free_expr(source, free, depth + 1)?
-            }
-            CoreExprKind::Ascribed { value, .. }
-            | CoreExprKind::NumericConvert { value, .. }
-            | CoreExprKind::IntegerConvert { value, .. }
-            | CoreExprKind::Unary { operand: value, .. }
-            | CoreExprKind::Group(value)
-            | CoreExprKind::Spread(value)
-            | CoreExprKind::Try(value) => self.free_expr(value, free, depth + 1)?,
-            CoreExprKind::Binary { left, right, .. }
-            | CoreExprKind::Pipeline {
-                input: left,
-                target: right,
-            }
-            | CoreExprKind::Range {
-                start: left,
-                end: right,
-            } => {
-                self.free_expr(left, free, depth + 1)?;
-                self.free_expr(right, free, depth + 1)?;
-            }
-            CoreExprKind::TypeApply { callee, .. } => self.free_expr(callee, free, depth + 1)?,
+            CoreExprKind::MakeDynBorrow { .. } | CoreExprKind::MakeDynOwned { .. }
+            | CoreExprKind::Ascribed { .. } | CoreExprKind::NumericConvert { .. }
+            | CoreExprKind::IntegerConvert { .. } | CoreExprKind::Unary { .. }
+            | CoreExprKind::Group(_) | CoreExprKind::Spread(_) | CoreExprKind::Try(_)
+            | CoreExprKind::TypeApply { .. } | CoreExprKind::Member { .. } | CoreExprKind::Binary { .. }
+            | CoreExprKind::Range { .. } | CoreExprKind::Pipeline { .. } | CoreExprKind::Index { .. } =>
+                unreachable!("handled by the free-name operand traversal"),
             CoreExprKind::GenericApply { callee, arguments } => {
                 self.free_expr(callee, free, depth + 1)?;
                 if free.typing_stages {
@@ -534,17 +544,12 @@ impl Builder<'_, '_, '_, '_> {
                     self.free_expr(value, free, depth + 1)?;
                 }
             }
-            CoreExprKind::Index { object, index } => {
-                self.free_expr(object, free, depth + 1)?;
-                self.free_expr(index, free, depth + 1)?;
-            }
             CoreExprKind::Slice { object, start, end } => {
                 self.free_expr(object, free, depth + 1)?;
                 for value in [start, end].into_iter().flatten() {
                     self.free_expr(value, free, depth + 1)?;
                 }
             }
-            CoreExprKind::Member { object, .. } => self.free_expr(object, free, depth + 1)?,
             CoreExprKind::Record { fields, .. }
             | CoreExprKind::RecordConstructor { fields, .. } => {
                 for (_, value) in fields {
