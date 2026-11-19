@@ -562,3 +562,97 @@ fn scalar_call_observes_the_selected_managed_field_of_a_captured_package() {
     require_semantic_rejection(zil_verify::verify_module(module, plan, &target, &limits).unwrap_err());
     require_semantic_rejection(zil_verify::verify_module_bytes(&changed, &target, &limits).unwrap_err());
 }
+
+#[test]
+fn shared_pipeline_reborrows_the_selected_original_input() {
+    let limits = Limits {
+        max_analysis_steps: 10_000_000,
+        ..Limits::default()
+    };
+    let target = TargetProfile::host_llvm();
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "pipeline-shared-address.zil",
+        r#"
+        fn read<life a>(x:&'a i32)->i32{return *x}
+        fn pipe<life a>(x:&'a mut i32,y:&'a mut i32)->i32{
+            let observed=x |> read
+            return observed+*x
+        }
+        fn main()->i32{
+            var first=42
+            var second=17
+            return pipe(&mut first,&mut second)-84
+        }
+    "#,
+    );
+    let core = original_core(source, &limits, &target);
+    let mut module = zil_types::check(&core, &target, &limits).unwrap();
+    let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let bytes = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+
+    let caller = module
+        .functions
+        .iter_mut()
+        .find(|f| f.parameters.len() == 2)
+        .unwrap();
+    let [left, right] = caller.parameters[..] else {
+        unreachable!()
+    };
+    let address = &caller.locals[left.0 as usize].ty;
+    assert!(matches!(address, Type::Address { mutable: true, inner } if **inner == Type::I32));
+    assert_eq!(*address, caller.locals[right.0 as usize].ty);
+    let mut edits = 0;
+    for block in &mut caller.blocks {
+        let staged_sources: Vec<_> = block
+            .instructions
+            .windows(4)
+            .enumerate()
+            .filter_map(|(index, instructions)| {
+                let [load, reborrow, live, store] = instructions else {
+                    unreachable!()
+                };
+                let (Some(loaded), Some(borrowed)) = (load.result, reborrow.result) else {
+                    return None;
+                };
+                let InstructionKind::StorageLive(temporary) = live.kind else {
+                    return None;
+                };
+                (load.kind == InstructionKind::Load(left)
+                    && reborrow.kind
+                        == (InstructionKind::ReborrowAddress {
+                            address: loaded,
+                            mutable: false,
+                        })
+                    && store.kind
+                        == (InstructionKind::Store {
+                            local: temporary,
+                            value: borrowed,
+                        }))
+                .then_some(index)
+            })
+            .collect();
+        for index in staged_sources {
+            block.instructions[index].kind = InstructionKind::Load(right);
+            edits += 1;
+        }
+    }
+    assert_eq!(edits, 1, "only the pipe's prepared source should change");
+    let errors = zil_analyze::analyze(&module, &limits).unwrap_err();
+    assert!(errors.iter().any(|d| {
+        d.message
+            .contains("prepared shared Address selects another original input")
+    }));
+    require_semantic_rejection(errors);
+    plan.module_fingerprint = module.fingerprint();
+    let bytes = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    for errors in [
+        zil_verify::verify_module(module, plan, &target, &limits).unwrap_err(),
+        zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err(),
+    ] {
+        require_semantic_rejection(errors);
+    }
+}
