@@ -128,7 +128,16 @@ impl CheckedOriginal {
         let receiver=member.is_some_and(|member|member.receiver_mode.is_some());
         b.spend(usize::from(receiver))?;let mut recipes=Vec::with_capacity(arguments.len().saturating_add(usize::from(receiver)));
         let receiver_operand = if receiver {
-            let Op::Member { object, .. } = syntax.expression(*callee, b)?.operation else {
+            // Resolve the same grouped callee and single written application as
+            // the checked trait call. Only its member object is a value operand.
+            let mut head = &syntax.expression(*callee, b)?.operation;
+            while let Op::Group(inner) = head {
+                head = &syntax.expression(*inner, b)?.operation;
+            }
+            if let Op::Apply(inner) = head {
+                head = &syntax.expression(*inner, b)?.operation;
+            }
+            let Op::Member { object, .. } = *head else {
                 return Err(bad("original borrowed receiver has no method object"));
             };
             Some(object)

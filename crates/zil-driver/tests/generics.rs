@@ -337,6 +337,23 @@ fn owned_replacement_driver_declaration_context_preserves_original_and_closes_un
 }
 
 #[test]
+fn explicit_method_type_arguments_preserve_the_real_borrowed_receiver() {
+    let prefix = "struct P{n:i32}trait Echo{fn echo<T:Copy>(self:&Self,x:T)->T;}impl Echo for P{fn echo<U:Copy>(x:U)->U{return x}}";
+    for call in ["p.echo(7)", "p.echo::<i32>(7)"] {
+        let text = format!("{prefix}fn main()->i32{{let p=P{{n:1}};return {call}-7}}");
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+        assert_eq!(report.verification_runs, 1);
+    }
+    let text = format!("{prefix}fn main()->i32{{let p=P{{n:1}};return p.echo::<bool>(7)-7}}");
+    let report = compile_source(&source(&text), &CompileOptions::default());
+    assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+    assert_eq!(report.phase, Phase::Expand);
+    assert_eq!(report.diagnostics[0].code, "E-GENERIC-ARGUMENT");
+    assert_eq!(report.verification_runs, 0);
+}
+
+#[test]
 fn owned_replacement_generic_methods_specialize_ordinary_calls() {
     for text in [
         include_str!(

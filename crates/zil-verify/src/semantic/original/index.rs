@@ -166,6 +166,7 @@ pub(super) struct BindingSyntax {
 
 pub(super) enum PlaceOperation {
     Group(NodeId),
+    Apply(NodeId),
     Ascribed(NodeId),
     Try(NodeId),
     Give(NodeId),
@@ -192,6 +193,9 @@ impl PlaceSyntax {
         for (&node, expression) in &function.expressions {
             let operation = match &expression.kind {
                 CoreExprKind::Group(value) => PlaceOperation::Group(value.id),
+                CoreExprKind::TypeApply { callee, .. } | CoreExprKind::GenericApply { callee, .. } => {
+                    PlaceOperation::Apply(callee.id)
+                }
                 CoreExprKind::Try(value) => PlaceOperation::Try(value.id),
                 CoreExprKind::Ascribed { value, .. } => PlaceOperation::Ascribed(value.id),
                 CoreExprKind::Unary { op: UnaryOp::Give, operand } => PlaceOperation::Give(operand.id),
