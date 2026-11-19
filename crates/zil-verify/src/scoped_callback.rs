@@ -151,6 +151,12 @@ pub(super) fn instruction(
             .saturating_add(body.lending_captures.len())
             .saturating_add(1),
     )?;
+    if [f, body].into_iter().any(|closure| {
+        module.functions.get(closure.function.0 as usize)
+            .is_none_or(|entry| entry.environment != Some(closure.id) || entry.call_kind != CallKind::Direct)
+    }) {
+        return Err(bad(span, "scoped callback requires actual Direct callback and body entries"));
+    }
     if !body.parameters.is_empty()
         || body.result != Type::I32
         || !closures::supports(body.kind, CallableKind::FnOnce)
@@ -161,6 +167,8 @@ pub(super) fn instruction(
             "body must admit one consuming zero-argument i32 invocation",
         ));
     }
+    // register-null still disposes of the concrete captured body.
+    dynamic_witness::structural_actual(module, &Type::Closure(*body_id), DynStructuralBound::SyncDrop, budget)?;
     budget.spend(3)?;
     Ok(Some(Type::Tuple(vec![Type::Bool, Type::I32])))
 }

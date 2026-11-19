@@ -5181,10 +5181,10 @@ static_dependency: StaticProvenance::NotStatic,
             let Type::Closure(body) = vt(f, *body)? else {
                 return Err(err("scoped stored call has no actual body environment"));
             };
-            // This stored transfer has no external body writes to transport on
-            // either outcome. The consumed environment and its cleanup still
-            // belong to the scoped resource proof.
-            crate::closures::self_contained(module, *body, b)?;
+            // A body may modify a separate scalar on success. Neither
+            // outcome changes the abstract stored targets; the scoped
+            // resource proof checks consumption and cleanup on both.
+            crate::closures::scoped_body_borrows(module, *body, b)?;
         }
         InstructionKind::Constant(_)
         | InstructionKind::OwnedStoreNew { .. }
@@ -7135,8 +7135,33 @@ fn windows(
                         }
                         checks.check(pointer(*value)?, exclusive, requirements, b)?;
                     }
-                    InstructionKind::WithForeignCallback { callback, .. } => {
-                        checks.check(pointer(*callback)?, true, requirements, b)?;
+                    InstructionKind::WithForeignCallback { callback, body, .. } => {
+                        let callback = pointer(*callback)?;
+                        checks.check(callback, true, requirements, b)?;
+                        let Type::Closure(definition) = vt(f, *body)? else {
+                            return Err(err("scoped stored call has no actual body environment"));
+                        };
+                        let body = &solution.values[body.0 as usize];
+                        let mut borrowed: Vec<(&Permission, bool)> = Vec::new();
+                        for (index, mutable) in crate::closures::scoped_body_borrows(module, *definition, b)? {
+                            let permission = leaf(body, &[PlaceProjection::Field(index)], b)?
+                                .ok_or_else(|| err("scoped body scalar capture lacks its actual address"))?;
+                            checks.check(permission, mutable, requirements, b)?;
+                            for actual in &permission.sources {
+                                for root in &callback.sources {
+                                    apart(actual, root, requirements, b)?;
+                                }
+                                for (previous, previous_mutable) in &borrowed {
+                                    if mutable || *previous_mutable {
+                                        for root in &previous.sources {
+                                            apart(actual, root, requirements, b)?;
+                                        }
+                                    }
+                                }
+                            }
+                            b.spend(1)?;
+                            borrowed.push((permission, mutable));
+                        }
                     }
                     InstructionKind::CallIndirect{callee,arguments}if b.raw_reference_cells&&arguments.iter().any(|argument|matches!(f.values.get(argument.0 as usize),Some(Type::Address{mutable:true,inner})if matches!(inner.as_ref(),Type::Address{..})))=>{
                         for target in reference_cells::code_targets(f,*callee,b)?{

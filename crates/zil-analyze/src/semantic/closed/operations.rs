@@ -3,6 +3,48 @@
 use super::*;
 
 impl Check<'_, '_> {
+    fn affine_field_initializer(
+        &self, instance: &SemanticInstance, site: SemanticSiteId, local: LocalId,
+        ty: &Type, point: &Point<'_>, b: &mut Budget,
+    ) -> CompileResult<()> {
+        if !matches!(ty, Type::Package { .. } | Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. }) {
+            return Ok(());
+        }
+        let source = self.inventory.original_index(instance.definition, b)?;
+        let Some(SemanticOriginalNode::Statement(binding)) = source.site_node(site, b)? else { return Ok(()); };
+        let CoreStatementKind::Binding { initializer: Some(initializer), .. } = &source.get_stmt(binding, b)?.kind
+            else { return Ok(()); };
+        let transparent = |mut expression: &'_ SemanticOriginalExpr, b: &mut Budget| -> CompileResult<zil_base::NodeId> {
+            while let CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. }
+                | CoreExprKind::Unary { op: UnaryOp::Give, operand: inner } = &expression.kind {
+                b.spend(1, WORK)?;
+                expression = inner;
+            }
+            Ok(expression.id)
+        };
+        let expression = source.get_expr(transparent(initializer, b)?, b)?;
+        let CoreExprKind::Member { object, member, .. } = &expression.kind else { return Ok(()); };
+        let Some(anchor) = self.original.place_read_anchor(instance.definition, transparent(object, b)?, b)?
+            else { return Ok(()); };
+        let parent = self.anchored_local(instance, point.function, anchor, b)?;
+        let Some(Type::Package { fields, .. }) = point.function.locals.get(parent.0 as usize).map(|local| &local.ty)
+            else { return Ok(()); };
+        crate::dyn_metadata::ty(ty, b)?;
+        if ty.is_copy_value() { return Ok(()); }
+        let Some(InstructionKind::Store { local: target, value }) = point.block.instructions.get(point.instruction + 1).map(|row| &row.kind)
+            else { return Err(fail("affine field declaration lacks its initial storage transfer")); };
+        let (_, _, actual) = self.defining(point.function, *value, b)?;
+        let InstructionKind::TakePackageField { local: root, index } = actual.kind else {
+            return Err(fail("affine field initializer lacks its actual consuming field transfer"));
+        };
+        let Some((field, child)) = fields.get(index as usize) else { return Err(fail("affine field transfer exceeds its actual parent")); };
+        b.spend(field.len().saturating_add(member.len()), WORK)?;
+        if *target != local || root != parent || field != member || !geometry::same_type(child, ty, b)? {
+            return Err(fail("affine field initializer selects another original owner or field"));
+        }
+        Ok(())
+    }
+
     fn scalar_call_inputs(
         &self, instance: &SemanticInstance, function: &TypedFunction, site: SemanticSiteId,
         arguments: &[ValueId], parameters: &[&Type], b: &mut Budget,
@@ -1068,6 +1110,7 @@ impl Check<'_, '_> {
                         "actual local declaration changes its complete original constraint",
                     ));
                 }
+                self.affine_field_initializer(instance, site.recipe, *local, expected_type, point, b)?;
                 self.check_reference_declaration(instance, point.function, *local, b)?;
             }
             (SemanticSiteRecipeKind::OriginalCall, SemanticSiteAction::BodyCall { actuals }) => {

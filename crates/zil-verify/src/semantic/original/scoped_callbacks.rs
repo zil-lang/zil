@@ -151,15 +151,20 @@ impl CheckedOriginal {
             ));
         }
         self.unify(&entry.result, &Ty::Atom(Type::I32), b)?;
-        self.structural_obligation(
-            module,
-            context,
-            &body_ty,
-            DynStructuralBound::SyncDrop,
-            env,
-            active,
-            b,
-        )?;
+        // This operator consumes its actual body on either outcome. A
+        // universal B only supplies the consuming call shape; its concrete
+        // environment must prove SyncDrop at this exact materialized use.
+        if !matches!(self.resolved(&body_ty, b)?, Ty::Variable(..)) {
+            self.structural_obligation(
+                module,
+                context,
+                &body_ty,
+                DynStructuralBound::SyncDrop,
+                env,
+                active,
+                b,
+            )?;
+        }
         let mut observed = body;
         while let CoreExprKind::Group(inner)
         | CoreExprKind::Ascribed { value: inner, .. }

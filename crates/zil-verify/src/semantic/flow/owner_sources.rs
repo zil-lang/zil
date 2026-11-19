@@ -65,6 +65,32 @@ fn pattern_initial_transfer(module: &TypedModule, f: &TypedFunction, local: Loca
 }
 
 impl CheckedContext{
+    pub(in crate::semantic::flow) fn affine_field_declaration(
+        &self, module: &TypedModule, caller: &SemanticInstance, f: &TypedFunction, site: SemanticSiteId,
+        local: LocalId, block: &BasicBlock, ordinal: usize, b: &mut Budget,
+    ) -> Check<()> {
+        let ty = local_type(f, local, None)?;
+        if !matches!(ty, Type::Package { .. } | Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. }) {
+            return Ok(());
+        }
+        let (root, path) = {
+            let original = self.original.borrow();
+            let original = original.as_ref().ok_or_else(|| bad("affine initializer has no original declaration"))?;
+            let Some(node) = original.affine_field_initializer(module, self, caller.definition, site, b)? else { return Ok(()); };
+            crate::dynamic_metadata::ty(ty, b)?;
+            if ty.is_copy_value() { return Ok(()); }
+            original.address_place(module, caller.definition, node, b)?
+        };
+        let Some(InstructionKind::Store { local: target, value }) = block.instructions.get(ordinal + 1).map(|instruction| &instruction.kind)
+            else { return Err(bad("affine declaration lacks its actual initial field transfer")); };
+        if *target != local { return Err(bad("affine field transfer initializes another actual local")); }
+        let (_, _, source) = self.site_index.producers.get(f, *value, b)?;
+        if !matches!(source.kind, InstructionKind::TakePackageField { .. }) {
+            return Err(bad("affine field initializer lacks its actual consuming field transfer"));
+        }
+        self.original_projection_path(module, caller, f, *value, caller.definition, root, &path, PlaceUse::Give, b)
+    }
+
     pub(in crate::semantic::flow) fn pattern_borrow_class(
         &self, module: &TypedModule, caller: &SemanticInstance, f: &TypedFunction,
         instruction: &Instruction, local: LocalId, path: &[PlaceProjection], mutable: bool,

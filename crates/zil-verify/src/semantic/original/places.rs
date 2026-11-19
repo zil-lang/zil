@@ -25,6 +25,36 @@ pub(in crate::semantic) enum ScalarProjection {
 }
 
 impl CheckedOriginal {
+    pub(in crate::semantic) fn affine_field_initializer(
+        &self, module: &TypedModule, context: &CheckedContext, definition: SemanticDefinitionId,
+        site: SemanticSiteId, b: &mut Budget,
+    ) -> Check<Option<NodeId>> {
+        let source = self.source_grammar.as_ref().ok_or_else(|| bad("affine field declaration lacks its original grammar"))?;
+        let Some(SemanticOriginalNode::Statement(binding)) = source.site_node(definition, site, b)? else { return Ok(None); };
+        let syntax = source.place_syntax(definition, b)?;
+        let Some(initializer) = syntax.binding(binding, b)?.and_then(|binding| binding.value) else { return Ok(None); };
+        let transparent = |mut node, b: &mut Budget| -> Check<NodeId> {
+            while let index::PlaceOperation::Group(inner) | index::PlaceOperation::Ascribed(inner)
+                | index::PlaceOperation::Give(inner) = syntax.expression(node, b)?.operation {
+                b.spend(1)?;
+                node = inner;
+            }
+            Ok(node)
+        };
+        let expression = transparent(initializer, b)?;
+        let index::PlaceOperation::Member { object, .. } = syntax.expression(expression, b)?.operation else { return Ok(None); };
+        let owner = transparent(object, b)?;
+        if !self.bound_value_name(definition, owner, b)? { return Ok(None); }
+        let parent = self.original_type(definition, &SemanticOriginalTypeSource::Expression(owner), b)?;
+        let package = match self.resolved(&parent, b)? {
+            Ty::Nominal(declaration, _) => matches!(context.definition(module, declaration, b)?.body,
+                SemanticDefinitionBody::Nominal { kind: LifeNominalKind::Package, .. }),
+            Ty::Atom(Type::Package { .. }) => true,
+            _ => false,
+        };
+        Ok(package.then_some(expression))
+    }
+
     pub(in crate::semantic) fn callable_borrow_operand(
         &self,
         _module: &TypedModule,

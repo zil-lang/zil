@@ -59,6 +59,26 @@ pub(super) fn self_contained(
     root: ClosureId,
     budget: &mut Budget,
 ) -> CompileResult<()> {
+    captured_environment(module, root, false, budget).map(|_| ())
+}
+
+/// The once body may retain direct borrows of scalar values. The caller must
+/// prove the actual saved addresses and their separation at the scoped call.
+pub(super) fn scoped_body_borrows(
+    module: &TypedModule,
+    root: ClosureId,
+    budget: &mut Budget,
+) -> CompileResult<Vec<(u32, bool)>> {
+    captured_environment(module, root, true, budget)
+}
+
+fn captured_environment(
+    module: &TypedModule,
+    root: ClosureId,
+    scoped_body: bool,
+    budget: &mut Budget,
+) -> CompileResult<Vec<(u32, bool)>> {
+    let mut borrows = Vec::new();
     let mut pending = vec![root];
     let mut seen = BTreeSet::new();
     while let Some(id) = pending.pop() {
@@ -71,9 +91,15 @@ pub(super) fn self_contained(
             .get(id.0 as usize)
             .ok_or_else(|| bad("callback State environment is absent"))?;
         budget.spend(definition.captures.len(), "callback State captures")?;
-        for capture in &definition.captures {
+        for (index, capture) in definition.captures.iter().enumerate() {
             budget.type_work(capture, true, "callback State capture shape")?;
             match capture {
+                Type::Address { mutable, inner }
+                    if scoped_body && id == root && inner.is_b0_scalar() =>
+                {
+                    budget.spend(1, "scoped body scalar capture position")?;
+                    borrows.push((index as u32, *mutable));
+                }
                 Type::Closure(child) => pending.push(*child),
                 Type::OwnedDyn { interface } => {
                     crate::dyn_cleanup::owner_interface(module, *interface, budget)?;
@@ -119,7 +145,7 @@ pub(super) fn self_contained(
             }
         }
     }
-    Ok(())
+    Ok(borrows)
 }
 
 pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {

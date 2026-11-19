@@ -980,6 +980,26 @@ pub(super) fn self_contained(
     root: ClosureId,
     budget: &mut Budget,
 ) -> Check<()> {
+    captured_environment(module, root, false, budget).map(|_| ())
+}
+
+/// The once body may retain direct scalar borrows. Its actual address leaves
+/// are checked together with the independent callback loan at the call site.
+pub(super) fn scoped_body_borrows(
+    module: &TypedModule,
+    root: ClosureId,
+    budget: &mut Budget,
+) -> Check<Vec<(u32, bool)>> {
+    captured_environment(module, root, true, budget)
+}
+
+fn captured_environment(
+    module: &TypedModule,
+    root: ClosureId,
+    scoped_body: bool,
+    budget: &mut Budget,
+) -> Check<Vec<(u32, bool)>> {
+    let mut borrows = Vec::new();
     let mut visited = std::collections::BTreeSet::new();
     let mut closures = vec![root];
     let mut pending = Vec::new();
@@ -991,7 +1011,20 @@ pub(super) fn self_contained(
             }
             let definition = definition(module, id, None)?;
             budget.spend(definition.captures.len())?;
-            pending.extend(definition.captures.iter());
+            if scoped_body && id == root {
+                for (index, capture) in definition.captures.iter().enumerate() {
+                    if let Type::Address { inner, mutable } = capture
+                        && inner.is_b0_scalar()
+                    {
+                        budget.spend(1)?;
+                        borrows.push((index as u32, *mutable));
+                    } else {
+                        pending.push(capture);
+                    }
+                }
+            } else {
+                pending.extend(definition.captures.iter());
+            }
             continue;
         }
         let ty = pending.pop().expect("nonempty type frontier");
@@ -1079,7 +1112,7 @@ pub(super) fn self_contained(
             }
         }
     }
-    Ok(())
+    Ok(borrows)
 }
 
 /// A unique carrier is required for owned resource fields and for a consuming

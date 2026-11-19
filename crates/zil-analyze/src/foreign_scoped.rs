@@ -14,6 +14,7 @@ pub(super) fn entry(
         .get(closure.function.0 as usize)
         .ok_or_else(|| bad("scoped closure entry is absent"))?;
     if f.environment != Some(closure.id)
+        || f.call_kind != CallKind::Direct
         || f.foreign.is_some()
         || f.return_type != closure.result
         || f.parameters.len() != closure.parameters.len()
@@ -255,6 +256,13 @@ pub(super) fn check(
                         }
                         callable_fields::self_contained(module, *id, budget)?;
                         entry(module, callback, budget)?;
+                        tasks::require_synchronous_value(
+                            module,
+                            function,
+                            body,
+                            budget,
+                            Some(instruction.span),
+                        )?;
                         let Type::Closure(body) = function.values[body.0 as usize] else {
                             return Err(bad("scoped body must be a concrete closure value"));
                         };

@@ -6125,10 +6125,10 @@ fn transfer(
             let Type::Closure(body) = value_type(f, *body)? else {
                 return Err(failure("scoped stored call has no actual body environment"));
             };
-            // On success or registration failure this body cannot change any
-            // outside stored target. Its own captured resources are still
-            // consumed and cleaned up by the scoped resource proof.
-            crate::callable_fields::self_contained(module, *body, b)?;
+            // The body can update scalar contents on success, but it
+            // cannot change the caller's stored targets on either outcome.
+            // Its captured resources are consumed by the scoped resource proof.
+            crate::callable_fields::scoped_body_borrows(module, *body, b)?;
         }
         InstructionKind::Constant(_)
         | InstructionKind::OwnedStoreNew { .. }
@@ -7776,8 +7776,34 @@ fn windows(
                         address,
                         mutable: true,
                     } => access.check(pointer(*address)?, true, apart, b)?,
-                    InstructionKind::WithForeignCallback { callback, .. } => {
-                        access.check(pointer(*callback)?, true, apart, b)?;
+                    InstructionKind::WithForeignCallback { callback, body, .. } => {
+                        let callback = pointer(*callback)?;
+                        access.check(callback, true, apart, b)?;
+                        let Type::Closure(definition) = value_type(f, *body)? else {
+                            return Err(failure("scoped stored call has no actual body environment"));
+                        };
+                        let body = &values[body.0 as usize];
+                        let mut borrowed = Vec::new();
+                        for (index, mutable) in crate::callable_fields::scoped_body_borrows(module, *definition, b)? {
+                            let permission = environment_memory::select_current(
+                                body, &state, &[PlaceProjection::Field(index)], b,
+                            )?;
+                            access.check(&permission, mutable, apart, b)?;
+                            for actual in &permission.targets {
+                                for root in &callback.targets {
+                                    separate(actual, root, apart, b)?;
+                                }
+                                for (previous, previous_mutable) in &borrowed {
+                                    if mutable || *previous_mutable {
+                                        for root in previous {
+                                            separate(actual, root, apart, b)?;
+                                        }
+                                    }
+                                }
+                            }
+                            fee(b, 1)?;
+                            borrowed.push((permission.targets, mutable));
+                        }
                     }
                     InstructionKind::CallIndirect { arguments, .. }
                     | InstructionKind::CallClosure { arguments, .. }

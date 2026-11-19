@@ -815,3 +815,70 @@ fn scalar_call_reads_its_original_capture_after_description_storage() {
     require_semantic_rejection(zil_verify::verify_module(module, plan, &target, &limits).unwrap_err());
     require_semantic_rejection(zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err());
 }
+
+#[test]
+fn affine_package_initializer_keeps_its_original_owning_enum_field() {
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let text = r#"
+resource Mark { pub code:i32 }
+enum State { Held(manages Mark), Blank }
+package Pair { left:State, right:State, n:i32 }
+fn run(live:bool)->i32 {
+    let pair=Pair{
+        left:if live {State.Held(Mark{code:41})}else{State.Blank},
+        right:State.Blank,n:1
+    }
+    let chosen=pair.left
+    match chosen {
+        State.Held(mark)=>{return mark.code+pair.n}
+        State.Blank()=>{return pair.n}
+    }
+}
+fn main()->i32{return run(true)+run(false)-43}
+"#;
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "owning-enum-field.zil", text);
+    let core = original_core(source, &limits, &target);
+    let core = CoreProgram {
+        root: ModuleId(0),
+        source_fingerprint: core.source_fingerprint,
+        modules: vec![ProgramModule { core, imports: vec![], exports: vec![] }],
+    };
+    let prepared = zil_types::infer_program_for_ct(&core, &limits).unwrap().into_prepared();
+    let mut module = zil_types::check_prepared_program(&prepared, &target, &limits).unwrap().module;
+    let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let verified = |module: &TypedModule, plan: &CandidatePlan| {
+        let wire = wire::encode_module_candidate(module, plan, &limits).unwrap();
+        [
+            zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits),
+            zil_verify::verify_module_bytes(&wire, &target, &limits),
+        ]
+    };
+    for result in verified(&module, &plan) { result.unwrap(); }
+
+    let run = module.functions.iter_mut().find(|f| f.name == "run").unwrap();
+    let mut changes = 0;
+    for block in &mut run.blocks {
+        for instruction in &mut block.instructions {
+            if let InstructionKind::TakePackageField { local, index } = &mut instruction.kind
+                && let Type::Package { fields, .. } = &run.locals[local.0 as usize].ty
+                && fields.get(*index as usize).is_some_and(|(name, _)| name == "left")
+            {
+                assert_eq!(fields[1].0, "right");
+                assert_eq!(fields[0].1, fields[1].1);
+                *index = 1;
+                changes += 1;
+            }
+        }
+    }
+    assert_eq!(changes, 1);
+    let errors = zil_analyze::analyze(&module, &limits).unwrap_err();
+    assert!(errors[0].message.contains("affine field initializer selects another original owner or field"), "{errors:?}");
+    require_semantic_rejection(errors);
+    plan.module_fingerprint = module.fingerprint();
+    for result in verified(&module, &plan) {
+        let errors = result.err().expect("same-type sibling must not replace the original owning field");
+        assert!(errors[0].message.contains("actual field index differs from the original ordered"), "{errors:?}");
+        require_semantic_rejection(errors);
+    }
+}

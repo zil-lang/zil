@@ -264,6 +264,7 @@ impl CheckedContext {
                         self.claim(module,expected,&value,&environment,b)?;
                         let value=if f.locals[local.0 as usize].ty==value.ty{value}else{self.persistent_constraint(module,instance,f,*local,&value,b)?};
                         if let Some(old)=&constraints[local.0 as usize] {if !self.same_type(&environment,old,&value,b)? {return Err(bad("local declarations impose different semantic constraints"));}}
+                        self.affine_field_declaration(module, instance, f, site.recipe, *local, block, ordinal, b)?;
                         constraints[local.0 as usize]=Some(value);
                     }
                 }

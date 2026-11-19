@@ -67,7 +67,6 @@ pub(super) fn declaration(f: &TypedFunction, b: &mut Budget) -> CompileResult<bo
         || !bytes
             .iter()
             .all(|v| v.is_ascii_alphanumeric() || *v == b'_')
-        || declaration.static_callbacks
         || declaration.scoped_callback.is_some()
         || declaration.thread_driver_transfer
         || f.environment.is_some()
@@ -102,7 +101,11 @@ pub(super) fn declaration(f: &TypedFunction, b: &mut Budget) -> CompileResult<bo
             return Ok(false);
         }
     }
-    Ok(borrowed == declaration.noescape_parameters.len())
+    // A scalar-only static-callback provider has no data borrow to suspend
+    // while C reenters the active scoped callback. Calls which also pass
+    // noescape addresses need the combined callback and argument window.
+    Ok(borrowed == declaration.noescape_parameters.len()
+        && (!declaration.static_callbacks || borrowed == 0))
 }
 
 pub(crate) fn regions(
