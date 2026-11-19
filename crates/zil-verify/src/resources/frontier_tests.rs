@@ -166,6 +166,20 @@ fn compare(module: &TypedModule) -> (usize, usize) {
 }
 
 #[test]
+fn validated_acyclic_effects_match_separate_transfers_with_actual_argument_permutations() {
+    let module = fixture(&[vec![(1, true), (2, false)], vec![(2, true)], vec![]], &[0, 0, 1]);
+    let graphs = graphs(&module);
+    let limits = Limits::default();
+    let expected = infer_effects_full_scan(&module, &graphs, &mut Budget::new(&limits)).unwrap();
+    assert_eq!(expected[2], BTreeSet::from([Root::Parameter(0)]));
+    assert_eq!(expected[1], BTreeSet::from([Root::Parameter(1)]));
+    let mut budget = Budget::new(&limits);
+    let mut request = slot_layout::Request::new(&module, &graphs, None, None, &mut budget).unwrap();
+    let actual = request.solve_effects(Some(&sums::Proofs::default())).unwrap();
+    assert_eq!(actual, expected);
+}
+
+#[test]
 fn acyclic_reverse_chain_solves_each_actual_body_once() {
     let n = 48;
     let edges: Vec<_> = (0..n)

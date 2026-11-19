@@ -174,7 +174,31 @@ impl<'a, 'b> Request<'a, 'b> {
         self.run(index, effects, false, None)
     }
 
+    #[cfg(test)]
     pub(super) fn infer_effects(&mut self) -> Check<Vec<BTreeSet<Root>>> {
+        self.solve_effects(None)
+    }
+
+    fn validate_effects(
+        &mut self,
+        index: usize,
+        effects: &[BTreeSet<Root>],
+        sums: &sums::Proofs,
+    ) -> Check<BTreeSet<Root>> {
+        let id = self.functions[index].binding.function().id;
+        let rows = sums.rows.get(id.0 as usize)
+            .filter(|rows| !rows.is_empty())
+            .map(Vec::as_slice);
+        self.run(index, effects, true, rows)
+    }
+
+    /// On a closed acyclic call graph all inputs to the resource transfer
+    /// are final at the callee's turn. Publish the writes from that same
+    /// validated transfer. A recursive dependency first needs convergence.
+    pub(super) fn solve_effects(
+        &mut self,
+        proofs: Option<&sums::Proofs>,
+    ) -> Check<Vec<BTreeSet<Root>>> {
         self.budget.spend(self.module.functions.len())?;
         let mut effects = vec![BTreeSet::new(); self.module.functions.len()];
         if self.replacements.is_none()
@@ -187,7 +211,10 @@ impl<'a, 'b> Request<'a, 'b> {
                 self.budget.spend(1)?;
                 #[cfg(test)]
                 TEST_EFFECT_SOLVES.with(|value| value.set(value.get() + 1));
-                effects[index] = self.infer_writes(index, &effects)?;
+                effects[index] = match proofs {
+                    Some(sums) => self.validate_effects(index, &effects, sums)?,
+                    None => self.infer_writes(index, &effects)?,
+                };
             }
             return Ok(effects);
         }
@@ -219,6 +246,11 @@ impl<'a, 'b> Request<'a, 'b> {
                 }
             }
             std::mem::swap(&mut dirty, &mut next);
+        }
+        if let Some(sums) = proofs {
+            for index in 0..self.functions.len() {
+                self.validate_effects(index, &effects, sums)?;
+            }
         }
         Ok(effects)
     }

@@ -241,6 +241,40 @@ fn closure_entry(module: &TypedModule, ty: &Type) -> Check<FunctionId> {
             )
         })
 }
+/// The fixed point reads predecessor locals and the actual SSA operands of
+/// each block. A changed SSA can have non-successor users. Visit both kinds
+/// of dependent in the original block order so fact discovery stays stable.
+fn value_users(f: &TypedFunction, graph: &FunctionGraph, b: &mut Budget) -> Check<Vec<Vec<usize>>> {
+    charge(b, f.values.len().saturating_add(f.blocks.len()))?;
+    let mut users = vec![Vec::new(); f.values.len()];
+    for (id, block) in f.blocks.iter().enumerate() {
+        if !graph.reachable[id] {
+            continue;
+        }
+        let mut record = |value: ValueId, b: &mut Budget| -> Check<()> {
+            charge(b, 1)?;
+            let row = users.get_mut(value.0 as usize).ok_or_else(|| {
+                reject("E-VERIFY-ID", None, "descriptor use references an absent SSA value")
+            })?;
+            if row.last() != Some(&id) {
+                charge(b, 1 + if row.len() == row.capacity() { row.len() } else { 0 })?;
+                row.push(id);
+            }
+            Ok(())
+        };
+        for op in &block.instructions {
+            charge(b, 1)?;
+            for operand in instruction_operands(&op.kind) {
+                record(operand, b)?;
+            }
+        }
+        if let Terminator::Return(Some(value)) = block.terminator {
+            record(value, b)?;
+        }
+    }
+    Ok(users)
+}
+
 fn body(
     module: &TypedModule,
     f: &TypedFunction,
@@ -267,12 +301,15 @@ fn body(
             b,
         )?;
     }
+    let users = value_users(f, graph, b)?;
+    charge(b, graph.reachable.len())?;
+    let mut pending = graph.reachable.clone();
     let mut result = Contract::default();
     loop {
         let mut progressed = false;
         for block_id in (0..f.blocks.len()).rev() {
             charge(b, 1)?;
-            if !graph.reachable[block_id] {
+            if !std::mem::take(&mut pending[block_id]) {
                 continue;
             }
             let mut locals = if block_id == f.entry.0 as usize {
@@ -444,7 +481,14 @@ fn body(
                             b,
                         )?;
                     }
-                    progressed |= merge(&mut values[id.0 as usize], &generated, b)?;
+                    if merge(&mut values[id.0 as usize], &generated, b)? {
+                        progressed = true;
+                        let readers = &users[id.0 as usize];
+                        charge(b, readers.len())?;
+                        for &reader in readers {
+                            pending[reader] = true;
+                        }
+                    }
                 }
             }
             if let Terminator::Return(Some(id)) = block.terminator {
@@ -453,6 +497,10 @@ fn body(
             if !locals.same(&outputs[block_id], b)? {
                 outputs[block_id] = locals;
                 progressed = true;
+                charge(b, graph.successors[block_id].len())?;
+                for &successor in &graph.successors[block_id] {
+                    pending[successor] |= graph.reachable[successor];
+                }
             }
         }
         #[cfg(test)]

@@ -3606,19 +3606,7 @@ pub(super) fn check_module(
         replacements.as_ref(),
         budget,
     )?;
-    let effects = request.infer_effects()?;
-    for (index, function) in module.functions.iter().enumerate() {
-        request.run(
-            index,
-            &effects,
-            true,
-            sum_proofs
-                .rows
-                .get(function.id.0 as usize)
-                .filter(|rows| !rows.is_empty())
-                .map(Vec::as_slice),
-        )?;
-    }
+    request.solve_effects(Some(&sum_proofs))?;
     request.close_pairs()?;
     Ok(())
 }
