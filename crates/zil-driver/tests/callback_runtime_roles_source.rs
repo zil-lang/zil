@@ -248,6 +248,33 @@ fn child_static_calls_substitute_actual_parameter_roles() {
             .all(|c| c.roles.len() == 2 && c.roles[0].closure == c.roles[1].closure)
     );
 }
+
+#[test]
+fn borrowed_aliases_preserve_each_owned_callback_parameter_role() {
+    let source = r#"
+fn run<F:FnMut()->i32+SyncDrop>(a:F,b:F)->i32 {
+    var first=a
+    var second=b
+    let x=&mut first
+    let y=&mut second
+    return x()*10+y()
+}
+fn make(seed:i32)->impl FnMut()->i32 { var n=seed;return move()=>{n+=1;return n} }
+fn main()->i32=>run(make(10),make(30))-141
+"#;
+    native("owned-role-aliases", &[("main", source)], "", 0);
+    let overlap = source.replace("let y=&mut second", "let y=&mut first");
+    let case = Case::new("overlapping-owned-role-aliases");
+    let report = compile(&case, &[("main", &overlap)], None);
+    assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+    assert!(
+        report.diagnostics.iter().any(|d| d.message.contains("alias outlives")),
+        "{}",
+        report.to_json()
+    );
+    assert!(!report.artifacts.contains_key("executable"));
+}
+
 #[test]
 fn branch_correlation_preserves_order_and_exclusive_paths() {
     for (body, wanted) in [

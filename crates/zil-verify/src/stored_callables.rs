@@ -1084,6 +1084,7 @@ pub(super) fn role<'a>(
         None if matches!(
             kind,
             InstructionKind::CallClosureShared { .. } | InstructionKind::CallClosureMut { .. }
+                | InstructionKind::CallClosureBorrowed { .. }
         ) || (matches!(kind, InstructionKind::CallClosureOnce { .. })
             && f.call_kind == CallKind::Suspend) =>
         {

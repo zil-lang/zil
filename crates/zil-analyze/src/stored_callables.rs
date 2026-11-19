@@ -1307,6 +1307,7 @@ pub(super) fn role<'a>(
                     kind,
                     InstructionKind::CallClosureShared { .. }
                         | InstructionKind::CallClosureMut { .. }
+                        | InstructionKind::CallClosureBorrowed { .. }
                 ) || (matches!(kind, InstructionKind::CallClosureOnce { .. })
                     && f.call_kind == CallKind::Suspend)
                 {
