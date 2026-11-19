@@ -256,6 +256,10 @@ impl Check<'_, '_> {
                         return Ok(false);
                     }
                     owns = true;
+                } else if matches!(field, SemanticTypeRecipe::Address { mutable: true, .. }) {
+                    // Moving the whole child transfers this stored address with it.
+                    // The field contributes no destructor to the child's owner set.
+                    continue;
                 } else if self.copy_type(owner, &field, depth + 1)? {
                     continue;
                 } else if self.owned_package(owner, &field, depth + 1)? {

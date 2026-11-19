@@ -7,7 +7,8 @@ impl Check<'_, '_> {
         &self, instance: &SemanticInstance, site: SemanticSiteId, local: LocalId,
         ty: &Type, point: &Point<'_>, b: &mut Budget,
     ) -> CompileResult<()> {
-        if !matches!(ty, Type::Package { .. } | Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. }) {
+        if !matches!(ty, Type::Package { .. } | Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. })
+            && !matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. })) {
             return Ok(());
         }
         let source = self.inventory.original_index(instance.definition, b)?;
@@ -27,7 +28,7 @@ impl Check<'_, '_> {
         let Some(anchor) = self.original.place_read_anchor(instance.definition, transparent(object, b)?, b)?
             else { return Ok(()); };
         let parent = self.anchored_local(instance, point.function, anchor, b)?;
-        let Some(Type::Package { fields, .. }) = point.function.locals.get(parent.0 as usize).map(|local| &local.ty)
+        let Some(Type::Package { fields, .. }) = point.function.locals.get(parent.0 as usize).map(|local| crate::resources::package_storage(&local.ty))
             else { return Ok(()); };
         crate::dyn_metadata::ty(ty, b)?;
         if ty.is_copy_value() { return Ok(()); }

@@ -2,6 +2,57 @@
 //! lineages. A future Drop or concrete Managed type cannot create ownership.
 use super::*;
 impl CheckedOriginal {
+    pub(super) fn owned_package_field_transfer(
+        &mut self, module: &TypedModule, context: &CheckedContext, mut operand: &SemanticOriginalExpr,
+        child: &Ty, env: &Env, active: &mut ActiveQueries, b: &mut Budget,
+    ) -> Check<bool> {
+        while let CoreExprKind::Group(inner) = &operand.kind { b.spend(1)?; operand = inner; }
+        let CoreExprKind::Member { object, .. } = &operand.kind else { return Ok(false); };
+        let owner = env.current()?;
+        b.spend(self.value_places.len().saturating_add(1).ilog2() as usize
+            + self.place_types.len().saturating_add(1).ilog2() as usize + 2)?;
+        let Some(place) = self.value_places.get(&(owner, operand.id)) else { return Ok(false); };
+        if place.fields.len() != 1
+            || matches!(place.binder, Binder::Capture { .. }) && !self.capture_owns(&place.binder, b)? {
+            return Ok(false);
+        }
+        let Some(parent) = self.place_types.get(&(owner, object.id)) else { return Ok(false); };
+        let Ty::Nominal(parent, _) = self.resolved(parent, b)? else { return Ok(false); };
+        if !matches!(context.definition(module, parent, b)?.body,
+            SemanticDefinitionBody::Nominal { kind: LifeNominalKind::Package, .. }) {
+            return Ok(false);
+        }
+        self.package_with_owned_fields(module, context, child, env, active, b)
+    }
+    fn package_with_owned_fields(
+        &mut self, module: &TypedModule, context: &CheckedContext, ty: &Ty, env: &Env,
+        active: &mut ActiveQueries, b: &mut Budget,
+    ) -> Check<bool> {
+        let Ty::Nominal(id, actuals) = self.resolved(ty, b)? else { return Ok(false); };
+        let token = active.fresh(b)?;
+        active.with_query(DependencyKey { kind: QueryKind::Type, token }, b, |active, b| {
+            let SemanticDefinitionBody::Nominal { kind: LifeNominalKind::Package,
+                body: SemanticNominalBody::Product { fields }, .. } = &context.definition(module, id, b)?.body
+            else { return Ok(false); };
+            let mut selected = self.environment(module, context, id, active, b)?;
+            selected.lexical[0].actuals = actuals;
+            let mut owns = false;
+            for field in fields {
+                let source = self.ty(module, context, &field.ty, &selected, active, b)?;
+                match self.resolved(&source, b)? {
+                    Ty::Managed(inner) => {
+                        if !self.resource_payload(module, context, &inner, b)? { return Ok(false); }
+                        owns = true;
+                    }
+                    Ty::Address { .. } => {}
+                    _ if self.is_copy(module, context, &source, env, active, b)? => {}
+                    _ if self.package_with_owned_fields(module, context, &source, env, active, b)? => owns = true,
+                    _ => return Ok(false),
+                }
+            }
+            Ok(owns)
+        })
+    }
     pub(super) fn resource_sync_drop(&mut self,module:&TypedModule,context:&CheckedContext,payload:&Ty,caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
         let payload=self.resolved(payload,b)?;
         match &payload{

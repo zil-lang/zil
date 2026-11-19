@@ -187,7 +187,13 @@ impl CheckedOriginal {
                 CoreExprKind::Unary{op,operand}=>{
                     let child=self.expression(module,context,operand,env,bindings,expected,active,b)?;
                     match op{
-                        UnaryOp::Give=>{if !matches!(self.resolved(&child,b)?,Ty::Managed(_)|Ty::Store(_)){return Err(bad("original give has no actual owning resource type"));}child},
+                        UnaryOp::Give=>{
+                            if !matches!(self.resolved(&child,b)?,Ty::Managed(_)|Ty::Store(_))
+                                && !self.owned_package_field_transfer(module,context,operand,&child,env,active,b)? {
+                                return Err(bad("original give has no actual owning resource type"));
+                            }
+                            child
+                        },
                         UnaryOp::Not=>{self.unify(&child,&Ty::Atom(Type::Bool),b)?;Ty::Atom(Type::Bool)},
                         UnaryOp::Negate|UnaryOp::BitNot=>{let resolved=self.resolved(&child,b)?;if !(self.integer_carrier(&resolved)||matches!(resolved,Ty::Atom(ref ty)if *op==UnaryOp::Negate&&ty.is_float())){return Err(bad("original unary scalar operation is not proved"));}child},
                         _=>unreachable!(),

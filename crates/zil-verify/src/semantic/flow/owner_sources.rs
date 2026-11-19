@@ -93,7 +93,8 @@ impl CheckedContext{
         local: LocalId, block: &BasicBlock, ordinal: usize, b: &mut Budget,
     ) -> Check<()> {
         let ty = local_type(f, local, None)?;
-        if !matches!(ty, Type::Package { .. } | Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. }) {
+        if !matches!(ty, Type::Package { .. } | Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. })
+            && !matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. })) {
             return Ok(());
         }
         let (root, path) = {
