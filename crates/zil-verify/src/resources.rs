@@ -3270,7 +3270,7 @@ fn run_with_slots(
         .saturating_add(if track_retirement { slots.desc_count } else { 0 });
     let forward_output = clone_floor > move_work;
     while let Some(b) = pending.pop(budget)? {
-        if let Some(progress)=&mut budget.diagnostic_progress{progress.block_visits=progress.block_visits.saturating_add(1);}
+        budget.usage.resource_cfg_visits = budget.usage.resource_cfg_visits.saturating_add(1);
         queued[b] = false;
         let mut output = Some(clone_state(inputs[b].as_ref().expect("queued resource state"), budget)?);
         transfer.block(b, output.as_mut().unwrap(), false, &mut written, budget)?;

@@ -166,6 +166,10 @@ pub struct VerificationUsage {
     pub type_nodes_visited: usize,
     /// Zero-based nesting observed during that preflight.
     pub max_type_depth: usize,
+    /// Actual block visits during stored-permission and resource fixed points.
+    /// The final validation replay and other CFG algorithms have separate work.
+    pub stored_cfg_visits: usize,
+    pub resource_cfg_visits: usize,
     pub work_steps: usize,
 }
 
@@ -457,7 +461,6 @@ struct DiagnosticProgress {
     actual_function: Option<FunctionId>,
     summary_round: usize,
     cfg_round: usize,
-    block_visits: usize,
     stored_frame_clones: usize,
     stored_frame_joins: usize,
     loan_unions: usize,
@@ -521,9 +524,8 @@ struct Budget {
     /// remains a separate explanation for rejecting the same module.
     additional_escape: Option<Diagnostic>,
     remaining: usize,
-    work_stage: &'static str,
-    type_nodes_visited: usize,
-    max_type_depth: usize,
+    work_stage: Option<&'static str>,
+    usage: VerificationUsage,
     original_input: Option<OriginalInput>,
     structural: Option<dynamic_metadata::Structure>,
     diagnostic_costs: Option<BTreeMap<(&'static str, u32), (usize, usize)>>,
@@ -677,9 +679,8 @@ impl Budget {
             escaping_stack_borrow: None,
             additional_escape: None,
             remaining: limits.max_analysis_steps,
-            work_stage: "request setup",
-            type_nodes_visited: 0,
-            max_type_depth: 0,
+            work_stage: None,
+            usage: VerificationUsage::default(),
             original_input: None,
             structural: None,
             diagnostic_costs: std::env::var_os("ZIL_VERIFY_PROFILE_COSTS").map(|_| BTreeMap::new()),
@@ -814,11 +815,20 @@ impl Budget {
                 }
             }
             let mut error = limit(message);
-            error.notes.push(format!(
-                "max_analysis_steps={} consumed={} remaining={} next={} stage={}",
-                self.limits.max_analysis_steps, self.limits.max_analysis_steps.saturating_sub(self.remaining),
-                self.remaining, amount, self.work_stage
-            ));
+            // Stage attribution belongs to a named request. Low-level transfer
+            // functions keep a stable failure for the same interrupted operation.
+            if let Some(stage) = self.work_stage {
+                error.notes.push(format!(
+                    "max_analysis_steps={} consumed={} remaining={} next={amount} stage={stage}",
+                    self.limits.max_analysis_steps, self.limits.max_analysis_steps.saturating_sub(self.remaining),
+                    self.remaining,
+                ));
+                error.notes.push(format!(
+                    "observed so far: functions={} blocks={} instructions={} physical_type_nodes={} max_type_depth={} stored_cfg_visits={} resource_cfg_visits={}",
+                    self.usage.functions, self.usage.blocks, self.usage.instructions, self.usage.type_nodes_visited, self.usage.max_type_depth,
+                    self.usage.stored_cfg_visits, self.usage.resource_cfg_visits,
+                ));
+            }
             error
         })?;
         Ok(())
@@ -829,7 +839,7 @@ impl Budget {
         errors
     }
     fn diagnostic_stage(&mut self, stage: &'static str) {
-        self.work_stage = stage;
+        self.work_stage = Some(stage);
         if let Some(progress) = &mut self.diagnostic_progress {
             progress.stage = stage;
             progress.actual_function = None;
@@ -843,7 +853,7 @@ impl Budget {
         function: FunctionId,
         summary_round: usize,
     ) {
-        self.work_stage = stage;
+        self.work_stage = Some(stage);
         if let Some(progress) = &mut self.diagnostic_progress {
             progress.stage = stage;
             progress.actual_function = Some(function);
@@ -852,7 +862,7 @@ impl Budget {
         }
     }
     fn diagnostic_label(&mut self, stage: &'static str) {
-        self.work_stage = stage;
+        self.work_stage = Some(stage);
         if let Some(progress) = &mut self.diagnostic_progress {
             progress.stage = stage;
         }
@@ -1026,6 +1036,7 @@ fn verify_inputs(
     limits: &Limits,
 ) -> CompileResult<VerifiedModule> {
     let mut budget = Budget::new(limits);
+    budget.diagnostic_stage("module admission");
     budget.original_input = inputs.original_input();
     match check_module_budget(
         inputs.module(),
@@ -1167,8 +1178,7 @@ fn check_module_budget(
     budget.function_count = module.functions.len();
     let prior_structure = budget.structural.take();
     let prior_stack_borrow = budget.escaping_stack_borrow.take();
-    let prior_type_nodes = std::mem::take(&mut budget.type_nodes_visited);
-    let prior_type_depth = std::mem::take(&mut budget.max_type_depth);
+    let prior_usage = std::mem::take(&mut budget.usage);
     let prior_work_stage = budget.work_stage;
     let initial_work = budget.remaining;
     let prior_capture_classes = std::mem::take(&mut budget.semantic_capture_classes);
@@ -1180,6 +1190,8 @@ fn check_module_budget(
         budget.diagnostic_body_definitions = Some(BTreeSet::new());
     }
     let result = (|| {
+        budget.diagnostic_stage("executable table sizes");
+        check_executable_geometry(module, limits, budget)?;
         budget.diagnostic_stage("immutable registration");
         budget.structural = Some(dynamic_metadata::Structure::register(module, budget)?);
         if module.semantic.is_none() {
@@ -1351,8 +1363,6 @@ fn check_module_budget(
         }
         foreign::check_declarations(module, &mut budget)?;
         let mut names = BTreeSet::new();
-        let (mut block_count, mut instruction_count, mut local_count, mut value_count) =
-            (0usize, 0usize, 0usize, 0usize);
         for (index, function) in module.functions.iter().enumerate() {
             if function.call_kind == CallKind::Suspend {
                 budget.tasks = true;
@@ -1410,31 +1420,7 @@ fn check_module_budget(
                     check_function_signature_type(module, ty, Some(function.span), &mut budget)?;
                 }
             }
-            block_count = add_count(
-                block_count,
-                function.blocks.len(),
-                limits.max_blocks,
-                "block",
-            )?;
-            local_count = add_count(
-                local_count,
-                function.locals.len(),
-                limits.max_locals,
-                "local",
-            )?;
-            value_count = add_count(
-                value_count,
-                function.values.len(),
-                limits.max_values,
-                "value",
-            )?;
             for block in &function.blocks {
-                instruction_count = add_count(
-                    instruction_count,
-                    block.instructions.len(),
-                    limits.max_instructions,
-                    "instruction",
-                )?;
                 budget.spend(1)?;
                 for instruction in &block.instructions {
                     budget.spend(1)?;
@@ -1818,9 +1804,8 @@ fn check_module_budget(
         semantic::callable_obligations::drain(module, &mut budget)?;
         Ok(CheckedModule {
             usage: VerificationUsage {
-                functions: module.functions.len(), blocks: block_count, instructions: instruction_count,
-                locals: local_count, values: value_count, type_nodes_visited: budget.type_nodes_visited,
-                max_type_depth: budget.max_type_depth, work_steps: initial_work - budget.remaining,
+                work_steps: initial_work - budget.remaining,
+                ..budget.usage
             },
             fingerprint,
             uses_owned_sum_extension: budget.sums,
@@ -1840,20 +1825,36 @@ fn check_module_budget(
     }
     budget.structural = prior_structure;
     budget.escaping_stack_borrow = prior_stack_borrow;
-    budget.type_nodes_visited = prior_type_nodes;
-    budget.max_type_depth = prior_type_depth;
     budget.work_stage = prior_work_stage;
     budget.semantic_capture_classes = prior_capture_classes;
     if report_scans && let Some(progress) = budget.diagnostic_progress {
         eprintln!("verify-original-body completed={} walks={} revisits={} statement_and_expression_visits={} cfg_block_visits={}",
             result.is_ok(), progress.original_body_walks, progress.original_body_revisits,
-            progress.original_statement_and_expression_visits, progress.block_visits);
+            progress.original_statement_and_expression_visits, budget.usage.stored_cfg_visits.saturating_add(budget.usage.resource_cfg_visits));
         eprintln!("verify-original-cursors queries={} path_edges={} shallow_children={}",
             progress.original_cursor_queries, progress.original_cursor_edges, progress.original_cursor_children);
     }
+    budget.usage = prior_usage;
     budget.diagnostic_progress = prior_progress;
     budget.diagnostic_body_definitions = prior_body_definitions;
     result
+}
+
+/// Bound actual executable tables before registering type identities or
+/// walking original bodies. Instruction counts use block lengths only.
+fn check_executable_geometry(module: &TypedModule, limits: &Limits, b: &mut Budget) -> Check<()> {
+    b.usage.functions = module.functions.len();
+    for function in &module.functions {
+        b.spend(1)?;
+        b.usage.blocks = add_count(b.usage.blocks, function.blocks.len(), limits.max_blocks, "block")?;
+        b.usage.locals = add_count(b.usage.locals, function.locals.len(), limits.max_locals, "local")?;
+        b.usage.values = add_count(b.usage.values, function.values.len(), limits.max_values, "value")?;
+        for block in &function.blocks {
+            b.spend(1)?;
+            b.usage.instructions = add_count(b.usage.instructions, block.instructions.len(), limits.max_instructions, "instruction")?;
+        }
+    }
+    Ok(())
 }
 
 fn add_count(before: usize, add: usize, maximum: usize, kind: &str) -> Check<usize> {
@@ -1987,8 +1988,8 @@ fn check_type_shape<'a>(
     let mut pod_stores = Vec::new();
     while let Some((ty, depth, context)) = first.take().or_else(|| pending.pop()) {
         budget.spend(1)?;
-        budget.type_nodes_visited = budget.type_nodes_visited.saturating_add(1);
-        budget.max_type_depth = budget.max_type_depth.max(depth);
+        budget.usage.type_nodes_visited = budget.usage.type_nodes_visited.saturating_add(1);
+        budget.usage.max_type_depth = budget.usage.max_type_depth.max(depth);
         if matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Address{..})) {
             budget.raw_reference_cells = true;
             budget.stored_borrows = true;
@@ -2299,6 +2300,20 @@ mod shape_limit_tests {
     use super::*;
 
     #[test]
+    fn executable_tables_are_bounded_before_semantic_work() {
+        let limits = Limits::default();
+        let (module, plan) = tests::baseline();
+        let target = module.target.clone();
+        assert!(verify_module(module.clone(), plan.clone(), &target, &limits).is_ok());
+        let blocks: usize = module.functions.iter().map(|function| function.blocks.len()).sum();
+        assert!(blocks > 0);
+        let capped = Limits { max_blocks: blocks - 1, ..limits };
+        let error = verify_module(module, plan, &target, &capped).err().unwrap();
+        assert_eq!(error[0].category, zil_base::ResultCategory::ResourceLimit);
+        assert!(error[0].message.contains("block count exceeds verification limit"));
+    }
+
+    #[test]
     fn physical_type_depth_nodes_and_work_have_independent_boundaries() {
         let target = TargetProfile::default();
         let nested = Type::Tuple(vec![Type::Tuple(vec![Type::I32])]);
@@ -2307,8 +2322,9 @@ mod shape_limit_tests {
             let limits = Limits { max_nodes: nodes, max_call_depth: depth,
                 max_analysis_steps: work, ..Limits::default() };
             let mut budget = Budget::new(&limits);
+            budget.diagnostic_stage("typed shape preflight");
             check_type_shape(ty, &target, &limits, &mut budget)
-                .map(|()| (budget.type_nodes_visited, budget.max_type_depth))
+                .map(|()| (budget.usage.type_nodes_visited, budget.usage.max_type_depth))
         };
         assert_eq!(check(&wide, 4, 1, 1000).unwrap(), (4, 1));
         assert_eq!(check(&nested, 3, 2, 1000).unwrap(), (3, 2));
@@ -2316,7 +2332,8 @@ mod shape_limit_tests {
         assert!(check(&nested, 100, 1, 1000).unwrap_err().message.contains("nesting"));
         let work = check(&wide, 100, 8, 0).unwrap_err();
         assert_eq!(work.category, zil_base::ResultCategory::ResourceLimit);
-        assert!(work.notes.iter().any(|n| n.contains("max_analysis_steps=0")));
+        assert!(work.notes.iter().any(|n| n.contains("max_analysis_steps=0") && n.contains("stage=typed shape preflight")));
+        assert!(work.notes.iter().any(|n| n.contains("physical_type_nodes=0")));
     }
 }
 
@@ -5113,6 +5130,7 @@ fn check_ct(module: &CtModule, expected_target: &TargetProfile, limits: &Limits)
         ));
     }
     let mut budget = Budget::new(limits);
+    budget.diagnostic_stage("compile-time instruction types");
     // Charge before allocating the type table, including on the public raw API.
     // A trusted source producer's earlier limits cannot protect cached inputs.
     budget.spend(module.instructions.len())?;

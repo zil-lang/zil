@@ -5425,19 +5425,19 @@ fn execution_order(g: &FunctionGraph, entry: usize, b: &mut Budget) -> Check<(Ve
 /// All predecessors are outputs from this function's one checked frame layout.
 /// On a single incoming edge the complete memory state is already available.
 /// Per-block unresolved-call observations are set anew by the actual instructions.
-fn incoming_frame(
+fn incoming_frame<'a>(
     graph: &FunctionGraph, block: usize, entry_block: usize, entry: &Frame,
-    blank: &Frame, outputs: &[Frame], b: &mut Budget,
+    blank: &'a Frame, output: impl Fn(usize) -> &'a Frame, b: &mut Budget,
 ) -> Check<Frame> {
     b.spend(graph.predecessors[block].len().saturating_add(1))?;
     let mut incoming = graph.predecessors[block].iter().copied().filter(|&id| graph.reachable[id]);
     let initial = if block == entry_block { entry } else {
-        incoming.next().map_or(blank, |id| &outputs[id])
+        incoming.next().map_or(blank, &output)
     };
     let mut state = copy_frame(initial, b)?;
     state.pending_external_update = false;
     for predecessor in incoming {
-        join_frame(&mut state, &outputs[predecessor], b)?;
+        join_frame(&mut state, output(predecessor), b)?;
     }
     Ok(state)
 }
@@ -5494,118 +5494,69 @@ fn solve_mode(
     let sites = write_sites(module, f, &mut loans, b)?;
     let mut dyn_sites = dyn_leases::Sites::default();
     let mut values = vec![Payload::default(); f.values.len()];
-    let mut outputs = Vec::new();
-    for _ in &f.blocks {
-        outputs.push(copy_frame(&blank, b)?);
-    }
-    if graph_order {
-        let (order, cyclic) = execution_order(g, f.entry.0 as usize, b)?;
-        loop {
-            let mut changed = false;
-            if let Some(progress) = &mut b.diagnostic_progress {
-                progress.cfg_round = progress.cfg_round.saturating_add(1);
-            }
-            for &bi in &order {
-                if let Some(progress) = &mut b.diagnostic_progress {
-                    progress.block_visits = progress.block_visits.saturating_add(1);
-                }
-                b.spend(1)?;
-                let mut state = incoming_frame(g, bi, f.entry.0 as usize, &entry, &blank, &outputs, b)?;
-                for instruction in &f.blocks[bi].instructions {
-                    let out = step(
-                        module,
-                        f,
-                        instruction,
-                        &mut state,
-                        &values,
-                        summaries,
-                        &sites,
-                        &mut dyn_sites,
-                        &mut loans,
-                        is_deferred_address(instruction, &projection_heads),
-                        b,
-                    )?;
-                    if let Some(value) = instruction.result {
-                        changed |= join_payload(&mut values[value.0 as usize], &out, b)?;
-                    }
-                }
-                if cyclic {
-                    frame_work(&state, b)?;
-                    frame_work(&outputs[bi], b)?;
-                    changed |= state != outputs[bi];
-                }
-                outputs[bi] = state;
-            }
-            if !cyclic || !changed {
-                break;
-            }
-        }
-        return Ok(Solution {
-            values,
-            outputs,
-            entry,
-            loans,
-            sites,
-            dyn_sites,
-        });
-    }
+    // Until a block first executes, its predecessors see the single immutable
+    // bottom frame. Writing an output always publishes that block's own state.
+    let mut outputs: Vec<Option<Frame>> = (0..f.blocks.len()).map(|_| None).collect();
+    let (order, repeat_until_stable) = if graph_order {
+        execution_order(g, f.entry.0 as usize, b)?
+    } else {
+        // Independent comparison schedule. A reverse batch reads the previous
+        // frame generation, even for blocks already transferred in this round.
+        b.spend(f.blocks.len().saturating_mul(2))?;
+        ((0..f.blocks.len()).rev().filter(|&bi| g.reachable[bi]).collect(), true)
+    };
     loop {
+        let mut changed = false;
         if let Some(progress) = &mut b.diagnostic_progress {
             progress.cfg_round = progress.cfg_round.saturating_add(1);
         }
-        let mut changed = false;
-        // Reverse batches differ from the candidate's forward in-place walk.
-        // Old predecessor frames stay read-only for the complete reverse
-        // batch. Every reachable block is reconstructed below; retaining a
-        // second deep copy of its old frame adds no information.
-        b.spend(outputs.len())?;
-        let mut replacement: Vec<Option<Frame>> = (0..outputs.len()).map(|_| None).collect();
-        for bi in (0..f.blocks.len()).rev() {
+        let mut next_generation = Vec::new();
+        if !graph_order {
+            b.spend(outputs.len())?;
+            next_generation.resize_with(outputs.len(), || None);
+        }
+        for &bi in &order {
             b.spend(1)?;
-            if !g.reachable[bi] {
-                continue;
-            }
-            if let Some(progress) = &mut b.diagnostic_progress {
-                progress.block_visits = progress.block_visits.saturating_add(1);
-            }
-            let mut state = incoming_frame(g, bi, f.entry.0 as usize, &entry, &blank, &outputs, b)?;
-            for i in &f.blocks[bi].instructions {
+            b.usage.stored_cfg_visits = b.usage.stored_cfg_visits.saturating_add(1);
+            let mut state = incoming_frame(
+                g, bi, f.entry.0 as usize, &entry, &blank,
+                |id| outputs[id].as_ref().unwrap_or(&blank), b,
+            )?;
+            for instruction in &f.blocks[bi].instructions {
                 let out = step(
-                    module,
-                    f,
-                    i,
-                    &mut state,
-                    &values,
-                    summaries,
-                    &sites,
-                    &mut dyn_sites,
-                    &mut loans,
-                    is_deferred_address(i, &projection_heads),
-                    b,
+                    module, f, instruction, &mut state, &values, summaries, &sites,
+                    &mut dyn_sites, &mut loans, is_deferred_address(instruction, &projection_heads), b,
                 )?;
-                if let Some(v) = i.result {
-                    changed |= join_payload(&mut values[v.0 as usize], &out, b)?;
+                if let Some(value) = instruction.result {
+                    changed |= join_payload(&mut values[value.0 as usize], &out, b)?;
                 }
             }
-            frame_work(&state, b)?;
-            frame_work(&outputs[bi], b)?;
-            if state != outputs[bi] {
-                changed = true;
+            if repeat_until_stable {
+                let previous = outputs[bi].as_ref().unwrap_or(&blank);
+                frame_work(&state, b)?;
+                frame_work(previous, b)?;
+                changed |= &state != previous;
             }
-            replacement[bi] = Some(state);
+            if graph_order {
+                outputs[bi] = Some(state);
+            } else {
+                next_generation[bi] = Some(state);
+            }
         }
-        // Unreachable states are moved unchanged. The computed states move
-        // into the same actual coordinates, including the stable final round.
-        b.spend(outputs.len())?;
-        outputs = outputs
-            .into_iter()
-            .zip(replacement)
-            .map(|(old, new)| new.unwrap_or(old))
-            .collect();
-        if !changed {
+        if !graph_order {
+            outputs = next_generation;
+        }
+        if !repeat_until_stable || !changed {
             break;
         }
     }
+    // Consumers index the final solution by original block ordinal, including
+    // unreachable blocks. Materialize bottom only for those remaining slots.
+    b.spend(outputs.len())?;
+    let outputs = outputs.into_iter().map(|state| match state {
+        Some(state) => Ok(state),
+        None => copy_frame(&blank, b),
+    }).collect::<Check<Vec<_>>>()?;
     Ok(Solution {
         values,
         outputs,
@@ -6416,7 +6367,7 @@ fn windows(
         if !g.reachable[bi] {
             continue;
         }
-        let mut state = incoming_frame(g, bi, f.entry.0 as usize, &solution.entry, &blank, &solution.outputs, b)?;
+        let mut state = incoming_frame(g, bi, f.entry.0 as usize, &solution.entry, &blank, |id| &solution.outputs[id], b)?;
         replacements::entry(f, bi, &state, b)?;
         let after = instruction_rows(module, f, bi, &output_live[bi], b)?;
         let mut byte_point = byte_flow

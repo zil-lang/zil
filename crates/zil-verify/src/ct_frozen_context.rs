@@ -14,6 +14,7 @@ pub fn verify_ct_program_in_context(
         return Err(vec![Diagnostic::error(Phase::Ct,"E-CT-FROZEN-CONTEXT",None,"CT request differs from the independently selected frozen source/query binding")]);
     }
     let mut budget=Budget::new(limits);
+    budget.diagnostic_stage("compile-time frozen source binding");
     let frozen=semantic::FrozenContext::new(source,expected,&mut budget).map_err(|error|vec![error])?;
     let inputs=VerifiedInputs::owned(raw.module,raw.plan);
     budget.original_input=inputs.original_input();
