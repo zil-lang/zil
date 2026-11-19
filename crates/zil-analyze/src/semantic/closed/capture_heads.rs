@@ -1973,34 +1973,34 @@ impl Check<'_, '_> {
         Ok(())
     }
 
-    pub(super) fn captured_value(
+    pub(super) fn captured_value<'v>(
         &self,
         instance: &SemanticInstance,
-        value: &SemanticTypeValue,
+        value: &'v SemanticTypeValue,
         operand: &SemanticOperand,
         at: (BlockId, usize, SemanticSiteEdge),
         declaration: bool,
         b: &mut Budget,
-    ) -> CompileResult<Type> {
+    ) -> CompileResult<ObservedType<'v>> {
         let SemanticTypeValue::Resolved { ty, .. } = value else {
             return Err(fail("executable whole value retains a Core type"));
         };
         if self.uses_full_value(ty, b)? {
-            return Ok(self
-                .full_value_at(instance, value, operand, at, declaration, b)?
-                .into_type(b)?);
+            return Ok(ObservedType::Reconstructed(
+                self.full_value_at(instance, value, operand, at, declaration, b)?
+            ));
         }
         let SemanticTypeValue::Resolved {
-            ty: Type::Closure(id),
+            ty: Type::Closure(_),
             ..
         } = value
         else {
-            return self.value_type(value, b);
+            return self.value_type_ref(value, b).map(ObservedType::Physical);
         };
         let images = self.image_heads(instance, value, at, b)?;
         if !declaration {
             self.match_heads(instance, &images, operand, at, b)?;
         }
-        Ok(Type::Closure(*id))
+        Ok(ObservedType::Physical(ty))
     }
 }

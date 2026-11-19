@@ -462,13 +462,13 @@ impl Check<'_, '_> {
         Ok(())
     }
 
-    fn operand(
-        &self,
-        instance: &SemanticInstance,
+    fn operand<'p>(
+        &'p self,
+        instance: &'p SemanticInstance,
         operand: &SemanticOperand,
-        point: &Point<'_>,
+        point: &'p Point<'_>,
         b: &mut Budget,
-    ) -> CompileResult<Type> {
+    ) -> CompileResult<&'p Type> {
         b.spend(1, WORK)?;
         let ty = match operand {
             SemanticOperand::Value(value) => point.value(*value, b)?,
@@ -500,7 +500,7 @@ impl Check<'_, '_> {
             SemanticOperand::TypeArgument { scope, ordinal } => {
                 let context = self.ancestor(instance, *scope, b)?;
                 return match context.actuals.get(*ordinal as usize) {
-                    Some(SemanticActual::Type(value)) => self.value_type(value, b),
+                    Some(SemanticActual::Type(value)) => self.value_type_ref(value, b),
                     _ => Err(fail(
                         "semantic type argument operand changes its original mixed kind",
                     )),
@@ -512,7 +512,7 @@ impl Check<'_, '_> {
                     .as_ref()
                     .and_then(|environment| environment.actuals.get(*ordinal as usize))
                 {
-                    Some(SemanticActual::Type(value)) => self.value_type(value, b),
+                    Some(SemanticActual::Type(value)) => self.value_type_ref(value, b),
                     _ => Err(fail("semantic environment operand has no sealed type slot")),
                 };
             }
@@ -522,8 +522,13 @@ impl Check<'_, '_> {
                 ));
             }
         };
-        self.ordinary_type(ty, b)?;
-        Ok(ty.clone())
+        // instances() admitted every physical local/SSA type. Address roots
+        // retain their stricter observation rule, and captures are a separate
+        // directory. The point above still proves this occurrence is live.
+        if matches!(ty, Type::Address { .. }) || matches!(operand, SemanticOperand::Capture(_)) {
+            self.ordinary_type(ty, b)?;
+        }
+        Ok(ty)
     }
 
     pub(super) fn result(
@@ -719,14 +724,14 @@ impl Check<'_, '_> {
                 }
 
                 self.image_operands(instance, value, point, Some(*result), b)?;
-                if &self.captured_value(
+                if !geometry::same_type(self.captured_value(
                     instance,
                     value,
                     &SemanticOperand::Value(*result),
                     (point.block.id, point.instruction, SemanticSiteEdge::After),
                     false,
                     b,
-                )? != expected
+                )?.ty(), expected, b)?
                     || instruction.and_then(|actual| actual.result) != Some(*result)
                 {
                     return Err(fail(
@@ -813,10 +818,12 @@ impl Check<'_, '_> {
                 let actual_operand = if let SemanticOperand::Local(local) = subject
                     && matches!(expected_type, Type::Closure(_))
                     && let Some(slot) = self.persistent_slot(instance, point.function, *local, b)? {
-                    self.persistent_slot_value(instance, point.function, &slot,
-                        (point.block.id, point.instruction + usize::from(point.edge == SemanticSiteEdge::After)), b, 0)?.into_type(b)?
-                } else { self.operand(instance, subject, point, b)? };
-                if &actual_operand != expected_type
+                    ObservedType::Reconstructed(self.persistent_slot_value(instance, point.function, &slot,
+                        (point.block.id, point.instruction + usize::from(point.edge == SemanticSiteEdge::After)), b, 0)?)
+                } else { ObservedType::Physical(self.operand(instance, subject, point, b)?) };
+                let actual_operand = actual_operand.ty();
+                let same_operand = geometry::same_type(actual_operand, expected_type, b)?;
+                if !same_operand
                     && let Some((whole, error)) = self.original.return_injection(
                         instance,
                         site.recipe,
@@ -835,7 +842,7 @@ impl Check<'_, '_> {
                         ));
                     };
                     if is_error != error
-                        || actual_operand != whole.ty
+                        || !geometry::same_type(actual_operand, &whole.ty, b)?
                         || !self.capture_values_equal(
                             &self.resolved(instance, expected, b, 0)?, &whole, b,
                         )?
@@ -978,9 +985,10 @@ impl Check<'_, '_> {
                     false,
                     b,
                 )?;
-                if expected_type != &captured || &actual_operand != expected_type {
-                    crate::dyn_metadata::ty(&actual_operand, b)?;
-                    crate::dyn_metadata::ty(&captured, b)?;
+                let captured = captured.ty();
+                if !same_operand || !geometry::same_type(expected_type, captured, b)? {
+                    crate::dyn_metadata::ty(actual_operand, b)?;
+                    crate::dyn_metadata::ty(captured, b)?;
                     crate::dyn_metadata::recipe(expected, b)?;
                     b.spend(
                         original_value
@@ -1029,14 +1037,14 @@ impl Check<'_, '_> {
                     return Ok(());
                 }
                 self.image_operands(instance, expected, point, None, b)?;
-                if &self.captured_value(
+                if !geometry::same_type(self.captured_value(
                     instance,
                     expected,
                     &SemanticOperand::Local(*local),
                     (point.block.id, point.instruction, point.edge),
                     true,
                     b,
-                )? != expected_type
+                )?.ty(), expected_type, b)?
                     || point
                         .function
                         .locals
@@ -1598,7 +1606,7 @@ impl Check<'_, '_> {
                             let Type::Closure(id) = receiver else {
                                 return Err(fail("original closure callee has another complete actual type"));
                             };
-                            id
+                            *id
                         };
                         let callee = self
                             .module
@@ -1786,7 +1794,7 @@ impl Check<'_, '_> {
                 SemanticSiteAction::CallableCall { callee },
             ) => {
                 let expected = self.ty(instance, recipe, b, 0)?;
-                if expected != self.operand(instance, callee, point, b)? {
+                if !geometry::same_type(&expected, self.operand(instance, callee, point, b)?, b)? {
                     return Err(fail(
                         "actual callable operand changes its original whole type",
                     ));

@@ -70,6 +70,18 @@ fn empty(life: &StorageLifeShape) -> bool {
 }
 type ClosedNominalKey = (SemanticDefinitionId, usize, Vec<usize>);
 type ClosedNominalSource = (SemanticDefinitionId, Vec<value::Argument>);
+enum ObservedType<'a> {
+    Physical(&'a Type),
+    Reconstructed(value::Value),
+}
+impl ObservedType<'_> {
+    fn ty(&self) -> &Type {
+        match self {
+            Self::Physical(ty) => ty,
+            Self::Reconstructed(value) => &value.ty,
+        }
+    }
+}
 struct Check<'a, 'i> {
     module: &'a TypedModule,
     program: &'a SemanticModule,
@@ -334,6 +346,10 @@ impl Check<'_, '_> {
     }
     #[track_caller]
     fn value_type(&self, value: &SemanticTypeValue, b: &mut Budget) -> CompileResult<Type> {
+        self.value_type_ref(value, b).cloned()
+    }
+    #[track_caller]
+    fn value_type_ref<'v>(&self, value: &'v SemanticTypeValue, b: &mut Budget) -> CompileResult<&'v Type> {
         let SemanticTypeValue::Resolved { ty, life, classes } = value else {
             return Err(fail("Core type survived into executable semantic context"));
         };
@@ -345,7 +361,7 @@ impl Check<'_, '_> {
             if domain != *life { return Err(fail("tagged sum view changes its complete success domain")); }
             self.actual_type(ty, b)?;
             crate::dyn_metadata::ty(ty, b)?;
-            return Ok(ty.clone());
+            return Ok(ty);
         }
         if let Some(domain) = self.task_domain(ty, b)? {
             if domain != *life {
@@ -358,7 +374,7 @@ impl Check<'_, '_> {
             // runtime head, retained source or cleanup permission.
             self.actual_type(ty, b)?;
             crate::dyn_metadata::ty(ty, b)?;
-            return Ok(ty.clone());
+            return Ok(ty);
         }
         if let Some(domain) = self.dyn_value_domain(ty, b, 0)? {
             crate::dyn_metadata::shape(&domain.life, b)?;
@@ -369,7 +385,7 @@ impl Check<'_, '_> {
             }
             self.actual_type(ty, b)?;
             crate::dyn_metadata::ty(ty, b)?;
-            return Ok(ty.clone());
+            return Ok(ty);
         }
         match ty {
             Type::Address { .. } if original::strings::is_byte_type(ty) && empty(life) => {}
@@ -468,7 +484,7 @@ impl Check<'_, '_> {
             }
         }
         self.actual_type(ty, b)?;
-        Ok(ty.clone())
+        Ok(ty)
     }
     fn actual_type(&self, ty: &Type, b: &mut Budget) -> CompileResult<()> {
         if let Type::Address { inner, .. } = ty {
