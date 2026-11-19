@@ -17,8 +17,9 @@ pub fn verify_ct_program_in_context(
     let frozen=semantic::FrozenContext::new(source,expected,&mut budget).map_err(|error|vec![error])?;
     let inputs=VerifiedInputs::owned(raw.module,raw.plan);
     budget.original_input=inputs.original_input();
-    let checked=check_module_budget(inputs.module(),inputs.plan(),target,limits,None,&mut budget,Some(&frozen)).map_err(|error|vec![error])?;
+    let checked=check_module_budget(inputs.module(),inputs.plan(),target,limits,None,&mut budget,Some(&frozen)).map_err(|error|budget.rejection(error))?;
     let verified=VerifiedModule{
+        usage:checked.usage,
         inputs,
         fingerprint:checked.fingerprint,limits:limits.clone(),
         uses_owned_sum_extension:checked.uses_owned_sum_extension,

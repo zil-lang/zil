@@ -51,7 +51,8 @@
     "unproved_semantic_input_is_rejected": true,
     "default_budget_increase_is_a_fix": false,
     "unsupported_or_zero_execution_is_pass": false,
-    "scalar_seam_or_function_splitting_replaces_required_composition": false
+    "scalar_seam_or_function_splitting_replaces_required_composition": false,
+    "resource_acceptance": "Use validation/language-alpha-resource-profile.json for functional, resource-safety and calibration criteria. Preserve every supported entrance and original functional observation."
   },
   "compatibility": "No positive compatibility obligation for historical schema, internal IR or unreleased APIs. The current format rejects unknown/obsolete versions. Historical evidence remains archived; current safety counterexamples and real Source inputs remain required.",
   "delivery": "A single exact source candidate with non-author review, complete nonzero functional coverage, reproducible build/run/test instructions and a clean independent restoration is required before publishing Alpha.",

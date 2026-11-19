@@ -25,7 +25,8 @@ def main():
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--jobs", type=int, choices=range(1, 5), default=4,
                         help="Independent compiler processes; 1..4 (default: 4)")
-    parser.add_argument("--work-profile", choices=("standard", "alpha"), default="standard")
+    parser.add_argument("--work-profile", choices=("standard", "alpha"),
+                        help="Use the published daily CLI profile by default")
     args = parser.parse_args()
     repo = args.repo.resolve()
     cli = args.cli.resolve()
@@ -52,7 +53,10 @@ def main():
             if committed != content:
                 parser.error(f"{path.name} differs from the compiler candidate")
     profile = json.loads(profile_bytes)
-    expected = json.loads(policy_bytes)["profiles"][args.work_profile]
+    policy = json.loads(policy_bytes)
+    if args.work_profile is None:
+        args.work_profile = policy["cli_default"]
+    expected = policy["profiles"][args.work_profile]
     def run_case(selected):
         group, case = selected
         directory = output / group / case["family"]
@@ -78,7 +82,8 @@ def main():
                 report = {"status": "InvalidCompilerReport"}
             row.update(exit=run.returncode, status=report.get("status"),
                        verification_runs=report.get("verification_runs", 0),
-                       diagnostics=report.get("diagnostics", []))
+                       diagnostics=report.get("diagnostics", []),
+                       verification_usage=report.get("verification_usage"))
             row.update(work_profile=report.get("work_profile"),
                        work_profile_revision=report.get("work_profile_revision"),
                        effective_limits=report.get("effective_limits"))
@@ -133,6 +138,9 @@ def main():
         "candidate": candidate, "fixture_checkout": fixture_revision,
         "cli_sha256": cli_hash, "profile_sha256": hashlib.sha256(profile_bytes).hexdigest(),
         "work_profile": args.work_profile,
+        "resource_policy_sha256": hashlib.sha256(policy_bytes).hexdigest(),
+        "profile_role": "daily_cli" if args.work_profile == policy["cli_default"] else "explicit_profile",
+        "resource_exhausted": sum(row["status"] == "ResourceLimit" for row in rows),
         "scope": "Foundation source/check evidence; not native, C-provider or Alpha acceptance",
         "rows": rows, **totals,
     }

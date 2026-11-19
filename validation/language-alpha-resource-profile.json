@@ -53,5 +53,11 @@
     "work_profile",
     "work_profile_revision",
     "effective_limits"
-  ]
+  ],
+  "acceptance": {
+    "functional": "A legal original completes independent Verify and the required executions under the published daily CLI profile. A semantic negative must reach its specified rule. Resource exhaustion is an incomplete observation.",
+    "resource_safety": "Published input entrances enforce their selected bounds and stop without Verified output on exhaustion. Check structural limits, compile-time execution limits, and deterministic work exhaustion independently, including fresh requests.",
+    "calibration": "Exact historical implementation step minima and the standard-profile pressure run are recorded separately. A changed minimum alone does not block functional Alpha. A failure under a promised default entrance or a missing required execution remains open.",
+    "measurements": "Report completed executable geometry, physical type preflight visits and peak depth, and cumulative verifier work. Task, CT execution and host memory have separate scopes."
+  }
 }

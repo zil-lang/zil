@@ -861,6 +861,7 @@ impl CompilationSession {
             .check(Phase::Verify)
             .map_err(|error| vec![error])?;
         let verified = verified?;
+        report.verification_usage = Some(verified.usage());
         let project = typed.program();
         report.phase = Phase::Verify;
         super::contracts::publish(&verified, &mut report.scalar_interfaces)?;

@@ -152,10 +152,28 @@ pub use ct_program::{
     VerifiedCTProgram, check_ct_result_type, verify_ct_program, verify_ct_program_bytes,
 };
 
+/// Measurements from a completed executable Verify request. Shape counts
+/// describe the actual input, and steps count implementation work. Neither
+/// participates in ownership, lifetime, or cleanup proofs.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct VerificationUsage {
+    pub functions: usize,
+    pub blocks: usize,
+    pub instructions: usize,
+    pub locals: usize,
+    pub values: usize,
+    /// Visits made by the physical type preflight, including repeated occurrences.
+    pub type_nodes_visited: usize,
+    /// Zero-based nesting observed during that preflight.
+    pub max_type_depth: usize,
+    pub work_steps: usize,
+}
+
 /// A checked, immutable scalar/readonly-closure CFG, including independently
 /// reconstructed local shared-address provenance and lifetime constraints.
 #[derive(Clone)]
 pub struct VerifiedModule {
+    usage: VerificationUsage,
     inputs: VerifiedInputs,
     fingerprint: Fingerprint,
     limits: Limits,
@@ -262,6 +280,10 @@ impl fmt::Debug for VerifiedModule {
     }
 }
 impl VerifiedModule {
+    pub fn usage(&self) -> VerificationUsage {
+        self.usage
+    }
+
     pub fn module(&self) -> &TypedModule {
         self.inputs.module()
     }
@@ -495,7 +517,13 @@ impl std::fmt::Debug for InlineStoreRoots {
 struct Budget {
     /// Earliest structural stack escape, pending the current module's CFG loan checks.
     escaping_stack_borrow: Option<Diagnostic>,
+    /// If the loan pass reports a conflict first, the already proven escape
+    /// remains a separate explanation for rejecting the same module.
+    additional_escape: Option<Diagnostic>,
     remaining: usize,
+    work_stage: &'static str,
+    type_nodes_visited: usize,
+    max_type_depth: usize,
     original_input: Option<OriginalInput>,
     structural: Option<dynamic_metadata::Structure>,
     diagnostic_costs: Option<BTreeMap<(&'static str, u32), (usize, usize)>>,
@@ -647,7 +675,11 @@ impl Budget {
     fn new(limits: &Limits) -> Self {
         Self {
             escaping_stack_borrow: None,
+            additional_escape: None,
             remaining: limits.max_analysis_steps,
+            work_stage: "request setup",
+            type_nodes_visited: 0,
+            max_type_depth: 0,
             original_input: None,
             structural: None,
             diagnostic_costs: std::env::var_os("ZIL_VERIFY_PROFILE_COSTS").map(|_| BTreeMap::new()),
@@ -781,11 +813,23 @@ impl Budget {
                     ));
                 }
             }
-            limit(message)
+            let mut error = limit(message);
+            error.notes.push(format!(
+                "max_analysis_steps={} consumed={} remaining={} next={} stage={}",
+                self.limits.max_analysis_steps, self.limits.max_analysis_steps.saturating_sub(self.remaining),
+                self.remaining, amount, self.work_stage
+            ));
+            error
         })?;
         Ok(())
     }
+    fn rejection(&mut self, primary: Diagnostic) -> Vec<Diagnostic> {
+        let mut errors = vec![primary];
+        errors.extend(self.additional_escape.take());
+        errors
+    }
     fn diagnostic_stage(&mut self, stage: &'static str) {
+        self.work_stage = stage;
         if let Some(progress) = &mut self.diagnostic_progress {
             progress.stage = stage;
             progress.actual_function = None;
@@ -799,6 +843,7 @@ impl Budget {
         function: FunctionId,
         summary_round: usize,
     ) {
+        self.work_stage = stage;
         if let Some(progress) = &mut self.diagnostic_progress {
             progress.stage = stage;
             progress.actual_function = Some(function);
@@ -807,6 +852,7 @@ impl Budget {
         }
     }
     fn diagnostic_label(&mut self, stage: &'static str) {
+        self.work_stage = stage;
         if let Some(progress) = &mut self.diagnostic_progress {
             progress.stage = stage;
         }
@@ -991,6 +1037,7 @@ fn verify_inputs(
         None,
     ) {
         Ok(checked) => Ok(VerifiedModule {
+            usage: checked.usage,
             inputs,
             fingerprint: checked.fingerprint,
             limits: limits.clone(),
@@ -1005,7 +1052,7 @@ fn verify_inputs(
             task_input_fingerprint: checked.task_input_fingerprint,
             task_ownership: Arc::new(checked.task_ownership),
         }),
-        Err(diagnostic) => Err(vec![diagnostic]),
+        Err(diagnostic) => Err(budget.rejection(diagnostic)),
     }
 }
 
@@ -1052,6 +1099,7 @@ fn check_target(actual: &TargetProfile, expected: &TargetProfile) -> Check<()> {
 }
 
 struct CheckedModule {
+    usage: VerificationUsage,
     fingerprint: Fingerprint,
     uses_owned_sum_extension: bool,
     uses_scalar_tasks: bool,
@@ -1119,6 +1167,10 @@ fn check_module_budget(
     budget.function_count = module.functions.len();
     let prior_structure = budget.structural.take();
     let prior_stack_borrow = budget.escaping_stack_borrow.take();
+    let prior_type_nodes = std::mem::take(&mut budget.type_nodes_visited);
+    let prior_type_depth = std::mem::take(&mut budget.max_type_depth);
+    let prior_work_stage = budget.work_stage;
+    let initial_work = budget.remaining;
     let prior_capture_classes = std::mem::take(&mut budget.semantic_capture_classes);
     let prior_progress = budget.diagnostic_progress;
     let prior_body_definitions = budget.diagnostic_body_definitions.take();
@@ -1765,6 +1817,11 @@ fn check_module_budget(
         semantic::task_domains::drain(module, &mut budget)?;
         semantic::callable_obligations::drain(module, &mut budget)?;
         Ok(CheckedModule {
+            usage: VerificationUsage {
+                functions: module.functions.len(), blocks: block_count, instructions: instruction_count,
+                locals: local_count, values: value_count, type_nodes_visited: budget.type_nodes_visited,
+                max_type_depth: budget.max_type_depth, work_steps: initial_work - budget.remaining,
+            },
             fingerprint,
             uses_owned_sum_extension: budget.sums,
             uses_scalar_tasks: budget.tasks,
@@ -1778,8 +1835,14 @@ fn check_module_budget(
             task_ownership: std::mem::take(&mut budget.task_ownership),
         })
     })();
+    if result.as_ref().is_err_and(|error| error.code == "E-BORROW-CONFLICT") {
+        budget.additional_escape = budget.escaping_stack_borrow.take();
+    }
     budget.structural = prior_structure;
     budget.escaping_stack_borrow = prior_stack_borrow;
+    budget.type_nodes_visited = prior_type_nodes;
+    budget.max_type_depth = prior_type_depth;
+    budget.work_stage = prior_work_stage;
     budget.semantic_capture_classes = prior_capture_classes;
     if report_scans && let Some(progress) = budget.diagnostic_progress {
         eprintln!("verify-original-body completed={} walks={} revisits={} statement_and_expression_visits={} cfg_block_visits={}",
@@ -1796,7 +1859,7 @@ fn check_module_budget(
 fn add_count(before: usize, add: usize, maximum: usize, kind: &str) -> Check<usize> {
     match before.checked_add(add) {
         Some(total) if total <= maximum => Ok(total),
-        _ => Err(limit(format!("{kind} count exceeds verification limit"))),
+        _ => Err(limit(format!("{kind} count exceeds verification limit {maximum} (previous {before}, additional {add})"))),
     }
 }
 fn check_anonymous_sum(ty: &Type, limits: &Limits, budget: &mut Budget) -> Check<()> {
@@ -1907,13 +1970,16 @@ fn check_anonymous_sum(ty: &Type, limits: &Limits, budget: &mut Budget) -> Check
     Ok(())
 }
 
-fn check_type_shape(
-    ty: &Type,
+fn check_type_shape<'a>(
+    ty: &'a Type,
     target: &TargetProfile,
     limits: &Limits,
     budget: &mut Budget,
 ) -> Check<()> {
     let mut array_root = false;
+    // Count physical type occurrences before extending the worklist. A wide
+    // product uses many nodes even at depth one; array length is not a node.
+    let mut scheduled = add_count(0, 1, limits.max_nodes, "physical type node")?;
     let mut first = Some((ty, 0usize, 0u16));
     let mut pending = Vec::new();
     let mut options = Vec::new();
@@ -1921,6 +1987,8 @@ fn check_type_shape(
     let mut pod_stores = Vec::new();
     while let Some((ty, depth, context)) = first.take().or_else(|| pending.pop()) {
         budget.spend(1)?;
+        budget.type_nodes_visited = budget.type_nodes_visited.saturating_add(1);
+        budget.max_type_depth = budget.max_type_depth.max(depth);
         if matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Address{..})) {
             budget.raw_reference_cells = true;
             budget.stored_borrows = true;
@@ -1961,7 +2029,7 @@ fn check_type_shape(
             budget.mark_sum(budget.current_function)?;
         }
         if depth > limits.max_call_depth {
-            return Err(limit("aggregate type nesting exceeds verification limit"));
+            return Err(limit(format!("aggregate type nesting {depth} exceeds limit {}", limits.max_call_depth)));
         }
         if matches!(
             ty,
@@ -1976,6 +2044,11 @@ fn check_type_shape(
             budget.stored_borrows = true;
             array_root = true;
         }
+        let mut schedule = |child: (&'a Type, usize, u16)| -> Check<()> {
+            scheduled = add_count(scheduled, 1, limits.max_nodes, "physical type node")?;
+            pending.push(child);
+            Ok(())
+        };
         match ty {
             Type::BorrowedStorage { storage, .. } => {
                 if !budget.stored_context {
@@ -1986,7 +2059,7 @@ fn check_type_shape(
                 }
                 stored_flow::physical(ty, limits, budget)?;
                 budget.stored_borrows = true;
-                pending.push((storage, depth + 1, context));
+                schedule((storage, depth + 1, context))?;
             }
             Type::Dyn { .. } => {}
             Type::Registration {
@@ -2023,20 +2096,20 @@ fn check_type_shape(
                     budget.spend(1)?;
                     pod_stores.push(element.as_ref());
                 }
-                pending.push((element, depth + 1, element_context));
+                schedule((element, depth + 1, element_context))?;
             }
             Type::Slice { element } => {
                 slices::target(target)?;
-                pending.push((element, depth + 1, context));
+                schedule((element, depth + 1, context))?;
             }
             Type::Array { element, length } => {
                 budget.spend(*length as usize)?;
-                pending.push((element, depth + 1, context | 128));
+                schedule((element, depth + 1, context | 128))?;
             }
             Type::Tuple(fields) => {
                 budget.spend(fields.len())?;
                 for ty in fields {
-                    pending.push((ty, depth + 1, context | 64));
+                    schedule((ty, depth + 1, context | 64))?;
                 }
             }
             Type::Record { name, fields } | Type::Package { name, fields } => {
@@ -2062,7 +2135,7 @@ fn check_type_shape(
                     };
                 for (name, ty) in fields {
                     budget.spend(name.len())?;
-                    pending.push((ty, depth + 1, context));
+                    schedule((ty, depth + 1, context))?;
                 }
             }
             Type::Enum { name, variants } => {
@@ -2077,30 +2150,30 @@ fn check_type_shape(
                 for (name, fields) in variants {
                     budget.spend(name.len().saturating_add(fields.len()))?;
                     for ty in fields {
-                        pending.push((
+                        schedule((
                             ty,
                             depth + 1,
                             context | 1 | if context & 4 != 0 { 8 } else { 0 },
-                        ));
+                        ))?;
                     }
                 }
             }
             Type::Opaque { hidden, .. } => {
-                pending.push((hidden, depth + 1, context));
+                schedule((hidden, depth + 1, context))?;
             }
             Type::Mutex { payload: inner }
             | Type::Task { result: inner, .. }
             | Type::Address { inner, .. }
             | Type::Managed(inner)
             | Type::Desc(inner) => {
-                pending.push((inner, depth + 1, context));
+                schedule((inner, depth + 1, context))?;
             }
             Type::MutexGuard {
                 payload,
                 retained_life,
             } => {
                 generic_mutex::guard_shape(payload, retained_life, budget)?;
-                pending.push((payload, depth + 1, context));
+                schedule((payload, depth + 1, context))?;
             }
             Type::ErrorUnion { error, result } => {
                 budget.spend(2)?;
@@ -2117,8 +2190,8 @@ fn check_type_shape(
                     } else {
                         0
                     };
-                pending.push((error, depth + 1, context));
-                pending.push((result, depth + 1, context));
+                schedule((error, depth + 1, context))?;
+                schedule((result, depth + 1, context))?;
             }
             Type::BorrowedFunctionPointer {
                 parameters,
@@ -2132,17 +2205,17 @@ fn check_type_shape(
                 }
                 borrowed_fp::signature_work(parameters, result, budget)?;
                 borrowed_fp::relation(parameters, result, life, None)?;
-                pending.push((result, depth + 1, context));
+                schedule((result, depth + 1, context))?;
                 for parameter in parameters {
-                    pending.push((parameter, depth + 1, context));
+                    schedule((parameter, depth + 1, context))?;
                 }
             }
             Type::FunctionPointer { parameters, result }
             | Type::ForeignCallback { parameters, result } => {
                 budget.spend(parameters.len())?;
-                pending.push((result, depth + 1, context));
+                schedule((result, depth + 1, context))?;
                 for parameter in parameters {
-                    pending.push((parameter, depth + 1, context));
+                    schedule((parameter, depth + 1, context))?;
                 }
             }
             _ => {}
@@ -2219,6 +2292,32 @@ fn check_type_shape(
         check_anonymous_sum(ty, limits, budget)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod shape_limit_tests {
+    use super::*;
+
+    #[test]
+    fn physical_type_depth_nodes_and_work_have_independent_boundaries() {
+        let target = TargetProfile::default();
+        let nested = Type::Tuple(vec![Type::Tuple(vec![Type::I32])]);
+        let wide = Type::Tuple(vec![Type::I32, Type::I32, Type::I32]);
+        let check = |ty: &Type, nodes, depth, work| {
+            let limits = Limits { max_nodes: nodes, max_call_depth: depth,
+                max_analysis_steps: work, ..Limits::default() };
+            let mut budget = Budget::new(&limits);
+            check_type_shape(ty, &target, &limits, &mut budget)
+                .map(|()| (budget.type_nodes_visited, budget.max_type_depth))
+        };
+        assert_eq!(check(&wide, 4, 1, 1000).unwrap(), (4, 1));
+        assert_eq!(check(&nested, 3, 2, 1000).unwrap(), (3, 2));
+        assert!(check(&wide, 3, 8, 1000).unwrap_err().message.contains("physical type node"));
+        assert!(check(&nested, 100, 1, 1000).unwrap_err().message.contains("nesting"));
+        let work = check(&wide, 100, 8, 0).unwrap_err();
+        assert_eq!(work.category, zil_base::ResultCategory::ResourceLimit);
+        assert!(work.notes.iter().any(|n| n.contains("max_analysis_steps=0")));
+    }
 }
 
 // Called only after check_type_shape has bounded the raw tree. Keeping
@@ -3039,8 +3138,19 @@ fn check_function(
                 if matches!(producer.kind, InstructionKind::BorrowLocal { .. }
                     | InstructionKind::BorrowLocalMut { .. })
                 {
-                    budget.escaping_stack_borrow.get_or_insert_with(|| reject("E-BORROW-ESCAPE", Some(producer.span),
-                        "reference return takes an address of this activation's own local storage"));
+                    budget.escaping_stack_borrow.get_or_insert_with(|| {
+                        let mut error = reject("E-BORROW-ESCAPE", Some(producer.span),
+                            "reference return takes an address of this activation's own local storage");
+                        error.relate(zil_base::DiagnosticRole::BorrowCreated, Some(producer.span),
+                            Some(zil_base::DiagnosticIrLocation { function: function.id.0,
+                                block: Some(source_block as u32), instruction: Some(index as u32) }),
+                            "This SSA address borrows storage in the returning activation.");
+                        error.relate(zil_base::DiagnosticRole::Result, None,
+                            Some(zil_base::DiagnosticIrLocation { function: function.id.0,
+                                block: Some(block.id.0), instruction: None }),
+                            "The terminator returns that address after this activation ends.");
+                        error
+                    });
                 }
             }
         }

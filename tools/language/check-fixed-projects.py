@@ -130,7 +130,7 @@ def check_source(args, directory, source, expected=None, stem='check'):
                       and source_file is not None and Path(source_file).name == expected['file'])
     return {'passed': passed, 'invocation': invocation, 'status': report.get('status'),
             'phase': report.get('phase'), 'verification_runs': report.get('verification_runs'),
-            'diagnostics': diagnostics}
+            'verification_usage': report.get('verification_usage'), 'diagnostics': diagnostics}
 
 
 def run_native(args, directory, source, reference, entry, cases, source_passed, *,
@@ -322,6 +322,7 @@ def main():
     candidate_trees_matched = sum(row['candidate_matches_original_tree'] or
                                   row['candidate_matches_normalized_example_tree'] for row in rows)
     summary = {'original_projects': len(rows),
+               'source_resource_exhausted': [row['label'] for row in rows if row['check']['status'] == 'ResourceLimit'],
                'candidate_project_trees_matched': candidate_trees_matched,
                'candidate_original_trees_matched': sum(row['candidate_matches_original_tree'] for row in rows),
                'originals_verified': sum(row['check']['passed'] for row in rows if row['expected_rejection'] is None),

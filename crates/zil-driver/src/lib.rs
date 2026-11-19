@@ -201,6 +201,8 @@ pub struct CompileReport {
     pub disk_cache: DiskCacheStatus,
     pub query_events: Vec<QueryEvent>,
     pub verification_runs: usize,
+    /// Resource usage for the last fully verified executable in this request.
+    pub verification_usage: Option<zil_verify::VerificationUsage>,
     pub source_files: BTreeMap<FileId, String>,
     pub scalar_interfaces: Vec<zil_ir::ScalarInterface>,
 }
@@ -219,13 +221,14 @@ impl CompileReport {
             disk_cache: DiskCacheStatus::Disabled,
             query_events: vec![],
             verification_runs: 0,
+            verification_usage: None,
             source_files: BTreeMap::from([(source.file_id, source.path.clone())]),
             scalar_interfaces: Vec::new(),
         }
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}]}}",
+            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"verification_usage\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}]}}",
             json_string(self.status.as_str()),
             json_string(self.phase.as_str()),
             self.diagnostics
@@ -269,6 +272,11 @@ impl CompileReport {
                 .collect::<Vec<_>>()
                 .join(","),
             self.verification_runs,
+            self.verification_usage.map_or_else(|| "null".into(), |u| format!(
+                concat!("{{\"functions\":{},\"blocks\":{},\"instructions\":{},\"locals\":{},",
+                    "\"values\":{},\"type_nodes_visited\":{},\"max_type_depth\":{},\"work_steps\":{}}}"),
+                u.functions, u.blocks, u.instructions, u.locals, u.values, u.type_nodes_visited,
+                u.max_type_depth, u.work_steps)),
             self.source_files.iter().map(|(id, path)| format!("{}:{}", json_string(&id.0.to_string()), json_string(path))).collect::<Vec<_>>().join(","),
             self.scalar_interfaces.iter().map(|interface| format!("{{\"module\":{},\"signature_fingerprint\":{},\"implementation_fingerprint\":{},\"contract_fingerprint\":{},\"result_origins\":{},\"callable_contracts\":{},\"callable_returns\":{},\"exports\":[{}]}}", interface.module.0, json_string(&interface.signature_fingerprint.to_hex()), json_string(&interface.implementation_fingerprint.to_hex()), interface.contract_fingerprint.map_or_else(|| "null".into(), |hash| json_string(&hash.to_hex())), interface.result_origins.as_ref().map_or_else(|| "null".into(), |origins| format!("[{}]", origins.iter().map(|origin| format!("{{\"name\":{},\"parameters\":{:?},\"static_storage\":{}}}", json_string(&origin.name), origin.parameters, origin.static_storage)).collect::<Vec<_>>().join(","))), contracts::callable_json(interface), contracts::callable_return_json(interface), interface.exports.iter().map(|f| json_string(&f.name)).collect::<Vec<_>>().join(","))).collect::<Vec<_>>().join(","),
         )
