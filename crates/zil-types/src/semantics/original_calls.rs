@@ -2554,14 +2554,8 @@ impl Check<'_, '_> {
                     SemanticTypeRecipe::Atom(Type::ByteBuffer)
                 ))
             }
-            SemanticTypeRecipe::Array { element, length } => {
-                let nonzero = !matches!(
-                    length.as_ref(),
-                    SemanticConstRecipe::Value(
-                        Constant::Usize(0) | Constant::U64(0) | Constant::I32(0) | Constant::I64(0)
-                    )
-                );
-                Ok(nonzero && self.store_element(owner, element, depth + 1)?)
+            SemanticTypeRecipe::Array { .. } | SemanticTypeRecipe::Tuple(_) => {
+                Ok(self.pod_field_extent(owner, &ty, depth + 1)?.is_some_and(zil_ir::PodExtent::positive))
             }
             SemanticTypeRecipe::Nominal {
                 definition,
@@ -2576,6 +2570,9 @@ impl Check<'_, '_> {
                 else {
                     return Ok(false);
                 };
+                if *kind == LifeNominalKind::Record {
+                    return Ok(self.pod_field_extent(owner, &ty, depth + 1)?.is_some_and(zil_ir::PodExtent::positive));
+                }
                 if fields.is_empty()
                     || !matches!(kind, LifeNominalKind::Record | LifeNominalKind::Package)
                 {

@@ -171,6 +171,88 @@ impl Check<'_, '_> {
     /// A managed resource element retains its real declaration and complete
     /// synchronous teardown body. It is never inferred from a concrete i32
     /// specialization of an unconstrained original payload.
+    pub(super) fn pod_field_extent(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<Option<zil_ir::PodExtent>> {
+        use zil_ir::PodExtent;
+        self.pay(1, depth)?;
+        match ty {
+            SemanticTypeRecipe::Atom(ty) => Ok(PodExtent::scalar(ty)),
+            SemanticTypeRecipe::Exact(exact)
+                if exact.classes.is_empty()
+                    && exact.life.binder_count == 0
+                    && exact.life.slots.is_empty()
+                    && exact.life.retained.is_empty()
+                    && exact.life.nominal_arguments.is_empty() =>
+            {
+                Ok(PodExtent::scalar(&exact.ty))
+            }
+            SemanticTypeRecipe::Environment { scope: SemanticScopeRef::Ancestor(0), .. } => {
+                let actual = self.observation_type(owner, ty, depth + 1)?;
+                self.pod_field_extent(owner, &actual, depth + 1)
+            }
+            SemanticTypeRecipe::Formal(_) => Ok((self.copy_type(owner, ty, depth + 1)?
+                && self.store_element(owner, ty, depth + 1)?)
+            .then_some(PodExtent::POSITIVE)),
+            SemanticTypeRecipe::Array { element, length } => {
+                let Some(count) = self.closed_array_length(length, depth + 1)? else {
+                    return Ok(None);
+                };
+                Ok(self
+                    .pod_field_extent(owner, element, depth + 1)?
+                    .and_then(|field| field.repeat(count)))
+            }
+            SemanticTypeRecipe::Tuple(fields) => {
+                let mut extent = PodExtent::EMPTY;
+                for field in fields {
+                    let Some(next) = self
+                        .pod_field_extent(owner, field, depth + 1)?
+                        .and_then(|field| extent.append(field))
+                    else {
+                        return Ok(None);
+                    };
+                    extent = next;
+                }
+                Ok(extent.finish())
+            }
+            SemanticTypeRecipe::Nominal {
+                definition,
+                arguments,
+            } => {
+                let decl = self.definition(*definition)?;
+                let SemanticDefinitionBody::Nominal {
+                    kind: LifeNominalKind::Record,
+                    body: SemanticNominalBody::Product { fields },
+                    ..
+                } = &decl.body
+                else {
+                    return Ok(None);
+                };
+                let mut extent = PodExtent::EMPTY;
+                for field in fields {
+                    let field = self.instantiate_field(
+                        owner,
+                        *definition,
+                        &field.ty,
+                        arguments,
+                        depth + 1,
+                    )?;
+                    let Some(next) = self
+                        .pod_field_extent(owner, &field, depth + 1)?
+                        .and_then(|field| extent.append(field))
+                    else {
+                        return Ok(None);
+                    };
+                    extent = next;
+                }
+                Ok(extent.finish())
+            }
+            _ => Ok(None),
+        }
+    }
     pub(super) fn resource_store_element(
         &mut self,
         owner: SemanticDefinitionId,

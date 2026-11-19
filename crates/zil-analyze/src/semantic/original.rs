@@ -4981,6 +4981,64 @@ impl Solver<'_, '_> {
         }
         Ok(false)
     }
+    fn pod_field_extent(
+        &self,
+        term: Term,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Option<zil_ir::PodExtent>> {
+        use zil_ir::PodExtent;
+        self.step(depth, b)?;
+        let term = self.type_root(term, b)?;
+        let fields = match &self.state.arena[term] {
+            Kind::Atom(ty) => return Ok(PodExtent::scalar(ty)),
+            Kind::Rigid(..) => {
+                return Ok((self.satisfies(term, Predicate::Copy, b, depth + 1)?
+                    && self.satisfies(term, Predicate::StoreElement, b, depth + 1)?)
+                .then_some(PodExtent::POSITIVE));
+            }
+            Kind::Array { element, length } => {
+                let Kind::ConstValue(Constant::Usize(count)) =
+                    self.state.arena[self.root(*length, b)?]
+                else {
+                    return Ok(None);
+                };
+                return Ok(self
+                    .pod_field_extent(*element, b, depth + 1)?
+                    .and_then(|field| field.repeat(count)));
+            }
+            Kind::Tuple(fields) => fields,
+            Kind::Nominal {
+                definition, fields, ..
+            } => {
+                let decl = self.inventory.definition(*definition, b)?;
+                if !matches!(
+                    decl.body,
+                    SemanticDefinitionBody::Nominal {
+                        kind: LifeNominalKind::Record,
+                        ..
+                    }
+                ) {
+                    return Ok(None);
+                }
+                resources::ordinary_drop_absent(*definition, self.inventory, b)?;
+                fields
+            }
+            _ => return Ok(None),
+        };
+        let mut extent = PodExtent::EMPTY;
+        for field in fields {
+            let Some(next) = self
+                .pod_field_extent(*field, b, depth + 1)?
+                .and_then(|field| extent.append(field))
+            else {
+                return Ok(None);
+            };
+            extent = next;
+        }
+        Ok(extent.finish())
+    }
+
     fn satisfies(
         &self,
         term: Term,
@@ -5034,14 +5092,9 @@ impl Solver<'_, '_> {
             }
             Kind::Associated { .. } => self.associated_satisfies(term, predicate, b, depth + 1),
             Kind::SelfType(_) => self.associated_satisfies(term, predicate, b, depth + 1),
-            Kind::Array { element, length } => {
+            Kind::Array { element, .. } => {
                 if matches!(predicate, Predicate::StoreElement) {
-                    let length = self.root(*length, b)?;
-                    match self.state.arena[length] {
-                        Kind::ConstValue(Constant::Usize(0)) => return Ok(false),
-                        Kind::ConstValue(Constant::Usize(_)) => {}
-                        _ => return Err(unknown("array Store element requires its original concrete length")),
-                    }
+                    return Ok(self.pod_field_extent(term, b, depth + 1)?.is_some_and(zil_ir::PodExtent::positive));
                 }
                 self.satisfies(*element, predicate, b, depth + 1)
             }
@@ -5073,9 +5126,7 @@ impl Solver<'_, '_> {
             },
             Kind::Tuple(fields) => {
                 if matches!(predicate, Predicate::StoreElement) {
-                    return Err(unknown(
-                        "original Store element product needs complete layout and initialized-prefix cleanup proof",
-                    ));
+                    return Ok(self.pod_field_extent(term, b, depth + 1)?.is_some_and(zil_ir::PodExtent::positive));
                 }
                 for field in fields {
                     if !self.satisfies(*field, predicate, b, depth + 1)? {
@@ -5099,6 +5150,9 @@ impl Solver<'_, '_> {
                     return Ok(false);
                 }
                 if matches!(predicate, Predicate::StoreElement) {
+                    if *kind == LifeNominalKind::Record {
+                        return Ok(self.pod_field_extent(term, b, depth + 1)?.is_some_and(zil_ir::PodExtent::positive));
+                    }
                     resources::ordinary_drop_absent(*definition, self.inventory, b)?;
                     let mut callback = None;
                     let mut callbacks = 0usize;

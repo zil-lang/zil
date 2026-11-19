@@ -913,22 +913,27 @@ impl<'a> Check<'a, '_> {
         if a == b {
             return Ok(true);
         }
-        for value in [a, b] {
-            if let SemanticConstRecipe::IntegerLiteral(text) = value {
-                self.pay(text.len(), 0)?;
+        Ok(matches!((self.closed_array_length(a, 0)?, self.closed_array_length(b, 0)?), (Some(a), Some(b)) if a == b))
+    }
+    fn closed_array_length(&mut self, value: &SemanticConstRecipe, depth: usize) -> R<Option<u64>> {
+        let value = match value {
+            SemanticConstRecipe::Value(value) => value,
+            SemanticConstRecipe::IntegerLiteral(text) => {
+                self.pay(text.len().saturating_mul(3), depth)?;
+                return Ok(match crate::integer(text, Some(&Type::Usize), false, Span::default()) {
+                    Ok(Constant::Usize(count)) => Some(count),
+                    _ => None,
+                });
             }
-        }
-        fn closed(value: &SemanticConstRecipe) -> Option<u64> {
-            match value {
-                SemanticConstRecipe::Value(Constant::Usize(v) | Constant::U64(v)) => Some(*v),
-                SemanticConstRecipe::Value(Constant::U32(v)) => Some(u64::from(*v)),
-                SemanticConstRecipe::Value(Constant::I32(v)) => u64::try_from(*v).ok(),
-                SemanticConstRecipe::Value(Constant::I64(v)) => u64::try_from(*v).ok(),
-                SemanticConstRecipe::IntegerLiteral(text) => text.parse::<u64>().ok(),
-                _ => None,
-            }
-        }
-        Ok(matches!((closed(a), closed(b)), (Some(a), Some(b)) if a == b))
+            _ => return Ok(None),
+        };
+        Ok(match value {
+            Constant::Usize(v) | Constant::U64(v) => Some(*v),
+            Constant::U32(v) => Some(u64::from(*v)),
+            Constant::I32(v) => u64::try_from(*v).ok(),
+            Constant::I64(v) => u64::try_from(*v).ok(),
+            _ => None,
+        })
     }
     fn copy_type(
         &mut self,

@@ -2,15 +2,105 @@
 //! phantom actual stays in its type even when it contributes no physical byte.
 use super::*;
 impl CheckedOriginal {
+    fn pod_field_extent(
+        &mut self,
+        module: &TypedModule,
+        context: &CheckedContext,
+        ty: &Ty,
+        env: &Env,
+        active: &mut ActiveQueries,
+        b: &mut Budget,
+    ) -> Check<Option<zil_ir::PodExtent>> {
+        use zil_ir::PodExtent;
+        let token = active.fresh(b)?;
+        active.with_query(
+            DependencyKey {
+                kind: QueryKind::Type,
+                token,
+            },
+            b,
+            |active, b| match self.resolved(ty, b)? {
+                Ty::Atom(ty) => Ok(PodExtent::scalar(&ty)),
+                Ty::Variable(..) => Ok((self.structural_premise(
+                    module,
+                    context,
+                    ty,
+                    DynStructuralBound::Copy,
+                    env,
+                    active,
+                    b,
+                )? && self.structural_premise(
+                    module,
+                    context,
+                    ty,
+                    DynStructuralBound::StoreElement,
+                    env,
+                    active,
+                    b,
+                )?)
+                .then_some(PodExtent::POSITIVE)),
+                Ty::Array(child, length) => {
+                    let ConstValue::Value(Constant::Usize(count)) = length.value else {
+                        return Ok(None);
+                    };
+                    Ok(self
+                        .pod_field_extent(module, context, &child, env, active, b)?
+                        .and_then(|field| field.repeat(count)))
+                }
+                Ty::Tuple(fields) => {
+                    let mut extent = PodExtent::EMPTY;
+                    for field in fields {
+                        let Some(next) = self
+                            .pod_field_extent(module, context, &field, env, active, b)?
+                            .and_then(|field| extent.append(field))
+                        else {
+                            return Ok(None);
+                        };
+                        extent = next;
+                    }
+                    Ok(extent.finish())
+                }
+                Ty::Nominal(id, actuals) => {
+                    let decl = context.definition(module, id, b)?;
+                    let SemanticDefinitionBody::Nominal {
+                        kind: LifeNominalKind::Record,
+                        body: SemanticNominalBody::Product { fields },
+                        ..
+                    } = &decl.body
+                    else {
+                        return Ok(None);
+                    };
+                    let mut selected = self.environment(module, context, id, active, b)?;
+                    selected.lexical[0].actuals = actuals;
+                    let mut extent = PodExtent::EMPTY;
+                    for field in fields {
+                        let child = self.ty(module, context, &field.ty, &selected, active, b)?;
+                        let Some(next) = self
+                            .pod_field_extent(module, context, &child, env, active, b)?
+                            .and_then(|field| extent.append(field))
+                        else {
+                            return Ok(None);
+                        };
+                        extent = next;
+                    }
+                    Ok(extent.finish())
+                }
+                _ => Ok(None),
+            },
+        )
+    }
     pub(super) fn store_element(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
         if self.structural_premise(module,context,ty,DynStructuralBound::StoreElement,env,active,b)?{return Ok(true);}
         let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Type,token},b,|active,b|Ok(match self.resolved(ty,b)?{
             Ty::Atom(ty)=>ty.is_b0_scalar()&&ty!=Type::Unit,
-            Ty::Tuple(fields)=>{if fields.is_empty(){return Ok(false);}for field in fields{if !self.store_element(module,context,&field,env,active,b)?{return Ok(false);}}true},
-            Ty::Array(child,length)=>{if !matches!(length.value,ConstValue::Value(Constant::Usize(n))if n>0){return Ok(false);}self.store_element(module,context,&child,env,active,b)?},
+            Ty::Tuple(_) | Ty::Array(..) => self.pod_field_extent(module,context,ty,env,active,b)?.is_some_and(zil_ir::PodExtent::positive),
             Ty::Managed(child)=>self.resource_sync_drop(module,context,&child,env,active,b)?,
             Ty::Nominal(id,arguments)=>{
                 let definition=context.definition(module,id,b)?;let SemanticDefinitionBody::Nominal{kind,body,..}=&definition.body else{return Err(bad("Store element has no exact original nominal body"));};
+                if *kind == LifeNominalKind::Record {
+                    return Ok(self.pod_field_extent(module,context,ty,env,active,b)?.is_some_and(zil_ir::PodExtent::positive)
+                        && self.sync_drop(module,context,ty,env,active,b)?);
+                }
                 if *kind==LifeNominalKind::Resource{return Ok(false);}
                 let mut selected=self.environment(module,context,id,active,b)?;selected.lexical[0].actuals=arguments;
                 let mut nonempty=false;

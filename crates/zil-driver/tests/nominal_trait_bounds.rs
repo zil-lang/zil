@@ -1951,7 +1951,13 @@ fn tuple_and_array_store_elements_keep_complete_generic_library_identity() {
     );
     native_both(&files);
 
+    let padded = "struct Empty{} struct Row{empty:Empty;data:((),[u8;0],i32)}fn main()->i32{let items:Store<[Row;0_2]>=store_new();if store_len(items)!=0{return 1}return 0}";
+    let report = check(padded);
+    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+
     for source in [
+        "fn unused<T:StoreElement>(items:Store<(i32,[&i64;0])>){store_len(items)}fn main(){}",
+        "fn unused<T:StoreElement>(items:Store<[[[u64;2147483647];2147483647];2]>){store_len(items)}fn main(){}",
         "fn main(){let items:Store<(void,void)>=store_new()}",
         "fn main(){let items:Store<[i32;0]>=store_new()}",
         "fn main(){let n:i32=1;let items:Store<(i32,&i32)>=store_new();store_push(items,(1,&n))}",
@@ -1967,6 +1973,39 @@ fn tuple_and_array_store_elements_keep_complete_generic_library_identity() {
             rejected.to_json()
         );
     }
+    // The actual i32 instance remains valid on its own. Each check must also
+    // prove the unused alternatives permitted by the original generic body.
+    use zil_ir::{DynStructuralBound, SemanticBuiltinTrait, SemanticFormal, SemanticRequirementRecipe};
+    let (original, plan) = original_method_candidate(&source(
+        "fn pair_len<T:Copy+StoreElement>(items:Store<(T,i32)>)->i64{return store_len(items)}fn main()->i32{let items:Store<(i32,i32)>=store_new();if pair_len(items)!=0{return 1}return 0}",
+    ));
+    verify_original_method_candidate(original.clone(), plan.clone()).unwrap();
+    for (excluded, builtin) in [
+        (DynStructuralBound::Copy, SemanticBuiltinTrait::Copy),
+        (DynStructuralBound::StoreElement, SemanticBuiltinTrait::StoreElement),
+    ] {
+        let mut module = original.clone();
+        let declaration = module.semantic.as_mut().unwrap().definitions.iter_mut()
+            .find(|definition| definition.identity.declaration_path.last().is_some_and(|name| name == "pair_len"))
+            .unwrap();
+        let keep = |requirement: &SemanticRequirementRecipe| match requirement {
+            SemanticRequirementRecipe::Structural { bound, .. } => *bound != excluded,
+            SemanticRequirementRecipe::Builtin { trait_kind, .. } => *trait_kind != builtin,
+            _ => true,
+        };
+        declaration.requirements.retain(keep);
+        let [SemanticFormal::Type { requirements }] = declaration.parameters.as_mut_slice() else {
+            panic!("pair_len must retain its one original type formal");
+        };
+        requirements.retain(keep);
+        let mut changed = plan.clone();
+        changed.module_fingerprint = module.fingerprint();
+        let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+        assert!(errors.iter().any(|d| d.message.contains("does not establish StoreElement")), "{errors:?}");
+        let errors = verify_original_method_candidate(module, changed).unwrap_err();
+        assert!(errors.iter().any(|d| d.message.contains("structural/cleanup obligation proof")), "{errors:?}");
+    }
+
 }
 
 #[test]

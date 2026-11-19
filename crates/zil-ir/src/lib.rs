@@ -34,6 +34,8 @@ use dynamic_fingerprint::*;
 pub use dynamic_recipes::*;
 use dynamic_recipes_fingerprint::*;
 pub use dynamic_recipes_visit::*;
+mod pod_extent;
+pub use pod_extent::PodExtent;
 mod program;
 pub mod source_projection;
 pub mod wire;
