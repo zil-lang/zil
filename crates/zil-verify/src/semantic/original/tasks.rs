@@ -32,18 +32,26 @@ impl CheckedOriginal {
             let owner=env.current()?;
             b.spend(name.len().saturating_add(1).saturating_mul(bindings.len().saturating_add(1).ilog2() as usize+1))?;
             if let Some(Binding{mutable:true,identity:Binder::Local{definition,node,..},..})=bindings.get(name)
-                && *definition==owner && let Some(uses)=self.uses.get(&owner) && !uses.writes.is_empty() {
-                b.spend(uses.writes.len().ilog2() as usize+2)?;
-                if let Some(OriginalSlotWrite::Write(rhs))=uses.writes.get(node).copied() {
+                && *definition==owner && let Some(uses)=self.uses.get(&owner) && !uses.writes().is_empty() {
+                b.spend(uses.writes().len().ilog2() as usize+2)?;
+                if let Some(writes)=uses.writes().get(node).cloned() && !writes.writers().is_empty() {
                     let definition=context.definition(module,owner,b)?;
                     b.spend(definition.implicit_lifetimes.len().saturating_add(self.expressions.len().saturating_add(1).ilog2() as usize+1))?;
-                    if definition.implicit_lifetimes.iter().any(|row|row.occurrence_path==[2])
-                        && let Some(written)=self.expressions.get(&(owner,rhs)).cloned()
-                        && self.same(&written,expected,b)? {
-                        self.expression(module,context,expression,env,bindings,None,active,b)?;
-                        b.spend(self.expressions.len().saturating_add(1).ilog2() as usize+self.returned_slot_writes.len().saturating_add(1).ilog2() as usize+3)?;
-                        self.returned_slot_writes.insert((owner,read.id),(*node,rhs));
-                        return Ok(written);
+                    if definition.implicit_lifetimes.iter().any(|row|row.occurrence_path==[2]) {
+                        let mut allowed=true;
+                        let Ty::Address{life:target,inner:expected_inner,..}=expected else{unreachable!()};
+                        for rhs in writes.writers(){
+                            b.spend(self.expressions.len().saturating_add(1).ilog2() as usize+2)?;
+                            let written=self.expressions.get(&(owner,*rhs)).ok_or_else(||bad("reaching writer lacks its original operand"))?;
+                            let Ty::Address{mutable:false,life,inner}=self.resolved(written,b)? else{return Err(bad("reaching writer changes the original shared address mode"));};
+                            allowed &= self.same(&inner,expected_inner,b)? && self.outer_outlives(&life,target,&mut BTreeSet::new(),b)?;
+                        }
+                        if allowed {
+                            self.expression(module,context,expression,env,bindings,None,active,b)?;
+                            b.spend(self.returned_slot_writes.len().saturating_add(1).ilog2() as usize+2)?;
+                            self.returned_slot_writes.insert((owner,read.id),(*node,writes));
+                            return Ok(expected.clone());
+                        }
                     }
                 }
             }

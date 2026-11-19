@@ -158,7 +158,7 @@ impl Solver<'_, '_> {
         from: &Local,
         b: &mut Budget,
     ) -> CompileResult<()> {
-        to.reaching_write=to.reaching_write.merged(from.reaching_write);
+        to.reaching_write=to.reaching_write.merged(&from.reaching_write,|cost|b.spend(cost,WORK))?;
         let mut certain = BTreeSet::new();
         if !to.live {
             certain = self.copy_vacancies(&from.vacant, b)?;

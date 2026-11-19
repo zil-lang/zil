@@ -340,7 +340,7 @@ pub(super) struct Checked {
     return_injections: BTreeMap<(SemanticDefinitionId, NodeId), (Term, bool)>,
     dyn_creations: BTreeMap<(SemanticDefinitionId, NodeId), dyn_owned::Creation>,
     receiving_places: BTreeMap<(SemanticDefinitionId, NodeId), ReceivingPlace>,
-    pub(super) returned_slot_writes: BTreeMap<(SemanticDefinitionId,NodeId),(NodeId,NodeId)>,
+    pub(super) returned_slot_writes: BTreeMap<(SemanticDefinitionId,NodeId),(NodeId,OriginalSlotWrite)>,
     pub(super) received_result_roles: BTreeSet<(SemanticDefinitionId,u32,u32)>,
     view_uppers: BTreeMap<(SemanticDefinitionId, u32), Vec<Term>>,
     reference_roles: BTreeMap<(SemanticDefinitionId, NodeId), local_reference_roles::Role>,
@@ -1301,7 +1301,7 @@ impl Solver<'_, '_> {
                 Local {
                     anchor: local.anchor,
                     prepared_at: local.prepared_at,
-                    reaching_write: local.reaching_write,
+                    reaching_write: local.reaching_write.clone(),
                     name: local.name.clone(),
                     ty: local.ty,
                     mutable: local.mutable,
@@ -2849,7 +2849,7 @@ impl Solver<'_, '_> {
                         match (left_alive, right_alive) {
                             (true, true) => self.join_vacancies(right, left, b)?,
                             (true, false) => {
-                                right.reaching_write=left.reaching_write;
+                                right.reaching_write=left.reaching_write.clone();
                                 right.vacant = self.copy_vacancies(&left.vacant, b)?;
                                 right.maybe_vacant = self.copy_vacancies(&left.maybe_vacant, b)?;
                                 right.live = left.live;
@@ -2885,8 +2885,11 @@ impl Solver<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Option<Term>> {
-        let mut read=value;
-        while let CoreExprKind::Group(inner)=&read.kind {b.spend(1,WORK)?;read=inner;}
+        let mut read = value;
+        while let CoreExprKind::Group(inner) = &read.kind {
+            b.spend(1, WORK)?;
+            read = inner;
+        }
         let CoreExprKind::Name(name) = &read.kind else {
             return Ok(None);
         };
@@ -2904,11 +2907,13 @@ impl Solver<'_, '_> {
             if local.name != *name {
                 continue;
             }
-            let (Some(LocalAnchor::Binding(binding)), OriginalSlotWrite::Write(rhs)) =
-                (local.anchor, local.reaching_write)
-            else {
+            let Some(LocalAnchor::Binding(binding)) = local.anchor else {
                 break;
             };
+            let writes = local.reaching_write.clone();
+            if writes.writers().is_empty() {
+                break;
+            }
             if !local.mutable || local.borrowed {
                 break;
             }
@@ -2921,12 +2926,32 @@ impl Solver<'_, '_> {
             {
                 break;
             }
-            b.lookup(frame.expressions.len(), WORK)?;
-            let Some(&source) = frame.expressions.get(&rhs) else {
+            let Kind::Address {
+                life: target,
+                inner: expected,
+                ..
+            } = self.state.arena[self.type_root(frame.result, b)?]
+            else {
                 break;
             };
-            if !self.same_original(source, frame.result, b, depth + 1)? {
-                break;
+            for rhs in writes.writers() {
+                b.lookup(frame.expressions.len(), WORK)?;
+                let Some(&source) = frame.expressions.get(rhs) else {
+                    return Ok(None);
+                };
+                let Kind::Address {
+                    mutable: false,
+                    life,
+                    inner,
+                } = self.state.arena[self.type_root(source, b)?]
+                else {
+                    return Ok(None);
+                };
+                if !self.same_original(inner, expected, b, depth + 1)?
+                    || !self.call_source_allows(frame, life, target, b, depth + 1)?
+                {
+                    return Ok(None);
+                }
             }
             // Validate the actual use of the lexical slot before giving this
             // single return read its reaching writer's independently proved type.
@@ -2934,8 +2959,8 @@ impl Solver<'_, '_> {
             b.lookup(self.state.returned_slot_writes.len(), WORK)?;
             self.state
                 .returned_slot_writes
-                .insert((frame.definition, read.id), (binding, rhs));
-            return Ok(Some(source));
+                .insert((frame.definition, read.id), (binding, writes));
+            return Ok(Some(frame.result));
         }
         Ok(None)
     }
@@ -2969,6 +2994,7 @@ impl Solver<'_, '_> {
                         return Err(fail("original binding node identity is reused"));
                     }
                     let mut family = None;
+                    let mut reaching_write = OriginalSlotWrite::Unknown;
                     if let Some(annotation) = ty {
                         let expected = self.recipe(frame, annotation, b, depth + 1)?;
                         if self.raw_resource_family(expected, b)? {
@@ -2998,7 +3024,7 @@ impl Solver<'_, '_> {
                             };
                             self.unify(family, payload, depth + 1, b)?;
                         }
-                        let value = self
+                        let role = self
                             .reference_binding(
                                 frame,
                                 statement.id,
@@ -3008,8 +3034,13 @@ impl Solver<'_, '_> {
                                 ty.is_some(),
                                 b,
                                 depth + 1,
-                            )?
-                            .unwrap_or(value);
+                            )?;
+                        if let Some(role) = role
+                            && matches!(self.state.arena[role], Kind::Address { mutable: false, .. })
+                        {
+                            reaching_write.assign(initializer_node);
+                        }
+                        let value = role.unwrap_or(value);
                         self.unify(local, value, depth + 1, b)?;
                         if !*mutable && !self.state.intrinsic_anchors.is_empty()
                             && matches!(self.state.arena[self.type_root(value, b)?], Kind::Address { .. })
@@ -3024,14 +3055,10 @@ impl Solver<'_, '_> {
                         ));
                     }
                     self.bind(frame, name, local, *mutable, b)?;
-                    frame
-                        .locals
-                        .last_mut()
-                        .ok_or_else(|| fail("original binding lost its local"))?
-                        .anchor = Some(LocalAnchor::Binding(statement.id));
-                    if let (Some(rhs),Some(local))=(initializer,frame.locals.last_mut()) {
-                        if local.mutable {local.reaching_write.assign(rhs.id);}
-                    }
+                    let slot = frame.locals.last_mut()
+                        .ok_or_else(|| fail("original binding lost its local"))?;
+                    slot.anchor = Some(LocalAnchor::Binding(statement.id));
+                    slot.reaching_write = reaching_write;
                     if initializer.is_none() {
                         if let Some(local) = frame.locals.last_mut() {
                             local.initialized = false;
@@ -3191,7 +3218,7 @@ impl Solver<'_, '_> {
                         match (then_alive, else_alive) {
                             (true, true) => self.join_vacancies(other, then, b)?,
                             (true, false) => {
-                                other.reaching_write=then.reaching_write;
+                                other.reaching_write=then.reaching_write.clone();
                                 other.vacant = self.copy_vacancies(&then.vacant, b)?;
                                 other.maybe_vacant = self.copy_vacancies(&then.maybe_vacant, b)?;
                                 other.live = then.live;
@@ -3473,7 +3500,9 @@ impl Solver<'_, '_> {
                             let origin = cleanup::Origin::local(frame.definition, anchor, cleanup::Event::Replace(statement.id));
                             self.cleanup_partial(old.ty, &[], &old.vacant, &origin, b, 0)?;
                         }
-                        frame.locals[index].reaching_write.assign(value.id);
+                        if !frame.locals[index].reaching_write.writers().is_empty() {
+                            frame.locals[index].reaching_write.assign(value.id);
+                        }
                         frame.locals[index].used = false;
                         frame.locals[index].initialized = true;
                         frame.locals[index].live = true;
@@ -4585,7 +4614,7 @@ impl Solver<'_, '_> {
                 Local {
                     anchor: local.anchor,
                     prepared_at: local.prepared_at,
-                    reaching_write: local.reaching_write,
+                    reaching_write: local.reaching_write.clone(),
                     name: local.name.clone(),
                     ty: local.ty,
                     mutable: local.mutable,

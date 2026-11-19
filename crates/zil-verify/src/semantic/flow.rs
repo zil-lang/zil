@@ -52,15 +52,15 @@ impl State {
 /// Reconstruct the local Stores supplying each actual conditional result
 /// operand. An unrelated result or local has no edge to this occurrence.
 fn checked_reaching_stores(
+    producers: &sites::Producers,
     f: &TypedFunction,
     joins: &BTreeMap<ValueId, (CheckedType, [CheckedType; 2])>,
-    writers: &BTreeMap<ValueId, ValueId>,
+    writers: &BTreeMap<ValueId, BTreeSet<ValueId>>,
     b: &mut Budget,
-) -> Check<BTreeMap<(BlockId, usize), ValueId>> {
+) -> Check<(BTreeMap<(BlockId, usize), ValueId>, BTreeSet<(BlockId,usize)>)> {
     if joins.is_empty() && writers.is_empty() {
-        return Ok(BTreeMap::new());
+        return Ok((BTreeMap::new(),BTreeSet::new()));
     }
-    let definitions = crate::tasks::context_projection::definitions(f, b)?;
     b.spend(f.blocks.len())?;
     let mut predecessors = vec![Vec::new(); f.blocks.len()];
     for (block, body) in f.blocks.iter().enumerate() {
@@ -81,22 +81,19 @@ fn checked_reaching_stores(
                 .push(block);
         }
     }
-    let mut stores = BTreeMap::new();
-    for (value,writer) in joins.keys().map(|v|(v,None)).chain(writers.iter().map(|(v,mint)|(v,Some(*mint)))) {
+    let mut stores=BTreeMap::new();
+    let mut returned_writes=BTreeSet::new();
+    for (value,writer) in joins.keys().map(|v|(v,None)).chain(writers.iter().map(|(v,mint)|(v,Some(mint)))) {
         b.spend(1)?;
-        let (owner, at) = definitions
-            .get(value.0 as usize)
-            .copied()
-            .flatten()
-            .ok_or_else(|| bad("conditional has no actual SSA definition"))?;
-        let (InstructionKind::Load(local) | InstructionKind::TakeLocal { local }) =
-            f.blocks[owner].instructions[at].kind
-        else {
-            return Err(bad("conditional has no actual local result load"));
+        let (owner, at, instruction)=producers.get(f,*value,b)?;
+        let (InstructionKind::Load(local)|InstructionKind::TakeLocal{local})=instruction.kind else {
+            return Err(bad("conditional or returned slot lacks its actual result load"));
         };
+        let (owner,at)=(owner.0 as usize, at as usize);
         let mut pending = vec![(owner, at, local)];
         let mut seen = BTreeSet::new();
         let mut reaching = BTreeSet::new();
+        let mut actual_writers=BTreeSet::new();
         while let Some((block, end, local)) = pending.pop() {
             b.spend(seen.len().saturating_add(1).ilog2() as usize + 2)?;
             if !seen.insert((block, end, local)) {
@@ -108,7 +105,11 @@ fn checked_reaching_stores(
                 b.spend(1)?;
                 match instruction.kind {
                     InstructionKind::Store { local: target, value: stored } if target == local => {
-                        if writer.is_some_and(|rhs|rhs!=stored) {return Err(bad("returned local read reaches another original assignment value"));}
+                        if let Some(allowed)=writer {
+                            b.spend(allowed.len().saturating_add(1).ilog2() as usize+actual_writers.len().saturating_add(1).ilog2() as usize+3)?;
+                            if !allowed.contains(&stored){return Err(bad("returned local reaches another original assignment value"));}
+                            actual_writers.insert(stored);
+                        }
                         b.spend(reaching.len().saturating_add(1).ilog2() as usize + 2)?;
                         reaching.insert((body.id, at));
                     }
@@ -135,8 +136,13 @@ fn checked_reaching_stores(
                 }
             }
         }
-        if writer.is_some() {
-            if reaching.is_empty(){return Err(bad("returned pointer has no grounded reaching write"));}
+        if let Some(allowed)=writer {
+            b.spend(allowed.len())?;
+            if actual_writers.is_empty() || actual_writers!=*allowed{return Err(bad("returned local loses an original reaching write"));}
+            for site in reaching {
+                b.spend(returned_writes.len().saturating_add(1).ilog2() as usize+2)?;
+                returned_writes.insert(site);
+            }
             continue;
         }
         if reaching.len() < 2 {
@@ -151,7 +157,7 @@ fn checked_reaching_stores(
             }
         }
     }
-    Ok(stores)
+    Ok((stores,returned_writes))
 }
 /// Constructed only after this interpreter checks the actual complete body.
 /// A catalogue entry, metadata flag or equal Type cannot manufacture it.
@@ -417,10 +423,14 @@ impl CheckedContext {
                         value.ok_or_else(||bad("original pointer operand lacks its actual SSA value"))
                     };
                     let read=operand(*read,b)?;
-                    let writer=*rhs;
-                    let rhs=operand(writer,b)?;
-                    if original.bound_value_name(instance.definition,writer,b)? {
-                        self.original_projection_source(module,instance,f,rhs,instance.definition,writer,true,b)?;
+                    let mut mints=BTreeSet::new();
+                    for writer in rhs.writers() {
+                        let mint=operand(*writer,b)?;
+                        if original.bound_value_name(instance.definition,*writer,b)? {
+                            self.original_projection_source(module,instance,f,mint,instance.definition,*writer,true,b)?;
+                        }
+                        b.spend(mints.len().saturating_add(1).ilog2() as usize+2)?;
+                        mints.insert(mint);
                     }
                     let (_,_,load)=self.site_index.producers.get(f,read,b)?;
                     let InstructionKind::Load(slot)=load.kind else{return Err(bad("returned pointer is not its lexical slot read"));};
@@ -442,11 +452,11 @@ impl CheckedContext {
                         }
                     }
                     b.spend(writers.len().saturating_add(1).ilog2() as usize+2)?;
-                    if writers.insert(read,rhs).is_some(){return Err(bad("one actual returned pointer has several original assignments"));}
+                    if writers.insert(read,mints).is_some(){return Err(bad("one actual returned pointer has several original assignments"));}
                 }
             }
         }
-        let join_stores=checked_reaching_stores(f,&joins,&writers,b)?;
+        let (join_stores,returned_writes)=checked_reaching_stores(&self.site_index.producers,f,&joins,&writers,b)?;
         let mut reached_arms = BTreeMap::<ValueId,[bool;2]>::new();
         let mut states=vec![None;f.blocks.len()];
         let entry=f.entry.0 as usize;
@@ -598,6 +608,12 @@ impl CheckedContext {
                         defer_actions::unregistered_slot(&state,*local,b)?;
                         let actual=*value;
                         let value=value_at(&values,*value)?;
+                        if !returned_writes.is_empty() {
+                            b.spend(returned_writes.len().ilog2() as usize+2)?;
+                            if returned_writes.contains(&(block.id,ordinal)) && !self.compatible(environment,value,&signature.result,b)?{
+                                return Err(bad("reaching write violates the borrowed return domain"));
+                            }
+                        }
                         let mut normalized=None;let mut local_role=false;
                         if let Some(expected)=&constraints[local.0 as usize] {
                             if self.compatible(&environment,value,expected,b)?{
@@ -776,8 +792,8 @@ impl CheckedContext {
                 Terminator::Return(Some(value))=>{
                     let actual = if writers.is_empty() {value_at(&values,*value)?} else {
                         b.spend(writers.len().ilog2() as usize+2)?;
-                        if let Some(writer)=writers.get(value) {
-                            let actual=value_at(&values,*writer)?;
+                        if writers.contains_key(value) {
+                            let actual=&signature.result;
                             self.record(scope,OperandKey::ReturnedWrite{block:block.id,value:*value},actual,b)?;
                             actual
                         } else {value_at(&values,*value)?}

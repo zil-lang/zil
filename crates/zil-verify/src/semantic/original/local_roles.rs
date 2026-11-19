@@ -49,8 +49,8 @@ impl CheckedOriginal{
         b.spend(role.sources.len().saturating_add(1))?;role.sources.insert(source);
         if !mutable {
             let uses=self.uses.entry(*definition).or_default();
-            b.spend(uses.writes.len().saturating_add(1).ilog2() as usize+2)?;
-            uses.writes.entry(*node).or_default().assign(value.id);
+            b.spend(uses.writes().len().saturating_add(1).ilog2() as usize+2)?;
+            uses.edit_writes(b)?.entry(*node).or_default().assign(value.id);
         }
         Ok(true)
     }

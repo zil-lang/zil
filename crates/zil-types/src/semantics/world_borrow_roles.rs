@@ -2263,7 +2263,7 @@ fn local_read_sources(
     let proof = ledger.original.borrow();
     let proof = proof.as_ref().ok_or_else(|| bad("local loan has no original source proof"))?;
     if !proof.return_writers.is_empty(){world.pay(index::search(proof.return_writers.len()))?;}
-    let nodes=if let Some((writer,_))=proof.return_writers.get(&(original.id,observed)) {vec![*writer]} else {
+    let nodes=if let Some((writer,_))=proof.return_writers.get(&(original.id,observed)) {world.pay(writer.writers().len())?;writer.writers().to_vec()} else {
         proof.view_local_sources(original.id,binding,world.limits,world.left)?
             .ok_or_else(||bad("local loan has no complete original incoming sources"))?
     };

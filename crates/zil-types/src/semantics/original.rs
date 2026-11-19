@@ -261,7 +261,7 @@ pub(super) struct Proof {
     pub(super) compile_time_results: BTreeSet<(SemanticDefinitionId, NodeId)>,
     cleanup_calls: BTreeSet<(SemanticDefinitionId, SemanticSiteId)>,
     pub local_roles: BTreeMap<(SemanticDefinitionId, NodeId), LocalRole>,
-    pub return_writers: BTreeMap<(SemanticDefinitionId,NodeId),(NodeId,SemanticOuterLifeRecipe)>,
+    pub return_writers: BTreeMap<(SemanticDefinitionId,NodeId),(OriginalSlotWrite,SemanticOuterLifeRecipe)>,
     pub scope_calls: BTreeMap<
         (SemanticDefinitionId, SemanticSiteId, SemanticDefinitionId),
         Vec<SemanticActualRecipe>,
@@ -5006,7 +5006,10 @@ impl<'a> Check<'a, '_> {
             output.observed |= inner.observed;
             output.written |= inner.written;
             initialized &= inner.initialized;
-            reaching_write=Some(reaching_write.map_or(inner.reaching_write,|old|old.merged(inner.reaching_write)));
+            reaching_write=Some(match reaching_write {
+                None=>inner.reaching_write.clone(),
+                Some(old)=>old.merged(&inner.reaching_write,|work|self.pay(work,depth))?,
+            });
             self.pay(inner.taken_fields.len(), depth)?;
             for field in &inner.taken_fields {
                 self.pay(field.len(), depth)?;
@@ -6400,6 +6403,9 @@ impl<'a> Check<'a, '_> {
         } else {
             None
         };
+        let reaching_write=if *mutable && matches!(value,SemanticTypeRecipe::Address{mutable:false,..}) {
+            initializer.as_ref().map_or(OriginalSlotWrite::Unknown,|rhs|OriginalSlotWrite::Write(rhs.id))
+        }else{OriginalSlotWrite::Unknown};
         self.insert_binding(
             variables,
             name.clone(),
@@ -6409,7 +6415,7 @@ impl<'a> Check<'a, '_> {
                 used: false,
                 observed: false,
                 capture: false,
-                borrowed: false, reaching_write: initializer.as_ref().map_or(OriginalSlotWrite::Unknown,|rhs|OriginalSlotWrite::Write(rhs.id)),
+                borrowed: false, reaching_write,
                 origin: Query::Binding(statement.id),
                 origin_owner: owner,
                 initialized: initializer.is_some(),
@@ -6640,7 +6646,7 @@ impl<'a> Check<'a, '_> {
             target.used = false;
             target.initialized = true;
             target.written = true;
-            target.reaching_write.assign(value.id);
+            if matches!(target.ty.as_ref(),SemanticTypeRecipe::Address{mutable:false,..}) {target.reaching_write.assign(value.id);}
             target.taken_fields.clear();
         } else if let CoreExprKind::Member { object, member, .. } = &target.kind {
             if let CoreExprKind::Name(name) = &object.kind {

@@ -104,7 +104,7 @@ impl Binder {
 pub(super) struct Uses {
     pub(super) moved: BTreeSet<Place>,
     pub(super) definite: BTreeSet<Place>,
-    pub(super) writes: BTreeMap<NodeId, OriginalSlotWrite>,
+    writes: Option<std::rc::Rc<BTreeMap<NodeId, OriginalSlotWrite>>>,
 }
 #[derive(Default)]
 pub(super) struct LoopExits<'a> {
@@ -126,6 +126,15 @@ impl LoopExits<'_> {
 }
 
 impl Uses {
+    pub(super) fn writes(&self) -> &BTreeMap<NodeId, OriginalSlotWrite> {
+        static EMPTY:BTreeMap<NodeId,OriginalSlotWrite>=BTreeMap::new();
+        self.writes.as_deref().unwrap_or(&EMPTY)
+    }
+    pub(super) fn edit_writes(&mut self,b:&mut Budget)->Check<&mut BTreeMap<NodeId,OriginalSlotWrite>> {
+        let map=self.writes.get_or_insert_with(||std::rc::Rc::new(BTreeMap::new()));
+        if std::rc::Rc::strong_count(map)>1 {b.spend(map.len())?;}
+        Ok(std::rc::Rc::make_mut(map))
+    }
     pub(super) fn navigation_conflicts(&self, place: &Place, b: &mut Budget) -> Check<bool> {
         b.spend(
             self.moved
@@ -194,13 +203,22 @@ impl Uses {
         }
         // A strong write survives a join only on agreement. Exposed slots
         // stay exposed on either arm and cannot be refined on a later write.
-        for (node,mark) in &mut self.writes {
-            b.spend(other.writes.len().saturating_add(1).ilog2() as usize+2)?;
-            *mark=mark.merged(other.writes.get(node).copied().unwrap_or_default());
-        }
-        for (node,mark) in &other.writes {
-            b.spend(self.writes.len().saturating_add(1).ilog2() as usize+2)?;
-            self.writes.entry(*node).or_insert_with(|| OriginalSlotWrite::Unknown.merged(*mark));
+        let shared=match (&self.writes,&other.writes){
+            (Some(left),Some(right))=>std::rc::Rc::ptr_eq(left,right),
+            (None,None)=>true,
+            _=>false,
+        };
+        if !shared {
+            let next=other.writes();
+            let states=self.edit_writes(b)?;
+            // The declaration initializes this state for every live tracked
+            // slot. A binding present on only one arm is local to that arm.
+            b.spend(states.len().saturating_mul(next.len().saturating_add(1).ilog2() as usize+2))?;
+            states.retain(|node,_|next.contains_key(node));
+            for (node,mark) in states.iter_mut() {
+                b.spend(next.len().saturating_add(1).ilog2() as usize+2)?;
+                *mark=mark.merged(&next[node],|cost|b.spend(cost))?;
+            }
         }
         self.moved.extend(other.moved.iter().cloned());
         self.definite = definite;
@@ -458,15 +476,15 @@ impl CheckedOriginal {
         Ok(())
     }
     pub(super) fn expose_slot(&mut self,binder:&Binder,b:&mut Budget)->Check<()> {
-        if let Binder::Local{definition,node,..}=binder && let Some(uses)=self.uses.get_mut(definition) && !uses.writes.is_empty(){
-            b.spend(uses.writes.len().ilog2() as usize+2)?;
-            if let Some(mark)=uses.writes.get_mut(node){*mark=OriginalSlotWrite::Exposed;}
+        if let Binder::Local{definition,node,..}=binder && let Some(uses)=self.uses.get_mut(definition) && !uses.writes().is_empty(){
+            b.spend(uses.writes().len().ilog2() as usize+2)?;
+            if let Some(mark)=uses.edit_writes(b)?.get_mut(node){*mark=OriginalSlotWrite::Exposed;}
         }
         Ok(())
     }
     pub(super) fn use_snapshot(&self, env: &Env, b: &mut Budget) -> Check<Uses> {
         let uses = self.uses.get(&env.current()?).cloned().unwrap_or_default();
-        b.spend(uses.moved.len().saturating_add(uses.writes.len()))?;
+        b.spend(uses.moved.len())?;
         Ok(uses)
     }
     pub(super) fn set_uses(&mut self, env: &Env, uses: Uses) -> Check<()> {
@@ -481,7 +499,7 @@ impl CheckedOriginal {
         b: &mut Budget,
     ) -> Check<()> {
         let mut joined = left.clone();
-        b.spend(left.moved.len().saturating_add(left.writes.len()))?;
+        b.spend(left.moved.len())?;
         joined.join(right, b)?;
         self.set_uses(env, joined)
     }
@@ -582,12 +600,12 @@ impl CheckedOriginal {
     ) -> Check<Uses> {
         let mut state = Uses::default();
         let Some(source) = self.uses.get(&env.current()?) else { return Ok(state); };
-        if !source.writes.is_empty() {
+        if !source.writes().is_empty() {
             for binder in outer {
-                b.spend(source.writes.len().ilog2() as usize+2)?;
-                if let Binder::Local{node,..}=binder && let Some(mark)=source.writes.get(node) {
-                    b.spend(state.writes.len().saturating_add(1).ilog2() as usize+2)?;
-                    state.writes.insert(*node,*mark);
+                b.spend(source.writes().len().ilog2() as usize+2)?;
+                if let Binder::Local{node,..}=binder && let Some(mark)=source.writes().get(node) {
+                    b.spend(state.writes().len().saturating_add(1).ilog2() as usize+2)?;
+                    state.edit_writes(b)?.insert(*node,mark.clone());
                 }
             }
         }

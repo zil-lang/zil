@@ -2559,7 +2559,7 @@ impl Check<'_, '_> {
                         let Some(value) = value else {
                             return Err(fail("class-bearing actual Return omits its result SSA"));
                         };
-                        let written=self.returned_slot_value(instance,function,value,b)?;
+                        let written=self.returned_slot_value(instance,function,value,&expected,b)?;
                         let reached_writer=written.is_some();
                         let mut actual = match written {
                             Some(written)=>written,

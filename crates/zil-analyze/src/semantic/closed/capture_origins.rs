@@ -455,7 +455,7 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
             }
         }
     }
-    fn solve(mut self, root: Query, b: &mut Budget) -> CompileResult<u32> {
+    fn solve(&mut self, root: Query, b: &mut Budget) -> CompileResult<u32> {
         let root = self.intern(root, b)?;
         let mut cursor = 0;
         while cursor < self.nodes.len() {
@@ -570,6 +570,29 @@ impl Check<'_, '_> {
         graph.probe = true;
         Ok(graph.solve(Query::Value(value), b)? == 0)
     }
+    pub(super) fn exact_writer_set(
+        &self,
+        function: &TypedFunction,
+        value: ValueId,
+        producers: &BTreeSet<ValueId>,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let mut graph = Graph::new(self, function, b)?;
+        b.spend(producers.len(), WORK)?;
+        graph.producers = Some(producers.clone());
+        graph.probe = true;
+        if graph.solve(Query::Value(value), b)? != 0 {
+            return Err(fail("actual returned slot reaches another original writer"));
+        }
+        for mint in producers {
+            b.lookup(graph.indices.len(), WORK)?;
+            if !graph.indices.contains_key(&Query::Value(*mint)) {
+                return Err(fail("actual return loses an original reaching writer"));
+            }
+        }
+        Ok(())
+    }
+
     /// Prove one exact prepared owner from the actual original local transfer.
     /// Equal types and classes do not select an originating move.
     pub(super) fn prepared_owner_source(

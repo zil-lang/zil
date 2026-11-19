@@ -1315,9 +1315,16 @@ fn overwritten_return_slot_uses_only_its_reaching_writer() {
         report.to_json()
     );
 
+    rejects_replaced_reaching_writer(&input);
+    let grouped = input.replace("return q;", "return (q);");
+    native(&grouped, 50);
+    rejects_replaced_reaching_writer(&grouped);
+}
+
+fn rejects_replaced_reaching_writer(input: &str) {
     let limits = Limits::default();
     let target = TargetProfile::default();
-    let unit = source(&input);
+    let unit = source(input);
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand_with_map_semantics(
         &unit,
@@ -1391,6 +1398,29 @@ fn returned_local_keeps_loop_exits_and_lexical_shadowing_separate() {
         "{}",
         report.to_json()
     );
+}
+
+#[test]
+fn overwrite_before_control_flow_removes_only_the_killed_input() {
+    let caller = "fn result()->i64{var x=10i64;var y=20i64;var z=30i64;
+        let p=pick(&x,&y,&z,true);x=7i64;return *p+z;}";
+    for branch in ["if f{q=c;}", "while f{q=c;break;}"] {
+        let definition = format!(
+            "fn pick(a:&i64,b:&i64,c:&i64,f:bool)->&i64{{var q=a;q=b;{branch}return q;}}"
+        );
+        let input = format!("{definition}{caller}");
+        native(&input, 60);
+        rejects_replaced_reaching_writer(&input);
+        for write in ["y=7i64", "z=7i64"] {
+            let input = format!("{definition}{}", caller.replace("x=7i64", write));
+            let report = compile_source(&source(&input), &CompileOptions::default());
+            assert!(
+                report.diagnostics.iter().any(|d| d.code == "E-BORROW-CONFLICT"),
+                "{}",
+                report.to_json()
+            );
+        }
+    }
 }
 
 #[test]

@@ -137,8 +137,8 @@ impl CheckedOriginal {
                         if *mutable && ty.is_none() && matches!(&actual,Ty::Address{mutable:false,..})
                             && let Some(value)=initializer {
                             let uses=self.uses.entry(env.current()?).or_default();
-                            b.spend(uses.writes.len().saturating_add(1).ilog2() as usize+2)?;
-                            uses.writes.insert(statement.id,OriginalSlotWrite::Write(value.id));
+                            b.spend(uses.writes().len().saturating_add(1).ilog2() as usize+2)?;
+                            uses.edit_writes(b)?.insert(statement.id,OriginalSlotWrite::Write(value.id));
                         }
                         self.bindings.insert((env.current()?,statement.id),actual.clone());let binding=Binding{ty:actual,mutable:*mutable,identity:Binder::Local{definition:env.current()?,node:statement.id,name:name.clone()}};if let Some(initializer)=initializer{if self.creation(env.current()?,initializer,bindings,b)?{b.spend(1)?;self.created_bindings.insert(binding.identity.clone());}}self.declare(env,&binding,b)?;bindings.insert(name.clone(),binding);false
                     },

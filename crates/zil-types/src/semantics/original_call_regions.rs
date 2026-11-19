@@ -329,8 +329,11 @@ impl Check<'_, '_> {
         else {
             return Ok(false);
         };
-        let mut read=expression;
-        while let CoreExprKind::Group(inner)=&read.kind {self.pay(1,depth)?;read=inner;}
+        let mut read = expression;
+        while let CoreExprKind::Group(inner) = &read.kind {
+            self.pay(1, depth)?;
+            read = inner;
+        }
         let CoreExprKind::Name(name) = &read.kind else {
             return Ok(false);
         };
@@ -345,11 +348,13 @@ impl Check<'_, '_> {
         let Some(binding) = variables.get(name) else {
             return Ok(false);
         };
-        let (Query::Binding(id), OriginalSlotWrite::Write(rhs)) =
-            (&binding.origin, binding.reaching_write)
-        else {
+        let Query::Binding(id) = &binding.origin else {
             return Ok(false);
         };
+        let writes = binding.reaching_write.clone();
+        if writes.writers().is_empty() {
+            return Ok(false);
+        }
         if !binding.mutable || binding.capture || binding.borrowed || binding.origin_owner != owner
         {
             return Ok(false);
@@ -373,44 +378,51 @@ impl Check<'_, '_> {
         if &role.lifetime != slot {
             return Ok(false);
         }
-        self.pay(role.sources.len(), depth)?;
-        let role = self.proof.local_roles.get(&(owner, *id)).unwrap();
-        let Some(source) = role
-            .sources
-            .iter()
-            .find(|r| r.at == SemanticOriginalNode::Expression(rhs))
-        else {
-            return Ok(false);
-        };
-        crate::dyn_metadata::semantic_operand_snapshot(
-            &source.lifetime,
-            self.limits,
-            self.left,
-            1,
-        )?;
-        let source = source.lifetime.clone();
-        if !matches!(source, SemanticOuterLifeRecipe::Static)
-            && match (&source, target) {
-                (SemanticOuterLifeRecipe::Class(a), SemanticOuterLifeRecipe::Class(z)) => {
-                    !self.life_outlives(owner, a, z, depth + 1)?
-                }
-                _ => true,
-            }
-        {
-            return Ok(false);
-        }
+        let sources_len = role.sources.len();
         self.same(inner, wanted)?;
+        let writers = writes.writers();
         self.pay(
-            self.proof.types.len().saturating_add(1).ilog2() as usize + 1,
+            sources_len.saturating_mul(writers.len().ilog2() as usize + 2)
+                .saturating_add(writers.len())
+                .saturating_add(self.proof.local_roles.len().ilog2() as usize + 2),
             depth,
         )?;
-        let written = self
-            .proof
-            .types
-            .get(&(owner, Query::Expression(rhs)))
-            .ok_or_else(|| bad("current local write has no original operand type"))?;
-        let written = copy_recipe(written, self.limits, self.left)?;
-        self.ensure_escape(owner, &written, depth + 1)?;
+        let mut sources = vec![None; writers.len()];
+        for source in &self.proof.local_roles[&(owner, *id)].sources {
+            let SemanticOriginalNode::Expression(rhs) = source.at else { continue; };
+            let Ok(index) = writers.binary_search(&rhs) else { continue; };
+            if sources[index].is_some() {
+                return Err(bad("one original reaching write has competing source bounds"));
+            }
+            crate::dyn_metadata::semantic_operand_snapshot(
+                &source.lifetime, self.limits, self.left, 1,
+            )?;
+            sources[index] = Some(source.lifetime.clone());
+        }
+        for (rhs, source) in writers.iter().zip(sources) {
+            let Some(source) = source else { return Ok(false); };
+            if !matches!(source, SemanticOuterLifeRecipe::Static)
+                && match (&source, target) {
+                    (SemanticOuterLifeRecipe::Class(a), SemanticOuterLifeRecipe::Class(z)) => {
+                        !self.life_outlives(owner, a, z, depth + 1)?
+                    }
+                    _ => true,
+                }
+            {
+                return Ok(false);
+            }
+            self.pay(
+                self.proof.types.len().saturating_add(1).ilog2() as usize + 1,
+                depth,
+            )?;
+            let written = self
+                .proof
+                .types
+                .get(&(owner, Query::Expression(*rhs)))
+                .ok_or_else(|| bad("reaching pointer write has no original operand type"))?;
+            let written = copy_recipe(written, self.limits, self.left)?;
+            self.ensure_escape(owner, &written, depth + 1)?;
+        }
         crate::dyn_metadata::semantic_operand_snapshot(target, self.limits, self.left, 1)?;
         self.pay(
             self.proof.return_writers.len().saturating_add(1).ilog2() as usize + 1,
@@ -419,16 +431,12 @@ impl Check<'_, '_> {
         self.proof
             .proof_mut()?
             .return_writers
-            .insert((owner, expression.id), (rhs, target.clone()));
-        if read.id!=expression.id {
-            self.pay(self.proof.return_writers.len().saturating_add(1).ilog2() as usize+1,depth)?;
-            self.proof.proof_mut()?.return_writers.insert((owner,read.id),(rhs,target.clone()));
+            .insert((owner, read.id), (writes, target.clone()));
+        if self.return_view(owner, read, variables, actual, expected, depth + 1)? {
+            return Ok(true);
         }
-        if self.return_view(owner, expression, variables, actual, expected, depth + 1)? {return Ok(true);}
-        for node in [expression.id,read.id] {
-            self.pay(self.proof.return_writers.len().saturating_add(1).ilog2() as usize+1,depth)?;
-            self.proof.proof_mut()?.return_writers.remove(&(owner,node));
-        }
+        self.pay(self.proof.return_writers.len().saturating_add(1).ilog2() as usize+1,depth)?;
+        self.proof.proof_mut()?.return_writers.remove(&(owner,read.id));
         Ok(false)
     }
 
