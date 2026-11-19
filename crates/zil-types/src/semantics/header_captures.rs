@@ -1989,14 +1989,31 @@ fn complete_rows<F: FnMut(&SemanticClassExpr, &SemanticClassExpr, &mut usize) ->
     Ok((directory, mapping))
 }
 
-/// Whether this exact completed original entry proves a receiver result
-/// upper, even when its actual result retains a stronger captured Fixed.
+/// Whether the actual original result borrows the receiver access head.
 pub(in crate::semantics) fn receiver_head(
     program: &SemanticModule, ledger: &super::super::emission::Ledger,
     owner: SemanticDefinitionId, limits: &Limits, left: &mut usize,
 ) -> R<bool> {
+    receiver_proof(program, ledger, owner, true, limits, left)
+}
+
+pub(in crate::semantics) fn receiver_proof(
+    program: &SemanticModule, ledger: &super::super::emission::Ledger,
+    owner: SemanticDefinitionId, require_head: bool, limits: &Limits, left: &mut usize,
+) -> R<bool> {
     let proof = ledger.original.borrow();
     let Some(proof) = proof.as_ref() else { return Ok(false); };
+    if require_head {
+        pay(left, proof.types.len().saturating_add(1).ilog2() as usize + 1)?;
+        if !matches!(proof.types.get(&(owner, super::super::original::Query::Result)),
+            Some(SemanticTypeRecipe::Address { mutable: false,
+                lifetime: SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::OuterOccurrence {
+                    operand: SemanticRecipeOperand::Receiver, path, mode: StoredBorrowMode::SharedAddress,
+                }), .. }) if path.is_empty())
+        {
+            return Ok(false);
+        }
+    }
     let original = ledger.original.context().map_or(program, |context| &context.semantic);
     proof.receiver_result_upper(original, owner, limits, left)
 }

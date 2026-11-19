@@ -4010,7 +4010,7 @@ impl Check<'_, '_> {
                     "Receiver view changes its original reusable Direct shared mode",
                 ));
             }
-            self.original
+            let capture_sources = self.original
                 .receiver_sources(
                     self.function_definition(entry.id, b)?,
                     self.inventory,
@@ -4020,7 +4020,25 @@ impl Check<'_, '_> {
                     fail("Receiver result has no complete original all-return source proof")
                 })?;
             self.known_receiver_place(instance, function, (block, index), instruction, &source, b)?;
-            if !crate::stored_callables::receiver_access_head(closure) {
+            let has_head = crate::stored_callables::receiver_access_head(closure);
+            let fixed_copy = !has_head && self.original.fixed_shared_capture_result(closure, self.inventory, b)?;
+            if fixed_copy {
+                let header = entry.storage_life.as_ref()
+                    .ok_or_else(|| fail("Fixed captured result lacks its actual entry directory"))?;
+                let result = crate::signature_life::outer(header, StorageBase::Result);
+                for world in self.function_worlds(entry.id, b)? {
+                    for &ordinal in &capture_sources {
+                        let capture = self.environment_capture(world, entry, ordinal, b)?;
+                        b.spend(header.bindings.len().saturating_add(header.classes.len()).saturating_add(1), WORK)?;
+                        let base = StorageBase::Capture(capture);
+                        if crate::signature_life::outer(header, base) != result
+                            && !header.classes.iter().any(|row| row.position.base == base && Some(row.binder) == result)
+                        {
+                            return Err(fail("Fixed result changes its exact original captured address"));
+                        }
+                    }
+                }
+            } else if !has_head {
                 if !crate::stored_callables::constant_result(closure) {
                     return Err(fail(
                         "Receiver view has no actual access head or independent Static source",
@@ -4040,18 +4058,20 @@ impl Check<'_, '_> {
             }
             self.pointee(&output, b)?;
             receiving = Some(outer.binder);
-            let result = instruction
-                .result
-                .ok_or_else(|| fail("Receiver invocation loses its actual output SSA"))?;
-            let key = (function.id, result, id);
-            b.lookup(b.semantic_receiver_views.len(), WORK)?;
-            if b.semantic_receiver_views
-                .insert(key, (block, index))
-                .is_some_and(|old| old != (block, index))
-            {
-                return Err(fail(
-                    "Receiver result changes its original operation identity",
-                ));
+            if !fixed_copy {
+                let result = instruction
+                    .result
+                    .ok_or_else(|| fail("Receiver invocation loses its actual output SSA"))?;
+                let key = (function.id, result, id);
+                b.lookup(b.semantic_receiver_views.len(), WORK)?;
+                if b.semantic_receiver_views
+                    .insert(key, (block, index))
+                    .is_some_and(|old| old != (block, index))
+                {
+                    return Err(fail(
+                        "Receiver result changes its original operation identity",
+                    ));
+                }
             }
         }
         self.capture_directory(id, b)?;

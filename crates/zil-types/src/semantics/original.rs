@@ -6441,8 +6441,20 @@ impl<'a> Check<'a, '_> {
                     if views::is_receiver_upper(lifetime)));
             self.expr(owner, value, variables, target, depth + 1)?
         };
+        let capture_observation = if matches!(value, SemanticTypeRecipe::Environment { .. })
+            && self.definition(owner)?.kind == SemanticDefinitionKind::Closure
+        {
+            let observation = self.observation_type(owner, &value, depth + 1)?;
+            if matches!(observation, SemanticTypeRecipe::Address { mutable: false, .. }) {
+                Some(self.record_expression_type(owner, value_node.id, observation)?)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
         let value = self.receiver_return_value(
-            owner, value_node, variables, &value, depth + 1,
+            owner, value_node, variables, capture_observation.as_ref().unwrap_or(&value), depth + 1,
         )?.unwrap_or(value);
         self.ensure_escape(owner, &value, depth + 1)?;
         let infer = matches!(

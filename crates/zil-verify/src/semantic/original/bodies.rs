@@ -86,7 +86,7 @@ impl CheckedOriginal {
                 || self.uses.get(&id).is_some_and(|uses|uses.moved.iter().any(|place|matches!(place.binder,Binder::Capture{..})));
             let writes=self.written.get(&id).is_some_and(|rows|rows.iter().any(|binder|matches!(binder,Binder::Capture{..})));
             if let Some(prototype)=self.prototypes.get_mut(&id){prototype.callable_kind=Some(if consumes{CallableKind::FnOnce}else if writes{CallableKind::FnMut}else{CallableKind::Fn});}
-            if Self::receiver_signature_recipe(signature){if self.prototypes.get(&id).is_some_and(|p|p.callable_kind==Some(CallableKind::FnOnce)){return Err(bad("a consuming closure cannot export its environment Receiver window"));}b.spend(1)?;self.receiver_results.insert(id);}
+            if Self::receiver_signature_recipe(signature){if self.prototypes.get(&id).is_some_and(|p|p.callable_kind==Some(CallableKind::FnOnce)){return Err(bad("a consuming closure cannot export its environment Receiver window"));}b.spend(1)?;self.receiver_results.insert(id,true);}
         }
         Ok(())
     }

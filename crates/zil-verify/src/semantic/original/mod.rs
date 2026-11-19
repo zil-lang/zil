@@ -92,7 +92,9 @@ pub(super) struct CheckedOriginal {
     nominal_value_formals: BTreeSet<(SemanticDefinitionId, u32)>,
     expressions: BTreeMap<(SemanticDefinitionId, NodeId), Ty>,
     receiver_borrows: BTreeSet<(SemanticDefinitionId, NodeId)>,
-    receiver_results: BTreeSet<SemanticDefinitionId>,
+    // Complete Receiver result proof, with whether the actual result needs
+    // the capture access head or retains its stronger data source.
+    receiver_results: BTreeMap<SemanticDefinitionId, bool>,
     receiver_call_roles: BTreeMap<(SemanticDefinitionId, NodeId), (Life, Life)>,
     // Category of the evaluated Place before a later field observation
     // publishes an effective Desc type for that same original expression.

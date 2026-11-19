@@ -376,6 +376,12 @@ impl CheckedContext {
                 None
             }
         };
+        let result_view = has_receiver || if let Some(site) = site
+            && matches!(crate::signature_life::outer(header, StorageBase::Result), Some(StorageBinder::Fixed(_)))
+        {
+            self.original.borrow().as_ref().ok_or_else(|| bad("closure call lacks its checked original body"))?
+                .has_receiver_result_role(caller.definition, site.recipe, b)?
+        } else { false };
         if entry.storage_life.as_ref() != Some(header)
             || receiver.ty != Type::Closure(id)
             || receiver.classes.len() != header.fixed_binder_count as usize
@@ -469,7 +475,7 @@ impl CheckedContext {
             }
             for(parameter,_)in &mut signature.parameters{*parameter=boundary.project_type(self,environment,parameter,b)?;}
             signature.result=boundary.project_type(self,environment,&signature.result,b)?;
-            if has_receiver {
+            if result_view {
                 let site = site.ok_or_else(|| bad("receiver result has no original invocation site"))?;
                 let node=self.original.borrow().as_ref().ok_or_else(||bad("Receiver result has no original caller"))?.original_call_node(module,caller.definition,site.recipe,b)?;
                 let recipe=self.original.borrow().as_ref().ok_or_else(||bad("Receiver result has no exact call access role"))?.receiver_role(module,caller.definition,node,StoredBorrowMode::SharedAddress,environment,b)?;
@@ -503,7 +509,7 @@ impl CheckedContext {
             ));
         }
         let result = result.ok_or_else(|| bad("closure call omits its complete result domain"))?;
-        if has_receiver {
+        if result_view {
             // Only the completed actual call may expose its original directed
             // publication bounds. The full callee/receiver, every entry world,
             // argument and result above have been checked first. These edges

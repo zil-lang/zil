@@ -221,10 +221,14 @@ fn check_shape_inner(module:&TypedModule,receiver:&terms::Value,kind:CallableKin
             return Err(bad("Callable Receiver demand has no exact Direct nonconsuming shared-result subject"));
         }
         let position=StoragePosition{base:StorageBase::Receiver,path:vec![]};
-        // A genuinely Static result is a stronger promise. Preserve its old
-        // least-root obligation; no environment access head is then required.
+        // The actual result may retain its stronger source. Its source
+        // relation and returned permissions are still checked independently.
         let static_result=actual_header.static_bindings.contains(&StoragePosition{base:StorageBase::Result,path:vec![]});
-        if !static_result||actual_header.bindings.iter().any(|row|row.position==position){
+        let fixed_result = source.is_some() && matches!(
+            crate::signature_life::outer(actual_header, StorageBase::Result),
+            Some(StorageBinder::Fixed(_)),
+        );
+        if (!static_result && !fixed_result)||actual_header.bindings.iter().any(|row|row.position==position){
         b.spend(expected.bindings.len().saturating_add(1))?;
         let at=expected.bindings.iter().position(|row|row.position.base==StorageBase::Result).unwrap_or(expected.bindings.len());
         expected.bindings.insert(at,StorageLifeBinding{position:position.clone(),binder:head.image});

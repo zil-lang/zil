@@ -31,7 +31,23 @@ impl CheckedOriginal {
             if !matches!(instruction.kind,InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..}|InstructionKind::CallClosureBorrowed{kind:CallableKind::Fn|CallableKind::FnMut,..}){return Err(bad("Closure Receiver access is not its actual nonconsuming Call"));}
             let(called,_)=crate::stored_callables::called(module,function,&instruction.kind).ok_or_else(||bad("Closure Receiver Call has no exact complete callee/mode"))?;
             let entry=module.functions.get(called.function.0 as usize).filter(|row|row.id==called.function).ok_or_else(||bad("Closure Receiver callee entry is absent"))?;
-            if entry.call_kind!=CallKind::Direct||called.storage_life.as_ref().is_none_or(|header|crate::signature_life::outer(header,StorageBase::Receiver).is_none()){return Err(bad("Closure Receiver Call lacks its explicit Direct access-head contract"));}
+            if entry.call_kind != CallKind::Direct { return Err(bad("Closure Receiver Call has another actual call kind")); }
+            let header = called.storage_life.as_ref().ok_or_else(|| bad("Closure Receiver Call lacks its complete result contract"))?;
+            if crate::signature_life::outer(header, StorageBase::Receiver).is_none() {
+                if !self.receiver_call_roles.contains_key(&(definition, node))
+                    || !matches!(crate::signature_life::outer(header, StorageBase::Result), Some(StorageBinder::Fixed(_)))
+                { return Err(bad("Closure Receiver Call lacks its original Fixed result or actual head")); }
+                let mut worlds = 0usize;
+                for world in &programme.instances {
+                    b.spend(1)?;
+                    if world.target != SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(entry.id)) { continue; }
+                    if world.environment.as_ref().is_none_or(|env| env.closure != SemanticClosureTarget::Typed(called.id))
+                        || !self.receiver_result_proven(world.definition, b)?
+                    { return Err(bad("Fixed result lacks its exact original capture return proof")); }
+                    worlds += 1;
+                }
+                if worlds == 0 { return Err(bad("Fixed result has no actual original closure world")); }
+            }
             let Life::Implicit(owner,ordinal)=self.receiver_call_life(module,definition,node,b)?else{unreachable!()};
             return Ok(SemanticClassExpr::Implicit{scope:self.scope(owner,env,b)?,ordinal});
         }

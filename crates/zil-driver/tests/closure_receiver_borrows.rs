@@ -300,7 +300,13 @@ mod additional_source_cases {
                 .iter()
                 .any(|r| r.position.base == StorageBase::Receiver)
         );
-        zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        super::accepted_typed("captured-holder-fixed-data-result", text, module);
+        let early_write = text.replace(
+            " let old=*pointer\n a=21",
+            " a=21\n let old=*pointer",
+        );
+        let errors = zil_analyze::analyze(&typed(&early_write), &Limits::default()).unwrap_err();
+        assert_eq!(errors[0].code, "E-BORROW-CONFLICT");
     }
 
     #[test]
@@ -318,7 +324,13 @@ mod additional_source_cases {
                 .iter()
                 .any(|r| r.position.base == StorageBase::Receiver)
         );
-        zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        super::accepted_typed("shared-capture-fixed-result", text, module);
+        let early_write = text.replace(
+            " let result=*pointer\n value=43",
+            " value=43\n let result=*pointer",
+        );
+        let errors = zil_analyze::analyze(&typed(&early_write), &Limits::default()).unwrap_err();
+        assert_eq!(errors[0].code, "E-BORROW-CONFLICT");
     }
 
     #[test]

@@ -1024,6 +1024,7 @@ fn receiver_result(
     let receiver = rows.next();
     if rows.next().is_some() { return Err(bad("receiver call repeats its actual access head")); }
     let target_source = roles::outer(world, target)?;
+    let captured_without_head = receiver.is_none() && matches!(target_source, roles::Source::Class(_));
     let directed = if let Some(receiver) = receiver {
         if !matches!(receiver.binder, StorageBinder::Invocation(_)) {
             return Err(bad("receiver head is not its independent invocation axis"));
@@ -1048,8 +1049,8 @@ fn receiver_result(
             false
         } else {
             if !matches!(result.binder, StorageBinder::Fixed(_))
-                || !super::super::headers::receiver_head(world.program, world.ledger,
-                    child.definition, world.limits, world.left)?
+                || !super::super::headers::receiver_proof(world.program, world.ledger,
+                    child.definition, false, world.limits, world.left)?
             { return Err(bad("receiver view lacks a complete captured Fixed result upper")); }
             let roles::Source::Class(target_source) = &target_source else {
                 return Err(bad("captured Fixed result unexpectedly changes to Static"));
@@ -1062,7 +1063,23 @@ fn receiver_result(
         // Independently checked actual Static satisfies a shared upper. It
         // does not acquire an entry Receiver or a persistent class by N=0.
         true
-    } else { return Err(bad("lending call omits its explicit Receiver input")); };
+    } else {
+        let roles::Source::Class(target_source) = &target_source else {
+            return Err(bad("receiver result lacks its original captured source"));
+        };
+        let mut results = header.bindings.iter().filter(|row|
+            row.position.base == StorageBase::Result && row.position.path.is_empty());
+        let result = results.next().ok_or_else(|| bad("captured result lacks its fixed occurrence"))?;
+        if results.next().is_some() || !matches!(result.binder, StorageBinder::Fixed(_))
+            || !super::super::headers::receiver_proof(world.program, world.ledger,
+                child.definition, false, world.limits, world.left)?
+        {
+            return Err(bad("lending call omits its explicit Receiver input"));
+        }
+        let fixed = world.binding(child, result.binder)?;
+        world.same_class(child.id, &fixed, target_source, &BTreeMap::new())?;
+        true
+    };
     let SemanticSiteAddress::Typed { block, instruction, edge: SemanticSiteEdge::After } = site.at else {
         return Err(bad("receiver result has no exact post-call boundary"));
     };
@@ -1104,7 +1121,7 @@ fn receiver_result(
                 && (path.starts_with(&root.path) || root.path.starts_with(path)))
         { return Err(bad("receiver result refers to stale or vacant actual storage")); }
     }
-    if !roots.is_empty() {
+    if !captured_without_head && !roots.is_empty() {
         world.pay(1)?;
         world.value_roots.insert(output, Rc::new(roots));
     }

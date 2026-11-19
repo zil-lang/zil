@@ -1239,7 +1239,8 @@ impl Checked {
                     .ok_or_else(|| fail("callable Receiver has no exact actual entry"))?;
                 if entry.call_kind != CallKind::Direct
                     || !(crate::stored_callables::receiver_access_head(closure)
-                        || crate::stored_callables::constant_result(closure)) || operation.result.is_none()
+                        || crate::stored_callables::constant_result(closure)
+                        || self.fixed_shared_capture_result(closure, inventory, b)?) || operation.result.is_none()
                     || !matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut) {
                     return Err(fail("callable Receiver lacks its explicit actual head/result relation"));
                 }
@@ -1249,5 +1250,40 @@ impl Checked {
         }
         if !selected { return Err(fail("callable Receiver lacks an actual call binding")); }
         Ok(())
+    }
+
+    pub(in crate::semantic) fn fixed_shared_capture_result(
+        &self, closure: &ClosureDefinition, inventory: &Inventory<'_>, b: &mut Budget,
+    ) -> CompileResult<bool> {
+        let Some(life) = closure.storage_life.as_ref() else { return Ok(false); };
+        if !matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
+            || !matches!(closure.result, Type::Address { mutable: false, .. })
+        {
+            return Ok(false);
+        }
+        crate::signature_life::charge(life, b)?;
+        let Some(binder @ StorageBinder::Fixed(_)) =
+            crate::signature_life::outer(life, StorageBase::Result)
+        else { return Ok(false); };
+        if !life.bindings.iter().any(|row| {
+            matches!(row.position.base, StorageBase::Capture(_))
+                && row.position.path.is_empty() && row.binder == binder
+        }) && !life.classes.iter().any(|row| {
+            matches!(row.position.base, StorageBase::Capture(_)) && row.binder == binder
+        }) { return Ok(false); }
+        let program = inventory.module.semantic.as_ref()
+            .ok_or_else(|| fail("Fixed captured result has no original semantic module"))?;
+        let worlds = inventory.worlds(program, closure.function, b)?;
+        if worlds.is_empty() { return Ok(false); }
+        for world in worlds {
+            if !world.environment.as_ref().is_some_and(|env|
+                env.closure == SemanticClosureTarget::Typed(closure.id))
+                || !self.receiver_sources(world.definition, inventory, b)?
+                    .is_some_and(|sources| !sources.is_empty())
+            {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 }

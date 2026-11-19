@@ -47,7 +47,7 @@ impl CheckedOriginal {
         let definition=selection.definition;
         let source=selection.source;
         let mut value=selection.into_value(self,b)?;
-        if matches!(source,SemanticOriginalTypeSource::Result)&&self.receiver_results.contains(&definition){
+        if matches!(source,SemanticOriginalTypeSource::Result)&&self.receiver_results.get(&definition)==Some(&true){
             if let Ty::Address{mutable:false,life,..}=&mut value{if self.resolved_life(life,b)?!=Life::Static&&!self.receiver_physical_source(definition,life,b)?{*life=Life::ReceiverHead(definition);}}else{return Err(bad("proved Receiver result loses its shared root Address"));}
         }
         if let Ty::Address{mutable,life,inner}=&value{if !matches!(inner.as_ref(),Ty::Atom(_)){
@@ -217,7 +217,7 @@ impl CheckedOriginal {
             SemanticLifeRecipe::Implicit{scope:self.scope(*owner,env,b)?,ordinal:row.ordinal}
         },
         Life::Head(definition,ordinal)=>{if env.lexical.first().is_none_or(|frame|frame.definition!=*definition){return Err(bad("original description head was not instantiated at its true call boundary"));}SemanticLifeRecipe::OuterOccurrence{operand:SemanticRecipeOperand::Parameter(*ordinal),path:vec![],mode:StoredBorrowMode::WritableDescription}},
-        Life::ReceiverHead(owner)=>{if env.lexical.first().is_none_or(|frame|frame.definition!=*owner)||!self.receiver_results.contains(owner){return Err(bad("original Receiver head has no complete same-definition lending proof"));}SemanticLifeRecipe::OuterOccurrence{operand:SemanticRecipeOperand::Receiver,path:vec![],mode:StoredBorrowMode::SharedAddress}},
+        Life::ReceiverHead(owner)=>{if env.lexical.first().is_none_or(|frame|frame.definition!=*owner)||self.receiver_results.get(owner)!=Some(&true){return Err(bad("original Receiver head has no complete same-definition lending proof"));}SemanticLifeRecipe::OuterOccurrence{operand:SemanticRecipeOperand::Receiver,path:vec![],mode:StoredBorrowMode::SharedAddress}},
         Life::ReceiverSignature(_)=>return Err(bad("signature-local Receiver subject escapes its actual callable boundary")),
         Life::ReceiverRole(..)=>return Err(unsupported("receiver role requires the private exact actual-call value bridge",None)),
         Life::Formal(definition,ordinal)=>SemanticLifeRecipe::Formal(SemanticFormalRef{scope:self.scope(*definition,env,b)?,ordinal:*ordinal}),

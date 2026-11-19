@@ -354,7 +354,41 @@ impl CheckedOriginal {
         let previous = self.current.replace(owner);
         let result = self.receiver_result_sources(module, owner, b);
         self.current = previous;
-        for source in result? {
+        let sources = result?;
+        let program = module.semantic.as_ref().ok_or_else(|| bad("Receiver proof lacks its actual world directory"))?;
+        let mut real_head = None;
+        for world in &program.instances {
+            b.spend(1)?;
+            if world.definition != owner { continue; }
+            let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) = world.target else { continue; };
+            let entry = module.functions.get(id.0 as usize).filter(|row| row.id == id)
+                .ok_or_else(|| bad("Receiver proof has no exact actual entry"))?;
+            let Some(SemanticClosureTarget::Typed(closure)) = world.environment.as_ref().map(|env| &env.closure) else {
+                return Err(bad("Receiver proof lacks its actual closure environment"));
+            };
+            let closure = crate::closures::definition(module, *closure, None)?;
+            for header in [entry.storage_life.as_ref(), closure.storage_life.as_ref()].into_iter().flatten() {
+                crate::signature_life::charge(header, b)?;
+            }
+            if entry.environment != Some(closure.id) || closure.function != id || entry.storage_life != closure.storage_life {
+                return Err(bad("Receiver proof changes the actual original closure entry"));
+            }
+            let needs_head = closure.storage_life.as_ref().is_some_and(|header| {
+                let receiver = crate::signature_life::outer(header, StorageBase::Receiver);
+                matches!(receiver, Some(StorageBinder::Invocation(_)))
+                    && crate::signature_life::outer(header, StorageBase::Result) == receiver
+            });
+            if real_head.replace(needs_head).is_some_and(|previous| previous != needs_head) {
+                return Err(bad("original closure worlds disagree about the result access head"));
+            }
+        }
+        b.spend(self.receiver_results.len().saturating_add(1).ilog2() as usize + 1)?;
+        let publishes_head = real_head == Some(true);
+        self.receiver_results.entry(owner)
+            .and_modify(|head| *head |= publishes_head)
+            .or_insert(publishes_head);
+        if !publishes_head { return Ok(()); }
+        for source in sources {
             b.spend(1)?;
             self.outer_flows
                 .entry(owner)
@@ -406,7 +440,9 @@ impl CheckedOriginal {
                     "Receiver lending return changes its root shared Address",
                 ));
             };
-            if !self.receiver_source_life(owner, &life, &mut BTreeSet::new(), b)? {
+            if !self.receiver_source_life(owner, &life, &mut BTreeSet::new(), b)?
+                && !self.receiver_captured_field(module, owner, value, b)?
+            {
                 return Err(bad(
                     "Receiver lending return is not grounded in its exact original capture/view",
                 ));
@@ -418,6 +454,26 @@ impl CheckedOriginal {
             return Err(bad("Receiver lending has no proved original return"));
         }
         Ok(returns)
+    }
+
+    fn receiver_captured_field(
+        &self, module: &TypedModule, owner: SemanticDefinitionId, mut value: &SemanticOriginalExpr,
+        b: &mut Budget,
+    ) -> Check<bool> {
+        while let CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } = &value.kind {
+            b.spend(1)?;
+            value = inner;
+        }
+        if !matches!(value.kind, CoreExprKind::Member { .. }) { return Ok(false); }
+        let (root, projections) = self.address_place(module, owner, value.id, b)?;
+        let intrinsics::AddressRoot::Place(root) = root else { return Ok(false); };
+        b.spend(projections.len().saturating_add(1))?;
+        if projections.is_empty() || !projections.iter().all(|step| matches!(step, intrinsics::AddressProjection::Field(_))) {
+            return Ok(false);
+        }
+        b.spend(self.value_bindings.len().saturating_add(1).ilog2() as usize + 1)?;
+        Ok(matches!(self.value_bindings.get(&(owner, root)),
+            Some(Binder::Capture { definition, .. }) if *definition == owner))
     }
     pub(super) fn adapt_receiver_result_goal(
         &mut self,
@@ -455,8 +511,6 @@ impl CheckedOriginal {
         };
         if let Some(owner) = provider {
             self.prove_receiver_result(module, owner, b)?;
-            b.spend(1)?;
-            self.receiver_results.insert(owner);
         } else if !matches!(
             actual,
             Ty::Address {
@@ -491,7 +545,7 @@ impl CheckedOriginal {
     ) -> Check<bool> {
         b.spend(1)?;
         Ok(self.checked.contains(&owner)
-            && self.receiver_results.contains(&owner)
+            && self.receiver_results.contains_key(&owner)
             && self.prototypes.get(&owner).is_some_and(|p| {
                 p.call_kind == CallKind::Direct
                     && matches!(
@@ -519,6 +573,14 @@ impl CheckedOriginal {
             return Err(bad("Receiver call selects another original operation"));
         }
         Ok(node)
+    }
+    pub(in crate::semantic) fn has_receiver_result_role(
+        &self, owner: SemanticDefinitionId, site: SemanticSiteId, b: &mut Budget,
+    ) -> Check<bool> {
+        let grammar = self.source_grammar.as_ref().ok_or_else(|| bad("Receiver result lacks original grammar"))?;
+        let Some(SemanticOriginalNode::Expression(node)) = grammar.site_node(owner, site, b)? else { return Ok(false); };
+        b.spend(self.receiver_call_roles.len().saturating_add(1).ilog2() as usize + 1)?;
+        Ok(self.receiver_call_roles.contains_key(&(owner, node)))
     }
     pub(super) fn receiver_call_life(
         &self,

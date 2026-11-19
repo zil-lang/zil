@@ -493,7 +493,25 @@ impl CheckedContext {
                     }
                     InstructionKind::MakeDynOwned{..}|InstructionKind::TaskYield|InstructionKind::ByteBufferNew|InstructionKind::ByteBufferReserve{..}|InstructionKind::ByteBufferPush{..}|InstructionKind::ByteBufferTruncate{..}|InstructionKind::ByteBufferLen{..}|InstructionKind::ByteBufferCapacity{..}|InstructionKind::ByteBufferBorrow{..}|InstructionKind::OwnedStoreNew{..}|InstructionKind::OwnedStoreReserve{..}|InstructionKind::OwnedStorePush{..}|InstructionKind::OwnedStorePop{..}|InstructionKind::OwnedStoreBorrow{..}|InstructionKind::OwnedStoreBorrowMut{..}|InstructionKind::OwnedStoreLen{..}|InstructionKind::OwnedStoreCapacity{..}|InstructionKind::TaskCreate{..}|InstructionKind::TaskCreateOwned{..}|InstructionKind::TaskValid{..}|InstructionKind::TaskPoll{..}|InstructionKind::TaskRequestCancel{..}|InstructionKind::TaskPollClose{..}|InstructionKind::TaskFinishDestroy{..}|InstructionKind::MutexCreate{..}|InstructionKind::MutexLock{..}|InstructionKind::MutexValue{..}|InstructionKind::MutexUnlock{..}|InstructionKind::AsyncRegistrationStart{..}|InstructionKind::AsyncRegistrationValid{..}|InstructionKind::AsyncRegistrationRequestClose{..}|InstructionKind::AsyncRegistrationPollClose{..}|InstructionKind::AsyncRegistrationFinishDestroy{..}|InstructionKind::AsyncRegistrationFinishDestroyChecked{..}|InstructionKind::WithScopedThread{..}|InstructionKind::WithSyncCell{..}|InstructionKind::SyncI32{..}|InstructionKind::SyncI32CompareExchange{..}|InstructionKind::WithForeignCallback{..}=>self.actual_intrinsic(module,instance,f,instruction,sites,&values,&environment,external,active,b)?,
                     InstructionKind::ReadCapture{index}|InstructionKind::TakeCapture{index}=>{
-                        let value=self.occurrences.borrow().get(&(scope,OperandKey::Capture(*index))).cloned().ok_or_else(||bad("actual capture read has no sealed creator operand"))?;
+                        let mut value=self.occurrences.borrow().get(&(scope,OperandKey::Capture(*index))).cloned().ok_or_else(||bad("actual capture read has no sealed creator operand"))?;
+                        if matches!(instruction.kind, InstructionKind::ReadCapture { .. })
+                            && let Type::Address { mutable: true, inner } = &value.ty
+                            && f.environment.and_then(|id| module.closures.get(id.0 as usize))
+                                .is_some_and(|closure| closure.function == f.id && closure.kind == CallableKind::Fn)
+                        {
+                            // ReadCapture in a shared entry observes this
+                            // exact exclusive capability without taking it.
+                            crate::dynamic_metadata::ty(inner, b)?;
+                            let read = Type::Address { mutable: false, inner: inner.clone() };
+                            b.spend(value.life.slots.len())?;
+                            let mut outer = value.life.slots.iter_mut().filter(|row| row.path.is_empty());
+                            let row = outer.next().ok_or_else(|| bad("shared capture observation loses its exclusive source occurrence"))?;
+                            if outer.next().is_some() || row.mode != StoredBorrowMode::ExclusiveAddress {
+                                return Err(bad("shared capture observation changes its original access mode"));
+                            }
+                            row.mode = StoredBorrowMode::SharedAddress;
+                            value.replace_type(read);
+                        }
                         Some(value)
                     }
                     InstructionKind::BindPackageCapture{..}|InstructionKind::EndPackageCapture{..}|InstructionKind::DropPackageField{..}|InstructionKind::StorePackageField{..}|InstructionKind::ReadPackageField{..}|InstructionKind::TakePackageField{..}|InstructionKind::DescribePackageField{..}|InstructionKind::BorrowPackageField{..}|InstructionKind::DescribeCapture{..}|InstructionKind::BorrowCapture{..}|InstructionKind::WriteCapture{..}|InstructionKind::DropPackage{..}|InstructionKind::ExtractField{..}|InstructionKind::AddressField{..}|InstructionKind::DescribeAddress{..}|InstructionKind::ReadDesc{..}|InstructionKind::WriteDesc{..}=>self.owner_field_instruction(module,instance,f,instruction,&mut state,&values,&environment,active,b)?,
