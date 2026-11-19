@@ -11,6 +11,7 @@ mod rewrite;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(in crate::semantics) enum NominalPass {
     Discover,
+    DiscoverStable,
     Validate,
 }
 
@@ -18,6 +19,19 @@ pub(in crate::semantics) enum NominalPass {
 pub(super) enum NominalPosition {
     Committed(usize),
     Proposed(usize),
+}
+
+struct ValidationUse {
+    scope: SemanticInstanceId,
+    declaration: SemanticDefinitionId,
+    arguments: Vec<SemanticActualRecipe>,
+    position: NominalPosition,
+    depth: usize,
+}
+
+struct FormationPass {
+    mode: NominalPass,
+    existing: Vec<ValidationUse>,
 }
 
 /// A digest narrows the actual Type comparisons. Each candidate still needs
@@ -194,12 +208,43 @@ impl Eval<'_, '_, '_> {
             result => result,
         }
     }
+    fn retain_nominal_use(
+        &mut self,
+        pass: &mut FormationPass,
+        scope: SemanticInstanceId,
+        declaration: SemanticDefinitionId,
+        arguments: &[SemanticActualRecipe],
+        position: NominalPosition,
+        depth: usize,
+    ) -> R<()> {
+        if pass.mode != NominalPass::DiscoverStable {
+            return Ok(());
+        }
+        if pass.existing.len() >= self.limits.max_nodes {
+            return Err(Diagnostic::limit(
+                Phase::Types, "checked nominal uses exceed node limit", None,
+            ));
+        }
+        self.fee(std::mem::size_of::<ValidationUse>().saturating_add(arguments.len()))?;
+        for argument in arguments {
+            crate::dyn_metadata::semantic_operand_snapshot(argument, self.limits, self.left, 1)?;
+        }
+        pass.existing.push(ValidationUse {
+            scope,
+            declaration,
+            arguments: arguments.to_vec(),
+            position,
+            depth,
+        });
+        Ok(())
+    }
+
     fn deferred_logical_nominal(
         &mut self,
         scope: SemanticInstanceId,
         recipe: &SemanticTypeRecipe,
         hint: LogicalExpected<'_>,
-        pass: NominalPass,
+        pass: &mut FormationPass,
         depth: usize,
     ) -> R<()> {
         hint.materialize(|ty| self.deferred_physical_nominal(scope, recipe, ty, pass, depth))
@@ -209,7 +254,7 @@ impl Eval<'_, '_, '_> {
         scope: SemanticInstanceId,
         recipe: &SemanticTypeRecipe,
         hint: &Type,
-        pass: NominalPass,
+        pass: &mut FormationPass,
         depth: usize,
     ) -> R<()> {
         self.node(depth)?;
@@ -271,13 +316,31 @@ impl Eval<'_, '_, '_> {
                 // actuals and their complete domains through the ordinary reader;
                 // finish separately proves every original field and where clause.
                 if let Some(position) = self.existing_deferred_nominal(hint, *declaration)? {
-                    if pass == NominalPass::Validate {
+                    if pass.mode == NominalPass::Validate {
                         self.check_nominal_application(scope, *definition, arguments, position, depth + 1)?;
+                    } else {
+                        self.retain_nominal_use(pass, scope, *definition, arguments, position, depth + 1)?;
                     }
                     return Ok(());
                 }
                 let row = self.qualified_nominal(scope, *definition, arguments, hint, depth + 1)?;
                 let before = self.physical(hint)?;
+                if pass.mode == NominalPass::DiscoverStable {
+                    inference::charge_type_snapshot(&before, Span::default(), self.limits, self.left, 1)?;
+                    inference::charge_type_snapshot(&row.ty, Span::default(), self.limits, self.left, 1)?;
+                    if before != row.ty {
+                        // A rewrite can change any later emitted type hint and
+                        // requires fresh, post-rewrite occurrence selection.
+                        pass.existing.clear();
+                        pass.mode = NominalPass::Discover;
+                    } else {
+                        let position = self.module.nominal_proposals.borrow().len();
+                        self.retain_nominal_use(
+                            pass, scope, *definition, arguments,
+                            NominalPosition::Proposed(position), depth + 1,
+                        )?;
+                    }
+                }
                 self.propose_deferred_nominal(before, row)
             }
             (SemanticTypeRecipe::Qualified { storage, .. }, _) => {
@@ -334,6 +397,7 @@ impl Eval<'_, '_, '_> {
 pub(in crate::semantics) struct NominalFormation {
     pub catalogue_changed: bool,
     pub representation_changed: bool,
+    pub validated: bool,
     pub state: Formation<()>,
 }
 
@@ -346,7 +410,7 @@ pub(crate) fn populate(
     left: &mut usize,
 ) -> R<NominalFormation> {
     let mut blocked = BTreeSet::new();
-    let pending = {
+    let (pending, validation) = {
         // Rebuild the immutable source directory each formation round. A
         // nominal rewrite or newly completed closure changes its inputs.
         let directory = if let Some(context) = ledger.original.context() {
@@ -364,6 +428,7 @@ pub(crate) fn populate(
             invocation_probe: None,
             pending_header: None,
         };
+        let mut pass = FormationPass { mode: pass, existing: Vec::new() };
         eval.fee(program.instances.len().saturating_add(program.sites.len()))?;
         for instance in &program.instances {
             if !matches!(
@@ -384,7 +449,7 @@ pub(crate) fn populate(
                     scope: SemanticScopeRef::Ancestor(0),
                     source: SemanticOriginalTypeSource::Parameter(index as u32),
                 };
-                let request = eval.deferred_physical_nominal(instance.id, &recipe, ty, pass, 0);
+                let request = eval.deferred_physical_nominal(instance.id, &recipe, ty, &mut pass, 0);
                 eval.deferred_result(request, &mut blocked)?;
             }
             let recipe = SemanticTypeRecipe::OriginalType {
@@ -395,7 +460,7 @@ pub(crate) fn populate(
                 instance.id,
                 &recipe,
                 function.result()?,
-                pass,
+                &mut pass,
                 0,
             );
             eval.deferred_result(request, &mut blocked)?;
@@ -469,7 +534,7 @@ pub(crate) fn populate(
                     scope: SemanticScopeRef::Ancestor(0),
                     source: SemanticOriginalTypeSource::Expression(node),
                 };
-                let request = eval.deferred_logical_nominal(site.instance, &recipe, hint, pass, 0);
+                let request = eval.deferred_logical_nominal(site.instance, &recipe, hint, &mut pass, 0);
                 eval.deferred_result(request, &mut blocked)?;
                 continue;
             }
@@ -535,7 +600,7 @@ pub(crate) fn populate(
                 match source {
                     SemanticCoreTypeSource::OriginalRecipe(recipe)
                     | SemanticCoreTypeSource::Expression { recipe, .. } => {
-                        let request = eval.deferred_logical_nominal(*scope, recipe, hint, pass, 0);
+                        let request = eval.deferred_logical_nominal(*scope, recipe, hint, &mut pass, 0);
                         eval.deferred_result(request, &mut blocked)?;
                     }
                     SemanticCoreTypeSource::OriginalExpression { source, .. } => {
@@ -545,13 +610,15 @@ pub(crate) fn populate(
                             source,
                             0,
                         )?;
-                        let request = eval.deferred_logical_nominal(*scope, &recipe, hint, pass, 0);
+                        let request = eval.deferred_logical_nominal(*scope, &recipe, hint, &mut pass, 0);
                         eval.deferred_result(request, &mut blocked)?;
                     }
                 }
             }
         }
-        directory.nominal_proposals.into_inner()
+        let validation = (pass.mode == NominalPass::DiscoverStable && blocked.is_empty())
+            .then_some(pass.existing);
+        (directory.nominal_proposals.into_inner(), validation)
     };
     let mut replacements = Vec::new();
     let mut changed = false;
@@ -577,6 +644,14 @@ pub(crate) fn populate(
             changed = true;
         }
     }
+    let mut proposal_positions = Vec::new();
+    let mut replaced_row = false;
+    if validation.is_some() {
+        *left = left.checked_sub(pending.len()).ok_or_else(|| {
+            Diagnostic::limit(Phase::Types, "retained nominal position work exceeded", None)
+        })?;
+        proposal_positions.reserve(pending.len());
+    }
     for (before, row) in pending {
         let mut position = None;
         for (index, prior) in module.life_instances.iter().enumerate() {
@@ -594,23 +669,76 @@ pub(crate) fn populate(
                 }
             }
         }
-        if let Some(index) = position {
+        let published = if let Some(index) = position {
             charge_row(&row, limits, left)?;
             charge_row(&module.life_instances[index], limits, left)?;
             if module.life_instances[index] != row {
                 module.life_instances[index] = row;
                 changed = true;
+                replaced_row = true;
             }
+            index
         } else {
+            let position = module.life_instances.len();
             module.life_instances.push(row);
             changed = true;
+            position
+        };
+        if validation.is_some() {
+            proposal_positions.push(published);
         }
     }
     let representation_changed = !replacements.is_empty();
     rewrite::apply(program, module, ledger, &replacements, limits, left)?;
+    let mut validated = false;
+    if let Some(uses) = validation
+        && !representation_changed
+        && !replaced_row
+    {
+        // Verify only after all rows are in the actual immutable catalogue.
+        // A derived argument can itself require ordinary or nominal metadata
+        // that was unavailable while proposals were private.
+        let stat = ledger.ordinary_stats.clone();
+        stored::OrdinaryStats::step(&stat, "finish: retained nominal validation", left, |left| {
+            let directory = if let Some(context) = ledger.original.context() {
+                ActualDirectory::indexed(module, program, context, "retained nominal uses", limits, left)?
+            } else {
+                ActualDirectory::from_module_at(module, "retained nominal uses")
+            };
+            let mut eval = Eval {
+                input: program,
+                module: &directory,
+                ledger,
+                limits,
+                left,
+                active: BTreeSet::new(),
+                invocation_probe: None,
+                pending_header: None,
+            };
+            eval.fee(uses.len())?;
+            for use_site in uses {
+                let position = match use_site.position {
+                    NominalPosition::Committed(position) => position,
+                    NominalPosition::Proposed(position) => *proposal_positions.get(position)
+                        .ok_or_else(|| bad("retained nominal use has no published actual row"))?,
+                };
+                let checked = eval.check_nominal_application(
+                    use_site.scope,
+                    use_site.declaration,
+                    &use_site.arguments,
+                    NominalPosition::Committed(position),
+                    use_site.depth,
+                );
+                eval.deferred_result(checked, &mut blocked)?;
+            }
+            Ok(())
+        })?;
+        validated = blocked.is_empty();
+    }
     Ok(NominalFormation {
         catalogue_changed: changed,
         representation_changed,
+        validated,
         state: if blocked.is_empty() {
             Formation::Complete(())
         } else {

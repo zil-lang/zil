@@ -1059,14 +1059,23 @@ pub(in crate::semantics) fn complete_emitted_headers(
     // different header may need an already formed nominal application. Publish
     // only complete rows between rounds; neither dependency supplies an N0 fact.
     let before_nominals = module.life_instances.len();
+    pay(left, module.closures.len().saturating_add(1))?;
+    let pass = if ledger.formed_headers.is_empty()
+        && module.closures.iter().all(|closure| closure.storage_life.is_some())
+    {
+        NominalPass::DiscoverStable
+    } else {
+        NominalPass::Discover
+    };
     let NominalFormation {
         catalogue_changed: nominal_progress,
         representation_changed,
+        validated: nominal_validated,
         state: nominal_state,
     } = stored::OrdinaryStats::step(&formation_stats,
         "finish: deferred nominals", left, |left| {
             super::super::materialize::populate_deferred_nominals(
-                program, module, ledger, NominalPass::Discover, limits, left,
+                program, module, ledger, pass, limits, left,
             )
         })?;
     let mut nominal_dependencies = match nominal_state {
@@ -1217,6 +1226,9 @@ pub(in crate::semantics) fn complete_emitted_headers(
         && !representation_changed
         && !headers_changed
     {
+        if nominal_validated {
+            return Ok(());
+        }
         // Every physical use was visited. New catalogue rows with the same
         // physical representation need no extra discovery-only sweep.
         let NominalFormation {
