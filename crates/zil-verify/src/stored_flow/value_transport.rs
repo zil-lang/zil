@@ -16,6 +16,23 @@ pub(super) use results::{
     ResultFacts, SymbolicPermission, required_channels_known, result_bound, result_work, summarize,
     validate_results,
 };
+// A homogeneous primitive array has no physical address, tag, description
+// or environment fields. Check its full depth before skipping empty rows.
+pub(super) fn scalar_array(mut ty: &Type, mut depth: usize, b: &mut Budget) -> Check<bool> {
+    while let Type::Array { element, length } = ty {
+        b.spend(1)?;
+        if *length == 0 {
+            return Ok(true);
+        }
+        depth += 1;
+        if depth > b.limits.max_call_depth.min(128) {
+            return Err(limit("actual array directory depth exceeded"));
+        }
+        ty = element;
+    }
+    Ok(ty.is_b0_scalar())
+}
+
 pub(super) fn memory_after_sources(
     module: &TypedModule,
     summary: &Summary,

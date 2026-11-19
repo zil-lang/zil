@@ -288,6 +288,7 @@ pub(in crate::stored_flow) fn seed_environments(
                             (PlaceProjection::ErrorArm(false), result.as_ref()),
                         ]);
                     }
+                    Type::Array { .. } if scalar_array(ty, depth, b)? => {}
                     Type::Array { element, length } => {
                         b.spend(*length as usize)?;
                         fields.extend(

@@ -40,6 +40,7 @@ fn seed(module:&TypedModule,ty:&Type,input:option_address::Input,payload:&mut Pa
             Type::Enum{variants,..}=>{for(v,(_,children))in variants.iter().enumerate(){b.spend(children.len())?;fields.extend(children.iter().enumerate().map(|(i,t)|(PlaceProjection::Variant(VariantProjection{variant:v as u32,index:i as u32}),t)));}},
             Type::ErrorUnion{error,result}=>{b.spend(2)?;fields.extend([(PlaceProjection::ErrorArm(true),error.as_ref()),(PlaceProjection::ErrorArm(false),result.as_ref())]);},
             Type::Closure(id)=>{let definition=module.closures.get(id.0 as usize).filter(|d|d.id==*id).ok_or_else(||err("field input closure identity is absent"))?;b.spend(definition.captures.len())?;fields.extend(definition.captures.iter().enumerate().map(|(i,t)|(PlaceProjection::Field(i as u32),t)));},
+            Type::Array { .. } if scalar_array(storage, path.len(), b)? => {}
             Type::Array{element,length}=>{b.spend(*length as usize)?;fields.extend((0..*length).map(|i|(PlaceProjection::Field(i),element.as_ref())));},
             _=>{},
         }
