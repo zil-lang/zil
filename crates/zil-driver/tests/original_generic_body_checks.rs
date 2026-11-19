@@ -328,35 +328,60 @@ fn direct_call_uses_its_original_scalar_field_and_computed_argument() {
     let source = SourceUnit::new(FileId(0), ModuleId(0), "scalar-call.zil",
         "struct Pair { index:i64; marker:i64 }\nfn difference(a:i64,b:i64)->i64{return a-b}\nfn read(pair:Pair)->i64{return difference(pair.index,pair.marker+1)}\nfn main(){}");
     let core = original_core(source, &limits, &target);
-    let mut typed = zil_types::check(&core, &target, &limits).unwrap();
-    let mut plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let baseline = zil_types::check(&core, &target, &limits).unwrap();
+    let baseline_plan = zil_analyze::analyze(&baseline, &limits).unwrap();
+    zil_verify::verify_module(baseline.clone(), baseline_plan.clone(), &target, &limits).unwrap();
+    let bytes = wire::encode_module_candidate(&baseline, &baseline_plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+
+    for change_call_input in [true, false] {
+        let mut typed = baseline.clone();
+        let caller = typed.functions.iter_mut().find(|f| f.name == "read").unwrap();
+        let mut edits = 0;
+        for instruction in caller.blocks.iter_mut().flat_map(|block| &mut block.instructions) {
+            match &mut instruction.kind {
+                InstructionKind::Call { arguments, .. } if change_call_input => {
+                    let [index, marker] = arguments.as_mut_slice() else { panic!("two original arguments") };
+                    assert_ne!(index, marker);
+                    assert_eq!(caller.values[index.0 as usize], Type::I64);
+                    assert_eq!(caller.values[marker.0 as usize], Type::I64);
+                    *index = *marker;
+                    edits += 1;
+                }
+                InstructionKind::ExtractField { aggregate, index } if !change_call_input && *index == 0 => {
+                    let Type::Record { fields, .. } = &caller.values[aggregate.0 as usize] else { panic!("Pair") };
+                    assert_eq!(fields, &[("index".into(), Type::I64), ("marker".into(), Type::I64)]);
+                    *index = 1;
+                    edits += 1;
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(edits, 1);
+        let errors = zil_analyze::analyze(&typed, &limits).unwrap_err();
+        assert!(errors.iter().any(|d| d.message.contains("actual scalar Call argument")), "{errors:?}");
+        require_semantic_rejection(errors);
+        let mut plan = baseline_plan.clone();
+        plan.module_fingerprint = typed.fingerprint();
+        let bytes = wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+        for errors in [zil_verify::verify_module(typed, plan, &target, &limits).unwrap_err(),
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err()] {
+            assert!(errors.iter().any(|d| d.notes.iter().any(|note|note.contains("actual scalar call"))), "{errors:?}");
+            require_semantic_rejection(errors);
+        }
+    }
+}
+
+#[test]
+fn direct_call_preserves_scalar_conversions_literals_and_inferred_arguments() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let text = "fn same<T:Value>(value:T)->T{return value}\nfn read(a:i32)->i64{return same(i64(a)+(-3i64))}\nfn real(v:f64)->f64{return v}\nfn floating()->f64{return real(-2.5f64)}\nfn main(){}";
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "scalar-forms.zil", text);
+    let core = original_core(source, &limits, &target);
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
     zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
     let bytes = wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
     zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
-
-    let caller = typed.functions.iter_mut().find(|f| f.name == "read").unwrap();
-    let mut edits = 0;
-    for block in &mut caller.blocks {
-        for instruction in &mut block.instructions {
-            if let InstructionKind::Call { arguments, .. } = &mut instruction.kind {
-                let [index, marker] = arguments.as_mut_slice() else { panic!("two original arguments") };
-                assert_ne!(index, marker);
-                assert_eq!(caller.values[index.0 as usize], Type::I64);
-                assert_eq!(caller.values[marker.0 as usize], Type::I64);
-                *index = *marker;
-                edits += 1;
-            }
-        }
-    }
-    assert_eq!(edits, 1);
-    let errors = zil_analyze::analyze(&typed, &limits).unwrap_err();
-    assert!(errors.iter().any(|d| d.message.contains("actual scalar Call argument")));
-    require_semantic_rejection(errors);
-    plan.module_fingerprint = typed.fingerprint();
-    let bytes = wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
-    for errors in [zil_verify::verify_module(typed, plan, &target, &limits).unwrap_err(),
-        zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err()] {
-        assert!(errors.iter().any(|d| d.notes.iter().any(|note|note.contains("actual scalar call"))), "{errors:?}");
-        require_semantic_rejection(errors);
-    }
 }

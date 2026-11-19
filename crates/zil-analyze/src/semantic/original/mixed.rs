@@ -636,6 +636,25 @@ impl Solver<'_, '_> {
     }
 }
 
+pub(in crate::semantic) fn float_constant(
+    text: &str, ty: &Type, negative: bool, b: &mut Budget,
+) -> CompileResult<Constant> {
+    use zil_base::numeric::{FloatFormat, FloatValue, decimal_work};
+    let (suffix, format) = match ty {
+        Type::F32 => ("f32", FloatFormat::F32),
+        Type::F64 => ("f64", FloatFormat::F64),
+        _ => return Err(fail("original floating literal has a nonfloating carrier")),
+    };
+    b.spend(decimal_work(text.len()), WORK)?;
+    let spelling = text.strip_suffix(suffix).unwrap_or(text);
+    let value = FloatValue::from_decimal(spelling, format)
+        .map_err(|_| fail("original floating literal spelling or range is invalid"))?;
+    Ok(match if negative { value.negate() } else { value } {
+        FloatValue::F32(bits) => Constant::F32(bits),
+        FloatValue::F64(bits) => Constant::F64(bits),
+    })
+}
+
 pub(in crate::semantic) fn integer_constant(
     text: &str,
     ty: &Type,

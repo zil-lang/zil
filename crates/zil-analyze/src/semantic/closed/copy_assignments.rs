@@ -151,6 +151,31 @@ impl Check<'_, '_> {
         })
     }
 
+    // A TypeUse can identify the correct SSA result even if its producing
+    // field ordinal was changed. Reconstruct the product projection itself.
+    pub(super) fn scalar_call_projection(
+        &self, world: &SemanticInstance, function: &TypedFunction,
+        mut source: &SemanticOriginalExpr, value: ValueId, b: &mut Budget,
+    ) -> CompileResult<bool> {
+        loop {
+            b.spend(1, WORK)?;
+            match &source.kind {
+                CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } => source = inner,
+                CoreExprKind::Member { object, .. } => {
+                    let parent = self.original.source_type(world, SemanticScopeRef::Ancestor(0),
+                        &SemanticOriginalTypeSource::Expression(object.id), self.program, self.inventory, b)?;
+                    if !matches!(parent, Type::Record { .. }) { return Ok(true); }
+                    let (_, _, producer) = self.defining(function, value, b)?;
+                    if !matches!(producer.kind, InstructionKind::ExtractField { .. } | InstructionKind::ReadAddress { .. }) {
+                        return Ok(false);
+                    }
+                    return self.copy_expression_source(world, function, source, value, b, 0);
+                }
+                _ => return Ok(true),
+            }
+        }
+    }
+
     pub(super) fn copy_expression_source(
         &self,
         world: &SemanticInstance,
@@ -208,6 +233,23 @@ impl Check<'_, '_> {
                 let CoreExprKind::Integer(text) = &operand.kind else { unreachable!() };
                 b.spend(text.len().saturating_add(1), WORK)?;
                 original::mixed::integer_constant(&format!("-{text}"), &value.ty(), b)? == *value
+            }
+            (CoreExprKind::Float(text), InstructionKind::Constant(value)) if value.ty().is_float() => {
+                original::mixed::float_constant(text, &value.ty(), false, b)? == *value
+            }
+            (CoreExprKind::Unary { op: UnaryOp::Negate, operand }, InstructionKind::Constant(value))
+                if value.ty().is_float() && matches!(operand.kind, CoreExprKind::Float(_)) =>
+            {
+                let CoreExprKind::Float(text) = &operand.kind else { unreachable!() };
+                original::mixed::float_constant(text, &value.ty(), true, b)? == *value
+            }
+            (CoreExprKind::NumericConvert { value, .. } | CoreExprKind::IntegerConvert { value, .. },
+                InstructionKind::ConvertInteger { value: input, target } | InstructionKind::ConvertNumber { value: input, target }) =>
+            {
+                let expected = self.original.source_value(world, SemanticScopeRef::Ancestor(0),
+                    &SemanticOriginalTypeSource::Expression(source.id), self.program, self.inventory, b)?;
+                geometry::same_type(target, &expected.ty, b)?
+                    && self.copy_expression_source(world, function, value, *input, b, depth + 1)?
             }
             (CoreExprKind::Integer(text), InstructionKind::Constant(value))
                 if value.ty().is_integer() =>

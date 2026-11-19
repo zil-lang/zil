@@ -318,8 +318,9 @@ impl CheckedContext{
             if sources.contains(&value){
                 let ty=f.values.get(value.0 as usize).ok_or_else(||bad("exact source SSA type is absent"))?;
                 if ty.is_integer()||ty.is_float()||matches!(ty,Type::Unit|Type::Bool){
-                    let name=self.original.borrow().as_ref().ok_or_else(||bad("exact scalar occurrence lacks its original binding proof"))?.bound_value_name(caller.definition,node,b)?;
-                    if name{self.original_projection_source(module,caller,f,value,caller.definition,node,true,b).map_err(|error|{
+                    let original=self.original.borrow();
+                    let proof=original.as_ref().ok_or_else(||bad("exact scalar occurrence lacks its original binding proof"))?;
+                    if proof.bound_value_name(caller.definition,node,b)? || proof.scalar_product_field(caller.definition,node,b)? {self.original_projection_source(module,caller,f,value,caller.definition,node,true,b).map_err(|error|{
                         if error.category==zil_base::ResultCategory::Unsupported{bad("exact scalar source occurrence selects another original binding").with_note(error.message)}
                         else{error.with_note(format!("original bound scalar {:?} expression {:?}, actual {:?}",caller.definition,node,value))}
                     })?;}

@@ -92,6 +92,18 @@ impl CheckedOriginal {
         };
         Ok((current, path, gives))
     }
+    pub(in crate::semantic) fn scalar_product_field(&self, definition: SemanticDefinitionId, mut node: NodeId, b: &mut Budget) -> Check<bool> {
+        use index::PlaceOperation as Operation;
+        let syntax = self.source_grammar.as_ref().ok_or_else(|| bad("scalar field has no original body"))?.place_syntax(definition, b)?;
+        loop {
+            match syntax.expression(node, b)?.operation {
+                Operation::Group(inner) | Operation::Ascribed(inner) => node = inner,
+                Operation::Member { object, .. } => return Ok(matches!(self.original_type(definition,
+                    &SemanticOriginalTypeSource::Expression(object), b)?, Ty::Nominal(..) | Ty::Atom(Type::Record { .. }))),
+                _ => return Ok(false),
+            }
+        }
+    }
     pub(in crate::semantic) fn bound_value_name(&self,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<bool>{
         b.spend(self.value_bindings.len().checked_ilog2().map_or(1,|depth|depth as usize+1))?;
         Ok(self.value_bindings.contains_key(&(definition,node)))
