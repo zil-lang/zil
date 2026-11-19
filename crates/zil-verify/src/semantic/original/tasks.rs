@@ -274,6 +274,12 @@ impl CheckedOriginal {
             if kind == Intrinsic::TaskAwait {
                 // Typed lowers await to an ordinary SuspendCall. Its actual
                 // call proof uses this source target and full mixed vector.
+                // The checked child's return contract determines whether the
+                // parent's result is a creation or merely an ownership transfer.
+                if prototype.result_mode == PassingMode::Create {
+                    b.spend(1)?;
+                    self.created.insert((env.current()?, call_node));
+                }
                 return Ok(prototype.result);
             }
             let mut context_retained = retained.clone();

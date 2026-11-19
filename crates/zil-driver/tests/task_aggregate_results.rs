@@ -181,6 +181,22 @@ fn exported_suspend_frame_cleans_its_registration_without_an_internal_task_const
 }
 
 #[test]
+fn awaited_resource_result_preserves_the_childs_creation_contract() {
+    let source_text = include_str!("../../../tests/language-readiness/async-registration/queued-result.zil");
+    let created = source_text.replace("fn worker(seed:i32)", "fn child(seed:i32)")
+        .replace("fn drive(", "fn worker(seed:i32)->Answer contract{result(create);} {let answer=task_await(child,seed);return give answer}\nfn drive(");
+    let given = created.replace("fn child(seed:i32)->Answer contract{result(create);}",
+        "fn child(seed:i32)->Answer contract{result(give);}");
+    let positive = compile_source(&source(&created), &CompileOptions::default());
+    assert_eq!(positive.status, ResultCategory::Success, "{}", positive.to_json());
+    assert_eq!(positive.verification_runs, 1);
+    let negative = compile_source(&source(&given), &CompileOptions::default());
+    assert_eq!(negative.status, ResultCategory::SafeReject, "{}", negative.to_json());
+    assert!(negative.diagnostics.iter().any(|d| d.message.contains("create result forwards an incoming responsibility")),
+        "{}", negative.to_json());
+}
+
+#[test]
 fn queued_registration_cleanup_requires_the_actual_suspend_frame() {
     let queued = include_str!(
         "../../../tests/language-readiness/task-aggregate-results/queued-nested-result.zil"
