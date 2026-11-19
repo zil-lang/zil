@@ -202,6 +202,13 @@ impl Check<'_, '_> {
                 name == member && geometry::same_type(field, result, b)?
                     && self.copy_expression_source(world, function, object, *parent, b, depth + 1)?
             }
+            (CoreExprKind::Unary { op: UnaryOp::Negate, operand }, InstructionKind::Constant(value))
+                if value.ty().is_integer() && matches!(operand.kind, CoreExprKind::Integer(_)) =>
+            {
+                let CoreExprKind::Integer(text) = &operand.kind else { unreachable!() };
+                b.spend(text.len().saturating_add(1), WORK)?;
+                original::mixed::integer_constant(&format!("-{text}"), &value.ty(), b)? == *value
+            }
             (CoreExprKind::Integer(text), InstructionKind::Constant(value))
                 if value.ty().is_integer() =>
             {

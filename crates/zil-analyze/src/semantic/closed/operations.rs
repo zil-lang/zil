@@ -3,6 +3,36 @@
 use super::*;
 
 impl Check<'_, '_> {
+    fn scalar_call_inputs(
+        &self, instance: &SemanticInstance, function: &TypedFunction, site: SemanticSiteId,
+        arguments: &[ValueId], parameters: &[Type], b: &mut Budget,
+    ) -> CompileResult<()> {
+        b.spend(parameters.len(), WORK)?;
+        if !parameters.iter().any(Type::is_b0_scalar) { return Ok(()); }
+        let original = self.inventory.original_index(instance.definition, b)?;
+        let Some(SemanticOriginalNode::Expression(node)) = original.site_node(site, b)? else {
+            return Err(fail("scalar argument lacks its original call occurrence"));
+        };
+        let CoreExprKind::Call { arguments: inputs, .. } = &original.get_expr(node, b)?.kind else {
+            return Err(fail("scalar argument selects another original operation"));
+        };
+        if inputs.len() != arguments.len() {
+            return Err(fail("static call changes its original scalar argument ordinals"));
+        }
+        for ((source, &operand), ty) in inputs.iter().zip(arguments).zip(parameters) {
+            if !ty.is_b0_scalar() { continue; }
+            if let Some(emitted) = self.original_subject_value(instance, function, source.id, b)? {
+                if emitted == operand || self.operation_operand_matches(function, operand, emitted, b)? {
+                    continue;
+                }
+            } else if self.copy_expression_source(instance, function, source, operand, b, 0)? {
+                continue;
+            }
+            return Err(fail(&format!("actual scalar Call argument selects another original expression {:?}, SSA {:?}", source.id, operand)));
+        }
+        Ok(())
+    }
+
     fn foreign_projected_arguments(
         &self, instance: &SemanticInstance, function: &TypedFunction,
         site: SemanticSiteId, arguments: &[ValueId], parameters: &[Type], b: &mut Budget,
@@ -1578,6 +1608,9 @@ impl Check<'_, '_> {
                 }
                 self.arguments(point.function, arguments, &parameters, b)?;
                 self.inputs(arguments, point, b)?;
+                if matches!(instruction.kind, InstructionKind::Call { .. } | InstructionKind::SuspendCall { .. }) {
+                    self.scalar_call_inputs(instance, point.function, site.recipe, arguments, &parameters, b)?;
+                }
                 if matches!(instruction.kind, InstructionKind::ForeignCall { .. }) {
                     self.foreign_projected_arguments(instance, point.function, site.recipe, arguments, &parameters, b)?;
                 }

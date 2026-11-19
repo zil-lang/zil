@@ -320,3 +320,43 @@ fn generic_copy_assignment_binds_both_dynamic_indices_of_the_original_slice() {
     assert!(raw.iter().any(|d| d.category == ResultCategory::SafeReject
         && d.code == "E-VERIFY-SEMANTIC" && d.notes.iter().any(|n| n.contains("assignment RHS"))), "{raw:?}");
 }
+
+#[test]
+fn direct_call_uses_its_original_scalar_field_and_computed_argument() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "scalar-call.zil",
+        "struct Pair { index:i64; marker:i64 }\nfn difference(a:i64,b:i64)->i64{return a-b}\nfn read(pair:Pair)->i64{return difference(pair.index,pair.marker+1)}\nfn main(){}");
+    let core = original_core(source, &limits, &target);
+    let mut typed = zil_types::check(&core, &target, &limits).unwrap();
+    let mut plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+
+    let caller = typed.functions.iter_mut().find(|f| f.name == "read").unwrap();
+    let mut edits = 0;
+    for block in &mut caller.blocks {
+        for instruction in &mut block.instructions {
+            if let InstructionKind::Call { arguments, .. } = &mut instruction.kind {
+                let [index, marker] = arguments.as_mut_slice() else { panic!("two original arguments") };
+                assert_ne!(index, marker);
+                assert_eq!(caller.values[index.0 as usize], Type::I64);
+                assert_eq!(caller.values[marker.0 as usize], Type::I64);
+                *index = *marker;
+                edits += 1;
+            }
+        }
+    }
+    assert_eq!(edits, 1);
+    let errors = zil_analyze::analyze(&typed, &limits).unwrap_err();
+    assert!(errors.iter().any(|d| d.message.contains("actual scalar Call argument")));
+    require_semantic_rejection(errors);
+    plan.module_fingerprint = typed.fingerprint();
+    let bytes = wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    for errors in [zil_verify::verify_module(typed, plan, &target, &limits).unwrap_err(),
+        zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err()] {
+        assert!(errors.iter().any(|d| d.notes.iter().any(|note|note.contains("actual scalar call"))), "{errors:?}");
+        require_semantic_rejection(errors);
+    }
+}

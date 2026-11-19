@@ -970,6 +970,24 @@ impl CheckedContext {
         let mut signature=self.world_signature(module,signature,worlds,environment,external,active,b)?;
         if signature.parameters.len()!=arguments.len() {return Err(bad("actual Call operand count differs from its original signature"));}
         b.spend(arguments.len())?;
+        if matches!(site.action, SemanticSiteAction::BodyCall { .. }) && signature.parameters.iter().any(|(ty, _)| ty.ty.is_b0_scalar()) {
+            let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) = caller.target else {
+                return Err(bad("scalar call input has no actual caller"));
+            };
+            let f = module.functions.get(function.0 as usize).filter(|f| f.id == function)
+                .ok_or_else(|| bad("scalar call input has no actual function"))?;
+            let recipes = self.original.borrow().as_ref().ok_or_else(||bad("scalar call input lacks its original call occurrence"))?
+                .call_input_recipes(module, caller.definition, site.recipe, b)?;
+            if recipes.len() != arguments.len() {
+                return Err(bad("scalar call inputs change their original argument ordinals"));
+            }
+            for ((argument, recipe), (expected, _)) in arguments.iter().zip(recipes).zip(&signature.parameters) {
+                if !expected.ty.is_b0_scalar() { continue; }
+                let (node, _, _) = recipe.ok_or_else(|| bad("scalar call argument lacks its original occurrence"))?;
+                self.exact_expression_value(module, caller, f, *argument, node, b)
+                    .map_err(|error| error.with_note(format!("actual scalar call {:?} SSA {:?} original expression {:?}", site.recipe, argument, node)))?;
+            }
+        }
         let(source_inputs,source_checks)=self.original_call_inputs(module,caller,site,&signature,key,arguments,values,environment,external,active,b)?;
         let inputs=source_inputs.iter().collect::<Vec<_>>();
         self.instantiate_original_call_heads(module,caller,site,&mut signature,&inputs,key,environment,b)?;
