@@ -8597,6 +8597,7 @@ fn solve_check(
     if b.masked_stored_tasks() {
         b.spend(module.functions.len())?;
     }
+    let mut private_capture_pointees = BTreeMap::<ClosureId, BTreeSet<Path>>::new();
     let mut checked_option_sources = b
         .masked_stored_tasks()
         .then(|| Vec::with_capacity(module.functions.len()));
@@ -8998,6 +8999,26 @@ fn solve_check(
                 // they are not strong public address targets.
                 add_sources(&mut field_sources, &facts.address.sources, b)?;
             }
+            let private = if b.returned_environment_sources
+                && !p.leaves.is_empty()
+                && let Type::Closure(id) = f.values[v]
+            {
+                b.spend(private_capture_pointees.len().saturating_add(1).ilog2() as usize + 1)?;
+                let paths = match private_capture_pointees.entry(id) {
+                    std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
+                    std::collections::btree_map::Entry::Vacant(entry) => {
+                        entry.insert(returned_environment::pointee_paths(module, id, b)?)
+                    }
+                };
+                for (path, _) in &p.leaves {
+                    b.spend(path.len().saturating_add(1).saturating_mul(
+                        paths.len().saturating_add(1).ilog2() as usize + 1,
+                    ))?;
+                }
+                Some(&*paths)
+            } else {
+                None
+            };
             let weak_description = matches!(&f.values[v], Type::Desc(payload)
                 if !matches!(payload.as_ref(), Type::ByteBuffer | Type::Task { .. }
                     | Type::TaskI32 | Type::OwnedStore { .. } | Type::Mutex { .. }));
@@ -9008,7 +9029,12 @@ fn solve_check(
                 .chain(p.store_description.sources.iter())
                 .chain(receiver_sources.iter())
                 .chain(field_sources.iter())
-                .chain(p.leaves.iter().flat_map(|(_, p)| &p.sources))
+                .chain(p.leaves.iter().filter_map(|(path, permission)| {
+                    // A captured address carries its real holder. The holder's
+                    // current contents remain in the memory/parent-loan proof.
+                    (!private.is_some_and(|paths| paths.contains(path)))
+                        .then_some(permission.sources.iter())
+                }).flatten())
                 .chain(p.task_ports.iter().flat_map(|(_, p)| &p.sources))
                 .chain(
                     p.dyn_ports

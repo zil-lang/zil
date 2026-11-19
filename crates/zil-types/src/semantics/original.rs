@@ -1045,6 +1045,37 @@ impl<'a> Check<'a, '_> {
                     let declared = self.copy_type(*definition, &result, depth + 1);
                     self.contexts.pop();
                     if declared? { return Ok(true); }
+                    if let SemanticTypeRecipe::Closure {
+                        definition,
+                        environment,
+                        ..
+                    } = &result
+                    {
+                        let heads = self.proof.borrowed_capture_heads.len();
+                        self.pay(
+                            environment.len().saturating_add(
+                                heads.saturating_add(1).ilog2() as usize + 1,
+                            ),
+                            depth,
+                        )?;
+                        // Specializing the creator's formals cannot make an
+                        // exclusive address capture or a borrowed capture head
+                        // duplicable. Their actual loan images are checked at
+                        // the result boundary, independently of this predicate.
+                        if self.proof.borrowed_capture_heads.contains(definition)
+                            || environment.iter().any(|actual| {
+                                matches!(
+                                    actual,
+                                    SemanticActualRecipe::Type(SemanticTypeRecipe::Address {
+                                        mutable: true,
+                                        ..
+                                    })
+                                )
+                            })
+                        {
+                            return Ok(false);
+                        }
+                    }
                     let result = super::instantiate::ty(self.program, &self.proof, &result,
                         super::instantiate::DomainMapping { source: *definition, use_definition: owner,
                             arguments, parent_call: None }, self.limits, self.left)?;

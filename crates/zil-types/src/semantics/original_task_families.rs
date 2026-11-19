@@ -1,6 +1,7 @@
 //! A result annotation selects Task's result/owning family. Its actual input
 //! Context is obtained from every checked return, never an actual header.
 use super::*;
+use super::super::headers::CaptureLifeOccurrence;
 
 fn task_payload(ty: &SemanticTypeRecipe) -> bool {
     match ty {
@@ -12,6 +13,36 @@ fn task_payload(ty: &SemanticTypeRecipe) -> bool {
 }
 
 impl Proof {
+    pub(in crate::semantics) fn equal_capture_lifetimes(
+        &self,
+        program: &SemanticModule,
+        owner: SemanticDefinitionId,
+        a: (u32, &[CaptureLifeOccurrence]),
+        b: (u32, &[CaptureLifeOccurrence]),
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<bool> {
+        let mut check = super::nominal_where::borrowed_check(program, self, owner, limits, left)?;
+        check.pay(
+            self.complete.len().saturating_add(1).ilog2() as usize + 1,
+            0,
+        )?;
+        let definition = check.definition(owner)?;
+        let Some(creator) = definition.parent else {
+            return Ok(false);
+        };
+        if definition.kind != SemanticDefinitionKind::Closure || !self.complete.contains(&owner) {
+            return Ok(false);
+        }
+        check.contexts.push(creator);
+        let a = check.capture_lifetime(creator, definition, a)?;
+        let b = check.capture_lifetime(creator, definition, b)?;
+        match (a, b) {
+            (Some(a), Some(b)) => check.same_life(&a, &b),
+            _ => Ok(false),
+        }
+    }
+
     /// Congruence of complete original whole Types, not equality of concrete
     /// layouts or of two caller instantiations. The capture consumer separately
     /// checks that its shared intrinsic ordinal exists in both complete domains.
@@ -69,6 +100,132 @@ impl Proof {
     }
 }
 impl Check<'_, '_> {
+    fn capture_lifetime(
+        &mut self,
+        creator: SemanticDefinitionId,
+        closure: &SemanticDefinition,
+        (slot, occurrences): (u32, &[CaptureLifeOccurrence]),
+    ) -> R<Option<SemanticLifeRecipe>> {
+        self.pay(
+            occurrences.len().saturating_add(
+                self.proof.environments.len().saturating_add(1).ilog2() as usize + 1,
+            ),
+            0,
+        )?;
+        if occurrences.is_empty()
+            || !matches!(
+                closure.environment.get(slot as usize).map(|row| &row.kind),
+                Some(SemanticFormal::Type { .. })
+            )
+        {
+            return Ok(None);
+        }
+        let Some((parent, source)) = self.proof.environments.get(&(closure.id, slot)) else {
+            return Ok(None);
+        };
+        if *parent != creator {
+            return Err(bad("capture class changes its original lexical creator"));
+        }
+        let source = copy_recipe(source, self.limits, self.left)?;
+        let source = self.observation_type(creator, &source, 0)?;
+        let mut selected = None;
+        for occurrence in occurrences {
+            let life = match occurrence {
+                CaptureLifeOccurrence::Outer(mode) => match (&source, mode) {
+                    (
+                        SemanticTypeRecipe::Address {
+                            mutable: false,
+                            lifetime,
+                            ..
+                        },
+                        StoredBorrowMode::SharedAddress,
+                    )
+                    | (
+                        SemanticTypeRecipe::Address {
+                            mutable: true,
+                            lifetime,
+                            ..
+                        },
+                        StoredBorrowMode::ExclusiveAddress,
+                    )
+                    | (
+                        SemanticTypeRecipe::Desc { lifetime, .. },
+                        StoredBorrowMode::WritableDescription,
+                    ) => {
+                        let SemanticOuterLifeRecipe::Class(life) = lifetime else {
+                            continue;
+                        };
+                        life
+                    }
+                    _ => continue,
+                },
+                CaptureLifeOccurrence::NominalArgument {
+                    path,
+                    declaration,
+                    argument,
+                } => {
+                    self.pay(path.len().saturating_add(1), 0)?;
+                    let mut subject = &source;
+                    for step in path {
+                        subject = match (step, subject) {
+                            (
+                                LifeTypeProjection::Pointee,
+                                SemanticTypeRecipe::Address { inner, .. }
+                                | SemanticTypeRecipe::Desc { inner, .. },
+                            ) => inner,
+                            (
+                                LifeTypeProjection::TypeArgument(index),
+                                SemanticTypeRecipe::Nominal { arguments, .. },
+                            ) => match arguments.get(*index as usize) {
+                                Some(SemanticActualRecipe::Type(ty)) => ty,
+                                _ => return Ok(None),
+                            },
+                            _ => return Ok(None),
+                        };
+                    }
+                    let SemanticTypeRecipe::Nominal {
+                        definition,
+                        arguments,
+                    } = subject
+                    else {
+                        continue;
+                    };
+                    let original = self.definition(*definition)?;
+                    if !matches!(original.body, SemanticDefinitionBody::Nominal { declaration: id, .. } if id == *declaration)
+                        || !matches!(
+                            original.parameters.get(*argument as usize),
+                            Some(SemanticFormal::Lifetime)
+                        )
+                    {
+                        continue;
+                    }
+                    let Some(SemanticActualRecipe::Life(life)) = arguments.get(*argument as usize)
+                    else {
+                        continue;
+                    };
+                    life
+                }
+            };
+            // This rule transports a declared lexical class. A substituted
+            // concrete image or the storage selected by a borrow cannot
+            // make two separate capture classes equal.
+            if !matches!(life, SemanticLifeRecipe::Formal(_)) {
+                continue;
+            }
+            if let Some(prior) = selected
+                && !self.same_life(prior, life)?
+            {
+                return Ok(None);
+            }
+            selected = Some(life);
+        }
+        let Some(life) = selected else {
+            return Ok(None);
+        };
+        crate::dyn_metadata::semantic_operand_snapshot(life, self.limits, self.left, 1)?;
+        Ok(Some(life.clone()))
+    }
+
     fn task_sequence(
         &mut self,
         owner: SemanticDefinitionId,

@@ -97,7 +97,7 @@ fn populate_capture_domains(
                 return Err(bad("whole capture original has no code signature"));
             };
             let mut images = BTreeMap::new();
-            let mut domains = BTreeSet::<(u32, u32)>::new();
+            let mut domains = BTreeMap::new();
             let captures = creator_captures(program, &view, ledger, instance, id, limits, left)?;
             let mut ready = true;
             for (_, _, ty) in &captures {
@@ -947,7 +947,7 @@ fn creator_source_matches(
 fn put(
     program: &SemanticModule,
     ledger: &super::super::emission::Ledger,
-    domains: &BTreeSet<(u32, u32)>,
+    domains: &BTreeMap<(u32, u32), Vec<CaptureLifeOccurrence>>,
     images: &mut BTreeMap<u32, SemanticClassExpr>,
     binder: StorageBinder,
     image: SemanticClassExpr,
@@ -1016,52 +1016,158 @@ fn put(
     Ok(())
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::semantics) enum CaptureLifeOccurrence {
+    Outer(StoredBorrowMode),
+    NominalArgument {
+        path: Vec<LifeTypeProjection>,
+        declaration: LifeDeclarationId,
+        argument: u32,
+    },
+}
+
+fn capture_coordinate(image: &SemanticClassExpr) -> Option<(u32, u32)> {
+    match image {
+        SemanticClassExpr::IntrinsicClass {
+            operand: SemanticOperand::Environment(slot),
+            path,
+            class,
+        } if path.is_empty() => Some((*slot, *class)),
+        _ => None,
+    }
+}
+
 fn capture_coordinates(
     value: &SemanticTypeValue,
-    coordinates: &mut BTreeSet<(u32, u32)>,
+    coordinates: &mut BTreeMap<(u32, u32), Vec<CaptureLifeOccurrence>>,
     left: &mut usize,
 ) -> R<()> {
-    let SemanticTypeValue::Resolved { life, classes, .. } = value else { return Err(bad("capture has no complete original domain")); };
-    if life.binder_count as usize != classes.len() { return Err(bad("capture omits its complete original class vector")); }
-    for image in classes {
-        pay(left, 1)?;
-        if let SemanticClassExpr::IntrinsicClass { operand: SemanticOperand::Environment(slot), path, class } = image
-            && path.is_empty() {
-            pay(left, coordinates.len().saturating_add(1).ilog2() as usize + 1)?;
-            coordinates.insert((*slot, *class));
+    let SemanticTypeValue::Resolved { life, classes, .. } = value else {
+        return Err(bad("capture has no complete original domain"));
+    };
+    if life.binder_count as usize != classes.len() {
+        return Err(bad("capture omits its complete original class vector"));
+    }
+    pay(
+        left,
+        classes
+            .len()
+            .saturating_add(life.slots.len())
+            .saturating_add(life.nominal_arguments.len()),
+    )?;
+    for coordinate in classes.iter().filter_map(capture_coordinate) {
+        pay(
+            left,
+            coordinates.len().saturating_add(1).ilog2() as usize + 1,
+        )?;
+        coordinates.entry(coordinate).or_default();
+    }
+    for row in &life.slots {
+        if row.path.is_empty()
+            && let Some(coordinate) = classes
+                .get(row.binder as usize)
+                .and_then(capture_coordinate)
+        {
+            pay(
+                left,
+                coordinates.len().saturating_add(1).ilog2() as usize + 1,
+            )?;
+            coordinates
+                .entry(coordinate)
+                .or_default()
+                .push(CaptureLifeOccurrence::Outer(row.mode));
+        }
+    }
+    for row in &life.nominal_arguments {
+        if let Some(coordinate) = classes
+            .get(row.binder as usize)
+            .and_then(capture_coordinate)
+        {
+            pay(
+                left,
+                (coordinates.len().saturating_add(1).ilog2() as usize)
+                    .saturating_add(row.path.len())
+                    .saturating_add(1),
+            )?;
+            coordinates.entry(coordinate).or_default().push(
+                CaptureLifeOccurrence::NominalArgument {
+                    path: row.path.clone(),
+                    declaration: row.declaration,
+                    argument: row.argument,
+                },
+            );
         }
     }
     Ok(())
 }
 
-/// The original defining equation can relate two sealed Type environments.
-/// A coincident actual image, machine Type or loan source is never evidence.
+/// Two capture coordinates may select the same original lifetime without
+/// equating their complete types or their distinct actual borrow operands.
 #[allow(clippy::too_many_arguments)]
 fn equal_capture_image(
     program: &SemanticModule,
     ledger: &super::super::emission::Ledger,
     owner: SemanticDefinitionId,
-    domains: &BTreeSet<(u32, u32)>,
+    domains: &BTreeMap<(u32, u32), Vec<CaptureLifeOccurrence>>,
     a: &SemanticClassExpr,
     b: &SemanticClassExpr,
     limits: &Limits,
     left: &mut usize,
 ) -> R<bool> {
     let (
-        SemanticClassExpr::IntrinsicClass { operand: SemanticOperand::Environment(a), path: ap, class: ac },
-        SemanticClassExpr::IntrinsicClass { operand: SemanticOperand::Environment(b), path: bp, class: bc },
-    ) = (a, b) else { return Ok(false); };
+        SemanticClassExpr::IntrinsicClass {
+            operand: SemanticOperand::Environment(a),
+            path: ap,
+            class: ac,
+        },
+        SemanticClassExpr::IntrinsicClass {
+            operand: SemanticOperand::Environment(b),
+            path: bp,
+            class: bc,
+        },
+    ) = (a, b)
+    else {
+        return Ok(false);
+    };
     pay(left, ap.len().saturating_add(bp.len()).saturating_add(1))?;
-    if !ap.is_empty() || !bp.is_empty() || ac != bc { return Ok(false); }
-    pay(left, (domains.len().saturating_add(1).ilog2() as usize + 1).saturating_mul(2))?;
-    if !domains.contains(&(*a, *ac)) || !domains.contains(&(*b, *bc)) { return Ok(false); }
+    if !ap.is_empty() || !bp.is_empty() {
+        return Ok(false);
+    }
+    pay(
+        left,
+        (domains.len().saturating_add(1).ilog2() as usize + 1).saturating_mul(2),
+    )?;
+    let (Some(left_occurrences), Some(right_occurrences)) =
+        (domains.get(&(*a, *ac)), domains.get(&(*b, *bc)))
+    else {
+        return Ok(false);
+    };
+    let compare = |original, proof: &super::super::original::Proof, left: &mut usize| {
+        if ac == bc && proof.equal_capture_types(original, owner, *a, *b, limits, left)? {
+            return Ok(true);
+        }
+        if left_occurrences.is_empty() || right_occurrences.is_empty() {
+            return Ok(false);
+        }
+        proof.equal_capture_lifetimes(
+            original,
+            owner,
+            (*a, left_occurrences),
+            (*b, right_occurrences),
+            limits,
+            left,
+        )
+    };
     let proof = ledger.original.borrow();
     if let Some(proof) = proof.as_ref() {
-        let original = ledger.original.context().map_or(program, |context| &context.semantic);
-        return proof.equal_capture_types(original, owner, *a, *b, limits, left);
+        let original = ledger
+            .original
+            .context()
+            .map_or(program, |context| &context.semantic);
+        return compare(original, proof, left);
     }
     if let Some(frozen) = ledger.frozen.as_deref() {
-        return frozen.original.equal_capture_types(&frozen.semantic, owner, *a, *b, limits, left);
+        return compare(&frozen.semantic, &frozen.original, left);
     }
     Ok(false)
 }
@@ -1693,7 +1799,7 @@ pub(in crate::semantics) fn form_emitted_header(
         limits,
         left,
     )?;
-    let mut coordinates = BTreeSet::new();
+    let mut coordinates = BTreeMap::new();
     for (base, value) in &values {
         if matches!(base, StorageBase::Capture(_)) { capture_coordinates(value, &mut coordinates, left)?; }
     }
@@ -2008,7 +2114,7 @@ pub(in crate::semantics) fn validate_formed_header(
             left,
         )?;
     }
-    let mut coordinates = BTreeSet::new();
+    let mut coordinates = BTreeMap::new();
     for (base, value) in values {
         if matches!(base, StorageBase::Capture(_)) { capture_coordinates(value, &mut coordinates, left)?; }
     }

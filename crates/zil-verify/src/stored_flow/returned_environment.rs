@@ -17,6 +17,34 @@ pub(super) fn leaves<'a>(
     id: ClosureId,
     b: &mut Budget,
 ) -> Check<Vec<(Path, &'a Type)>> {
+    let (mut captures, pointees) = leaf_rows(module, id, b)?;
+    // Preserve the public contract directory before the private memory rows.
+    b.spend(pointees.len())?;
+    captures.extend(pointees);
+    Ok(captures)
+}
+
+pub(super) fn pointee_paths(
+    module: &TypedModule,
+    id: ClosureId,
+    b: &mut Budget,
+) -> Check<BTreeSet<Path>> {
+    let (_, pointees) = leaf_rows(module, id, b)?;
+    let mut result = BTreeSet::new();
+    for (path, _) in pointees {
+        b.spend(path.len().saturating_add(1).saturating_mul(
+            result.len().saturating_add(1).ilog2() as usize + 1,
+        ))?;
+        result.insert(path);
+    }
+    Ok(result)
+}
+
+fn leaf_rows<'a>(
+    module: &'a TypedModule,
+    id: ClosureId,
+    b: &mut Budget,
+) -> Check<(Vec<(Path, &'a Type)>, Vec<(Path, &'a Type)>)> {
     let limits = b.limits.clone();
     let actual = crate::retained::sources::capture_leaves(module, id, &limits, b)?;
     b.spend(actual.len())?;
@@ -63,11 +91,7 @@ pub(super) fn leaves<'a>(
         }
         out.push((path, leaf.ty));
     }
-    // Preserve the original public directory first. Its exact contract check
-    // zips only these rows; extra pointee facts are derived by the memory solver.
-    b.spend(private.len())?;
-    out.extend(private);
-    Ok(out)
+    Ok((out, private))
 }
 fn writes(ty: &Type) -> bool {
     matches!(ty, Type::Address { mutable: true, .. } | Type::Desc(_))

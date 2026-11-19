@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 mod captures;
 pub(super) use captures::complete_emitted_headers;
 pub(super) use captures::complete_invocation_embeddings;
-pub(super) use captures::{HeaderFormation, form_emitted_header};
+pub(super) use captures::{CaptureLifeOccurrence, HeaderFormation, form_emitted_header};
 pub(super) use captures::{original_capture_value, original_capture_ordinal};
 pub(super) use captures::{receiver_binding, receiver_head};
 pub(super) use captures::populate as capture_domains;

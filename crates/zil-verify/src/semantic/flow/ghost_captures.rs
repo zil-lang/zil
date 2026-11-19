@@ -114,6 +114,43 @@ mod retained_capture_tests {
         for row in &mut shared.header_embedding{let SemanticClassExpr::IntrinsicClass{operand,..}=&mut row.actual else{unreachable!()};*operand=SemanticOperand::Environment(0);}
         context.environment_capture_header(&module,&relation,&shared,0,1,&derived,&repeated,&environment,&mut b).unwrap();
         context.borrowed_capture_header(&relation,&shared,0,1,&derived,&repeated,&environment,&mut b).unwrap();
+        let declaration = LifeDeclarationId {
+            module: child.id.module,
+            declaration: zil_base::NodeId(0),
+            compiler: false,
+        };
+        let mut nominal = derived.clone();
+        nominal.origins[0] = IntrinsicOrigin::Nominal {
+            source: Rc::new(NominalOrigin {
+                declaration,
+                actuals: vec![CheckedActual::Life(derived.classes[0].clone())],
+                environment: vec![],
+                domain: StorageLifeShape {
+                    binder_count: 1,
+                    slots: vec![],
+                    retained: vec![],
+                    nominal_arguments: vec![NominalLifeArgument {
+                        path: vec![],
+                        declaration,
+                        argument: 0,
+                        binder: 0,
+                    }],
+                },
+                class_sources: vec![derived.origins[0].clone()],
+            }),
+            class: 0,
+        };
+        let mut declared = repeated.clone();
+        declared[1] = CheckedActual::Type(nominal.clone());
+        context.environment_capture_header(&module, &relation, &shared, 0, 1, &nominal,
+            &declared, &environment, &mut b).unwrap();
+        let IntrinsicOrigin::Nominal { source, .. } = &mut nominal.origins[0] else {
+            unreachable!()
+        };
+        Rc::make_mut(source).domain.nominal_arguments.clear();
+        declared[1] = CheckedActual::Type(nominal.clone());
+        assert!(context.environment_capture_header(&module, &relation, &shared, 0, 1, &nominal,
+            &declared, &environment, &mut b).is_err());
         let mut independent=repeated.clone();
         let CheckedActual::Type(other)=&mut independent[1]else{unreachable!()};
         other.origins=value.origins.clone();
@@ -165,7 +202,18 @@ impl CheckedContext{
         }
         let(Some((left_key,left_origin)),Some((right_key,right_origin)))=(term(left,sealed)?,term(right,sealed)?)else{return Ok(false);};
         let origin_same=match(left_origin,right_origin){
-            (Some(left),Some(right))=>self.same_origin(environment,left,right,b)?,
+            (Some(left),Some(right)) => {
+                if self.same_origin(environment, left, right, b)? {
+                    true
+                } else {
+                    let left = self.capture_formal_source(left, environment, b)?;
+                    let right = self.capture_formal_source(right, environment, b)?;
+                    match (left, right) {
+                        (Some(left), Some(right)) => self.same(environment, &left, &right, b)?,
+                        _ => false,
+                    }
+                }
+            }
             (None,None)=>true,
             (None,Some(IntrinsicOrigin::DerivedClass{source}))=>self.same(environment,left_key,source,b)?,
             (Some(IntrinsicOrigin::DerivedClass{source}),None)=>self.same(environment,source,right_key,b)?,
@@ -173,6 +221,46 @@ impl CheckedContext{
         };
         Ok(origin_same&&self.same(environment,left_key,right_key,b)?)
     }
+
+    /// A fresh closure can reuse a creator's declared lifetime through
+    /// multiple captures. The nominal source keeps its own intrinsic
+    /// identity everywhere outside this capture-header correspondence.
+    fn capture_formal_source(
+        &self,
+        origin: &IntrinsicOrigin,
+        environment: &EvalEnv,
+        b: &mut Budget,
+    ) -> Check<Option<ClassKey>> {
+        match self.canonical_origin(origin, b)? {
+            IntrinsicOrigin::DerivedClass { source: key @ ClassKey::Formal { .. } } => Ok(Some(key)),
+            IntrinsicOrigin::Nominal { source, class } => {
+                let Some(IntrinsicOrigin::DerivedClass { source: key @ ClassKey::Formal { .. } }) =
+                    source.class_sources.get(class as usize)
+                else {
+                    return Ok(None);
+                };
+                b.spend(source.domain.nominal_arguments.len())?;
+                let mut found = false;
+                for row in &source.domain.nominal_arguments {
+                    if row.binder != class || row.declaration != source.declaration || !row.path.is_empty() {
+                        continue;
+                    }
+                    let Some(CheckedActual::Life(actual @ ClassKey::Formal { .. })) =
+                        source.actuals.get(row.argument as usize)
+                    else {
+                        return Err(bad("captured nominal class changes its original lifetime actual"));
+                    };
+                    if !self.same(environment, key, actual, b)? {
+                        return Err(bad("captured nominal class has a different original lifetime source"));
+                    }
+                    found = true;
+                }
+                Ok(found.then(|| key.clone()))
+            }
+            _ => Ok(None),
+        }
+    }
+
     pub(super) fn environment_capture_header(&self,module:&TypedModule,relation:&StorageLifeContract,child:&SemanticInstance,index:u32,ordinal:usize,value:&CheckedType,sealed:&[CheckedActual],environment:&EvalEnv,b:&mut Budget)->Check<()>{
         b.spend(value.classes.len().saturating_add(relation.bindings.len()).saturating_add(relation.classes.len()).saturating_add(relation.static_bindings.len()))?;
         let mut seen=vec![false;value.classes.len()];

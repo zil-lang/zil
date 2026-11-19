@@ -23,6 +23,13 @@ fn accepted(name: &str, text: &str) {
     .unwrap()
     .core;
     let module = zil_types::check(&core, &target, &limits).unwrap();
+    accepted_typed(name, text, module);
+}
+
+fn accepted_typed(name: &str, text: &str, module: zil_ir::TypedModule) {
+    let source = SourceUnit::new(FileId(0), ModuleId(0), name, text);
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
     let plan = zil_analyze::analyze(&module, &limits).unwrap();
     let verified = zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits);
     if verified.is_err() {
@@ -92,10 +99,62 @@ macro_rules! consumer {
         }
     };
 }
-consumer!(
-    captured_mutable_holder_updates_original_storage,
-    "captured-mutable-holder"
+const CAPTURED_MUTABLE_HOLDER: &str = include_str!(
+    "../../../tests/fixtures/returned-owning-holders/captured-mutable-holder.zil"
 );
+
+fn typed_with_original_source(name: &str, text: &str) -> zil_ir::TypedModule {
+    let source = SourceUnit::new(FileId(0), ModuleId(0), name, text);
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let syntax = zil_syntax::parse(&source).into_result().unwrap();
+    let core = zil_expand::expand_with_map_semantics(
+        &source,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    zil_types::check(&core, &target, &limits).unwrap()
+}
+
+#[test]
+fn captured_mutable_holder_updates_original_storage() {
+    let name = "captured-mutable-holder";
+    let module = typed_with_original_source(name, CAPTURED_MUTABLE_HOLDER);
+    accepted_typed(name, CAPTURED_MUTABLE_HOLDER, module);
+}
+
+#[test]
+fn captured_mutable_holder_keeps_its_actual_parent_loans_live() {
+    use zil_base::{DiagnosticRole, Phase};
+
+    let original = CAPTURED_MUTABLE_HOLDER;
+    let before = "let first=f();a=21;let second=f()";
+    for conflicting_access in [
+        "a=21;let first=f();let second=f()",
+        "let first=f();holder.pointer=&a;a=21;let second=f()",
+    ] {
+        let source = original.replacen(before, conflicting_access, 1);
+        assert_ne!(source, original);
+        let module = typed_with_original_source("captured-mutable-holder-conflict", &source);
+        let diagnostics = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.phase == Phase::Analyze
+                && diagnostic.category == ResultCategory::SafeReject
+                && diagnostic.code == "E-BORROW-CONFLICT"
+                && diagnostic.related.iter().any(|related| related.role == DiagnosticRole::BorrowCreated)
+                && diagnostic.related.iter().any(|related| related.role == DiagnosticRole::ConflictingAccess)
+        }), "{diagnostics:#?}");
+    }
+}
+
 consumer!(
     captured_mutable_holder_survives_borrowed_helpers,
     "captured-mutable-holder-helper"
