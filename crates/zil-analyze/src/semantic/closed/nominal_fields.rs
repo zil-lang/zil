@@ -15,10 +15,19 @@ impl Check<'_, '_> {
             let Some(SemanticOriginalNode::Expression(node)) = source.site_node(site.recipe, b)? else { continue; };
             let mut expression = source.get_expr(node, b)?;
             let mut names = Vec::new();
-            while let CoreExprKind::Member { object, member, .. } = &expression.kind {
-                b.spend(1, WORK)?;
-                names.push(member);
-                expression = object;
+            loop {
+                expression = match &expression.kind {
+                    CoreExprKind::Member { object, member, .. } => {
+                        b.spend(1, WORK)?;
+                        names.push(member);
+                        object
+                    }
+                    CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } => {
+                        b.spend(1, WORK)?;
+                        inner
+                    }
+                    _ => break,
+                };
             }
             if names.is_empty() { continue; }
             let (mut ty, prefix) = self.stored_carrier_root(instance, function, storage, expression, b)?;

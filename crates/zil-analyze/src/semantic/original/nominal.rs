@@ -758,6 +758,7 @@ impl Solver<'_, '_> {
         occurrence: NodeId,
         term: Term,
         name: &str,
+        projection: Option<&mut Option<Term>>,
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Term> {
@@ -765,6 +766,14 @@ impl Solver<'_, '_> {
         let root = self.type_root(term, b)?;
         if let Kind::Address { mutable, life: parent, .. } = self.state.arena[root] {
             let (_, selected) = self.field(term, name, b, depth + 1)?;
+            if let Some(projection) = projection
+                && matches!(self.state.arena[self.type_root(selected, b)?], Kind::Nominal { .. })
+            {
+                // Selecting a further field observes this inline child through
+                // the original address. Materializing the child still needs Copy.
+                *projection = Some(self.term(Kind::Address { mutable, life: parent, inner: selected }, b)?);
+                return Ok(selected);
+            }
             if mutable && let Kind::Address { mutable: true, inner, .. } =
                 self.state.arena[self.type_root(selected, b)?]
             {

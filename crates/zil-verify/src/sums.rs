@@ -457,6 +457,12 @@ pub(super) fn check_type_for(
 // in the independently authenticated stored proof.
 fn shared_enum_physical<'a>(ty: &'a Type, budget: &mut Budget) -> Check<&'a Type> {
     if let Type::BorrowedStorage { storage, .. } = ty {
+        // Construction and field transfer already carry individual Package
+        // debts. Reconstruct the same product when seeding a function result
+        // or a local, including when lifetime metadata wraps its storage.
+        if matches!(storage.as_ref(), Type::Package { .. }) {
+            return Ok(storage);
+        }
         if stored_flow::anonymous_tuple(ty, budget)? {
             return Ok(storage);
         }

@@ -1832,12 +1832,23 @@ impl Solver<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Term> {
+        self.expression_expected_with_projection(frame, value, expected, None, b, depth)
+    }
+    fn expression_expected_with_projection(
+        &mut self,
+        frame: &mut Frame,
+        value: &SemanticOriginalExpr,
+        expected: Term,
+        projection: Option<&mut Option<Term>>,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Term> {
         let shared = matches!(self.state.arena[self.type_root(expected, b)?],
             Kind::Address { mutable: false, .. });
         Self::push(&mut self.receiving, (frame.definition, value.id, expected), b)?;
         let result = if shared {
             self.borrowed_argument(frame, value, b, depth)
-        } else { self.expression(frame, value, b, depth) };
+        } else { self.expression_with_projection(frame, value, projection, b, depth) };
         let result = match result {
             Ok(actual) => self.shared_receiving_value(frame, value, actual, expected, b, depth + 1)
                 .map(|view| view.unwrap_or(actual)),
@@ -1855,6 +1866,16 @@ impl Solver<'_, '_> {
         &mut self,
         frame: &mut Frame,
         value: &SemanticOriginalExpr,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Term> {
+        self.expression_with_projection(frame, value, None, b, depth)
+    }
+    fn expression_with_projection(
+        &mut self,
+        frame: &mut Frame,
+        value: &SemanticOriginalExpr,
+        projection: Option<&mut Option<Term>>,
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Term> {
@@ -2040,8 +2061,8 @@ impl Solver<'_, '_> {
                 }
                 CoreExprKind::Group(inner) | CoreExprKind::CompileTime(inner) => {
                     match self.receiving_for(frame, value.id, b)? {
-                        Some(expected) => self.expression_expected(frame, inner, expected, b, depth + 1)?,
-                        None => self.expression(frame, inner, b, depth + 1)?,
+                        Some(expected) => self.expression_expected_with_projection(frame, inner, expected, projection, b, depth + 1)?,
+                        None => self.expression_with_projection(frame, inner, projection, b, depth + 1)?,
                     }
                 }
                 CoreExprKind::Sequence { bindings, value: result } => {
@@ -2067,8 +2088,8 @@ impl Solver<'_, '_> {
                         frame.locals.last_mut().expect("prepared local").prepared_at = Some(source.id);
                     }
                     let result = match self.receiving_for(frame, value.id, b)? {
-                        Some(expected) => self.expression_expected(frame, result, expected, b, depth + 1)?,
-                        None => self.expression(frame, result, b, depth + 1)?,
+                        Some(expected) => self.expression_expected_with_projection(frame, result, expected, projection, b, depth + 1)?,
+                        None => self.expression_with_projection(frame, result, projection, b, depth + 1)?,
                     };
                     if frame.alive {
                         self.cleanup(frame.definition, &frame.locals[scope..], b)?;
@@ -2147,7 +2168,7 @@ impl Solver<'_, '_> {
                 }
                 CoreExprKind::Ascribed { ty, value } => {
                     let expected = self.recipe(frame, ty, b, depth + 1)?;
-                    let actual = self.expression_expected(frame, value, expected, b, depth + 1)?;
+                    let actual = self.expression_expected_with_projection(frame, value, expected, projection, b, depth + 1)?;
                     self.unify(actual, expected, depth + 1, b)?;
                     expected
                 }
@@ -3043,12 +3064,13 @@ impl Solver<'_, '_> {
                     if let Some(term) = self.observe_member(frame, value, b, depth + 1)? {
                         return Ok(term);
                     }
-                    let term = self.expression(frame, object, b, depth + 1)?;
+                    let mut receiver = None;
+                    let term = self.expression_with_projection(frame, object, Some(&mut receiver), b, depth + 1)?;
                     if let Some(owner) = owner {
                         let owner = self.recipe(frame, owner, b, depth + 1)?;
                         self.unify(term, owner, depth + 1, b)?;
                     }
-                    self.member(frame.definition, value.id, term, member, b, depth + 1)?
+                    self.member(frame.definition, value.id, receiver.unwrap_or(term), member, projection, b, depth + 1)?
                 }
                 CoreExprKind::Closure {
                     parameters,
