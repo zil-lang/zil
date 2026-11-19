@@ -276,6 +276,7 @@ pub(super) fn guarantees(values: Option<&[DynGuarantee]>, b: &mut Budget) -> Com
 /// declaration, substitution, origin and obligation proofs remain separate.
 struct RecipeWork<'a> {
     b: &'a mut Budget,
+    inputs: Option<&'a mut crate::semantic::geometry::Inputs>,
     nodes: usize,
 }
 impl RecipeWork<'_> {
@@ -303,7 +304,11 @@ impl DynRecipeVisitor for RecipeWork<'_> {
     }
     fn ty(&mut self, value: &Type, depth: usize) -> CompileResult<()> {
         self.node(depth)?;
-        ty_at(value, depth, self.b)
+        ty_at(value, depth, self.b)?;
+        if let Some(inputs) = self.inputs.as_deref_mut() {
+            inputs.register_type(value, self.b)?;
+        }
+        Ok(())
     }
     fn life(&mut self, value: &StorageLifeShape, depth: usize) -> CompileResult<()> {
         self.rows(value.binder_count as usize, depth)?;
@@ -323,6 +328,9 @@ impl DynRecipeVisitor for RecipeWork<'_> {
         }
         for row in &value.nominal_arguments {
             self.rows(row.path.len(), depth.saturating_add(row.path.len()))?;
+        }
+        if let Some(inputs) = self.inputs.as_deref_mut() {
+            inputs.register_life(value, self.b)?;
         }
         Ok(())
     }
@@ -360,14 +368,23 @@ impl DynRecipeVisitor for RecipeWork<'_> {
 pub(super) fn shape(value: &StorageLifeShape, b: &mut Budget) -> CompileResult<()> {
     let caller = std::panic::Location::caller();
     let before = b.remaining();
-    let result = RecipeWork { b, nodes: 0 }.life(value, 0);
+    let result = RecipeWork { b, nodes: 0, inputs: None }.life(value, 0);
     metadata_cost(result, "shape", caller, before, b)
 }
 #[track_caller]
 pub(super) fn recipe<T: DynRecipeMetadata>(value: &T, b: &mut Budget) -> CompileResult<()> {
+    recipe_with_inputs(value, b, None)
+}
+
+#[track_caller]
+pub(super) fn recipe_with_inputs<T: DynRecipeMetadata>(
+    value: &T,
+    b: &mut Budget,
+    inputs: Option<&mut crate::semantic::geometry::Inputs>,
+) -> CompileResult<()> {
     let caller = std::panic::Location::caller();
     let before = b.remaining();
-    let result = value.visit_dyn_metadata(&mut RecipeWork { b, nodes: 0 }, 0);
+    let result = value.visit_dyn_metadata(&mut RecipeWork { b, nodes: 0, inputs }, 0);
     metadata_cost(result, "recipe", caller, before, b)
 }
 fn recipe_rows<T: DynRecipeMetadata>(
@@ -384,7 +401,7 @@ fn recipe_rows<T: DynRecipeMetadata>(
     Ok(())
 }
 pub(super) fn recipe_declaration(value: &DynDeclaration, b: &mut Budget) -> CompileResult<()> {
-    let work = &mut RecipeWork { b, nodes: 0 };
+    let work = &mut RecipeWork { b, nodes: 0, inputs: None };
     recipe_rows(&value.implicit_lifetimes, work)?;
     recipe_rows(&value.direct_supertraits, work)?;
     recipe_rows(&value.requirements, work)?;
@@ -393,7 +410,7 @@ pub(super) fn recipe_declaration(value: &DynDeclaration, b: &mut Budget) -> Comp
     recipe_rows(&value.method_definitions, work)
 }
 pub(super) fn recipe_table(value: &DynVtable, b: &mut Budget) -> CompileResult<()> {
-    let work = &mut RecipeWork { b, nodes: 0 };
+    let work = &mut RecipeWork { b, nodes: 0, inputs: None };
     work.count(1, 0)?;
     if let Some(shape) = &value.self_life {
         DynRecipeVisitor::life(work, shape, 0)?;

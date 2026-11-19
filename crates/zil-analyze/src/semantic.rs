@@ -105,7 +105,7 @@ impl<'a> Inventory<'a> {
     ) -> CompileResult<Self> {
         // The generated, bounded visitor includes every type, class, constant,
         // identity, recipe and actual occurrence. No module hash runs first.
-        crate::dyn_metadata::recipe(program, b)?;
+        let geometry = geometry::Inputs::new(module, program, b)?;
         let mut inventory = Self {
             module,
             program,
@@ -124,7 +124,7 @@ impl<'a> Inventory<'a> {
             ordinary_drop_absence: std::cell::RefCell::new(BTreeSet::new()),
             nominal_predicates: Default::default(),
             sealed_byte_buffers: std::cell::RefCell::new(BTreeSet::new()),
-            geometry: geometry::Inputs::new(module, program, b)?,
+            geometry,
             implicit_ordinals: BTreeMap::new(),
             emitted_sites: std::cell::RefCell::new(BTreeMap::new()),
             function_worlds: std::cell::RefCell::new(BTreeMap::new()),

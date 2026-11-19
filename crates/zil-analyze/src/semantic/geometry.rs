@@ -109,7 +109,7 @@ pub(crate) struct TypeEntry {
     input: Option<Arc<BTreeSet<usize>>>,
 }
 
-pub(super) struct Inputs {
+pub(crate) struct Inputs {
     module: Option<usize>,
     raw_limits: (usize, usize),
     types: Arc<BTreeSet<usize>>,
@@ -137,10 +137,6 @@ impl Default for Inputs {
         }
     }
 }
-struct Register<'a> {
-    inputs: &'a mut Inputs,
-    budget: &'a mut Budget,
-}
 fn registration_limit(message: &str) -> Vec<zil_base::Diagnostic> {
     vec![zil_base::Diagnostic::limit(
         zil_base::Phase::Analyze,
@@ -148,56 +144,20 @@ fn registration_limit(message: &str) -> Vec<zil_base::Diagnostic> {
         None,
     )]
 }
-impl DynRecipeVisitor for Register<'_> {
-    type Error = Vec<zil_base::Diagnostic>;
-    fn node(&mut self, _depth: usize) -> CompileResult<()> {
-        self.budget.spend(1, "semantic geometry input directory")
-    }
-    fn rows(&mut self, n: usize, _depth: usize) -> CompileResult<()> {
-        self.budget
-            .spend(n.saturating_add(1), "semantic geometry input directory")
-    }
-    fn ty(&mut self, value: &Type, _depth: usize) -> CompileResult<()> {
-        self.inputs.register_type(value, self.budget)
-    }
-    fn life(&mut self, value: &StorageLifeShape, _depth: usize) -> CompileResult<()> {
-        self.inputs.register_life(value, self.budget)
-    }
-    fn identity(&mut self, _: &LifeDeclarationIdentity, depth: usize) -> CompileResult<()> {
-        self.node(depth)
-    }
-    fn position(&mut self, _: &StoragePosition, depth: usize) -> CompileResult<()> {
-        self.node(depth)
-    }
-    fn constant(&mut self, _: &Constant, depth: usize) -> CompileResult<()> {
-        self.node(depth)
-    }
-    fn text(&mut self, _: &str, depth: usize) -> CompileResult<()> {
-        self.node(depth)
-    }
-}
 impl Inputs {
     pub(super) fn new(
         module: &TypedModule,
         program: &SemanticModule,
         budget: &mut Budget,
     ) -> CompileResult<Self> {
-        // The complete raw metadata/depth preflight has already succeeded.
-        // The recipe visitor exposes Type roots; registration follows every
-        // existing immutable child and embedded domain below each such root.
-        budget.geometry_module = Some(module as *const TypedModule as usize);
+        // Collect coordinates as the independent raw metadata walk admits each
+        // root. Publish the directory only after the complete program succeeds.
         let mut inputs = Self {
             module: Some(module as *const TypedModule as usize),
             raw_limits: (budget.partial_depth, budget.helper_nodes),
             ..Self::default()
         };
-        program.visit_dyn_metadata(
-            &mut Register {
-                inputs: &mut inputs,
-                budget,
-            },
-            0,
-        )?;
+        crate::dyn_metadata::recipe_with_inputs(program, budget, Some(&mut inputs))?;
         for instance in &module.life_instances {
             inputs.register_type(&instance.ty, budget)?;
             for argument in &instance.arguments {
@@ -243,10 +203,13 @@ impl Inputs {
                 module as *const TypedModule as usize,
                 Arc::clone(&inputs.types),
             ));
+        } else {
+            budget.input_type_coordinates = None;
         }
+        budget.geometry_module = inputs.module;
         Ok(inputs)
     }
-    fn register_type(&mut self, ty: &Type, budget: &mut Budget) -> CompileResult<()> {
+    pub(crate) fn register_type(&mut self, ty: &Type, budget: &mut Budget) -> CompileResult<()> {
         let mut pending = Vec::new();
         Self::register_child(&mut pending, ty, 0, budget)?;
         let mut nodes = 0usize;
@@ -259,6 +222,11 @@ impl Inputs {
                 return Err(registration_limit(
                     "semantic geometry input exceeds metadata profile",
                 ));
+            }
+            // Scalars use their closed kind directly. They have no child type
+            // or embedded lifetime coordinates to place in this directory.
+            if ty.is_b0_scalar() {
+                continue;
             }
             budget.lookup(self.types.len(), "semantic geometry Type registration")?;
             // Registration finishes before the directory is shared with other passes.
@@ -360,7 +328,7 @@ impl Inputs {
         }
         Ok(())
     }
-    fn register_life(&mut self, life: &StorageLifeShape, budget: &mut Budget) -> CompileResult<()> {
+    pub(crate) fn register_life(&mut self, life: &StorageLifeShape, budget: &mut Budget) -> CompileResult<()> {
         budget.lookup(self.lives.len(), "semantic geometry domain registration")?;
         self.lives.insert(life as *const StorageLifeShape as usize);
         Ok(())
