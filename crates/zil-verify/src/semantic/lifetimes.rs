@@ -1,5 +1,18 @@
 //! Scope interpretation never reads a same-numbered operand in another frame.
 use super::*;
+/// Catalogue construction checked ordinal uniqueness. Real emissions are
+/// usually dense; arbitrary original row order still has its full meaning.
+pub(super) fn implicit_row<'a>(rows: &'a [SemanticImplicitLifetime], ordinal: u32, b: &mut Budget) -> Check<Option<&'a SemanticImplicitLifetime>> {
+    b.spend(1)?;
+    if let Some(row) = rows.get(ordinal as usize).filter(|row| row.ordinal == ordinal) {
+        return Ok(Some(row));
+    }
+    for row in rows {
+        b.spend(1)?;
+        if row.ordinal == ordinal { return Ok(Some(row)); }
+    }
+    Ok(None)
+}
 impl CheckedContext {
     pub(super) fn frame<'a>(&self, environment: &'a EvalEnv, scope: SemanticScopeRef, b: &mut Budget) -> Check<&'a LexicalFrame> {
         let SemanticScopeRef::Ancestor(depth) = scope;
@@ -24,8 +37,7 @@ impl CheckedContext {
             SemanticLifeRecipe::Implicit{scope,ordinal} => {
                 let frame = self.frame(environment,*scope,b)?;
                 let definition = self.definition(module,frame.definition,b)?;
-                b.spend(definition.implicit_lifetimes.len())?;
-                if !definition.implicit_lifetimes.iter().any(|row| row.ordinal == *ordinal) { return Err(bad("implicit lifetime has no original occurrence")); }
+                if implicit_row(&definition.implicit_lifetimes,*ordinal,b)?.is_none() { return Err(bad("implicit lifetime has no original occurrence")); }
                 Ok(ClassKey::Implicit{scope:frame.key,ordinal:*ordinal})
             }
             SemanticLifeRecipe::Bound{depth,index} => environment.bounds.get(*depth as usize).and_then(|frame|frame.classes.get(*index as usize)).cloned().ok_or_else(||bad("Bound lifetime escapes the real nonzero quantifier frames")),
@@ -139,4 +151,25 @@ pub(super) fn select<'a>(ty:&'a Type,path:&[LifeTypeProjection],b:&mut Budget)->
         };
     }
     Ok(current)
+}
+
+#[cfg(test)]
+mod implicit_rows {
+    use super::*;
+    #[test]
+    fn declared_ordinals_preserve_full_occurrence_paths_after_reordering() {
+        let mut rows = vec![
+            SemanticImplicitLifetime { ordinal: 0, occurrence_path: vec![3, 8] },
+            SemanticImplicitLifetime { ordinal: 1, occurrence_path: vec![3, 9] },
+            SemanticImplicitLifetime { ordinal: 42, occurrence_path: vec![2, 8] },
+        ];
+        let mut b = Budget::new(&Limits::default());
+        for _ in 0..2 {
+            for (id, full) in [(0, [3, 8]), (1, [3, 9]), (42, [2, 8])] {
+                assert_eq!(implicit_row(&rows, id, &mut b).unwrap().unwrap().occurrence_path, full);
+            }
+            assert!(implicit_row(&rows, 2, &mut b).unwrap().is_none());
+            rows.reverse();
+        }
+    }
 }

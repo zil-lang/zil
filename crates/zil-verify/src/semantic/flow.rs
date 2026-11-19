@@ -1042,7 +1042,7 @@ impl CheckedContext {
     fn bind_implicit_use(&self,module:&TypedModule,instance:&SemanticInstance,f:&TypedFunction,site:&SemanticSite,subject:&SemanticOperand,actual:&CheckedType,expected:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<()> {
         let definition=self.definition(module,instance.definition,b)?;
         let SemanticDefinitionBody::FunctionWithBody{sites,..}=&definition.body else{return Err(bad("implicit occurrence has no original function body"));};
-        let recipe=sites.iter().find(|recipe|recipe.id==site.recipe).ok_or_else(||bad("implicit occurrence has no original site"))?;
+        let recipe=sites::original_recipe(sites,site.recipe,b)?.ok_or_else(||bad("implicit occurrence has no original site"))?;
         let SemanticSiteRecipeKind::TypeUse{expected:source_recipe}=&recipe.kind else{return Ok(());};
         let expanded;let mut source=None;
         let source_recipe=if let SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:original_source}=source_recipe{
@@ -1062,8 +1062,9 @@ impl CheckedContext {
             _=>return Ok(()),
         };
         if description&&source.is_none(){return Ok(());}
-        b.spend(definition.implicit_lifetimes.len())?;
-        if !definition.implicit_lifetimes.iter().any(|row|row.ordinal==ordinal&&row.occurrence_path==recipe.occurrence_path){return Ok(());}
+        let Some(row) = lifetimes::implicit_row(&definition.implicit_lifetimes, ordinal, b)? else { return Ok(()); };
+        b.spend(row.occurrence_path.len().min(recipe.occurrence_path.len()).saturating_add(1))?;
+        if row.occurrence_path != recipe.occurrence_path { return Ok(()); }
         let SemanticOperand::Value(mut value)=*subject else{return Ok(());};
         if instance.target != SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(f.id)) {
             return Err(bad("implicit occurrence belongs to a nonexecutable scope"));
