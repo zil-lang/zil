@@ -163,17 +163,30 @@ pub(super) fn definition(
             "original operation sites lack a complete explicit body-node directory",
         ));
     }
+    let mut recipes = BTreeMap::new();
+    for recipe in sites {
+        let work = recipes.len().saturating_add(1).ilog2() as usize + 2;
+        *index.left = index.left.checked_sub(work).ok_or_else(|| {
+            Diagnostic::limit(Phase::Types, "original site-node work exceeded", None)
+        })?;
+        if recipes.insert(recipe.id, recipe).is_some() {
+            return Err(fail("original site directory repeats an operation recipe"));
+        }
+    }
     let mut seen = BTreeMap::new();
     for row in site_nodes {
+        let work = recipes.len().saturating_add(1).ilog2() as usize
+            + seen.len().saturating_add(1).ilog2() as usize
+            + index.nodes.len().saturating_add(1).ilog2() as usize
+            + 4;
         *index.left = index
             .left
-            .checked_sub(sites.len().saturating_add(1))
+            .checked_sub(work)
             .ok_or_else(|| {
                 Diagnostic::limit(Phase::Types, "original site-node work exceeded", None)
             })?;
-        let recipe = sites
-            .iter()
-            .find(|s| s.id == row.site)
+        let recipe = recipes
+            .get(&row.site)
             .ok_or_else(|| fail("original node directory names an absent operation site"))?;
         if seen.insert(row.site, row.node).is_some() {
             return Err(fail("original node directory repeats an operation site"));

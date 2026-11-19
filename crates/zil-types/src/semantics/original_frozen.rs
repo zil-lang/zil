@@ -700,6 +700,7 @@ pub(crate) fn check_with_frozen(
     proof.premises = source_cache::Premises::default();
     proof.declarations = declarations;
     proof.definition_positions = definition_positions(program, limits, left)?;
+    proof.original_sites = sites::Directory::build(program, limits, left)?;
     let mut check = Check {
         program,
         limits,

@@ -24,6 +24,8 @@ mod places;
 pub(super) mod protocol;
 #[path = "original_results.rs"]
 mod results;
+#[path = "original_site_directory.rs"]
+mod sites;
 pub(super) use results::CalleeResultBoundary;
 #[path = "original_frozen.rs"]
 mod frozen;
@@ -199,6 +201,7 @@ pub(super) struct Proof {
     literal_return_closures: BTreeSet<SemanticDefinitionId>,
     capture_candidates: BTreeMap<SemanticDefinitionId, std::rc::Rc<capture_candidates::Candidates>>,
     pub(super) definition_positions: std::rc::Rc<BTreeMap<SemanticDefinitionId, usize>>,
+    original_sites: std::rc::Rc<sites::Directory>,
     view_bounds: BTreeMap<(SemanticDefinitionId, Query), views::ViewBorrowBound>,
     opaque_forwarded_returns: BTreeMap<SemanticDefinitionId, BTreeSet<NodeId>>,
     pub borrow_roles: BTreeMap<(SemanticDefinitionId, NodeId), BorrowRole>,
@@ -2011,30 +2014,37 @@ impl<'a> Check<'a, '_> {
         else {
             return Err(bad("original operation has no complete body directory"));
         };
-        self.pay(site_nodes.len().saturating_add(sites.len()), 0)?;
+        let directory = self.site_directory(owner, sites, site_nodes)?;
         let mut found = None;
-        for row in site_nodes {
-            if row.node == node {
-                let site = sites
-                    .iter()
-                    .find(|site| site.id == row.site)
-                    .ok_or_else(|| bad("original node directory references an absent recipe"))?;
-                // One expression may have a type-use and its actual operation.
-                if matches!(
-                    site.kind,
-                    SemanticSiteRecipeKind::Call { .. }
-                        | SemanticSiteRecipeKind::CallableCall { .. }
-                        | SemanticSiteRecipeKind::OriginalCall
-                        | SemanticSiteRecipeKind::Closure { .. }
-                        | SemanticSiteRecipeKind::Construct { .. }
-                ) {
-                    if found.replace(site).is_some() {
-                        return Err(bad("original expression has multiple operation recipes"));
-                    }
-                }
+        for &id in directory.at(node, self.left)? {
+            let site = directory.recipe(owner, sites, id, self.left)?
+                .ok_or_else(|| bad("original node directory references an absent recipe"))?;
+            // One expression may have a type-use and its actual operation.
+            if matches!(
+                site.kind,
+                SemanticSiteRecipeKind::Call { .. }
+                    | SemanticSiteRecipeKind::CallableCall { .. }
+                    | SemanticSiteRecipeKind::OriginalCall
+                    | SemanticSiteRecipeKind::Closure { .. }
+                    | SemanticSiteRecipeKind::Construct { .. }
+            ) && found.replace(site).is_some() {
+                return Err(bad("original expression has multiple operation recipes"));
             }
         }
         Ok(found)
+    }
+    fn site_directory(
+        &mut self,
+        owner: SemanticDefinitionId,
+        recipes: &[SemanticSiteRecipe],
+        rows: &[SemanticOriginalSiteNode],
+    ) -> R<std::rc::Rc<sites::DefinitionSites>> {
+        match self.proof.original_sites.owner(owner, self.left)? {
+            Some(directory) => Ok(directory),
+            None => Ok(std::rc::Rc::new(sites::DefinitionSites::build(
+                owner, recipes, rows, self.left,
+            )?)),
+        }
     }
     fn borrow_life(
         &mut self,
@@ -2053,30 +2063,26 @@ impl<'a> Check<'a, '_> {
         else {
             return Err(bad("borrow has no original body"));
         };
-        self.pay(
-            site_nodes
-                .len()
-                .saturating_add(sites.len())
-                .saturating_add(definition.implicit_lifetimes.len()),
-            0,
-        )?;
+        let directory = self.site_directory(owner, sites, site_nodes)?;
         let mut selected = None;
-        for row in site_nodes {
-            if row.node == SemanticOriginalNode::Expression(node) {
-                if let Some(site) = sites.iter().find(|site| {
-                    site.id == row.site
-                        && if receiver_call { matches!(site.kind, SemanticSiteRecipeKind::OriginalCall) }
-                        else { matches!(site.kind, SemanticSiteRecipeKind::TypeUse { .. }) }
-                }) {
-                    for implicit in &definition.implicit_lifetimes {
-                        if implicit.occurrence_path == site.occurrence_path {
-                            if selected.replace(implicit.ordinal).is_some() {
-                                return Err(bad(
-                                    "one original borrow has ambiguous declaration occurrences",
-                                ));
-                            }
-                        }
-                    }
+        for &id in directory.at(SemanticOriginalNode::Expression(node), self.left)? {
+            let Some(site) = directory.recipe(owner, sites, id, self.left)? else { continue; };
+            let matches = if receiver_call {
+                matches!(site.kind, SemanticSiteRecipeKind::OriginalCall)
+            } else {
+                matches!(site.kind, SemanticSiteRecipeKind::TypeUse { .. })
+            };
+            if !matches {
+                continue;
+            }
+            self.pay(definition.implicit_lifetimes.len(), 0)?;
+            for implicit in &definition.implicit_lifetimes {
+                if implicit.occurrence_path == site.occurrence_path
+                    && selected.replace(implicit.ordinal).is_some()
+                {
+                    return Err(bad(
+                        "one original borrow has ambiguous declaration occurrences",
+                    ));
                 }
             }
         }
@@ -6859,6 +6865,22 @@ fn definition_positions(
     }
     Ok(std::rc::Rc::new(index))
 }
+impl Proof {
+    pub(super) fn original_site_node(
+        &self,
+        owner: SemanticDefinitionId,
+        recipes: &[SemanticSiteRecipe],
+        rows: &[SemanticOriginalSiteNode],
+        id: SemanticSiteId,
+        left: &mut usize,
+    ) -> R<Option<Option<SemanticOriginalNode>>> {
+        match self.original_sites.owner(owner, left)? {
+            Some(directory) => directory.node(id, left),
+            None => sites::DefinitionSites::build(owner, recipes, rows, left)?.node(id, left),
+        }
+    }
+}
+
 fn check_requested(
     program: &SemanticModule,
     declarations: std::rc::Rc<Vec<super::original_context::Declaration>>,
@@ -6868,6 +6890,7 @@ fn check_requested(
     left: &mut usize,
 ) -> Result<Proof, code_context::Failure> {
     let definition_positions = definition_positions(program, limits, left)?;
+    let original_sites = sites::Directory::build(program, limits, left)?;
     let mut required_resource_writes = BTreeSet::new();
     loop {
         let mut check = Check {
@@ -6876,6 +6899,7 @@ fn check_requested(
             left: &mut *left,
             proof: ProofAccess::Owned(Proof {
                 definition_positions: definition_positions.clone(),
+                original_sites: original_sites.clone(),
                 declarations: declarations.clone(),
                 resource_writes: resource_writes::Graph::seeded(required_resource_writes),
                 ..Proof::default()

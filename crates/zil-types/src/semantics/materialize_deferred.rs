@@ -415,12 +415,15 @@ pub(crate) fn populate(
                 else {
                     return Err(bad("pending call result has no actual emitted boundary"));
                 };
-                eval.fee(function.blocks.len())?;
-                let operation = function
-                    .blocks
-                    .iter()
-                    .find(|body| body.id == block)
-                    .and_then(|body| body.instructions.get(instruction as usize))
+                eval.fee(1)?;
+                let body = match function.blocks.get(block.0 as usize).filter(|body| body.id == block) {
+                    Some(body) => Some(body),
+                    None => {
+                        eval.fee(function.blocks.len())?;
+                        function.blocks.iter().find(|body| body.id == block)
+                    }
+                };
+                let operation = body.and_then(|body| body.instructions.get(instruction as usize))
                     .ok_or_else(|| bad("pending call result leaves its actual instruction"))?;
                 let Some(result) = operation.result else {
                     continue;
@@ -438,19 +441,28 @@ pub(crate) fn populate(
                 }
                 let owner = eval.instance(site.instance)?.definition;
                 let original = eval.definition(owner)?;
-                let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body
+                let SemanticDefinitionBody::FunctionWithBody { sites, site_nodes, .. } = &original.body
                 else {
                     continue;
                 };
-                eval.fee(site_nodes.len())?;
-                let mut nodes = site_nodes.iter().filter(|node| node.site == site.recipe);
-                let node = nodes
-                    .next()
-                    .ok_or_else(|| bad("pending call has no exact original source node"))?;
-                if nodes.next().is_some() {
-                    return Err(bad("pending call has multiple original source nodes"));
-                }
-                let SemanticOriginalNode::Expression(node) = node.node else {
+                let proof = ledger.original.borrow();
+                let node = if let Some(proof) = proof.as_ref() {
+                    match proof.original_site_node(owner, sites, site_nodes, site.recipe, eval.left)? {
+                        Some(Some(node)) => node,
+                        Some(None) => return Err(bad("pending call has multiple original source nodes")),
+                        None => return Err(bad("pending call has no exact original source node")),
+                    }
+                } else {
+                    eval.fee(site_nodes.len())?;
+                    let mut nodes = site_nodes.iter().filter(|node| node.site == site.recipe);
+                    let node = nodes.next()
+                        .ok_or_else(|| bad("pending call has no exact original source node"))?;
+                    if nodes.next().is_some() {
+                        return Err(bad("pending call has multiple original source nodes"));
+                    }
+                    node.node
+                };
+                let SemanticOriginalNode::Expression(node) = node else {
                     return Err(bad("pending call source is not an original expression"));
                 };
                 let recipe = SemanticTypeRecipe::OriginalType {
