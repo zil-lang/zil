@@ -1,6 +1,8 @@
 //! Immutable occurrence lookup. Every row, duplicate, edge and action remains
 //! visible; a lookup supplies no class, occupant, source or access permission.
 use super::*;
+mod local_uses;
+pub(super) use local_uses::LocalUses;
 
 /// Original IDs are unique in a checked declaration. Dense IDs often equal
 /// their directory position. Sparse and reordered directories use the same
@@ -45,6 +47,7 @@ pub(super) struct Index {
     by_position: BTreeMap<(SemanticInstanceId, BlockId, u32), Vec<usize>>,
     subjects: BTreeMap<(SemanticInstanceId, Subject), Vec<usize>>,
     pub(super) producers: Producers,
+    pub(super) local_uses: LocalUses,
 }
 
 /// An occurrence of a physical operand. A local declaration or use names its
@@ -156,6 +159,7 @@ impl Index {
             by_position: BTreeMap::new(),
             subjects: BTreeMap::new(),
             producers: Producers::default(),
+            local_uses: LocalUses::default(),
         })
     }
     pub(super) fn insert(

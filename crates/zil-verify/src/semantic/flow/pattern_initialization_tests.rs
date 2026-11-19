@@ -70,19 +70,19 @@ fn atomic_pattern_initialization_keeps_the_exact_bundle_and_readonly_scalar_raw_
                 }
             );
         }
-        let slot = scalar_preparations::unpacked_slot(f, LocalId(2), (BlockId(0), 4), &mut b)
+        let slot = scalar_preparations::unpacked_slot(&sites::LocalUses::default(), f, LocalId(2), (BlockId(0), 4), &mut b)
             .unwrap()
             .unwrap();
         assert!(slot.stores.is_empty());
         assert_eq!(slot.loads.len(), 1);
         assert!(
-            scalar_preparations::slot(f, LocalId(2), true, &mut b)
+            scalar_preparations::slot(&sites::LocalUses::default(), f, LocalId(2), true, &mut b)
                 .unwrap()
                 .is_none(),
             "ordinary EvalOnce does not silently inherit an unpack exception"
         );
         assert!(
-            scalar_preparations::unpacked_slot(f, LocalId(2), (BlockId(0), 3), &mut b)
+            scalar_preparations::unpacked_slot(&sites::LocalUses::default(), f, LocalId(2), (BlockId(0), 3), &mut b)
                 .unwrap()
                 .is_none()
         );
@@ -134,7 +134,7 @@ fn atomic_pattern_initialization_keeps_the_exact_bundle_and_readonly_scalar_raw_
                 span: f.span,
             });
         assert!(
-            scalar_preparations::unpacked_slot(
+            scalar_preparations::unpacked_slot(&sites::LocalUses::default(),
                 &aliased.functions[0],
                 LocalId(2),
                 (BlockId(0), 4),

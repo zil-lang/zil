@@ -7,35 +7,35 @@ pub(super) struct Slot {
     pub(super) live: (BlockId, usize),
     pub(super) stores: Vec<(BlockId, usize, ValueId)>,
     pub(super) loads: Vec<(BlockId, usize, Option<ValueId>)>,
-    pub(super) dead: Vec<(BlockId, usize)>,
+    pub(super) retirements: Vec<(BlockId, usize)>,
 }
 
-pub(super) fn slot(
+pub(super) fn slot(uses: &sites::LocalUses,
     f: &TypedFunction,
     local: LocalId,
     readonly: bool,
     b: &mut Budget,
 ) -> Check<Option<Slot>> {
-    slot_kind(f, local, readonly, SlotKind::Scalar, None, b)
+    slot_kind(uses, f, local, readonly, SlotKind::Scalar, None, b)
 }
 /// The range binding is immutable storage freshly populated on the guarded
 /// body edge. Its shared observations may form loans; the caller checks that
 /// every observation occurs inside that activation, and ordinary loan flow
 /// checks its last use. The private counter continues to forbid all aliases.
-pub(super) fn iteration_slot(f: &TypedFunction, local: LocalId, b: &mut Budget) -> Check<Option<Slot>> {
-    slot_kind(f, local, true, SlotKind::Iteration, None, b)
+pub(super) fn iteration_slot(uses: &sites::LocalUses, f: &TypedFunction, local: LocalId, b: &mut Budget) -> Check<Option<Slot>> {
+    slot_kind(uses, f, local, true, SlotKind::Iteration, None, b)
 }
-pub(super) fn unpacked_slot(
+pub(super) fn unpacked_slot(uses: &sites::LocalUses,
     f: &TypedFunction,
     local: LocalId,
     at: (BlockId, usize),
     b: &mut Budget,
 ) -> Check<Option<Slot>> {
-    slot_kind(f, local, true, SlotKind::Scalar, Some(at), b)
+    slot_kind(uses, f, local, true, SlotKind::Scalar, Some(at), b)
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum SlotKind { Scalar, Iteration, Owned, Managed, CopyValue, SharedAddress }
-fn slot_kind(
+fn slot_kind(uses: &sites::LocalUses,
     f: &TypedFunction,
     local: LocalId,
     readonly: bool,
@@ -59,159 +59,105 @@ fn slot_kind(
         SlotKind::Iteration=>ty.is_integer(),
         SlotKind::Scalar=>ty.is_integer()||ty.is_float()||matches!(ty,Type::Unit|Type::Bool),
         SlotKind::SharedAddress => matches!(ty, Type::Address { mutable: false, .. }),
-        SlotKind::CopyValue=>{
-            crate::stored_flow::type_work(ty, &b.limits.clone(), b)?;
-            ty.is_copy_value()
-        },
+        SlotKind::CopyValue => ty.copy_value_with(&mut || b.spend(1))?,
     };
     if !eligible{return Ok(None);}
     crate::stored_flow::type_work(ty, &b.limits.clone(), b)?;
     let mut live = None;
     let mut stores = Vec::new();
     let mut loads = Vec::new();
-    let mut dead = Vec::new();
-    for body in &f.blocks {
-        b.spend(body.instructions.len().saturating_add(1))?;
-        for (index, instruction) in body.instructions.iter().enumerate() {
-            match &instruction.kind {
-                InstructionKind::StorageLive(actual) if *actual == local => {
-                    if live.replace((body.id, index)).is_some() {
-                        return Ok(None);
-                    }
+    let mut retirements = Vec::new();
+    for (body, index, instruction) in uses.instructions(f, local, b)? {
+        match &instruction.kind {
+            InstructionKind::StorageLive(actual) if *actual == local => {
+                if live.replace((body.id, index)).is_some() {
+                    return Ok(None);
                 }
-                InstructionKind::Store {
-                    local: actual,
-                    value,
-                } if *actual == local => {
-                    if stores.len() == stores.capacity() {
-                        b.spend(stores.len().saturating_add(1))?;
-                    }
-                    b.spend(1)?;
-                    stores.push((body.id, index, *value));
+            }
+            InstructionKind::Store {
+                local: actual,
+                value,
+            } if *actual == local => {
+                if stores.len() == stores.capacity() {
+                    b.spend(stores.len().saturating_add(1))?;
                 }
-                InstructionKind::BorrowLocal { local: actual }
-                | InstructionKind::BorrowPlaceLocal { local: actual, mutable: false, .. }
-                    if *actual == local && kind == SlotKind::Iteration => {
-                    if matches!(&instruction.kind, InstructionKind::BorrowPlaceLocal { path, .. } if !path.is_empty())
-                        || !matches!(instruction.result.and_then(|id| f.values.get(id.0 as usize)),
-                            Some(Type::Address { mutable: false, inner }) if inner.as_ref() == ty) {
-                        return Ok(None);
-                    }
-                    if loads.len() == loads.capacity() { b.spend(loads.len().saturating_add(1))?; }
-                    b.spend(1)?;
-                    loads.push((body.id, index, instruction.result));
+                b.spend(1)?;
+                stores.push((body.id, index, *value));
+            }
+            InstructionKind::BorrowLocal { local: actual }
+            | InstructionKind::BorrowPlaceLocal { local: actual, mutable: false, .. }
+                if *actual == local && kind == SlotKind::Iteration => {
+                if matches!(&instruction.kind, InstructionKind::BorrowPlaceLocal { path, .. } if !path.is_empty())
+                    || !matches!(instruction.result.and_then(|id| f.values.get(id.0 as usize)),
+                        Some(Type::Address { mutable: false, inner }) if inner.as_ref() == ty) {
+                    return Ok(None);
                 }
-                InstructionKind::BorrowDynOwned { local: actual, .. }
-                | InstructionKind::DropDynOwned { local: actual }
-                | InstructionKind::RegisterDefer { local: actual, .. }
-                | InstructionKind::DropErrorUnion { local: actual }
-                | InstructionKind::ProjectOwnedArrayField { local: actual, .. }
-                | InstructionKind::TakeOwnedArrayElement { local: actual, .. }
-                | InstructionKind::DropOwnedArrayElement { local: actual, .. }
-                | InstructionKind::StoreOwnedArrayElement { local: actual, .. }
-                | InstructionKind::DropOwnedArray { local: actual }
-                | InstructionKind::BorrowOwnedArrayElement { local: actual, .. }
-                | InstructionKind::BorrowPackageField { local: actual, .. }
-                | InstructionKind::ReadPackageField { local: actual, .. }
-                | InstructionKind::DescribePackageField { local: actual, .. }
-                | InstructionKind::DropPackage { local: actual }
-                | InstructionKind::TakePackageField { local: actual, .. }
-                | InstructionKind::DropPackageField { local: actual, .. }
-                | InstructionKind::StorePackageField { local: actual, .. }
-                | InstructionKind::BindPackageCapture { local: actual, .. }
-                | InstructionKind::EndPackageCapture { local: actual, .. }
-                | InstructionKind::DescribeLocal { local: actual }
-                | InstructionKind::BorrowLocal { local: actual }
-                | InstructionKind::BorrowLocalMut { local: actual }
-                | InstructionKind::DropMutexGuard { local: actual }
-                | InstructionKind::DropTuple { local: actual }
-                | InstructionKind::TakeTupleField { local: actual, .. }
-                | InstructionKind::TakeVariantField { local: actual, .. }
-                | InstructionKind::BorrowPlaceLocal { local: actual, .. }
-                | InstructionKind::PlaceTagLocal { local: actual, .. }
-                | InstructionKind::ReservePlaceLocal { local: actual, .. }
-                | InstructionKind::BorrowFieldLocal { local: actual, .. }
-                | InstructionKind::VariantTagLocal { local: actual, .. }
-                | InstructionKind::ReadVariantLocal { local: actual, .. }
-                | InstructionKind::BorrowVariantLocal { local: actual, .. }
-                | InstructionKind::DropEnum { local: actual }
-                | InstructionKind::CallClosureShared { callee: actual, .. }
-                | InstructionKind::CallClosureMut { callee: actual, .. }
-                    if *actual == local =>
+                if loads.len() == loads.capacity() { b.spend(loads.len().saturating_add(1))?; }
+                b.spend(1)?;
+                loads.push((body.id, index, instruction.result));
+            }
+            InstructionKind::UnpackTuple {
+                local: source,
+                fields,
+            }
+            | InstructionKind::UnpackVariant {
+                local: source,
+                fields,
+                ..
+            } => {
+                b.spend(fields.len())?;
+                if *source == local
+                    || fields.contains(&local)
+                        && (unpack != Some((body.id, index))
+                            || fields.iter().filter(|field| **field == local).count() != 1)
                 {
                     return Ok(None);
                 }
-                InstructionKind::UnpackTuple {
-                    local: source,
-                    fields,
-                }
-                | InstructionKind::UnpackVariant {
-                    local: source,
-                    fields,
-                    ..
-                } => {
-                    b.spend(fields.len())?;
-                    if *source == local
-                        || fields.contains(&local)
-                            && (unpack != Some((body.id, index))
-                                || fields.iter().filter(|field| **field == local).count() != 1)
-                    {
-                        return Ok(None);
-                    }
-                }
-                InstructionKind::DropClosure { local: actual } | InstructionKind::DropManaged { local: actual }
-                    if *actual == local =>
-                {
-                    let expected = matches!((kind, &instruction.kind),
-                        (SlotKind::Owned, InstructionKind::DropClosure { .. })
-                        | (SlotKind::Managed, InstructionKind::DropManaged { .. }));
-                    if !expected {
-                        return Ok(None);
-                    }
-                }
-                InstructionKind::Load(actual) if *actual == local => {
-                    if owned {
-                        return Ok(None);
-                    }
-                    if loads.len() == loads.capacity() {
-                        b.spend(loads.len().saturating_add(1))?;
-                    }
-                    b.spend(1)?;
-                    loads.push((body.id, index, instruction.result));
-                }
-                InstructionKind::TakeLocal { local: actual } if *actual == local => {
-                    if !owned {
-                        return Ok(None);
-                    }
-                    if loads.len() == loads.capacity() {
-                        b.spend(loads.len().saturating_add(1))?;
-                    }
-                    b.spend(1)?;
-                    loads.push((body.id, index, instruction.result));
-                }
-                InstructionKind::StorageDead(actual) if *actual == local => {
-                    if dead.len() == dead.capacity() {
-                        b.spend(dead.len().saturating_add(1))?;
-                    }
-                    b.spend(1)?;
-                    dead.push((body.id, index));
-                }
-                _ => {}
             }
+            InstructionKind::Load(actual) if *actual == local => {
+                if owned {
+                    return Ok(None);
+                }
+                if loads.len() == loads.capacity() {
+                    b.spend(loads.len().saturating_add(1))?;
+                }
+                b.spend(1)?;
+                loads.push((body.id, index, instruction.result));
+            }
+            InstructionKind::TakeLocal { local: actual } if *actual == local => {
+                if !owned {
+                    return Ok(None);
+                }
+                if loads.len() == loads.capacity() {
+                    b.spend(loads.len().saturating_add(1))?;
+                }
+                b.spend(1)?;
+                loads.push((body.id, index, instruction.result));
+            }
+            operation if matches!((kind, operation),
+                (_, InstructionKind::StorageDead(_))
+                | (SlotKind::Owned, InstructionKind::DropClosure { .. })
+                | (SlotKind::Managed, InstructionKind::DropManaged { .. })) => {
+                b.spend(1 + if retirements.len() == retirements.capacity() { retirements.len() } else { 0 })?;
+                retirements.push((body.id, index));
+            }
+            // Every row here mentions this exact local. Any further access
+            // prevents treating its storage as an emission-only temporary.
+            _ => return Ok(None),
         }
     }
     Ok(live.map(|live| Slot {
         live,
         stores,
         loads,
-        dead,
+        retirements,
     }))
 }
 
 /// An EvalOnce owning argument/RHS keeps its actual element identity through
 /// one nonaliased Store/Take in the same epoch. No declaration or name chooses
 /// its source, and the normal affine kernel still proves the actual move.
-pub(in crate::semantic::flow) fn owning_source(
+pub(in crate::semantic::flow) fn owning_source(uses: &sites::LocalUses,
     module: &TypedModule,
     f: &TypedFunction,
     block: BlockId,
@@ -219,19 +165,19 @@ pub(in crate::semantic::flow) fn owning_source(
     local: LocalId,
     b: &mut Budget,
 ) -> Check<Option<ValueId>> {
-    owning_source_kind(module, f, block, at, local, SlotKind::Owned, b)
+    owning_source_kind(uses, module, f, block, at, local, SlotKind::Owned, b)
 }
 
-pub(in crate::semantic::flow) fn managed_source(
+pub(in crate::semantic::flow) fn managed_source(uses: &sites::LocalUses,
     module: &TypedModule, f: &TypedFunction, block: BlockId, at: u32, local: LocalId, b: &mut Budget,
 ) -> Check<Option<ValueId>> {
-    owning_source_kind(module, f, block, at, local, SlotKind::Managed, b)
+    owning_source_kind(uses, module, f, block, at, local, SlotKind::Managed, b)
 }
 
-fn owning_source_kind(
+fn owning_source_kind(uses: &sites::LocalUses,
     module: &TypedModule, f: &TypedFunction, block: BlockId, at: u32, local: LocalId, kind: SlotKind, b: &mut Budget,
 ) -> Check<Option<ValueId>> {
-    let Some(slot) = slot_kind(f, local, false, kind, None, b)? else {
+    let Some(slot) = slot_kind(uses, f, local, false, kind, None, b)? else {
         return Ok(None);
     };
     let [(store_block, store_at, value)] = slot.stores.as_slice() else {
@@ -265,8 +211,8 @@ fn owning_source_kind(
     // epoch must dominate that transfer on every real incoming path. Every
     // actual retirement must follow the Take; unrelated scope exits do not
     // themselves retire this local's storage or identify its source.
-    b.spend(f.blocks.len().saturating_add(slot.dead.len()))?;
-    for (dead_block, dead_at) in &slot.dead {
+    b.spend(slot.retirements.len())?;
+    for (dead_block, dead_at) in &slot.retirements {
         if !closure_boundaries::creation_dominates(
             f,
             take_point,
@@ -274,22 +220,6 @@ fn owning_source_kind(
             b,
         )? {
             return Ok(None);
-        }
-    }
-    for body in &f.blocks {
-        b.spend(body.instructions.len())?;
-        for (index, instruction) in body.instructions.iter().enumerate() {
-            if matches!(instruction.kind,
-                InstructionKind::DropClosure{local:actual} | InstructionKind::DropManaged{local:actual} if actual==local)
-                && !closure_boundaries::creation_dominates(
-                    f,
-                    take_point,
-                    point(body.id, index as u32),
-                    b,
-                )?
-            {
-                return Ok(None);
-            }
         }
     }
     let body = f
@@ -318,7 +248,7 @@ fn owning_source_kind(
     Ok(Some(*value))
 }
 
-pub(super) fn source(
+pub(super) fn source(uses: &sites::LocalUses,
     module: &TypedModule,
     f: &TypedFunction,
     block: BlockId,
@@ -326,16 +256,16 @@ pub(super) fn source(
     local: LocalId,
     b: &mut Budget,
 ) -> Check<Option<ValueId>> {
-    source_with_slot(module,f,block,at,local,slot(f,local,true,b)?,b)
+    source_with_slot(module,f,block,at,local,slot(uses, f,local,true,b)?,b)
 }
 
-pub(in crate::semantic::flow) fn copy_value_source(
+pub(in crate::semantic::flow) fn copy_value_source(uses: &sites::LocalUses,
     module:&TypedModule,f:&TypedFunction,block:BlockId,at:u32,local:LocalId,b:&mut Budget,
 )->Check<Option<ValueId>> {
-    source_with_slot(module,f,block,at,local,slot_kind(f,local,true,SlotKind::CopyValue,None,b)?,b)
+    source_with_slot(module,f,block,at,local,slot_kind(uses, f,local,true,SlotKind::CopyValue,None,b)?,b)
 }
 
-pub(in crate::semantic::flow) fn shared_address_source(
+pub(in crate::semantic::flow) fn shared_address_source(uses: &sites::LocalUses,
     module: &TypedModule,
     f: &TypedFunction,
     block: BlockId,
@@ -343,7 +273,7 @@ pub(in crate::semantic::flow) fn shared_address_source(
     local: LocalId,
     b: &mut Budget,
 ) -> Check<Option<ValueId>> {
-    source_with_slot(module, f, block, at, local, slot_kind(f, local, true, SlotKind::SharedAddress, None, b)?, b)
+    source_with_slot(module, f, block, at, local, slot_kind(uses, f, local, true, SlotKind::SharedAddress, None, b)?, b)
 }
 
 fn source_with_slot(
@@ -444,6 +374,7 @@ mod tests {
         at: u32,
     ) -> Check<Option<ValueId>> {
         source(
+            &sites::LocalUses::default(),
             module,
             f,
             BlockId(block),
@@ -466,6 +397,7 @@ mod tests {
         f.blocks[0].instructions[3].kind = InstructionKind::TakeLocal { local: LocalId(1) };
         let prove = |f: &TypedFunction, at| {
             owning_source(
+                &sites::LocalUses::default(),
                 &module,
                 f,
                 BlockId(0),
@@ -547,6 +479,7 @@ mod tests {
         // does not turn a hand-built Closure fixture into a creator proof.
         let prove = |f: &TypedFunction| {
             owning_source(
+                &sites::LocalUses::default(),
                 &module,
                 f,
                 BlockId(2),

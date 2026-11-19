@@ -396,7 +396,7 @@ impl CheckedContext{
             let(block,at,instruction)=self.site_index.producers.get(f,value,b)?;
             crate::check_instruction(module,f,instruction,b)?;
             if let InstructionKind::Load(local)=instruction.kind {
-                if let Some(source)=scalar_preparations::source(module,f,block,at,local,b)?{value=source;continue;}
+                if let Some(source)=scalar_preparations::source(&self.site_index.local_uses, module,f,block,at,local,b)?{value=source;continue;}
             }
             if sources.is_empty(){return self.scalar_expression_source(module,caller,f,value,node,environment,b);}
             if let InstructionKind::ReborrowAddress{address,..}=instruction.kind{value=address;continue;}
@@ -514,7 +514,7 @@ impl CheckedContext{
         Ok(())
     }
     pub(super) fn range_local_root(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,local:LocalId,range:&original::RangeBinding,b:&mut Budget)->Check<()> {
-        let(start,end)=range_bindings::check(&self.site_index.producers,module,f,local,range,b)?;
+        let(start,end)=range_bindings::check(&self.site_index.local_uses,&self.site_index.producers,module,f,local,range,b)?;
         self.exact_expression_value(module,caller,f,start,range.start,b)?;
         self.exact_expression_value(module,caller,f,end,range.end,b)
     }
@@ -642,11 +642,11 @@ impl CheckedContext {
         if !source.mutable && (declaration.ty.is_integer() || declaration.ty.is_float() || matches!(declaration.ty, Type::Unit | Type::Bool)) {
             match initial {
                 PatternStart::Value(value) => {
-                    let slot = scalar_preparations::slot(f, local, true, b)?.ok_or_else(||bad("scalar pattern source storage is mutable, aliased or has no unique activation"))?;
+                    let slot = scalar_preparations::slot(&self.site_index.local_uses, f, local, true, b)?.ok_or_else(||bad("scalar pattern source storage is mutable, aliased or has no unique activation"))?;
                     if slot.stores.len() != 1 || slot.stores[0].2 != value { return Err(bad("scalar pattern binding has another actual write or initial source")); }
                 }
                 PatternStart::Unpack { at, .. } => {
-                    let slot = scalar_preparations::unpacked_slot(f, local, at, b)?.ok_or_else(||bad("scalar pattern unpack is aliased or has another initialization"))?;
+                    let slot = scalar_preparations::unpacked_slot(&self.site_index.local_uses, f, local, at, b)?.ok_or_else(||bad("scalar pattern unpack is aliased or has another initialization"))?;
                     if !slot.stores.is_empty() { return Err(bad("scalar unpack pattern has another actual write")); }
                 }
             }

@@ -93,14 +93,14 @@ impl CheckedContext {
             let (_,node)=fields.iter().find(|(field,_)|field==name).ok_or_else(||bad("record spread changes the original explicit field identity"))?;
             let (at_block,at,operand)=self.site_index.producers.get(f,value,b)?;
             let value=if let InstructionKind::Load(local)=operand.kind {
-                super::owner_sources::scalar_preparations::copy_value_source(module,f,at_block,at,local,b)?.unwrap_or(value)
+                super::owner_sources::scalar_preparations::copy_value_source(&self.site_index.local_uses, module,f,at_block,at,local,b)?.unwrap_or(value)
             }else{value};
             self.assignment_value_source(module,caller,f,value,*node,b)?;
             selected=aggregate;
         }
         let (at_block,at,operand)=self.site_index.producers.get(f,selected,b)?;
         if let InstructionKind::Load(local)=operand.kind {
-            if let Some(source)=super::owner_sources::scalar_preparations::copy_value_source(module,f,at_block,at,local,b)? {
+            if let Some(source)=super::owner_sources::scalar_preparations::copy_value_source(&self.site_index.local_uses, module,f,at_block,at,local,b)? {
                 selected=source;
             }
         }

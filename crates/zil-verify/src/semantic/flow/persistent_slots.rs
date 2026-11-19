@@ -28,9 +28,9 @@ impl CheckedContext{
                         sites::Subject::ValueTypeUse(value)];
         if self.site_index.has_subject(module, caller.id, &subjects, b)? { return Ok(None); }
         if managed {
-            super::intrinsics::owner_sources::scalar_preparations::managed_source(module,f,block,at,local,b)
+            super::intrinsics::owner_sources::scalar_preparations::managed_source(&self.site_index.local_uses, module,f,block,at,local,b)
         } else {
-            super::intrinsics::owner_sources::scalar_preparations::owning_source(module,f,block,at,local,b)
+            super::intrinsics::owner_sources::scalar_preparations::owning_source(&self.site_index.local_uses, module,f,block,at,local,b)
         }
     }
     /// A complete occurrence map for one real element, including phantom κ.
@@ -141,14 +141,14 @@ impl CheckedContext{
         };
         let (_,initializer)=self.original.borrow().as_ref().ok_or_else(||bad("private callback cell lacks its independent original body"))?.persistent_binding(module,caller.definition,site.recipe,b)?;
         let mut live=None;let mut stored=None;
-        for block in &f.blocks{for(at,instruction)in block.instructions.iter().enumerate(){
+        for (block, at, instruction) in self.site_index.local_uses.instructions(f, local, b)? {
             b.spend(1)?;
             match instruction.kind{
                 InstructionKind::StorageLive(actual)if actual==local=>{if live.replace((block.id,at as u32)).is_some(){return Err(bad("private callback cell has multiple storage epochs"));}crate::check_instruction(module,f,instruction,b)?;},
                 InstructionKind::Store{local:actual,value}if actual==local=>{if stored.replace((block.id,at as u32,value)).is_some(){return Err(bad("private callback cell has multiple whole-shell initializers"));}crate::check_instruction(module,f,instruction,b)?;},
                 _=>{},
             }
-        }}
+        }
         let live=live.ok_or_else(||bad("private callback cell has no actual StorageLive"))?;
         let(block,at,array)=stored.ok_or_else(||bad("private callback cell has no actual initializing Store"))?;
         let SemanticSiteAddress::Typed{block:site_block,instruction:site_at,..}=site.at else{return Err(bad("private callback cell retains a nonactual declaration"));};

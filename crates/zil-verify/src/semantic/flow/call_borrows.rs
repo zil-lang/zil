@@ -16,7 +16,7 @@ impl CheckedContext {
         let (block, at, producer) = self.site_index.producers.get(f, address, b)?;
         crate::check_instruction(module, f, producer, b)?;
         let staged = if let InstructionKind::Load(local) = producer.kind {
-            scalar_preparations::shared_address_source(module, f, block, at, local, b)?
+            scalar_preparations::shared_address_source(&self.site_index.local_uses, module, f, block, at, local, b)?
         } else { None };
         let actual = if let Some(staged) = staged {
             let (_, _, producer) = self.site_index.producers.get(f, staged, b)?;
@@ -49,7 +49,7 @@ impl CheckedContext {
                 b.spend(1)?;
                 let (block, at, producer) = self.site_index.producers.get(f, operand, b)?;
                 let InstructionKind::Load(local) = producer.kind else { break; };
-                let Some(source) = intrinsics::owner_sources::scalar_preparations::copy_value_source(module, f, block, at, local, b)? else { break; };
+                let Some(source) = intrinsics::owner_sources::scalar_preparations::copy_value_source(&self.site_index.local_uses, module, f, block, at, local, b)? else { break; };
                 operand = source;
             }
             self.call_input_source(module, caller, f, operand, node, Some(source), b)?;
@@ -283,7 +283,7 @@ impl CheckedContext {
             // ordinary proof against the complete original argument type.
             if original_source_checked && outer.mode == StoredBorrowMode::SharedAddress
                 && let InstructionKind::Load(local) = producer.kind
-                && let Some(source) = scalar_preparations::shared_address_source(module, f, block, at, local, b)?
+                && let Some(source) = scalar_preparations::shared_address_source(&self.site_index.local_uses, module, f, block, at, local, b)?
             {
                 current = source;
                 continue;

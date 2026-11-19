@@ -9,14 +9,14 @@ fn one(value:&Constant)->bool {
 fn successors(block:&BasicBlock)->Vec<BlockId>{match block.terminator{
     Terminator::Jump(next)=>vec![next],Terminator::Branch{then_block,else_block,..}=>vec![then_block,else_block],_=>vec![],
 }}
-pub(super) fn check(producers: &sites::Producers, module:&TypedModule,f:&TypedFunction,local:LocalId,range:&original::RangeBinding,b:&mut Budget)->Check<(ValueId,ValueId)> {
+pub(super) fn check(uses: &sites::LocalUses, producers: &sites::Producers, module:&TypedModule,f:&TypedFunction,local:LocalId,range:&original::RangeBinding,b:&mut Budget)->Check<(ValueId,ValueId)> {
     let declaration=f.locals.get(local.0 as usize).ok_or_else(||bad("range actual iteration local is absent"))?;
     b.spend(f.locals.len().saturating_add(range.name.len()))?;
     if declaration.mutable||!declaration.ty.is_integer()||declaration.name!=range.name||declaration.span!=range.span
         ||f.locals.iter().filter(|other|other.name==range.name&&other.span==range.span&&!other.mutable&&other.ty.is_integer()).count()!=1{
         return Err(bad("range changes its unique original iteration binding"));
     }
-    let iteration=scalar_preparations::iteration_slot(f,local,b)?.ok_or_else(||bad("range iteration storage is aliased, replaced or lacks an activation"))?;
+    let iteration=scalar_preparations::iteration_slot(uses, f,local,b)?.ok_or_else(||bad("range iteration storage is aliased, replaced or lacks an activation"))?;
     let [(body,store_at,current)]=iteration.stores.as_slice()else{return Err(bad("range iteration binding does not have one actual snapshot producer"));};
     let(head,load_at,load)=producers.get(f,*current,b)?;
     crate::check_instruction(module,f,load,b)?;
@@ -25,7 +25,7 @@ pub(super) fn check(producers: &sites::Producers, module:&TypedModule,f:&TypedFu
     let counter_declaration=f.locals.get(counter.0 as usize).ok_or_else(||bad("range actual counter storage is absent"))?;
     crate::stored_flow::type_work(&counter_declaration.ty,&b.limits.clone(),b)?;
     if counter_declaration.ty!=declaration.ty||counter_declaration.span!=range.span{return Err(bad("range counter changes its complete original integer carrier or occurrence"));}
-    let counter_slot=scalar_preparations::slot(f,counter,false,b)?.ok_or_else(||bad("range counter storage escapes or has an unrelated writer"))?;
+    let counter_slot=scalar_preparations::slot(uses, f,counter,false,b)?.ok_or_else(||bad("range counter storage escapes or has an unrelated writer"))?;
     if counter_slot.loads.as_slice()!=[(head,load_at as usize,Some(*current))]{return Err(bad("range counter is observed outside its unique actual header"));}
     let header=f.blocks.get(head.0 as usize).filter(|block|block.id==head).ok_or_else(||bad("range header is absent"))?;
     let Terminator::Branch{condition,then_block,else_block:after}=header.terminator else{return Err(bad("range header does not branch on its actual comparison"));};
@@ -99,7 +99,7 @@ pub(super) fn check(producers: &sites::Producers, module:&TypedModule,f:&TypedFu
         if predecessors[step.0 as usize].iter().any(|parent|!region[parent.0 as usize]){return Err(bad("range step is entered outside its original body"));}
     }
     for &(block,at,_)in &iteration.loads {b.spend(1)?;if !region[block.0 as usize] || (block==*body && at<=*store_at) {return Err(bad("range binding is read outside its current guarded iteration"));}}
-    for &(block,_)in iteration.dead.iter().chain(&counter_slot.dead){
+    for &(block,_)in iteration.retirements.iter().chain(&counter_slot.retirements){
         b.spend(1)?;
         if block!=after&&!matches!(f.blocks[block.0 as usize].terminator,Terminator::Return(_)|Terminator::Trap|Terminator::Unreachable){return Err(bad("range storage is ended before its current iteration stage settles"));}
     }
@@ -148,7 +148,7 @@ mod tests {
     #[test]
     fn range_source_uses_real_snapshot_guard_successor_and_storage_epoch(){
         let(module,f,range)=loop_body();let limits=Limits::default();
-        assert_eq!(check(&sites::Producers::default(),&module,&f,LocalId(1),&range,&mut Budget::new(&limits)).unwrap(),(ValueId(0),ValueId(1)));
+        assert_eq!(check(&sites::LocalUses::default(),&sites::Producers::default(),&module,&f,LocalId(1),&range,&mut Budget::new(&limits)).unwrap(),(ValueId(0),ValueId(1)));
         for attack in 0..11{
             let mut f=f.clone();
             match attack{
@@ -163,12 +163,12 @@ mod tests {
                 9=>f.locals[1].mutable=true,
                 _=>{let mut duplicate=f.locals[1].clone();duplicate.id=LocalId(2);f.locals.push(duplicate);},
             }
-            assert!(check(&sites::Producers::default(),&module,&f,LocalId(1),&range,&mut Budget::new(&limits)).is_err(),"attack {attack}");
+            assert!(check(&sites::LocalUses::default(),&sites::Producers::default(),&module,&f,LocalId(1),&range,&mut Budget::new(&limits)).is_err(),"attack {attack}");
         }
         // Equal carrier types do not identify either endpoint. The enclosing
         // source proof must compare these actual operands with the two exact
         // original endpoint occurrences.
         let mut changed=f;changed.blocks[0].instructions[4].kind=InstructionKind::Store{local:LocalId(0),value:ValueId(1)};
-        assert_eq!(check(&sites::Producers::default(),&module,&changed,LocalId(1),&range,&mut Budget::new(&limits)).unwrap(),(ValueId(1),ValueId(1)));
+        assert_eq!(check(&sites::LocalUses::default(),&sites::Producers::default(),&module,&changed,LocalId(1),&range,&mut Budget::new(&limits)).unwrap(),(ValueId(1),ValueId(1)));
     }
 }
