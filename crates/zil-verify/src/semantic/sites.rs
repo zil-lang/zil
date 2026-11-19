@@ -278,6 +278,26 @@ impl Index {
     }
 
 }
+/// A block range has already checked each row's exact instance, block and
+/// instruction. Walking that ordered range retains all edges and duplicates.
+pub(super) fn instruction_rows<'slice, 'module>(
+    remaining: &mut &'slice [&'module SemanticSite],
+    ordinal: u32,
+    b: &mut Budget,
+) -> Check<&'slice [&'module SemanticSite]> {
+    let mut count = 0;
+    for site in *remaining {
+        b.spend(1)?;
+        if !matches!(site.at, SemanticSiteAddress::Typed { instruction, .. } if instruction == ordinal) {
+            break;
+        }
+        count += 1;
+    }
+    let (here, rest) = remaining.split_at(count);
+    *remaining = rest;
+    Ok(here)
+}
+
 fn push(rows: &mut Vec<usize>, position: usize, b: &mut Budget) -> Check<()> {
     b.spend(1usize.saturating_add(if rows.len() == rows.capacity() {
         rows.len()
@@ -421,7 +441,11 @@ mod tests {
         let rows = index.at(&module, instance, BlockId(0), 0, &mut b).unwrap();
         assert_eq!(rows.len(), 3);
         assert_eq!(index.all_roles(&module, instance, recipe, &mut b).unwrap(), rows);
-        assert_eq!(index.block_from(&module, instance, BlockId(0), 0, &mut b).unwrap(), rows);
+        let block = index.block_from(&module, instance, BlockId(0), 0, &mut b).unwrap();
+        assert_eq!(block, rows);
+        let mut remaining = block.as_slice();
+        assert_eq!(instruction_rows(&mut remaining, 0, &mut b).unwrap(), rows);
+        assert!(instruction_rows(&mut remaining, 1, &mut b).unwrap().is_empty());
         assert!(index.block_from(&module, instance, BlockId(0), 1, &mut b).unwrap().is_empty());
         assert!(matches!(
             rows[0].at,

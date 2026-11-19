@@ -252,11 +252,13 @@ impl CheckedContext {
             b.spend(1)?;
             let mut state=states[block_id].clone().ok_or_else(||bad("reachable semantic block has no incoming state"))?;
             let block=&f.blocks[block_id];
+            let ordered_sites=self.site_index.block_from(module,instance.id,block.id,0,b)?;
+            let mut remaining_sites=ordered_sites.as_slice();
             for (ordinal,instruction) in block.instructions.iter().enumerate() {
                 let environment = &mut point_environment;
                 environment.at=Some(SitePoint{function,block:block.id,instruction:ordinal as u32,after:false});
-                let sites=self.actual_sites(module,instance.id,block.id,ordinal as u32,b)?;
-                for site in &sites {
+                let sites=sites::instruction_rows(&mut remaining_sites,ordinal as u32,b)?;
+                for site in sites {
                     if let SemanticSiteAction::DeclareLocal{local:SemanticLocalTarget::Typed(local),expected}=&site.action {
                         let value=self.site_expected(module,instance,site,&environment,external,active,b)?;
                         self.claim(module,expected,&value,&environment,b)?;
@@ -269,7 +271,7 @@ impl CheckedContext {
                 // input boundary. Calls may consume its independently bound
                 // source occurrence; their own results remain unavailable.
                 let mut input_uses=std::collections::BTreeSet::new();
-                for site in &sites{
+                for site in sites{
                     if matches!(site.at,SemanticSiteAddress::Typed{edge:SemanticSiteEdge::Before,..})&&matches!(&site.action,SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(value),..}if Some(*value)!=instruction.result&&values.get(value.0 as usize).and_then(Option::as_ref).is_some()){
                         b.spend(1)?;self.check_type_use(module,instance,f,site,&state,&values,signature,&environment,external,active,b)?;input_uses.insert(site.recipe);
                     }
@@ -322,21 +324,21 @@ impl CheckedContext {
                         state.locals[local.0 as usize]=None;None
                     }
                     InstructionKind::ConvertInteger{value,target}|InstructionKind::ConvertNumber{value,target}=>{
-                        if sites.iter().any(|site|matches!(site.action,SemanticSiteAction::BodyCall{..})){self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?}
+                        if sites.iter().any(|site|matches!(site.action,SemanticSiteAction::BodyCall{..})){self.actual_intrinsic(module,instance,f,instruction,sites,&values,&environment,external,active,b)?}
                         else{let source=&value_at(&values,*value)?.ty;if (!source.is_integer()&&!source.is_float())||(!target.is_integer()&&!target.is_float()){return Err(bad("numeric operation has a nonnumeric endpoint"));}Some(atomic(target,b)?)}
                     }
-                    InstructionKind::MakeDynOwned{..}|InstructionKind::TaskYield|InstructionKind::ByteBufferNew|InstructionKind::ByteBufferReserve{..}|InstructionKind::ByteBufferPush{..}|InstructionKind::ByteBufferTruncate{..}|InstructionKind::ByteBufferLen{..}|InstructionKind::ByteBufferCapacity{..}|InstructionKind::ByteBufferBorrow{..}|InstructionKind::OwnedStoreNew{..}|InstructionKind::OwnedStoreReserve{..}|InstructionKind::OwnedStorePush{..}|InstructionKind::OwnedStorePop{..}|InstructionKind::OwnedStoreBorrow{..}|InstructionKind::OwnedStoreBorrowMut{..}|InstructionKind::OwnedStoreLen{..}|InstructionKind::OwnedStoreCapacity{..}|InstructionKind::TaskCreate{..}|InstructionKind::TaskCreateOwned{..}|InstructionKind::TaskValid{..}|InstructionKind::TaskPoll{..}|InstructionKind::TaskRequestCancel{..}|InstructionKind::TaskPollClose{..}|InstructionKind::TaskFinishDestroy{..}|InstructionKind::MutexCreate{..}|InstructionKind::MutexLock{..}|InstructionKind::MutexValue{..}|InstructionKind::MutexUnlock{..}|InstructionKind::AsyncRegistrationStart{..}|InstructionKind::AsyncRegistrationValid{..}|InstructionKind::AsyncRegistrationRequestClose{..}|InstructionKind::AsyncRegistrationPollClose{..}|InstructionKind::AsyncRegistrationFinishDestroy{..}|InstructionKind::AsyncRegistrationFinishDestroyChecked{..}|InstructionKind::WithScopedThread{..}|InstructionKind::WithSyncCell{..}|InstructionKind::SyncI32{..}|InstructionKind::SyncI32CompareExchange{..}|InstructionKind::WithForeignCallback{..}=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
+                    InstructionKind::MakeDynOwned{..}|InstructionKind::TaskYield|InstructionKind::ByteBufferNew|InstructionKind::ByteBufferReserve{..}|InstructionKind::ByteBufferPush{..}|InstructionKind::ByteBufferTruncate{..}|InstructionKind::ByteBufferLen{..}|InstructionKind::ByteBufferCapacity{..}|InstructionKind::ByteBufferBorrow{..}|InstructionKind::OwnedStoreNew{..}|InstructionKind::OwnedStoreReserve{..}|InstructionKind::OwnedStorePush{..}|InstructionKind::OwnedStorePop{..}|InstructionKind::OwnedStoreBorrow{..}|InstructionKind::OwnedStoreBorrowMut{..}|InstructionKind::OwnedStoreLen{..}|InstructionKind::OwnedStoreCapacity{..}|InstructionKind::TaskCreate{..}|InstructionKind::TaskCreateOwned{..}|InstructionKind::TaskValid{..}|InstructionKind::TaskPoll{..}|InstructionKind::TaskRequestCancel{..}|InstructionKind::TaskPollClose{..}|InstructionKind::TaskFinishDestroy{..}|InstructionKind::MutexCreate{..}|InstructionKind::MutexLock{..}|InstructionKind::MutexValue{..}|InstructionKind::MutexUnlock{..}|InstructionKind::AsyncRegistrationStart{..}|InstructionKind::AsyncRegistrationValid{..}|InstructionKind::AsyncRegistrationRequestClose{..}|InstructionKind::AsyncRegistrationPollClose{..}|InstructionKind::AsyncRegistrationFinishDestroy{..}|InstructionKind::AsyncRegistrationFinishDestroyChecked{..}|InstructionKind::WithScopedThread{..}|InstructionKind::WithSyncCell{..}|InstructionKind::SyncI32{..}|InstructionKind::SyncI32CompareExchange{..}|InstructionKind::WithForeignCallback{..}=>self.actual_intrinsic(module,instance,f,instruction,sites,&values,&environment,external,active,b)?,
                     InstructionKind::ReadCapture{index}|InstructionKind::TakeCapture{index}=>{
                         let value=self.occurrences.borrow().get(&(scope,OperandKey::Capture(*index))).cloned().ok_or_else(||bad("actual capture read has no sealed creator operand"))?;
                         Some(value)
                     }
                     InstructionKind::BindPackageCapture{..}|InstructionKind::EndPackageCapture{..}|InstructionKind::DropPackageField{..}|InstructionKind::StorePackageField{..}|InstructionKind::ReadPackageField{..}|InstructionKind::TakePackageField{..}|InstructionKind::DescribePackageField{..}|InstructionKind::BorrowPackageField{..}|InstructionKind::DescribeCapture{..}|InstructionKind::BorrowCapture{..}|InstructionKind::WriteCapture{..}|InstructionKind::DropPackage{..}|InstructionKind::ExtractField{..}|InstructionKind::AddressField{..}|InstructionKind::DescribeAddress{..}|InstructionKind::ReadDesc{..}|InstructionKind::WriteDesc{..}=>self.owner_field_instruction(module,instance,f,instruction,&mut state,&values,&environment,active,b)?,
-                    InstructionKind::SliceLength{..} if sites.iter().any(|site|matches!(site.action,SemanticSiteAction::BodyCall{..}))=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
+                    InstructionKind::SliceLength{..} if sites.iter().any(|site|matches!(site.action,SemanticSiteAction::BodyCall{..}))=>self.actual_intrinsic(module,instance,f,instruction,sites,&values,&environment,external,active,b)?,
                     InstructionKind::MakeVariant{fields,..} if reified_data::nominal_producer(&reified_data,instruction,b)?
                         && !sites.iter().any(|site|matches!(site.action,SemanticSiteAction::Construct{..}|SemanticSiteAction::BodyCall{..}))=>
                         Some(self.reified_variant(module,f,instruction,fields,&values,b)?),
-                    InstructionKind::UpdateField{..}|InstructionKind::LoadStoredBorrow{..}|InstructionKind::StoreStoredBorrow{..}|InstructionKind::MakeVariant{..}|InstructionKind::VariantTag{..}|InstructionKind::ReadVariant{..}|InstructionKind::ExtractIndex{..}|InstructionKind::UpdateIndex{..}|InstructionKind::AddressIndex{..}|InstructionKind::AddressSlice{..}|InstructionKind::SliceLength{..}=>self.product_instruction(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
-                    InstructionKind::MakeErrorUnion{..}|InstructionKind::ReadErrorUnion{..}|InstructionKind::TakeErrorUnion{..}|InstructionKind::ErrorTag{..}|InstructionKind::VariantTagLocal{..}|InstructionKind::ReadVariantLocal{..}|InstructionKind::PlaceTagLocal{..}|InstructionKind::TakeVariantField{..}|InstructionKind::TakeTupleField{..}|InstructionKind::BorrowPlaceLocal{..}|InstructionKind::UnpackTuple{..}|InstructionKind::UnpackVariant{..}|InstructionKind::DropErrorUnion{..}|InstructionKind::DropEnum{..}|InstructionKind::DropTuple{..}=>self.sum_instruction(module,instance,f,instruction,&sites,&mut state,&values,signature,&environment,external,active,b)?,
+                    InstructionKind::UpdateField{..}|InstructionKind::LoadStoredBorrow{..}|InstructionKind::StoreStoredBorrow{..}|InstructionKind::MakeVariant{..}|InstructionKind::VariantTag{..}|InstructionKind::ReadVariant{..}|InstructionKind::ExtractIndex{..}|InstructionKind::UpdateIndex{..}|InstructionKind::AddressIndex{..}|InstructionKind::AddressSlice{..}|InstructionKind::SliceLength{..}=>self.product_instruction(module,instance,f,instruction,sites,&values,&environment,external,active,b)?,
+                    InstructionKind::MakeErrorUnion{..}|InstructionKind::ReadErrorUnion{..}|InstructionKind::TakeErrorUnion{..}|InstructionKind::ErrorTag{..}|InstructionKind::VariantTagLocal{..}|InstructionKind::ReadVariantLocal{..}|InstructionKind::PlaceTagLocal{..}|InstructionKind::TakeVariantField{..}|InstructionKind::TakeTupleField{..}|InstructionKind::BorrowPlaceLocal{..}|InstructionKind::UnpackTuple{..}|InstructionKind::UnpackVariant{..}|InstructionKind::DropErrorUnion{..}|InstructionKind::DropEnum{..}|InstructionKind::DropTuple{..}=>self.sum_instruction(module,instance,f,instruction,sites,&mut state,&values,signature,&environment,external,active,b)?,
                     InstructionKind::ReservePlaceLocal{..}|InstructionKind::ReservePlaceAddress{..}|InstructionKind::CommitPlaceReplace{..}|InstructionKind::AbortPlaceReservation{..}=>self.replacement_instruction(module,instance,f,instruction,&mut state,&values,&environment,external,active,b)?,
                     InstructionKind::TakeOwnedArrayElement{..}|InstructionKind::StoreOwnedArrayElement{..}|InstructionKind::DropOwnedArrayElement{..}|InstructionKind::BorrowOwnedArrayElement{..}|InstructionKind::DropOwnedArray{..}=>self.persistent_instruction(module,instance,f,instruction,&mut state,&values,&environment,active,b)?,
                     InstructionKind::ReadAddress{address}=>{
@@ -427,7 +429,7 @@ impl CheckedContext {
                         else if module.functions.get(callee.0 as usize).is_some_and(|row|row.foreign.is_some()){return Err(bad("ordinary Call substitutes for an original foreign execution"));}
                         result
                     },
-                    InstructionKind::CallDynSlot{..}=>self.actual_dyn_call(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
+                    InstructionKind::CallDynSlot{..}=>self.actual_dyn_call(module,instance,f,instruction,sites,&values,&environment,external,active,b)?,
                     InstructionKind::BorrowDynOwned{..}|InstructionKind::MakeDynBorrow{..}=>Some(self.actual_dyn_borrow(module,f,instruction,&state,&values,scope,&environment,active,b)?),
                     InstructionKind::DropMutexGuard{..}=>{self.drop_mutex_guard(module,f,instruction,&mut state,b)?;None},
                     InstructionKind::DropClosure{local}=>{
@@ -450,7 +452,7 @@ impl CheckedContext {
                         state.locals[local.0 as usize]=None;None
                     },
                     InstructionKind::FunctionRef{..}=>Some(self.function_pointer(module,instance,f,instruction,&environment,external,active,b)?),
-                    InstructionKind::ForeignFunctionRef{..}=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
+                    InstructionKind::ForeignFunctionRef{..}=>self.actual_intrinsic(module,instance,f,instruction,sites,&values,&environment,external,active,b)?,
                     InstructionKind::MakeClosure{closure,captures}=>{
                         let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::Closure{..}));
                         let site=declarations.next().ok_or_else(||bad("actual Closure creation has no original semantic site"))?;
@@ -475,7 +477,7 @@ impl CheckedContext {
                     values[id.0 as usize]=Some(value.clone());self.record(scope,OperandKey::Value(id),&value,b)?;
                     self.record_address_validity(module,&value,&environment,b)?;
                 }
-                for site in &sites {
+                for site in sites {
                     if matches!(site.action,SemanticSiteAction::TypeUse{..})&&!input_uses.contains(&site.recipe) {
                         if let Some(at)=&mut environment.at{at.after=matches!(instruction.kind,InstructionKind::MakeClosure{..})&&matches!(site.at,SemanticSiteAddress::Typed{edge:SemanticSiteEdge::After,..});}
                         self.check_type_use(module,instance,f,site,&state,&values,signature,environment,external,active,b)?;
