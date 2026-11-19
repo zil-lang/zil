@@ -63,11 +63,14 @@ fn type_fact_bucket(ty: &Type) -> usize {
     4 * family + (shape % 4)
 }
 
-struct TypeFacts([BTreeSet<TypeFact>; TYPE_FACT_BUCKETS]);
+// A scope with no completed Type facts needs no partition directory.
+#[derive(Default)]
+struct TypeFacts(Option<Box<[BTreeSet<TypeFact>; TYPE_FACT_BUCKETS]>>);
 impl TypeFacts {
-    fn new() -> Self { Self(std::array::from_fn(|_| BTreeSet::new())) }
     #[cfg(test)]
-    fn len(&self) -> usize { self.0.iter().map(BTreeSet::len).sum() }
+    fn len(&self) -> usize {
+        self.0.as_ref().map_or(0, |buckets| buckets.iter().map(BTreeSet::len).sum())
+    }
 }
 
 type TypeCell = std::rc::Rc<crate::semantic::CheckedTypeData>;
@@ -121,14 +124,14 @@ impl Structure{
     /// The root checker keeps this exact module immutably borrowed until this
     /// directory is removed. Nested module checks install a separate scope.
     pub(crate) fn register(module:&TypedModule,b:&mut Budget)->Check<Self>{
-        b.spend(12 + TYPE_FACT_BUCKETS)?;
+        b.spend(12)?;
         let mut result=Self{
             module:module as *const TypedModule as usize,
             scope_identity: std::rc::Rc::new(()),
             program:module.semantic.as_ref().map(|program|program as *const SemanticModule as usize),
             declarations:(module.dyn_declarations.as_ptr() as usize,module.dyn_declarations.len()),
             types:BTreeSet::new(),recipes:BTreeSet::new(),program_bounds:BTreeSet::new(),declaration_nodes:BTreeSet::new(),
-            type_success:TypeFacts::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),sum_shapes:BTreeMap::new(),store_definitions:BTreeSet::new(),scalar_store_definitions:BTreeSet::new(),store_resource_payloads:BTreeSet::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),lexical_scopes:BTreeMap::new(),dyn_declarations:BTreeMap::new(),trait_providers:None,nominal_declarations:BTreeMap::new(),nominal_instances:BTreeMap::new(),scope_instances:BTreeMap::new(),type_cells:BTreeMap::new(),borrowed_callback_domains:BTreeMap::new(),
+            type_success:TypeFacts::default(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),sum_shapes:BTreeMap::new(),store_definitions:BTreeSet::new(),scalar_store_definitions:BTreeSet::new(),store_resource_payloads:BTreeSet::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),lexical_scopes:BTreeMap::new(),dyn_declarations:BTreeMap::new(),trait_providers:None,nominal_declarations:BTreeMap::new(),nominal_instances:BTreeMap::new(),scope_instances:BTreeMap::new(),type_cells:BTreeMap::new(),borrowed_callback_domains:BTreeMap::new(),
         };
         for function in &module.functions{
             result.ty(&function.return_type,b)?;
@@ -266,12 +269,17 @@ impl DynRecipeVisitor for Register<'_>{
 
 pub(super) fn type_known(ty: &Type, depth: usize, b: &mut Budget) -> Check<bool> {
     if !cacheable(ty) || b.structural.is_none() { return Ok(false); }
+    if b.structural.as_ref().unwrap().type_success.0.is_none() {
+        b.spend(1)?;
+        return Ok(false);
+    }
     b.spend(2)?;
     let bucket = type_fact_bucket(ty);
-    let fee = lookup(b.structural.as_ref().unwrap().type_success.0[bucket].len());
+    let fee = lookup(b.structural.as_ref().unwrap().type_success.0.as_ref().unwrap()[bucket].len());
     b.spend(fee)?;
     let key = (ty as *const Type as usize, depth, profile(b));
-    Ok(b.structural.as_ref().unwrap().type_success.0[bucket].contains(&key))
+    let buckets = b.structural.as_ref().unwrap().type_success.0.as_ref().unwrap();
+    Ok(buckets[bucket].contains(&key))
 }
 
 pub(super) fn type_success(ty: &Type, depth: usize, b: &mut Budget) -> Check<()> {
@@ -282,10 +290,13 @@ pub(super) fn type_success(ty: &Type, depth: usize, b: &mut Budget) -> Check<()>
     if !b.structural.as_ref().unwrap().types.contains(&ptr) { return Ok(()); }
     b.spend(2)?;
     let bucket = type_fact_bucket(ty);
-    let fee = lookup(b.structural.as_ref().unwrap().type_success.0[bucket].len());
+    let directory = &b.structural.as_ref().unwrap().type_success.0;
+    let fee = directory.as_ref().map_or(TYPE_FACT_BUCKETS + 2, |buckets| lookup(buckets[bucket].len()));
     b.spend(fee.saturating_add(2))?;
     let key = (ptr, depth, profile(b));
-    b.structural.as_mut().unwrap().type_success.0[bucket].insert(key);
+    let directory = &mut b.structural.as_mut().unwrap().type_success.0;
+    let buckets = directory.get_or_insert_with(|| Box::new(std::array::from_fn(|_| BTreeSet::new())));
+    buckets[bucket].insert(key);
     Ok(())
 }
 pub(super) fn recipe_known<T:'static>(value:&T,b:&mut Budget)->Check<bool>{
@@ -961,7 +972,7 @@ mod tests{
         // lookups cannot publish a success for this unregistered allocation.
         let directory=&b.structural.as_ref().unwrap();
         let bucket=type_fact_bucket(&temporary);
-        let lookups=2usize.saturating_add(lookup(directory.type_success.0[bucket].len())).saturating_add(lookup(directory.types.len()));
+        let lookups=2usize.saturating_add(lookup(directory.type_success.0.as_ref().unwrap()[bucket].len())).saturating_add(lookup(directory.types.len()));
         assert_eq!(actual,cold_before-cold_walk.remaining+lookups);
         assert_eq!(entries,b.structural.as_ref().unwrap().type_success.len());
         b.limits.max_nodes=1;
