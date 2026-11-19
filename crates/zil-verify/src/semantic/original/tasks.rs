@@ -8,7 +8,7 @@ impl CheckedOriginal {
     pub(super) fn return_expression(
         &mut self, module: &TypedModule, context: &CheckedContext,
         expression: &SemanticOriginalExpr, env: &Env, bindings: &BTreeMap<String, Binding>,
-        expected: &Ty, active: &mut ActiveQueries, b: &mut Budget,
+        expected: &Ty, straight:bool, active: &mut ActiveQueries, b: &mut Budget,
     ) -> Check<Ty> {
         if let CoreExprKind::Call { callee, arguments } = &expression.kind
             && matches!(&callee.kind, CoreExprKind::Name(name) if name == "task_create")
@@ -23,6 +23,30 @@ impl CheckedOriginal {
                 self.relate_value(&actual, expected, b)?;
             }
             return Ok(actual);
+        }
+        let mut read=expression;
+        if straight && matches!(expected,Ty::Address{mutable:false,..}) {
+            while let CoreExprKind::Group(inner)=&read.kind{b.spend(1)?;read=inner;}
+        }
+        if straight && matches!(expected,Ty::Address{mutable:false,..}) && let CoreExprKind::Name(name)=&read.kind {
+            let owner=env.current()?;
+            b.spend(name.len().saturating_add(1).saturating_mul(bindings.len().saturating_add(1).ilog2() as usize+1))?;
+            if let Some(Binding{mutable:true,identity:Binder::Local{definition,node,..},..})=bindings.get(name)
+                && *definition==owner && let Some(uses)=self.uses.get(&owner) && !uses.writes.is_empty() {
+                b.spend(uses.writes.len().ilog2() as usize+2)?;
+                if let Some(OriginalSlotWrite::Write(rhs))=uses.writes.get(node).copied() {
+                    let definition=context.definition(module,owner,b)?;
+                    b.spend(definition.implicit_lifetimes.len().saturating_add(self.expressions.len().saturating_add(1).ilog2() as usize+1))?;
+                    if definition.implicit_lifetimes.iter().any(|row|row.occurrence_path==[2])
+                        && let Some(written)=self.expressions.get(&(owner,rhs)).cloned()
+                        && self.same(&written,expected,b)? {
+                        self.expression(module,context,expression,env,bindings,None,active,b)?;
+                        b.spend(self.expressions.len().saturating_add(1).ilog2() as usize+self.returned_slot_writes.len().saturating_add(1).ilog2() as usize+3)?;
+                        self.returned_slot_writes.insert((owner,read.id),(*node,rhs));
+                        return Ok(written);
+                    }
+                }
+            }
         }
         let actual = self.expression(module, context, expression, env, bindings, Some(expected), active, b)?;
         self.relate_value(&actual, expected, b)?;

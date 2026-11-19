@@ -185,6 +185,7 @@ struct Borrow {
 struct Local {
     anchor: Option<LocalAnchor>,
     prepared_at: Option<NodeId>,
+    reaching_write: OriginalSlotWrite,
     name: String,
     ty: Term,
     mutable: bool,
@@ -339,6 +340,7 @@ pub(super) struct Checked {
     return_injections: BTreeMap<(SemanticDefinitionId, NodeId), (Term, bool)>,
     dyn_creations: BTreeMap<(SemanticDefinitionId, NodeId), dyn_owned::Creation>,
     receiving_places: BTreeMap<(SemanticDefinitionId, NodeId), ReceivingPlace>,
+    pub(super) returned_slot_writes: BTreeMap<(SemanticDefinitionId,NodeId),(NodeId,NodeId)>,
     pub(super) received_result_roles: BTreeSet<(SemanticDefinitionId,u32,u32)>,
     view_uppers: BTreeMap<(SemanticDefinitionId, u32), Vec<Term>>,
     reference_roles: BTreeMap<(SemanticDefinitionId, NodeId), local_reference_roles::Role>,
@@ -931,6 +933,7 @@ impl Solver<'_, '_> {
             Local {
                 anchor: None,
                 prepared_at: None,
+                reaching_write: OriginalSlotWrite::Unknown,
                 name: name.to_owned(),
                 ty,
                 mutable,
@@ -1298,6 +1301,7 @@ impl Solver<'_, '_> {
                 Local {
                     anchor: local.anchor,
                     prepared_at: local.prepared_at,
+                    reaching_write: local.reaching_write,
                     name: local.name.clone(),
                     ty: local.ty,
                     mutable: local.mutable,
@@ -2297,6 +2301,13 @@ impl Solver<'_, '_> {
                         return Ok(term);
                     }
                     let place = self.borrow_place(frame, operand, b, depth + 1)?;
+                    if *op==UnaryOp::BorrowMut && !place.indirect && place.path.is_empty()
+                        && let Some(LocalAnchor::Binding(binding))=place.anchor {
+                        for slot in frame.locals.iter_mut().rev() {
+                            b.spend(1,WORK)?;
+                            if slot.anchor==Some(LocalAnchor::Binding(binding)) {slot.reaching_write=OriginalSlotWrite::Exposed;break;}
+                        }
+                    }
                     if *op == UnaryOp::BorrowMut && !place.mutable {
                         return Err(fail(
                             "original mutable borrow requires an exclusive initialized place",
@@ -2669,6 +2680,7 @@ impl Solver<'_, '_> {
                         }
                     }
                     for (index, ty) in captures {
+                        if !*move_capture {frame.locals[index].reaching_write=OriginalSlotWrite::Exposed;}
                         if frame.alive { self.local_available(&frame.locals[index], &[], b)?; }
                         if index < frame.inherited {
                             b.lookup(frame.captured.len(), WORK)?;
@@ -2837,6 +2849,7 @@ impl Solver<'_, '_> {
                         match (left_alive, right_alive) {
                             (true, true) => self.join_vacancies(right, left, b)?,
                             (true, false) => {
+                                right.reaching_write=left.reaching_write;
                                 right.vacant = self.copy_vacancies(&left.vacant, b)?;
                                 right.maybe_vacant = self.copy_vacancies(&left.maybe_vacant, b)?;
                                 right.live = left.live;
@@ -2865,6 +2878,68 @@ impl Solver<'_, '_> {
             };
         self.record_expression(frame, value.id, ty, b)
     }
+    fn returned_slot_value(
+        &mut self,
+        frame: &mut Frame,
+        value: &SemanticOriginalExpr,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Option<Term>> {
+        let mut read=value;
+        while let CoreExprKind::Group(inner)=&read.kind {b.spend(1,WORK)?;read=inner;}
+        let CoreExprKind::Name(name) = &read.kind else {
+            return Ok(None);
+        };
+        if !self.loops.is_empty()
+            || matches!(self.state.arena[frame.result], Kind::Atom(_))
+            || !matches!(
+                self.state.arena[self.type_root(frame.result, b)?],
+                Kind::Address { mutable: false, .. }
+            )
+        {
+            return Ok(None);
+        }
+        for local in frame.locals[frame.inherited..].iter().rev() {
+            b.spend(local.name.len().saturating_add(name.len()), WORK)?;
+            if local.name != *name {
+                continue;
+            }
+            let (Some(LocalAnchor::Binding(binding)), OriginalSlotWrite::Write(rhs)) =
+                (local.anchor, local.reaching_write)
+            else {
+                break;
+            };
+            if !local.mutable || local.borrowed {
+                break;
+            }
+            let definition = self.inventory.definition(frame.definition, b)?;
+            b.spend(definition.implicit_lifetimes.len(), WORK)?;
+            if !definition
+                .implicit_lifetimes
+                .iter()
+                .any(|row| row.occurrence_path == [2])
+            {
+                break;
+            }
+            b.lookup(frame.expressions.len(), WORK)?;
+            let Some(&source) = frame.expressions.get(&rhs) else {
+                break;
+            };
+            if !self.same_original(source, frame.result, b, depth + 1)? {
+                break;
+            }
+            // Validate the actual use of the lexical slot before giving this
+            // single return read its reaching writer's independently proved type.
+            self.expression(frame, value, b, depth + 1)?;
+            b.lookup(self.state.returned_slot_writes.len(), WORK)?;
+            self.state
+                .returned_slot_writes
+                .insert((frame.definition, read.id), (binding, rhs));
+            return Ok(Some(source));
+        }
+        Ok(None)
+    }
+
     fn block(
         &mut self,
         frame: &mut Frame,
@@ -2954,6 +3029,9 @@ impl Solver<'_, '_> {
                         .last_mut()
                         .ok_or_else(|| fail("original binding lost its local"))?
                         .anchor = Some(LocalAnchor::Binding(statement.id));
+                    if let (Some(rhs),Some(local))=(initializer,frame.locals.last_mut()) {
+                        if local.mutable {local.reaching_write.assign(rhs.id);}
+                    }
                     if initializer.is_none() {
                         if let Some(local) = frame.locals.last_mut() {
                             local.initialized = false;
@@ -3033,7 +3111,8 @@ impl Solver<'_, '_> {
                     let receiving = frame.result;
                     let value = match value {
                         Some(value) => {
-                            if self.inferred_receiver_body(frame.definition, b)?
+                            if let Some(actual)=self.returned_slot_value(frame,value,b,depth+1)? {actual}
+                            else if self.inferred_receiver_body(frame.definition, b)?
                                 && matches!(self.state.arena[self.type_root(receiving, b)?],
                                     Kind::Infer(None)
                                     | Kind::Address { mutable: false, .. })
@@ -3112,6 +3191,7 @@ impl Solver<'_, '_> {
                         match (then_alive, else_alive) {
                             (true, true) => self.join_vacancies(other, then, b)?,
                             (true, false) => {
+                                other.reaching_write=then.reaching_write;
                                 other.vacant = self.copy_vacancies(&then.vacant, b)?;
                                 other.maybe_vacant = self.copy_vacancies(&then.maybe_vacant, b)?;
                                 other.live = then.live;
@@ -3393,6 +3473,7 @@ impl Solver<'_, '_> {
                             let origin = cleanup::Origin::local(frame.definition, anchor, cleanup::Event::Replace(statement.id));
                             self.cleanup_partial(old.ty, &[], &old.vacant, &origin, b, 0)?;
                         }
+                        frame.locals[index].reaching_write.assign(value.id);
                         frame.locals[index].used = false;
                         frame.locals[index].initialized = true;
                         frame.locals[index].live = true;
@@ -4123,6 +4204,7 @@ pub(super) fn check(
             dyn_creations: BTreeMap::new(),
             receiving_places: BTreeMap::new(),
             received_result_roles: BTreeSet::new(),
+            returned_slot_writes: BTreeMap::new(),
             view_uppers: BTreeMap::new(),
             reference_roles: BTreeMap::new(),
             call_regions: BTreeMap::new(),
@@ -4503,6 +4585,7 @@ impl Solver<'_, '_> {
                 Local {
                     anchor: local.anchor,
                     prepared_at: local.prepared_at,
+                    reaching_write: local.reaching_write,
                     name: local.name.clone(),
                     ty: local.ty,
                     mutable: local.mutable,

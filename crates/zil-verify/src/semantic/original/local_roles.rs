@@ -47,6 +47,11 @@ impl CheckedOriginal{
         self.unify(&actual_inner,expected_inner,b)?;
         let source=self.resolved_life(&source,b)?;if matches!(source,Life::Infer(_)){return Err(bad("shared local assignment has an unresolved original lifetime"));}let role=self.local_roles.get_mut(&(*definition,*node)).unwrap();
         b.spend(role.sources.len().saturating_add(1))?;role.sources.insert(source);
+        if !mutable {
+            let uses=self.uses.entry(*definition).or_default();
+            b.spend(uses.writes.len().saturating_add(1).ilog2() as usize+2)?;
+            uses.writes.entry(*node).or_default().assign(value.id);
+        }
         Ok(true)
     }
     pub(in crate::semantic) fn local_role_recipes(&self,module:&TypedModule,definition:SemanticDefinitionId,env:&EvalEnv,b:&mut Budget)->Check<Vec<LocalRoleRecipe>>{

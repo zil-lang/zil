@@ -212,6 +212,7 @@ impl CheckedOriginal {
                 let(child,place)=self.place(module,context,operand,env,bindings,active,b)?;
                 if mutable{self.mutable_place(module,context,operand,env,bindings,active,b)?;}
                 if let Some(place)=place{
+                    if mutable && place.fields.is_empty(){self.expose_slot(&place.binder,b)?;}
                     if !mutable&&matches!(place.binder,Binder::Capture{definition,..}if definition==id)&&self.inline_capture_place(id,operand,b)?{b.spend(1)?;self.receiver_borrows.insert((id,expression.id));}
                     self.read_original(module,context,&place,&child,env,false,active,b)?;
                 }
@@ -634,6 +635,7 @@ impl CheckedOriginal {
             if !used.contains(&child_key) {
                 continue;
             }
+            if !move_capture {self.expose_slot(&binding.identity,b)?;}
             if matches!(binding.identity, Binder::Capture { .. }) {
                 // A constructor reads its actually used free inputs in this
                 // activation, including an input forwarded by a deeper child.

@@ -2542,7 +2542,12 @@ impl Check<'_, '_> {
                         let Some(value) = value else {
                             return Err(fail("class-bearing actual Return omits its result SSA"));
                         };
-                        let mut actual = self.ssa_value(instance, function, value, b, 0)?;
+                        let written=self.returned_slot_value(instance,function,value,b)?;
+                        let reached_writer=written.is_some();
+                        let mut actual = match written {
+                            Some(written)=>written,
+                            None=>self.ssa_value(instance,function,value,b,0)?,
+                        };
                         if projected {
                             if Some(&actual.ty) != function.values.get(value.0 as usize) {
                                 return Err(fail("Task creation differs from the original expression"));
@@ -2550,8 +2555,9 @@ impl Check<'_, '_> {
                             crate::dyn_metadata::ty(&function.return_type, b)?;
                             actual.geometry_mut(b)?.ty = function.return_type.clone();
                         }
-                        if definition.elided_result_ordinal().is_some()
-                            && self.outer_role(instance, function, &actual, &expected, b, 0)? {
+                        if (reached_writer && self.capture_values_equal(&actual,&expected,b)?)
+                            || (definition.elided_result_ordinal().is_some()
+                                && self.outer_role(instance, function, &actual, &expected, b, 0)?) {
                             let binder = function.storage_life.as_ref()
                                 .and_then(|header| crate::signature_life::outer(header, StorageBase::Result))
                                 .ok_or_else(|| fail("inferred return has no concrete outer binder"))?;

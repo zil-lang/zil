@@ -13,6 +13,8 @@ mod ct_frozen;
 mod semantic_scopes;
 mod original_pattern_rows;
 mod original_capture_syntax;
+mod original_reaching;
+pub use original_reaching::OriginalSlotWrite;
 pub use original_capture_syntax::{CaptureUse, original_capture_use};
 pub use original_pattern_rows::*;
 pub use ct_frozen::*;

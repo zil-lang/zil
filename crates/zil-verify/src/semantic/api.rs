@@ -25,6 +25,7 @@ pub(crate) enum OperandKey {
     Capture(u32),
     Receiver,
     Value(ValueId),
+    ReturnedWrite { block: BlockId, value: ValueId },
     Local { local: LocalId, at: SitePoint },
     TypeArgument { scope: ScopeKey, ordinal: u32 },
     Environment { scope: ScopeKey, ordinal: u32 },

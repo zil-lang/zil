@@ -134,6 +134,12 @@ impl CheckedOriginal {
                         let actual=if let Some(initializer)=initializer{self.code_value(module,context,initializer,&actual,expected.as_ref(),true,env,active,b)?}else{actual};
                         if let Some(expected)=expected{if family{self.bind_family_result(&actual,&expected,b)?;}else{self.relate_value(&actual,&expected,b)?;}}
                         let actual=if *mutable&&ty.is_none(){self.introduce_shared_local(module,context,statement.id,&actual,env,b)?}else{actual};
+                        if *mutable && ty.is_none() && matches!(&actual,Ty::Address{mutable:false,..})
+                            && let Some(value)=initializer {
+                            let uses=self.uses.entry(env.current()?).or_default();
+                            b.spend(uses.writes.len().saturating_add(1).ilog2() as usize+2)?;
+                            uses.writes.insert(statement.id,OriginalSlotWrite::Write(value.id));
+                        }
                         self.bindings.insert((env.current()?,statement.id),actual.clone());let binding=Binding{ty:actual,mutable:*mutable,identity:Binder::Local{definition:env.current()?,node:statement.id,name:name.clone()}};if let Some(initializer)=initializer{if self.creation(env.current()?,initializer,bindings,b)?{b.spend(1)?;self.created_bindings.insert(binding.identity.clone());}}self.declare(env,&binding,b)?;bindings.insert(name.clone(),binding);false
                     },
                     CoreStatementKind::TupleBinding{pattern,mutable,ty,initializer}=>{
@@ -151,7 +157,7 @@ impl CheckedOriginal {
                     CoreStatementKind::Return(expression)=>{
                         if self.in_defer.get(&env.current()?).copied().unwrap_or(0)!=0{return Err(bad("original deferred cleanup cannot return from its caller"));}
                         let actual=match expression{
-                            Some(expression)=>self.return_expression(module,context,expression,env,bindings,result,active,b)?,
+                            Some(expression)=>self.return_expression(module,context,expression,env,bindings,result,!in_loop,active,b)?,
                             None=>{self.relate_value(&Ty::Atom(Type::Unit),result,b)?;Ty::Atom(Type::Unit)},
                         };
                         self.return_resource(expression.as_ref(),&actual,env,b)?;

@@ -51,12 +51,13 @@ impl State {
 }
 /// Reconstruct the local Stores supplying each actual conditional result
 /// operand. An unrelated result or local has no edge to this occurrence.
-fn conditional_join_stores(
+fn checked_reaching_stores(
     f: &TypedFunction,
     joins: &BTreeMap<ValueId, (CheckedType, [CheckedType; 2])>,
+    writers: &BTreeMap<ValueId, ValueId>,
     b: &mut Budget,
 ) -> Check<BTreeMap<(BlockId, usize), ValueId>> {
-    if joins.is_empty() {
+    if joins.is_empty() && writers.is_empty() {
         return Ok(BTreeMap::new());
     }
     let definitions = crate::tasks::context_projection::definitions(f, b)?;
@@ -81,7 +82,7 @@ fn conditional_join_stores(
         }
     }
     let mut stores = BTreeMap::new();
-    for value in joins.keys() {
+    for (value,writer) in joins.keys().map(|v|(v,None)).chain(writers.iter().map(|(v,mint)|(v,Some(*mint)))) {
         b.spend(1)?;
         let (owner, at) = definitions
             .get(value.0 as usize)
@@ -106,7 +107,8 @@ fn conditional_join_stores(
             for (at, instruction) in body.instructions[..end].iter().enumerate().rev() {
                 b.spend(1)?;
                 match instruction.kind {
-                    InstructionKind::Store { local: target, .. } if target == local => {
+                    InstructionKind::Store { local: target, value: stored } if target == local => {
+                        if writer.is_some_and(|rhs|rhs!=stored) {return Err(bad("returned local read reaches another original assignment value"));}
                         b.spend(reaching.len().saturating_add(1).ilog2() as usize + 2)?;
                         reaching.insert((body.id, at));
                     }
@@ -115,18 +117,27 @@ fn conditional_join_stores(
                     | InstructionKind::TakeLocal { local: target }
                     | InstructionKind::BindPackageCapture { local: target, .. }
                     | InstructionKind::EndPackageCapture { local: target, .. }
-                        if target == local => {}
+                        if target == local => {
+                            if writer.is_some(){return Err(bad("returned pointer read crosses a storage generation without its writer"));}
+                        }
                     _ => continue,
                 }
                 killed = true;
                 break;
             }
             if !killed {
+                if writer.is_some() && (block==f.entry.0 as usize || predecessors[block].is_empty()){
+                    return Err(bad("returned pointer read reaches entry without its writer"));
+                }
                 b.spend(predecessors[block].len())?;
                 for &parent in &predecessors[block] {
                     pending.push((parent, f.blocks[parent].instructions.len(), local));
                 }
             }
+        }
+        if writer.is_some() {
+            if reaching.is_empty(){return Err(bad("returned pointer has no grounded reaching write"));}
+            continue;
         }
         if reaching.len() < 2 {
             return Err(bad(
@@ -386,7 +397,56 @@ impl CheckedContext {
             b.spend(joins.len().saturating_add(1).ilog2() as usize+1)?;
             if joins.insert(operand,pair).is_some() {return Err(bad("one actual SSA has several original conditional owners"));}
         }
-        let join_stores=conditional_join_stores(f,&joins,b)?;
+        let mut writers=BTreeMap::new();
+        {
+            let proof=self.original.borrow();
+            let original=proof.as_ref().ok_or_else(||bad("returned local has no complete original proof"))?;
+            if !original.returned_slot_writes.is_empty() {
+                b.spend(original.returned_slot_writes.len().ilog2() as usize+2)?;
+                let start=(instance.definition,zil_base::NodeId(0));
+                let end=(instance.definition,zil_base::NodeId(u32::MAX));
+                for ((_,read),(binding,rhs)) in original.returned_slot_writes.range(start..=end) {
+                    let operand=|node,b:&mut Budget|->Check<ValueId>{
+                        let mut value=None;
+                        for (_,recipe) in original.expression_sites(instance.definition,node,b)? {
+                            for row in self.site_index.all_roles(module,instance.id,recipe,b)? {
+                                if let SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(id),..}=row.action
+                                    && value.replace(id).is_some_and(|prior|prior!=id){return Err(bad("original pointer operand reaches competing actual SSA values"));}
+                            }
+                        }
+                        value.ok_or_else(||bad("original pointer operand lacks its actual SSA value"))
+                    };
+                    let read=operand(*read,b)?;
+                    let writer=*rhs;
+                    let rhs=operand(writer,b)?;
+                    if original.bound_value_name(instance.definition,writer,b)? {
+                        self.original_projection_source(module,instance,f,rhs,instance.definition,writer,true,b)?;
+                    }
+                    let (_,_,load)=self.site_index.producers.get(f,read,b)?;
+                    let InstructionKind::Load(slot)=load.kind else{return Err(bad("returned pointer is not its lexical slot read"));};
+                    let mut declared=false;
+                    for recipe in original.original_declaration_sites(instance.definition,*binding,b)? {
+                        for row in self.actual_declarations(module,instance.id,recipe,b)? {
+                            let SemanticSiteAction::DeclareLocal{local:SemanticLocalTarget::Typed(local),..}=row.action else{return Err(bad("returned slot declaration lost its actual storage"));};
+                            if local!=slot{return Err(bad("returned pointer read selects a different lexical slot"));}
+                            declared=true;
+                        }
+                    }
+                    if !declared{return Err(bad("returned pointer slot lacks an actual declaration"));}
+                    for (_,_,instruction) in self.site_index.local_uses.instructions(f,slot,b)? {
+                        if matches!(&instruction.kind,
+                            InstructionKind::BorrowLocalMut{local}
+                            | InstructionKind::BorrowPlaceLocal{local,mutable:true,..}
+                            | InstructionKind::ReservePlaceLocal{local,..} if *local==slot){
+                            return Err(bad("returned local has a possible indirect writer"));
+                        }
+                    }
+                    b.spend(writers.len().saturating_add(1).ilog2() as usize+2)?;
+                    if writers.insert(read,rhs).is_some(){return Err(bad("one actual returned pointer has several original assignments"));}
+                }
+            }
+        }
+        let join_stores=checked_reaching_stores(f,&joins,&writers,b)?;
         let mut reached_arms = BTreeMap::<ValueId,[bool;2]>::new();
         let mut states=vec![None;f.blocks.len()];
         let entry=f.entry.0 as usize;
@@ -714,7 +774,14 @@ impl CheckedContext {
             if matches!(block.terminator,Terminator::Return(_))&&!state.deferred.is_empty(){return Err(bad("actual Return leaves an original defer action uninvoked"));}
             let successors=match &block.terminator {
                 Terminator::Return(Some(value))=>{
-                    let actual = value_at(&values,*value)?;
+                    let actual = if writers.is_empty() {value_at(&values,*value)?} else {
+                        b.spend(writers.len().ilog2() as usize+2)?;
+                        if let Some(writer)=writers.get(value) {
+                            let actual=value_at(&values,*writer)?;
+                            self.record(scope,OperandKey::ReturnedWrite{block:block.id,value:*value},actual,b)?;
+                            actual
+                        } else {value_at(&values,*value)?}
+                    };
                     if !self.compatible(environment,actual,&signature.result,b)? {
                         if actual.ty == signature.result.ty {
                             return Err(bad("actual Return violates the original rigid semantic result"));

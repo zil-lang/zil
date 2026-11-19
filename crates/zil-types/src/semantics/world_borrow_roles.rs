@@ -1156,7 +1156,7 @@ fn trace_steps(
                 // previously checked Load still carries the referent loan.
                 let actual = if return_boundary { world.get(values, value)? }
                     else { world.local(locals, local)? };
-                local_read_sources(world, instance, original, function, *binding,
+                local_read_sources(world, instance, original, function, *binding,step.node,
                     local, value, (block, instruction))?;
                 let expected = world.physical_type(
                     instance.id,
@@ -2257,13 +2257,15 @@ pub(super) fn record_source(
 #[allow(clippy::too_many_arguments)]
 fn local_read_sources(
     world: &mut World<'_, '_>, instance: &SemanticInstance, original: &SemanticDefinition,
-    function: &TypedFunction, binding: NodeId, local: LocalId, read: ValueId, at: (BlockId, usize),
+    function: &TypedFunction, binding: NodeId, observed:NodeId, local: LocalId, read: ValueId, at: (BlockId, usize),
 ) -> R<()> {
     let ledger = world.ledger;
     let proof = ledger.original.borrow();
     let proof = proof.as_ref().ok_or_else(|| bad("local loan has no original source proof"))?;
-    let Some(nodes) = proof.view_local_sources(original.id, binding, world.limits, world.left)? else {
-        return Err(bad("local loan has no complete original incoming sources"));
+    if !proof.return_writers.is_empty(){world.pay(index::search(proof.return_writers.len()))?;}
+    let nodes=if let Some((writer,_))=proof.return_writers.get(&(original.id,observed)) {vec![*writer]} else {
+        proof.view_local_sources(original.id,binding,world.limits,world.left)?
+            .ok_or_else(||bad("local loan has no complete original incoming sources"))?
     };
     world.pay(nodes.len())?;
     let mut sources = Vec::new();

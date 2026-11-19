@@ -305,6 +305,133 @@ impl Check<'_, '_> {
         Ok(self.definition(owner)?.elided_result_ordinal() == Some(*ordinal))
     }
 
+    pub(super) fn returned_slot_write(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        variables: &BTreeMap<String, Binding>,
+        actual: &SemanticTypeRecipe,
+        expected: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<bool> {
+        let (
+            SemanticTypeRecipe::Address {
+                mutable: false,
+                lifetime: SemanticOuterLifeRecipe::Class(slot),
+                inner,
+            },
+            SemanticTypeRecipe::Address {
+                mutable: false,
+                lifetime: target,
+                inner: wanted,
+            },
+        ) = (actual, expected)
+        else {
+            return Ok(false);
+        };
+        let mut read=expression;
+        while let CoreExprKind::Group(inner)=&read.kind {self.pay(1,depth)?;read=inner;}
+        let CoreExprKind::Name(name) = &read.kind else {
+            return Ok(false);
+        };
+        if !self.loops.is_empty() {
+            return Ok(false);
+        }
+        self.pay(
+            name.len()
+                .saturating_add(variables.len().saturating_add(1).ilog2() as usize + 1),
+            depth,
+        )?;
+        let Some(binding) = variables.get(name) else {
+            return Ok(false);
+        };
+        let (Query::Binding(id), OriginalSlotWrite::Write(rhs)) =
+            (&binding.origin, binding.reaching_write)
+        else {
+            return Ok(false);
+        };
+        if !binding.mutable || binding.capture || binding.borrowed || binding.origin_owner != owner
+        {
+            return Ok(false);
+        }
+        let definition = self.definition(owner)?;
+        self.pay(definition.implicit_lifetimes.len(), depth)?;
+        if !definition
+            .implicit_lifetimes
+            .iter()
+            .any(|row| row.occurrence_path == [2])
+        {
+            return Ok(false);
+        }
+        self.pay(
+            self.proof.local_roles.len().saturating_add(1).ilog2() as usize + 1,
+            depth,
+        )?;
+        let Some(role) = self.proof.local_roles.get(&(owner, *id)) else {
+            return Ok(false);
+        };
+        if &role.lifetime != slot {
+            return Ok(false);
+        }
+        self.pay(role.sources.len(), depth)?;
+        let role = self.proof.local_roles.get(&(owner, *id)).unwrap();
+        let Some(source) = role
+            .sources
+            .iter()
+            .find(|r| r.at == SemanticOriginalNode::Expression(rhs))
+        else {
+            return Ok(false);
+        };
+        crate::dyn_metadata::semantic_operand_snapshot(
+            &source.lifetime,
+            self.limits,
+            self.left,
+            1,
+        )?;
+        let source = source.lifetime.clone();
+        if !matches!(source, SemanticOuterLifeRecipe::Static)
+            && match (&source, target) {
+                (SemanticOuterLifeRecipe::Class(a), SemanticOuterLifeRecipe::Class(z)) => {
+                    !self.life_outlives(owner, a, z, depth + 1)?
+                }
+                _ => true,
+            }
+        {
+            return Ok(false);
+        }
+        self.same(inner, wanted)?;
+        self.pay(
+            self.proof.types.len().saturating_add(1).ilog2() as usize + 1,
+            depth,
+        )?;
+        let written = self
+            .proof
+            .types
+            .get(&(owner, Query::Expression(rhs)))
+            .ok_or_else(|| bad("current local write has no original operand type"))?;
+        let written = copy_recipe(written, self.limits, self.left)?;
+        self.ensure_escape(owner, &written, depth + 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(target, self.limits, self.left, 1)?;
+        self.pay(
+            self.proof.return_writers.len().saturating_add(1).ilog2() as usize + 1,
+            depth,
+        )?;
+        self.proof
+            .proof_mut()?
+            .return_writers
+            .insert((owner, expression.id), (rhs, target.clone()));
+        if read.id!=expression.id {
+            self.pay(self.proof.return_writers.len().saturating_add(1).ilog2() as usize+1,depth)?;
+            self.proof.proof_mut()?.return_writers.insert((owner,read.id),(rhs,target.clone()));
+        }
+        if self.return_view(owner, expression, variables, actual, expected, depth + 1)? {return Ok(true);}
+        for node in [expression.id,read.id] {
+            self.pay(self.proof.return_writers.len().saturating_add(1).ilog2() as usize+1,depth)?;
+            self.proof.proof_mut()?.return_writers.remove(&(owner,node));
+        }
+        Ok(false)
+    }
+
     pub(super) fn return_edge(&mut self, owner: SemanticDefinitionId, expression: &SemanticOriginalExpr,
         variables: &BTreeMap<String,Binding>, actual: &SemanticTypeRecipe,
         expected: &SemanticTypeRecipe, depth: usize) -> R<()> {

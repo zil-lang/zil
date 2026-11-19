@@ -256,8 +256,12 @@ impl CheckedContext {
             return Err(bad("checked Return view changes its exact original world"));
         }
         let occurrences = self.occurrences.borrow();
-        let actual = occurrences
-            .get(&(frame.key, OperandKey::Value(value)))
+        let current_write=if self.original.borrow().as_ref().is_some_and(|proof|!proof.returned_slot_writes.is_empty()) {
+            b.spend(occurrences.len().saturating_add(1).ilog2() as usize+2)?;
+            occurrences.get(&(frame.key,OperandKey::ReturnedWrite{block,value}))
+        } else {None};
+        let actual = current_write.or_else(||occurrences
+            .get(&(frame.key, OperandKey::Value(value))))
             .ok_or_else(|| bad("checked Return view lacks its completed actual SSA receipt"))?;
         if !self.compatible(environment, actual, result, b)? {
             return Err(bad(
@@ -285,7 +289,7 @@ impl CheckedContext {
                 "checked Return view lacks its original directed outer relation",
             ));
         }
-        Ok(Some(!self.same(environment, source, target, b)?))
+        Ok(Some(current_write.is_some() || !self.same(environment, source, target, b)?))
     }
 }
 

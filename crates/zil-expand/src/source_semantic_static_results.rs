@@ -2,6 +2,7 @@
 //! header obligation. The executable borrow proofs still establish its roots.
 use super::*;
 
+#[derive(PartialEq)]
 enum Candidate<'a> {
     Other,
     Text,
@@ -14,6 +15,12 @@ enum Candidate<'a> {
     Record(Vec<(&'a str, Candidate<'a>)>),
 }
 type Bindings<'a> = Vec<(&'a str, Candidate<'a>, bool)>;
+type Saved<'a> = Vec<(usize, Candidate<'a>)>;
+struct LoopExits<'a> {
+    prefix: usize,
+    breaks: Option<Saved<'a>>,
+    backedges: Option<Saved<'a>>,
+}
 struct Flow<'a> {
     result: Option<Candidate<'a>>,
     fallthrough: bool,
@@ -477,6 +484,10 @@ impl Walk<'_, '_> {
                     _ => Candidate::Other,
                 }
             }
+            s::ExprKind::Unary {op:s::UnaryOp::Dereference,operand} if self.rebindings => {
+                self.expression(operand,env,depth+1)?;
+                Candidate::Other
+            }
             s::ExprKind::Binary { left, right, .. } if self.rebindings => {
                 self.expression(left, env, depth + 1)?;
                 self.expression(right, env, depth + 1)?;
@@ -511,7 +522,7 @@ impl Walk<'_, '_> {
     ) -> R<Option<Candidate<'a>>> {
         match body {
             s::ArrowBody::Expression(value) => Ok(Some(self.expression(value, env, depth + 1)?)),
-            s::ArrowBody::Block(body) => Ok(self.block(body, env, depth + 1)?.result),
+            s::ArrowBody::Block(body) => Ok(self.block(body, env, depth + 1, None)?.result),
         }
     }
     fn block<'a>(
@@ -519,6 +530,7 @@ impl Walk<'_, '_> {
         body: &'a s::Block,
         env: &mut Bindings<'a>,
         depth: usize,
+        mut jumps: Option<&mut LoopExits<'a>>,
     ) -> R<Flow<'a>> {
         self.budget.node(body.span, depth)?;
         let saved = env.len();
@@ -528,7 +540,7 @@ impl Walk<'_, '_> {
             if !fallthrough {
                 break;
             }
-            let next = self.statement(statement, env, depth + 1)?;
+            let next = self.statement(statement, env, depth + 1, jumps.as_deref_mut())?;
             self.merge(&mut result, next.result, statement.span, depth + 1)?;
             fallthrough = next.fallthrough;
         }
@@ -538,6 +550,160 @@ impl Walk<'_, '_> {
             fallthrough,
         })
     }
+    fn merge_loop_state<'a>(
+        &mut self,
+        prior: &mut Option<Saved<'a>>,
+        incoming: Saved<'a>,
+        span: Span,
+        depth: usize,
+    ) -> R<()> {
+        let Some(rows) = prior else {
+            *prior = Some(incoming);
+            return Ok(());
+        };
+        if rows.len() != incoming.len() {
+            return Err(error(
+                span,
+                "loop exit changes the enclosing lexical bindings",
+            ));
+        }
+        for ((index, old), (other, next)) in rows.iter_mut().zip(incoming) {
+            if *index != other {
+                return Err(error(
+                    span,
+                    "loop edge changes an enclosing mutable binding",
+                ));
+            }
+            *old = self.join(
+                std::mem::replace(old, Candidate::Other),
+                next,
+                span,
+                depth + 1,
+            )?;
+        }
+        Ok(())
+    }
+
+    fn same_loop_origins(
+        &mut self,
+        left: &Candidate<'_>,
+        right: &Candidate<'_>,
+        span: Span,
+        depth: usize,
+    ) -> R<bool> {
+        self.budget.node(span, depth)?;
+        match (left, right) {
+            (Candidate::Inputs(left), Candidate::Inputs(right)) => {
+                self.budget
+                    .identity_work(left.len().min(right.len()), span)?;
+                Ok(left == right)
+            }
+            (Candidate::Tuple(left), Candidate::Tuple(right)) if left.len() == right.len() => {
+                for (a, z) in left.iter().zip(right) {
+                    if !self.same_loop_origins(a, z, span, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            (Candidate::Record(left), Candidate::Record(right)) if left.len() == right.len() => {
+                for ((name, a), (other, z)) in left.iter().zip(right) {
+                    self.budget.text(name, span)?;
+                    self.budget.text(other, span)?;
+                    if name != other || !self.same_loop_origins(a, z, span, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            // Differing shapes and leaves compare in constant work.
+            _ => Ok(left == right),
+        }
+    }
+
+    fn loop_flow<'a>(
+        &mut self,
+        condition: Option<&'a s::Condition>,
+        pattern: Option<&'a s::Pattern>,
+        body: &'a s::Block,
+        env: &mut Bindings<'a>,
+        span: Span,
+        depth: usize,
+    ) -> R<Flow<'a>> {
+        let prefix = env.len();
+        let mut header = self.saved_bindings(env, span, depth)?;
+        let mut result = None;
+        let mut exits = None;
+        let may_exit = pattern.is_some()
+            || condition.is_some_and(|c| {
+                !matches!(
+                    c,
+                    s::Condition::Expression(s::Expr {
+                        kind: s::ExprKind::Literal(s::Literal::Bool(true)),
+                        ..
+                    })
+                )
+            });
+        loop {
+            self.budget.node(span, depth)?;
+            for (index, value) in &header {
+                env[*index].1 = self.copy(value, span, depth + 1)?;
+            }
+            if let Some(condition) = condition {
+                self.condition(condition, env, depth + 1)?;
+            }
+            if may_exit {
+                let mut state = self.saved_bindings(env, span, depth)?;
+                state.retain(|(index, _)| *index < prefix);
+                self.merge_loop_state(&mut exits, state, span, depth + 1)?;
+            }
+            if let Some(pattern) = pattern {
+                self.shadow(pattern, env, Candidate::Other, depth + 1)?;
+            }
+            let mut jumps = LoopExits {
+                prefix,
+                breaks: None,
+                backedges: None,
+            };
+            let step = self.block(body, env, depth + 1, Some(&mut jumps))?;
+            env.truncate(prefix);
+            self.merge(&mut result, step.result, span, depth + 1)?;
+            if let Some(state) = jumps.breaks {
+                self.merge_loop_state(&mut exits, state, span, depth + 1)?;
+            }
+            if step.fallthrough {
+                let state = self.saved_bindings(env, span, depth)?;
+                self.merge_loop_state(&mut jumps.backedges, state, span, depth + 1)?;
+            }
+            let Some(backedge) = jumps.backedges else {
+                break;
+            };
+            let mut stable = true;
+            for ((index, old), (other, edge)) in header.iter_mut().zip(backedge) {
+                if *index != other {
+                    return Err(error(span, "loop backedge changes an enclosing binding"));
+                }
+                let next = self.copy(old, span, depth + 1)?;
+                let next = self.join(next, edge, span, depth + 1)?;
+                stable &= self.same_loop_origins(old, &next, span, depth + 1)?;
+                *old = next;
+            }
+            if stable {
+                break;
+            }
+        }
+        let fallthrough = exits.is_some();
+        if let Some(exit) = exits {
+            for (index, value) in exit {
+                env[index].1 = value;
+            }
+        }
+        Ok(Flow {
+            result,
+            fallthrough,
+        })
+    }
+
     fn condition<'a>(
         &mut self,
         condition: &'a s::Condition,
@@ -561,6 +727,7 @@ impl Walk<'_, '_> {
         statement: &'a s::Stmt,
         env: &mut Bindings<'a>,
         depth: usize,
+        mut jumps: Option<&mut LoopExits<'a>>,
     ) -> R<Flow<'a>> {
         self.budget.node(statement.span, depth)?;
         let mut result = None;
@@ -595,7 +762,7 @@ impl Walk<'_, '_> {
                 let saved = env.len();
                 self.condition(condition, env, depth + 1)?;
                 let before = self.saved_bindings(env, statement.span, depth)?;
-                let left = self.block(then_body, env, depth + 1)?;
+                let left = self.block(then_body, env, depth + 1, jumps.as_deref_mut())?;
                 self.merge(&mut result, left.result, statement.span, depth + 1)?;
                 env.truncate(saved);
                 let mut left_bindings = before;
@@ -603,8 +770,8 @@ impl Walk<'_, '_> {
                     std::mem::swap(source,&mut env[*index].1);
                 }
                 let right = match else_body {
-                    Some(s::ElseBranch::Block(body)) => self.block(body, env, depth + 1)?,
-                    Some(s::ElseBranch::If(statement)) => self.statement(statement, env, depth + 1)?,
+                    Some(s::ElseBranch::Block(body)) => self.block(body, env, depth + 1, jumps.as_deref_mut())?,
+                    Some(s::ElseBranch::If(statement)) => self.statement(statement, env, depth + 1, jumps.as_deref_mut())?,
                     None => Flow { result: None, fallthrough: true },
                 };
                 self.merge(&mut result, right.result, statement.span, depth + 1)?;
@@ -618,36 +785,24 @@ impl Walk<'_, '_> {
                     }
                 }
             }
-            s::StmtKind::While { condition, body } => {
-                self.invalidate_mutable(env,statement.span)?;
-                let saved = env.len();
-                self.condition(condition, env, depth + 1)?;
-                result = self.block(body, env, depth + 1)?.result;
-                env.truncate(saved);
-            }
-            s::StmtKind::For { pattern, body, .. } => {
-                self.invalidate_mutable(env,statement.span)?;
-                let saved = env.len();
-                self.shadow(pattern, env, Candidate::Other, depth + 1)?;
-                result = self.block(body, env, depth + 1)?.result;
-                env.truncate(saved);
+            s::StmtKind::While {condition,body} =>
+                return self.loop_flow(Some(condition),None,body,env,statement.span,depth+1),
+            s::StmtKind::For {pattern,iterable,body} => {
+                if self.rebindings {self.expression(iterable,env,depth+1)?;}
+                return self.loop_flow(None,Some(pattern),body,env,statement.span,depth+1);
             }
             s::StmtKind::With { name, body, .. } => {
                 let saved = env.len();
                 self.bind(env, name, Candidate::Other, statement.span)?;
-                let inner = self.block(body, env, depth + 1)?;
+                let inner = self.block(body, env, depth + 1, jumps.as_deref_mut())?;
                 result = inner.result;
                 fallthrough = inner.fallthrough;
                 env.truncate(saved);
             }
-            s::StmtKind::Loop(body) => {
-                self.invalidate_mutable(env,statement.span)?;
-                // A break may continue after the loop. Keep this conservative
-                // without evaluating loop conditions or inventing reachability.
-                result = self.block(body, env, depth + 1)?.result;
-            }
+            s::StmtKind::Loop(body) =>
+                return self.loop_flow(None,None,body,env,statement.span,depth+1),
             s::StmtKind::Unsafe(body) => {
-                let inner = self.block(body, env, depth + 1)?;
+                let inner = self.block(body, env, depth + 1, jumps.as_deref_mut())?;
                 result = inner.result;
                 fallthrough = inner.fallthrough;
             }
@@ -661,7 +816,7 @@ impl Walk<'_, '_> {
                     self.shadow(&arm.pattern, env, selected, depth + 1)?;
                     // Expression arms are statement expressions, not returns.
                     if let s::ArrowBody::Block(body) = &arm.body {
-                        let inner = self.block(body, env, depth + 1)?;
+                        let inner = self.block(body, env, depth + 1, jumps.as_deref_mut())?;
                         self.merge(&mut result, inner.result, statement.span, depth + 1)?;
                         fallthrough |= inner.fallthrough;
                     } else {
@@ -671,7 +826,15 @@ impl Walk<'_, '_> {
                 }
             }
             s::StmtKind::Meta(_) => result = Some(Candidate::Other),
-            s::StmtKind::Break | s::StmtKind::Continue => fallthrough = false,
+            s::StmtKind::Break | s::StmtKind::Continue => {
+                if let Some(jumps)=jumps {
+                    let mut state=self.saved_bindings(env,statement.span,depth)?;
+                    state.retain(|(index,_)|*index<jumps.prefix);
+                    let edges=if matches!(statement.kind,s::StmtKind::Break){&mut jumps.breaks}else{&mut jumps.backedges};
+                    self.merge_loop_state(edges,state,statement.span,depth+1)?;
+                }
+                fallthrough=false;
+            }
             s::StmtKind::Assign {target,op,value} if self.rebindings => {
                 let s::ExprKind::Name(name) = &target.kind else {
                     self.invalidate_mutable(env,statement.span)?;
@@ -695,7 +858,7 @@ impl Walk<'_, '_> {
             s::StmtKind::Assign { .. }
             | s::StmtKind::Yield(_) => {}
         }
-        if matches!(statement.kind,s::StmtKind::While{..}|s::StmtKind::For{..}|s::StmtKind::Loop(_)|s::StmtKind::Match{..}) {
+        if matches!(statement.kind,s::StmtKind::Match{..}) {
             self.invalidate_mutable(env,statement.span)?;
         }
         Ok(Flow {
@@ -744,7 +907,7 @@ fn original_result<'a>(
         walk.bind(&mut env, &input.name, source, input.span)?;
     }
     match &function.body {
-        s::FunctionBody::Block(body) => Ok(walk.block(body, &mut env, 0)?.result),
+        s::FunctionBody::Block(body) => Ok(walk.block(body, &mut env, 0, None)?.result),
         s::FunctionBody::Expression(value) => Ok(Some(walk.expression(value, &mut env, 0)?)),
         s::FunctionBody::Declaration => Ok(None),
     }
@@ -788,6 +951,10 @@ mod tests {
             ("return if f {a} else {b}", (vec![0, 1], false)),
             ("var q=a; if f {q=b;} return q", (vec![1,0], false)),
             ("var q=a; q=b; return q", (vec![1], false)),
+            ("var q=a; while f {q=b;break;} return q", (vec![0,1], false)),
+            ("var q=a; loop {q=b;break;} return q", (vec![1], false)),
+            ("var q=a; while f {q=b;continue;} return q", (vec![0,1], false)),
+            ("var q=a; if f {let q=b;let seen=*q;} return q", (vec![0], false)),
             ("if f {return b;} return a", (vec![1, 0], false)),
             ("return if f {a} else {a}", (vec![0], false)),
             ("return if f {b} else {\"ABC\"}", (vec![1], true)),

@@ -261,6 +261,7 @@ pub(super) struct Proof {
     pub(super) compile_time_results: BTreeSet<(SemanticDefinitionId, NodeId)>,
     cleanup_calls: BTreeSet<(SemanticDefinitionId, SemanticSiteId)>,
     pub local_roles: BTreeMap<(SemanticDefinitionId, NodeId), LocalRole>,
+    pub return_writers: BTreeMap<(SemanticDefinitionId,NodeId),(NodeId,SemanticOuterLifeRecipe)>,
     pub scope_calls: BTreeMap<
         (SemanticDefinitionId, SemanticSiteId, SemanticDefinitionId),
         Vec<SemanticActualRecipe>,
@@ -345,6 +346,7 @@ struct Binding {
     observed: bool,
     capture: bool,
     borrowed: bool,
+    reaching_write: OriginalSlotWrite,
     origin: Query,
     origin_owner: SemanticDefinitionId,
     initialized: bool,
@@ -4010,7 +4012,7 @@ impl<'a> Check<'a, '_> {
                     self.pay(name.len().saturating_add(1), depth)?;
                     self.insert_binding(variables, name.clone(), Binding {
                         ty: std::rc::Rc::new(ty), mutable: false, used: false, observed: false, capture: false,
-                        borrowed: false, origin: Query::Expression(source.id), origin_owner: owner,
+                        reaching_write: OriginalSlotWrite::Unknown, borrowed: false, origin: Query::Expression(source.id), origin_owner: owner,
                         initialized: true, written: false, resource_root: None,
                         taken_fields: BTreeSet::new(), shadowed: None,
                     }, depth)?;
@@ -4631,7 +4633,7 @@ impl<'a> Check<'a, '_> {
             };
             let mut captured = BTreeMap::new();
             let mut given = BTreeSet::new();
-            for (name, value) in variables.iter() {
+            for (name, value) in variables.iter_mut() {
                 self.pay(
                     name.len().saturating_add(
                         candidates.names.len().saturating_add(1).ilog2() as usize + 2,
@@ -4662,6 +4664,7 @@ impl<'a> Check<'a, '_> {
                     given.insert(name.clone());
                 }
                 let moved = *move_capture || inferred;
+                if !moved {value.reaching_write=OriginalSlotWrite::Exposed;}
                 let mut value = Binding {
                     ty: value.ty.clone(),
                     mutable: value.mutable,
@@ -4669,6 +4672,7 @@ impl<'a> Check<'a, '_> {
                     observed: value.observed,
                     capture: value.capture,
                     borrowed: value.borrowed,
+                    reaching_write: OriginalSlotWrite::Exposed,
                     origin: value.origin.clone(),
                     origin_owner: value.origin_owner,
                     initialized: value.initialized,
@@ -4849,6 +4853,18 @@ impl<'a> Check<'a, '_> {
         wanted: Option<&SemanticTypeRecipe>,
         depth: usize,
     ) -> R<SemanticTypeRecipe> {
+        if matches!(expression.kind,CoreExprKind::Unary{op:UnaryOp::BorrowMut,..}) {
+            let mut place=operand;
+            while let CoreExprKind::Group(inner)|CoreExprKind::Ascribed {value:inner,..}=&place.kind {
+                self.pay(1,depth)?;
+                place=inner;
+            }
+            if let CoreExprKind::Name(name)=&place.kind {
+                self.pay(name.len().saturating_add(variables.len().saturating_add(1).ilog2() as usize+1),depth)?;
+                if let Some(slot)=variables.get_mut(name) {slot.reaching_write=OriginalSlotWrite::Exposed;}
+            }
+        }
+
         let result = {
             if matches!(
                 &expression.kind,
@@ -4976,6 +4992,7 @@ impl<'a> Check<'a, '_> {
         self.pay(branches.len(), depth)?;
         let mut used = false;
         let mut initialized = !branches.is_empty();
+        let mut reaching_write:Option<OriginalSlotWrite>=None;
         let mut taken_fields = BTreeSet::new();
         for branch in branches {
             let inner = self.binding_at(branch, &output.origin)?;
@@ -4984,6 +5001,7 @@ impl<'a> Check<'a, '_> {
             output.observed |= inner.observed;
             output.written |= inner.written;
             initialized &= inner.initialized;
+            reaching_write=Some(reaching_write.map_or(inner.reaching_write,|old|old.merged(inner.reaching_write)));
             self.pay(inner.taken_fields.len(), depth)?;
             for field in &inner.taken_fields {
                 self.pay(field.len(), depth)?;
@@ -4995,6 +5013,7 @@ impl<'a> Check<'a, '_> {
         // are not an additional incoming control-flow edge.
         output.used = used;
         output.initialized = initialized;
+        output.reaching_write = reaching_write.unwrap_or_default();
         if let Some(hidden) = &mut output.shadowed {
             if std::rc::Rc::strong_count(hidden) > 1 {
                 self.charge_binding_clone(hidden)?;
@@ -5315,7 +5334,7 @@ impl<'a> Check<'a, '_> {
                         used: false,
                         observed: false,
                         capture: false,
-                        borrowed: false,
+                        borrowed: false, reaching_write: OriginalSlotWrite::Unknown,
                         origin,
                         origin_owner: owner,
                         initialized: true,
@@ -6385,7 +6404,7 @@ impl<'a> Check<'a, '_> {
                 used: false,
                 observed: false,
                 capture: false,
-                borrowed: false,
+                borrowed: false, reaching_write: initializer.as_ref().map_or(OriginalSlotWrite::Unknown,|rhs|OriginalSlotWrite::Write(rhs.id)),
                 origin: Query::Binding(statement.id),
                 origin_owner: owner,
                 initialized: initializer.is_some(),
@@ -6495,6 +6514,9 @@ impl<'a> Check<'a, '_> {
                 ));
             }
             self.same(&value, hidden)?;
+        } else if self.returned_slot_write(owner,value_node,variables,&value,&expected,depth+1)? {
+            // The selected read has its own reaching writer. The declaration
+            // retains all of its sources for other uses and incoming paths.
         } else if self.inferred_return_head(owner, &expected)? {
             self.return_edge(owner, value_node, variables, &value, &expected, depth + 1)?;
         } else if !task_family
@@ -6613,6 +6635,7 @@ impl<'a> Check<'a, '_> {
             target.used = false;
             target.initialized = true;
             target.written = true;
+            target.reaching_write.assign(value.id);
             target.taken_fields.clear();
         } else if let CoreExprKind::Member { object, member, .. } = &target.kind {
             if let CoreExprKind::Name(name) = &object.kind {
@@ -6687,7 +6710,7 @@ impl<'a> Check<'a, '_> {
                 used: false,
                 observed: false,
                 capture: false,
-                borrowed: false,
+                borrowed: false, reaching_write: OriginalSlotWrite::Unknown,
                 origin,
                 origin_owner: owner,
                 initialized: true,
@@ -6841,7 +6864,7 @@ impl<'a> Check<'a, '_> {
                     used: false,
                     observed: false,
                     capture: false,
-                    borrowed: false,
+                    borrowed: false, reaching_write: OriginalSlotWrite::Unknown,
                     origin: query,
                     origin_owner: definition.id,
                     initialized: true,

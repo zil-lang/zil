@@ -1296,6 +1296,104 @@ fn elided_return_sources_follow_reaching_local_assignments() {
 }
 
 #[test]
+fn overwritten_return_slot_uses_only_its_reaching_writer() {
+    let definition = "fn pick(a:&i64,b:&i64,c:&i64,f:bool)->&i64{var q=a;q=b;return q;}";
+    let caller = "fn result()->i64{var x=10i64;var y=20i64;var z=30i64;
+        let p=pick(&x,&y,&z,true);x=7i64;return *p+z;}";
+    let input = format!("{definition}{caller}");
+    native(&input, 50);
+    let report = compile_source(
+        &source(&input.replace("x=7i64", "y=7i64")),
+        &CompileOptions::default(),
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-BORROW-CONFLICT"),
+        "{}",
+        report.to_json()
+    );
+
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let unit = source(&input);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand_with_map_semantics(
+        &unit,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let mut module = zil_types::check(&core, &target, &limits).unwrap();
+    let mut candidate = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+    let f = &mut module.functions[0];
+    let old = f.parameters[0];
+    let new = f.parameters[1];
+    let block = &mut f.blocks[0];
+    let mint = |local| {
+        block
+            .instructions
+            .iter()
+            .find_map(|instruction| {
+                matches!(instruction.kind,InstructionKind::Load(slot) if slot==local)
+                    .then_some(instruction.result)
+                    .flatten()
+            })
+            .unwrap()
+    };
+    let old = mint(old);
+    let new = mint(new);
+    let store = block
+        .instructions
+        .iter_mut()
+        .find_map(|ins| match &mut ins.kind {
+            InstructionKind::Store { value, .. } if *value == new => Some(value),
+            _ => None,
+        })
+        .unwrap();
+    *store = old;
+    candidate.module_fingerprint = module.fingerprint();
+    assert!(zil_analyze::analyze(&module, &limits).is_err());
+    let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    let raw = zil_verify::verify_module(module, candidate, &target, &limits).unwrap_err();
+    let decoded = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert_eq!(raw[0].category, ResultCategory::SafeReject);
+    assert_eq!(decoded[0].code, raw[0].code);
+}
+
+#[test]
+fn returned_local_keeps_loop_exits_and_lexical_shadowing_separate() {
+    check_local_result_sources("var q=a; while f {q=b;break;} return q;", 27);
+    let caller = "fn result()->i64{var x=10i64;var y=20i64;var z=30i64;
+        let p=pick(&x,&y,&z,true);y=7i64;return *p+z;}";
+    let definition = "fn pick(a:&i64,b:&i64,c:&i64,f:bool)->&i64{
+        var q=a;if f {let q=b;let observed=*q;}return q;}";
+    native(&format!("{definition}{caller}"), 40);
+    let bad = format!("{definition}{}", caller.replace("y=7i64", "x=7i64"));
+    let report = compile_source(&source(&bad), &CompileOptions::default());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-BORROW-CONFLICT"),
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
 fn independent_local_join_does_not_supply_return_sources() {
     for returned in ["c", "if f { c } else { d }"] {
         let body = format!(

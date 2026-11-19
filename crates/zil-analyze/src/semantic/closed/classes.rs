@@ -3832,6 +3832,34 @@ impl Check<'_, '_> {
 }
 
 impl Check<'_, '_> {
+    pub(super) fn returned_slot_value(&self,instance:&SemanticInstance,function:&TypedFunction,id:ValueId,b:&mut Budget)->CompileResult<Option<Value>>{
+        if self.original.returned_slot_writes.is_empty() || !matches!(function.values.get(id.0 as usize),Some(Type::Address{mutable:false,..})){return Ok(None);}
+        let (_,_,instruction)=self.defining(function,id,b)?;
+        if let InstructionKind::Load(local)=instruction.kind
+        {
+            for site in self.inventory.sites_for_value(self.program,instance.id,id,b)? {
+                if !matches!(site.action,SemanticSiteAction::TypeUse {subject:SemanticOperand::Value(subject),..} if subject==id){continue;}
+                let source_index=self.inventory.original_index(instance.definition,b)?;
+                let Some(SemanticOriginalNode::Expression(node))=source_index.site_node(site.recipe,b)? else{continue;};
+                b.lookup(self.original.returned_slot_writes.len(),WORK)?;
+                let Some((binding,writer))=self.original.returned_slot_writes.get(&(instance.definition,node)) else{continue;};
+                if self.anchored_local(instance,function,original::LocalAnchor::Binding(*binding),b)?!=local {
+                    return Err(fail("returned pointer read changes its original lexical slot"));
+                }
+                let mut mint=None;
+                for written in self.inventory.sites_for_expression(self.program,instance,*writer,b)? {
+                    if let SemanticSiteAction::TypeUse {subject:SemanticOperand::Value(value),..}=written.action {
+                        if mint.replace(value).is_some_and(|old|old!=value){return Err(fail("returned pointer writer has competing actual operands"));}
+                    }
+                }
+                let mint=mint.ok_or_else(||fail("returned pointer write needs its actual original value operand"))?;
+                self.original_producer_value(function,id,mint,b)?;
+                return self.ssa_value(instance,function,mint,b,0).map(Some);
+            }
+        }
+        Ok(None)
+    }
+
     pub(super) fn receiver_return_role(
         &self,
         instance: &SemanticInstance,

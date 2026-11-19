@@ -1486,6 +1486,10 @@ impl Check<'_, '_> {
                 Some(SemanticOuterLifeRecipe::Class(source)),
                 SemanticOuterLifeRecipe::Class(target),
             ) => {
+                let current_write=if local_source_copy(bound.root,&bound.steps) && !self.proof.return_writers.is_empty() {
+                    self.pay(self.proof.return_writers.len().ilog2() as usize+2,depth)?;
+                    self.proof.return_writers.get(&(owner,expression.id)).is_some_and(|(_,life)|life==wanted)
+                } else {false};
                 let returned_local = match (bound.root,target) {
                     (ViewBorrowRoot::Local(binding),SemanticLifeRecipe::Implicit {
                         scope: SemanticScopeRef::Ancestor(0), ordinal
@@ -1496,7 +1500,7 @@ impl Check<'_, '_> {
                     }
                     _ => false,
                 };
-                returned_local || self.life_outlives(owner, source, target, depth + 1)?
+                current_write || returned_local || self.life_outlives(owner, source, target, depth + 1)?
             }
             _ => false,
         };

@@ -104,6 +104,7 @@ pub(super) struct CheckedOriginal {
     // The selected arm is solved in original Γ before any actual emission.
     injections: BTreeMap<(SemanticDefinitionId, NodeId), (bool, Ty)>,
     bindings: BTreeMap<(SemanticDefinitionId, NodeId), Ty>,
+    pub(in crate::semantic) returned_slot_writes: BTreeMap<(SemanticDefinitionId, NodeId), (NodeId, NodeId)>,
     local_roles: BTreeMap<(SemanticDefinitionId, NodeId), local_roles::LocalRole>,
     binding_families: BTreeMap<(SemanticDefinitionId, NodeId), Ty>,
     parameters: BTreeMap<(SemanticDefinitionId, u32), Ty>,
