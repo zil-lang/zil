@@ -69,7 +69,8 @@ impl CheckedContext {
                     let slot = match spills.entry((f.id, local)) {
                         std::collections::btree_map::Entry::Occupied(known) => *known.get(),
                         std::collections::btree_map::Entry::Vacant(new) => {
-                            *new.insert(capture_mirrors::activation(&self.site_index.producers, f, local, b)?)
+                            *new.insert(capture_mirrors::activation(&self.site_index.producers, f, local, b)?
+                                .map(|(capture, _)| capture))
                         }
                     };
                     return Ok(slot);

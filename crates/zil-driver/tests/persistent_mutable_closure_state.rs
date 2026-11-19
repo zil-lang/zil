@@ -338,14 +338,12 @@ fn raw_capture_address_cannot_be_overwritten() {
     assert_eq!(error[0].code, "E-VERIFY-CAPTURE");
 }
 
-#[test]
-fn projected_capture_updates_keep_their_original_state_and_destination() {
-    use zil_ir::{Constant, Type};
-    let target = TargetProfile::host_llvm();
-    let limits = Limits::default();
-    let unit = source(include_str!(
-        "../../../examples/owned-state-closure/main.zil"
-    ));
+fn checked_capture_program(
+    text: &str,
+    target: &TargetProfile,
+    limits: &Limits,
+) -> (TypedModule, CandidatePlan) {
+    let unit = source(text);
     let ast = zil_syntax::parse(&unit).into_result().unwrap();
     let aliases = Default::default();
     let context = zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
@@ -357,18 +355,85 @@ fn projected_capture_updates_keep_their_original_state_and_destination() {
         &[unit],
         &[&ast],
         &[Vec::new()],
-        &limits,
-        &target,
+        limits,
+        target,
         context,
     )
     .unwrap()
     .remove(0)
     .0;
-    let raw = zil_types::check(&expanded.core, &target, &limits).unwrap();
-    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
-    let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
-    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
-    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    let raw = zil_types::check(&expanded.core, target, limits).unwrap();
+    let plan = zil_analyze::analyze(&raw, limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), target, limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, target, limits).unwrap();
+    (raw, plan)
+}
+
+#[test]
+fn modified_scalar_capture_is_the_source_of_the_next_call() {
+    let text = r#"
+fn pass(x:i64)->i64{return x}
+fn answer()->i64{
+    var left:i64=19;var right:i64=21
+    var f=move()->i64=>{left+=1;right+=1;return pass(left)*10i64+pass(right)}
+    let first=f();return first*1000i64+f()
+}
+"#;
+    native(text, 222233);
+    let target = TargetProfile::host_llvm();
+    let limits = Limits::default();
+    let (raw, plan) = checked_capture_program(text, &target, &limits);
+    let caller = raw
+        .functions
+        .iter()
+        .find(|f| f.environment.is_some())
+        .unwrap();
+    let writes: Vec<_> = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .filter_map(|op| match op.kind {
+            InstructionKind::WriteCapture { index, value } => Some((index, value)),
+            _ => None,
+        })
+        .collect();
+    let [first, second] = writes.as_slice() else {
+        panic!("expected two captured updates");
+    };
+    assert_ne!(first.0, second.0);
+    for change_slot in [false, true] {
+        let mut changed = raw.clone();
+        let op = changed.functions[caller.id.0 as usize].blocks.iter_mut()
+            .flat_map(|b| &mut b.instructions)
+            .find(|op| matches!(op.kind, InstructionKind::WriteCapture { index, .. } if index == second.0))
+            .unwrap();
+        if let InstructionKind::WriteCapture { index, value } = &mut op.kind {
+            if change_slot {
+                *index = first.0;
+            } else {
+                *value = first.1;
+            }
+        }
+        let mut claim = plan.clone();
+        claim.module_fingerprint = changed.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&changed, &claim, &limits).unwrap();
+        assert!(zil_analyze::analyze(&changed, &limits).is_err());
+        assert!(zil_verify::verify_module(changed, claim, &target, &limits).is_err());
+        assert!(zil_verify::verify_module_bytes(&wire, &target, &limits).is_err());
+    }
+}
+
+#[test]
+fn projected_capture_updates_keep_their_original_state_and_destination() {
+    use zil_ir::{Constant, Type};
+    let target = TargetProfile::host_llvm();
+    let limits = Limits::default();
+    let (raw, plan) = checked_capture_program(
+        include_str!("../../../examples/owned-state-closure/main.zil"),
+        &target,
+        &limits,
+    );
 
     for change in ["stale capture", "array element", "tuple field"] {
         let mut changed = raw.clone();

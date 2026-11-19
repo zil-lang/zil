@@ -13,6 +13,11 @@ pub(super) fn initial(
     let Some(declaration) = f.locals.get(local.0 as usize) else {
         return Err(bad("capture mirror local is absent"));
     };
+    // A whole scalar assignment replaces the local's data. Its binding remains
+    // the captured slot when every write is published by the same activation.
+    if declaration.mutable && declaration.ty.is_b0_scalar() {
+        return Ok(activation(producers, f, local, b)?.map(|(_, initial)| initial));
+    }
     if !declaration.mutable || !matches!(declaration.ty, Type::Tuple(_) | Type::Record { .. }) {
         return Ok(None);
     }
@@ -152,7 +157,7 @@ pub(super) fn initial(
 /// its slot would select another indirection. The CFG proves each actual loan.
 pub(super) fn activation(
     producers: &sites::Producers, f: &TypedFunction, local: LocalId, b: &mut Budget,
-) -> Check<Option<u32>> {
+) -> Check<Option<(u32, ValueId)>> {
     let declaration = f.locals.get(local.0 as usize).ok_or_else(|| bad("forwarded capture local is absent"))?;
     let address = matches!(declaration.ty, Type::Address { .. });
     if !address && !declaration.ty.is_b0_scalar() { return Ok(None); }
@@ -196,5 +201,5 @@ pub(super) fn activation(
             }
         }
     }
-    Ok(Some(*index))
+    Ok(Some((*index, value)))
 }
