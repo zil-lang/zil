@@ -571,6 +571,21 @@ impl State {
             expression.span,
         )
     }
+    pub(super) fn semantic_propagation_injected(
+        &mut self,
+        function: FunctionId,
+        expression: &CoreExpr,
+        at: crate::semantics::emission::Point,
+        value: ValueId,
+    ) -> R<()> {
+        self.semantic_emission.propagation_injected(
+            function,
+            expression.id,
+            crate::semantics::emission::Construction { value, at },
+            &mut self.work_left,
+            expression.span,
+        )
+    }
     pub(super) fn semantic_callee_place(
         &mut self, function: FunctionId, expression: &CoreExpr, address: ValueId,
     ) -> R<()> {
@@ -733,7 +748,7 @@ impl State {
     }
     pub(super) fn semantic_finish_function(&mut self, function: &TypedFunction) -> R<()> {
         self.semantic_emission
-            .finish_function(function, &mut self.work_left)
+            .finish_function(function, &self.limits, &mut self.work_left)
     }
     // Private work-product receipts record only shared accounting, never proof.
     pub(super) fn accounting(&self) -> [usize; 6] {

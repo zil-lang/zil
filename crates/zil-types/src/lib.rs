@@ -2538,6 +2538,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let Some(variant) = enums::anonymous_injection(&actual, sum, e.span)? else {
             return Ok((value, actual));
         };
+        let at = self.propagation_injection_point(e);
         let result = self.value(
             InstructionKind::MakeVariant {
                 variant,
@@ -2546,6 +2547,9 @@ impl<'a, 'c> Builder<'a, 'c> {
             sum.clone(),
             e.span,
         )?;
+        if let Some(at) = at {
+            self.closures.semantic_propagation_injected(self.function.id, e, at, result)?;
+        }
         Ok((result, sum.clone()))
     }
     fn expr_error_injection(&mut self, e: &CoreExpr, union: &Type) -> R<(ValueId, Type)> {
@@ -2569,7 +2573,21 @@ impl<'a, 'c> Builder<'a, 'c> {
             _ => None,
         };
         let (value, actual) = self.expr_raw(e, payload_expected)?;
-        self.inject_error_union(value, actual, union, e.span)
+        let at = self.propagation_injection_point(e);
+        let result = self.inject_error_union(value, actual, union, e.span)?;
+        if let Some(at) = at && result.0 != value {
+            self.closures.semantic_propagation_injected(self.function.id, e, at, result.0)?;
+        }
+        Ok(result)
+    }
+    fn propagation_injection_point(&self, e: &CoreExpr) -> Option<crate::semantics::emission::Point> {
+        if !matches!(e.kind, CoreExprKind::Try(..)) {
+            return None;
+        }
+        self.current.map(|block| crate::semantics::emission::Point {
+            block,
+            instruction: self.function.blocks[block.0 as usize].instructions.len(),
+        })
     }
     fn expr_non_call(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
         // These variants historically return before the common expected-type

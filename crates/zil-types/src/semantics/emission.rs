@@ -28,6 +28,7 @@ pub(crate) struct Propagation {
     pub tag: Point,
     pub error: Point,
     pub success: Construction,
+    pub injection: Option<Construction>,
 }
 #[derive(Default)]
 pub(crate) struct Expression {
@@ -784,6 +785,30 @@ impl Ledger {
         }
         Ok(())
     }
+    pub(crate) fn propagation_injected(
+        &mut self,
+        function: FunctionId,
+        expression: NodeId,
+        injection: Construction,
+        left: &mut usize,
+        span: Span,
+    ) -> R<()> {
+        if self.frames.is_empty() {
+            return Ok(());
+        }
+        pay(left, lookup_cost(self.frames.len()), span)?;
+        let Some(frame) = self.frames.get_mut(&function) else {
+            return Ok(());
+        };
+        pay(left, lookup_cost(frame.propagations.len()).saturating_add(1), span)?;
+        let propagation = frame.propagations.get_mut(&expression)
+            .filter(|_| frame.stack.last() == Some(&expression))
+            .ok_or_else(|| invalid(span, "contextual injection has no active propagation"))?;
+        if propagation.injection.replace(injection).is_some() {
+            return Err(invalid(span, "propagation has two contextual injections"));
+        }
+        Ok(())
+    }
     /// A direct place lookup does not load or move its whole value merely to
     /// supply a type-use witness. Record the actual initialized location at
     /// the operation that selected it; no type/name lookup at lowering time.
@@ -1127,7 +1152,7 @@ impl Ledger {
         }
         Ok(())
     }
-    pub fn finish_function(&self, function: &TypedFunction, left: &mut usize) -> R<()> {
+    pub fn finish_function(&self, function: &TypedFunction, limits: &Limits, left: &mut usize) -> R<()> {
         if self.frames.is_empty() {
             return Ok(());
         }
@@ -1228,8 +1253,7 @@ impl Ledger {
             }
         }
         for (&expression, propagation) in &frame.propagations {
-            pay(left, lookup_cost(frame.expressions.len()).saturating_add(6), span)?;
-            frame.check_propagation(function, expression, propagation)?;
+            frame.check_propagation(function, expression, propagation, limits, left)?;
         }
         for (local, at) in &frame.live_locals {
             pay(left, 1, span)?;
@@ -1378,10 +1402,11 @@ impl Ledger {
             }
         }
         for propagation in frame.propagations.values_mut() {
-            pay(left, 3, span)?;
+            pay(left, 3 + usize::from(propagation.injection.is_some()), span)?;
             if !change(&mut propagation.tag)
                 || !change(&mut propagation.error)
                 || !change(&mut propagation.success.at)
+                || propagation.injection.as_mut().is_some_and(|injection| !change(&mut injection.at))
             {
                 return Err(invalid(span, "propagation receipt lost its actual operation"));
             }
@@ -1410,12 +1435,20 @@ impl Frame {
         function: &TypedFunction,
         expression: NodeId,
         propagation: &Propagation,
+        limits: &Limits,
+        left: &mut usize,
     ) -> R<()> {
         let span = function.span;
+        pay(left, lookup_cost(self.expressions.len()).saturating_mul(2).saturating_add(8), span)?;
         let operand = self.expressions.get(&propagation.operand)
             .filter(|row| row.complete)
             .and_then(|row| row.value)
             .ok_or_else(|| invalid(span, "propagation lacks its completed actual operand"))?;
+        let ty = function.values.get(operand.0 as usize)
+            .filter(|ty| matches!(ty, Type::ErrorUnion { .. }))
+            .ok_or_else(|| invalid(span, "propagation operand has no actual error-union type"))?;
+        inference::charge_type_snapshot(ty, span, limits, left, 1)?;
+        let consuming = errors::owned(ty);
         let block = |at: Point| {
             function.blocks.get(at.block.0 as usize).filter(|row| row.id == at.block)
         };
@@ -1433,31 +1466,246 @@ impl Frame {
         }
         let arm = |at: Point, error: bool| {
             let row = instruction(at)?;
-            let consuming = match row.kind {
+            match row.kind {
                 InstructionKind::ReadErrorUnion { value, is_error }
-                    if value == operand && is_error == error => false,
+                    if !consuming && value == operand && is_error == error => row.result,
                 InstructionKind::TakeErrorUnion { value, is_error }
-                    if value == operand && is_error == error => true,
-                _ => return None,
-            };
-            Some((row.result?, consuming))
+                    if consuming && value == operand && is_error == error => row.result,
+                _ => None,
+            }
         };
-        let failed = arm(propagation.error, true);
-        let succeeded = arm(propagation.success.at, false);
-        match (failed, succeeded) {
-            (Some((_, consuming_error)), Some((result, consuming_success)))
-                if result == propagation.success.value && consuming_error == consuming_success => Ok(()),
-            _ => Err(invalid(span, &format!(
+        let success = propagation.success.value;
+        let failure = arm(propagation.error, true)
+            .filter(|_| arm(propagation.success.at, false) == Some(success))
+            .ok_or_else(|| invalid(span, &format!(
                 "propagation {expression:?} changes a payload of original operand {:?} emitted as {operand:?}",
                 propagation.operand,
-            ))),
+            )))?;
+        let published = self.expressions.get(&expression)
+            .filter(|row| row.complete)
+            .and_then(|row| row.value);
+        let actual = match propagation.injection {
+            None => Some(success),
+            Some(injection) if injection.at.block == propagation.success.at.block
+                && injection.at.instruction > propagation.success.at.instruction => {
+                instruction(injection.at).and_then(|row| match &row.kind {
+                    InstructionKind::MakeErrorUnion { value, .. } if *value == success => row.result,
+                    InstructionKind::MakeVariant { fields, .. } if fields.as_slice() == [success] => row.result,
+                    _ => None,
+                }).filter(|value| *value == injection.value)
+            }
+            Some(_) => None,
+        };
+        if actual.is_none() || published != actual {
+            return Err(invalid(span, "propagation expression does not publish its actual success payload"));
         }
+        let failed = block(propagation.error).expect("failure projection resolved in this block");
+        let following = &failed.instructions[propagation.error.instruction + 1..];
+        pay(left, following.len(), span)?;
+        if !matches!(failed.terminator, Terminator::Return(Some(output))
+            if following.iter().any(|row| row.result == Some(output) && matches!(row.kind,
+                InstructionKind::MakeErrorUnion { is_error: true, value } if value == failure)))
+        {
+            return Err(invalid(span, "propagation error exit does not return its actual failure payload"));
+        }
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn propagation_keeps_both_payloads_and_the_completed_expression() {
+        let span = Span::default();
+        let union = Type::ErrorUnion {
+            error: Box::new(Type::Bool),
+            result: Box::new(Type::I32),
+        };
+        let returned = ValueId(5);
+        let operand = ValueId(0);
+        let success = ValueId(4);
+        let failure = ValueId(2);
+        let instruction = |result, kind| Instruction {
+            result: Some(result),
+            kind,
+            span,
+        };
+        let mut function = TypedFunction {
+            dyn_instance: None,
+            retained_return_sources: None,
+            storage_life: None,
+            call_kind: CallKind::Direct,
+            resume_bound: TaskResumeBound::Local,
+            reference_return_bound: None,
+            callable_return_contract: None,
+            callable_contract: None,
+            protocol_contracts: vec![],
+            id: FunctionId(0),
+            name: "forward".into(),
+            foreign: None,
+            environment: None,
+            parameters: vec![LocalId(0)],
+            return_type: union.clone(),
+            result_mode: PassingMode::Infer,
+            locals: vec![LocalDecl {
+                id: LocalId(0),
+                name: "source".into(),
+                ty: union.clone(),
+                mutable: false,
+                span,
+            }],
+            values: vec![
+                union.clone(),
+                Type::Bool,
+                Type::Bool,
+                union.clone(),
+                Type::I32,
+                union,
+            ],
+            blocks: vec![
+                BasicBlock {
+                    id: BlockId(0),
+                    instructions: vec![
+                        instruction(operand, InstructionKind::Load(LocalId(0))),
+                        instruction(ValueId(1), InstructionKind::ErrorTag { value: operand }),
+                    ],
+                    terminator: Terminator::Branch {
+                        condition: ValueId(1),
+                        then_block: BlockId(1),
+                        else_block: BlockId(2),
+                    },
+                },
+                BasicBlock {
+                    id: BlockId(1),
+                    instructions: vec![
+                        instruction(
+                            failure,
+                            InstructionKind::ReadErrorUnion {
+                                value: operand,
+                                is_error: true,
+                            },
+                        ),
+                        instruction(
+                            ValueId(3),
+                            InstructionKind::MakeErrorUnion {
+                                value: failure,
+                                is_error: true,
+                            },
+                        ),
+                    ],
+                    terminator: Terminator::Return(Some(ValueId(3))),
+                },
+                BasicBlock {
+                    id: BlockId(2),
+                    instructions: vec![
+                        instruction(
+                            success,
+                            InstructionKind::ReadErrorUnion {
+                                value: operand,
+                                is_error: false,
+                            },
+                        ),
+                        instruction(
+                            returned,
+                            InstructionKind::MakeErrorUnion {
+                                value: success,
+                                is_error: false,
+                            },
+                        ),
+                    ],
+                    terminator: Terminator::Return(Some(returned)),
+                },
+            ],
+            entry: BlockId(0),
+            span,
+        };
+        let mut ledger = Ledger::default();
+        let occurrence = NodeId(1);
+        let operand_node = NodeId(2);
+        let at = |block, instruction| Point {
+            block: BlockId(block),
+            instruction,
+        };
+        ledger
+            .bind(
+                function.id,
+                Origin {
+                    module: ModuleId(0),
+                    creator: NodeId(0),
+                    closure: None,
+                },
+                None,
+                &mut 1000,
+                span,
+            )
+            .unwrap();
+        let frame = ledger.frames.get_mut(&function.id).unwrap();
+        for (node, value) in [(operand_node, operand), (occurrence, returned)] {
+            frame.expressions.insert(
+                node,
+                Expression {
+                    value: Some(value),
+                    complete: true,
+                    ..Default::default()
+                },
+            );
+        }
+        let propagation = Propagation {
+            operand: operand_node,
+            tag: at(0, 1),
+            error: at(1, 0),
+            success: Construction {
+                value: success,
+                at: at(2, 0),
+            },
+            injection: Some(Construction {
+                value: returned,
+                at: at(2, 1),
+            }),
+        };
+        let check = |frame: &Frame, function: &TypedFunction| {
+            frame.check_propagation(
+                function,
+                occurrence,
+                &propagation,
+                &Limits::default(),
+                &mut 1000,
+            )
+        };
+        check(frame, &function).unwrap();
+        frame.expressions.get_mut(&occurrence).unwrap().value = Some(operand);
+        assert!(
+            check(frame, &function)
+                .unwrap_err()
+                .message
+                .contains("publish its actual success")
+        );
+        frame.expressions.get_mut(&occurrence).unwrap().value = Some(returned);
+        function.blocks[1].terminator = Terminator::Return(Some(operand));
+        assert!(
+            check(frame, &function)
+                .unwrap_err()
+                .message
+                .contains("actual failure payload")
+        );
+        function.blocks[1].terminator = Terminator::Return(Some(ValueId(3)));
+        function.blocks[1].instructions[0].kind = InstructionKind::TakeErrorUnion {
+            value: operand,
+            is_error: true,
+        };
+        function.blocks[2].instructions[0].kind = InstructionKind::TakeErrorUnion {
+            value: operand,
+            is_error: false,
+        };
+        assert!(
+            check(frame, &function)
+                .unwrap_err()
+                .message
+                .contains("changes a payload of original operand")
+        );
+    }
 
     #[test]
     fn thin_entries_release_the_slot_and_keep_the_lexical_creator() {
