@@ -165,7 +165,14 @@ impl Check<'_, '_> {
             ordinal,
         }) = template
         {
-            if matches!(actual, SemanticTypeRecipe::Opaque { .. }) {
+            // An original borrow of an opaque value preserves this exact
+            // pointee query. Follow it before inference resolves the Type
+            // formal, so forwarding keeps the original factory boundary.
+            let source_query = matches!(actual, SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0),
+                source: SemanticOriginalTypeSource::Expression(node),
+            } if *node == expression.id);
+            if source_query || matches!(actual, SemanticTypeRecipe::Opaque { .. }) {
                 self.pay(3, depth)?;
                 let query = Query::Expression(expression.id);
                 if let Some(&(origin_owner, origin_call)) =
@@ -186,7 +193,9 @@ impl Check<'_, '_> {
                         self.left,
                         1,
                     )?;
-                    if original == actual {
+                    if matches!(original, SemanticTypeRecipe::Opaque { .. })
+                        && (source_query || original == actual)
+                    {
                         let key = (owner, callee, *ordinal);
                         self.pay(1, depth)?;
                         let origins = self

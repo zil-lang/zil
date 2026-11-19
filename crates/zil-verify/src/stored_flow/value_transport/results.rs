@@ -1110,9 +1110,17 @@ pub(super) fn validate_after_target(
                     };
                     inner_fixed=Some(class);
                     let header=f.storage_life.as_ref().ok_or_else(||err("after-state owning closure input lacks its complete class embedding"))?;
-                    b.spend(header.classes.len())?;
+                    // The projected slot belongs to the captured pointee of
+                    // the actual closure input. A borrowed closure's Fixed
+                    // axes live beneath its parameter's address.
+                    let class_path: &[LifeTypeProjection] = if matches!(original, Type::Address { .. }) {
+                        &[LifeTypeProjection::Pointee]
+                    } else {
+                        &[]
+                    };
+                    b.spend(header.classes.len().saturating_mul(class_path.len().saturating_add(1)))?;
                     let mut matches=header.classes.iter().filter(|row|row.position.base==storage
-                        &&row.position.path.is_empty()&&row.position.class==class);
+                        &&row.position.path==class_path&&row.position.class==class);
                     let row=matches.next().ok_or_else(||err("after-state projected class has no actual input embedding"))?;
                     if matches.next().is_some(){return Err(err("after-state projected class has conflicting embeddings"));}
                     Some(row.binder)

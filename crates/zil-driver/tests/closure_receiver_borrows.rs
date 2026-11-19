@@ -86,9 +86,12 @@ fn accepted_typed(name: &str, text: &str, module: zil_ir::TypedModule) {
 }
 macro_rules! consumer {
     ($test:ident, $source:literal) => {
+        consumer!($test, $source, accepted);
+    };
+    ($test:ident, $source:literal, $accept:ident) => {
         #[test]
         fn $test() {
-            accepted(
+            $accept(
                 $source,
                 include_str!(concat!(
                     "../../../tests/fixtures/returned-owning-holders/",
@@ -124,11 +127,13 @@ fn typed_with_original_source(name: &str, text: &str) -> zil_ir::TypedModule {
     zil_types::check(&core, &target, &limits).unwrap()
 }
 
+fn accepted_original(name: &str, text: &str) {
+    accepted_typed(name, text, typed_with_original_source(name, text));
+}
+
 #[test]
 fn captured_mutable_holder_updates_original_storage() {
-    let name = "captured-mutable-holder";
-    let module = typed_with_original_source(name, CAPTURED_MUTABLE_HOLDER);
-    accepted_typed(name, CAPTURED_MUTABLE_HOLDER, module);
+    accepted_original("captured-mutable-holder", CAPTURED_MUTABLE_HOLDER);
 }
 
 #[test]
@@ -157,11 +162,13 @@ fn captured_mutable_holder_keeps_its_actual_parent_loans_live() {
 
 consumer!(
     captured_mutable_holder_survives_borrowed_helpers,
-    "captured-mutable-holder-helper"
+    "captured-mutable-holder-helper",
+    accepted_original
 );
 consumer!(
     same_entry_receivers_keep_distinct_holders,
-    "captured-mutable-holder-two-receivers"
+    "captured-mutable-holder-two-receivers",
+    accepted_original
 );
 consumer!(
     readonly_exclusive_capture_reborrows_without_copying_environment,

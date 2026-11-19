@@ -9001,7 +9001,7 @@ fn solve_check(
             }
             let private = if b.returned_environment_sources
                 && !p.leaves.is_empty()
-                && let Type::Closure(id) = f.values[v]
+                && let Some(id) = returned_environment::closure(&f.values[v])
             {
                 b.spend(private_capture_pointees.len().saturating_add(1).ilog2() as usize + 1)?;
                 let paths = match private_capture_pointees.entry(id) {
