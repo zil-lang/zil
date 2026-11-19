@@ -128,6 +128,31 @@ fn make(n:i32)->impl FnMut()->i32{let guard=Ticket{code:66};var value=n;return m
     assert!(report.diagnostics.iter().any(|e| e.code == "E-BORROW-CONFLICT"), "{}", report.to_json());
 }
 
+#[test]
+fn callable_helper_transfers_an_owning_sum_input_once() {
+    let source = r#"extern "C" fn putchar(x:i32)->i32;
+resource Ticket{code:i32}
+impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.code)}}}
+package Item{manages ticket:Ticket;value:i32}
+enum Choice{Some(Item),None}
+fn relay<F:FnMut()->i32>(value:Choice,step:&mut F)->Choice{step();return value}
+fn main()->i32{
+    var current=Choice.Some(Item{ticket:Ticket{code:65},value:42})
+    var hits=0
+    var callback=()=>{hits+=1;return hits}
+    current=relay(current,&mut callback)
+    return hits-1
+}
+"#;
+    native(&[("main", source)], b"A", 0);
+    let repeated = source
+        .replace("value:Choice,step:&mut F", "value:Choice,second:Choice,step:&mut F")
+        .replace("relay(current,&mut callback)", "relay(current,current,&mut callback)");
+    let report = check(&[("main", &repeated)]);
+    assert_eq!(report.status, ResultCategory::SafeReject);
+    assert!(report.diagnostics.iter().any(|e| e.message.contains("after its affine whole-type transfer")), "{}", report.to_json());
+}
+
 const OWNED: &str = r#"
 fn owned(n:i32)->impl FnMut()->i32{let guard=Ticket{code:n};var value=n;return move()=>{value+=1;return value+guard.code-n}}
 fn forward(n:i32)->impl FnMut()->i32{return owned(n)}
