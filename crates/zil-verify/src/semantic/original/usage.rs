@@ -473,6 +473,15 @@ pub(super) fn has_inference(
     substitutions: &BTreeMap<u64, Ty>,
     b: &mut Budget,
 ) -> Check<bool> {
+    unresolved_inference(ty, substitutions, |_| true, b)
+}
+
+pub(super) fn unresolved_inference(
+    ty: &Ty,
+    substitutions: &BTreeMap<u64, Ty>,
+    matches: impl Fn(u64) -> bool,
+    b: &mut Budget,
+) -> Check<bool> {
     let mut pending = vec![ty];
     let mut seen = BTreeSet::new();
     while let Some(ty) = pending.pop() {
@@ -484,7 +493,8 @@ pub(super) fn has_inference(
                 }
                 match substitutions.get(id) {
                     Some(ty) => pending.push(ty),
-                    None => return Ok(true),
+                    None if matches(*id) => return Ok(true),
+                    None => {}
                 }
             }
             Ty::Tuple(fields) => pending.extend(fields),

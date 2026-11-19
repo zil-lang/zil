@@ -156,7 +156,7 @@ pub(super) struct CheckedOriginal {
     free_values: BTreeMap<SemanticDefinitionId, BTreeMap<String, Binding>>,
     uses: BTreeMap<SemanticDefinitionId, Uses>,
     used: BTreeMap<SemanticDefinitionId, BTreeSet<Binder>>,
-    element_obligations: Vec<(Ty, Env)>,
+    structural_obligations: Vec<(Ty, DynStructuralBound, Env)>,
     copy_obligations: Vec<(Ty, Env)>,
     written: BTreeMap<SemanticDefinitionId, BTreeSet<Binder>>,
     live: BTreeMap<SemanticDefinitionId, BTreeMap<Binder, Binding>>,
@@ -312,13 +312,13 @@ impl CheckedOriginal {
                 ));
             }
         }
-        for (ty, env) in std::mem::take(&mut result.element_obligations) {
+        for (ty, bound, env) in std::mem::take(&mut result.structural_obligations) {
             result.current = Some(env.current()?);
             result.structural_obligation(
                 module,
                 context,
                 &ty,
-                DynStructuralBound::StoreElement,
+                bound,
                 &env,
                 active,
                 b,

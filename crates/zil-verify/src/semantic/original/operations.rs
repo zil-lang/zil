@@ -88,8 +88,8 @@ impl CheckedOriginal {
                     _ => self.fresh(b)?,
                 };
                 b.spend(1)?;
-                self.element_obligations
-                    .push((element.clone(), env.clone()));
+                self.structural_obligations
+                    .push((element.clone(), DynStructuralBound::StoreElement, env.clone()));
                 mixed.push(Arg::Type(element.clone()));
                 Ty::Managed(Box::new(Ty::Store(Box::new(element))))
             }
@@ -128,8 +128,8 @@ impl CheckedOriginal {
                     return Err(bad("Store operation has another complete resource payload"));
                 };
                 mixed.push(Arg::Type(*element.clone()));
-                self.element_obligations
-                    .push((*element.clone(), env.clone()));
+                self.structural_obligations
+                    .push((*element.clone(), DynStructuralBound::StoreElement, env.clone()));
                 match kind {
                     Intrinsic::StoreReserve => {
                         self.operation_scalar(

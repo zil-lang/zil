@@ -1728,6 +1728,17 @@ impl CheckedOriginal {
         };
         if proved {
             Ok(())
+        } else if !self.integer_literals.is_empty()
+            && usage::unresolved_inference(ty, &self.substitutions, |id| self.integer_variables.contains(&id), b)?
+        {
+            // An unsuffixed literal can still acquire its carrier from another
+            // constraint. Recheck the whole obligation after widths and ranges
+            // have been established from the original expressions.
+            let ty = self.resolved(ty, b)?;
+            let caller = self.copy_environment(caller, b)?;
+            b.spend(1)?;
+            self.structural_obligations.push((ty, bound, caller));
+            Ok(())
         } else {
             Err(unsupported(
                 format!(

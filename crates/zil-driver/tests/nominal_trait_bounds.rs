@@ -1691,6 +1691,66 @@ fn ordinary_iterator_item_can_be_held_in_a_generic_container() {
 }
 
 #[test]
+fn untyped_integer_arguments_settle_before_generic_structural_obligations() {
+    let source = "fn length<T:StoreElement>(x:T)->i64{let items:Store<T>=store_new();return store_len(items)}fn main()->i32{return i32(length(7))}";
+    native_both(&[("main", source)]);
+    for argument in ["7i32", "-2147483648", "(1+2)*3", "[7,8]"] {
+        let report = check(&source.replace("length(7)", &format!("length({argument})")));
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+
+    let wide = "fn echo<T:Copy+StoreElement>(x:T)->T{return x}fn main()->i32{let n:i64=echo(2147483648);if n!=2147483648{return 1}return 0}";
+    native_both(&[("main", wide)]);
+    for (invalid, reason) in [
+        (
+            source.replace("length(7)", "length(2147483648)"),
+            "integer does not fit i32",
+        ),
+        (
+            source.replace("length(7)", "length::<bool>(7)"),
+            "conflicting generic argument constraints",
+        ),
+        (
+            source.replace(
+                "return i32(length(7))",
+                "let n:i32=7;return i32(length(&n))",
+            ),
+            "StoreElement requires",
+        ),
+        (
+            source.replace(":StoreElement", ""),
+            "declared StoreElement bound",
+        ),
+        (
+            "fn size<T:StoreElement>()->i32{return 0}fn main()->i32{return size()}".into(),
+            "no unique constraint",
+        ),
+    ] {
+        let report = check(&invalid);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains(reason)),
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
 fn independent_copy_and_store_element_bounds_prove_generic_entry_storage() {
     let program = include_str!(
         "../../../tests/language-readiness/terminal/generics-and-constants/associated-container/pod-map.zil"
