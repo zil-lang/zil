@@ -54,6 +54,25 @@ fn accepted(label: &str, source: &str) {
     );
     assert_eq!(report.verification_runs, 1);
 }
+fn cleanup_rejected(label: &str, source: &str, binder: &str) {
+    let report = check(label, source);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Types);
+    assert_eq!(report.verification_runs, 0);
+    assert!(
+        report.diagnostics.iter().any(|d| {
+            d.code == "E-ORIGINAL-CLEANUP" && d.notes.iter().any(|note| note.contains(binder))
+        }),
+        "{}",
+        report.to_json()
+    );
+}
+
 fn rejected(label: &str, source: &str, category: ResultCategory, message: &str) {
     let report = check(label, source);
     assert_eq!(report.status, category, "{label}: {}", report.to_json());
@@ -137,10 +156,76 @@ fn returning_paths_do_not_pollute_surviving_break_and_continue_states() {
         "fn good<T>(value:T,flag:bool)->T{for index in 0..2{if flag{return value}else{break}}return value}",
         "fn good<T>(value:T,flag:bool)->T{for index in 0..2{match flag{true=>{return value},false=>{continue}}}return value}",
         "fn good<T>(value:T)->T{for index in 0..2{let value=0;if index==0{continue};break}return value}",
-        "fn good<T>(value:T){for index in 0..2{let consumed=value;break}}",
     ] {
         accepted("return-excluded", &format!("{definition}fn main(){{}}"));
     }
+    let original = "fn good<T>(value:T){for index in 0..2{let consumed=value;break}}fn main(){}";
+    cleanup_rejected("unbounded-break", original, "binding \"consumed\"");
+    for bound in ["SyncDrop", "StoreElement", "Copy"] {
+        accepted(
+            "bounded-break",
+            &original.replace("<T>", &format!("<T:{bound}>")),
+        );
+    }
+    accepted("borrowed-break", &original.replace("value:T", "value:&T"));
+}
+
+#[test]
+fn moves_on_break_do_not_repeat_on_surviving_backedges() {
+    for body in [
+        "if flag{let consumed=value;break}else{continue}",
+        "if flag{let consumed=value;break}",
+        "match flag{true=>{let consumed=value;break},false=>{continue}}",
+        "for inner in 0..n{if flag{break}else{continue}};let consumed=value;break",
+        "if flag{let consumed=value;return}else{continue}",
+    ] {
+        accepted(
+            "exit-move",
+            &format!(
+                "fn dispose<T:SyncDrop>(value:T,n:i32,flag:bool){{for index in 0..n{{{body}}}}}fn main(){{}}"
+            ),
+        );
+    }
+}
+
+#[test]
+fn zero_iterations_break_and_continue_each_drop_the_owner_once() {
+    let source = r#"
+        extern "C" fn putchar(n:i32)->i32;
+        resource R{n:i32} impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}
+        package P{manages mark:R;}
+        fn dispose<T:Value+SyncDrop>(value:T,n:i32,flag:bool){
+            for index in 0..n{if flag{let used=value;break}else{continue}}
+        }
+        fn main()->i32{
+            dispose(P{mark:R{n:65}},0,true);
+            dispose(P{mark:R{n:66}},2,true);
+            dispose(P{mark:R{n:67}},2,false);
+            return 0
+        }
+    "#;
+    let dir = directory("native-exits");
+    fs::write(dir.join("main.zil"), source).unwrap();
+    let executable = dir.join("main");
+    let report = compile_source(
+        &SourceUnit::new(FileId(0), ModuleId(0), "main.zil", source),
+        &CompileOptions {
+            stop_after: Stage::Build,
+            output: Some(executable.clone()),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    let machine = std::process::Command::new(executable).output().unwrap();
+    assert_eq!(machine.status.code(), Some(0));
+    assert_eq!(machine.stdout, b"ABC");
+    assert!(machine.stderr.is_empty());
 }
 
 #[test]
@@ -231,7 +316,11 @@ fn continuation_does_not_make_a_once_callback_repeatable() {
         );
     }
     let source = "fn run<F:FnOnce()->i32>(f:F,n:i32)->i32{for index in 0..n{continue}return 0}fn main()->i32{let f=move()=>1;return run(f,2)}";
-    accepted("once-zero-event-cycle", source);
+    cleanup_rejected("once-unused-unbounded", source, "binding \"f\"");
+    accepted(
+        "once-zero-event-cycle",
+        &source.replace("FnOnce()->i32>", "FnOnce()->i32 + SyncDrop>"),
+    );
 }
 
 #[test]

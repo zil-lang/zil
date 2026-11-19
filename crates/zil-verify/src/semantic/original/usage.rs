@@ -105,6 +105,25 @@ pub(super) struct Uses {
     pub(super) moved: BTreeSet<Place>,
     pub(super) definite: BTreeSet<Place>,
 }
+#[derive(Default)]
+pub(super) struct LoopExits<'a> {
+    // Absent while checking the syntax of an unreachable continuation.
+    pub(super) outer: Option<&'a BTreeSet<Binder>>,
+    pub(super) breaks: Option<Uses>,
+    pub(super) backedges: Option<Uses>,
+}
+
+impl LoopExits<'_> {
+    pub(super) fn merge(slot: &mut Option<Uses>, state: Uses, b: &mut Budget) -> Check<()> {
+        if let Some(previous) = slot {
+            previous.join(&state, b)?;
+        } else {
+            *slot = Some(state);
+        }
+        Ok(())
+    }
+}
+
 impl Uses {
     pub(super) fn navigation_conflicts(&self, place: &Place, b: &mut Budget) -> Check<bool> {
         b.spend(
@@ -514,18 +533,69 @@ impl CheckedOriginal {
         env: &Env,
         before: &Uses,
         yes: &Uses,
-        yes_returns: bool,
+        yes_terminal: bool,
         no: &Uses,
-        no_returns: bool,
+        no_terminal: bool,
         b: &mut Budget,
     ) -> Check<()> {
-        match (yes_returns, no_returns) {
+        match (yes_terminal, no_terminal) {
             (true, true) => self.set_uses(env, before.clone()),
             (true, false) => self.set_uses(env, no.clone()),
             (false, true) => self.set_uses(env, yes.clone()),
             (false, false) => self.join_uses(env, yes, no, b),
         }
     }
+    pub(super) fn project_loop_uses(
+        &self, env: &Env, outer: &BTreeSet<Binder>, b: &mut Budget,
+    ) -> Check<Uses> {
+        let mut state = Uses::default();
+        let Some(source) = self.uses.get(&env.current()?) else { return Ok(state); };
+        for (places, projected) in [(&source.moved, &mut state.moved), (&source.definite, &mut state.definite)] {
+            for place in places {
+                for _ in 0..=outer.len().saturating_add(1).ilog2() {
+                    place.binder.charge_clone(b)?;
+                }
+                if outer.contains(&place.binder) {
+                    for _ in 0..=projected.len().saturating_add(1).ilog2() {
+                        place.binder.charge_clone(b)?;
+                        b.spend(place.fields.len())?;
+                        for field in &place.fields { b.spend(field.len())?; }
+                    }
+                    projected.insert(place.clone());
+                }
+            }
+        }
+        Ok(state)
+    }
+
+    pub(super) fn loop_jump(
+        &mut self, env: &Env, exits: &mut LoopExits<'_>, is_break: bool, b: &mut Budget,
+    ) -> Check<()> {
+        let Some(outer) = exits.outer else { return Ok(()); };
+        // Discharge only scopes exited by this jump. The caller's lexical
+        // tables remain in place for independently checked sibling branches.
+        let mut leaving = BTreeSet::new();
+        if let Some(live) = self.live.get(&env.current()?) {
+            for key in live.keys() {
+                for _ in 0..=outer.len().saturating_add(1).ilog2() {
+                    key.charge_clone(b)?;
+                }
+                if !outer.contains(key) {
+                    for _ in 0..=leaving.len().saturating_add(1).ilog2() {
+                        key.charge_clone(b)?;
+                    }
+                    leaving.insert(key.clone());
+                }
+            }
+        }
+        if !leaving.is_empty() {
+            self.queue_cleanup(env, Some(&leaving), b)?;
+        }
+        let state = self.project_loop_uses(env, outer, b)?;
+        let target = if is_break { &mut exits.breaks } else { &mut exits.backedges };
+        LoopExits::merge(target, state, b)
+    }
+
     pub(super) fn loop_uses(
         &mut self,
         module: &TypedModule,
@@ -555,7 +625,7 @@ impl CheckedOriginal {
                 }
             }
         }
-        self.set_uses(env, before.clone())
+        Ok(())
     }
 }
 impl CheckedOriginal {

@@ -2,6 +2,7 @@
 //! This pass establishes type relationships only. Runtime loans, effects and
 //! cleanup are subsequently proved against the actual Typed instruction graph.
 use super::*;
+use super::usage::LoopExits;
 impl CheckedOriginal {
     pub(super) fn definition(&mut self,module:&TypedModule,context:&CheckedContext,id:SemanticDefinitionId,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         if self.checked.contains(&id){return Ok(());}
@@ -63,10 +64,11 @@ impl CheckedOriginal {
         self.check_names(module,context,definition,&prototype.environment,active,b)?;
         for(mode,ty)in prototype.modes.iter().zip(&prototype.parameters){if *mode==PassingMode::Copy{self.require_copy(module,context,ty,&prototype.environment,active,b)?;}}
         if prototype.result_mode==PassingMode::Copy{self.require_copy(module,context,&prototype.result,&prototype.environment,active,b)?;}
+        let mut returned_capture=false;
         match body {
             SemanticOriginalFunctionBody::Defined(body)=>{
                 let body_result=if matches!(&prototype.result,Ty::Opaque(owner,_)if *owner==id){inferred_result.clone()}else{prototype.result.clone()};
-                let returns=self.block(module,context,body,&prototype.environment,&mut bindings,&body_result,0,active,b)?;
+                let returns=self.block(module,context,body,&prototype.environment,&mut bindings,&body_result,None,(definition.kind==SemanticDefinitionKind::Closure).then_some(&mut returned_capture),active,b)?;
                 if !returns {self.unify(&body_result,&Ty::Atom(Type::Unit),b)?;self.queue_cleanup(&prototype.environment,None,b)?;}
             },
             SemanticOriginalFunctionBody::External=>{
@@ -80,7 +82,7 @@ impl CheckedOriginal {
         self.finish_return_injections(id,b)?;
         self.check_opaque_result(module,context,id,&prototype.environment,active,b)?;
         if definition.kind==SemanticDefinitionKind::Closure {
-            let consumes=self.inferred_owner_captures.contains_key(&id)
+            let consumes=returned_capture || self.inferred_owner_captures.contains_key(&id)
                 || self.uses.get(&id).is_some_and(|uses|uses.moved.iter().any(|place|matches!(place.binder,Binder::Capture{..})));
             let writes=self.written.get(&id).is_some_and(|rows|rows.iter().any(|binder|matches!(binder,Binder::Capture{..})));
             if let Some(prototype)=self.prototypes.get_mut(&id){prototype.callable_kind=Some(if consumes{CallableKind::FnOnce}else if writes{CallableKind::FnMut}else{CallableKind::Fn});}
@@ -99,12 +101,18 @@ impl CheckedOriginal {
         }Ok(())
     }
     #[allow(clippy::too_many_arguments)]
-    fn block(&mut self,module:&TypedModule,context:&CheckedContext,block:&SemanticOriginalBlock,env:&Env,bindings:&mut BTreeMap<String,Binding>,result:&Ty,loops:usize,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
+    fn block(&mut self,module:&TypedModule,context:&CheckedContext,block:&SemanticOriginalBlock,env:&Env,bindings:&mut BTreeMap<String,Binding>,result:&Ty,mut loop_target:Option<&mut LoopExits<'_>>,mut returned_capture:Option<&mut bool>,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
         let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Type,token},b,|active,b|{
             let live_before=self.live_keys(env,b)?;
-            let mut returns=false;
+            let mut terminal=false;
             for statement in &block.statements {
                 b.spend(1)?;self.remember_names(env,SemanticOriginalNode::Statement(statement.id),bindings,b)?;
+                // Keep checking original declarations and types after a terminal
+                // statement, but do not publish an unreachable jump to the loop.
+                let mut ignored = LoopExits::default();
+                let in_loop = loop_target.is_some();
+                let mut target = if terminal && in_loop { Some(&mut ignored) } else { loop_target.as_deref_mut() };
+                let mut capture=if terminal {None} else {returned_capture.as_deref_mut()};
                 let completed=match &statement.kind {
                     CoreStatementKind::Binding{name,mutable,ty,initializer}=>{
                         let expected=match ty{Some(recipe)=>Some(self.ty(module,context,recipe,env,active,b)?),None=>match initializer {
@@ -146,6 +154,12 @@ impl CheckedOriginal {
                             None=>{self.relate_value(&Ty::Atom(Type::Unit),result,b)?;Ty::Atom(Type::Unit)},
                         };
                         self.return_resource(expression.as_ref(),&actual,env,b)?;
+                        // The return does not continue into its enclosing loop or
+                        // sibling, but a moved capture still makes this closure affine.
+                        if let Some(capture)=capture && !*capture && let Some(uses)=self.uses.get(&env.current()?) {
+                            b.spend(uses.moved.len())?;
+                            *capture=uses.moved.iter().any(|place|matches!(place.binder,Binder::Capture{..}));
+                        }
                         self.queue_cleanup(env,None,b)?;
                         true
                     },
@@ -153,39 +167,62 @@ impl CheckedOriginal {
                     CoreStatementKind::CompoundAssign{target,op,value}=>{let expected=self.expression(module,context,target,env,bindings,None,active,b)?;self.assignment_place(module,context,target,&expected,env,bindings,active,b)?;let actual=self.expression(module,context,value,env,bindings,Some(&expected),active,b)?;self.numeric_binary_original(*op,&expected,&actual,b)?;false},
                     CoreStatementKind::If{condition,then_body,else_body}=>{
                         self.condition_original(module,context,condition,env,bindings,active,b)?;let before=self.use_snapshot(env,b)?;
-                        let yes_returns=self.block(module,context,then_body,env,&mut bindings.clone(),result,loops,active,b)?;let yes=self.use_snapshot(env,b)?;
-                        self.set_uses(env,before.clone())?;let no_returns=match else_body{Some(body)=>self.block(module,context,body,env,&mut bindings.clone(),result,loops,active,b)?,None=>false};let no=self.use_snapshot(env,b)?;
-                        self.branch_uses(env,&before,&yes,yes_returns,&no,no_returns,b)?;yes_returns&&no_returns
+                        let yes_terminal=self.block(module,context,then_body,env,&mut bindings.clone(),result,target.as_deref_mut(),capture.as_deref_mut(),active,b)?;let yes=self.use_snapshot(env,b)?;
+                        self.set_uses(env,before.clone())?;let no_terminal=match else_body{Some(body)=>self.block(module,context,body,env,&mut bindings.clone(),result,target.as_deref_mut(),capture.as_deref_mut(),active,b)?,None=>false};let no=self.use_snapshot(env,b)?;
+                        self.branch_uses(env,&before,&yes,yes_terminal,&no,no_terminal,b)?;yes_terminal&&no_terminal
                     },
                     CoreStatementKind::IfLet{pattern,value,then_body,else_body}=>{
                         let mode=Self::pattern_mode(pattern,b)?;let(actual,retained)=self.pattern_subject(module,context,value,None,mode,env,bindings,active,b)?;let before=self.use_snapshot(env,b)?;let live_before=self.live_keys(env,b)?;let mut branch=bindings.clone();let irrefutable=self.pattern_root(module,context,statement.id,&[],pattern,&actual,retained,false,env,&mut branch,active,b)?;
-                        let yes_returns=self.block(module,context,then_body,env,&mut branch,result,loops,active,b)?;if yes_returns{self.forget_scope(env,&live_before,b)?;}else{self.exit_scope(env,&live_before,b)?;}let yes=self.use_snapshot(env,b)?;
-                        self.set_uses(env,before.clone())?;let no_returns=match else_body{Some(body)=>self.block(module,context,body,env,&mut bindings.clone(),result,loops,active,b)?,None=>false};let no=self.use_snapshot(env,b)?;
-                        self.branch_uses(env,&before,&yes,yes_returns,&no,no_returns||irrefutable,b)?;yes_returns&&(no_returns||irrefutable)
+                        let yes_terminal=self.block(module,context,then_body,env,&mut branch,result,target.as_deref_mut(),capture.as_deref_mut(),active,b)?;if yes_terminal{self.forget_scope(env,&live_before,b)?;}else{self.exit_scope(env,&live_before,b)?;}let yes=self.use_snapshot(env,b)?;
+                        self.set_uses(env,before.clone())?;
+                        let mut unreachable=LoopExits::default();
+                        let else_target=if irrefutable && in_loop {Some(&mut unreachable)} else {target.as_deref_mut()};
+                        let else_capture=if irrefutable { None } else { capture.as_deref_mut() };
+                        let no_terminal=match else_body{Some(body)=>self.block(module,context,body,env,&mut bindings.clone(),result,else_target,else_capture,active,b)?,None=>false};let no=self.use_snapshot(env,b)?;
+                        self.branch_uses(env,&before,&yes,yes_terminal,&no,no_terminal||irrefutable,b)?;yes_terminal&&(no_terminal||irrefutable)
                     },
                     CoreStatementKind::While{condition,body}=>{
-                        let entry=self.use_snapshot(env,b)?;self.condition_original(module,context,condition,env,bindings,active,b)?;let after_condition=self.use_snapshot(env,b)?;
-                        let returns=self.block(module,context,body,env,&mut bindings.clone(),result,loops+1,active,b)?;let backedge=self.use_snapshot(env,b)?;
-                        if !returns{self.loop_uses(module,context,env,&entry,&backedge,bindings,active,b)?;}self.set_uses(env,after_condition)?;Self::constant_true(condition,b)?&&!Self::loop_break(body,b)?
+                        let entry=self.use_snapshot(env,b)?;
+                        self.condition_original(module,context,condition,env,bindings,active,b)?;
+                        let conditional_exit=if Self::constant_true(condition,b)? {None} else {Some(self.use_snapshot(env,b)?)};
+                        let scope=self.live_keys(env,b)?;
+                        self.loop_body_uses(module,context,body,env,bindings,&mut bindings.clone(),result,entry,conditional_exit,&scope,capture,active,b)?
                     },
                     CoreStatementKind::WhileLet{pattern,value,body}=>{
-                        let entry=self.use_snapshot(env,b)?;let mode=Self::pattern_mode(pattern,b)?;let(ty,retained)=self.pattern_subject(module,context,value,None,mode,env,bindings,active,b)?;let after_condition=self.use_snapshot(env,b)?;
-                        let live_before=self.live_keys(env,b)?;let mut inner=bindings.clone();let irrefutable=self.pattern_root(module,context,statement.id,&[],pattern,&ty,retained,false,env,&mut inner,active,b)?;
-                        let returns=self.block(module,context,body,env,&mut inner,result,loops+1,active,b)?;if returns{self.forget_scope(env,&live_before,b)?;}else{self.exit_scope(env,&live_before,b)?;}let backedge=self.use_snapshot(env,b)?;
-                        if !returns{self.loop_uses(module,context,env,&entry,&backedge,bindings,active,b)?;}self.set_uses(env,after_condition)?;irrefutable&&!Self::loop_break(body,b)?
+                        let entry=self.use_snapshot(env,b)?;
+                        let mode=Self::pattern_mode(pattern,b)?;
+                        let(ty,retained)=self.pattern_subject(module,context,value,None,mode,env,bindings,active,b)?;
+                        // Bindings and their moves exist only on a successful match.
+                        let after_condition=self.use_snapshot(env,b)?;
+                        let scope=self.live_keys(env,b)?;
+                        let mut inner=bindings.clone();
+                        let irrefutable=self.pattern_root(module,context,statement.id,&[],pattern,&ty,retained,false,env,&mut inner,active,b)?;
+                        let conditional_exit=if irrefutable {None} else {Some(after_condition)};
+                        self.loop_body_uses(module,context,body,env,bindings,&mut inner,result,entry,conditional_exit,&scope,capture,active,b)?
                     },
-                    CoreStatementKind::ForRange{name,start,end,body}=>{let ty=self.range_endpoints(module,context,start,end,env,bindings,active,b)?;let scope_before=self.live_keys(env,b)?;let mut inner=bindings.clone();let binding=Binding{ty,mutable:false,identity:Binder::Local{definition:env.current()?,node:statement.id,name:name.clone()}};self.declare(env,&binding,b)?;inner.insert(name.clone(),binding);let before=self.use_snapshot(env,b)?;let returns=self.block(module,context,body,env,&mut inner,result,loops+1,active,b)?;if returns{self.forget_scope(env,&scope_before,b)?;}else{self.exit_scope(env,&scope_before,b)?;}let after=self.use_snapshot(env,b)?;if !returns{self.loop_uses(module,context,env,&before,&after,bindings,active,b)?;}self.set_uses(env,before)?;false},
+                    CoreStatementKind::ForRange{name,start,end,body}=>{
+                        let ty=self.range_endpoints(module,context,start,end,env,bindings,active,b)?;
+                        let scope=self.live_keys(env,b)?;
+                        let entry=self.use_snapshot(env,b)?;
+                        let mut inner=bindings.clone();
+                        let binding=Binding{ty,mutable:false,identity:Binder::Local{definition:env.current()?,node:statement.id,name:name.clone()}};
+                        self.declare(env,&binding,b)?;
+                        inner.insert(name.clone(),binding);
+                        let conditional_exit=Some(self.use_snapshot(env,b)?);
+                        self.loop_body_uses(module,context,body,env,bindings,&mut inner,result,entry,conditional_exit,&scope,capture,active,b)?
+                    },
                     CoreStatementKind::ForEach{pattern,iterator,body}=>{
                         let mut range=iterator;while let CoreExprKind::Group(inner)=&range.kind{b.spend(1)?;range=inner;}
                         let CoreExprKind::Range{start,end}=&range.kind else{return Err(unsupported("original iteration needs its complete checked iterator protocol",Some(iterator.span)));};
                         if !matches!(pattern.kind,CorePatternKind::Name(_)|CorePatternKind::Wildcard){return Err(bad("integer range requires one irrefutable original value pattern"));}
                         self.remember_names(env,SemanticOriginalNode::Expression(iterator.id),bindings,b)?;
                         let ty=self.range_endpoints(module,context,start,end,env,bindings,active,b)?;
-                        let before=self.use_snapshot(env,b)?;let scope_before=self.live_keys(env,b)?;let mut inner=bindings.clone();
+                        let entry=self.use_snapshot(env,b)?;
+                        let scope=self.live_keys(env,b)?;
+                        let mut inner=bindings.clone();
                         self.pattern_root(module,context,statement.id,&[],pattern,&ty,None,false,env,&mut inner,active,b)?;
-                        let returns=self.block(module,context,body,env,&mut inner,result,loops+1,active,b)?;
-                        if returns{self.forget_scope(env,&scope_before,b)?;}else{self.exit_scope(env,&scope_before,b)?;}
-                        let after=self.use_snapshot(env,b)?;if !returns{self.loop_uses(module,context,env,&before,&after,bindings,active,b)?;}self.set_uses(env,before)?;false
+                        let conditional_exit=Some(self.use_snapshot(env,b)?);
+                        self.loop_body_uses(module,context,body,env,bindings,&mut inner,result,entry,conditional_exit,&scope,capture,active,b)?
                     },
                     CoreStatementKind::Match{value,arms}=>{
                         let mut mode=None;
@@ -193,13 +230,13 @@ impl CheckedOriginal {
                         let(ty,retained)=self.pattern_subject(module,context,value,None,mode,env,bindings,active,b)?;
                         let before=self.use_snapshot(env,b)?;let mut continuing=None;let mut all=!arms.is_empty();
                         for(arm_index,arm)in arms.iter().enumerate(){self.set_uses(env,before.clone())?;let arm_live=self.live_keys(env,b)?;let mut inner=bindings.clone();self.pattern_root(module,context,statement.id,&[arm_index as u32],&arm.pattern,&ty,retained.clone(),false,env,&mut inner,active,b)?;
-                            let returns=self.block(module,context,&arm.body,env,&mut inner,result,loops,active,b)?;if returns{self.forget_scope(env,&arm_live,b)?;}else{self.exit_scope(env,&arm_live,b)?;}all&=returns;
-                            if !returns{let branch=self.use_snapshot(env,b)?;if let Some(previous)=&mut continuing{let previous:&mut Uses=previous;previous.join(&branch,b)?;}else{continuing=Some(branch);}}
+                            let terminal=self.block(module,context,&arm.body,env,&mut inner,result,target.as_deref_mut(),capture.as_deref_mut(),active,b)?;if terminal{self.forget_scope(env,&arm_live,b)?;}else{self.exit_scope(env,&arm_live,b)?;}all&=terminal;
+                            if !terminal{let branch=self.use_snapshot(env,b)?;if let Some(previous)=&mut continuing{let previous:&mut Uses=previous;previous.join(&branch,b)?;}else{continuing=Some(branch);}}
                         }
                         self.set_uses(env,continuing.unwrap_or(before))?;all
                     },
-                    CoreStatementKind::Block(body)=>self.block(module,context,body,env,&mut bindings.clone(),result,loops,active,b)?,
-                    CoreStatementKind::Unsafe(body)=>{let id=env.current()?;*self.unsafe_depth.entry(id).or_default()+=1;let checked=self.block(module,context,body,env,&mut bindings.clone(),result,loops,active,b);*self.unsafe_depth.entry(id).or_default()-=1;checked?},
+                    CoreStatementKind::Block(body)=>self.block(module,context,body,env,&mut bindings.clone(),result,target.as_deref_mut(),capture.as_deref_mut(),active,b)?,
+                    CoreStatementKind::Unsafe(body)=>{let id=env.current()?;*self.unsafe_depth.entry(id).or_default()+=1;let checked=self.block(module,context,body,env,&mut bindings.clone(),result,target.as_deref_mut(),capture.as_deref_mut(),active,b);*self.unsafe_depth.entry(id).or_default()-=1;checked?},
                     CoreStatementKind::Defer(body) => {
                         let owner = env.current()?;
                         if self.in_defer.get(&owner).copied().unwrap_or(0) != 0 {
@@ -210,7 +247,7 @@ impl CheckedOriginal {
                             // effects at cleanup. Preserve that reason when its owner
                             // promises Direct, and still require the registration site.
                             self.block(module, context, body, env, &mut bindings.clone(),
-                                &Ty::Atom(Type::Unit), loops, active, b)?;
+                                &Ty::Atom(Type::Unit), None, capture, active, b)?;
                             let declared = self.prototypes.get(&owner)
                                 .ok_or_else(|| bad("deferred body lacks its original signature"))?.call_kind;
                             self.check_original_effect_bound(owner, declared)?;
@@ -234,12 +271,21 @@ impl CheckedOriginal {
                         }
                         false
                     },
-                    CoreStatementKind::Loop(body)=>{let before=self.use_snapshot(env,b)?;let returns=self.block(module,context,body,env,&mut bindings.clone(),result,loops+1,active,b)?;let after=self.use_snapshot(env,b)?;if !returns{self.loop_uses(module,context,env,&before,&after,bindings,active,b)?;}!Self::loop_break(body,b)?},
-                    CoreStatementKind::Break|CoreStatementKind::Continue if loops!=0=>false,
+                    CoreStatementKind::Loop(body)=>{
+                        let entry=self.use_snapshot(env,b)?;
+                        let scope=self.live_keys(env,b)?;
+                        self.loop_body_uses(module,context,body,env,bindings,&mut bindings.clone(),result,entry,None,&scope,capture,active,b)?
+                    },
+                    CoreStatementKind::Break|CoreStatementKind::Continue if in_loop=>{
+                        if let Some(exits)=target {
+                            self.loop_jump(env,exits,matches!(statement.kind,CoreStatementKind::Break),b)?;
+                        }
+                        true
+                    },
                     _=>return Err(unsupported("original statement has no complete symbolic operation rule",Some(statement.span))),
                 };
-                returns|=completed;
-            }if returns{self.forget_scope(env,&live_before,b)?;}else{self.exit_scope(env,&live_before,b)?;}Ok(returns)
+                terminal|=completed;
+            }if terminal{self.forget_scope(env,&live_before,b)?;}else{self.exit_scope(env,&live_before,b)?;}Ok(terminal)
         })
     }
     #[allow(clippy::too_many_arguments)]
@@ -296,26 +342,39 @@ impl CheckedOriginal {
             }
         }
     }
-    fn loop_break(body:&SemanticOriginalBlock,b:&mut Budget)->Check<bool>{
-        let mut pending=vec![body];
-        while let Some(body)=pending.pop(){
-            b.spend(body.statements.len().saturating_add(1))?;
-            for statement in &body.statements {
-                match &statement.kind {
-                    CoreStatementKind::Break=>return Ok(true),
-                    CoreStatementKind::If{then_body,else_body,..}|CoreStatementKind::IfLet{then_body,else_body,..}=>{
-                        pending.push(then_body);
-                        if let Some(body)=else_body{pending.push(body);}
-                    },
-                    CoreStatementKind::Match{arms,..}=>{b.spend(arms.len())?;for arm in arms{pending.push(&arm.body);}},
-                    CoreStatementKind::Block(body)|CoreStatementKind::Unsafe(body)=>pending.push(body),
-                    // Nested loops bind their own break; deferred bodies have
-                    // an independent control context checked by block().
-                    _=>{},
-                }
+    #[allow(clippy::too_many_arguments)]
+    fn loop_body_uses(
+        &mut self, module: &TypedModule, context: &CheckedContext, body: &SemanticOriginalBlock,
+        env: &Env, bindings: &BTreeMap<String, Binding>, inner: &mut BTreeMap<String, Binding>,
+        result: &Ty, entry: Uses, mut conditional_exit: Option<Uses>, scope: &BTreeSet<Binder>,
+        returned_capture: Option<&mut bool>, active: &mut ActiveQueries, b: &mut Budget,
+    ) -> Check<bool> {
+        let mut exits = LoopExits { outer: Some(scope), ..Default::default() };
+        let terminal = self.block(module, context, body, env, inner, result, Some(&mut exits), returned_capture, active, b)?;
+        if terminal {
+            self.forget_scope(env, scope, b)?;
+        } else {
+            self.exit_scope(env, scope, b)?;
+            let state = self.project_loop_uses(env, scope, b)?;
+            LoopExits::merge(&mut exits.backedges, state, b)?;
+        }
+        if let Some(backedge) = exits.backedges {
+            self.loop_uses(module, context, env, &entry, &backedge, bindings, active, b)?;
+            if let Some(exit) = &mut conditional_exit {
+                // Previously moved places can also have been refilled before
+                // a later condition check. Preserve both cleanup possibilities.
+                exit.join(&backedge, b)?;
             }
         }
-        Ok(false)
+        if let Some(state) = exits.breaks {
+            LoopExits::merge(&mut conditional_exit, state, b)?;
+        }
+        if let Some(state) = conditional_exit {
+            self.set_uses(env, state)?;
+            Ok(false)
+        } else {
+            Ok(true)
+        }
     }
     pub(super) fn contextual_numeric_literal(expression:&SemanticOriginalExpr,b:&mut Budget)->Check<bool>{
         Self::untyped_numeric_tree(expression,false,b)
