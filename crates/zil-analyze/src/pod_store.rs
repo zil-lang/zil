@@ -510,6 +510,27 @@ mod composite_root_tests {
     }
 
     #[test]
+    fn complete_payload_receipt_keeps_the_actual_module_element_and_limits() {
+        let limits = Limits::default();
+        let element = Type::Tuple(vec![Type::I32, Type::I32]);
+        let other = Type::Tuple(vec![Type::I32, Type::U32]);
+        for module in [module(&element), round_trip(&module(&element), &limits)] {
+            let mut budget = Budget::new(&limits);
+            budget.geometry_module = Some(&module as *const TypedModule as usize);
+            let actual = &module.resources[0].payload;
+            crate::ownership_store::payload_definition(&module, actual, &mut budget).unwrap();
+            crate::ownership_store::payload_definition(&module, actual, &mut budget).unwrap();
+            let sibling = Type::OwnedStore { element: Box::new(other.clone()) };
+            assert!(crate::ownership_store::payload_definition(&module, &sibling, &mut budget).is_err());
+            let mut altered = module.clone();
+            altered.resources[0].teardown = Some(zil_ir::FunctionId(0));
+            assert!(crate::ownership_store::payload_definition(&altered, actual, &mut budget).is_err());
+            budget.helper_nodes = 0;
+            assert!(crate::ownership_store::payload_definition(&module, actual, &mut budget).is_err());
+        }
+    }
+
+    #[test]
     fn exact_tuple_and_array_roots_reject_same_size_payloads_and_replay_budget() {
         let tuple = Type::Tuple(vec![Type::I32, Type::I32]);
         let array = Type::Array {

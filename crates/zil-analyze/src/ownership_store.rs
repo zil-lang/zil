@@ -44,8 +44,21 @@ pub(super) fn payload_definition(
     if matches!(element.as_ref(), Type::Package { .. }) {
         return dynamic_store::ordinary_payload(module, payload, budget);
     }
+    let owner = module as *const TypedModule as usize;
+    let key = if budget.geometry_module == Some(owner) && !super::nested_store::selected(element) {
+        let element_id = super::semantic::geometry::type_identity(element, budget)?;
+        let key = (owner, budget.partial_depth, budget.helper_nodes, element_id);
+        budget.lookup(budget.formed_pod_payloads.len(), "complete POD Store payload lookup")?;
+        if budget.formed_pod_payloads.contains(&key) { return Ok(()); }
+        Some(key)
+    } else { None };
     budget.type_work(payload, true, "ordinary POD Store complete payload")?;
-    pod_store::carrier(module, element, budget)
+    pod_store::carrier(module, element, budget)?;
+    if let Some(key) = key {
+        budget.lookup(budget.formed_pod_payloads.len(), "complete POD Store payload publication")?;
+        budget.formed_pod_payloads.insert(key);
+    }
+    Ok(())
 }
 
 /// Concrete environments may own the same Store as an ordinary value. The

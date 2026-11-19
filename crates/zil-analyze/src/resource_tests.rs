@@ -2727,9 +2727,9 @@ fn concrete_local_legacy_cost_controls() {
             name,
             exact,
             match name {
-                "ordinary" => 1633,
-                "helper-no-local" => 1625,
-                "scoped-local-borrow" => 3551,
+                "ordinary" => 1632,
+                "helper-no-local" => 1613,
+                "scoped-local-borrow" => 3541,
                 _ => unreachable!(),
             },
         ));
@@ -3091,7 +3091,7 @@ fn concrete_factory_only_shared_allowance_n_minus_one_fresh_raw_wire() {
         }
     }
     println!("282 factory-only raw=Wire N={exact}; N-1 ResourceLimit; fresh equality");
-    assert_eq!(exact, 3091, "complete factory proof work changed");
+    assert_eq!(exact, 3073, "complete factory proof work changed");
 }
 
 fn parameter_forwarded_local() -> TypedModule {
@@ -3572,7 +3572,7 @@ fn concrete_local_copy_fn_observation_budget_raw_wire() {
         let expected = analyze_budgeted(&module, &defaults, &mut budget, None).unwrap();
         let exact = defaults.max_analysis_steps - budget.remaining();
         let old_cost = if alias { 855 } else { 726 };
-        measured.push((alias, exact, if alias { 1530 } else { 1219 }));
+        measured.push((alias, exact, if alias { 1517 } else { 1206 }));
         assert_eq!(
             analyze(
                 &module,

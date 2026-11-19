@@ -347,7 +347,7 @@ fn ordinary_capture_window_budget_is_request_local_exact_and_fresh() {
         .find(|(write, _)| matches!(write, Write::AfterLast))
         .unwrap()
         .1;
-    assert_eq!(exact, 1340, "complete ordinary capture proof work changed");
+    assert_eq!(exact, 1335, "complete ordinary capture proof work changed");
 }
 
 #[test]
@@ -698,9 +698,9 @@ fn captured_copy_field_work_is_exact_and_fresh_raw_wire() {
         assert_eq!(
             exact,
             match (same, after_last) {
-                (false, false) => 2412,
-                (true, false) => 2227,
-                (_, true) => 2573,
+                (false, false) => 2411,
+                (true, false) => 2226,
+                (_, true) => 2572,
             }
         );
     }

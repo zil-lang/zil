@@ -92,6 +92,8 @@ pub(super) struct Budget {
     pub(super) pod_stores: bool,
     pub(super) nested_store_windows: bool,
     pub(super) pod_store_carriers: Option<super::pod_store::CarrierCache>,
+    // Complete POD Store carrier and raw type qualification in this request.
+    pub(super) formed_pod_payloads: BTreeSet<(usize, usize, usize, usize)>,
     pub(super) dyn_interfaces: BTreeSet<zil_ir::DynInterfaceId>,
     // Complete original/actual closure domain proof, published only after the
     // semantic consumer checks every actual entry, creator and capture. This
@@ -363,6 +365,7 @@ impl Budget {
             pod_stores: false,
             nested_store_windows: false,
             pod_store_carriers: None,
+            formed_pod_payloads: BTreeSet::new(),
             dyn_interfaces: BTreeSet::new(),
             semantic_zero_closures: BTreeSet::new(),
             semantic_closures_proven: BTreeSet::new(),

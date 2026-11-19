@@ -641,6 +641,12 @@ struct SsaDefinition {
     block: BlockId,
     instruction: usize,
 }
+struct FunctionAnalysis {
+    address: usize,
+    id: FunctionId,
+    initialization: Option<std::sync::Arc<Initialization>>,
+    definitions: Option<std::sync::Arc<Vec<Option<SsaDefinition>>>>,
+}
 struct InitializationCache {
     module: usize,
     // Completed immutable helper-frame graphs, partitioned by every helper
@@ -649,9 +655,18 @@ struct InitializationCache {
     task_helper_graphs: std::collections::BTreeMap<([usize; 5], FunctionId, bool), [bool; 3]>,
     task_helper_scope: Option<std::sync::Arc<()>>,
     description_transfers: resources::DescriptionInventories,
-    definitions: std::collections::BTreeMap<usize, std::sync::Arc<Vec<Option<SsaDefinition>>>>,
-    functions:
-        std::collections::BTreeMap<usize, (FunctionId, Option<std::sync::Arc<Initialization>>)>,
+    // Rows follow the original request's immutable contiguous functions slice.
+    first_address: usize,
+    functions: Vec<FunctionAnalysis>,
+}
+
+impl InitializationCache {
+    fn position(&self, function: &TypedFunction) -> Option<usize> {
+        let address = function as *const TypedFunction as usize;
+        let index = address.checked_sub(self.first_address)? / std::mem::size_of::<TypedFunction>();
+        let row = self.functions.get(index)?;
+        (row.address == address && row.id == function.id).then_some(index)
+    }
 }
 
 fn bind_initialization(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {
@@ -667,21 +682,23 @@ fn bind_initialization(module: &TypedModule, budget: &mut Budget) -> CompileResu
         module.functions.len(),
         "initialization request function registry",
     )?;
-    let mut functions = std::collections::BTreeMap::new();
+    let mut functions = Vec::new();
+    functions.try_reserve_exact(module.functions.len()).map_err(|_| vec![
+        Diagnostic::limit(Phase::Analyze, "initialization function registry allocation failed", None)
+    ])?;
     for function in &module.functions {
-        budget.lookup(functions.len(), "initialization request function registry")?;
-        functions.insert(
-            function as *const TypedFunction as usize,
-            (function.id, None),
-        );
+        functions.push(FunctionAnalysis {
+            address: function as *const TypedFunction as usize, id: function.id,
+            initialization: None, definitions: None,
+        });
     }
     budget.initialization = Some(InitializationCache {
         module: owner,
         task_helper_graphs: std::collections::BTreeMap::new(),
         task_helper_scope: None,
         description_transfers: resources::DescriptionInventories::default(),
+        first_address: module.functions.as_ptr() as usize,
         functions,
-        definitions: std::collections::BTreeMap::new(),
     });
     Ok(())
 }
@@ -690,34 +707,19 @@ fn shared_initialization(
     function: &TypedFunction,
     budget: &mut Budget,
 ) -> CompileResult<std::sync::Arc<Initialization>> {
-    let key = function as *const TypedFunction as usize;
-    let width = budget
-        .initialization
-        .as_ref()
-        .map_or(0, |cache| cache.functions.len());
-    budget.lookup(width, "initialization request query")?;
+    budget.spend(1, "initialization request query")?;
+    let index = budget.initialization.as_ref().and_then(|cache| cache.position(function));
     budget.spend(1, "initialization request shared result")?;
-    if let Some((id, Some(initialization))) = budget
-        .initialization
-        .as_ref()
-        .and_then(|cache| cache.functions.get(&key))
-        && *id == function.id
-    {
+    if let Some(initialization) = index.and_then(|i| budget.initialization.as_ref()?.functions[i].initialization.as_ref()) {
         return Ok(std::sync::Arc::clone(initialization));
     }
     // A failed computation publishes nothing. Unregistered temporary functions
     // can be checked, but their reusable result is never retained by address.
     let result = initialize(function, budget)?;
     let result = std::sync::Arc::new(result);
-    budget.lookup(width, "initialization request publication")?;
     budget.spend(1, "initialization request publication")?;
-    if let Some((id, entry)) = budget
-        .initialization
-        .as_mut()
-        .and_then(|cache| cache.functions.get_mut(&key))
-        && *id == function.id
-    {
-        *entry = Some(std::sync::Arc::clone(&result));
+    if let (Some(index), Some(cache)) = (index, &mut budget.initialization) {
+        cache.functions[index].initialization = Some(std::sync::Arc::clone(&result));
     }
     Ok(result)
 }
@@ -728,15 +730,10 @@ fn take_initialization(
     function: &TypedFunction,
     budget: &mut Budget,
 ) -> CompileResult<Option<Initialization>> {
-    let key = function as *const TypedFunction as usize;
-    let width = budget.initialization.as_ref().map_or(0, |cache| cache.functions.len());
-    budget.lookup(width, "completed initialization transfer")?;
-    let Some((id, row)) = budget.initialization.as_mut().and_then(|cache| cache.functions.get_mut(&key)) else {
-        return Ok(None);
-    };
-    if *id != function.id {
-        return Ok(None);
-    }
+    budget.spend(1, "completed initialization transfer")?;
+    let Some(cache) = &mut budget.initialization else { return Ok(None); };
+    let Some(index) = cache.position(function) else { return Ok(None); };
+    let row = &mut cache.functions[index].initialization;
     match row.take().map(std::sync::Arc::try_unwrap) {
         Some(Ok(result)) => Ok(Some(result)),
         Some(Err(shared)) => {
@@ -751,27 +748,11 @@ fn shared_definitions(
     function: &TypedFunction,
     budget: &mut Budget,
 ) -> CompileResult<std::sync::Arc<Vec<Option<SsaDefinition>>>> {
-    let key = function as *const TypedFunction as usize;
-    let count = budget
-        .initialization
-        .as_ref()
-        .map_or(0, |cache| cache.functions.len());
-    budget.lookup(count, "actual SSA immutable function lookup")?;
-    let registered = budget
-        .initialization
-        .as_ref()
-        .and_then(|cache| cache.functions.get(&key))
-        .is_some_and(|(id, _)| *id == function.id);
-    if registered {
-        budget.lookup(count, "actual SSA definition directory lookup")?;
+    budget.spend(1, "actual SSA immutable function lookup")?;
+    let index = budget.initialization.as_ref().and_then(|cache| cache.position(function));
+    if let Some(directory) = index.and_then(|i| budget.initialization.as_ref()?.functions[i].definitions.clone()) {
         budget.spend(1, "actual SSA shared directory")?;
-        if let Some(directory) = budget
-            .initialization
-            .as_ref()
-            .and_then(|cache| cache.definitions.get(&key))
-        {
-            return Ok(std::sync::Arc::clone(directory));
-        }
+        return Ok(directory);
     }
     if function.values.len() > budget.helper_nodes {
         return Err(vec![Diagnostic::limit(
@@ -811,13 +792,10 @@ fn shared_definitions(
     }
     budget.spend(1, "actual SSA shared directory")?;
     let directory = std::sync::Arc::new(directory);
-    if registered {
-        budget.lookup(count, "actual SSA directory publication")?;
-        budget.spend(1, "actual SSA shared directory")?;
+    if let Some(index) = index {
+        budget.spend(1, "actual SSA directory publication")?;
         if let Some(cache) = &mut budget.initialization {
-            cache
-                .definitions
-                .insert(key, std::sync::Arc::clone(&directory));
+            cache.functions[index].definitions = Some(std::sync::Arc::clone(&directory));
         }
     }
     Ok(directory)
@@ -1215,8 +1193,8 @@ mod tests {
                 .as_ref()
                 .unwrap()
                 .functions
-                .values()
-                .all(|(_, result)| result.is_none())
+                .iter()
+                .all(|row| row.initialization.is_none())
         );
     }
 
@@ -1253,8 +1231,8 @@ mod tests {
                 .as_ref()
                 .unwrap()
                 .functions
-                .values()
-                .all(|(_, result)| result.is_none())
+                .iter()
+                .all(|row| row.initialization.is_none())
         );
         let mut fresh = Budget::new(&Limits::default());
         bind_initialization(&m, &mut fresh).unwrap();
@@ -1264,8 +1242,8 @@ mod tests {
                 .as_ref()
                 .unwrap()
                 .functions
-                .values()
-                .all(|(_, result)| result.is_none())
+                .iter()
+                .all(|row| row.initialization.is_none())
         );
         assert!(shared_initialization(&m.functions[0], &mut fresh).is_ok());
     }

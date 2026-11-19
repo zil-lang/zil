@@ -944,7 +944,8 @@ fn description_inventory(
         ));
     }
     let address = f as *const TypedFunction as usize;
-    let scoped = budget.initialization.as_ref().is_some_and(|cache| cache.functions.contains_key(&address));
+    budget.spend(1, "description immutable function lookup")?;
+    let scoped = budget.initialization.as_ref().is_some_and(|cache| cache.position(f).is_some());
     let key = if scoped {
         budget.spend(shapes.len(), "description immutable filter inventory")?;
         let filter = shapes.iter().filter_map(|(place, shape)| shape.description.then_some(*place)).collect::<Vec<_>>();
