@@ -44,6 +44,7 @@ pub(super) struct Table<'a> {
     buckets: BTreeMap<Key, Vec<Entry<'a>>>,
     entries: usize,
     portable: BTreeMap<(SemanticDefinitionId, RecipeKey), bool>,
+    physical_hints: BTreeMap<usize, zil_base::Fingerprint>,
     pub hits: usize,
     pub misses: usize,
     pub lookup_work: usize,
@@ -77,8 +78,9 @@ impl<'a> Table<'a> {
         None
     }
     fn recipe_key(
+        &mut self,
         recipe: &SemanticTypeRecipe,
-        hint: &Type,
+        hint: Hint<'a, '_>,
         limits: &Limits,
         left: &mut usize,
     ) -> R<RecipeKey> {
@@ -87,8 +89,31 @@ impl<'a> Table<'a> {
             return Ok(key);
         }
         let recipe_key = super::super::original::protocol::recipe_key(recipe, limits, left)?;
-        inference::charge_type_snapshot(hint, Span::default(), limits, left, 2)?;
-        Ok(RecipeKey::Structural(recipe_key, hint.fingerprint()))
+        let physical = if let Hint::Actual(hint) = hint {
+            // Only real immutable Typed types survive this table's full
+            // request lifetime. Structurally distinct hints still compare
+            // their complete Type on every potential bucket match.
+            let address = hint as *const Type as usize;
+            index::pay(left, index::search(self.physical_hints.len()))?;
+            if let Some(&fingerprint) = self.physical_hints.get(&address) {
+                fingerprint
+            } else {
+                if self.physical_hints.len() >= limits.max_nodes {
+                    return Err(Diagnostic::limit(
+                        Phase::Types, "actual fixed type hint directory exceeds node limit", None,
+                    ));
+                }
+                inference::charge_type_snapshot(hint, Span::default(), limits, left, 2)?;
+                let fingerprint = hint.fingerprint();
+                index::pay(left, index::search(self.physical_hints.len()).saturating_add(1))?;
+                self.physical_hints.insert(address, fingerprint);
+                fingerprint
+            }
+        } else {
+            inference::charge_type_snapshot(hint.as_type(), Span::default(), limits, left, 2)?;
+            hint.as_type().fingerprint()
+        };
+        Ok(RecipeKey::Structural(recipe_key, physical))
     }
     pub(super) fn shared_scope(
         &mut self,
@@ -99,7 +124,13 @@ impl<'a> Table<'a> {
         left: &mut usize,
     ) -> R<Option<SemanticInstanceId>> {
         index::pay(left, 1)?;
-        let Some(key) = Self::compact_key(recipe) else { return Ok(None); };
+        let Some(key) = Self::compact_key(recipe) else {
+            // Structural recipes may share a rigid substitution only after
+            // the whole recipe independently proves that it cannot observe
+            // a different call, invocation, creator or ancestor.
+            let permitted = type_contexts::portable(proof, context.definition, recipe, limits, left, 0)?;
+            return Ok(permitted.then_some(context.representative));
+        };
         let key = (context.definition, key);
         index::pay(left, index::search(self.portable.len()))?;
         let permitted = if let Some(permitted) = self.portable.get(&key) {
@@ -126,7 +157,7 @@ impl<'a> Table<'a> {
         left: &mut usize,
     ) -> R<(Key, Option<SharedType>)> {
         let before = *left;
-        let key = (scope, Self::recipe_key(recipe, hint.as_type(), limits, left)?);
+        let key = (scope, self.recipe_key(recipe, hint, limits, left)?);
         index::pay(left, index::search(self.buckets.len()))?;
         if let Some(bucket) = self.buckets.get_mut(&key) {
             index::pay(left, bucket.len())?;
