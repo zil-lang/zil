@@ -253,6 +253,157 @@ impl Check<'_, '_> {
             _ => Ok(None),
         }
     }
+    /// An initialized owned Package may carry these ordinary data fields even
+    /// when their entire type would not qualify as a Store element.
+    pub(super) fn store_copy_field(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<bool> {
+        self.pay(1, depth)?;
+        match ty {
+            SemanticTypeRecipe::Atom(ty) => {
+                Ok(ty.is_b0_scalar() || matches!(ty, Type::ForeignHandle | Type::CWideString))
+            }
+            SemanticTypeRecipe::Code { .. } => self.copy_type(owner, ty, depth + 1),
+            SemanticTypeRecipe::Array { element, length } => Ok(
+                self.closed_array_length(length, depth + 1)?.is_some()
+                    && self.store_copy_field(owner, element, depth + 1)?,
+            ),
+            SemanticTypeRecipe::ErrorUnion { error, result } => {
+                Ok(self.store_copy_field(owner, error, depth + 1)?
+                    && self.store_copy_field(owner, result, depth + 1)?)
+            }
+            SemanticTypeRecipe::Tuple(fields) => {
+                for field in fields {
+                    if !self.store_copy_field(owner, field, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            SemanticTypeRecipe::Nominal {
+                definition,
+                arguments,
+            } => {
+                let definition = self.definition(*definition)?;
+                let SemanticDefinitionBody::Nominal {
+                    kind: LifeNominalKind::Record | LifeNominalKind::Enum,
+                    body,
+                    ..
+                } = &definition.body
+                else {
+                    return Ok(false);
+                };
+                let mut eligible = |recipe: &SemanticTypeRecipe| {
+                    let field =
+                        self.instantiate_field(owner, definition.id, recipe, arguments, depth + 1)?;
+                    self.store_copy_field(owner, &field, depth + 1)
+                };
+                match body {
+                    SemanticNominalBody::Product { fields } => {
+                        for field in fields {
+                            if !eligible(&field.ty)? {
+                                return Ok(false);
+                            }
+                        }
+                    }
+                    SemanticNominalBody::Enum { variants } => {
+                        for row in variants {
+                            for field in &row.fields {
+                                if !eligible(field)? {
+                                    return Ok(false);
+                                }
+                            }
+                        }
+                    }
+                }
+                self.copy_type(owner, ty, depth + 1)
+            }
+            _ => Ok(false),
+        }
+    }
+    /// This tests for a positive stride after the field's ownership and type
+    /// have been qualified. Empty managed fields still run their real Drop.
+    pub(super) fn store_field_has_storage(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<bool> {
+        self.pay(1, depth)?;
+        match ty {
+            SemanticTypeRecipe::Atom(ty) => Ok(*ty != Type::Unit),
+            SemanticTypeRecipe::Exact(exact) => {
+                crate::inference::charge_type_snapshot(
+                    &exact.ty,
+                    Span::default(),
+                    self.limits,
+                    self.left,
+                    1,
+                )?;
+                Ok(crate::dynamic_store::has_storage(&exact.ty))
+            }
+            SemanticTypeRecipe::Formal(_)
+            | SemanticTypeRecipe::SelfType { .. }
+            | SemanticTypeRecipe::AssociatedType { .. } => self.store_element(owner, ty, depth + 1),
+            SemanticTypeRecipe::Environment {
+                scope: SemanticScopeRef::Ancestor(0),
+                ..
+            } => {
+                let actual = self.observation_type(owner, ty, depth + 1)?;
+                self.store_field_has_storage(owner, &actual, depth + 1)
+            }
+            SemanticTypeRecipe::Managed(payload) => {
+                self.store_field_has_storage(owner, payload, depth + 1)
+            }
+            SemanticTypeRecipe::Array { element, length } => Ok(self
+                .closed_array_length(length, depth + 1)?
+                .is_some_and(|n| n > 0)
+                && self.store_field_has_storage(owner, element, depth + 1)?),
+            SemanticTypeRecipe::Tuple(fields) => {
+                for field in fields {
+                    if self.store_field_has_storage(owner, field, depth + 1)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            SemanticTypeRecipe::Nominal {
+                definition,
+                arguments,
+            } => {
+                let declaration = self.definition(*definition)?;
+                let SemanticDefinitionBody::Nominal {
+                    body: SemanticNominalBody::Product { fields },
+                    ..
+                } = &declaration.body
+                else {
+                    return Ok(true);
+                };
+                for field in fields {
+                    let child = self.instantiate_field(
+                        owner,
+                        *definition,
+                        &field.ty,
+                        arguments,
+                        depth + 1,
+                    )?;
+                    if self.store_field_has_storage(owner, &child, depth + 1)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            SemanticTypeRecipe::Opaque { .. }
+            | SemanticTypeRecipe::Closure { .. }
+            | SemanticTypeRecipe::Code { .. }
+            | SemanticTypeRecipe::OwnedStore(_)
+            | SemanticTypeRecipe::ErrorUnion { .. } => Ok(true),
+            _ => Ok(false),
+        }
+    }
     pub(super) fn resource_store_element(
         &mut self,
         owner: SemanticDefinitionId,
@@ -277,9 +428,6 @@ impl Check<'_, '_> {
         else {
             return Ok(None);
         };
-        if fields.is_empty() {
-            return Ok(Some(false));
-        }
         self.pay(arguments.len().saturating_add(fields.len()), depth)?;
         for argument in arguments {
             match argument {

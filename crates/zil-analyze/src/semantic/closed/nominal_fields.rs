@@ -344,7 +344,7 @@ impl Check<'_, '_> {
         }
         match recipe {
             SemanticTypeRecipe::Atom(ty)
-                if ty.is_b0_scalar() || matches!(ty, Type::ByteBuffer | Type::ForeignHandle) =>
+                if ty.is_b0_scalar() || matches!(ty, Type::ByteBuffer | Type::ForeignHandle | Type::CWideString) =>
             {
                 value::borrowed_scalar(ty, self.inventory, b)
             }
@@ -485,7 +485,7 @@ impl Check<'_, '_> {
                 }))
             }
             SemanticTypeRecipe::Code {
-                kind: SemanticCodeKind::FunctionPointer,
+                kind: kind @ (SemanticCodeKind::FunctionPointer | SemanticCodeKind::ForeignCallback),
                 signature,
             } if signature.bound_lifetimes == 0
                 && signature.invocation_lifetimes == 0
@@ -507,11 +507,21 @@ impl Check<'_, '_> {
                 if !empty(&result.life) || !result.classes.is_empty() {
                     return Err(unknown("nominal code field result retains its original class domain"));
                 }
-                let ty = Type::FunctionPointer { parameters, result: Box::new(result.into_type(b)?) };
-                if !crate::class_flow::thin::data(&ty, b, depth + 1)? {
-                    return Err(unknown("nominal code field requires a complete closed Copy ABI"));
+                let result=Box::new(result.into_type(b)?);
+                if *kind==SemanticCodeKind::ForeignCallback {
+                    let scalar=|ty:&Type| ty.is_integer() || ty.is_float() || *ty==Type::ForeignHandle;
+                    b.spend(parameters.len(),WORK)?;
+                    if !parameters.iter().all(scalar) || (*result!=Type::Unit && !scalar(&result)) {
+                        return Err(fail("nominal foreign code field changes its C scalar ABI"));
+                    }
+                    Ok(value::scalar(Type::ForeignCallback {parameters,result}))
+                } else {
+                    let ty=Type::FunctionPointer{parameters,result};
+                    if !crate::class_flow::thin::data(&ty, b, depth + 1)? {
+                        return Err(unknown("nominal code field requires a complete closed Copy ABI"));
+                    }
+                    Ok(value::scalar(ty))
                 }
-                Ok(value::scalar(ty))
             }
             SemanticTypeRecipe::Array { element, length } => {
                 let element = self.nominal_field_value(owner, args, element, b, depth + 1)?;

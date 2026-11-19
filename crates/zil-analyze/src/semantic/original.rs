@@ -5010,6 +5010,98 @@ impl Solver<'_, '_> {
         }
         Ok(false)
     }
+    fn store_field_has_storage(
+        &self,
+        term: Term,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<bool> {
+        self.step(depth, b)?;
+        let fields = match &self.state.arena[self.type_root(term, b)?] {
+            Kind::Atom(ty) => return Ok(*ty != Type::Unit),
+            Kind::Wrapped(Wrapper::Managed, payload) => {
+                return self.store_field_has_storage(*payload, b, depth + 1);
+            }
+            Kind::Array { element, length } => {
+                return Ok(
+                    matches!(self.state.arena[self.root(*length,b)?],Kind::ConstValue(Constant::Usize(n)) if n>0)
+                        && self.store_field_has_storage(*element, b, depth + 1)?,
+                );
+            }
+            Kind::Tuple(fields) => fields,
+            Kind::Nominal {
+                definition, fields, ..
+            } => {
+                if matches!(
+                    self.inventory.definition(*definition, b)?.body,
+                    SemanticDefinitionBody::Nominal {
+                        body: SemanticNominalBody::Enum { .. },
+                        ..
+                    }
+                ) {
+                    return Ok(true);
+                }
+                fields
+            }
+            Kind::Rigid(..) | Kind::Associated { .. } | Kind::SelfType(_) => {
+                return self.satisfies(term, Predicate::StoreElement, b, depth + 1);
+            }
+            Kind::Closure { .. }
+            | Kind::Code { .. }
+            | Kind::ErrorUnion { .. }
+            | Kind::Wrapped(Wrapper::Store, _) => return Ok(true),
+            _ => return Ok(false),
+        };
+        for field in fields {
+            if self.store_field_has_storage(*field, b, depth + 1)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+    fn store_copy_field(&self, term: Term, b: &mut Budget, depth: usize) -> CompileResult<bool> {
+        self.step(depth, b)?;
+        let term = self.type_root(term, b)?;
+        let fields = match &self.state.arena[term] {
+            Kind::Atom(ty) => {
+                return Ok(
+                    ty.is_b0_scalar() || matches!(ty, Type::ForeignHandle | Type::CWideString)
+                );
+            }
+            Kind::Code { .. } => return self.satisfies(term, Predicate::Copy, b, depth + 1),
+            Kind::Array { element, length } => {
+                return Ok(matches!(self.state.arena[self.root(*length, b)?], Kind::ConstValue(Constant::Usize(_)))
+                    && self.store_copy_field(*element, b, depth + 1)?);
+            }
+            Kind::ErrorUnion { error, result } => {
+                return Ok(self.store_copy_field(*error, b, depth + 1)?
+                    && self.store_copy_field(*result, b, depth + 1)?);
+            }
+            Kind::Tuple(fields) => fields,
+            Kind::Nominal {
+                definition, fields, ..
+            } => {
+                if !matches!(
+                    self.inventory.definition(*definition, b)?.body,
+                    SemanticDefinitionBody::Nominal {
+                        kind: LifeNominalKind::Record | LifeNominalKind::Enum,
+                        ..
+                    }
+                ) {
+                    return Ok(false);
+                }
+                resources::ordinary_drop_absent(*definition, self.inventory, b)?;
+                fields
+            }
+            _ => return Ok(false),
+        };
+        for field in fields {
+            if !self.store_copy_field(*field, b, depth + 1)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
     fn pod_field_extent(
         &self,
         term: Term,
@@ -5075,21 +5167,30 @@ impl Solver<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<bool> {
+        self.satisfies_at(term, predicate, false, b, depth)
+    }
+    fn satisfies_at(
+        &self,
+        term: Term,
+        predicate: Predicate,
+        member: bool,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<bool> {
         self.step(depth, b)?;
         let term = self.root(term, b)?;
         if let Predicate::Capability(kind) = predicate {
             return self.capability(term, kind, b, depth + 1);
         }
         match &self.state.arena[term] {
-            Kind::Atom(ty) => Ok((ty.is_b0_scalar()
+            Kind::Atom(ty) if matches!(predicate, Predicate::StoreElement) => {
+                Ok(ty.is_b0_scalar() && *ty != Type::Unit)
+            }
+            Kind::Atom(ty) => Ok(ty.is_b0_scalar()
                 || matches!(ty, Type::ForeignHandle | Type::CWideString)
                 || *ty == crate::generic_mutex::error_type()
                 || crate::dyn_dispatch::is_create_error(ty)
-                || strings::is_byte_type(ty))
-                && (!matches!(predicate, Predicate::StoreElement)
-                    || (!matches!(ty, Type::Unit | Type::CWideString)
-                        && !crate::dyn_dispatch::is_create_error(ty)
-                        && !strings::is_byte_type(ty)))),
+                || strings::is_byte_type(ty)),
             Kind::CallResult { hidden, .. } => self.satisfies(*hidden, predicate, b, depth + 1),
             Kind::Address { mutable, .. } => Ok(!matches!(predicate, Predicate::StoreElement)
                 && (!matches!(predicate, Predicate::Copy) || !*mutable)),
@@ -5133,7 +5234,8 @@ impl Solver<'_, '_> {
             }
             Kind::Wrapped(Wrapper::Managed, payload) => match predicate {
                 Predicate::Copy => Ok(false),
-                Predicate::StoreElement => self.owned_sync(*payload, b, depth + 1),
+                Predicate::StoreElement => Ok(self.owned_sync(*payload, b, depth + 1)?
+                    && (member || self.store_field_has_storage(*payload, b, depth + 1)?)),
                 Predicate::Value => Ok(true),
                 Predicate::SyncDrop => self.owned_sync(*payload, b, depth + 1),
                 Predicate::Capability(_) => {
@@ -5183,10 +5285,13 @@ impl Solver<'_, '_> {
                         return Ok(self.pod_field_extent(term, b, depth + 1)?.is_some_and(zil_ir::PodExtent::positive));
                     }
                     resources::ordinary_drop_absent(*definition, self.inventory, b)?;
+                    let mut has_manager = false;
+                    let mut uses_copy_field = false;
                     let mut callback = None;
                     let mut callbacks = 0usize;
                     for field in fields {
                         let root = self.type_root(*field, b)?;
+                        has_manager |= matches!(self.state.arena[root], Kind::Wrapped(Wrapper::Managed, _));
                         if matches!(self.state.arena[root], Kind::Closure { .. }) {
                             callbacks += 1;
                             let same_callback = if let Some(old) = callback {
@@ -5208,11 +5313,17 @@ impl Solver<'_, '_> {
                                 return Ok(false);
                             }
                             callback = Some(root);
-                        } else if !self.satisfies(*field, Predicate::StoreElement, b, depth + 1)? {
-                            return Ok(false);
+                        } else if !self.satisfies_at(
+                            *field, Predicate::StoreElement, *kind == LifeNominalKind::Package, b, depth + 1,
+                        )? {
+                            if !self.store_copy_field(*field, b, depth + 1)? {
+                                return Ok(false);
+                            }
+                            uses_copy_field = true;
                         }
                     }
-                    return Ok(true);
+                    return Ok((!uses_copy_field || *kind == LifeNominalKind::Package && has_manager)
+                        && (member || self.store_field_has_storage(term, b, depth + 1)?));
                 }
                 for field in fields {
                     if !self.satisfies(*field, predicate, b, depth + 1)? {

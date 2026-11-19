@@ -2474,6 +2474,15 @@ impl Check<'_, '_> {
         ty: &SemanticTypeRecipe,
         depth: usize,
     ) -> R<bool> {
+        self.store_element_at(owner, ty, false, depth)
+    }
+    fn store_element_at(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe,
+        member: bool,
+        depth: usize,
+    ) -> R<bool> {
         self.pay(1, depth)?;
         let ty = self.observation_type(owner, ty, depth + 1)?;
         for requirement in self.original_requirements(owner, depth + 1)?.iter() {
@@ -2547,7 +2556,8 @@ impl Check<'_, '_> {
                     return self.store_element(owner, element, depth + 1);
                 }
                 if let Some(accepted) = self.resource_store_element(owner, payload, depth + 1)? {
-                    return Ok(accepted);
+                    return Ok(accepted
+                        && (member || self.store_field_has_storage(owner, payload, depth + 1)?));
                 }
                 Ok(matches!(
                     payload.as_ref(),
@@ -2578,6 +2588,8 @@ impl Check<'_, '_> {
                 {
                     return Ok(false);
                 }
+                let mut has_manager = false;
+                let mut uses_copy_field = false;
                 for field in fields {
                     let field = self.instantiate_field(
                         owner,
@@ -2586,11 +2598,16 @@ impl Check<'_, '_> {
                         arguments,
                         depth + 1,
                     )?;
-                    if !self.store_element(owner, &field, depth + 1)? {
-                        return Ok(false);
+                    has_manager |= matches!(field, SemanticTypeRecipe::Managed(_));
+                    if !self.store_element_at(owner, &field, true, depth + 1)? {
+                        if !self.store_copy_field(owner, &field, depth + 1)? {
+                            return Ok(false);
+                        }
+                        uses_copy_field = true;
                     }
                 }
-                Ok(true)
+                Ok((!uses_copy_field || has_manager)
+                    && (member || self.store_field_has_storage(owner, &ty, depth + 1)?))
             }
             _ => Ok(false),
         }

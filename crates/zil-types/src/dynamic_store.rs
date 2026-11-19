@@ -499,7 +499,7 @@ fn owned_capture_profile(
     Ok(owns)
 }
 
-fn has_storage(ty: &Type) -> bool {
+pub(super) fn has_storage(ty: &Type) -> bool {
     match ty {
         Type::Unit => false,
         Type::Managed(payload) => has_storage(payload),

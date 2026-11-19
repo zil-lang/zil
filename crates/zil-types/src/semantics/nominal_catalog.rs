@@ -683,8 +683,9 @@ impl<'a> Check<'a, '_> {
         self.node(depth)?;
         match (recipe, actual) {
             (SemanticTypeRecipe::Atom(expected), _) => self.same(expected, actual),
-            (SemanticTypeRecipe::Code { kind, signature }, Type::FunctionPointer { parameters, result })
-                if *kind == SemanticCodeKind::FunctionPointer =>
+            (SemanticTypeRecipe::Code { kind, signature }, Type::FunctionPointer { parameters, result } | Type::ForeignCallback { parameters, result })
+                if matches!((kind, actual), (SemanticCodeKind::FunctionPointer, Type::FunctionPointer { .. })
+                    | (SemanticCodeKind::ForeignCallback, Type::ForeignCallback { .. })) =>
             {
                 if signature.call_kind != CallKind::Direct
                     || signature.bound_lifetimes != 0
@@ -695,13 +696,16 @@ impl<'a> Check<'a, '_> {
                     return Err(bad("function pointer field changes its original signature"));
                 }
                 self.pay(parameters.len())?;
+                if *kind == SemanticCodeKind::ForeignCallback && !crate::foreign::callback_signature(parameters,result) {
+                    return Err(bad("foreign code field changes its original C scalar ABI"));
+                }
                 for (parameter, actual) in signature.parameters.iter().zip(parameters) {
                     if !matches!(parameter.mode, PassingMode::Infer | PassingMode::Copy) {
                         return Err(bad("function pointer field changes its parameter transfer mode"));
                     }
-                    self.code_slot(owner, &parameter.ty, actual, depth + 1)?;
+                    self.code_slot(owner, *kind, &parameter.ty, actual, depth + 1)?;
                 }
-                self.code_slot(owner, &signature.result, result, depth + 1)
+                self.code_slot(owner, *kind, &signature.result, result, depth + 1)
             }
 
             (SemanticTypeRecipe::Exact(value), _) => {
@@ -983,11 +987,12 @@ impl<'a> Check<'a, '_> {
     fn code_slot(
         &mut self,
         owner: &LifeNominalInstance,
+        kind: SemanticCodeKind,
         expected: &SemanticTypeRecipe,
         actual: &Type,
         depth: usize,
     ) -> R<()> {
-        if !functions::closed_code_slot(SemanticCodeKind::FunctionPointer, actual, self.limits, self.left, depth)?
+        if !functions::closed_code_slot(kind, actual, self.limits, self.left, depth)?
             || self.domain(actual, depth)? != 0
         {
             return Err(pending("function pointer field needs its full parameter or result lifetime contract"));

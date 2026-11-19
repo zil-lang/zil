@@ -650,6 +650,29 @@ fn real_copy_shapes_including_static_foreign_values_remain_elements() {
  "#
     );
     native(&[("main", &source)], b"A", 0);
+
+    let item = "package ForeignField{manages owner:R; field:c_handle}";
+    let project = format!(
+        "{MODEL}{HELPERS}{item}fn main()->i32{{let s:Store<ForeignField>=empty();return i32(len(s))}}"
+    );
+    native(&[("main", &project)], b"", 0);
+
+    let borrowed = project.replace("field:c_handle", "field:&i32");
+    let report = check(&[("main", &borrowed)]);
+    assert!(report.diagnostics.iter().any(|d| d.code == "E-GENERIC-ARGUMENT"
+        && d.message.contains("cannot contain addresses")), "{}", report.to_json());
+    assert_eq!(report.verification_runs, 0);
+
+    let bad_abi = source.replace("callback:extern \"C\" fn(i32)", "callback:extern \"C\" fn(bool)");
+    let report = check(&[("main", &bad_abi)]);
+    assert!(report.diagnostics.iter().any(|d| d.code == "E-FFI-CALLBACK-TYPE"), "{}", report.to_json());
+    assert_eq!(report.verification_runs, 0);
+
+    let standalone = "enum Kind{Empty,Value(i32)}fn main(){let s:Store<Kind>=store_new();store_len(s)}";
+    let report = check(&[("main", standalone)]);
+    assert!(report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"
+        && d.message.contains("Store elements require")), "{}", report.to_json());
+    assert_eq!(report.verification_runs, 0);
 }
 
 #[test]

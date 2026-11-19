@@ -119,7 +119,8 @@ fn value_inner(
         Type::FunctionPointer { .. }
         | Type::BorrowedFunctionPointer { .. }
         | Type::ForeignCallback { .. }
-        | Type::ForeignHandle => (8, 8),
+        | Type::ForeignHandle
+        | Type::CWideString => (8, 8),
         Type::OwnedDyn { .. } => (16, 8),
         Type::Managed(payload) => match payload.as_ref() {
             Type::ByteBuffer => {

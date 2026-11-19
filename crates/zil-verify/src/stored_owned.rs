@@ -423,6 +423,7 @@ pub(super) fn target_free_product_or_sum(module: &TypedModule, ty: &Type, b: &mu
 #[derive(Clone, Copy)]
 enum TargetFreeRole<'a> {
     Store,
+    OwnedCopyField,
     Ordinary,
     ClosedErasure,
     ResourcePayload(&'a Type),
@@ -433,6 +434,7 @@ impl TargetFreeRole<'_> {
     fn nested(self) -> Self {
         match self {
             Self::Store => Self::Store,
+            Self::OwnedCopyField => Self::OwnedCopyField,
             _ => Self::Ordinary,
         }
     }
@@ -462,7 +464,19 @@ fn target_free_tree<'a>(
                     _ => nested,
                 };
                 b.spend(fields.len())?;
-                pending.extend(fields.iter().map(|(_, ty)| (ty, depth + 1, fields_role)));
+                let mut direct_owner = false;
+                if matches!(ty, Type::Package { .. }) {
+                    b.spend(fields.len())?;
+                    direct_owner = fields.iter().any(|(_, field)| matches!(field, Type::Managed(_)));
+                }
+                for (_, field) in fields {
+                    let role = if direct_owner && field.copy_value_with(&mut || b.spend(1))? {
+                        TargetFreeRole::OwnedCopyField
+                    } else {
+                        fields_role
+                    };
+                    pending.push((field, depth + 1, role));
+                }
             },
             Type::Tuple(fields)=>{
                 let children = if matches!(role, TargetFreeRole::ClosedErasure) { role } else { nested };
@@ -519,6 +533,9 @@ fn target_free_tree<'a>(
             },
             Type::FunctionPointer{..}=>if !super::class_flow::plain_pointer_type(ty,b)?{return Ok(false);},
             Type::ForeignCallback{parameters,result}=>{resources::charge_payload(ty,b)?;super::native_values::callback_signature(parameters,result,None)?;},
+            Type::CWideString | Type::ForeignHandle if matches!(role, TargetFreeRole::OwnedCopyField) => {
+                super::native_values::target(&module.target, None)?;
+            }
             Type::ForeignHandle => {
                 let TargetFreeRole::ResourceField(owner) = role else { return Ok(false); };
                 resources::check_type_for(module, owner, None, b)?;
