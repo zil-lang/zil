@@ -6,6 +6,8 @@ enum Candidate<'a> {
     Other,
     Text,
     TextClosure,
+    TakenInput(usize),
+    TransferClosure(usize),
     Input(usize),
     Tuple(Vec<Candidate<'a>>),
     Record(Vec<(&'a str, Candidate<'a>)>),
@@ -46,6 +48,8 @@ impl Walk<'_, '_> {
             Candidate::Other => Candidate::Other,
             Candidate::Text => Candidate::Text,
             Candidate::TextClosure => Candidate::TextClosure,
+            Candidate::TakenInput(i) => Candidate::TakenInput(*i),
+            Candidate::TransferClosure(i) => Candidate::TransferClosure(*i),
             Candidate::Input(index) => Candidate::Input(*index),
             Candidate::Tuple(fields) => {
                 let mut values = self.vector(fields.len(), span)?;
@@ -113,6 +117,8 @@ impl Walk<'_, '_> {
             (Candidate::Input(left), Candidate::Input(right)) if left == right => Candidate::Input(left),
             (Candidate::Text, Candidate::Text) => Candidate::Text,
             (Candidate::TextClosure, Candidate::TextClosure) => Candidate::TextClosure,
+            (Candidate::TakenInput(a), Candidate::TakenInput(b)) if a == b => Candidate::TakenInput(a),
+            (Candidate::TransferClosure(a), Candidate::TransferClosure(b)) if a == b => Candidate::TransferClosure(a),
             (Candidate::Tuple(mut left), Candidate::Tuple(right)) if left.len() == right.len() => {
                 for (left, right) in left.iter_mut().zip(right) {
                     *left = self.join(
@@ -298,6 +304,12 @@ impl Walk<'_, '_> {
                     _ => Candidate::Other,
                 }
             }
+            s::ExprKind::Unary { op: s::UnaryOp::Give, operand } if self.inputs => {
+                match self.expression(operand, env, depth + 1)? {
+                    Candidate::Input(i) => Candidate::TakenInput(i),
+                    _ => Candidate::Other,
+                }
+            }
             s::ExprKind::Unary { op: s::UnaryOp::Borrow | s::UnaryOp::BorrowMut, operand } if self.inputs => {
                 // A reborrow of an actual pointee follows the incoming loan.
                 // Borrowing a parameter's own slot has a local lifetime.
@@ -340,17 +352,17 @@ impl Walk<'_, '_> {
                 let right = self.expression(else_value, env, depth + 1)?;
                 self.join(left, right, value.span, depth + 1)?
             }
-            s::ExprKind::Closure { params, body, .. } => {
+            s::ExprKind::Closure { move_capture, params, body, .. } => {
                 let saved = env.len();
                 for parameter in params {
                     self.bind(env, &parameter.name, Candidate::Other, parameter.span)?;
                 }
                 let result = self.arrow(body, env, depth + 1)?;
                 env.truncate(saved);
-                if matches!(result, Some(Candidate::Text)) {
-                    Candidate::TextClosure
-                } else {
-                    Candidate::Other
+                match result {
+                    Some(Candidate::Text) => Candidate::TextClosure,
+                    Some(Candidate::TakenInput(i)) if *move_capture => Candidate::TransferClosure(i),
+                    _ => Candidate::Other,
                 }
             }
             _ => Candidate::Other,
@@ -534,7 +546,7 @@ impl Walk<'_, '_> {
 
 /// Only an omitted outer callable-result life needs the literal-origin walk.
 /// This is a query filter, not the qualification of that result as Static.
-pub(super) fn elided_result(bound: &s::TypeRef, budget: &mut Budget<'_>, depth: usize) -> R<bool> {
+pub(super) fn elided_result(bound: &s::TypeRef, budget: &mut Budget<'_>, depth: usize) -> R<Option<bool>> {
     budget.node(bound.span, depth)?;
     match &bound.kind {
         s::TypeKind::Group(inner) | s::TypeKind::ForLifetime { inner, .. } => {
@@ -543,23 +555,19 @@ pub(super) fn elided_result(bound: &s::TypeRef, budget: &mut Budget<'_>, depth: 
         s::TypeKind::Named { path, args } if matches!(path.as_slice(), [name] if matches!(name.as_str(), "Fn" | "FnMut" | "FnOnce")) =>
         {
             let [s::GenericArg::Type(_), s::GenericArg::Type(result)] = args.as_slice() else {
-                return Ok(false);
+                return Ok(None);
             };
             let mut result = result;
             while let s::TypeKind::Group(inner) = &result.kind {
                 budget.node(result.span, depth + 1)?;
                 result = inner;
             }
-            Ok(matches!(
-                result.kind,
-                s::TypeKind::Reference {
-                    mutable: false,
-                    lifetime: None,
-                    ..
-                }
-            ))
+            Ok(match result.kind {
+                s::TypeKind::Reference { mutable, lifetime: None, .. } => Some(mutable),
+                _ => None,
+            })
         }
-        _ => Ok(false),
+        _ => Ok(None),
     }
 }
 
@@ -584,6 +592,13 @@ fn original_result<'a>(
 pub(crate) fn input_result(function: &s::Function, budget: &mut Budget<'_>) -> R<Option<usize>> {
     Ok(match original_result(function, budget, true)? {
         Some(Candidate::Input(index)) => Some(index),
+        _ => None,
+    })
+}
+
+pub(super) fn transferred_input(function: &s::Function, budget: &mut Budget<'_>) -> R<Option<usize>> {
+    Ok(match original_result(function, budget, true)? {
+        Some(Candidate::TransferClosure(input)) => Some(input),
         _ => None,
     })
 }

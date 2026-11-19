@@ -192,7 +192,26 @@ impl CheckedOriginal {
                     let child=self.expression(module,context,operand,env,bindings,expected,active,b)?;
                     match op{
                         UnaryOp::Give=>{
-                            if !matches!(self.resolved(&child,b)?,Ty::Managed(_)|Ty::Store(_))
+                            let head = self.resolved(&child, b)?;
+                            let exclusive_place = if matches!(head, Ty::Address { mutable: true, .. }) {
+                                let mut source = operand.as_ref();
+                                while let CoreExprKind::Group(inner) = &source.kind {
+                                    b.spend(1)?;
+                                    source = inner;
+                                }
+                                match &source.kind {
+                                    CoreExprKind::Name(name) => match bindings.get(name) {
+                                        Some(binding) if matches!(binding.identity, Binder::Capture { .. }) =>
+                                            self.capture_owns(&binding.identity, b)?,
+                                        Some(_) => true,
+                                        None => false,
+                                    },
+                                    _ => false,
+                                }
+                            } else {
+                                false
+                            };
+                            if !exclusive_place && !matches!(head,Ty::Managed(_)|Ty::Store(_))
                                 && !self.owned_package_field_transfer(module,context,operand,&child,env,active,b)? {
                                 return Err(bad("original give has no actual owning resource type"));
                             }

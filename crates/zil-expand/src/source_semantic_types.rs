@@ -99,7 +99,7 @@ impl Builder<'_, '_, '_, '_> {
         result: &s::TypeRef,
         path: &mut Vec<u32>,
         depth: usize,
-        static_result: bool,
+        opaque_life: Option<&SemanticOuterLifeRecipe>,
         receiver: bool,
     ) -> R<SemanticSignatureRecipe> {
         self.budget.node(result.span, depth)?;
@@ -179,12 +179,28 @@ impl Builder<'_, '_, '_, '_> {
                         .receiver_result = Some(path.clone());
                 }
             }
-            let result = if static_result
-                && self.invocations.last().expect("actual callable frame").input_addresses == 0
-            {
-                self.static_callable_result(result, path, depth + 1)?
-            } else {
-                self.ty(result, path, depth + 1, false)?
+            let no_inputs = self.invocations.last().expect("actual callable frame").input_addresses == 0;
+            let result = match opaque_life.filter(|_| no_inputs) {
+                Some(SemanticOuterLifeRecipe::Static) => self.static_callable_result(result, path, depth + 1)?,
+                Some(SemanticOuterLifeRecipe::Class(life)) => {
+                    let mut leaf = result;
+                    while let s::TypeKind::Group(inner) = &leaf.kind {
+                        self.budget.node(leaf.span, depth)?;
+                        leaf = inner;
+                    }
+                    let s::TypeKind::Reference { mutable: true, lifetime: None, inner } = &leaf.kind else {
+                        return Err(error(result.span, "captured result differs from the transferred exclusive pointer"));
+                    };
+                    path.push(0);
+                    let referent = self.ty(inner, path, depth + 1, true);
+                    path.pop();
+                    prepay_recipe(life, self.budget, result.span, 0)?;
+                    self.budget.lineage_bytes(std::mem::size_of::<SemanticTypeRecipe>(), result.span)?;
+                    SemanticTypeRecipe::Address {
+                        mutable: true, lifetime: SemanticOuterLifeRecipe::Class(life.clone()), inner: Box::new(referent?),
+                    }
+                }
+                None => self.ty(result, path, depth + 1, false)?,
             };
             path.pop();
             let invocation_lifetimes = u32::try_from(
@@ -960,7 +976,7 @@ impl Builder<'_, '_, '_, '_> {
             }
             s::TypeKind::Function { params, result }
             | s::TypeKind::ForeignFunction { params, result, .. } => {
-                let signature = self.callable_signature(params, result, path, depth + 1, false, false)?;
+                let signature = self.callable_signature(params, result, path, depth + 1, None, false)?;
                 self.budget
                     .lineage_bytes(std::mem::size_of::<SemanticSignatureRecipe>(), ty.span)?;
                 Ok(SemanticTypeRecipe::Code {
@@ -1025,7 +1041,7 @@ impl Builder<'_, '_, '_, '_> {
         path: &mut Vec<u32>,
         depth: usize,
     ) -> R<SemanticRequirementRecipe> {
-        self.requirement_with_result(subject, bound, path, depth, false)
+        self.requirement_with_result(subject, bound, path, depth, None)
     }
     fn requirement_with_result(
         &mut self,
@@ -1033,11 +1049,11 @@ impl Builder<'_, '_, '_, '_> {
         bound: &s::TypeRef,
         path: &mut Vec<u32>,
         depth: usize,
-        static_result: bool,
+        opaque_life: Option<&SemanticOuterLifeRecipe>,
     ) -> R<SemanticRequirementRecipe> {
         self.budget.node(bound.span, depth)?;
         if let s::TypeKind::Group(inner) = &bound.kind {
-            return self.requirement_with_result(subject, inner, path, depth + 1, static_result);
+            return self.requirement_with_result(subject, inner, path, depth + 1, opaque_life);
         }
         if let s::TypeKind::ForLifetime { lifetime, inner } = &bound.kind {
             let name = self.text(lifetime, bound.span)?;
@@ -1048,7 +1064,7 @@ impl Builder<'_, '_, '_, '_> {
             self.bound_lives = frames;
             // Restore the lexical frame even on failure; no incomplete
             // normalized requirement is published into the original program.
-            let requirement = self.requirement_with_result(subject, inner, path, depth + 1, static_result);
+            let requirement = self.requirement_with_result(subject, inner, path, depth + 1, opaque_life);
             self.bound_lives.pop();
             let requirement = requirement?;
             let mut requirements = Vec::new();
@@ -1081,7 +1097,7 @@ impl Builder<'_, '_, '_, '_> {
                 ));
             };
             let signature = self.callable_signature(
-                parameters, result, path, depth + 1, static_result,
+                parameters, result, path, depth + 1, opaque_life,
                 matches!(kind, CallableKind::Fn | CallableKind::FnMut),
             )?;
             self.budget
@@ -1276,14 +1292,23 @@ impl Builder<'_, '_, '_, '_> {
                             scope: SemanticScopeRef::Ancestor(0),
                             source: SemanticOriginalTypeSource::Result,
                         };
-                        let literal_result = if static_results::elided_result(bound, self.budget, 0)? {
-                            if static_result.is_none() {
-                                static_result = Some(static_results::opaque_result(function, self.budget)?);
+                        let opaque_life = match static_results::elided_result(bound, self.budget, 0)? {
+                            Some(false) => {
+                                if static_result.is_none() {
+                                    static_result = Some(static_results::opaque_result(function, self.budget)?);
+                                }
+                                static_result.unwrap_or(false).then_some(&SemanticOuterLifeRecipe::Static)
                             }
-                            static_result.unwrap_or(false)
-                        } else { false };
+                            Some(true) => static_results::transferred_input(function, self.budget)?
+                                .and_then(|i| inputs.get(i))
+                                .and_then(|p| match &p.ty {
+                                    SemanticTypeRecipe::Address { mutable: true, lifetime, .. } => Some(lifetime),
+                                    _ => None,
+                                }),
+                            None => None,
+                        };
                         let requirement =
-                            self.requirement_with_result(subject, bound, &mut vec![2, ordinal as u32], 0, literal_result)?;
+                            self.requirement_with_result(subject, bound, &mut vec![2, ordinal as u32], 0, opaque_life)?;
                         self.push(&mut requirements, requirement, bound.span)?;
                     }
                 }

@@ -765,6 +765,13 @@ impl Checked {
     pub(in crate::semantic) fn receiver_sources(
         &self, owner: SemanticDefinitionId, inventory: &Inventory<'_>, b: &mut Budget,
     ) -> CompileResult<Option<BTreeSet<u32>>> {
+        self.capture_return_sources(owner, inventory, false, b)
+    }
+
+    pub(in crate::semantic) fn capture_return_sources(
+        &self, owner: SemanticDefinitionId, inventory: &Inventory<'_>,
+        transfer: bool, b: &mut Budget,
+    ) -> CompileResult<Option<BTreeSet<u32>>> {
         let declaration = inventory.definition(owner, b)?;
         if declaration.kind != SemanticDefinitionKind::Closure { return Ok(None); }
         let SemanticDefinitionBody::FunctionWithBody {
@@ -775,8 +782,8 @@ impl Checked {
         let frame = self.frames.get(&owner)
             .ok_or_else(|| fail("Receiver source has no independently completed original body"))?;
         let result = self.receiver_value_root(frame.result, b)?;
-        if !matches!(&self.arena[result], Kind::Address { mutable: false, .. })
-            && !matches!(&self.arena[result], Kind::Atom(ty) if strings::is_byte_type(ty)) {
+        if !matches!(&self.arena[result], Kind::Address { mutable, .. } if *mutable == transfer)
+            && (transfer || !matches!(&self.arena[result], Kind::Atom(ty) if strings::is_byte_type(ty))) {
             return Ok(None);
         }
         let directory = inventory.original_index(owner, b)?;
@@ -792,14 +799,14 @@ impl Checked {
             b.lookup(frame.expressions.len(), WORK)?;
             let Some(term) = frame.expressions.get(&value.id) else { return Ok(None); };
             if self.root(*term, b)? != self.root(frame.result, b)?
-                || !self.receiver_expression_source(owner, value.id, inventory, &mut sources, b)? {
+                || !self.receiver_expression_source(owner, value.id, inventory, &mut sources, transfer, b)? {
                 return Ok(None);
             }
         } else {
             for value in returns {
                 b.spend(1, WORK)?;
                 let Some(value) = value else { return Ok(None); };
-                if !self.receiver_expression_source(owner, value.id, inventory, &mut sources, b)? { return Ok(None); }
+                if !self.receiver_expression_source(owner, value.id, inventory, &mut sources, transfer, b)? { return Ok(None); }
             }
         }
         // A literal-only result has no capture root. Its separate genuine
@@ -823,7 +830,7 @@ impl Checked {
     /// captured owner, and helper spellings carry no authority.
     fn receiver_expression_source(
         &self, owner: SemanticDefinitionId, node: NodeId, inventory: &Inventory<'_>,
-        sources: &mut BTreeSet<u32>, b: &mut Budget,
+        sources: &mut BTreeSet<u32>, transfer: bool, b: &mut Budget,
     ) -> CompileResult<bool> {
         let root = ReceiverSource::Expression(owner, node);
         let mut pending = vec![root];
@@ -848,6 +855,35 @@ impl Checked {
                         if *scope == owner && write.anchor == LocalAnchor::Binding(binding) {
                             if !write.path.is_empty() { return Ok(false); }
                             Solver::push(&mut edges, ReceiverSource::Expression(owner, write.value), b)?;
+                        }
+                    }
+                }
+                ReceiverSource::Expression(owner, node) if transfer => {
+                    b.lookup(self.owner_transfers.len(), WORK)?;
+                    if let Some(place) = self.owner_transfers.get(&(owner, node)) {
+                        let Some(LocalAnchor::Environment(ordinal)) = place.anchor else { return Ok(false); };
+                        if !place.path.is_empty() || !matches!(self.arena[self.root(place.selected, b)?],
+                            Kind::Address { mutable: true, .. }) { return Ok(false); }
+                        b.lookup(sources.len(), WORK)?;
+                        sources.insert(ordinal);
+                        seed = true;
+                    } else {
+                        let value = inventory.original_index(owner, b)?.get_expr(node, b)?;
+                        match &value.kind {
+                            CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. }
+                            | CoreExprKind::Sequence { value: inner, .. } =>
+                                Solver::push(&mut edges, ReceiverSource::Expression(owner, inner.id), b)?,
+                            CoreExprKind::If { then_value, else_value, .. } => {
+                                Solver::push(&mut edges, ReceiverSource::Expression(owner, then_value.id), b)?;
+                                Solver::push(&mut edges, ReceiverSource::Expression(owner, else_value.id), b)?;
+                            }
+                            CoreExprKind::Name(_) => {
+                                b.lookup(self.local_reads.len(), WORK)?;
+                                let Some(LocalAnchor::Binding(binding)) = self.local_reads.get(&(owner, node))
+                                    else { return Ok(false); };
+                                Solver::push(&mut edges, ReceiverSource::Binding(owner, *binding), b)?;
+                            }
+                            _ => return Ok(false),
                         }
                     }
                 }

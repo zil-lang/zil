@@ -2305,14 +2305,17 @@ impl Solver<'_, '_> {
                         self.step(depth, b)?;
                         inner = next;
                     }
-                    let manager = if let CoreExprKind::Name(name) = &inner.kind {
+                    let (manager, exclusive) = if let CoreExprKind::Name(name) = &inner.kind {
                         match self.local(frame, name, b)? {
-                            Some(term) => matches!(self.state.arena[self.type_root(term, b)?],
-                                Kind::Wrapped(Wrapper::Managed, _)),
-                            None => false,
+                            Some(term) => match self.state.arena[self.type_root(term, b)?] {
+                                Kind::Wrapped(Wrapper::Managed, _) => (true, false),
+                                Kind::Address { mutable: true, .. } => (false, true),
+                                _ => (false, false),
+                            },
+                            None => (false, false),
                         }
                     } else {
-                        false
+                        (false, false)
                     };
                     if matches!(&inner.kind, CoreExprKind::Member { object, .. }
                         if matches!(object.kind, CoreExprKind::Name(_)))
@@ -2323,7 +2326,7 @@ impl Solver<'_, '_> {
                         self.state.owner_transfers.insert((frame.definition, value.id), place);
                         selected
                     } else {
-                        let value = if manager {
+                        let value = if manager || exclusive {
                             let place = self.borrow_place(frame, operand, b, depth + 1)?;
                             self.consume_place(frame, &place, b)?;
                             b.lookup(self.state.owner_transfers.len(), WORK)?;
@@ -2348,7 +2351,7 @@ impl Solver<'_, '_> {
                             }
                             _ => false,
                         };
-                        if !transferable {
+                        if !transferable && !exclusive {
                             return Err(unknown(
                                 "original give requires its complete owning manager or callable category",
                             ));

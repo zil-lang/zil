@@ -345,6 +345,8 @@ pub fn expand_with_map_limits_target(
     expand_with_map_limits_target_impl(source, module, limits, target, None)
 }
 /// Explicit declaration naming/lineage input; this view grants no permissions.
+/// Produces Core without the checked original-body input. Source consumers
+/// requiring that input use [`expand_with_map_semantics`].
 pub fn expand_with_map_limits_target_context(
     source: &SourceUnit,
     module: &s::Module,

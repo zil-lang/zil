@@ -1082,17 +1082,19 @@ impl Check<'_, '_> {
                 ));
             }
         }
+        let transferred = crate::stored_callables::transferred(closure)
+            && matches!(closure.result, Type::Address { mutable: true, .. });
         let strong_lending = !receiver_result
             && !closure.lending_captures.is_empty()
             && matches!(
                 crate::signature_life::outer(contract, StorageBase::Result),
                 Some(StorageBinder::Fixed(_))
             )
-            && matches!(closure.result, Type::Address { mutable: false, .. });
+            && (transferred || matches!(closure.result, Type::Address { mutable: false, .. }));
         if strong_lending {
             let original = self
                 .original
-                .receiver_sources(instance.definition, self.inventory, b)?
+                .capture_return_sources(instance.definition, self.inventory, transferred, b)?
                 .ok_or_else(|| {
                     fail("Fixed lending header has no complete original captured return proof")
                 })?;

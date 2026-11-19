@@ -5,25 +5,7 @@ use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit, TargetProfi
 use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_source};
 use zil_ir::{StorageBase, StorageBinder};
 fn accepted(name: &str, text: &str) {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), name, text);
-    let limits = Limits::default();
-    let target = TargetProfile::host_llvm();
-    let syntax = zil_syntax::parse(&source).into_result().unwrap();
-    let core = zil_expand::expand_with_map_limits_target_context(
-        &source,
-        &syntax,
-        &limits,
-        &target,
-        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
-            root: source.module_id,
-            aliases: &Default::default(),
-            declarations: zil_expand::source_context::DeclarationPlacement::Original,
-        },
-    )
-    .unwrap()
-    .core;
-    let module = zil_types::check(&core, &target, &limits).unwrap();
-    accepted_typed(name, text, module);
+    accepted_typed(name, text, typed_with_original_source(name, text));
 }
 
 fn accepted_typed(name: &str, text: &str, module: zil_ir::TypedModule) {
@@ -86,12 +68,9 @@ fn accepted_typed(name: &str, text: &str, module: zil_ir::TypedModule) {
 }
 macro_rules! consumer {
     ($test:ident, $source:literal) => {
-        consumer!($test, $source, accepted);
-    };
-    ($test:ident, $source:literal, $accept:ident) => {
         #[test]
         fn $test() {
-            $accept(
+            accepted(
                 $source,
                 include_str!(concat!(
                     "../../../tests/fixtures/returned-owning-holders/",
@@ -127,13 +106,9 @@ fn typed_with_original_source(name: &str, text: &str) -> zil_ir::TypedModule {
     zil_types::check(&core, &target, &limits).unwrap()
 }
 
-fn accepted_original(name: &str, text: &str) {
-    accepted_typed(name, text, typed_with_original_source(name, text));
-}
-
 #[test]
 fn captured_mutable_holder_updates_original_storage() {
-    accepted_original("captured-mutable-holder", CAPTURED_MUTABLE_HOLDER);
+    accepted("captured-mutable-holder", CAPTURED_MUTABLE_HOLDER);
 }
 
 #[test]
@@ -162,13 +137,11 @@ fn captured_mutable_holder_keeps_its_actual_parent_loans_live() {
 
 consumer!(
     captured_mutable_holder_survives_borrowed_helpers,
-    "captured-mutable-holder-helper",
-    accepted_original
+    "captured-mutable-holder-helper"
 );
 consumer!(
     same_entry_receivers_keep_distinct_holders,
-    "captured-mutable-holder-two-receivers",
-    accepted_original
+    "captured-mutable-holder-two-receivers"
 );
 consumer!(
     readonly_exclusive_capture_reborrows_without_copying_environment,
@@ -180,28 +153,11 @@ consumer!(
 );
 
 mod source_receiver_contracts {
-    use zil_base::{FileId, Limits, ModuleId, SourceUnit, TargetProfile};
+    use zil_base::Limits;
     use zil_ir::{StorageBase, StorageBinder};
 
     pub(super) fn typed(text: &str) -> zil_ir::TypedModule {
-        let source = SourceUnit::new(FileId(0), ModuleId(0), "receiver-borrow.zil", text);
-        let syntax = zil_syntax::parse(&source).into_result().unwrap();
-        let limits = Limits::default();
-        let target = TargetProfile::host_llvm();
-        let core = zil_expand::expand_with_map_limits_target_context(
-            &source,
-            &syntax,
-            &limits,
-            &target,
-            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
-                root: source.module_id,
-                aliases: &Default::default(),
-                declarations: zil_expand::source_context::DeclarationPlacement::Original,
-            },
-        )
-        .unwrap()
-        .core;
-        zil_types::check(&core, &target, &limits).unwrap()
+        super::typed_with_original_source("receiver-borrow.zil", text)
     }
 
     #[test]
@@ -661,7 +617,7 @@ mod public_life_source_proofs {
 mod original_named_source_scope {
     use super::source_receiver_contracts::typed;
     use zil_base::{FileId, Limits, ModuleId, SourceUnit, TargetProfile};
-    fn core(text: &str) -> zil_ir::CoreModule {
+    pub(super) fn core(text: &str) -> zil_ir::CoreModule {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "receiver-borrow.zil", text);
         let syntax = zil_syntax::parse(&source).into_result().unwrap();
         let limits = Limits::default();
@@ -870,6 +826,50 @@ fn verify_reconstructs_taken_capture_vacancy_and_receiver_result_permissions() {
             plan.clone(),
             &format!("receiver mutation {attack}"),
         );
+    }
+
+    let siblings = typed(
+        "fn first<life a>(p:&'a mut i32)->impl FnOnce()->&'a mut i32{return move()=>give p}
+         fn second<life a>(p:&'a mut i32)->impl FnOnce()->&'a mut i32{return move()=>give p}
+         fn main()->i32{var a=20;var b=40;let f=first(&mut a);let g=second(&mut b);
+             let x=f();let y=g();return *x+*y-60}",
+    );
+    let plan = zil_analyze::analyze(&siblings, &Limits::default()).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&siblings, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&wire, &siblings.target, &Limits::default()).unwrap();
+    let [first, second] = siblings.closures.as_slice() else {
+        panic!("expected two independently constructed closures")
+    };
+    assert_eq!(first.captures, second.captures);
+    assert_eq!(first.result, second.result);
+    assert_ne!(first.id, second.id);
+    for replace_constructor in [false, true] {
+        let mut bad = siblings.clone();
+        let factory = bad
+            .functions
+            .iter_mut()
+            .find(|f| {
+                f.callable_return_contract
+                    .as_ref()
+                    .is_some_and(|c| c.closure == first.id)
+            })
+            .unwrap();
+        if replace_constructor {
+            let constructor = factory
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.instructions)
+                .find_map(|i| match &mut i.kind {
+                    InstructionKind::MakeClosure { closure, .. } => Some(closure),
+                    _ => None,
+                })
+                .unwrap();
+            *constructor = second.id;
+        } else {
+            factory.callable_return_contract.as_mut().unwrap().closure = second.id;
+        }
+        assert!(zil_analyze::analyze(&bad, &Limits::default()).is_err());
+        independently_reject_typed_attack(bad, plan.clone(), "different FnOnce factory identity");
     }
 }
 
@@ -1128,13 +1128,24 @@ consumer!(
     "fnonce-exclusive-slice-take"
 );
 
+// These fixtures build synthetic Typed functions and calls. Start with Core
+// so the synthetic edits can be checked as IR without authenticating Source.
+fn typed_for_constant_capture_ir(text: &str) -> zil_ir::TypedModule {
+    zil_types::check(
+        &original_named_source_scope::core(text),
+        &TargetProfile::host_llvm(),
+        &Limits::default(),
+    )
+    .unwrap()
+}
+
 #[test]
 fn constant_capture_invariants_cover_an_uncalled_nonfactory_constructor() {
     use zil_ir::{
         FunctionId, InstructionKind, LocalDecl, LocalId, PassingMode, StorageLifeBinding,
         StorageLifeContract, StoragePosition, Terminator, Type,
     };
-    let original = typed(include_str!(
+    let original = typed_for_constant_capture_ir(include_str!(
         "../../../tests/fixtures/returned-owning-holders/static-byte-slice-capture.zil"
     ));
     let limits = Limits::default();
@@ -1253,10 +1264,10 @@ fn constant_capture_invariants_cover_an_uncalled_nonfactory_constructor() {
 fn constant_capture_cycles_require_a_real_literal_constructor() {
     use zil_ir::{FunctionId, Instruction, InstructionKind, Type, ValueHold, ValueId};
     let limits = Limits::default();
-    let original = typed(include_str!(
+    let original = typed_for_constant_capture_ir(include_str!(
         "../../../tests/fixtures/returned-owning-holders/static-byte-slice-capture.zil"
     ));
-    let simple = typed("fn make(){} fn main()->i32{return 0}");
+    let simple = typed_for_constant_capture_ir("fn make(){} fn main()->i32{return 0}");
     let simple_plan = zil_analyze::analyze(&simple, &limits).unwrap();
     let mut good = original.clone();
     let mut candidate = zil_analyze::analyze(&original, &limits).unwrap();

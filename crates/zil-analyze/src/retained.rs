@@ -248,7 +248,9 @@ pub(super) fn check_function(
         || function.return_type != Type::Closure(contract.closure)
         || definition.id != contract.closure
         || !super::forward::compatible(definition.kind, contract.kind)
-        || !definition.lending_captures.is_empty() && contract.kind == CallableKind::FnOnce
+        || !definition.lending_captures.is_empty()
+            && contract.kind == CallableKind::FnOnce
+            && !super::stored_callables::transferred(definition)
         || contract.kind == CallableKind::FunctionPointer
         || !parameters_supported
     {

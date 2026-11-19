@@ -467,9 +467,11 @@ impl Check<'_, '_> {
             if !self.resource_head(owner, resource, depth + 1)? {
                 return Err(bad("original give payload is not a declared resource head"));
             }
-        } else if !self.owned_callable_for_give(owner, &head, depth + 1)? {
+        } else if !matches!(head, SemanticTypeRecipe::Address { mutable: true, .. })
+            && !self.owned_callable_for_give(owner, &head, depth + 1)?
+        {
             return Err(bad(
-                "original give requires a managed resource or actual by-value callable",
+                "original give requires a managed resource, actual by-value callable, or owned exclusive address",
             ));
         }
         value.used = true;
