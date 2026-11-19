@@ -33,7 +33,7 @@ mod materialize;
 mod names;
 mod operations;
 mod places;
-pub(in crate::semantic) use places::Assignment;
+pub(in crate::semantic) use places::{Assignment, ScalarProjection};
 mod protocol;
 mod receiver_signatures;
 mod record_constructors;

@@ -478,3 +478,44 @@ fn rigid_header_cannot_substitute_the_other_implicit_parameter() {
         require_semantic_rejection(errors);
     }
 }
+
+#[test]
+fn scalar_call_after_question_mark_uses_this_calls_success_payload() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "two-successes.zil", r#"
+        enum Fault { Bad }
+        fn read(n:i32)->Fault!i32 { if n<0 {return Fault.Bad} return n }
+        fn keep(value:i32)->i32 {return value}
+        fn pair(x:i32)->Fault!i32 {
+            let first=keep(read(x)?)
+            let second=keep(read(25)?)
+            return first+second
+        }
+        fn main()->Fault!i32 {return pair(17)?-42}
+    "#);
+    let core = original_core(source, &limits, &target);
+    let mut module = zil_types::check(&core, &target, &limits).unwrap();
+    let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let original = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&original, &target, &limits).unwrap();
+
+    let pair = module.functions.iter_mut().find(|function| function.name == "pair").unwrap();
+    let mut projections = pair.blocks.iter_mut().flat_map(|block| &mut block.instructions)
+        .filter_map(|instruction| match &mut instruction.kind {
+            InstructionKind::ReadErrorUnion { value, is_error: false } => Some(value),
+            _ => None,
+        });
+    let first = *projections.next().unwrap();
+    let second = projections.next().unwrap();
+    assert_ne!(first, *second);
+    assert_eq!(pair.values[first.0 as usize], pair.values[second.0 as usize]);
+    *second = first;
+    assert!(projections.next().is_none());
+    require_semantic_rejection(zil_analyze::analyze(&module, &limits).unwrap_err());
+    plan.module_fingerprint = module.fingerprint();
+    let changed = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    require_semantic_rejection(zil_verify::verify_module(module, plan, &target, &limits).unwrap_err());
+    require_semantic_rejection(zil_verify::verify_module_bytes(&changed, &target, &limits).unwrap_err());
+}

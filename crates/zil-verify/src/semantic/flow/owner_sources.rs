@@ -320,10 +320,14 @@ impl CheckedContext{
                 if ty.is_integer()||ty.is_float()||matches!(ty,Type::Unit|Type::Bool){
                     let original=self.original.borrow();
                     let proof=original.as_ref().ok_or_else(||bad("exact scalar occurrence lacks its original binding proof"))?;
-                    if proof.bound_value_name(caller.definition,node,b)? || proof.scalar_product_field(caller.definition,node,b)? {self.original_projection_source(module,caller,f,value,caller.definition,node,true,b).map_err(|error|{
-                        if error.category==zil_base::ResultCategory::Unsupported{bad("exact scalar source occurrence selects another original binding").with_note(error.message)}
-                        else{error.with_note(format!("original bound scalar {:?} expression {:?}, actual {:?}",caller.definition,node,value))}
-                    })?;}
+                    match proof.scalar_projection(caller.definition, node, b)? {
+                        original::ScalarProjection::Binding => self.original_projection_source(module,caller,f,value,caller.definition,node,true,b).map_err(|error|{
+                            if error.category==zil_base::ResultCategory::Unsupported {bad("exact scalar source occurrence selects another original binding").with_note(error.message)}
+                            else {error.with_note(format!("original bound scalar {:?} expression {:?}, actual {:?}",caller.definition,node,value))}
+                        })?,
+                        original::ScalarProjection::Success(input) => self.exact_success_input(module, caller, f, value, input, environment, b)?,
+                        original::ScalarProjection::Other => {}
+                    }
                 }
                 return Ok(());
             }
@@ -341,6 +345,19 @@ impl CheckedContext{
                 "original {:?} expression {:?}, exact source SSA {:?}; actual {:?} at {:?}:{at} has producer {:?}",caller.definition,node,sources,value,block,instruction.kind)));
         }
     }
+    /// The success edge must project from the union produced by this original
+    /// operand. The ordinary sum transfer separately proves its active arm.
+    fn exact_success_input(&self, module: &TypedModule, caller: &SemanticInstance, f: &TypedFunction,
+        result: ValueId, original: NodeId, environment: Option<&EvalEnv>, b: &mut Budget) -> Check<()> {
+        let (_, _, producer) = self.site_index.producers.get(f, result, b)?;
+        crate::check_instruction(module, f, producer, b)?;
+        let union = match producer.kind {
+            InstructionKind::ReadErrorUnion { value, is_error: false }
+            | InstructionKind::TakeErrorUnion { value, is_error: false } => value,
+            _ => return Err(bad("actual ? result does not project the original success arm")),
+        };
+        self.exact_expression_in(module, caller, f, union, original, environment, b)
+    }
     fn scalar_expression_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,node:NodeId,environment:Option<&EvalEnv>,b:&mut Budget)->Check<()>{
         let original=self.original.borrow();
         let(expression,carrier)=original.as_ref().ok_or_else(||bad("scalar address input lacks its complete independent original proof"))?.scalar_input(module,caller.definition,node,environment,b)?;
@@ -350,6 +367,7 @@ impl CheckedContext{
             (CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}|CoreExprKind::CompileTime(inner),_)=>self.exact_expression_in(module,caller,f,value,inner.id,environment,b),
             (CoreExprKind::Sequence{bindings,value:inner},_)if bindings.is_empty()=>self.exact_expression_in(module,caller,f,value,inner.id,environment,b),
             (CoreExprKind::Name(_),_)=>self.projected_buffer_source(module,caller,f,value,caller.definition,node,b),
+            (CoreExprKind::Try(input), _) => self.exact_success_input(module, caller, f, value, input.id, environment, b),
             (CoreExprKind::Unit,InstructionKind::Constant(Constant::Unit))=>Ok(()),
             (CoreExprKind::Bool(original),InstructionKind::Constant(Constant::Bool(actual)))if original==actual=>Ok(()),
             (CoreExprKind::Literal(original),InstructionKind::Constant(actual))if original==actual=>Ok(()),

@@ -18,6 +18,12 @@ enum ProjectionSource {
     Expression(Span),
 }
 
+pub(in crate::semantic) enum ScalarProjection {
+    Binding,
+    Success(NodeId),
+    Other,
+}
+
 impl CheckedOriginal {
     pub(in crate::semantic) fn callable_borrow_operand(
         &self,
@@ -107,15 +113,17 @@ impl CheckedOriginal {
             }
         }
     }
-    pub(in crate::semantic) fn scalar_product_field(&self, definition: SemanticDefinitionId, mut node: NodeId, b: &mut Budget) -> Check<bool> {
+    pub(in crate::semantic) fn scalar_projection(&self, definition: SemanticDefinitionId, mut node: NodeId, b: &mut Budget) -> Check<ScalarProjection> {
         use index::PlaceOperation as Operation;
-        let syntax = self.source_grammar.as_ref().ok_or_else(|| bad("scalar field has no original body"))?.place_syntax(definition, b)?;
+        if self.bound_value_name(definition, node, b)? { return Ok(ScalarProjection::Binding); }
+        let syntax = self.source_grammar.as_ref().ok_or_else(|| bad("scalar projection has no original body"))?.place_syntax(definition, b)?;
         loop {
             match syntax.expression(node, b)?.operation {
                 Operation::Group(inner) | Operation::Ascribed(inner) => node = inner,
-                Operation::Member { object, .. } => return Ok(matches!(self.original_type(definition,
-                    &SemanticOriginalTypeSource::Expression(object), b)?, Ty::Nominal(..) | Ty::Atom(Type::Record { .. }))),
-                _ => return Ok(false),
+                Operation::Try(inner) => return Ok(ScalarProjection::Success(inner)),
+                Operation::Member { object, .. } if matches!(self.original_type(definition,
+                    &SemanticOriginalTypeSource::Expression(object), b)?, Ty::Nominal(..) | Ty::Atom(Type::Record { .. })) => return Ok(ScalarProjection::Binding),
+                _ => return Ok(ScalarProjection::Other),
             }
         }
     }

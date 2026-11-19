@@ -161,6 +161,9 @@ impl Check<'_, '_> {
             b.spend(1, WORK)?;
             match &source.kind {
                 CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } => source = inner,
+                CoreExprKind::Try(_) => {
+                    return self.copy_expression_source(world, function, source, value, b, 0);
+                }
                 CoreExprKind::Name(_) => {
                     let Some(anchor) = self.original.local_read_anchor(world.definition, source.id, b)? else {
                         return Ok(true);
@@ -203,6 +206,15 @@ impl Check<'_, '_> {
         Ok(match (&source.kind, &producer.kind) {
             (CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. }, _) => {
                 self.copy_expression_source(world, function, inner, actual, b, depth + 1)?
+            }
+            (CoreExprKind::Try(operand), kind) => {
+                let union = match kind {
+                    InstructionKind::ReadErrorUnion { value, is_error: false }
+                    | InstructionKind::TakeErrorUnion { value, is_error: false } => *value,
+                    _ => return Ok(false),
+                };
+                operations::available_before(function, (block, at, SemanticSiteEdge::Before), union, b)?;
+                self.copy_expression_source(world, function, operand, union, b, depth + 1)?
             }
             (CoreExprKind::Name(_), InstructionKind::Load(local) | InstructionKind::DescribeLocal { local }) => {
                 let Some(anchor) =
