@@ -79,21 +79,8 @@ impl Builder<'_, '_> {
             Some(InstructionKind::DropManaged { local })
         } else if matches!(ty, Type::MutexGuard { .. }) {
             Some(InstructionKind::DropMutexGuard { local })
-        } else if matches!(ty, Type::Package { .. })
-            || matches!(ty, Type::BorrowedStorage { storage, .. }
-                if matches!(storage.as_ref(), Type::Package { .. }))
-        {
-            Some(InstructionKind::DropPackage { local })
-        } else if owned_shapes::tuple(ty)
-            || matches!(ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Tuple(_)) && tasks::failure::owns(storage))
-        {
-            Some(InstructionKind::DropTuple { local })
-        } else if owned_shapes::enumeration(ty) {
-            Some(InstructionKind::DropEnum { local })
-        } else if errors::owned(ty) || owned_shapes::sum(ty) {
-            Some(InstructionKind::DropErrorUnion { local })
-        } else if packages::owned_array_supported(ty) {
-            Some(InstructionKind::DropOwnedArray { local })
+        } else if let Some(drop) = InstructionKind::aggregate_drop(local, ty) {
+            self.has_cleanup(ty).then_some(drop)
         } else if self.owned_closure(ty) {
             Some(InstructionKind::DropClosure { local })
         } else {

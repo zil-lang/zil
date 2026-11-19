@@ -780,6 +780,14 @@ fn inline_protocol_aggregates_follow_the_actual_continuation_and_cleanup_edge() 
     );
     let enum_return = poll_to_completion(INLINE_CHILD);
     let enum_partial_return = poll_to_completion(PARTIAL_CHILD);
+    let package_cancel = include_str!("../../../tests/language-readiness/task-aggregate-results/inline-task-package-cancel.zil");
+    let package_ready = include_str!("../../../tests/language-readiness/task-aggregate-results/inline-task-package-ready.zil");
+    let take_first = |source: &str| source.replace(
+        "            task_yield();",
+        "            let extracted=give packet.first;\n            task_yield();",
+    );
+    let partial_cancel = take_first(package_cancel);
+    let partial_ready = take_first(package_ready);
     let cases = [
         (
             "tuple-cancel",
@@ -837,16 +845,20 @@ fn inline_protocol_aggregates_follow_the_actual_continuation_and_cleanup_edge() 
         ),
         (
             "package-cancel",
-            include_str!("../../../tests/language-readiness/task-aggregate-results/inline-task-package-cancel.zil"),
+            package_cancel,
             "inline-task-enum-observer.c",
             "AB selected child closed between its neighboring fields\n",
         ),
         (
             "package-ready",
-            include_str!("../../../tests/language-readiness/task-aggregate-results/inline-task-package-ready.zil"),
+            package_ready,
             "inline-task-enum-observer.c",
             "AB selected child closed between its neighboring fields\n",
         ),
+        ("package-partial-cancel", &partial_cancel, "inline-task-enum-observer.c",
+         "AB selected child closed between its neighboring fields\n"),
+        ("package-partial-ready", &partial_ready, "inline-task-enum-observer.c",
+         "AB selected child closed between its neighboring fields\n"),
         (
             "enum-cancel",
             INLINE_CHILD,

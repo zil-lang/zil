@@ -77,13 +77,13 @@ impl Check<'_, '_> {
                     && self.structural_actual(&expected.ty, original::Predicate::SyncDrop, b, 0)?;
                 let replacements = self.cleanup_replacement_values(instance, function,
                     pending.source, &pending.path, pending.event, b)?;
+                let aggregate = InstructionKind::aggregate_drop(local, &declaration.ty);
                 let closure = match &declaration.ty {
                     Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. })
                         || function.call_kind == CallKind::Suspend
                             && matches!(payload.as_ref(), Type::AsyncRegistration { .. }) => None,
                     Type::Closure(id) => Some(*id),
-                    Type::Tuple(_) | Type::Enum { .. } | Type::Package { .. } | Type::ErrorUnion { .. }
-                    | Type::Array { .. } if function.call_kind == CallKind::Suspend => None,
+                    _ if aggregate.is_some() && function.call_kind == CallKind::Suspend => None,
                     _ => return Err(unknown("original cleanup occurrence needs its complete actual owning Task frame proof")),
                 };
                 let mut sites = 0usize;
@@ -94,12 +94,9 @@ impl Check<'_, '_> {
                             matches!(instruction.kind,
                                 InstructionKind::DropOwnedArrayElement { local: selected, index: 0 }
                                 | InstructionKind::DropOwnedArray { local: selected } if selected == local)
+                        } else if let Some(drop) = &aggregate {
+                            &instruction.kind == drop
                         } else { match &declaration.ty {
-                            Type::Tuple(_) | Type::Enum { .. } | Type::Package { .. }
-                            | Type::Array { .. } | Type::ErrorUnion { .. } => {
-                                instruction.kind.whole_aggregate_drop() == Some(local)
-                                    && instruction.kind.drops_aggregate_storage(&declaration.ty)
-                            }
                             Type::Closure(_) => matches!(instruction.kind, InstructionKind::DropClosure { local: selected } if selected == local),
                             _ => matches!(instruction.kind, InstructionKind::DropManaged { local: selected } if selected == local),
                         }};
@@ -281,25 +278,36 @@ impl Check<'_, '_> {
             let mut stopped = false;
             for (index, instruction) in body.instructions.iter().enumerate().take(end).rev() {
                 b.spend(1, WORK)?;
+                let written = match instruction.kind {
+                    InstructionKind::Store { local: target, value } if target == local => Some((value, path)),
+                    InstructionKind::StorePackageField { local: target, index, value }
+                    | InstructionKind::StoreOwnedArrayElement { local: target, index, value }
+                        if target == local && path.first() == Some(&PlaceProjection::Field(index)) =>
+                        Some((value, &path[1..])),
+                    _ => None,
+                };
+                if let Some((value, remaining)) = written {
+                    operations::available_before(function, (block, index, SemanticSiteEdge::Before), value, b)?;
+                    if let Some(producer) = producer {
+                        self.original_producer_value(function, value, producer, b)?;
+                    }
+                    let actual = self.ssa_value(instance, function, value, b, 0)?;
+                    let actual = self.cleanup_path_value(actual, remaining, b)?;
+                    if !actual.equal_paid(expected, b)? {
+                        return Err(fail("conditional cleanup changes a complete live original subject"));
+                    }
+                    grounded = true;
+                    stopped = true;
+                    break;
+                }
                 match instruction.kind {
-                    InstructionKind::Store { local: target, value } if target == local => {
-                        operations::available_before(function, (block, index, SemanticSiteEdge::Before), value, b)?;
-                        if let Some(producer) = producer {
-                            self.original_producer_value(function, value, producer, b)?;
-                        }
-                        let actual = self.ssa_value(instance, function, value, b, 0)?;
-                        let actual = self.cleanup_path_value(actual, path, b)?;
-                        if !actual.equal_paid(expected, b)? {
-                            return Err(fail("conditional cleanup changes a complete live original subject"));
-                        }
+                    ref kind if kind.whole_aggregate_drop() == Some(local) => {
                         grounded = true;
                         stopped = true;
                         break;
                     }
                     InstructionKind::TakeLocal { local: target }
                     | InstructionKind::DropManaged { local: target }
-                    | InstructionKind::DropTuple { local: target }
-                    | InstructionKind::DropEnum { local: target }
                     | InstructionKind::DropClosure { local: target }
                     | InstructionKind::StorageLive(target) | InstructionKind::StorageDead(target)
                         if target == local => {
@@ -311,6 +319,15 @@ impl Check<'_, '_> {
                     }
                     InstructionKind::WriteAddress { address, .. }
                         if self.cleanup_write_disjoint(function, local, (block, index), address, b)? => {}
+                    InstructionKind::DropPackageField { local: target, index }
+                    | InstructionKind::TakePackageField { local: target, index }
+                    | InstructionKind::DropOwnedArrayElement { local: target, index }
+                    | InstructionKind::TakeOwnedArrayElement { local: target, index }
+                        if target == local && path.first() == Some(&PlaceProjection::Field(index)) => {
+                            grounded = true;
+                            stopped = true;
+                            break;
+                        }
                     InstructionKind::TakeTupleField { local: target, path: ref taken }
                     | InstructionKind::TakeVariantField { local: target, path: ref taken }
                         if target == local && !path.is_empty() => {
@@ -455,7 +472,7 @@ impl Check<'_, '_> {
         path: &[u32], b: &mut Budget) -> CompileResult<(LocalId, Vec<PlaceProjection>)> {
         if path.is_empty() { return Ok((root, Vec::new())); }
         if function.call_kind == CallKind::Suspend
-            && let Some(local) = function.locals.get(root.0 as usize).filter(|local| local.id == root && matches!(local.ty, Type::Tuple(_) | Type::Enum { .. }))
+            && let Some(local) = function.locals.get(root.0 as usize).filter(|local| local.id == root && InstructionKind::aggregate_drop(root, &local.ty).is_some())
         {
             b.spend(path.len(), WORK)?;
             let mut selectors = Vec::new();

@@ -414,6 +414,7 @@ impl Check<'_, '_> {
                 })
             }
             (Type::Tuple(fields), PlaceProjection::Field(index)) => fields.get(index as usize),
+            (Type::Array { element, length }, PlaceProjection::Field(index)) if index < *length => Some(element),
             (
                 Type::Record { fields, .. } | Type::Package { fields, .. },
                 PlaceProjection::Field(index),

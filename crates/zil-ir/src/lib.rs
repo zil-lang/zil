@@ -2949,17 +2949,23 @@ impl InstructionKind {
 
     /// The declaration, including nominal or lifetime qualification, comes
     /// from the actual local. Only its storage head selects the drop opcode.
-    pub fn drops_aggregate_storage(&self, ty: &Type) -> bool {
+    pub fn aggregate_drop(local: LocalId, ty: &Type) -> Option<Self> {
         let storage = match ty {
             Type::BorrowedStorage { storage, .. } => storage.as_ref(),
             other => other,
         };
-        matches!((self, storage),
-            (Self::DropTuple { .. }, Type::Tuple(_))
-            | (Self::DropEnum { .. }, Type::Enum { .. })
-            | (Self::DropPackage { .. }, Type::Package { .. })
-            | (Self::DropErrorUnion { .. }, Type::ErrorUnion { .. })
-            | (Self::DropOwnedArray { .. }, Type::Array { .. }))
+        Some(match storage {
+            Type::Tuple(_) => Self::DropTuple { local },
+            Type::Enum { .. } => Self::DropEnum { local },
+            Type::Package { .. } => Self::DropPackage { local },
+            Type::ErrorUnion { .. } => Self::DropErrorUnion { local },
+            Type::Array { .. } => Self::DropOwnedArray { local },
+            _ => return None,
+        })
+    }
+
+    pub fn drops_aggregate_storage(&self, ty: &Type) -> bool {
+        self.whole_aggregate_drop().and_then(|local| Self::aggregate_drop(local, ty)).as_ref() == Some(self)
     }
 
 }
