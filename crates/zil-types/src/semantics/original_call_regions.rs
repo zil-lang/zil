@@ -75,48 +75,6 @@ pub(super) fn variable(lifetime: &SemanticOuterLifeRecipe) -> Option<Variable> {
 }
 
 impl Check<'_, '_> {
-    /// The new source may differ from an earlier input when its actual local
-    /// was already initialized in the same or an enclosing block before the
-    /// holder binding formed. Scope cleanup retires that holder first. The
-    /// source directory still carries this independent root on every escape.
-    fn local_covers_call_binding(
-        &mut self, block: &SemanticOriginalBlock, root: NodeId, call: NodeId,
-        mut live: bool, depth: usize,
-    ) -> R<bool> {
-        self.pay(block.statements.len().saturating_add(1), depth)?;
-        for statement in &block.statements {
-            match &statement.kind {
-                CoreStatementKind::Binding { initializer: Some(initializer), .. } => {
-                    let mut value = initializer;
-                    while let CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } = &value.kind {
-                        self.pay(1, depth)?;
-                        value = inner;
-                    }
-                    if value.id == call && matches!(value.kind, CoreExprKind::Call { .. }) { return Ok(live); }
-                    live |= statement.id == root;
-                }
-                CoreStatementKind::If { then_body, else_body, .. } | CoreStatementKind::IfLet { then_body, else_body, .. } => {
-                    if self.local_covers_call_binding(then_body, root, call, live, depth + 1)? { return Ok(true); }
-                    if let Some(body) = else_body && self.local_covers_call_binding(body, root, call, live, depth + 1)? { return Ok(true); }
-                }
-                CoreStatementKind::Match { arms, .. } => {
-                    self.pay(arms.len(), depth)?;
-                    for arm in arms {
-                        if self.local_covers_call_binding(&arm.body, root, call, live, depth + 1)? { return Ok(true); }
-                    }
-                }
-                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) | CoreStatementKind::Loop(body)
-                | CoreStatementKind::While { body, .. } | CoreStatementKind::WhileLet { body, .. }
-                | CoreStatementKind::ForRange { body, .. } | CoreStatementKind::ForEach { body, .. }
-                | CoreStatementKind::With { body, .. } => {
-                    if self.local_covers_call_binding(body, root, call, live, depth + 1)? { return Ok(true); }
-                }
-                _ => {}
-            }
-        }
-        Ok(false)
-    }
-
     pub(super) fn region_key(
         &mut self,
         mut owner: SemanticDefinitionId,
@@ -496,11 +454,12 @@ impl Check<'_, '_> {
                             .get(&(owner, *prior)).and_then(direct_local) == Some(current));
                         if key.0 != owner || operand.id == input.expression.id || !same_cell && {
                             let SemanticDefinitionBody::FunctionWithBody {
-                                body: SemanticOriginalFunctionBody::Defined(body), ..
+                                body: SemanticOriginalFunctionBody::Defined(body), sites, site_nodes, ..
                             } = &self.definition(owner)?.body else {
                                 return Err(bad("inherited call loan has no original storage scope"));
                             };
-                            !self.local_covers_call_binding(body, current, prior_call, false, depth + 1)?
+                            !self.site_directory(owner, sites, site_nodes)?.storage_covers_initializer(
+                                body, current, prior_call, self.limits, self.left)?
                         } {
                             return Err(bad("inherited call loan does not cover the original holder's storage"));
                         }

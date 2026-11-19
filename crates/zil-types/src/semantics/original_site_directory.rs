@@ -30,6 +30,7 @@ pub(super) struct DefinitionSites {
     recipes: BTreeMap<SemanticSiteId, usize>,
     by_node: BTreeMap<Node, Vec<SemanticSiteId>>,
     by_recipe: BTreeMap<SemanticSiteId, Option<SemanticOriginalNode>>,
+    storage_scopes: std::cell::OnceCell<StorageScopes>,
 }
 
 impl Directory {
@@ -92,7 +93,30 @@ impl DefinitionSites {
                 .and_modify(|entry| *entry = None)
                 .or_insert(Some(row.node));
         }
-        Ok(Self { owner, recipes, by_node, by_recipe })
+        Ok(Self { owner, recipes, by_node, by_recipe, storage_scopes: Default::default() })
+    }
+
+    pub(super) fn storage_covers_initializer(
+        &self, body: &SemanticOriginalBlock, root: NodeId, call: NodeId,
+        limits: &Limits, left: &mut usize,
+    ) -> R<bool> {
+        if self.storage_scopes.get().is_none() {
+            let mut scopes = StorageScopes::default();
+            scopes.block(body, None, limits, left, 0)?;
+            self.storage_scopes.set(scopes).map_err(|_| bad("original storage scopes initialized twice"))?;
+        }
+        let scopes = self.storage_scopes.get().expect("original storage scopes initialized");
+        pay(left, lookup(scopes.bindings.len()).saturating_add(lookup(scopes.initializers.len())))?;
+        let (Some(binding), Some(&holder)) = (scopes.bindings.get(&root), scopes.initializers.get(&call)) else {
+            return Ok(false);
+        };
+        let mut position = holder;
+        loop {
+            pay(left, 1)?;
+            if position.block == binding.block { return Ok(binding.ordinal < position.ordinal); }
+            let Some(parent) = scopes.parents[position.block] else { return Ok(false); };
+            position = parent;
+        }
     }
 
     pub(super) fn at(&self, node: SemanticOriginalNode, left: &mut usize)
@@ -130,6 +154,68 @@ impl DefinitionSites {
     ) -> R<Option<Option<SemanticOriginalNode>>> {
         pay(left, lookup(self.by_recipe.len()))?;
         Ok(self.by_recipe.get(&id).copied())
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Position { block: usize, ordinal: usize }
+
+/// Lazily indexed from this definition's actual body, once per checked source
+/// directory. An initialized local covers a later holder in its own or a
+/// nested lexical block. No lifetime equality or pointer identity is stored.
+#[derive(Default)]
+struct StorageScopes {
+    parents: Vec<Option<Position>>,
+    bindings: BTreeMap<NodeId, Position>,
+    initializers: BTreeMap<NodeId, Position>,
+}
+impl StorageScopes {
+    fn block(
+        &mut self, body: &SemanticOriginalBlock, parent: Option<Position>,
+        limits: &Limits, left: &mut usize, depth: usize,
+    ) -> R<()> {
+        let block = self.parents.len();
+        if depth > limits.max_call_depth || block >= limits.max_nodes {
+            return Err(Diagnostic::limit(Phase::Types, "original storage scope index exceeds its bounds", None));
+        }
+        pay(left, body.statements.len().saturating_add(1).saturating_add(
+            if block == self.parents.capacity() { block } else { 0 }))?;
+        self.parents.push(parent);
+        for (ordinal, statement) in body.statements.iter().enumerate() {
+            let position = Position { block, ordinal };
+            let mut descend = |body: &SemanticOriginalBlock, left: &mut usize| {
+                self.block(body, Some(position), limits, left, depth + 1)
+            };
+            match &statement.kind {
+                CoreStatementKind::Binding { initializer: Some(value), .. } => {
+                    pay(left, lookup(self.bindings.len()).saturating_add(1))?;
+                    if self.bindings.insert(statement.id, position).is_some() { return Err(bad("duplicate original storage binding")); }
+                    let mut value = value;
+                    while let CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } = &value.kind {
+                        pay(left, 1)?;
+                        value = inner;
+                    }
+                    if matches!(value.kind, CoreExprKind::Call { .. }) {
+                        pay(left, lookup(self.initializers.len()).saturating_add(1))?;
+                        if self.initializers.insert(value.id, position).is_some() { return Err(bad("duplicate original holder initializer")); }
+                    }
+                }
+                CoreStatementKind::If { then_body, else_body, .. } | CoreStatementKind::IfLet { then_body, else_body, .. } => {
+                    descend(then_body, left)?;
+                    if let Some(body) = else_body { descend(body, left)?; }
+                }
+                CoreStatementKind::Match { arms, .. } => {
+                    pay(left, arms.len())?;
+                    for arm in arms { descend(&arm.body, left)?; }
+                }
+                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) | CoreStatementKind::Loop(body)
+                | CoreStatementKind::While { body, .. } | CoreStatementKind::WhileLet { body, .. }
+                | CoreStatementKind::ForRange { body, .. } | CoreStatementKind::ForEach { body, .. }
+                | CoreStatementKind::With { body, .. } => descend(body, left)?,
+                _ => {}
+            }
+        }
+        Ok(())
     }
 }
 

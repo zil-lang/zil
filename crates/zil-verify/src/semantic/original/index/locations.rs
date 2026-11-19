@@ -50,6 +50,13 @@ impl Locations {
         node: NodeId,
         b: &mut Budget,
     ) -> Check<Option<Work<'a>>> {
+        self.get_with_visit(body, node, b, |_, _| Ok(()))
+    }
+
+    fn get_with_visit<'a>(
+        &self, body: &'a SemanticOriginalFunctionBody, node: NodeId, b: &mut Budget,
+        mut visit: impl FnMut(Work<'a>, &mut Budget) -> Check<()>,
+    ) -> Check<Option<Work<'a>>> {
         if let Some(p) = &mut b.diagnostic_progress {
             p.original_cursor_queries += 1;
         }
@@ -100,6 +107,7 @@ impl Locations {
                     .get(slot)
                     .ok_or_else(|| bad("checked original child leaves its parent"))?
             };
+            visit(work, b)?;
         }
         Ok(Some(work))
     }
@@ -131,20 +139,27 @@ impl<'a> SelectedFunction<'a> {
         b.spend(search(locations.nodes.len()))?;
         let local = locations.nodes[&local];
         let Some((block, ordinal)) = locations.parents[local] else { return Ok(false); };
-        for (holder, binding) in &syntax.bindings {
+        let mut holder = None;
+        let selected = locations.get_with_visit(self.body, call, b, |item, b| {
             b.spend(1)?;
-            let Some(mut value) = binding.value else { continue; };
-            while let PlaceOperation::Group(inner) | PlaceOperation::Ascribed(inner) = syntax.expression(value, b)?.operation {
-                value = inner;
+            match item {
+                Work::Statement(statement) if matches!(&statement.kind, CoreStatementKind::Binding { initializer: Some(_), .. }) => {
+                    holder = Some(statement.id);
+                }
+                Work::Expression(value) if matches!(value.kind, CoreExprKind::Group(_) | CoreExprKind::Ascribed { .. })
+                    || value.id == call && matches!(value.kind, CoreExprKind::Call { .. }) => {}
+                _ => holder = None,
             }
-            if value != call { continue; }
-            b.spend(search(locations.nodes.len()))?;
-            let mut cursor = locations.nodes[holder];
-            while let Some((parent, slot)) = locations.parents[cursor] {
-                b.spend(1)?;
-                if parent == block { return Ok(ordinal > slot); }
-                cursor = parent;
-            }
+            Ok(())
+        })?;
+        let Some(Work::Expression(value)) = selected else { return Ok(false); };
+        let Some(holder) = holder.filter(|_| matches!(value.kind, CoreExprKind::Call { .. })) else { return Ok(false); };
+        b.spend(search(locations.nodes.len()))?;
+        let mut cursor = locations.nodes[&holder];
+        while let Some((parent, slot)) = locations.parents[cursor] {
+            b.spend(1)?;
+            if parent == block { return Ok(ordinal > slot); }
+            cursor = parent;
         }
         Ok(false)
     }
