@@ -242,7 +242,7 @@ impl Check<'_, '_> {
             b.spend(1, WORK)?;
             match &source.kind {
                 CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } => source = inner,
-                CoreExprKind::Try(_) => {
+                CoreExprKind::Try(_) | CoreExprKind::Index { .. } => {
                     return self.copy_expression_source(world, function, source, value, b, 0);
                 }
                 CoreExprKind::Name(_) => {
@@ -301,6 +301,13 @@ impl Check<'_, '_> {
             (CoreExprKind::Name(_), operation @ (InstructionKind::Load(_) | InstructionKind::DescribeLocal { .. }
                 | InstructionKind::ReadAddress { .. } | InstructionKind::ReadCapture { .. } | InstructionKind::DescribeCapture { .. })) => {
                 self.copied_name_source(world, function, source.id, actual, operation, b)?.unwrap_or(false)
+            }
+            (CoreExprKind::Index { object, index }, InstructionKind::ExtractIndex { aggregate, index: subscript }) => {
+                let point = (block, at, SemanticSiteEdge::Before);
+                operations::available_before(function, point, *aggregate, b)?;
+                operations::available_before(function, point, *subscript, b)?;
+                self.copy_expression_source(world, function, object, *aggregate, b, depth + 1)?
+                    && self.copy_expression_source(world, function, index, *subscript, b, depth + 1)?
             }
             (
                 CoreExprKind::Member { object, member, .. },
