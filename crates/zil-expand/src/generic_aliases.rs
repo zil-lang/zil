@@ -1318,7 +1318,7 @@ impl Check<'_, '_, '_> {
             // its declared result input set can supply the returned window;
             // parameter spelling at the caller supplies no relationship.
             let mut sources = None;
-            if let ExprKind::Call { callee, arguments } = &expression.kind
+            if let Some((callee, arguments)) = CallArguments::at(expression)
                 && let Some(name) = stores::call_name(callee)
                 && let Some(function) = self.signatures.get(name)
                 && let Some(TypeRef {
@@ -1332,7 +1332,7 @@ impl Check<'_, '_, '_> {
             {
                 let mut allowed = BTreeSet::new();
                 for (index, (parameter, argument)) in
-                    function.params.iter().zip(arguments).enumerate()
+                    function.params.iter().zip(arguments.iter()).enumerate()
                 {
                     self.budget.text(life, argument.span)?;
                     if matches!(&group(&parameter.ty).kind, TypeKind::Reference { lifetime: Some(tag), mutable: input_mutable, .. }

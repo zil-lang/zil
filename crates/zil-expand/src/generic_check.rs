@@ -1109,6 +1109,46 @@ struct State {
     // parameter indices, never label spellings. usize::MAX means a local root.
     life_origins: BTreeMap<usize, BTreeSet<usize>>,
 }
+#[derive(Clone, Copy)]
+enum CallArguments<'a> {
+    Written(&'a [Argument]),
+    Pipeline(&'a Expr),
+}
+struct CallArgument<'a> {
+    value: &'a Expr,
+    span: Span,
+    spread: bool,
+}
+impl<'a> CallArguments<'a> {
+    fn at(expression: &'a Expr) -> Option<(&'a Expr, Self)> {
+        match &expression.kind {
+            ExprKind::Call { callee, arguments } => Some((callee, Self::Written(arguments))),
+            ExprKind::Pipeline { input, target } => Some((target, Self::Pipeline(input))),
+            _ => None,
+        }
+    }
+    fn len(self) -> usize {
+        match self {
+            Self::Written(arguments) => arguments.len(),
+            Self::Pipeline(_) => 1,
+        }
+    }
+    fn iter(self) -> impl Iterator<Item = CallArgument<'a>> {
+        let (written, input) = match self {
+            Self::Written(arguments) => (arguments, None),
+            Self::Pipeline(input) => (&[][..], Some(input)),
+        };
+        written.iter().map(|argument| CallArgument {
+            value: &argument.value,
+            span: argument.span,
+            spread: argument.spread,
+        }).chain(input.into_iter().map(|value| CallArgument {
+            value,
+            span: value.span,
+            spread: false,
+        }))
+    }
+}
 struct Check<'s, 'b, 'l> {
     ct_types: Option<&'s BTreeMap<usize, TypeRef>>,
     class_scope: role_check::Scope<'s>,
@@ -1539,67 +1579,91 @@ impl Check<'_, '_, '_> {
                 }
                 let function = target.and_then(|name| self.signatures.get(name)).ok_or_else(||
                     unsupported(expression.span, "generic borrowed return requires a static helper with an explicit life relation"))?;
-                self.budget.node(callee.span, 0)?;
-                self.budget.text(&function.name, callee.span)?;
-                let result = function.return_type.as_ref().map(group);
-                let result = if let Some(TypeRef {
-                    kind: TypeKind::Named { path, args },
-                    span,
-                }) = result
-                    && (path.as_slice() == [super::options::TEMPLATE]
-                        || path.as_slice() == ["Option"])
-                {
-                    self.budget.node(*span, 0)?;
-                    self.budget.text(&path[0], *span)?;
-                    match args.as_slice() {
-                        [GenericArg::Type(payload)]
-                            if matches!(
-                                group(payload).kind,
-                                TypeKind::Reference { mutable: false, .. }
-                            ) =>
-                        {
-                            Some(group(payload))
-                        }
-                        _ => None,
-                    }
-                } else {
-                    result
-                };
-                let Some(TypeRef {
-                    kind:
-                        TypeKind::Reference {
-                            lifetime: Some(result),
-                            mutable: result_mutable,
-                            ..
-                        },
-                    ..
-                }) = result
-                else {
-                    return Err(unsupported(
-                        expression.span,
-                        "generic borrowed forwarding requires an explicit callee return life",
-                    ));
-                };
-                let mut roots = BTreeSet::new();
-                for (parameter, argument) in function.params.iter().zip(arguments) {
-                    self.budget.node(parameter.span, 0)?;
-                    self.budget.text(result, parameter.span)?;
-                    if matches!(&group(&parameter.ty).kind, TypeKind::Reference { lifetime: Some(name), mutable: input_mutable, .. }
-                        if name == result && (!result_mutable || *input_mutable))
-                    {
-                        for root in self.life_expression(&argument.value, state)? {
-                            self.budget.node(argument.span, 0)?;
-                            roots.insert(root);
-                        }
-                    }
-                }
-                Ok(roots)
+                self.static_call_life(
+                    function, callee.span, expression.span, CallArguments::Written(arguments), state,
+                )
+            }
+            ExprKind::Pipeline { input, target } => {
+                let function = stores::call_name(target)
+                    .filter(|name| !state.locals.contains_key(*name))
+                    .and_then(|name| self.signatures.get(name))
+                    .ok_or_else(|| unsupported(
+                        expression.span, "generic borrowed pipeline requires a static helper with an explicit life relation",
+                    ))?;
+                self.static_call_life(
+                    function, target.span, expression.span, CallArguments::Pipeline(input), state,
+                )
             }
             _ => Err(unsupported(
                 expression.span,
                 "this generic reference expression needs additional symbolic origin checking",
             )),
         }
+    }
+
+    fn static_call_life(
+        &mut self,
+        function: &Function,
+        callee_span: Span,
+        span: Span,
+        arguments: CallArguments<'_>,
+        state: &State,
+    ) -> R<BTreeSet<usize>> {
+        self.budget.node(callee_span, 0)?;
+        self.budget.text(&function.name, callee_span)?;
+        let result = function.return_type.as_ref().map(group);
+        let result = if let Some(TypeRef {
+            kind: TypeKind::Named { path, args },
+            span,
+        }) = result
+            && (path.as_slice() == [super::options::TEMPLATE]
+                || path.as_slice() == ["Option"])
+        {
+            self.budget.node(*span, 0)?;
+            self.budget.text(&path[0], *span)?;
+            match args.as_slice() {
+                [GenericArg::Type(payload)]
+                    if matches!(
+                        group(payload).kind,
+                        TypeKind::Reference { mutable: false, .. }
+                    ) =>
+                {
+                    Some(group(payload))
+                }
+                _ => None,
+            }
+        } else {
+            result
+        };
+        let Some(TypeRef {
+            kind:
+                TypeKind::Reference {
+                    lifetime: Some(result),
+                    mutable: result_mutable,
+                    ..
+                },
+            ..
+        }) = result
+        else {
+            return Err(unsupported(
+                span,
+                "generic borrowed forwarding requires an explicit callee return life",
+            ));
+        };
+        let mut roots = BTreeSet::new();
+        for (parameter, argument) in function.params.iter().zip(arguments.iter()) {
+            self.budget.node(parameter.span, 0)?;
+            self.budget.text(result, parameter.span)?;
+            if matches!(&group(&parameter.ty).kind, TypeKind::Reference { lifetime: Some(name), mutable: input_mutable, .. }
+                if name == result && (!result_mutable || *input_mutable))
+            {
+                for root in self.life_expression(argument.value, state)? {
+                    self.budget.node(argument.span, 0)?;
+                    roots.insert(root);
+                }
+            }
+        }
+        Ok(roots)
     }
 
     fn life_place(&mut self, expression: &Expr, state: &State) -> R<BTreeSet<usize>> {
@@ -3784,7 +3848,9 @@ impl Check<'_, '_, '_> {
             .ty(&mut ty);
         }
         match &e.kind {
-            ExprKind::Call { .. } => self.alias_call_end(state, base, &ty, e)?,
+            ExprKind::Call { .. } | ExprKind::Pipeline { .. } => {
+                self.alias_call_end(state, base, &ty, e)?;
+            }
             ExprKind::Name(_)
             | ExprKind::Group(_)
             | ExprKind::Ascribed { .. }
@@ -4010,6 +4076,7 @@ impl Check<'_, '_, '_> {
             ExprKind::Slice { .. } => self.expr_generic_slice(e, state, expected, borrowing),
             ExprKind::Unary { .. } => self.expr_generic_unary(e, state, expected, borrowing),
             ExprKind::Call { .. } => self.expr_generic_call(e, state, expected, borrowing),
+            ExprKind::Pipeline { .. } => self.expr_generic_pipeline(e, state, expected),
             ExprKind::Try(_) => self.expr_generic_try(e, state, expected, borrowing),
             ExprKind::If { .. } => self.expr_generic_if(e, state, expected, borrowing),
             ExprKind::Member { .. } => self.expr_generic_member(e, state, expected, borrowing),
@@ -4730,7 +4797,7 @@ impl Check<'_, '_, '_> {
         expected: Option<&TypeRef>,
         _borrowing: bool,
     ) -> R<TypeRef> {
-        let ExprKind::Call { callee, .. } = &e.kind else {
+        let ExprKind::Call { callee, arguments } = &e.kind else {
             unreachable!("call dispatcher")
         };
         if let Some(result) = self.expr_call_special(e, state, expected)? {
@@ -4775,7 +4842,39 @@ impl Check<'_, '_, '_> {
         if let Some(result) = self.expr_call_foreign(e, state, target, explicit)? {
             return Ok(result);
         }
-        self.expr_call_static(e, state, expected, target, explicit)
+        self.expr_call_static(e, state, expected, target, explicit, CallArguments::Written(arguments))
+    }
+
+    #[inline(never)]
+    fn expr_generic_pipeline(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        expected: Option<&TypeRef>,
+    ) -> R<TypeRef> {
+        let ExprKind::Pipeline { input, target } = &e.kind else {
+            unreachable!("pipeline dispatcher")
+        };
+        let mut head = target.as_ref();
+        while let ExprKind::Group(inner) = &head.kind {
+            self.tick(head.span)?;
+            head = inner;
+        }
+        let (name, explicit) = match &head.kind {
+            ExprKind::Name(name) => (name, None),
+            ExprKind::TypeApply { callee, arguments } => match &callee.kind {
+                ExprKind::Name(name) => (name, Some(arguments.as_slice())),
+                _ => return Err(unsupported(head.span, "parametric qualified pipeline target")),
+            },
+            _ => return Err(unsupported(head.span, "parametric indirect pipeline target")),
+        };
+        if state.locals.contains_key(name) {
+            return Err(unsupported(head.span, "parametric indirect pipeline target"));
+        }
+        // A static declaration has no runtime target expression to evaluate.
+        // Check the actual input at its own original occurrence before using
+        // the full qualified target signature and caller bounds.
+        self.expr_call_static(e, state, expected, name, explicit, CallArguments::Pipeline(input))
     }
 
     #[inline(never)]
@@ -5117,7 +5216,7 @@ impl Check<'_, '_, '_> {
                             .ok_or_else(|| {
                                 error(e.span, "type host has no unique static trait method")
                             })?;
-                        self.check_static_target(&method, e, arguments)?;
+                        self.check_static_target(&method, e, arguments.len())?;
                         let (variables, mut found) = self.prepare_static_arguments(
                             &method,
                             e,
@@ -5125,7 +5224,9 @@ impl Check<'_, '_, '_> {
                             expected,
                             method_explicit,
                         )?;
-                        self.check_static_arguments(&method, e, state, &variables, &mut found)?;
+                        self.check_static_arguments(
+                            &method, e, state, CallArguments::Written(arguments), &variables, &mut found,
+                        )?;
                         return self
                             .finish_static_call(&method, e, &variables, &found, origin)
                             .map(Some);
@@ -5569,18 +5670,16 @@ impl Check<'_, '_, '_> {
         expected: Option<&TypeRef>,
         target: &str,
         explicit: Option<&[GenericArg]>,
+        arguments: CallArguments<'_>,
     ) -> R<TypeRef> {
-        let ExprKind::Call { arguments, .. } = &e.kind else {
-            unreachable!("call dispatcher")
-        };
         let function = self
             .signatures
             .get(target)
             .ok_or_else(|| error(e.span, "unknown function in parametric body"))?;
-        self.check_static_target(function, e, arguments)?;
+        self.check_static_target(function, e, arguments.len())?;
         let (variables, mut found) =
             self.prepare_static_arguments(function, e, state, expected, explicit)?;
-        self.check_static_arguments(function, e, state, &variables, &mut found)?;
+        self.check_static_arguments(function, e, state, arguments, &variables, &mut found)?;
         let origin = self.traits.function_origin(function, self.budget)?;
         self.finish_static_call(function, e, &variables, &found, origin)
     }
@@ -5590,7 +5689,7 @@ impl Check<'_, '_, '_> {
         &mut self,
         function: &Function,
         e: &Expr,
-        arguments: &[Argument],
+        arguments: usize,
     ) -> R<()> {
         if self.class_scope.active {
             role_check::reject_callee_context(function, self.budget)?;
@@ -5602,7 +5701,7 @@ impl Check<'_, '_, '_> {
             self.dependencies
                 .edge(self.definition, &function.name, function.span, self.budget)?;
         }
-        if arguments.len() != function.params.len() {
+        if arguments != function.params.len() {
             return Err(error(e.span, "parametric call arity mismatch"));
         }
         Ok(())
@@ -5697,13 +5796,11 @@ impl Check<'_, '_, '_> {
         function: &Function,
         e: &Expr,
         state: &mut State,
+        arguments: CallArguments<'_>,
         variables: &BTreeSet<String>,
         found: &mut BTreeMap<String, TypeRef>,
     ) -> R<()> {
-        let ExprKind::Call { arguments, .. } = &e.kind else {
-            unreachable!("static arguments")
-        };
-        for (index, (parameter, argument)) in function.params.iter().zip(arguments).enumerate() {
+        for (index, (parameter, argument)) in function.params.iter().zip(arguments.iter()).enumerate() {
             if argument.spread {
                 return Err(unsupported(argument.span, "parametric tuple spread"));
             }
@@ -5719,7 +5816,7 @@ impl Check<'_, '_, '_> {
                 self.budget
                     .identity_work(function.generics.len(), parameter.span)?;
                 if callable::give_once(function, parameter)
-                    && callable::give_operand(&argument.value).is_none()
+                    && callable::give_operand(argument.value).is_none()
                 {
                     return Err(error(
                         argument.span,
@@ -5729,7 +5826,7 @@ impl Check<'_, '_, '_> {
             }
             if parameter.give
                 && stores::carrier(&hint).is_some()
-                && !self.owning_store_expression(&argument.value, state)
+                && !self.owning_store_expression(argument.value, state)
             {
                 return Err(error(
                     argument.span,
@@ -5744,14 +5841,14 @@ impl Check<'_, '_, '_> {
                 // proves a helper read-only, admit the port as a write:
                 // neither a shared parent nor a live aliased view may lend
                 // mutating authority to the callee.
-                self.store_field_write_permission(&argument.value, state)?;
-                let actual = self.expr(&argument.value, state, Some(&hint), true)?;
-                self.alias_borrow(&argument.value, state, true)?;
+                self.store_field_write_permission(argument.value, state)?;
+                let actual = self.expr(argument.value, state, Some(&hint), true)?;
+                self.alias_borrow(argument.value, state, true)?;
                 self.alias_hold_result(state, true, argument.span, Some(index))?;
                 actual
             } else {
                 self.argument(
-                    &argument.value,
+                    argument.value,
                     state,
                     &hint,
                     (!dependent(&hint, variables)).then_some(&hint),
@@ -5760,7 +5857,7 @@ impl Check<'_, '_, '_> {
             };
             self.match_static_argument(
                 &parameter.ty,
-                argument,
+                &argument,
                 (&actual, &hint),
                 variables,
                 found,
@@ -5777,7 +5874,7 @@ impl Check<'_, '_, '_> {
     fn match_static_argument(
         &mut self,
         parameter: &TypeRef,
-        argument: &Argument,
+        argument: &CallArgument<'_>,
         types: (&TypeRef, &TypeRef),
         variables: &BTreeSet<String>,
         found: &mut BTreeMap<String, TypeRef>,
@@ -5794,7 +5891,7 @@ impl Check<'_, '_, '_> {
                 self.class_scope,
                 self.budget,
             )? {
-                self.selected_error_argument(&argument.value, hint, is_error)?;
+                self.selected_error_argument(argument.value, hint, is_error)?;
             }
         } else if !context_argument(parameter, actual, variables, found, span, self.budget)? {
             unify(parameter, actual, variables, found, span, self.budget)?;
@@ -5807,7 +5904,7 @@ impl Check<'_, '_, '_> {
         &mut self,
         function: &Function,
         parameter: &TypeRef,
-        arguments: &[Argument],
+        arguments: CallArguments<'_>,
         state: &State,
         variables: &BTreeSet<String>,
         found: &mut BTreeMap<String, TypeRef>,
@@ -5819,12 +5916,12 @@ impl Check<'_, '_, '_> {
             // Read-only lookahead collects whole-type constraints;
             // actual argument checks below retain source order.
             for union_pass in [false, true] {
-                for (other, value) in function.params.iter().zip(arguments) {
+                for (other, value) in function.params.iter().zip(arguments.iter()) {
                     self.budget.node(value.span, 0)?;
                     if !independent_input(&other.ty, variables, found, union_pass, self.budget)? {
                         continue;
                     }
-                    if let Some(actual) = self.value_hint(&value.value, state, 0, true)? {
+                    if let Some(actual) = self.value_hint(value.value, state, 0, true)? {
                         self.budget.ty(&other.ty)?;
                         self.budget.ty(&actual)?;
                         if !matches!(group(&other.ty).kind, TypeKind::Error { .. })

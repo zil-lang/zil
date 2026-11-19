@@ -19,6 +19,64 @@ fn parsed_function(text: &str) -> Function {
 }
 
 #[test]
+fn generic_pipeline_keeps_the_actual_input_and_the_caller_copy_bound() {
+    use crate::source_context::{DeclarationPlacement, SourceIdentityContext};
+    use zil_ir::{CoreExprKind, CoreStatementKind, SemanticDefinitionBody, SemanticOriginalFunctionBody};
+
+    let limits = Limits::default();
+    let aliases = BTreeMap::new();
+    for bound in [":Copy", ""] {
+        let source = zil_base::SourceUnit::new(
+            zil_base::FileId(0),
+            ModuleId(0),
+            "generic-pipeline.zil",
+            format!("fn identity<T:Copy>(x:T)->T{{return x}}\nfn pipe<T{bound}>(x:T)->T{{return x |> (identity::<T>)}}\nfn main()->i32{{return pipe(42)-42}}"),
+        );
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let result = crate::expand_program_with_semantics(
+            &[source],
+            &[&syntax],
+            &[Vec::new()],
+            &limits,
+            &Default::default(),
+            SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &aliases,
+                declarations: DeclarationPlacement::Original,
+            },
+        );
+        if bound.is_empty() {
+            let diagnostics = result.unwrap_err();
+            assert!(diagnostics.iter().any(|error| {
+                error.code == "E-GENERIC-ARGUMENT"
+                    && error.category == zil_base::ResultCategory::SafeReject
+                    && error.message.contains("Copy bound")
+            }));
+            continue;
+        }
+        let modules = result.unwrap();
+        let original = modules[0].0.core.semantic.as_ref().unwrap();
+        let definition = original.definitions.iter().find(|definition| {
+            definition.identity.declaration_path.last().is_some_and(|name| name == "pipe")
+        }).expect("original pipe definition");
+        let SemanticDefinitionBody::FunctionWithBody {
+            body: SemanticOriginalFunctionBody::Defined(body), ..
+        } = &definition.body else { panic!("complete original body") };
+        let CoreStatementKind::Return(Some(result)) = &body.statements[0].kind else {
+            panic!("original return")
+        };
+        let CoreExprKind::Sequence { bindings, value } = &result.kind else {
+            panic!("single evaluation must prepare an input before the target")
+        };
+        let [(name, input)] = bindings.as_slice() else { panic!("one prepared input") };
+        assert!(matches!(&input.kind, CoreExprKind::Name(input) if input == "x"));
+        let CoreExprKind::Call { arguments, .. } = &value.kind else { panic!("pipe call") };
+        let [argument] = arguments.as_slice() else { panic!("pipe has one argument") };
+        assert!(matches!(&argument.kind, CoreExprKind::Name(argument) if argument == name));
+    }
+}
+
+#[test]
 fn callable_sync_drop_remains_an_independent_explicit_premise() {
     let span = Span::default();
     let module = Module {
