@@ -33,6 +33,7 @@ pub(super) fn solve(
     for (index, local) in f.parameters.iter().enumerate() {
         if matches!(&f.locals[local.0 as usize].ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Package { .. }))
         {
+            b.lookup(seed.len(), "incoming Store package parameter")?;
             seed.insert(*local, Place::Shell(HoldRoot::Parameter(index as u32)));
         }
     }
@@ -40,6 +41,7 @@ pub(super) fn solve(
     // A local address or descriptor whose slot is itself addressable can be
     // rebound through an indirect write, including a call. Keep it coarse.
     let mut exposed = BTreeSet::new();
+    fee(b, f.blocks.len())?;
     for block in &f.blocks {
         fee(b, block.instructions.len())?;
         for instruction in &block.instructions {
