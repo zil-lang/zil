@@ -8,20 +8,10 @@ impl Checked {
         &self, context: &SemanticInstance, site: SemanticSiteId,
         inventory: &Inventory<'_>, b: &mut Budget,
     ) -> CompileResult<bool> {
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } =
-            &inventory.definition(context.definition, b)?.body else {
-                return Err(fail("Receiver call has no original body directory"));
-            };
-        let mut selected = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.site != site { continue; }
-            let SemanticOriginalNode::Expression(node) = link.node else {
-                return Err(fail("Receiver call changes its original expression kind"));
-            };
-            if selected.replace(node).is_some() { return Err(fail("Receiver call repeats its original expression")); }
-        }
-        let Some(node) = selected else { return Ok(false); };
+        let Some(link) = inventory.original_index(context.definition, b)?.site_node(site, b)? else { return Ok(false); };
+        let SemanticOriginalNode::Expression(node) = link else {
+            return Err(fail("Receiver call changes its original expression kind"));
+        };
         b.lookup(self.frames.len(), WORK)?;
         let frame = self.frames.get(&context.definition)
             .ok_or_else(|| fail("Receiver call lacks its checked original frame"))?;
@@ -35,20 +25,8 @@ impl Checked {
 
     pub(in crate::semantic) fn call_output(&self, context: &SemanticInstance, site: SemanticSiteId,
         program: &SemanticModule, inventory: &Inventory<'_>, b: &mut Budget) -> CompileResult<Value> {
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } =
-            &inventory.definition(context.definition, b)?.body else {
-                return Err(fail("call output omits its complete original body"));
-            };
-        let mut node = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.site != site { continue; }
-            let SemanticOriginalNode::Expression(actual) = link.node else {
-                return Err(fail("call output changes its original expression role"));
-            };
-            if node.replace(actual).is_some() { return Err(fail("call output repeats its original anchor")); }
-        }
-        let node = node.ok_or_else(|| fail("call output has no original expression"))?;
+        let node = site_expression(context.definition, site, inventory, b,
+            "call output has no original expression", "call output changes its original expression role")?;
         b.lookup(self.calls.len(), WORK)?;
         let ordinary = self.calls.contains_key(&(context.definition, node));
         b.lookup(self.trait_calls.len(), WORK)?;
@@ -65,22 +43,10 @@ impl Checked {
     pub(in crate::semantic) fn call_arguments(&self, context: &SemanticInstance,
         site: SemanticSiteId, program: &SemanticModule, inventory: &Inventory<'_>,
         b: &mut Budget) -> CompileResult<(SemanticDefinitionId, Vec<Argument>)> {
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } =
-            &inventory.definition(context.definition, b)?.body else {
-                return Err(fail("call mixed vector has no complete original body"));
-            };
-        let mut node = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.site != site { continue; }
-            let SemanticOriginalNode::Expression(id) = link.node else {
-                return Err(fail("call mixed vector selects an original statement"));
-            };
-            if node.replace(id).is_some() { return Err(fail("call mixed vector repeats its original occurrence")); }
-        }
+        let node = site_expression(context.definition, site, inventory, b,
+            "call mixed vector has no original occurrence", "call mixed vector selects an original statement")?;
         b.lookup(self.calls.len(), WORK)?;
-        let call = self.calls.get(&(context.definition,
-            node.ok_or_else(|| fail("call mixed vector has no original occurrence"))?))
+        let call = self.calls.get(&(context.definition, node))
             .ok_or_else(|| fail("call mixed vector has no independently checked original scheme"))?;
         let mut arguments = Vec::new();
         for argument in &call.actuals {

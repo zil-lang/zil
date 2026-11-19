@@ -435,25 +435,8 @@ impl Checked {
         inventory: &Inventory<'_>,
         b: &mut Budget,
     ) -> CompileResult<Option<AbstractBoundary>> {
-        let definition = inventory.definition(context.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
-            return Err(fail(
-                "abstract actual call omits its complete original body",
-            ));
-        };
-        let mut node = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.site == site {
-                let SemanticOriginalNode::Expression(id) = link.node else {
-                    return Err(fail("abstract actual call selects an original statement"));
-                };
-                if node.replace(id).is_some() {
-                    return Err(fail("abstract actual call has competing original nodes"));
-                }
-            }
-        }
-        let node = node.ok_or_else(|| fail("abstract actual call has no original node"))?;
+        let node = site_expression(context.definition, site, inventory, b,
+            "abstract actual call has no original node", "abstract actual call selects an original statement")?;
         b.lookup(self.abstract_calls.len(), WORK)?;
         let Some(call) = self.abstract_calls.get(&(context.definition, node)) else {
             return Ok(None);

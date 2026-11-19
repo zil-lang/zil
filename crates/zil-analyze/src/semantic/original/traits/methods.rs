@@ -43,32 +43,14 @@ impl Checked {
         inventory: &Inventory<'_>,
         b: &mut Budget,
     ) -> CompileResult<Option<TraitBoundary>> {
-        let definition = inventory.definition(context.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
-            return Err(fail("actual trait invocation has no original body"));
-        };
-        let mut node = None;
-        for row in site_nodes {
-            b.spend(1, WORK)?;
-            if row.site != site {
-                continue;
-            }
-            let SemanticOriginalNode::Expression(id) = row.node else {
-                return Err(fail(
-                    "actual trait invocation selects an original statement",
-                ));
-            };
-            if node.replace(id).is_some() {
-                return Err(fail(
-                    "actual trait invocation has multiple original node identities",
-                ));
-            }
-        }
-        b.lookup(self.trait_calls.len(), WORK)?;
-        let Some(call) = node.and_then(|node| self.trait_calls.get(&(context.definition, node)))
-        else {
+        let Some(link) = inventory.original_index(context.definition, b)?.site_node(site, b)? else {
             return Ok(None);
         };
+        let SemanticOriginalNode::Expression(node) = link else {
+            return Err(fail("actual trait invocation selects an original statement"));
+        };
+        b.lookup(self.trait_calls.len(), WORK)?;
+        let Some(call) = self.trait_calls.get(&(context.definition, node)) else { return Ok(None); };
         let mut arguments = Vec::new();
         let mut method_actuals = Vec::new();
         let mut parameters = Vec::new();

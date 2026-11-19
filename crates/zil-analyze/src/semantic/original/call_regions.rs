@@ -577,25 +577,11 @@ impl Checked {
         selected: &crate::semantic::value::Class, source: &crate::semantic::value::Class,
         inventory: &Inventory<'_>, b: &mut Budget,
     ) -> CompileResult<Vec<NodeId>> {
-        let definition = inventory.definition(context.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, sites, .. } = &definition.body else {
-            return Err(fail("call adapter has no complete original function"));
-        };
-        let mut call = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.site != site { continue; }
-            let SemanticOriginalNode::Expression(node) = link.node else { continue; };
-            for recipe in sites {
-                b.spend(1, WORK)?;
-                if recipe.id == site && matches!(recipe.kind,
-                    SemanticSiteRecipeKind::OriginalCall | SemanticSiteRecipeKind::Call { .. } | SemanticSiteRecipeKind::CallableCall { .. }
-                    | SemanticSiteRecipeKind::Construct { .. }) {
-                    if call.replace(node).is_some() { return Err(fail("call adapter has competing original call nodes")); }
-                }
-            }
-        }
-        let Some(call) = call else { return Ok(Vec::new()); };
+        let index = inventory.original_index(context.definition, b)?;
+        let Some(SemanticOriginalNode::Expression(call)) = index.site_node(site, b)? else { return Ok(Vec::new()); };
+        if !matches!(index.recipe(site, b)?.kind, SemanticSiteRecipeKind::OriginalCall
+            | SemanticSiteRecipeKind::Call { .. } | SemanticSiteRecipeKind::CallableCall { .. }
+            | SemanticSiteRecipeKind::Construct { .. }) { return Ok(Vec::new()); }
         b.lookup(self.call_uses.len(), WORK)?;
         let Some(uses) = self.call_uses.get(&(context.definition, call)) else { return Ok(Vec::new()); };
         let mut nodes = Vec::new();

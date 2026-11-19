@@ -5,10 +5,10 @@ use super::*;
 impl Check<'_, '_> {
     fn scalar_call_inputs(
         &self, instance: &SemanticInstance, function: &TypedFunction, site: SemanticSiteId,
-        arguments: &[ValueId], parameters: &[Type], b: &mut Budget,
+        arguments: &[ValueId], parameters: &[&Type], b: &mut Budget,
     ) -> CompileResult<()> {
         b.spend(parameters.len(), WORK)?;
-        if !parameters.iter().any(Type::is_b0_scalar) { return Ok(()); }
+        if !parameters.iter().any(|ty| ty.is_b0_scalar()) { return Ok(()); }
         let original = self.inventory.original_index(instance.definition, b)?;
         let Some(SemanticOriginalNode::Expression(node)) = original.site_node(site, b)? else {
             return Err(fail("scalar argument lacks its original call occurrence"));
@@ -37,10 +37,10 @@ impl Check<'_, '_> {
 
     fn foreign_projected_arguments(
         &self, instance: &SemanticInstance, function: &TypedFunction,
-        site: SemanticSiteId, arguments: &[ValueId], parameters: &[Type], b: &mut Budget,
+        site: SemanticSiteId, arguments: &[ValueId], parameters: &[&Type], b: &mut Budget,
     ) -> CompileResult<()> {
         b.spend(parameters.len(), WORK)?;
-        if !parameters.contains(&Type::ForeignHandle) { return Ok(()); }
+        if !parameters.contains(&&Type::ForeignHandle) { return Ok(()); }
         let original = self.inventory.original_index(instance.definition, b)?;
         let Some(SemanticOriginalNode::Expression(node)) = original.site_node(site, b)? else {
             return Err(fail("foreign argument lacks its original Call occurrence"));
@@ -52,7 +52,7 @@ impl Check<'_, '_> {
             return Err(fail("foreign call changes its exact original argument arity"));
         }
         for ((source, actual), ty) in inputs.iter().zip(arguments).zip(parameters) {
-            if *ty != Type::ForeignHandle { continue; }
+            if **ty != Type::ForeignHandle { continue; }
             if !self.foreign_resource_member(instance, source, b)? { continue; }
             for origin in self.call_operand_origins(function, *actual, b)? {
                 if !self.copy_expression_source(instance, function, source, origin, b, 0)? {
@@ -525,11 +525,11 @@ impl Check<'_, '_> {
         }
     }
 
-    fn arguments(
+    fn arguments<'a>(
         &self,
         function: &TypedFunction,
         arguments: &[ValueId],
-        expected: &[Type],
+        expected: impl ExactSizeIterator<Item = &'a Type>,
         b: &mut Budget,
     ) -> CompileResult<()> {
         b.spend(arguments.len().saturating_add(expected.len()), WORK)?;
@@ -537,7 +537,10 @@ impl Check<'_, '_> {
             return Err(fail("actual call changes its original argument arity"));
         }
         for (actual, expected) in arguments.iter().zip(expected) {
-            if function.values.get(actual.0 as usize) != Some(expected) {
+            let Some(operand) = function.values.get(actual.0 as usize) else {
+                return Err(fail("actual call argument is absent from its function"));
+            };
+            if !geometry::same_type(operand, expected, b)? {
                 return Err(fail(
                     "actual call argument differs from the complete instantiated parameter",
                 ));
@@ -1468,17 +1471,16 @@ impl Check<'_, '_> {
                                 "actual static call changes its original foreign or Suspend ABI role",
                             ));
                         }
-                        let mut parameters = Vec::new();
+                        b.spend(callee.parameters.len().saturating_mul(2).saturating_add(1), WORK)?;
+                        let mut parameters = Vec::with_capacity(callee.parameters.len());
                         for parameter in &callee.parameters {
-                            b.spend(callee.locals.len().saturating_add(1), WORK)?;
                             let ty = &callee
                                 .locals
                                 .get(parameter.0 as usize)
                                 .filter(|local| local.id == *parameter)
                                 .ok_or_else(|| fail("actual original callee parameter is absent"))?
                                 .ty;
-                            crate::dyn_metadata::ty(ty, b)?;
-                            parameters.push(ty.clone());
+                            parameters.push(ty);
                         }
                         (*function, arguments, parameters, &callee.return_type)
                     }
@@ -1549,13 +1551,10 @@ impl Check<'_, '_> {
                         self.known_call_place(instance, point.function,
                             (point.block.id, point.instruction), instruction, &original_receiver, b)?;
                         b.spend(callee.parameters.len(), WORK)?;
-                        for parameter in &callee.parameters {
-                            crate::dyn_metadata::ty(parameter, b)?;
-                        }
                         (
                             callee.function,
                             arguments,
-                            callee.parameters.clone(),
+                            callee.parameters.iter().collect(),
                             &callee.result,
                         )
                     }
@@ -1575,29 +1574,24 @@ impl Check<'_, '_> {
                         "actual BodyCall has no complete original target world",
                     ));
                 }
-                for target in worlds {
-                    if target.definition != original
-                        || actuals.len() != expected_actuals.len()
-                        || target.actuals.len() != expected_actuals.len()
-                        || formals.len() != expected_actuals.len()
-                    {
-                        return Err(fail(
-                            "actual BodyCall changes its independently inferred original target or mixed arity",
-                        ));
+                if actuals.len() != expected_actuals.len() || formals.len() != actuals.len() {
+                    return Err(fail("actual BodyCall changes its original mixed arity"));
+                }
+                // Proposed arguments belong to this one caller occurrence.
+                // Each callee below still proves its own rigid substitution.
+                for (proposed, expected) in actuals.iter().zip(&expected_actuals) {
+                    let proposed = self.actual_value(instance, proposed, b, 0)?;
+                    if !self.capture_arguments_equal(&proposed, expected, b)? {
+                        return Err(fail("actual BodyCall differs from original caller-domain mixed inference"));
                     }
-                    for (ordinal, (((proposed, callee), expected), formal)) in actuals
-                        .iter()
-                        .zip(&target.actuals)
-                        .zip(&expected_actuals)
-                        .zip(formals)
-                        .enumerate()
+                }
+                for target in worlds {
+                    if target.definition != original || target.actuals.len() != expected_actuals.len() {
+                        return Err(fail("actual BodyCall changes its independently inferred original target or mixed arity"));
+                    }
+                    for (ordinal, ((callee, expected), formal)) in target.actuals.iter()
+                        .zip(&expected_actuals).zip(formals).enumerate()
                     {
-                        let proposed = self.actual_value(instance, proposed, b, 0)?;
-                        if !self.capture_arguments_equal(&proposed, expected, b)? {
-                            return Err(fail(
-                                "actual BodyCall differs from original caller-domain mixed inference",
-                            ));
-                        }
                         let callee = self.actual_value(target, callee, b, 0)?;
                         let valid =
                             self.body_call_actual(target, ordinal, formal, expected, &callee, b)?;
@@ -1608,7 +1602,7 @@ impl Check<'_, '_> {
                         }
                     }
                 }
-                self.arguments(point.function, arguments, &parameters, b)?;
+                self.arguments(point.function, arguments, parameters.iter().copied(), b)?;
                 self.inputs(arguments, point, b)?;
                 if matches!(instruction.kind, InstructionKind::Call { .. } | InstructionKind::SuspendCall { .. }) {
                     self.scalar_call_inputs(instance, point.function, site.recipe, arguments, &parameters, b)?;
@@ -1710,15 +1704,15 @@ impl Check<'_, '_> {
                 let mut expected = Vec::with_capacity(callee.parameters.len());
                 for local in &callee.parameters {
                     expected.push(
-                        callee
+                        &callee
                             .locals
                             .get(local.0 as usize)
+                            .filter(|entry| entry.id == *local)
                             .ok_or_else(|| fail("actual callee parameter is absent"))?
-                            .ty
-                            .clone(),
+                            .ty,
                     );
                 }
-                self.arguments(point.function, arguments, &expected, b)?;
+                self.arguments(point.function, arguments, expected.into_iter(), b)?;
                 self.inputs(arguments, point, b)?;
                 self.result(instruction, point.function, &callee.return_type)?;
             }
@@ -1763,7 +1757,7 @@ impl Check<'_, '_> {
                 if *callee != operand {
                     return Err(fail("callable recipe selects another actual operand"));
                 }
-                self.arguments(point.function, arguments, &definition.parameters, b)?;
+                self.arguments(point.function, arguments, definition.parameters.iter(), b)?;
                 self.inputs(arguments, point, b)?;
                 self.result(instruction, point.function, &definition.result)?;
             }
@@ -1846,7 +1840,7 @@ impl Check<'_, '_> {
                         "closure ghost site changes its actual constructed environment",
                     ));
                 }
-                self.arguments(point.function, captures, &actual.captures, b)?;
+                self.arguments(point.function, captures, actual.captures.iter(), b)?;
                 self.inputs(captures, point, b)?;
                 self.creator_heads(instance, *closure, captures, b)?;
                 self.result(instruction, point.function, &Type::Closure(*closure))?;

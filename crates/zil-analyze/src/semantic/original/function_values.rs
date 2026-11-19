@@ -670,44 +670,30 @@ impl Checked {
         inventory: &Inventory<'_>,
         b: &mut Budget,
     ) -> CompileResult<Option<CodeCallBoundary<'_>>> {
-        let definition = inventory.definition(context.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
-            return Err(fail("original code operation has no body inventory"));
-        };
-        let mut found = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.site == site {
-                if let SemanticOriginalNode::Expression(node) = link.node {
-                    b.lookup(self.code_calls.len(), WORK)?;
-                    if let Some(call) = self.code_calls.get(&(context.definition, node)) {
-                        let code = self.value(call.code, context, program, inventory, b, 0)?;
-                        let invocation = if let Some((inputs, result)) = &call.invocation {
-                            let expression = inventory.original_index(context.definition, b)?.get_expr(node, b)?;
-                            let CoreExprKind::Call { arguments, .. } = &expression.kind else {
-                                return Err(fail("borrowed code invocation has no original call arguments"));
-                            };
-                            if arguments.len() != inputs.len() {
-                                return Err(fail("borrowed code invocation changes its original argument inventory"));
-                            }
-                            let mut actuals = Vec::new();
-                            for (argument, term) in arguments.iter().zip(inputs) {
-                                let value = self.value(*term, context, program, inventory, b, 0)?;
-                                Solver::push(&mut actuals, (argument.id, value), b)?;
-                            }
-                            let output = self.value(*result, context, program, inventory, b, 0)?;
-                            Some((actuals, output))
-                        } else {
-                            None
-                        };
-                        if found.replace(CodeCallBoundary { anchor: &call.anchor, code, invocation }).is_some() {
-                            return Err(fail("original code call has multiple node links"));
-                        }
-                    }
-                }
+        let index = inventory.original_index(context.definition, b)?;
+        let Some(SemanticOriginalNode::Expression(node)) = index.site_node(site, b)? else { return Ok(None); };
+        b.lookup(self.code_calls.len(), WORK)?;
+        let Some(call) = self.code_calls.get(&(context.definition, node)) else { return Ok(None); };
+        let code = self.value(call.code, context, program, inventory, b, 0)?;
+        let invocation = if let Some((inputs, result)) = &call.invocation {
+            let expression = index.get_expr(node, b)?;
+            let CoreExprKind::Call { arguments, .. } = &expression.kind else {
+                return Err(fail("borrowed code invocation has no original call arguments"));
+            };
+            if arguments.len() != inputs.len() {
+                return Err(fail("borrowed code invocation changes its original argument inventory"));
             }
-        }
-        Ok(found)
+            let mut actuals = Vec::new();
+            for (argument, term) in arguments.iter().zip(inputs) {
+                let value = self.value(*term, context, program, inventory, b, 0)?;
+                Solver::push(&mut actuals, (argument.id, value), b)?;
+            }
+            let output = self.value(*result, context, program, inventory, b, 0)?;
+            Some((actuals, output))
+        } else {
+            None
+        };
+        Ok(Some(CodeCallBoundary { anchor: &call.anchor, code, invocation }))
     }
     pub(in crate::semantic) fn function_reference(
         &self,

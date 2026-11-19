@@ -10,24 +10,8 @@ impl Checked {
         inventory: &Inventory<'_>,
         b: &mut Budget,
     ) -> CompileResult<NodeId> {
-        let definition = inventory.definition(context.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
-            return Err(fail("sealed Type actual has no complete original body"));
-        };
-        let mut node = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.site != site {
-                continue;
-            }
-            let SemanticOriginalNode::Expression(expression) = link.node else {
-                return Err(fail("sealed Type actual selects an original statement"));
-            };
-            if node.replace(expression).is_some() {
-                return Err(fail("sealed Type actual has competing original nodes"));
-            }
-        }
-        node.ok_or_else(|| fail("sealed Type actual omits its original call"))
+        site_expression(context.definition, site, inventory, b,
+            "sealed Type actual omits its original call", "sealed Type actual selects an original statement")
     }
 
     // Construction carries the worker's full mixed actual vector. It is not
