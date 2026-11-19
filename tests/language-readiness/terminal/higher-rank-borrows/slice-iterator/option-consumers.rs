@@ -5,6 +5,27 @@ use zil_ir::{LifeNominalActual, LifeTypeProjection, PlaceProjection, Type};
 const HELPER: &str = include_str!("option-helper.zil");
 type Mutation = (&'static str, fn(&mut TypedModule));
 
+fn source_shared_address(
+    actual: &mut LifeNominalActual,
+) -> (&mut bool, &mut zil_ir::StorageLifeShape) {
+    let LifeNominalActual::QualifiedType {
+        ty: Type::Address { mutable, inner },
+        life,
+    } = actual
+    else {
+        panic!("source Option argument lost its qualified address");
+    };
+    assert!(!*mutable);
+    assert_eq!(inner.as_ref(), &Type::I64);
+    assert_eq!(life.binder_count, 1);
+    assert!(life.retained.is_empty() && life.nominal_arguments.is_empty());
+    assert!(
+        matches!(life.slots.as_slice(), [slot] if slot.path.is_empty()
+        && slot.binder == 0 && slot.mode == zil_ir::StoredBorrowMode::SharedAddress)
+    );
+    (mutable, life)
+}
+
 fn shape(module: &mut TypedModule) -> &mut zil_ir::StorageLifeShape {
     let Type::BorrowedStorage { life, .. } = &mut module.life_instances[0].ty else {
         panic!("source omitted qualified Option");
@@ -118,12 +139,11 @@ fn option_metadata_nearest_forgery_fails_each_raw_and_wire_kernel() {
             m.life_instances[0].arguments[0] = LifeNominalActual::Type(Type::I64)
         }),
         ("mutable actual", |m| {
-            let LifeNominalActual::Type(Type::Address { mutable, .. }) =
-                &mut m.life_instances[0].arguments[0]
-            else {
-                panic!()
-            };
-            *mutable = true;
+            *source_shared_address(&mut m.life_instances[0].arguments[0]).0 = true;
+        }),
+        ("wrong actual borrow mode", |m| {
+            let (_, life) = source_shared_address(&mut m.life_instances[0].arguments[0]);
+            life.slots[0].mode = zil_ir::StoredBorrowMode::ExclusiveAddress;
         }),
         ("wrong real payload", |m| {
             let Type::BorrowedStorage { storage, .. } = &mut m.life_instances[0].ty else {
@@ -252,25 +272,101 @@ fn option_wrong_actual_source_is_rejected_after_types() {
     let (decoded, _) = zil_ir::wire::decode_module_candidate(&wire, &Limits::default()).unwrap();
     let errors = zil_analyze::analyze(&decoded, &Limits::default()).unwrap_err();
     assert_actual_source(&errors);
-    // Verify independently checks execution windows before its final return
-    // summary: the escaping Some loan conflicts with cleanup of its local array.
-    let assert_actual_window = |errors: &[zil_base::Diagnostic]| {
-        assert!(
-            errors.iter().any(|d| d.phase == Phase::Verify
-                && d.category == ResultCategory::SafeReject
-                && d.code == "E-VERIFY-STORED"
-                && d.message
-                    == "stored target proof: actual target intersects a live incompatible loan"),
-            "{errors:?}"
+    let returned = module.functions.iter().find(|f| f.name == "next").unwrap();
+    let local = returned
+        .locals
+        .iter()
+        .find(|local| local.name == "local")
+        .unwrap();
+    let local_id = local.id;
+    let span = local.span;
+    let note = format!("next requires a caller-visible parent, found Local({local_id:?})");
+    for errors in [
+        zil_verify::verify_module(
+            module.clone(),
+            claim.clone(),
+            &module.target,
+            &Limits::default(),
+        ),
+        zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()),
+    ] {
+        let errors = errors.expect_err("escaping Some payload accepted");
+        let d = &errors[0];
+        assert_eq!(
+            (d.phase, d.category),
+            (Phase::Verify, ResultCategory::SafeReject)
         );
-    };
-    let errors =
-        zil_verify::verify_module(module.clone(), claim, &module.target, &Limits::default())
-            .expect_err("raw Verify accepted the activation-local Some payload");
-    assert_actual_window(&errors);
-    let errors = zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default())
-        .expect_err("Wire Verify accepted the activation-local Some payload");
-    assert_actual_window(&errors);
+        assert_eq!(d.code, "E-BORROW-ESCAPE");
+        assert_eq!(
+            d.message,
+            "borrowed value retains an activation-local parent loan at a call boundary"
+        );
+        assert_eq!(d.span, Some(span));
+        assert!(d.notes.contains(&note), "{d:?}");
+        assert!(d.notes.iter().any(|note| note == "actual returned field at [Variant(VariantProjection { variant: 1, index: 0 })]"), "{d:?}");
+    }
+
+    // Keep the actual return rooted in the input. Move the ordinary array's
+    // cleanup before the already-emitted AddressSlice uses its live loan.
+    let mut early_cleanup = positive;
+    let body = &mut early_cleanup
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "next")
+        .unwrap()
+        .blocks[0];
+    let cleanup = body
+        .instructions
+        .iter()
+        .position(|i| {
+            matches!(
+                i.kind, InstructionKind::StorageDead(id) if id == local_id
+            )
+        })
+        .unwrap();
+    let borrow = body
+        .instructions
+        .iter()
+        .position(|i| {
+            matches!(
+                i.kind, InstructionKind::BorrowLocal { local } if local == local_id
+            )
+        })
+        .unwrap();
+    let address = body.instructions[borrow].result.unwrap();
+    assert!(
+        matches!(body.instructions[borrow + 1].kind, InstructionKind::AddressSlice { address: use_, .. } if use_ == address)
+    );
+    assert!(cleanup > borrow + 1);
+    let cleanup = body.instructions.remove(cleanup);
+    body.instructions.insert(borrow + 1, cleanup);
+    claim.module_fingerprint = early_cleanup.fingerprint();
+    let wire =
+        zil_ir::wire::encode_module_candidate(&early_cleanup, &claim, &Limits::default()).unwrap();
+    for result in [
+        zil_verify::verify_module(
+            early_cleanup.clone(),
+            claim,
+            &early_cleanup.target,
+            &Limits::default(),
+        ),
+        zil_verify::verify_module_bytes(&wire, &early_cleanup.target, &Limits::default()),
+    ] {
+        let errors =
+            result.expect_err("array cleanup accepted before the live Some helper loan's use");
+        let d = &errors[0];
+        assert_eq!(
+            (d.phase, d.category),
+            (Phase::Verify, ResultCategory::SafeReject)
+        );
+        assert_eq!(d.code, "E-BORROW-CONFLICT");
+        assert!(
+            d.message
+                .starts_with("actual target intersects a live incompatible loan")
+        );
+        let actual = format!("base: Local({local_id:?})");
+        assert_eq!(d.message.matches(&actual).count(), 2, "{d:?}");
+    }
 }
 
 #[test]
@@ -338,7 +434,7 @@ fn option_core_metadata_is_authenticated_before_types_resolve() {
         zil_ct::evaluate_source_constants(&core, &TargetProfile::default(), &Limits::default())
             .unwrap();
     zil_types::check(&core, &TargetProfile::default(), &Limits::default()).unwrap();
-    for mutation in 0..12 {
+    for mutation in 0..13 {
         let mut forged = core.clone();
         match mutation {
             0 => forged.life_declarations[0].identity.package = "user".into(),
@@ -347,12 +443,11 @@ fn option_core_metadata_is_authenticated_before_types_resolve() {
             3 => forged.life_declarations[0].identity.generation_path.push(0),
             4 => forged.life_instances[0].arguments[0] = LifeNominalActual::Type(Type::I64),
             5 => {
-                let LifeNominalActual::Type(Type::Address { mutable, .. }) =
-                    &mut forged.life_instances[0].arguments[0]
-                else {
-                    panic!()
-                };
-                *mutable = true;
+                *source_shared_address(&mut forged.life_instances[0].arguments[0]).0 = true;
+            }
+            12 => {
+                let (_, life) = source_shared_address(&mut forged.life_instances[0].arguments[0]);
+                life.slots[0].mode = zil_ir::StoredBorrowMode::ExclusiveAddress;
             }
             _ => {
                 let Type::BorrowedStorage { life, .. } = &mut forged.life_instances[0].ty else {

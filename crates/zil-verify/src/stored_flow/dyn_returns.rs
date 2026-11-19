@@ -982,9 +982,20 @@ pub(super) fn check_parent_escape(
         if matches!(source.base, HoldRoot::Local(_))
             || f.environment.is_none() && matches!(source.base, HoldRoot::Capture(_))
         {
-            return Err(bad(
-                "borrowed result retains an activation-local parent loan",
+            let span = match source.base {
+                HoldRoot::Local(id) => f.locals.get(id.0 as usize).map(|local| local.span),
+                _ => None,
+            };
+            let mut error = reject(
+                "E-BORROW-ESCAPE",
+                Some(span.unwrap_or(f.span)),
+                "borrowed value retains an activation-local parent loan at a call boundary",
+            );
+            error.notes.push(format!(
+                "{} requires a caller-visible parent, found {:?}",
+                f.name, source.base
             ));
+            return Err(error);
         }
     }
     Ok(())

@@ -697,7 +697,12 @@ pub(super) fn return_parents(
             continue;
         }
         let parents = dyn_returns::parents(permission, &solution.loans, b)?;
-        dyn_returns::check_parent_escape(f, &parents, b)?;
+        dyn_returns::check_parent_escape(f, &parents, b).map_err(|mut error| {
+            if error.code == "E-BORROW-ESCAPE" {
+                error.notes.push(format!("actual returned field at {path:?}"));
+            }
+            error
+        })?;
         b.spend(
             summary
                 .physical_result_parents
