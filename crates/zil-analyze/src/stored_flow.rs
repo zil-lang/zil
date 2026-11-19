@@ -3781,7 +3781,7 @@ fn environment_value(module: &TypedModule, ty: &Type, b: &mut Budget) -> Compile
     Ok(false)
 }
 
-fn capture_static_leaf(
+pub(super) fn capture_static_leaf(
     context: Option<(&ClosureDefinition, u32)>,
     path: &[PlaceProjection],
     mode: StoredBorrowMode,

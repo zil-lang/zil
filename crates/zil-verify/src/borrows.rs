@@ -1075,7 +1075,23 @@ fn reconstruct(
                                         descriptor_origins,
                                     ) =>
                             {
-                                row.push(Root::Capture(*index))
+                                // This whole shared leaf may use the same exact
+                                // pending Static obligation that stored flow
+                                // must discharge at all constructors and writes.
+                                let life = f.environment
+                                    .and_then(|id| module.closures.get(id.0 as usize))
+                                    .and_then(|definition| definition.storage_life.as_ref());
+                                let static_leaf = if matches!(instruction.kind, InstructionKind::ReadCapture { .. })
+                                    && matches!(f.values[result.0 as usize], Type::Address { mutable: false, .. })
+                                    && let Some(life) = life
+                                {
+                                    budget.spend(life.static_bindings.len().saturating_add(1))?;
+                                    life.static_bindings.iter().any(|position|
+                                        position.base == StorageBase::Capture(*index) && position.path.is_empty())
+                                } else {
+                                    false
+                                };
+                                row.push(if static_leaf { Root::Static } else { Root::Capture(*index) });
                             }
                             InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                                 lookup(budget, state.len())?;

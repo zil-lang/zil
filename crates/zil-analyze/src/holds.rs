@@ -2312,7 +2312,16 @@ fn infer_with_private(
                             let ty = instruction
                                 .result
                                 .and_then(|id| f.values.get(id.0 as usize));
-                            if matches!(ty, Some(Type::Address { .. }))
+                            if matches!(instruction.kind, InstructionKind::ReadCapture { .. })
+                                && matches!(ty, Some(Type::Address { mutable: false, .. }))
+                                && stored_flow::capture_static_leaf(
+                                    f.environment.and_then(|id| module.closures.get(id.0 as usize))
+                                        .map(|definition| (definition, *index)),
+                                    &[], zil_ir::StoredBorrowMode::SharedAddress, budget,
+                                )?
+                            {
+                                found.insert(Root::Static);
+                            } else if matches!(ty, Some(Type::Address { .. }))
                                 || ty.is_some_and(tracked_desc)
                             {
                                 found.insert(Root::Capture(*index));
