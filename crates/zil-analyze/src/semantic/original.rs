@@ -35,6 +35,7 @@ pub(super) mod nominal;
 pub(super) mod pattern_places;
 mod place_writes;
 mod places;
+pub(super) use places::ResourceFieldSource;
 mod protocol;
 mod registration;
 mod registration_start;
@@ -314,6 +315,7 @@ pub(super) struct Checked {
     dyn_templates: Vec<dyn_types::Template>,
     borrows: BTreeMap<(SemanticDefinitionId, NodeId), Borrow>,
     descriptions: BTreeMap<(SemanticDefinitionId, NodeId), descriptions::Description>,
+    resource_field_reads: BTreeMap<(SemanticDefinitionId, NodeId), places::ResourceFieldRead>,
     temporary_descriptions: BTreeMap<(SemanticDefinitionId, NodeId, usize), descriptions::Temporary>,
     owner_transfers: BTreeMap<(SemanticDefinitionId, NodeId), places::Place>,
     inferred_owner_captures: BTreeMap<SemanticDefinitionId, BTreeSet<String>>,
@@ -4714,6 +4716,7 @@ pub(super) fn check(
             dyn_templates: Vec::new(),
             borrows: BTreeMap::new(),
             descriptions: BTreeMap::new(),
+            resource_field_reads: BTreeMap::new(),
             temporary_descriptions: BTreeMap::new(),
             owner_transfers: BTreeMap::new(),
             captured_descriptions: BTreeMap::new(),

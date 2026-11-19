@@ -338,3 +338,92 @@ fn main()->i32{return result()-66}
 "#;
     native(source, 66);
 }
+
+#[test]
+fn nested_resource_descriptions_follow_current_ownership() {
+    const HEAD: &str = "resource R{n:i32} package Leaf{manages a:R} package Parent{left:Leaf;right:Leaf} fn result()->i32{var p=Parent{left:Leaf{a:R{n:4}},right:Leaf{a:R{n:42}}};";
+    for (tail, expected) in [
+        ("return p.right.a.n}", 42),
+        ("return ((p.right).a).n}", 42),
+        ("let Leaf{a:moved}=p.left;return moved.n+p.right.a.n}", 46),
+        ("p.right=Leaf{a:R{n:7}};return p.right.a.n}", 7),
+        ("let original=p.right.a;p.left=Leaf{a:R{n:8}};return original.n}", 42),
+    ] {
+        native(&format!("{HEAD}{tail}"), expected);
+    }
+    native(
+        "resource R{n:i32} package Leaf{manages a:R} package Parent{left:Leaf;right:Leaf} fn read(p:&Parent)->i32{return p.right.a.n} fn result()->i32{let p=Parent{left:Leaf{a:R{n:4}},right:Leaf{a:R{n:42}}};return read(&p)}",
+        42,
+    );
+    reject_place(
+        &format!("{HEAD}let Leaf{{a:moved}}=p.right;return p.right.a.n}}"),
+        "projected local reads an uninitialized occupant",
+        "p.right.a",
+        "uninitialized path in this local [Field(1), Field(0)]",
+    );
+    reject(
+        &format!("{HEAD}let old=p.right.a;p.right=Leaf{{a:R{{n:7}}}};return old.n}}"),
+        "E-BORROW-CONFLICT",
+    );
+}
+
+#[test]
+fn nested_resource_description_rejects_same_typed_substitutions() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_ir::{InstructionKind, PlaceProjection::Field};
+
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "nested_resource_description.zil",
+        "resource R{n:i32} package Leaf{manages a:R;manages b:R} package Parent{left:Leaf;right:Leaf} fn result()->i32{let p=Parent{left:Leaf{a:R{n:4},b:R{n:9}},right:Leaf{a:R{n:42},b:R{n:7}}};return p.right.a.n}",
+    );
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let syntax = zil_syntax::parse(&source).into_result().unwrap();
+    let core = zil_expand::expand_with_map_semantics(
+        &source,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let module = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    for (depth, substitute) in [(0, Field(0)), (1, Field(1))] {
+        let mut raw = module.clone();
+        let path = raw.functions.iter_mut()
+            .flat_map(|function| &mut function.blocks)
+            .flat_map(|block| &mut block.instructions)
+            .find_map(|instruction| match &mut instruction.kind {
+                InstructionKind::BorrowPlaceLocal { path, mutable: false, .. }
+                    if path.as_slice() == [Field(1), Field(0)] => Some(path),
+                _ => None,
+            })
+            .expect("description observes the second Package's first owned field");
+        path[depth] = substitute;
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        let analyzed = zil_analyze::analyze(&raw, &limits);
+        let checked = zil_verify::verify_module(raw, claim, &target, &limits);
+        let wire = zil_verify::verify_module_bytes(&bytes, &target, &limits);
+        let errors = analyzed.err().expect("Analyze rejects another original resource field");
+        assert_eq!(errors[0].category, ResultCategory::SafeReject, "{errors:?}");
+        assert!(errors[0].message.contains("changes its original field path"), "{errors:?}");
+        for result in [checked, wire] {
+            let errors = result.err().expect("Verify rejects another original resource field");
+            assert_eq!(errors[0].category, ResultCategory::SafeReject, "{errors:?}");
+            assert!(errors[0].message.contains("differs from the original ordered nominal/tuple field"), "{errors:?}");
+        }
+    }
+}

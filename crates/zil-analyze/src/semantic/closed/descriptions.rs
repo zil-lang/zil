@@ -3,6 +3,34 @@
 use super::*;
 use crate::semantic::value::Value;
 impl Check<'_, '_> {
+    pub(super) fn checked_resource_field_read(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        operand: &SemanticOperand,
+        source: &original::ResourceFieldSource<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let SemanticOperand::Value(value) = operand else {
+            return Err(fail("original resource field read has no actual SSA result"));
+        };
+        let (block, index, read) = self.defining(function, *value, b)?;
+        let InstructionKind::ReadDesc { desc, index: field } = read.kind else {
+            return Err(fail("original resource field read has no actual description access"));
+        };
+        if field != source.field {
+            return Err(fail("actual resource read selects another original payload field"));
+        }
+        operations::available_before(function, (block, index, SemanticSiteEdge::Before), desc, b)?;
+        let Type::Managed(payload) = &source.owner.ty else {
+            return Err(fail("original resource field read loses its owning parent"));
+        };
+        self.sealed_resource_place(
+            instance, function, desc, source.anchor, &source.root, &source.owner,
+            source.path, payload, b,
+        )
+    }
+
     pub(super) fn source_description(
         &self,
         instance: &SemanticInstance,

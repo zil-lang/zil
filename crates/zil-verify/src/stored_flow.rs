@@ -4470,6 +4470,14 @@ static_dependency: StaticProvenance::NotStatic,
             if b.masked_stored_tasks() || b.replacements || super::stored_owned::ordinary_store_value(module,vt(f,i.result.ok_or_else(||err("ordinary Store address description has no result"))?)?,b)? || super::stored_owned::ordinary_byte_value(vt(f,i.result.ok_or_else(||err("ordinary byte address description has no result"))?)?,b)? || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
             join_permission(&mut out.store_description, &val(*address)?.address, b)?;
         }
+        InstructionKind::DescribeAddress { address }
+            if super::stored_owned::description(
+                vt(f, i.result.ok_or_else(|| err("addressed resource description has no result"))?)?, b,
+            )? =>
+        {
+            crate::check_instruction(module, f, i, b)?;
+            join_permission(&mut out.store_description, &val(*address)?.address, b)?;
+        }
         InstructionKind::OwnedStoreBorrow { store, .. } | InstructionKind::OwnedStoreBorrowMut { store, .. }
             if super::stored_owned::ordinary_store_value(module,vt(f,*store)?,b)? || b.masked_stored_tasks() && (b.store_descriptions() || matches!(i.kind, InstructionKind::OwnedStoreBorrow { .. })) => {
             let description = &val(*store)?.store_description;

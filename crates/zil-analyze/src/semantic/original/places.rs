@@ -9,6 +9,49 @@ pub(super) struct Place {
     pub(super) path: Vec<u32>,
     pub(super) selected: Term,
 }
+
+pub(super) struct ResourceFieldRead {
+    anchor: LocalAnchor,
+    root: Term,
+    owner: Term,
+    path: Vec<u32>,
+    field: u32,
+}
+
+pub(in crate::semantic) struct ResourceFieldSource<'a> {
+    pub(in crate::semantic) anchor: LocalAnchor,
+    pub(in crate::semantic) root: value::Value,
+    pub(in crate::semantic) owner: value::Value,
+    pub(in crate::semantic) path: &'a [u32],
+    pub(in crate::semantic) field: u32,
+}
+
+impl Checked {
+    pub(in crate::semantic) fn resource_field_source(
+        &self,
+        instance: &SemanticInstance,
+        node: NodeId,
+        program: &SemanticModule,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<Option<ResourceFieldSource<'_>>> {
+        if self.resource_field_reads.is_empty() {
+            return Ok(None);
+        }
+        b.lookup(self.resource_field_reads.len(), WORK)?;
+        let Some(read) = self.resource_field_reads.get(&(instance.definition, node)) else {
+            return Ok(None);
+        };
+        Ok(Some(ResourceFieldSource {
+            anchor: read.anchor,
+            root: self.value(read.root, instance, program, inventory, b, 0)?,
+            owner: self.value(read.owner, instance, program, inventory, b, 0)?,
+            path: &read.path,
+            field: read.field,
+        }))
+    }
+}
+
 impl Solver<'_, '_> {
     pub(super) fn environment_anchor(
         &self,
@@ -242,6 +285,27 @@ impl Solver<'_, '_> {
             return Ok(None);
         };
         let (ordinal, field) = self.field(place.selected, member, b, depth + 1)?;
+        // This observation has an original site for the read. The temporary
+        // descriptor made while evaluating its receiver has no separate site.
+        if !place.path.is_empty() && let Some(anchor) = place.anchor {
+            let owner = self.type_root(place.selected, b)?;
+            if matches!(self.state.arena[owner], Kind::Wrapped(Wrapper::Managed, _))
+                && self.inline_package_field(self.type_root(place.root, b)?, &place.path, owner, b)?
+            {
+                b.spend(place.path.len(), WORK)?;
+                b.lookup(self.state.resource_field_reads.len(), WORK)?;
+                let read = ResourceFieldRead {
+                    anchor,
+                    root: place.root,
+                    owner,
+                    path: place.path.clone(),
+                    field: ordinal,
+                };
+                if self.state.resource_field_reads.insert((frame.definition, expression.id), read).is_some() {
+                    return Err(fail("original resource field read reuses an observation"));
+                }
+            }
+        }
         Self::push(&mut place.path, ordinal, b)?;
         self.place_available(frame, place.anchor, &place.path, false, b)?;
         let selected = self.type_root(field, b)?;

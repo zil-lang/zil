@@ -5883,7 +5883,9 @@ fn transfer(
         }
         InstructionKind::DescribeAddress { address }
             if owned::scalar_description(f, i, b)? => {
-            union(&mut out.held, &get(*address)?.pointer, b)?;
+            let head = &get(*address)?.pointer;
+            union(&mut out.held, head, b)?;
+            union(&mut out.store_description, head, b)?;
         }
         InstructionKind::DescribeAddress { address }
             if owned::owning_head_description(module, f, i, b)? => {

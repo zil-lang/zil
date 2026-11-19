@@ -25,6 +25,19 @@ pub(in crate::semantic) enum ScalarProjection {
 }
 
 impl CheckedOriginal {
+    pub(in crate::semantic) fn resource_field_read(
+        &self,
+        definition: SemanticDefinitionId,
+        node: NodeId,
+        b: &mut Budget,
+    ) -> Check<bool> {
+        if self.resource_field_reads.is_empty() {
+            return Ok(false);
+        }
+        b.spend(self.resource_field_reads.len().checked_ilog2().map_or(1, |n| n as usize + 1))?;
+        Ok(self.resource_field_reads.contains(&(definition, node)))
+    }
+
     pub(in crate::semantic) fn original_stored_member(
         &self, owner: SemanticDefinitionId, site: SemanticSiteId, b: &mut Budget,
     ) -> Check<Option<(NodeId, u32)>> {
@@ -375,6 +388,25 @@ impl CheckedOriginal {
                 CoreExprKind::Member{object:source_object,member,owner}=>{
                     let (object,mut place)=self.place(module,context,source_object,env,bindings,active,b)?;
                     let(storage,observed)=self.field_observation_storage(module,context,&object,b)?;
+                    if observed {
+                        let mut parent = source_object.as_ref();
+                        while let CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } = &parent.kind {
+                            b.spend(1)?;
+                            parent = inner;
+                        }
+                        if matches!(parent.kind, CoreExprKind::Member { .. }) {
+                            let definition = env.current()?;
+                            let key = (definition, source_object.id);
+                            b.spend(self.place_types.len().checked_ilog2().map_or(1, |n| n as usize + 1)
+                                .saturating_add(self.value_places.len().checked_ilog2().map_or(1, |n| n as usize + 1)))?;
+                            if matches!(self.place_types.get(&key), Some(Ty::Managed(_)))
+                                && self.value_places.get(&key).is_some_and(|place| !place.fields.is_empty())
+                            {
+                                b.spend(self.resource_field_reads.len().checked_ilog2().map_or(1, |n| n as usize + 1))?;
+                                self.resource_field_reads.insert((definition, expression.id));
+                            }
+                        }
+                    }
                     if observed{if let Some(place)=&place{self.read_original(module,context,place,&object,env,false,active,b)?;}self.observed_argument(source_object,&object,env,b)?;place=None;}
                     else if let Some(place)=&place{self.read_original_parent(module,context,place,&object,env,active,b)?;}
                     if let Some(owner)=owner{let expected=self.ty(module,context,owner,env,active,b)?;self.unify(&storage,&expected,b)?;}

@@ -834,6 +834,16 @@ impl Check<'_, '_> {
                     scope: SemanticScopeRef::Ancestor(0),
                     source: SemanticOriginalTypeSource::Expression(node),
                 } = recipe
+                    && let Some(read) = self.original.resource_field_source(
+                        instance, *node, self.program, self.inventory, b,
+                    )?
+                {
+                    self.checked_resource_field_read(instance, point.function, subject, &read, b)?;
+                }
+                if let SemanticTypeRecipe::OriginalType {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    source: SemanticOriginalTypeSource::Expression(node),
+                } = recipe
                     && let Some(transfer) = self.original.prepared_owner_transfer(
                         instance, *node, self.program, self.inventory, b, 0,
                     )?

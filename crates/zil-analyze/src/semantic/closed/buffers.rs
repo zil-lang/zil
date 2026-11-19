@@ -199,7 +199,7 @@ impl Check<'_, '_> {
         };
         b.spend(path.len().saturating_add(expected_path.len()), WORK)?;
         if path != expected_path {
-            let mut errors = fail("actual ByteBuffer operation changes its original field path");
+            let mut errors = fail("actual resource description changes its original field path");
             errors[0].span = Some(instruction.span);
             errors[0].notes.push(format!(
                 "Original fields {expected_path:?}, actual fields {path:?} at function {}, block {}, instruction {index}.",

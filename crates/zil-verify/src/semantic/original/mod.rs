@@ -97,6 +97,7 @@ pub(super) struct CheckedOriginal {
     // Category of the evaluated Place before a later field observation
     // publishes an effective Desc type for that same original expression.
     place_types: BTreeMap<(SemanticDefinitionId, NodeId), Ty>,
+    resource_field_reads: BTreeSet<(SemanticDefinitionId, NodeId)>,
     // Contextual sum observations are distinct from the payload operation.
     // The selected arm is solved in original Γ before any actual emission.
     injections: BTreeMap<(SemanticDefinitionId, NodeId), (bool, Ty)>,
