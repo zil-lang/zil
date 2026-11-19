@@ -2063,24 +2063,31 @@ pub(super) fn resolved(
     let SemanticTypeValue::Resolved { ty, life, classes } = input else {
         return Err(fail("Core type remains in an executable semantic value"));
     };
-    resolved_parts(instance, ty, life, classes, inventory, b, depth)
+    resolved_depth(depth, b)?;
+    let geometry = inventory.geometry.resolved(ty, life, b)?;
+    resolve_classes(instance, geometry, classes, inventory, b, depth)
 }
-fn resolved_parts(
-    instance: &SemanticInstance,
-    ty: &Type,
-    life: &StorageLifeShape,
-    classes: &[SemanticClassExpr],
-    inventory: &Inventory<'_>,
-    b: &mut Budget,
-    depth: usize,
-) -> CompileResult<Value> {
+
+fn resolved_depth(depth: usize, b: &mut Budget) -> CompileResult<()> {
     b.spend(1, WORK)?;
     if depth > b.partial_depth {
-        return Err(unknown(
-            "complete semantic type value exceeds its finite depth",
-        ));
+        return Err(unknown("complete semantic type value exceeds its finite depth"));
     }
-    let geometry = inventory.geometry.resolved(ty, life, b)?;
+    Ok(())
+}
+
+pub(super) fn resolved_geometry(
+    instance: &SemanticInstance, geometry: std::sync::Arc<geometry::Geometry>,
+    classes: &[SemanticClassExpr], inventory: &Inventory<'_>, b: &mut Budget, depth: usize,
+) -> CompileResult<Value> {
+    resolved_depth(depth, b)?;
+    resolve_classes(instance, geometry, classes, inventory, b, depth)
+}
+
+fn resolve_classes(
+    instance: &SemanticInstance, geometry: std::sync::Arc<geometry::Geometry>,
+    classes: &[SemanticClassExpr], inventory: &Inventory<'_>, b: &mut Budget, depth: usize,
+) -> CompileResult<Value> {
     let ty = &geometry.ty;
     let life = &geometry.life;
     if classes.len() != life.binder_count as usize {
@@ -2135,8 +2142,8 @@ fn resolved_parts(
                     &empty(),
                     b,
                 )?;
-                resolved_parts(
-                    instance, &child.ty, &child.life, &[], inventory, b, depth + 1,
+                resolved_geometry(
+                    instance, child, &[], inventory, b, depth + 1,
                 )?;
             }
         }
@@ -2311,10 +2318,10 @@ fn resolved_parts(
             let child = geometry::project(&geometry, geometry::Child::Inner, &child_life, b)?;
             // Recursively validate the complete child with its actual fresh
             // expressions. Only immutable physical geometry is shared.
-            resolved_parts(
-                instance, &child.ty, &child.life, &child_expressions,
+            let child = resolved_geometry(
+                instance, child, &child_expressions,
                 inventory, b, depth + 1,
-            )?;
+            )?.geometry;
             let expected = address(
                 *mutable,
                 Class::Local(0),

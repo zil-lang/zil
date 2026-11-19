@@ -609,7 +609,7 @@ impl Check<'_, '_> {
                 Ok(Value::from_geometry(geometry, images))
             }
             Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. })) =>
-                value::resolved(context, input, self.inventory, b, depth + 1),
+                value::resolved_geometry(context, geometry, classes, self.inventory, b, depth + 1),
             Type::MutexGuard { .. } => {
                 self.ordinary_type_at(ty, b, depth + 1)?;
                 crate::dyn_metadata::shape(life, b)?;
@@ -723,7 +723,7 @@ impl Check<'_, '_> {
                 let class = value::class(context, &classes[0], self.inventory, b, depth + 1)?;
                 Ok(Value::from_geometry(geometry, vec![class]))
             }
-            _ => value::resolved(context, input, self.inventory, b, depth + 1),
+            _ => value::resolved_geometry(context, geometry, classes, self.inventory, b, depth + 1),
         }
     }
     pub(super) fn pointee(&self, input: &Value, b: &mut Budget) -> CompileResult<Value> {
