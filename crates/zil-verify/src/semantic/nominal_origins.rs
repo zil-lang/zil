@@ -293,4 +293,4 @@ fn charge_graph(root:Work<'_>,b:&mut Budget)->Check<()>{
         },
     }}Ok(())
 }
-fn charge_key(key:&ClassKey,b:&mut Budget)->Check<()>{b.spend(1)?;match key{ClassKey::Outer{path,..}|ClassKey::Intrinsic{path,..}=>b.spend(path.len()),_=>Ok(())}}
+pub(super) fn charge_key(key:&ClassKey,b:&mut Budget)->Check<()>{b.spend(1)?;match key{ClassKey::Outer{path,..}|ClassKey::Intrinsic{path,..}=>b.spend(path.len()),_=>Ok(())}}

@@ -2347,3 +2347,50 @@ fn owned_store_new_head_family_enters_qualified_owning_sum_containers() {
         }
     }
 }
+
+#[test]
+fn ordinary_pod_store_package_receipt_binds_the_actual_module_fields_and_limits() {
+    let limits = Limits::default();
+    let (mut m, plan) = scoped_pod_fixture(pod(vec![("entry", Type::I64)]));
+    let carrier = m.functions[0].locals[0].ty.clone();
+    let owner = Type::Package {
+        name: "Container".into(),
+        fields: vec![
+            ("items".into(), carrier.clone()),
+            ("size".into(), Type::I64),
+        ],
+    };
+    let span = m.functions[0].span;
+    m.functions[0].locals.push(LocalDecl {
+        id: LocalId(1),
+        name: "container".into(),
+        ty: owner,
+        mutable: false,
+        span,
+    });
+    let owner = &m.functions[0].locals[1].ty;
+    for result in pod_both(&m, &plan, &limits) {
+        result.unwrap();
+    }
+    let mut b = Budget::new(&limits);
+    b.pod_stores = true;
+    b.structural = Some(dynamic_metadata::Structure::register(&m, &mut b).unwrap());
+    packages::check_projected_store_package(&m, owner, None, &mut b).unwrap();
+    assert!(dynamic_metadata::known_pod_package(&m, owner, &mut b).unwrap());
+    assert!(!dynamic_metadata::known_pod_package(&m, &owner.clone(), &mut b).unwrap());
+    let other = m.clone();
+    assert!(!dynamic_metadata::known_pod_package(&other, owner, &mut b).unwrap());
+    b.limits.max_call_depth = 0;
+    assert!(!dynamic_metadata::known_pod_package(&m, owner, &mut b).unwrap());
+    let mut wrong = m.clone();
+    let Type::Package { fields, .. } = &mut wrong.functions[0].locals[1].ty else {
+        unreachable!()
+    };
+    fields[1].0 = "items".into();
+    for result in pod_both(&wrong, &plan, &limits) {
+        let errors = result.err().expect("duplicate member accepted");
+        let diagnostic = &errors[0];
+        assert_eq!(diagnostic.code, "E-VERIFY-PACKAGE");
+        assert!(diagnostic.message.contains("unique nonempty names"));
+    }
+}

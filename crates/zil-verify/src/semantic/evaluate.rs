@@ -518,6 +518,41 @@ impl CheckedContext {
                 life: empty_life(), classes, origins: vec![], statics: vec![] });
         }
         let type_cell=self.shared_type_cell(ty,b)?;
+        let one_head = classes.len() == 1
+            && life.binder_count == 1
+            && life.retained.is_empty()
+            && life.nominal_arguments.is_empty()
+            && matches!(life.slots.as_slice(), [slot] if slot.path.is_empty() && slot.binder == 0
+                    && matches!((ty, slot.mode),
+                        (Type::Address { mutable: false, .. }, StoredBorrowMode::SharedAddress)
+                        | (Type::Address { mutable: true, .. }, StoredBorrowMode::ExclusiveAddress)
+                        | (Type::Desc(_), StoredBorrowMode::WritableDescription)));
+        let head_scope = if one_head {
+            b.structural
+                .as_ref()
+                .and_then(|state| state.identity_for(module))
+        } else {
+            None
+        };
+        if let Some(scope) = &head_scope
+            && self
+                .empty_domains
+                .borrow()
+                .checked_head(scope, &type_cell, b)?
+        {
+            nominal_origins::charge_key(&classes[0], b)?;
+            b.spend(4)?;
+            let origin = IntrinsicOrigin::DerivedClass {
+                source: classes[0].clone(),
+            };
+            return Ok(CheckedType {
+                type_cell,
+                life: life.clone(),
+                classes,
+                origins: vec![origin],
+                statics: vec![],
+            });
+        }
         let scope_identity = if empty {
             b.structural.as_ref().and_then(|state| state.identity_for(module))
         } else { None };
@@ -549,6 +584,18 @@ impl CheckedContext {
                 }
                 origins = domain.origins;
                 statics = domain.statics;
+            }
+        }
+        if let Some(scope) = head_scope
+            && statics.is_empty()
+            && let [IntrinsicOrigin::DerivedClass { source }] = origins.as_slice()
+        {
+            nominal_origins::charge_key(source, b)?;
+            nominal_origins::charge_key(&classes[0], b)?;
+            if source == &classes[0] {
+                self.empty_domains
+                    .borrow_mut()
+                    .record_head(scope, &type_cell, b)?;
             }
         }
         if let Some(scope) = scope_identity && origins.is_empty() && statics.is_empty() {

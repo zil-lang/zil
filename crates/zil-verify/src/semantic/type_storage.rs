@@ -70,6 +70,8 @@ impl CheckedContext{
 #[derive(Default)]
 pub(super) struct EmptyDomains {
     by_type: BTreeMap<usize, (Rc<()>, Rc<CheckedTypeData>, Limits)>,
+    // Completed one-slot address/description value domain for a closed child.
+    one_head: BTreeMap<usize, (Rc<()>, Rc<CheckedTypeData>, Limits)>,
     // A separately proved absence of physical child bounds on this Address.
     // The enclosing value has its own unique, current outer loan.
     by_address: BTreeMap<usize, (Rc<()>, Rc<CheckedTypeData>, Limits)>,
@@ -82,6 +84,50 @@ impl EmptyDomains {
         let Some((module, owner, limits)) = self.by_type.get(&key) else { return Ok(false) };
         b.spend(13)?;
         Ok(Rc::ptr_eq(module, scope) && Rc::ptr_eq(owner, cell) && *limits == b.limits)
+    }
+    pub(super) fn checked_head(
+        &self,
+        scope: &Rc<()>,
+        cell: &Rc<CheckedTypeData>,
+        b: &mut Budget,
+    ) -> Check<bool> {
+        b.spend(
+            self.one_head
+                .len()
+                .checked_ilog2()
+                .map_or(1, |n| n as usize + 2),
+        )?;
+        let Some((owner, physical, limits)) = self.one_head.get(&(Rc::as_ptr(cell) as usize))
+        else {
+            return Ok(false);
+        };
+        b.spend(13)?;
+        Ok(Rc::ptr_eq(scope, owner) && Rc::ptr_eq(cell, physical) && *limits == b.limits)
+    }
+    pub(super) fn record_head(
+        &mut self,
+        scope: Rc<()>,
+        cell: &Rc<CheckedTypeData>,
+        b: &mut Budget,
+    ) -> Check<()> {
+        let (Type::Address { inner, .. } | Type::Desc(inner)) = &cell.ty else {
+            return Ok(());
+        };
+        if !closed_storage(inner, b)? {
+            return Ok(());
+        }
+        b.spend(
+            self.one_head
+                .len()
+                .checked_ilog2()
+                .map_or(1, |n| n as usize + 2)
+                .saturating_add(14),
+        )?;
+        self.one_head.insert(
+            Rc::as_ptr(cell) as usize,
+            (scope, cell.clone(), b.limits.clone()),
+        );
+        Ok(())
     }
     pub(super) fn checked_pointee(&self, scope: &Rc<()>, address: &Rc<CheckedTypeData>, b: &mut Budget) -> Check<bool> {
         b.spend(self.by_address.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
@@ -146,6 +192,93 @@ mod tests{
     use super::*;
     fn empty()->StorageLifeShape{StorageLifeShape{binder_count:0,slots:vec![],retained:vec![],nominal_arguments:vec![]}}
     fn child()->CheckedType{CheckedType{type_cell:CheckedTypeData::new(Type::Record{name:"immutable_child_payload_".repeat(64),fields:vec![("field".repeat(16),Type::I32)]}),life:empty(),classes:vec![],origins:vec![],statics:vec![]}}
+    #[test]
+    fn each_closed_address_occurrence_rebuilds_its_own_exact_head() {
+        let limits = Limits::default();
+        let (mut module, _) = zil_ir::wire::decode_module_candidate(
+            include_bytes!("fixtures/ordinary-identity-complete-head.wire"),
+            &limits,
+        )
+        .unwrap();
+        module.functions[0].values.push(Type::Address {
+            mutable: false,
+            inner: Box::new(Type::Tuple(vec![Type::I64, Type::Bool])),
+        });
+        let mut b = Budget::new(&limits);
+        b.structural = Some(dynamic_metadata::Structure::register(&module, &mut b).unwrap());
+        let context = CheckedContext::definition_catalogue(&module, None, &mut b).unwrap();
+        let ty = module.functions[0].values.last().unwrap();
+        let life = StorageLifeShape {
+            binder_count: 1,
+            slots: vec![StorageLifeSlot {
+                path: vec![],
+                mode: StoredBorrowMode::SharedAddress,
+                binder: 0,
+            }],
+            ..empty()
+        };
+        let key = |index| ClassKey::Implicit {
+            scope: ScopeKey::Instance(SemanticInstanceId {
+                module: zil_base::ModuleId(0),
+                index,
+            }),
+            ordinal: 1,
+        };
+        let first = context
+            .checked_value(&module, ty, &life, vec![key(1)], &mut b)
+            .unwrap();
+        let scope = b
+            .structural
+            .as_ref()
+            .unwrap()
+            .identity_for(&module)
+            .unwrap();
+        assert!(
+            context
+                .empty_domains
+                .borrow()
+                .checked_head(&scope, &first.type_cell, &mut b)
+                .unwrap()
+        );
+        let second = context
+            .checked_value(&module, ty, &life, vec![key(7)], &mut b)
+            .unwrap();
+        assert!(Rc::ptr_eq(&first.type_cell, &second.type_cell));
+        assert_eq!(
+            first.origins,
+            [IntrinsicOrigin::DerivedClass { source: key(1) }]
+        );
+        assert_eq!(
+            second.origins,
+            [IntrinsicOrigin::DerivedClass { source: key(7) }]
+        );
+        let mut wrong = life.clone();
+        wrong.slots[0].mode = StoredBorrowMode::ExclusiveAddress;
+        assert!(
+            context
+                .checked_value(&module, ty, &wrong, vec![key(1)], &mut b)
+                .is_err()
+        );
+        let mut changed = Budget::new(&limits);
+        let fresh = dynamic_metadata::Structure::register(&module, &mut changed)
+            .unwrap()
+            .identity_for(&module)
+            .unwrap();
+        assert!(
+            !context
+                .empty_domains
+                .borrow()
+                .checked_head(&fresh, &first.type_cell, &mut b)
+                .unwrap()
+        );
+        b.limits.max_nodes = 1;
+        assert!(
+            context
+                .checked_value(&module, ty, &life, vec![key(1)], &mut b)
+                .is_err()
+        );
+    }
+
     #[test]
     fn empty_domain_receipts_bind_the_checked_module_cell_and_limits() {
         let limits = Limits::default();

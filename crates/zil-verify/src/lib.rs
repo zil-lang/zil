@@ -3555,10 +3555,10 @@ fn check_instruction(
                 Type::Tuple(fields) => fields.get(*index as usize),
                 Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, ty)| ty),
                 Type::Package { fields, .. } => {
-                    if matches!(inner.as_ref(), Type::BorrowedStorage { .. })
-                        || packages::has_store_fields(projected)
-                    {
+                    if matches!(inner.as_ref(), Type::BorrowedStorage { .. }) {
                         packages::check_ordinary_type(module, inner, span, budget)?;
+                    } else if packages::has_store_fields(projected) {
+                        packages::check_projected_store_package(module, inner, span, budget)?;
                     } else if budget.inline_store_root(value_type(function, *address, span)?)?
                         && dynamic_store::package_inline_store(projected, budget)?
                     {

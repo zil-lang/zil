@@ -105,6 +105,7 @@ pub(crate) struct Structure{
     type_success:TypeFacts,
     recipe_success:BTreeSet<(RecipeKey,Profile)>,
     declaration_success:BTreeSet<(usize,Option<SemanticDefinitionId>,Profile)>,
+    pod_packages:BTreeMap<usize,Limits>,
     resource_success:BTreeMap<(usize,Profile),usize>,
     store_success:BTreeMap<(usize,bool,bool),Vec<Limits>>,
     sum_shapes:BTreeMap<(usize,Profile),bool>,
@@ -158,7 +159,7 @@ impl Structure{
             program:module.semantic.as_ref().map(|program|program as *const SemanticModule as usize),
             declarations:(module.dyn_declarations.as_ptr() as usize,module.dyn_declarations.len()),
             types:BTreeSet::new(),recipes:BTreeSet::new(),program_bounds:BTreeSet::new(),program_type_roots:BTreeSet::new(),declaration_nodes:BTreeSet::new(),
-            type_success:TypeFacts::default(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),sum_shapes:BTreeMap::new(),store_definitions:BTreeSet::new(),scalar_store_definitions:BTreeSet::new(),store_resource_payloads:BTreeSet::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),lexical_scopes:BTreeMap::new(),dyn_declarations:BTreeMap::new(),trait_providers:None,nominal_declarations:BTreeMap::new(),nominal_instances:BTreeMap::new(),scope_instances:BTreeMap::new(),type_cells:BTreeMap::new(),borrowed_callback_domains:BTreeMap::new(),closure_abis:BTreeMap::new(),
+            type_success:TypeFacts::default(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),pod_packages:BTreeMap::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),sum_shapes:BTreeMap::new(),store_definitions:BTreeSet::new(),scalar_store_definitions:BTreeSet::new(),store_resource_payloads:BTreeSet::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),lexical_scopes:BTreeMap::new(),dyn_declarations:BTreeMap::new(),trait_providers:None,nominal_declarations:BTreeMap::new(),nominal_instances:BTreeMap::new(),scope_instances:BTreeMap::new(),type_cells:BTreeMap::new(),borrowed_callback_domains:BTreeMap::new(),closure_abis:BTreeMap::new(),
         };
         for function in &module.functions{
             result.ty(&function.return_type,b)?;
@@ -538,6 +539,46 @@ pub(crate) fn nominal_scope_instances<'m>(module:&'m TypedModule,id:SemanticDefi
         b.spend(program.instances.len())?;program.instances.iter().enumerate().filter_map(|(index,row)|(row.definition==id&&row.target==SemanticInstanceTarget::Scope).then_some(index)).collect()
     };
     b.spend(rows.len())?;Ok(rows.into_iter().map(|index|&program.instances[index]).collect())
+}
+pub(crate) fn known_pod_package(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    let Some(state) = &b.structural else {
+        return Ok(false);
+    };
+    if state.module != module as *const TypedModule as usize || state.pod_packages.is_empty() {
+        return Ok(false);
+    }
+    b.spend(lookup(state.pod_packages.len()).saturating_add(13))?;
+    let Some(limits) = b
+        .structural
+        .as_ref()
+        .unwrap()
+        .pod_packages
+        .get(&(ty as *const Type as usize))
+    else {
+        return Ok(false);
+    };
+    Ok(*limits == b.limits)
+}
+pub(crate) fn record_pod_package(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<()> {
+    let Some(state) = &b.structural else {
+        return Ok(());
+    };
+    if state.module != module as *const TypedModule as usize {
+        return Ok(());
+    }
+    b.spend(lookup(state.types.len()))?;
+    let state = b.structural.as_ref().unwrap();
+    let ptr = ty as *const Type as usize;
+    if !state.types.contains(&ptr) {
+        return Ok(());
+    }
+    b.spend(lookup(state.pod_packages.len()).saturating_add(14))?;
+    b.structural
+        .as_mut()
+        .unwrap()
+        .pod_packages
+        .insert(ptr, b.limits.clone());
+    Ok(())
 }
 pub(crate) fn resource_known(module:&TypedModule,record:&Type,b:&mut Budget)->Check<Option<usize>>{
     let Some(state)=&b.structural else{return Ok(None);};

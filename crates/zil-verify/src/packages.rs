@@ -239,6 +239,47 @@ pub(super) fn check_shared_product_type(
     Ok(())
 }
 
+/// The caller selected this Package by its actual direct Store field. Each
+/// request still checks the projection index, child type, head mode and
+/// source. Only the immutable Product and builtin resource definitions are
+/// shared after a successful ordinary admission.
+pub(super) fn check_projected_store_package(
+    module: &TypedModule,
+    ty: &Type,
+    span: Option<Span>,
+    b: &mut Budget,
+) -> Check<()> {
+    if dynamic_metadata::known_pod_package(module, ty, b)? {
+        return Ok(());
+    }
+    check_ordinary_type(module, ty, span, b)?;
+    let Type::Package { fields, .. } = ty else {
+        return Ok(());
+    };
+    let mut has_store = false;
+    for (_, field) in fields {
+        b.spend(2)?;
+        if field.is_b0_scalar() {
+            continue;
+        }
+        let Type::Managed(payload) = field else {
+            return Ok(());
+        };
+        let Type::OwnedStore { element } = payload.as_ref() else {
+            return Ok(());
+        };
+        if !dynamic_store::plain_element(element) {
+            return Ok(());
+        }
+        // The complete ordinary check above dispatched such an element to
+        // the POD layout rule and checked its exact builtin declaration.
+        has_store = true;
+    }
+    if has_store {
+        dynamic_metadata::record_pod_package(module, ty, b)?;
+    }
+    Ok(())
+}
 pub(super) fn check_ordinary_type(
     module: &TypedModule,
     ty: &Type,

@@ -34,7 +34,7 @@ pub(super) fn direct_scalar(element: &Type) -> bool {
     scalar_name(element).is_some()
 }
 
-fn plain_element(element: &Type) -> bool {
+pub(super) fn plain_element(element: &Type) -> bool {
     matches!(
         element,
         Type::Record { .. } | Type::Tuple(_) | Type::Array { .. }
