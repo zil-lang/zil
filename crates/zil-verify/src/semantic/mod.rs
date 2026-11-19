@@ -194,6 +194,12 @@ impl ActiveQueries {
         b: &mut Budget,
         run: impl FnOnce(&mut Self, &mut Budget) -> Check<T>,
     ) -> Check<T> {
+        self.enter_query(key, b)?;
+        let result = run(self, b);
+        self.frames.pop();
+        result
+    }
+    fn enter_query(&mut self, key: DependencyKey, b: &mut Budget) -> Check<()> {
         b.spend(self.frames.len().saturating_add(2))?;
         if self.frames.len() >= b.limits.max_call_depth.min(128) {
             return Err(limit("semantic/witness dependency depth exceeded"));
@@ -202,9 +208,7 @@ impl ActiveQueries {
             return Err(bad("cyclic semantic/witness dependency"));
         }
         self.frames.push(key);
-        let result = run(self, b);
-        self.frames.pop();
-        result
+        Ok(())
     }
 }
 

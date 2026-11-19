@@ -2,8 +2,37 @@
 use super::*;
 impl CheckedOriginal {
     pub(super) fn ty(&mut self,module:&TypedModule,context:&CheckedContext,recipe:&SemanticTypeRecipe,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
+        if matches!(recipe, SemanticTypeRecipe::Array { .. }) {
+            return self.array_type(module, context, recipe, env, active, b);
+        }
         let token=active.fresh(b)?;
         active.with_query(DependencyKey{kind:QueryKind::Type,token},b,|active,b|self.ty_inner(module,context,recipe,env,active,b))
+    }
+    fn array_type(
+        &mut self, module: &TypedModule, context: &CheckedContext, mut recipe: &SemanticTypeRecipe,
+        env: &Env, active: &mut ActiveQueries, b: &mut Budget,
+    ) -> Check<Ty> {
+        let original_depth = active.depth();
+        let result = (|| {
+            let mut lengths = Vec::new();
+            while let SemanticTypeRecipe::Array { element, length } = recipe {
+                let token = active.fresh(b)?;
+                active.enter_query(DependencyKey { kind: QueryKind::Type, token }, b)?;
+                b.spend(1)?;
+                lengths.push(length);
+                recipe = element;
+            }
+            let mut ty = self.ty(module, context, recipe, env, active, b)?;
+            // A length runs inside its own array query after its element returns.
+            for length in lengths.into_iter().rev() {
+                let length = self.constant(module, context, length, &Ty::Atom(Type::Usize), env, active, b)?;
+                ty = Ty::Array(Box::new(ty), Box::new(length));
+                active.frames.pop();
+            }
+            Ok(ty)
+        })();
+        active.frames.truncate(original_depth);
+        result
     }
     fn ty_inner(&mut self,module:&TypedModule,context:&CheckedContext,recipe:&SemanticTypeRecipe,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
         b.spend(1)?;
@@ -62,7 +91,6 @@ impl CheckedOriginal {
             SemanticTypeRecipe::Registration(inner)|SemanticTypeRecipe::AsyncRegistration(inner)=>Ty::Carrier{kind:if matches!(recipe,SemanticTypeRecipe::Registration(_)){CarrierKind::Registration}else{CarrierKind::AsyncRegistration},child:Box::new(self.ty(module,context,inner,env,active,b)?),retained:Box::default()},
             SemanticTypeRecipe::Dyn{owned,interface}=>Ty::Dyn(Box::new(self.dyn_type(module,context,*owned,interface,env,active,b)?)),
             SemanticTypeRecipe::OwnedStore(inner)=>Ty::Store(Box::new(self.ty(module,context,inner,env,active,b)?)),
-            SemanticTypeRecipe::Array{element,length}=>Ty::Array(Box::new(self.ty(module,context,element,env,active,b)?),Box::new(self.constant(module,context,length,&Ty::Atom(Type::Usize),env,active,b)?)),
             SemanticTypeRecipe::ErrorUnion{error,result}=>Ty::ErrorUnion(Box::new(self.ty(module,context,error,env,active,b)?),Box::new(self.ty(module,context,result,env,active,b)?)),
             SemanticTypeRecipe::Code{kind,signature}=>{let signature=self.signature(module,context,signature,env,active,b)?;Ty::Code{kind:*kind,parameters:signature.parameters,result:Box::new(signature.result),modes:signature.modes,result_mode:signature.result_mode,call_kind:signature.call_kind,bound_lifetimes:signature.bound_lifetimes,invocation_lifetimes:signature.invocation_lifetimes}},
             SemanticTypeRecipe::Closure{definition,arguments,environment}=>{let mut args=Vec::new();let mut sealed=Vec::new();for actual in arguments{args.push(self.actual(module,context,actual,env,active,b)?);}for actual in environment{sealed.push(self.actual(module,context,actual,env,active,b)?);}Ty::Closure(*definition,args,sealed)},
