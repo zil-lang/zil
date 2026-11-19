@@ -266,11 +266,12 @@ impl FunctionEmitter<'_> {
             ),
             _ => return Ok(()),
         };
+        let recipe = self.layouts.recipe(ty, layout::Position::Value)?;
         self.event(m::Event::Instruction(m::Inst::new(
             Some(format!("enum.slot.{}", result.0)),
             m::Op::Alloca {
-                ty: (self.layouts.value_type(ty)?).clone(),
-                align: (self.layouts.union(ty)?.align) as u32,
+                ty: self.layouts.clone_machine(&recipe.machine)?,
+                align: recipe.align,
             },
         )));
         Ok(())
@@ -282,13 +283,11 @@ impl FunctionEmitter<'_> {
         fields: &[ValueId],
     ) -> CompileResult<()> {
         let result = result(instruction)?;
-        let ty = self.function.values[result.0 as usize].clone();
-        let Type::Enum { variants, .. } = storage_shape(&ty) else {
-            return unsupported("verified variant lost enum type", Some(instruction.span));
-        };
-        let payload = Type::Tuple(variants[variant as usize].1.clone());
-        let llvm = self.layouts.value_type(&ty)?;
-        let layout = self.layouts.union(&ty)?;
+        let recipe = self.layouts.recipe(&self.function.values[result.0 as usize], layout::Position::Value)?;
+        let payload = recipe.variant(variant as usize)?;
+        if fields.len() != payload.fields.len() {
+            return invalid("E-CODEGEN-CFG", "variant operand count differs from its selected layout", Some(instruction.span));
+        }
         let memory = self.copy_values.contains_key(&result);
         let slot = if memory {
             format!("%copy.value.{}", result.0)
@@ -296,13 +295,12 @@ impl FunctionEmitter<'_> {
             let slot = format!("%enum.slot.{}", result.0);
             slot
         };
-        let recipe=self.layouts.recipe(&ty,layout::Position::Field)?;
         self.zero_payload(&recipe,&slot)?;
         let tag = self.temp();
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name((tag).clone())),
             m::Op::Gep {
-                ty: (llvm).clone(),
+                ty: self.layouts.clone_machine(&recipe.machine)?,
                 ptr: m::val((slot).clone()),
                 indices: vec![
                     m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
@@ -322,7 +320,7 @@ impl FunctionEmitter<'_> {
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name((base).clone())),
             m::Op::Gep {
-                ty: (llvm).clone(),
+                ty: self.layouts.clone_machine(&recipe.machine)?,
                 ptr: m::val((slot).clone()),
                 indices: vec![
                     m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
@@ -330,27 +328,26 @@ impl FunctionEmitter<'_> {
                 ],
             },
         )));
-        for (index, field) in fields.iter().enumerate() {
-            let field_ty = &variants[variant as usize].1[index];
-            if *field_ty == Type::Unit {
+        for (field, physical) in fields.iter().zip(&payload.fields) {
+            if physical.recipe.size == 0 {
                 continue;
             }
             let address = self.temp();
             self.event(m::Event::Instruction(m::Inst::new(
                 Some(m::name((address).clone())),
                 m::Op::Gep {
-                    ty: (self.layouts.value_type(&payload)?).clone(),
+                    ty: self.layouts.clone_machine(&payload.machine)?,
                     ptr: m::val((base).clone()),
                     indices: vec![
                         m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
-                        m::Arg::new(m::Ty::Int(32), m::val(index)),
+                        m::Arg::new(m::Ty::Int(32), m::val(physical.index)),
                     ],
                 },
             )));
             if memory && self.copy_values.contains_key(field) {
                 self.copy_write(m::val(address), *field)?;
             } else {
-                self.store_payload(field_ty, &value(*field), &address)?;
+                self.store_recipe(&physical.recipe, &value(*field), &address)?;
             }
         }
         if memory {
@@ -359,9 +356,9 @@ impl FunctionEmitter<'_> {
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name((value(result)).clone())),
             m::Op::Load {
-                ty: (llvm).clone(),
+                ty: self.layouts.clone_machine(&recipe.machine)?,
                 ptr: m::val((slot).clone()),
-                align: (layout.align) as u32,
+                align: recipe.align,
             },
         )));
         Ok(())
@@ -403,12 +400,13 @@ impl FunctionEmitter<'_> {
         index: u32,
     ) -> CompileResult<()> {
         let result = result(instruction)?;
-        let ty = self.function.values[source.0 as usize].clone();
-        let Type::Enum { variants, .. } = storage_shape(&ty) else {
-            return unsupported("verified projection lost enum type", Some(instruction.span));
-        };
-        let fields = &variants[variant as usize].1;
-        let llvm = self.layouts.value_type(&ty)?;
+        let ty = &self.function.values[source.0 as usize];
+        let recipe = self.layouts.recipe(ty, layout::Position::Value)?;
+        let payload = recipe.variant(variant as usize)?;
+        let physical = payload.fields.get(index as usize).ok_or_else(|| vec![
+            Diagnostic::error(Phase::Codegen, "E-CODEGEN-CFG", Some(instruction.span),
+                "variant projection exceeds the selected payload")
+        ])?;
         let tag = self.temp();
         let memory = self.copy_values.contains_key(&source);
         let tag_read = if memory {
@@ -420,7 +418,7 @@ impl FunctionEmitter<'_> {
             }
         } else {
             m::Op::Extract {
-                arg: m::Arg::new((llvm).clone(), m::val((value(source)).clone())),
+                arg: m::Arg::new(self.layouts.clone_machine(&recipe.machine)?, m::val((value(source)).clone())),
                 index: 0,
             }
         };
@@ -439,7 +437,7 @@ impl FunctionEmitter<'_> {
             },
         )));
         self.trap_if(&mismatch);
-        if fields[index as usize] == Type::Unit {
+        if self.function.values[result.0 as usize] == Type::Unit {
             return Ok(());
         }
         let slot = if memory {
@@ -449,9 +447,9 @@ impl FunctionEmitter<'_> {
             self.event(m::Event::Instruction(m::Inst::new(
                 None,
                 m::Op::Store {
-                    arg: m::Arg::new((llvm).clone(), m::val((value(source)).clone())),
+                    arg: m::Arg::new(self.layouts.clone_machine(&recipe.machine)?, m::val((value(source)).clone())),
                     ptr: m::val((slot).clone()),
-                    align: (self.layouts.union(&ty)?.align) as u32,
+                    align: recipe.align,
                 },
             )));
             slot
@@ -460,7 +458,7 @@ impl FunctionEmitter<'_> {
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name((base).clone())),
             m::Op::Gep {
-                ty: (llvm).clone(),
+                ty: self.layouts.clone_machine(&recipe.machine)?,
                 ptr: m::val((slot).clone()),
                 indices: vec![
                     m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
@@ -472,23 +470,16 @@ impl FunctionEmitter<'_> {
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name((address).clone())),
             m::Op::Gep {
-                ty: (self.layouts.value_type(&Type::Tuple(fields.clone()))?).clone(),
+                ty: self.layouts.clone_machine(&payload.machine)?,
                 ptr: m::val((base).clone()),
                 indices: vec![
                     m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
-                    m::Arg::new(m::Ty::Int(32), m::val(index)),
+                    m::Arg::new(m::Ty::Int(32), m::val(physical.index)),
                 ],
             },
         )));
         self.copy_read(result, m::val(address))?;
         Ok(())
-    }
-    /// A source value may contain undefined inactive fields or struct padding.
-    /// Only active fields are copied into the already-zeroed payload words.
-    /// The recipe is shared with sizing, capture flags, GEP and drop planning.
-    fn store_payload(&mut self,ty:&Type,source:&str,address:&str)->CompileResult<()> {
-        let recipe=self.layouts.recipe(ty,layout::Position::Field)?;
-        self.store_recipe(&recipe,source,address)
     }
     fn payload_field(&mut self,machine:&m::Ty,address:&str,index:u32)->CompileResult<String> {
         let ty=self.layouts.clone_machine(machine)?;let out=self.temp();
@@ -525,10 +516,10 @@ impl FunctionEmitter<'_> {
                 self.event(m::Event::Instruction(m::Inst::new(Some(m::name(matched.clone())),m::Op::Compare{predicate:"eq".into(),ty:m::Ty::Int(32),left:m::val(&tag),right:m::val(index as u32)})));
                 self.event(m::Event::Instruction(m::Inst::new(None,m::Op::CondBranch{condition:m::val(matched),yes:yes.clone(),no:no.clone()})));
                 self.event(m::Event::Label(yes));
-                let payload=m::Ty::Struct(variant.fields.iter().map(|field|self.layouts.clone_machine(&field.recipe.machine)).collect::<CompileResult<Vec<_>>>()?);
+                let payload=&variant.machine;
                 for field in &variant.fields {
                     if field.recipe.size==0{continue;}
-                    let source_address=self.payload_field(&payload,&from,field.index)?;let target_address=self.payload_field(&payload,&to,field.index)?;let loaded=self.temp();
+                    let source_address=self.payload_field(payload,&from,field.index)?;let target_address=self.payload_field(payload,&to,field.index)?;let loaded=self.temp();
                     self.event(m::Event::Instruction(m::Inst::new(Some(m::name(loaded.clone())),m::Op::Load{ty:self.layouts.clone_machine(&field.recipe.machine)?,ptr:m::val(source_address),align:field.recipe.align})));
                     self.store_recipe(&field.recipe,&loaded,&target_address)?;
                 }
@@ -939,7 +930,7 @@ mod actual_payload_tests {
         emitter.event(m::Event::Begin(m::Function{name:"payload_roundtrip".into(),linkage:m::Linkage::Internal,signature:m::Signature::new(m::Ty::Void,vec![m::Param::new(machine_type.clone(),"actual")]),attrs:vec![],blocks:None}));
         emitter.event(m::Event::Label("entry".into()));
         emitter.event(m::Event::Instruction(m::Inst::new(Some("destination".into()),m::Op::Alloca{ty:machine_type.clone(),align:recipe.align})));
-        emitter.store_payload(&ty,"%actual","%destination").unwrap();
+        emitter.store_recipe(&recipe,"%actual","%destination").unwrap();
         // Read uses the same prepared aggregate type; cleanup selects the
         // active tag and then the true closure flags/dynamic owner helper.
         emitter.event(m::Event::Instruction(m::Inst::new(Some("roundtrip".into()),m::Op::Load{ty:machine_type,ptr:m::local("destination".into()),align:recipe.align})));

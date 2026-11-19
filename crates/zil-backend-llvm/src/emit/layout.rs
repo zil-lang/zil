@@ -26,17 +26,12 @@ pub(super) struct Field {
     pub recipe: Arc<Recipe>,
 }
 #[derive(Clone)]
-pub(super) struct Variant {
-    pub fields: Vec<Field>,
-    pub size: u64,
-    pub align: u32,
-}
-#[derive(Clone)]
 pub(super) struct Enum {
     pub words: u64,
     pub word_align: u32,
     pub align: u32,
-    pub variants: Vec<Variant>,
+    /// Active tag selects this inline product for construction, projection and cleanup.
+    pub variants: Vec<Arc<Recipe>>,
 }
 #[derive(Clone)]
 pub(super) struct Recipe {
@@ -47,6 +42,16 @@ pub(super) struct Recipe {
     pub enumeration: Option<Enum>,
     pub error_union: bool,
     nodes: usize,
+}
+
+impl Recipe {
+    pub(super) fn variant(&self, ordinal: usize) -> CompileResult<&Recipe> {
+        self.enumeration.as_ref()
+            .and_then(|enumeration| enumeration.variants.get(ordinal))
+            .map(Arc::as_ref)
+            .ok_or_else(|| vec![Diagnostic::error(Phase::Codegen, "E-CODEGEN-LAYOUT",
+                None, "enum layout has no payload for the selected variant")])
+    }
 }
 
 pub(super) struct LayoutContext<'a> {
@@ -334,12 +339,7 @@ fn compute(
                 let payload = product(cx, fields)?;
                 bytes = bytes.max(payload.size);
                 align = align.max(payload.align);
-                cx.spend(payload.fields.len())?;
-                rows.push(Variant {
-                    fields: payload.fields.clone(),
-                    size: payload.size,
-                    align: payload.align,
-                });
+                rows.push(payload);
             }
             let words = round(bytes, align)? / u64::from(align);
             let storage = leaf(
@@ -697,9 +697,10 @@ impl<'a> LayoutContext<'a> {
     pub(super) fn closures(&self) -> &BTreeMap<ClosureId, &'a ClosureDefinition> {
         &self.closures
     }
+    #[cfg(test)]
     pub(super) fn union(&self, ty: &Type) -> CompileResult<Enum> {
         let recipe = self.recipe(ty, Position::Field)?;
-        if let Some(enumeration)=&recipe.enumeration {self.meter.spend(enumeration.variants.len().saturating_add(enumeration.variants.iter().map(|variant|variant.fields.len()).sum::<usize>()))?;}
+        if let Some(enumeration)=&recipe.enumeration {self.meter.spend(enumeration.variants.len())?;}
         recipe.enumeration.clone().ok_or_else(|| {
             vec![Diagnostic::error(
                 Phase::Codegen,
@@ -1018,6 +1019,10 @@ mod tests {
         let enumeration = recipe.enumeration.as_ref().unwrap();
         assert_eq!((enumeration.words, enumeration.word_align), (6, 8));
         assert_eq!(enumeration.variants[1].fields[1].offset, 32);
+        let active = recipe.variant(1).unwrap();
+        assert_eq!(layouts.machine_layout(&active.machine).unwrap(), (active.size, active.align));
+        assert_eq!(active.fields.iter().map(|field| field.index).collect::<Vec<_>>(), [0, 1]);
+        assert!(recipe.variant(enumeration.variants.len()).is_err());
         assert_eq!(layouts.machine_layout(&recipe.machine).unwrap(), (56, 8));
         assert_eq!(
             layouts

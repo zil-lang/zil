@@ -561,22 +561,26 @@ pub(super) fn task_leaf(
         ),
     }
 }
-fn product_plan(layouts: &LayoutContext<'_>,
-    ty: &Type,
-    fields: &[&Type],
+fn product_plan<'t>(
+    layouts: &LayoutContext<'_>,
+    physical: &layout::Recipe,
+    fields: impl ExactSizeIterator<Item = &'t Type>,
     resources: &[ResourceDefinition],
     budget: &mut Budget<'_>,
     depth: usize,
     inline: bool,
 ) -> CompileResult<DropPlan> {
-    let mut children = Vec::new();
-    for (index, t) in fields.iter().enumerate() {
-        // A typed GEP clones the product machine type. Pay its complete size
-        // before building it, without re-planning each descendant's cleanup.
-        budget.tree(ty, depth)?;
-        children.push((index as u32, child_plan(layouts, t, resources, budget, depth + 1, inline)?));
+    if fields.len() != physical.fields.len() {
+        return invalid("E-CODEGEN-LAYOUT", "product cleanup does not cover its actual layout", None);
     }
-    Ok(DropPlan::Product(layouts.value_type(ty)?, children))
+    budget.pay(depth, fields.len().saturating_add(1))?;
+    let mut children = Vec::with_capacity(fields.len());
+    for (ty, field) in fields.zip(&physical.fields) {
+        let child = child_plan(layouts, ty, resources, budget, depth + 1, inline)?;
+        children.push((field.index, child));
+    }
+    // Each emitted GEP charges the copy of this machine type at emission.
+    Ok(DropPlan::Product(layouts.clone_machine(&physical.machine)?, children))
 }
 fn plan(layouts: &LayoutContext<'_>,
     ty: &Type,
@@ -635,9 +639,10 @@ fn full_plan(layouts: &LayoutContext<'_>,
             return link(ty, resources, budget, depth);
         }
         Type::Package { fields, .. } | Type::Record { fields, .. } => {
+            let recipe = layouts.recipe(ty, layout::Position::Value)?;
             return product_plan(layouts,
-                ty,
-                &fields.iter().map(|(_, t)| t).collect::<Vec<_>>(),
+                &recipe,
+                fields.iter().map(|(_, t)| t),
                 resources,
                 budget,
                 depth,
@@ -649,9 +654,10 @@ fn full_plan(layouts: &LayoutContext<'_>,
             DropPlan::Array(layouts.value_type(ty)?,*length,Box::new(child_plan(layouts,element,resources,budget,depth+1,inline)?))
         }
         Type::Tuple(fields) => {
+            let recipe = layouts.recipe(ty, layout::Position::Value)?;
             return product_plan(layouts,
-                ty,
-                &fields.iter().collect::<Vec<_>>(),
+                &recipe,
+                fields.iter(),
                 resources,
                 budget,
                 depth,
@@ -659,24 +665,26 @@ fn full_plan(layouts: &LayoutContext<'_>,
             );
         }
         Type::Enum { variants, .. } => {
-            let mut children = Vec::new();
-            for (_, fields) in variants {
-                budget.tree(ty, depth)?;
+            let recipe = layouts.recipe(ty, layout::Position::Value)?;
+            budget.pay(depth, variants.len().saturating_add(1))?;
+            let mut children = Vec::with_capacity(variants.len());
+            for (ordinal, (_, fields)) in variants.iter().enumerate() {
+                let payload = recipe.variant(ordinal)?;
+                budget.pay(depth, fields.len())?;
                 if fields.iter().all(Type::is_copy_value) {
                     children.push(DropPlan::Empty);
                     continue;
                 }
-                let tuple = Type::Tuple(fields.clone());
                 children.push(product_plan(layouts,
-                    &tuple,
-                    &fields.iter().collect::<Vec<_>>(),
+                    payload,
+                    fields.iter(),
                     resources,
                     budget,
                     depth + 1,
                     inline,
                 )?);
             }
-            DropPlan::Enum(layouts.value_type(ty)?, children)
+            DropPlan::Enum(layouts.clone_machine(&recipe.machine)?, children)
         }
         Type::ErrorUnion { error, result } => DropPlan::Error(
             layouts.value_type(ty)?,
@@ -1438,9 +1446,11 @@ mod owned_sum_drop_plan_tests {
             panic!("expected structural Sum")
         };
         assert!(matches!(variants[0], DropPlan::Empty));
-        let DropPlan::Product(_, fields) = &variants[1] else {
+        let DropPlan::Product(machine, fields) = &variants[1] else {
             panic!("variant tuple must retain ordered product")
         };
+        let recipe = layouts.recipe(&packet(), layout::Position::Value).unwrap();
+        assert_eq!(machine, &recipe.variant(1).unwrap().machine);
         assert_eq!(
             fields.iter().map(|(i, _)| *i).collect::<Vec<_>>(),
             vec![0, 1]

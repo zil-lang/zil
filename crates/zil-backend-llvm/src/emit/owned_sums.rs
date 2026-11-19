@@ -91,12 +91,18 @@ impl FunctionEmitter<'_> {
         let Some(field) = fields.get(index as usize) else {
             return invalid("E-CODEGEN-CFG", "variant field out of range", None);
         };
+        let recipe = self.layouts.recipe(ty, layout::Position::Value)?;
+        let active = recipe.variant(variant as usize)?;
+        let physical = active.fields.get(index as usize).ok_or_else(|| vec![
+            Diagnostic::error(Phase::Codegen, "E-CODEGEN-LAYOUT", None,
+                "selected enum field is absent from its payload layout")
+        ])?;
         let payload = self.temp();
         let address = self.temp();
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name(payload.clone())),
             m::Op::Gep {
-                ty: self.layouts.value_type(ty)?,
+                ty: self.layouts.clone_machine(&recipe.machine)?,
                 ptr: m::val(pointer),
                 indices: vec![
                     m::Arg::new(m::Ty::Int(32), 0),
@@ -107,11 +113,11 @@ impl FunctionEmitter<'_> {
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name(address.clone())),
             m::Op::Gep {
-                ty: self.layouts.value_type(&Type::Tuple(fields.clone()))?,
+                ty: self.layouts.clone_machine(&active.machine)?,
                 ptr: m::val(payload),
                 indices: vec![
                     m::Arg::new(m::Ty::Int(32), 0),
-                    m::Arg::new(m::Ty::Int(32), index),
+                    m::Arg::new(m::Ty::Int(32), physical.index),
                 ],
             },
         )));
