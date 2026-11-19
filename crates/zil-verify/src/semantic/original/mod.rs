@@ -163,6 +163,7 @@ pub(super) struct CheckedOriginal {
     value_bindings: BTreeMap<(SemanticDefinitionId, NodeId), Binder>,
     value_places: BTreeMap<(SemanticDefinitionId, NodeId), Place>,
     prepared_locals: BTreeMap<Binder, NodeId>,
+    prepared_address_inputs: BTreeMap<(SemanticDefinitionId, NodeId), NodeId>,
     scalar_initializers: BTreeSet<(SemanticDefinitionId, NodeId)>,
     names_at: BTreeMap<(SemanticDefinitionId, bool, NodeId, String), Ty>,
     name_binders_at: BTreeMap<(SemanticDefinitionId, bool, NodeId, String), Binder>,

@@ -154,6 +154,70 @@ impl Ledger {
         self.original.context().is_some()
     }
 
+    pub(crate) fn shared_parameter_at_prepared_call(
+        &self,
+        function: FunctionId,
+        invocation: NodeId,
+        left: &mut usize,
+        span: Span,
+    ) -> R<bool> {
+        let Some(context) = self.original.context() else { return Ok(false) };
+        pay(left, lookup_cost(self.frames.len()), span)?;
+        let Some(frame) = self.frames.get(&function) else { return Ok(false) };
+        let program = &context.semantic;
+        let mut callers = BTreeMap::new();
+        pay(left, program.instances.len(), span)?;
+        for row in &program.instances {
+            let actual = match row.target {
+                SemanticInstanceTarget::Function(SemanticFunctionTarget::Core { module, function }) =>
+                    Origin { module, creator: function, closure: None },
+                SemanticInstanceTarget::Function(SemanticFunctionTarget::CoreClosure {
+                    module, creator, expression, occurrence: 0,
+                }) => Origin { module, creator, closure: Some(expression) },
+                _ => continue,
+            };
+            if actual == frame.origin {
+                pay(left, lookup_cost(callers.len()).saturating_add(
+                    std::mem::size_of::<(SemanticInstanceId, SemanticDefinitionId)>(),
+                ), span)?;
+                callers.insert(row.id, row.definition);
+            }
+        }
+        if callers.is_empty() {
+            return Ok(false);
+        }
+        let mut resolved = None;
+        pay(left, program.sites.len(), span)?;
+        for site in &program.sites {
+            if site.at != (SemanticSiteAddress::Core {
+                expression: invocation, occurrence: 0, role: SemanticEmissionRole::Call,
+            }) {
+                continue;
+            }
+            pay(left, lookup_cost(callers.len()), span)?;
+            let Some(caller) = callers.get(&site.instance).copied() else { continue };
+            pay(left, lookup_cost(context.original.complete.len())
+                .saturating_add(lookup_cost(context.original.call_targets.len())), span)?;
+            if !context.original.complete.contains(&caller) {
+                return Ok(false);
+            }
+            let Some(target) = context.original.call_targets.get(&(caller, site.recipe)).copied()
+            else { return Ok(false) };
+            let definition = context.definition(target, left)?;
+            let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body
+            else { return Ok(false) };
+            let [parameter] = signature.parameters.as_slice() else { return Ok(false) };
+            if parameter.mode != PassingMode::Borrow
+                || !matches!(parameter.ty, SemanticTypeRecipe::Address { mutable: false, .. })
+                || resolved.is_some_and(|previous| previous != (caller, site.recipe, target))
+            {
+                return Ok(false);
+            }
+            resolved = Some((caller, site.recipe, target));
+        }
+        Ok(resolved.is_some())
+    }
+
     pub(crate) fn record_formed_header(
         &mut self,
         closure: ClosureId,

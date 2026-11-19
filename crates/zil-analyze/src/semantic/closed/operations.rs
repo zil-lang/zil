@@ -1680,6 +1680,21 @@ impl Check<'_, '_> {
                 }
                 self.arguments(point.function, arguments, parameters.iter().copied(), b)?;
                 self.inputs(arguments, point, b)?;
+                if let Some(anchor) = self.original.prepared_shared_call_input(
+                    instance.definition, site.recipe, self.inventory, b,
+                )? {
+                    let [argument] = arguments.as_slice() else {
+                        return Err(fail("prepared shared Address lost its sole actual call input"));
+                    };
+                    let (_, _, operation) = self.defining(point.function, *argument, b)?;
+                    let InstructionKind::ReborrowAddress { address, mutable: false } = operation.kind
+                    else { return Err(fail("prepared shared Address has no actual call reborrow")) };
+                    for source in self.call_operand_origins(point.function, address, b)? {
+                        if !self.anchored_value(instance, point.function, anchor, source, b, 0)? {
+                            return Err(fail("prepared shared Address selects another original input place"));
+                        }
+                    }
+                }
                 if matches!(instruction.kind, InstructionKind::Call { .. } | InstructionKind::SuspendCall { .. }) {
                     self.scalar_call_inputs(instance, point.function, site.recipe, arguments, &parameters, b)?;
                 }

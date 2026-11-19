@@ -27,7 +27,7 @@ pub(super) fn unpacked_slot(
     slot_kind(f, local, true, SlotKind::Scalar, Some(at), b)
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum SlotKind { Scalar, Owned, Managed, CopyValue }
+enum SlotKind { Scalar, Owned, Managed, CopyValue, SharedAddress }
 fn slot_kind(
     f: &TypedFunction,
     local: LocalId,
@@ -50,6 +50,7 @@ fn slot_kind(
         SlotKind::Owned=>matches!(ty, Type::Closure(_)),
         SlotKind::Managed=>matches!(ty, Type::Managed(_)),
         SlotKind::Scalar=>ty.is_integer()||ty.is_float()||matches!(ty,Type::Unit|Type::Bool),
+        SlotKind::SharedAddress => matches!(ty, Type::Address { mutable: false, .. }),
         SlotKind::CopyValue=>{
             crate::stored_flow::type_work(ty, &b.limits.clone(), b)?;
             ty.is_copy_value()
@@ -312,6 +313,17 @@ pub(in crate::semantic::flow) fn copy_value_source(
     module:&TypedModule,f:&TypedFunction,block:BlockId,at:u32,local:LocalId,b:&mut Budget,
 )->Check<Option<ValueId>> {
     source_with_slot(module,f,block,at,local,slot_kind(f,local,true,SlotKind::CopyValue,None,b)?,b)
+}
+
+pub(in crate::semantic::flow) fn shared_address_source(
+    module: &TypedModule,
+    f: &TypedFunction,
+    block: BlockId,
+    at: u32,
+    local: LocalId,
+    b: &mut Budget,
+) -> Check<Option<ValueId>> {
+    source_with_slot(module, f, block, at, local, slot_kind(f, local, true, SlotKind::SharedAddress, None, b)?, b)
 }
 
 fn source_with_slot(

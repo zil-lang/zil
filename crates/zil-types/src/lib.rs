@@ -3094,12 +3094,18 @@ impl<'a, 'c> Builder<'a, 'c> {
         };
         let result = {
             self.push_scope(e.span)?;
+            let prepared = self.prepared_shared_address(bindings, value)?;
             let mut hints = self.sequence_hints_checked(value)?;
             for (name, v) in bindings {
                 if hints.is_empty() {
                     hints = self.sequence_hints_checked(value)?;
                 }
-                let (id, ty) = if hints
+                let (id, ty) = if let Some(parameter) = prepared {
+                    // The real static target cannot observe execution before
+                    // the input. Prepare its shared Address once, preserving
+                    // the caller's original exclusive local for later use.
+                    self.argument_expr(v, parameter)?
+                } else if hints
                     .get(name)
                     .is_some_and(|ty| matches!(ty, Type::Closure(_)))
                 {
@@ -3123,6 +3129,34 @@ impl<'a, 'c> Builder<'a, 'c> {
             self.same(&result.1, expected, e.span)?;
         }
         Ok(result)
+    }
+
+    fn prepared_shared_address(
+        &mut self,
+        bindings: &[(String, CoreExpr)],
+        invocation: &CoreExpr,
+    ) -> R<Option<&'a Type>> {
+        let [(temporary, input)] = bindings else { return Ok(None) };
+        let CoreExprKind::Call { callee, arguments } = &invocation.kind else { return Ok(None) };
+        let [argument] = arguments.as_slice() else { return Ok(None) };
+        let CoreExprKind::Name(name) = &input.kind else { return Ok(None) };
+        self.closures.snapshot(temporary.len().saturating_add(name.len()).saturating_add(1), input.span)?;
+        if !matches!(&argument.kind, CoreExprKind::Name(name) if name == temporary)
+            || self.lookup(name).is_none()
+        {
+            return Ok(None);
+        }
+        let mut callee = callee.as_ref();
+        while let CoreExprKind::Group(inner) = &callee.kind {
+            self.closures.snapshot(1, callee.span)?;
+            callee = inner;
+        }
+        let Ok(signature) = self.resolve_callee(callee) else { return Ok(None) };
+        let [parameter @ Type::Address { mutable: false, .. }] = signature.parameters.as_slice()
+        else { return Ok(None) };
+        Ok(self.closures.shared_parameter_at_prepared_call(
+            self.function.id, invocation.id, invocation.span,
+        )?.then_some(parameter))
     }
 
     fn numeric_conversion(

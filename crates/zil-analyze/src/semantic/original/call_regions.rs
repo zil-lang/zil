@@ -359,6 +359,12 @@ impl Solver<'_, '_> {
                 .place(frame, expression, false, b, depth + 1)?
                 .and_then(|place| place.anchor);
         }
+        if !self.state.prepared_address_inputs.is_empty() {
+            b.lookup(self.state.prepared_address_inputs.len(), WORK)?;
+            if let Some(anchor) = self.state.prepared_address_inputs.get(&(frame.definition, expression.id)) {
+                source.anchor = Some(*anchor);
+            }
+        }
         source.input = self.original_input_source(frame, &source, expression, b)?;
         let ordinal =
             u32::try_from(ordinal).map_err(|_| resource("call parameter ordinal overflow"))?;
@@ -560,6 +566,21 @@ impl Solver<'_, '_> {
 }
 
 impl Checked {
+    pub(in crate::semantic) fn prepared_shared_call_input(
+        &self, owner: SemanticDefinitionId, site: SemanticSiteId,
+        inventory: &Inventory<'_>, b: &mut Budget,
+    ) -> CompileResult<Option<LocalAnchor>> {
+        if self.prepared_address_inputs.is_empty() { return Ok(None); }
+        let index = inventory.original_index(owner, b)?;
+        let Some(SemanticOriginalNode::Expression(call)) = index.site_node(site, b)?
+        else { return Ok(None) };
+        let CoreExprKind::Call { arguments, .. } = &index.get_expr(call, b)?.kind
+        else { return Ok(None) };
+        let [argument] = arguments.as_slice() else { return Ok(None) };
+        b.lookup(self.prepared_address_inputs.len(), WORK)?;
+        Ok(self.prepared_address_inputs.get(&(owner, argument.id)).copied())
+    }
+
     /// A Name used by this call still denotes its independently resolved
     /// original local/capture, even if no extra TypeUse was emitted for it.
     pub(in crate::semantic) fn call_input_anchor(

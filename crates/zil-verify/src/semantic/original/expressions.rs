@@ -1,6 +1,68 @@
 use super::*;
 impl CheckedOriginal {
     #[allow(clippy::too_many_arguments)]
+    fn prepared_shared_address(
+        &mut self,
+        module: &TypedModule,
+        context: &CheckedContext,
+        initializers: &[(String, SemanticOriginalExpr)],
+        invocation: &SemanticOriginalExpr,
+        env: &Env,
+        bindings: &BTreeMap<String, Binding>,
+        active: &mut ActiveQueries,
+        b: &mut Budget,
+    ) -> Check<Option<Ty>> {
+        let [(temporary, input)] = initializers else { return Ok(None) };
+        let CoreExprKind::Call { callee, arguments } = &invocation.kind else { return Ok(None) };
+        let [argument] = arguments.as_slice() else { return Ok(None) };
+        let CoreExprKind::Name(input_name) = &input.kind else { return Ok(None) };
+        b.spend(temporary.len().saturating_add(input_name.len()).saturating_add(1))?;
+        if !matches!(&argument.kind, CoreExprKind::Name(name) if name == temporary) {
+            return Ok(None);
+        }
+        let Some(input_binding) = bindings.get(input_name) else { return Ok(None) };
+        let mut callee = callee.as_ref();
+        while let CoreExprKind::Group(inner)
+            | CoreExprKind::TypeApply { callee: inner, .. }
+            | CoreExprKind::GenericApply { callee: inner, .. } = &callee.kind
+        {
+            b.spend(1)?;
+            callee = inner;
+        }
+        let target = if let CoreExprKind::Name(name) = &callee.kind {
+            if bindings.contains_key(name) { return Ok(None); }
+            let Some(SemanticOriginalNameValue::Definition(target)) = self.named(
+                module, context, env.current()?, name, SemanticOriginalNamespace::Value, b,
+            )? else { return Ok(None) };
+            *target
+        } else {
+            let Some(Ty::Function(target)) = self.static_call_type(
+                module, context, callee, env, bindings, b,
+            )? else { return Ok(None) };
+            target
+        };
+        let definition = context.definition(module, target, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body
+        else { return Ok(None) };
+        let [parameter] = signature.parameters.as_slice() else { return Ok(None) };
+        if parameter.mode != PassingMode::Borrow
+            || !matches!(parameter.ty, SemanticTypeRecipe::Address { mutable: false, .. })
+        {
+            return Ok(None);
+        }
+        let Ty::Address { life, inner, .. } = self.resolved(&input_binding.ty, b)?
+        else { return Err(bad("original prepared shared Address requires an address input")) };
+        let expected = Ty::Address { mutable: false, life, inner };
+        let actual = self.argument_at_call(module, context, input, &expected,
+            PassingMode::Borrow, None, env, bindings, active, b)?;
+        b.spend(self.prepared_address_inputs.len().saturating_add(1).ilog2() as usize + 2)?;
+        if self.prepared_address_inputs.insert((env.current()?, argument.id), input.id).is_some() {
+            return Err(bad("original prepared shared Address repeats its actual input"));
+        }
+        Ok(Some(actual))
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn expression(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,expected:Option<&Ty>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
         self.expression_mode(module,context,expression,env,bindings,expected,false,active,b)
     }
@@ -147,15 +209,21 @@ impl CheckedOriginal {
                 CoreExprKind::Sequence { bindings:initializers, value } => {
                     let before = self.live_keys(env,b)?;
                     let mut locals = bindings.clone();
+                    let mut prepared = self.prepared_shared_address(
+                        module, context, initializers, value, env, bindings, active, b,
+                    )?;
                     for (name, initializer) in initializers {
                         b.spend(name.len().saturating_add(1))?;
                         if !name.starts_with('$') || locals.contains_key(name) {
                             return Err(bad("original sequence repeats or exposes a generated temporary"));
                         }
-                        let actual = match self.description_binding(module, context, initializer,
-                            None, env, &locals, active, b)? {
+                        let actual = match prepared.take() {
                             Some(description) => description,
-                            None => self.expression(module,context,initializer,env,&locals,None,active,b)?,
+                            None => match self.description_binding(module, context, initializer,
+                                None, env, &locals, active, b)? {
+                                Some(description) => description,
+                                None => self.expression(module,context,initializer,env,&locals,None,active,b)?,
+                            },
                         };
                         let binding = Binding { ty:actual, mutable:false,
                             identity:Binder::Local { definition:id, node:initializer.id, name:name.clone() } };

@@ -325,6 +325,7 @@ pub(super) struct Checked {
     environment_reads: BTreeMap<(SemanticDefinitionId, NodeId), u32>,
     local_reads: BTreeMap<(SemanticDefinitionId, NodeId), LocalAnchor>,
     prepared_reads: BTreeMap<(SemanticDefinitionId, NodeId), NodeId>,
+    prepared_address_inputs: BTreeMap<(SemanticDefinitionId, NodeId), LocalAnchor>,
     capture_origins: BTreeMap<(SemanticDefinitionId, u32), LocalAnchor>,
     function_values: BTreeMap<(SemanticDefinitionId, NodeId), SemanticDefinitionId>,
     code_calls: BTreeMap<(SemanticDefinitionId, NodeId), CodeCall>,
@@ -1770,6 +1771,57 @@ impl Solver<'_, '_> {
         let result = answer?;
         Ok((frame.formals, frame.parameters, result))
     }
+    fn prepared_shared_address(
+        &mut self,
+        frame: &mut Frame,
+        bindings: &[(String, SemanticOriginalExpr)],
+        invocation: &SemanticOriginalExpr,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Option<Term>> {
+        let [(temporary, input)] = bindings else { return Ok(None) };
+        let CoreExprKind::Call { callee, arguments } = &invocation.kind else { return Ok(None) };
+        let [argument] = arguments.as_slice() else { return Ok(None) };
+        let CoreExprKind::Name(input_name) = &input.kind else { return Ok(None) };
+        b.spend(temporary.len().saturating_add(input_name.len()).saturating_add(1), WORK)?;
+        if !matches!(&argument.kind, CoreExprKind::Name(name) if name == temporary)
+            || self.local(frame, input_name, b)?.is_none()
+        {
+            return Ok(None);
+        }
+        let Some(path) = sealed::path(callee, b, depth + 1)? else { return Ok(None) };
+        if self.local(frame, path[0], b)?.is_some() {
+            return Ok(None);
+        }
+        let sealed::Resolution::Definition(target) = sealed::resolve(
+            self.inventory, frame.definition, &path, &BTreeSet::new(), b,
+        )? else { return Ok(None) };
+        let definition = self.inventory.definition(target, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body
+        else { return Ok(None) };
+        let [parameter] = signature.parameters.as_slice() else { return Ok(None) };
+        if parameter.mode != PassingMode::Borrow
+            || !matches!(parameter.ty, SemanticTypeRecipe::Address { mutable: false, .. })
+        {
+            return Ok(None);
+        }
+        let place = self.place(frame, input, false, b, depth + 1)?
+            .ok_or_else(|| fail("original prepared shared Address has no input place"))?;
+        let original = self.borrowed_argument(frame, input, b, depth + 1)?;
+        let Kind::Address { life, inner, .. } = self.state.arena[self.type_root(original, b)?]
+        else { return Err(fail("original prepared shared Address requires an address input")) };
+        let anchor = place.anchor.or_else(|| self.state.environment_reads.get(&(frame.definition, input.id))
+            .copied().map(LocalAnchor::Environment))
+            .ok_or_else(|| unknown("prepared shared Address requires its exact original source binder"))?;
+        b.lookup(self.state.prepared_address_inputs.len(), WORK)?;
+        if self.state.prepared_address_inputs.insert((frame.definition, argument.id), anchor).is_some() {
+            return Err(fail("original prepared shared Address repeats its actual input"));
+        }
+        // Keep the original expression's source and each child's invariant
+        // Type. Invocation still checks the actual formal and its class images.
+        Ok(Some(self.term(Kind::Address { mutable: false, life, inner }, b)?))
+    }
+
     pub(super) fn expression_expected(
         &mut self,
         frame: &mut Frame,
@@ -1992,11 +2044,15 @@ impl Solver<'_, '_> {
                 }
                 CoreExprKind::Sequence { bindings, value: result } => {
                     let scope = frame.locals.len();
+                    let mut prepared = self.prepared_shared_address(frame, bindings, result, b, depth + 1)?;
                     for (name, initializer) in bindings {
                         if !name.starts_with('$') || self.local(frame, name, b)?.is_some() {
                             return Err(fail("original sequence repeats or exposes a generated temporary"));
                         }
-                        let ty = self.expression(frame, initializer, b, depth + 1)?;
+                        let ty = match prepared.take() {
+                            Some(prepared) => prepared,
+                            None => self.expression(frame, initializer, b, depth + 1)?,
+                        };
                         self.bind(frame, name, ty, false, b)?;
                         let mut source = initializer;
                         while let CoreExprKind::Group(inner)
@@ -4553,6 +4609,7 @@ pub(super) fn check(
             environment_reads: BTreeMap::new(),
             local_reads: BTreeMap::new(),
             prepared_reads: BTreeMap::new(),
+            prepared_address_inputs: BTreeMap::new(),
             capture_origins: BTreeMap::new(),
             function_values: BTreeMap::new(),
             code_calls: BTreeMap::new(),

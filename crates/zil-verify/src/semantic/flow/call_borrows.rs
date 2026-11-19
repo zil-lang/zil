@@ -2,7 +2,32 @@
 //! It does not equate two SSA heads, retag a pointee class, or change the
 //! caller's original lifetime actual/result image.
 use super::*;
+use intrinsics::owner_sources::scalar_preparations;
 impl CheckedContext {
+    fn check_prepared_shared_input(
+        &self, module: &TypedModule, caller: &SemanticInstance, f: &TypedFunction,
+        arguments: &[ValueId], source: zil_base::NodeId, b: &mut Budget,
+    ) -> Check<()> {
+        let [argument] = arguments else { return Err(bad("prepared shared Address lost its sole actual call input")) };
+        let (_, _, operation) = self.site_index.producers.get(f, *argument, b)?;
+        crate::check_instruction(module, f, operation, b)?;
+        let InstructionKind::ReborrowAddress { address, mutable: false } = operation.kind
+        else { return Err(bad("prepared shared Address has no actual call reborrow")) };
+        let (block, at, producer) = self.site_index.producers.get(f, address, b)?;
+        crate::check_instruction(module, f, producer, b)?;
+        let staged = if let InstructionKind::Load(local) = producer.kind {
+            scalar_preparations::shared_address_source(module, f, block, at, local, b)?
+        } else { None };
+        let actual = if let Some(staged) = staged {
+            let (_, _, producer) = self.site_index.producers.get(f, staged, b)?;
+            crate::check_instruction(module, f, producer, b)?;
+            let InstructionKind::ReborrowAddress { address, mutable: false } = producer.kind
+            else { return Err(bad("prepared shared Address loses its actual initial shared reborrow")) };
+            address
+        } else { address };
+        self.original_projection_source(module, caller, f, actual, caller.definition, source, true, b)
+    }
+
     pub(super) fn foreign_projected_arguments(
         &self, module: &TypedModule, caller: &SemanticInstance, f: &TypedFunction,
         site: &SemanticSite, arguments: &[ValueId], b: &mut Budget,
@@ -47,12 +72,16 @@ impl CheckedContext {
         let f=module.functions.get(function.0 as usize).filter(|row|row.id==function).ok_or_else(||bad("original Call input actual caller is absent"))?;
         b.spend(arguments.len())?;
         let mut checked=Vec::with_capacity(arguments.len());b.spend(arguments.len())?;let mut exact_sources=vec![false;arguments.len()];
-        let (original_regions, retains_task_inputs) = {
+        let (original_regions, retains_task_inputs, prepared) = {
             let original = self.original.borrow();
             let original = original.as_ref().ok_or_else(||bad("Call inputs have no original region proof"))?;
             (original.call_region_parameter_recipes(module,caller.definition,site.recipe,environment,b)?,
-             original.retains_task_inputs(caller.definition,site.recipe,b)?)
+             original.retains_task_inputs(caller.definition,site.recipe,b)?,
+             original.prepared_shared_call_input(caller.definition,site.recipe,b)?)
         };
+        if let Some(source) = prepared {
+            self.check_prepared_shared_input(module, caller, f, arguments, source, b)?;
+        }
         let mut adapted=Vec::new();
         let mut code_arguments=Vec::new();
         let mut descriptions=Vec::new();
@@ -74,6 +103,7 @@ impl CheckedContext {
                 descriptions.push(index);
             }
             if !matches!(actual.ty,Type::Address{..}){continue;}
+            if prepared.is_some() && index == 0 { b.spend(1)?; adapted.push(index); continue; }
             b.spend(original_regions.len())?;if original_regions.iter().any(|(ordinal,_)|*ordinal as usize==index){b.spend(1)?;adapted.push(index);continue;}
             let exported=returned_input_head(signature,key,index,b)?;
             let local_window=self.original_local_call_window(caller,&signature.parameters[index].0,environment,b)?;
@@ -127,10 +157,12 @@ impl CheckedContext {
             let Some((node,recipe,origin))=&recipes[index]else{continue;};let argument=arguments[index];
             let source=self.evaluate_type(module,recipe,environment,external,active,b)?;
             let source=if matches!(source.ty,Type::Address{mutable:true,..})&&matches!(signature.parameters[index].0.ty,Type::Address{mutable:false,..}){
-                if !shared_reborrow_adapter(&self.site_index.producers,module,f,argument,b)?{return Err(bad("Call shared view lacks its exact exclusive-to-shared ReborrowAddress adapter"));}
+                if prepared.is_none() && !shared_reborrow_adapter(&self.site_index.producers,module,f,argument,b)?{return Err(bad("Call shared view lacks its exact exclusive-to-shared ReborrowAddress adapter"));}
                 self.call_shared_view(&source,b)?
             }else{source};
-            self.call_input_source(module,caller,f,argument,*node,*origin,b)?;
+            if prepared.is_none() {
+                self.call_input_source(module,caller,f,argument,*node,*origin,b)?;
+            }
             if !self.call_argument(module,caller,argument,values,&source,environment,true,b)?{
                 return Err(bad("actual Call input changes its original whole operand or exact argument reborrow role").with_note(format!("original {:?}, call {:?}, operand {index} expression {:?}, actual SSA {:?}, point {:?}; source domain {}, actual domain {}",caller.definition,site.recipe,node,argument,environment.at,source.life.binder_count,checked[index].life.binder_count)));
             }
@@ -245,7 +277,17 @@ impl CheckedContext {
         let mut current=argument;let mut seen=std::collections::BTreeSet::new();let mut related=false;
         loop{
             b.spend(1)?;if !seen.insert(current){return Err(bad("Call argument reborrow has an SSA producer cycle"));}
-            let (_, _, producer) = self.site_index.producers.get(f, current, b)?;crate::check_instruction(module,f,producer,b)?;
+            let (block, at, producer) = self.site_index.producers.get(f, current, b)?;crate::check_instruction(module,f,producer,b)?;
+            // Source identity was already checked. Recover a prepared shared
+            // loan through its unique initialized storage, then continue the
+            // ordinary proof against the complete original argument type.
+            if original_source_checked && outer.mode == StoredBorrowMode::SharedAddress
+                && let InstructionKind::Load(local) = producer.kind
+                && let Some(source) = scalar_preparations::shared_address_source(module, f, block, at, local, b)?
+            {
+                current = source;
+                continue;
+            }
             let InstructionKind::ReborrowAddress{address,mutable}=&producer.kind else{break;};
             current=*address;
             let parent=value_at(values,current)?;

@@ -1408,6 +1408,46 @@ impl<'a> Check<'a, '_> {
         }
         Ok(selected)
     }
+
+    fn prepared_shared_address(
+        &mut self,
+        owner: SemanticDefinitionId,
+        bindings: &[(String, SemanticOriginalExpr)],
+        invocation: &SemanticOriginalExpr,
+        variables: &mut BTreeMap<String, Binding>,
+        depth: usize,
+    ) -> R<Option<SemanticTypeRecipe>> {
+        let [(temporary, input)] = bindings else { return Ok(None) };
+        let CoreExprKind::Call { callee, arguments } = &invocation.kind else { return Ok(None) };
+        let [argument] = arguments.as_slice() else { return Ok(None) };
+        let CoreExprKind::Name(input_name) = &input.kind else { return Ok(None) };
+        self.pay(temporary.len().saturating_add(input_name.len()).saturating_add(1), depth)?;
+        if !matches!(&argument.kind, CoreExprKind::Name(name) if name == temporary)
+            || !variables.contains_key(input_name)
+        {
+            return Ok(None);
+        }
+        let Some(path) = self.declaration_path(callee, variables, depth + 1)? else { return Ok(None) };
+        let Some(target) = self.declaration_target(owner, &path, depth + 1)? else { return Ok(None) };
+        let definition = self.definition(target)?;
+        let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body else { return Ok(None) };
+        let [parameter] = signature.parameters.as_slice() else { return Ok(None) };
+        if parameter.mode != PassingMode::Borrow
+            || !matches!(parameter.ty, SemanticTypeRecipe::Address { mutable: false, .. })
+            || !self.site(owner, SemanticOriginalNode::Expression(invocation.id))?.is_some_and(|site| {
+                matches!(&site.kind, SemanticSiteRecipeKind::OriginalCall)
+                    || matches!(&site.kind, SemanticSiteRecipeKind::Call { target: expected, .. } if *expected == target)
+            })
+        {
+            return Ok(None);
+        }
+        let source = self.place(owner, input, variables, depth + 1)?;
+        let SemanticTypeRecipe::Address { lifetime, inner, .. } = self.observation_type(owner, &source, depth + 1)? else {
+            return Err(bad("original prepared shared Address requires an address input"));
+        };
+        self.record_expression_type(owner, input.id, source)?;
+        Ok(Some(SemanticTypeRecipe::Address { mutable: false, lifetime, inner }))
+    }
     fn rehome(
         &mut self,
         parent: SemanticDefinitionId,
@@ -3832,11 +3872,15 @@ impl<'a> Check<'a, '_> {
                 result
             }
             CoreExprKind::Sequence { bindings, value } => {
+                let mut shared = self.prepared_shared_address(owner, bindings, value, variables, depth + 1)?;
                 for (name, initializer) in bindings {
                     if !name.starts_with('$') || variables.contains_key(name) {
                         return Err(bad("original sequence repeats or exposes a generated temporary"));
                     }
-                    let ty = self.expr(owner, initializer, variables, None, depth + 1)?;
+                    let ty = match shared.take() {
+                        Some(ty) => ty,
+                        None => self.expr(owner, initializer, variables, None, depth + 1)?,
+                    };
                     let mut source = initializer;
                     if matches!(self.observation_type(owner, &ty, depth + 1)?, SemanticTypeRecipe::Managed(_)) {
                         while let CoreExprKind::Group(inner)

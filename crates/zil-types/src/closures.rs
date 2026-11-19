@@ -442,6 +442,17 @@ pub(super) struct State {
 }
 
 impl State {
+    pub(super) fn shared_parameter_at_prepared_call(
+        &mut self,
+        function: FunctionId,
+        invocation: NodeId,
+        span: Span,
+    ) -> R<bool> {
+        self.semantic_emission.shared_parameter_at_prepared_call(
+            function, invocation, &mut self.work_left, span,
+        )
+    }
+
     pub(super) fn inserted_instruction(
         &mut self,
         function: FunctionId,

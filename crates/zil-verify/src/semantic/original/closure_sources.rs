@@ -2,6 +2,22 @@
 //! and equal outside lifetime images never choose the captured value.
 use super::*;
 impl CheckedOriginal {
+    pub(in crate::semantic) fn prepared_shared_call_input(
+        &self, definition: SemanticDefinitionId, site: SemanticSiteId, b: &mut Budget,
+    ) -> Check<Option<NodeId>> {
+        if self.prepared_address_inputs.is_empty() { return Ok(None); }
+        let grammar = self.source_grammar.as_ref()
+            .ok_or_else(|| bad("prepared shared Address has no checked original function"))?;
+        let Some(SemanticOriginalNode::Expression(call)) = grammar.site_node(definition, site, b)?
+        else { return Ok(None) };
+        let syntax = grammar.place_syntax(definition, b)?;
+        let index::PlaceOperation::Call { arguments, .. } = &syntax.expression(call, b)?.operation
+        else { return Ok(None) };
+        let [argument] = arguments.as_ref() else { return Ok(None) };
+        b.spend(self.prepared_address_inputs.len().saturating_add(1).ilog2() as usize + 1)?;
+        Ok(self.prepared_address_inputs.get(&(definition, *argument)).copied())
+    }
+
     pub(in crate::semantic) fn prepared_move_operand(
         &self, _module: &TypedModule, definition: SemanticDefinitionId, node: NodeId, b: &mut Budget,
     ) -> Check<Option<NodeId>> {
@@ -45,6 +61,10 @@ impl CheckedOriginal {
             Some(object)
         } else { None };
         for (ordinal,argument) in receiver_operand.into_iter().chain(arguments.iter().copied()).enumerate(){
+            let argument=if self.prepared_address_inputs.is_empty(){argument}else{
+                b.spend(self.prepared_address_inputs.len().saturating_add(1).ilog2() as usize + 1)?;
+                self.prepared_address_inputs.get(&(definition,argument)).copied().unwrap_or(argument)
+            };
             let ty=self.original_type(definition,&SemanticOriginalTypeSource::Expression(argument),b)?;
             let mut expression=argument;
             while let Op::Group(inner) | Op::Ascribed(inner) = syntax.expression(expression, b)?.operation {
