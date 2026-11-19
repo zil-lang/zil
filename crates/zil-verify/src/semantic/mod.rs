@@ -12,6 +12,7 @@ mod evaluate;
 mod lifetimes;
 mod relations;
 mod type_storage;
+pub(crate) use type_storage::closed_storage;
 pub(crate) use type_storage::PhysicalConstructor;
 mod constants;
 mod dyn_types;

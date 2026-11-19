@@ -684,6 +684,16 @@ pub(super) fn shared_type(ty: &Type, b: &mut Budget) -> Check<Option<TypeCell>> 
     if !b.structural.as_ref().unwrap().types.contains(&ptr) {
         return Ok(None);
     }
+    let hash = match physical_pairs::representative(ty, b)? {
+        physical_pairs::Representative::Existing(cell) => {
+            let bounds = Some(profile(b));
+            let fee = lookup(b.structural.as_ref().unwrap().type_cells.len());
+            b.spend(fee.saturating_add(2))?;
+            b.structural.as_mut().unwrap().type_cells.insert(ptr, TypeSnapshot {cell: cell.clone(), bounds});
+            return Ok(Some(cell));
+        }
+        physical_pairs::Representative::New(hash) => hash,
+    };
     // The copy traversal includes the same complete depth and node bounds.
     super::ty(ty, b)?;
     let shared = crate::semantic::CheckedTypeData::new(ty.clone());
@@ -699,6 +709,7 @@ pub(super) fn shared_type(ty: &Type, b: &mut Budget) -> Check<Option<TypeCell>> 
     }
     b.structural = Some(state);
     result?;
+    physical_pairs::publish_representative(hash, &shared, b)?;
     Ok(Some(shared))
 }
 

@@ -91,7 +91,7 @@ impl EmptyDomains {
 /// These physical carriers have no runtime receiver, external signature, or
 /// embedded borrow domain. Callers separately check the accompanying life
 /// shape and every actual origin before reusing an immutable result.
-pub(super) fn closed_storage(ty: &Type, b: &mut Budget) -> Check<bool> {
+pub(crate) fn closed_storage(ty: &Type, b: &mut Budget) -> Check<bool> {
     let mut pending = vec![ty];
     while let Some(ty) = pending.pop() {
         b.spend(1)?;
