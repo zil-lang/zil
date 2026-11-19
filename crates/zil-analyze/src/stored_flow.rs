@@ -10560,50 +10560,52 @@ fn actual_instructions(
             _ => {}
         }
     }
+    let width = f.values.len();
+    // A whole-word intersection proves availability for up to 64 SSA values.
+    // Retain the existing conservative per-value allowance below one word.
+    let row_work = if width < 64 { width.max(1) } else { LiveRow::work_for(width) };
     b.product(
         f.blocks.len(),
-        f.values.len(),
+        row_work,
         2,
         "stored actual SSA availability",
     )?;
     if scalar_ffi {
         super::stored_callables::foreign_regions(f, preds, reachable, b)?;
     }
-    let mut inputs = vec![vec![true; f.values.len()]; f.blocks.len()];
+    let mut inputs = vec![LiveRow::full(width); f.blocks.len()];
     let mut outputs = inputs.clone();
-    fee(b, f.values.len())?;
-    inputs[f.entry.0 as usize].fill(false);
+    fee(b, row_work)?;
+    inputs[f.entry.0 as usize] = LiveRow::empty(width);
     loop {
         let mut changed = false;
         for (bi, block) in f.blocks.iter().enumerate() {
             if !reachable[bi] {
                 continue;
             }
-            fee(b, f.values.len())?;
+            fee(b, row_work)?;
             let mut live = if bi == f.entry.0 as usize {
-                vec![false; f.values.len()]
+                LiveRow::empty(width)
             } else {
-                vec![true; f.values.len()]
+                LiveRow::full(width)
             };
             if bi != f.entry.0 as usize {
                 for p in &preds[bi] {
                     if reachable[*p] {
-                        fee(b, live.len())?;
-                        for (a, z) in live.iter_mut().zip(&outputs[*p]) {
-                            *a &= *z;
-                        }
+                        fee(b, row_work)?;
+                        live.intersect(&outputs[*p])?;
                     }
                 }
             }
-            fee(b, live.len())?;
+            fee(b, row_work)?;
             inputs[bi].clone_from(&live);
             for i in &block.instructions {
                 if let Some(v) = i.result {
                     fee(b, 1)?;
-                    live[v.0 as usize] = true;
+                    live.put(v.0 as usize, true)?;
                 }
             }
-            fee(b, live.len())?;
+            fee(b, row_work)?;
             if live != outputs[bi] {
                 outputs[bi] = live;
                 changed = true;
@@ -10617,26 +10619,26 @@ fn actual_instructions(
         if !reachable[bi] {
             continue;
         }
-        fee(b, inputs[bi].len())?;
+        fee(b, row_work)?;
         let mut live = inputs[bi].clone();
         for i in &block.instructions {
             for v in resources::uses(&i.kind) {
                 fee(b, 1)?;
-                if !live[v.0 as usize] {
+                if !live.at(v.0 as usize)? {
                     return Err(failure(
                         "actual operand definition does not dominate its stored/loan use",
                     ));
                 }
             }
             if let Some(v) = i.result {
-                live[v.0 as usize] = true;
+                live.put(v.0 as usize, true)?;
             }
         }
         if let Terminator::Return(Some(v)) | Terminator::Branch { condition: v, .. } =
             block.terminator
         {
             fee(b, 1)?;
-            if !live.get(v.0 as usize).copied().unwrap_or(false) {
+            if !live.at(v.0 as usize)? {
                 return Err(failure("terminator operand is not actually available"));
             }
         }
@@ -11399,7 +11401,7 @@ mod tests {
         }
         println!("owned Fixed Analyze N={low}; N-1/fresh/warm identical");
         assert_eq!(
-            low, 12_151,
+            low, 12_196,
             "complete bounded identity/ownership work changed"
         );
     }

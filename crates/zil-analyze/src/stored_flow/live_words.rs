@@ -17,6 +17,23 @@ impl LiveRow {
             data: vec![0; Self::words_for(width)],
         }
     }
+    pub(super) fn full(width: usize) -> Self {
+        let mut data = vec![u64::MAX; Self::words_for(width)];
+        let tail = width % 64;
+        if tail != 0 {
+            *data.last_mut().unwrap() = (1u64 << tail) - 1;
+        }
+        Self { width, data }
+    }
+    pub(super) fn intersect(&mut self, previous: &Self) -> CompileResult<()> {
+        if self.width != previous.width {
+            return Err(failure("SSA availability rows have different logical widths"));
+        }
+        for (left, right) in self.data.iter_mut().zip(&previous.data) {
+            *left &= *right;
+        }
+        Ok(())
+    }
     pub(super) fn len(&self) -> usize {
         self.width
     }
@@ -186,6 +203,13 @@ mod tests {
             );
             assert_eq!(row.flags(), expected);
             assert!(!row.include(&other, &mut budget()).unwrap());
+            let mut meet = LiveRow::full(width);
+            assert_eq!(meet.flags(), vec![true; width]);
+            meet.intersect(&row).unwrap();
+            assert_eq!(meet, row);
+            meet.intersect(&other).unwrap();
+            assert_eq!(meet, other);
+            assert!(meet.intersect(&LiveRow::empty(width + 1)).is_err());
             let before = row.clone();
             assert!(
                 row.include(&LiveRow::empty(width + 1), &mut budget())
