@@ -43,6 +43,7 @@ pub(super) struct Index {
     limits: Limits,
     by_recipe: BTreeMap<(SemanticInstanceId, SemanticSiteId), Vec<usize>>,
     by_position: BTreeMap<(SemanticInstanceId, BlockId, u32), Vec<usize>>,
+    value_type_uses: BTreeMap<(SemanticInstanceId, ValueId), Vec<usize>>,
     pub(super) producers: Producers,
 }
 
@@ -144,6 +145,7 @@ impl Index {
             limits: b.limits.clone(),
             by_recipe: BTreeMap::new(),
             by_position: BTreeMap::new(),
+            value_type_uses: BTreeMap::new(),
             producers: Producers::default(),
         })
     }
@@ -174,6 +176,10 @@ impl Index {
             .entry((site.instance, block, instruction))
             .or_default();
         push(rows, position, b)?;
+        if let SemanticSiteAction::TypeUse { subject: SemanticOperand::Value(value), .. } = site.action {
+            b.spend(lookup(self.value_type_uses.len()).saturating_add(1))?;
+            push(self.value_type_uses.entry((site.instance, value)).or_default(), position, b)?;
+        }
         Ok(())
     }
     fn programme<'a>(&self, module: &'a TypedModule, b: &mut Budget) -> Check<&'a SemanticModule> {
@@ -207,6 +213,13 @@ impl Index {
                 })
             })
             .collect()
+    }
+    pub(super) fn value_type_uses<'a>(
+        &self, module: &'a TypedModule, instance: SemanticInstanceId, value: ValueId, b: &mut Budget,
+    ) -> Check<Vec<&'a SemanticSite>> {
+        let program = self.programme(module, b)?;
+        b.spend(lookup(self.value_type_uses.len()))?;
+        Self::rows(program, self.value_type_uses.get(&(instance, value)).map(Vec::as_slice), b)
     }
     pub(super) fn at<'a>(
         &self,

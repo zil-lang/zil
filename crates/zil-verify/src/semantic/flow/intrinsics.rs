@@ -333,38 +333,29 @@ impl CheckedContext {
         }
         let initializer = initializer.ok_or_else(|| bad("temporary description owner initializer is absent"))?;
         let (producer_block, producer_at, producer) = self.site_index.producers.get(f, initializer, b)?;
-        let original = self.definition(module, definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
-            return Err(bad("temporary description lacks its original function body"));
-        };
-        let program = module.semantic.as_ref().ok_or_else(|| bad("temporary description lacks its semantic program"))?;
+        let recipes = self.original.borrow().as_ref()
+            .ok_or_else(|| bad("temporary description lacks its checked original expression"))?
+            .expression_sites(definition, node, b)?;
+        let moved = matches!(producer.kind, InstructionKind::TakeLocal { .. }
+            | InstructionKind::TakeCapture { .. } | InstructionKind::TakePackageField { .. });
         let mut matches = 0;
-        for site in &program.sites {
-            b.spend(1)?;
-            let SemanticSiteAddress::Typed { block, instruction, edge } = site.at else {
-                continue;
-            };
-            if site.instance != caller.id || block != producer_block {
-                continue;
+        for (_, recipe) in recipes {
+            for site in self.site_index.all_roles(module, caller.id, recipe, b)? {
+                let SemanticSiteAddress::Typed { block, instruction, edge } = site.at else { continue };
+                if block != producer_block { continue; }
+                let produces_owner = match site.action {
+                    SemanticSiteAction::Call { .. } | SemanticSiteAction::BodyCall { .. }
+                        | SemanticSiteAction::CallableCall { .. } =>
+                        instruction == producer_at && edge == SemanticSiteEdge::After,
+                    SemanticSiteAction::Construct { result: SemanticOperand::Value(result), .. } =>
+                        result == initializer && instruction == producer_at && edge == SemanticSiteEdge::After,
+                    SemanticSiteAction::TypeUse { subject: SemanticOperand::Value(result), .. } =>
+                        moved && result == initializer && producer_at.checked_add(1) == Some(instruction)
+                            && edge == SemanticSiteEdge::Before,
+                    _ => false,
+                };
+                matches += usize::from(produces_owner);
             }
-            let produces_owner = match site.action {
-                SemanticSiteAction::Call { .. } | SemanticSiteAction::BodyCall { .. }
-                    | SemanticSiteAction::CallableCall { .. } =>
-                    instruction == producer_at && edge == SemanticSiteEdge::After,
-                SemanticSiteAction::Construct { result: SemanticOperand::Value(result), .. } =>
-                    result == initializer && instruction == producer_at && edge == SemanticSiteEdge::After,
-                SemanticSiteAction::TypeUse { subject: SemanticOperand::Value(result), .. } =>
-                    result == initializer && producer_at.checked_add(1) == Some(instruction)
-                        && edge == SemanticSiteEdge::Before && matches!(producer.kind,
-                            InstructionKind::TakeLocal { .. } | InstructionKind::TakeCapture { .. }
-                            | InstructionKind::TakePackageField { .. }),
-                _ => false,
-            };
-            if !produces_owner {
-                continue;
-            }
-            b.spend(site_nodes.len())?;
-            matches += usize::from(site_nodes.iter().any(|row| row.site == site.recipe && row.node == SemanticOriginalNode::Expression(node)));
         }
         if matches != 1 {
             let mut error = bad("temporary description initializer is not its exact original owning producer").with_note(format!(

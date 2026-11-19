@@ -68,19 +68,18 @@ impl CheckedContext{
         &self, module: &TypedModule, caller: &SemanticInstance, f: &TypedFunction, value: ValueId,
         storage: ValueId, path: &[PlaceProjection], b: &mut Budget,
     ) -> Check<Option<ClassKey>> {
-        let program = module.semantic.as_ref().ok_or_else(|| bad("stored reborrow has no complete original grammar"))?;
-        for site in &program.sites {
-            b.spend(1)?;
-            if site.instance != caller.id || !matches!(site.action, SemanticSiteAction::TypeUse { subject: SemanticOperand::Value(id), .. } if id == value) {
-                continue;
-            }
+        let mut source = None;
+        for site in self.site_index.value_type_uses(module, caller.id, value, b)? {
             let original = self.original.borrow();
             let original = original.as_ref().ok_or_else(|| bad("stored reborrow has no independent source proof"))?;
-            let Some((node, ordinal)) = original.original_stored_member(caller.definition, site.recipe, b)? else { continue; };
-            self.stored_field_source(module, caller, f, storage, path, node, b)?;
-            return Ok(Some(ClassKey::Implicit { scope: ScopeKey::Instance(caller.id), ordinal }));
+            let Some(member) = original.original_stored_member(caller.definition, site.recipe, b)? else { continue; };
+            if source.replace(member).is_some_and(|previous| previous != member) {
+                return Err(bad("stored reborrow has conflicting original member occurrences"));
+            }
         }
-        Ok(None)
+        let Some((node, ordinal)) = source else { return Ok(None); };
+        self.stored_field_source(module, caller, f, storage, path, node, b)?;
+        Ok(Some(ClassKey::Implicit { scope: ScopeKey::Instance(caller.id), ordinal }))
     }
 
     pub(in crate::semantic::flow) fn stored_field_source(
