@@ -1124,17 +1124,58 @@ impl Checked {
                     }
                 }
             }
-        } else if !call.receiver.is_some()
-            || !matches!(
-                instruction.kind,
-                InstructionKind::CallClosure { .. }
-                    | InstructionKind::CallClosureOnce { .. }
-                    | InstructionKind::CallClosureShared { .. }
-                    | InstructionKind::CallClosureMut { .. }
-                    | InstructionKind::CallClosureBorrowed { .. }
-            )
-        {
-            return Err(fail("original result role changed its actual call family"));
+        } else {
+            let Some(receiver) = &call.receiver else {
+                return Err(fail("original result role changed its actual call family"));
+            };
+            let operand = match instruction.kind {
+                InstructionKind::CallClosureShared { callee, .. }
+                | InstructionKind::CallClosureMut { callee, .. } => function.locals.get(callee.0 as usize)
+                    .filter(|local| local.id == callee).map(|local| &local.ty),
+                InstructionKind::CallClosure { callee, .. }
+                | InstructionKind::CallClosureOnce { callee, .. }
+                | InstructionKind::CallClosureBorrowed { callee, .. } => function.values.get(callee.0 as usize),
+                _ => return Err(fail("original result role changed its actual call family")),
+            }.ok_or_else(|| fail("actual local invocation has no receiver type"))?;
+            let target = inventory.definition(call.target, b)?;
+            if target.parent == Some(context.definition) {
+                // A local closure can return a product containing the result
+                // of one of its own calls. Its child world contains that call
+                // receipt and extends the caller's same lexical context.
+                let source = self.value(receiver.inner, context, program, inventory, b, depth + 1)?;
+                let Type::Closure(closure) = source.ty else {
+                    return Err(fail("original local invocation loses its actual closure type"));
+                };
+                let operand = match operand {
+                    Type::Address { inner, .. } => inner.as_ref(),
+                    operand => operand,
+                };
+                if *operand != Type::Closure(closure) {
+                    return Err(fail("local invocation result selects another original closure entry"));
+                }
+                let entry = inventory.module.closures.get(closure.0 as usize)
+                    .filter(|row| row.id == closure)
+                    .ok_or_else(|| fail("original local invocation has no actual closure entry"))?;
+                for world in inventory.worlds(program, entry.function, b)? {
+                    if world.definition != call.target || world.parent != Some(context.id)
+                        || world.environment.as_ref().is_none_or(|environment|
+                            environment.closure != SemanticClosureTarget::Typed(closure))
+                    {
+                        continue;
+                    }
+                    let value = self.value(hidden, world, program, inventory, b, depth + 1)?;
+                    if let Some(previous) = &closure_result {
+                        if !previous.equal_paid(&value, b)? {
+                            return Err(fail("local invocation worlds disagree on their complete original result"));
+                        }
+                    } else {
+                        closure_result = Some(value);
+                    }
+                }
+                if closure_result.is_none() {
+                    return Err(fail("original local invocation has no actual child result world"));
+                }
+            }
         }
         let result = match closure_result {
             Some(value) => value,

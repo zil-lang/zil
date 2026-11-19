@@ -429,6 +429,58 @@ fn conditional_pattern_fnmut_condition_once_and_failed_match_rechecks() {
     );
 }
 #[test]
+fn fnmut_tuple_result_rejects_another_same_typed_inner_call() {
+    let unit = source("enum E {End,N(i64)} fn step(i:i64)->E {if i<4 {return E.N(i)} return E.End} fn alternate(i:i64)->E {return E.N(i+7)} fn result()->i64 {var calls:i64=0;var produce=move () => {calls+=1;(step(calls),calls)};var total:i64=0;while let (E.N(n),count)=produce() {if count==2 {continue} total+=n} let last=produce();return total*10+last.1+calls}");
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand_with_map_semantics(
+        &unit,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let module = zil_types::check(&core, &target, &limits).unwrap();
+    let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    let alternate = module.functions.iter()
+        .find(|function| function.name.ends_with("alternate"))
+        .unwrap().id;
+    let mut raw = module;
+    let mut replaced = false;
+    for instruction in raw.functions.iter_mut()
+        .filter(|function| function.environment.is_some())
+        .flat_map(|function| &mut function.blocks)
+        .flat_map(|block| &mut block.instructions)
+    {
+        if let InstructionKind::Call { function, .. } = &mut instruction.kind {
+            assert!(!replaced, "the closure makes one original call");
+            *function = alternate;
+            replaced = true;
+        }
+    }
+    assert!(replaced);
+    plan.module_fingerprint = raw.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    let analyzed = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert_eq!(analyzed[0].category, ResultCategory::SafeReject, "{analyzed:?}");
+    assert!(analyzed[0].message.contains("selects another actual callee"), "{analyzed:?}");
+    for errors in [
+        zil_verify::verify_module(raw, plan, &target, &limits).unwrap_err(),
+        zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err(),
+    ] {
+        assert_eq!(errors[0].category, ResultCategory::SafeReject, "{errors:?}");
+        assert!(errors[0].message.contains("no complete source instance in its exact lexical world"), "{errors:?}");
+    }
+}
+#[test]
 fn conditional_pattern_closure_body_inferred_tuple_and_enum_conditions() {
     native(
         "enum E {End,N(i64)} fn step(i:i64)->E {if i>0 {return E.N(i)} return E.End} fn result()->i64 {let score=(value:E) => {if let E.N(n)=value {n+1} else {0}};let pair=p => {if let (true,n)=p {n} else {0}};let p:(bool,i64)=(true,5000000000);return score(step(41))+pair(p)}",
