@@ -547,6 +547,13 @@ fn bind_child(
             .origins
             .get(binder as usize)
             .ok_or_else(|| bad("nominal field origin escapes its domain"))?;
+        if let IntrinsicOrigin::Nominal { source, class } = origin
+            && let Some(Some((_, IntrinsicOrigin::DerivedClass { .. }))) = assigned.get(parent as usize)
+        {
+            let coordinate = source.class_sources.get(*class as usize)
+                .ok_or_else(|| bad("inline nominal has no declared source for its intrinsic class"))?;
+            return bind(context, env, assigned, parent, key, coordinate, b);
+        }
         bind(context, env, assigned, parent, key, origin, b)
     };
     for slot in &value.life.slots {
@@ -606,6 +613,19 @@ fn bind_child(
         }
         if !source(binder, row.binder, b)? {
             return Ok(false);
+        }
+    }
+    if matches!(&value.ty, Type::BorrowedStorage { storage, .. }
+        if matches!(storage.as_ref(),Type::Record { .. } | Type::Package { .. } | Type::Enum { .. }))
+    {
+        // This child's own application was independently evaluated. Its
+        // declaration arguments remain there; the physical parent supplies
+        // the verified whole-class map and the flattened storage slots.
+        b.spend(life.nominal_arguments.len().saturating_add(life.retained.len()))?;
+        if !life.nominal_arguments.iter().any(|row| row.path.first()==Some(&prefix))
+            && !life.retained.iter().any(|row| row.path.first()==Some(&prefix) && row.path.len()>1)
+        {
+            return Ok(true);
         }
     }
     for nominal in &value.life.nominal_arguments {

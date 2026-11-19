@@ -1034,7 +1034,6 @@ fn physical_nominal_domain<'a>(
                     b,
                 )?;
             }
-            return Ok(());
         }
         for slot in &field.life.slots {
             b.spend(slot.path.len().saturating_add(classes.len() + 1), WORK)?;
@@ -1060,6 +1059,11 @@ fn physical_nominal_domain<'a>(
                 },
                 b,
             )?;
+        }
+        // Slots describe the inline storage, even when the selected child
+        // keeps its nominal and retained directories in its own qualification.
+        if matches!(field.ty, Type::BorrowedStorage { .. }) {
+            return Ok(());
         }
         for row in &field.life.retained {
             let class = field

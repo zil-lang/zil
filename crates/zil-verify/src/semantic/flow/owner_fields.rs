@@ -92,7 +92,14 @@ impl CheckedContext{
                 let mut path=vec![LifeTypeProjection::Pointee];
                 if matches!(inner.as_ref(),Type::Managed(_)){path.push(LifeTypeProjection::Pointee);}
                 path.push(LifeTypeProjection::Place(PlaceProjection::Field(*index)));
-                let child=self.child_value(module,parent,&path,b)?;
+                let child = if matches!(inner.as_ref(), Type::BorrowedStorage { storage, .. }
+                    if matches!(storage.as_ref(),Type::Record { .. } | Type::Package { .. } | Type::Enum { .. }))
+                {
+                    // Cross the address and the independently qualified nominal
+                    // at their respective complete class boundaries.
+                    let holder = self.child_value(module, parent, &[LifeTypeProjection::Pointee], b)?;
+                    self.child_value(module, &holder, &path[1..], b)?
+                } else { self.child_value(module,parent,&path,b)? };
                 let mode=if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
                 let slot=parent.life.slots.iter().find(|slot|slot.path.is_empty()&&slot.mode==mode).ok_or_else(||bad("actual field address has no complete parent head occurrence"))?;
                 let key=parent.classes.get(slot.binder as usize).cloned().ok_or_else(||bad("actual field parent head class is absent"))?;

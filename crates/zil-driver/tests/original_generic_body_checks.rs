@@ -816,6 +816,94 @@ fn scalar_call_reads_its_original_capture_after_description_storage() {
     require_semantic_rejection(zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err());
 }
 
+fn check_stored_origin_mutation(
+    source: &str,
+    mutate: impl FnOnce(&mut TypedModule),
+    analyze_reason: &str,
+    verify_reason: &str,
+) {
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let core = original_core(SourceUnit::new(FileId(0), ModuleId(0), "stored-origin.zil", source), &limits, &target);
+    let program = CoreProgram {
+        root: ModuleId(0),
+        source_fingerprint: core.source_fingerprint,
+        modules: vec![ProgramModule { core, imports: vec![], exports: vec![] }],
+    };
+    let prepared = zil_types::infer_program_for_ct(&program, &limits).unwrap().into_prepared();
+    let mut module = zil_types::check_prepared_program(&prepared, &target, &limits).unwrap().module;
+    let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let wire = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+    mutate(&mut module);
+    let errors = zil_analyze::analyze(&module, &limits).unwrap_err();
+    assert!(errors[0].message.contains(analyze_reason), "{errors:?}");
+    require_semantic_rejection(errors);
+    plan.module_fingerprint = module.fingerprint();
+    let wire = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    for result in [
+        zil_verify::verify_module(module, plan, &target, &limits),
+        zil_verify::verify_module_bytes(&wire, &target, &limits),
+    ] {
+        let errors = result.err().expect("the changed original stored source must be rejected");
+        assert!(errors[0].message.contains(verify_reason), "{errors:?}");
+        require_semantic_rejection(errors);
+    }
+}
+
+#[test]
+fn returned_stored_slot_uses_the_address_from_its_own_call() {
+    let source = include_str!("../../../tests/fixtures/resource-packages/returned-stored-address.zil");
+    check_stored_origin_mutation(source, |module| {
+        let identity = module.functions.iter().find(|f| f.name == "identity").unwrap().id;
+        let step = module.functions.iter_mut().find(|f| f.name == "step").unwrap();
+        let block = &mut step.blocks[0];
+        let calls = block.instructions.iter().filter_map(|instruction| {
+            match instruction.kind {
+                InstructionKind::Call { function, .. } if function == identity => instruction.result,
+                _ => None,
+            }
+        }).collect::<Vec<_>>();
+        assert_eq!(calls.len(), 2);
+        assert_eq!(step.values[calls[0].0 as usize], step.values[calls[1].0 as usize]);
+        let mut changed = 0;
+        for instruction in &mut block.instructions {
+            if let InstructionKind::LoadStoredBorrow { storage, .. } = &mut instruction.kind
+                && *storage == calls[1]
+            {
+                *storage = calls[0];
+                changed += 1;
+            }
+        }
+        assert_eq!(changed, 1);
+    }, "stored reborrow selects another original receiver producer", "another same-typed original expression value");
+}
+
+#[test]
+fn stored_reborrow_checks_the_selected_inline_package_before_its_slot() {
+    let source = include_str!("../../../tests/fixtures/resource-packages/projected-stored-address.zil");
+    check_stored_origin_mutation(source, |module| {
+        let bump = module.functions.iter_mut().find(|f| f.name == "bump").unwrap();
+        let mut changed = 0;
+        for block in &mut bump.blocks {
+            for instruction in &mut block.instructions {
+                let InstructionKind::AddressField { address, index } = &mut instruction.kind else { continue };
+                let Type::Address { inner, .. } = &bump.values[address.0 as usize] else { panic!() };
+                let Type::BorrowedStorage { storage, .. } = inner.as_ref() else { panic!() };
+                let Type::Package { fields, .. } = storage.as_ref() else { panic!() };
+                assert_eq!(*index, 0);
+                assert_eq!((&*fields[0].0, &*fields[1].0), ("left", "right"));
+                assert_eq!(fields[0].1, fields[1].1);
+                *index = 1;
+                changed += 1;
+            }
+        }
+        assert_eq!(changed, 1);
+    }, "stored reborrow selects another original field", "actual field index differs from the original ordered");
+}
+
 #[test]
 fn stored_exclusive_reborrow_keeps_its_selected_original_field() {
     let source = SourceUnit::new(FileId(0), ModuleId(0), "two-exclusive-slots.zil", r#"

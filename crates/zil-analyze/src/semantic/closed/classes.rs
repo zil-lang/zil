@@ -2854,6 +2854,32 @@ impl Check<'_, '_> {
                     depth + 1,
                 )
             }
+            InstructionKind::AddressField { address, index: field } => {
+                if let Some(value) = self.source_borrow(instance, function, id, b, depth + 1)? {
+                    return Ok(value);
+                }
+                operations::available_before(function, (block, index, SemanticSiteEdge::Before), *address, b)?;
+                let parent = self.ssa_value(instance, function, *address, b, depth + 1)?;
+                let Type::Address { mutable, .. } = parent.ty else {
+                    return Err(fail("field address has no actual parent address"));
+                };
+                let mode = if mutable { StoredBorrowMode::ExclusiveAddress } else { StoredBorrowMode::SharedAddress };
+                let [head] = parent.life.slots.as_slice() else {
+                    return Err(unknown("field address requires its unique bounded parent occurrence"));
+                };
+                if !head.path.is_empty() || head.mode != mode {
+                    return Err(fail("field address changes its actual parent permission"));
+                }
+                let class = parent.classes.get(head.binder as usize)
+                    .ok_or_else(|| fail("field address parent head leaves its complete domain"))?;
+                let holder = self.pointee(&parent, b)?;
+                let child = self.closure_child_value(&holder, PlaceProjection::Field(*field), b)?;
+                let result = value::address(mutable, class.clone(), child, b)?;
+                if !geometry::same_type(&result.ty, ty, b)? {
+                    return Err(fail("field address changes its independently selected child type"));
+                }
+                Ok(result)
+            }
             InstructionKind::ReborrowAddress { address, mutable } => {
                 if let Some(value) = self.source_borrow(instance, function, id, b, depth + 1)? {
                     return Ok(value);

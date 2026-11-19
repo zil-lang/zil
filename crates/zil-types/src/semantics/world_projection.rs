@@ -661,6 +661,20 @@ pub(super) fn place(
         for row in &shape.slots { world.pay(row.path.len())?; }
         for row in &shape.retained { world.pay(row.path.len())?; }
         for row in &shape.nominal_arguments { world.pay(row.path.len())?; }
+        // An independently qualified inline nominal has its own canonical
+        // declaration directory. The containing nominal carries the physical
+        // slots and the complete immediate class map at this field boundary.
+        // Its type arguments belong to its own declaration graph.
+        let nominal_boundary = matches!(ty, Type::BorrowedStorage { storage, .. }
+            if matches!(storage.as_ref(), Type::Record { .. } | Type::Package { .. } | Type::Enum { .. }))
+            && matches!(field, Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Record { .. } | Type::Package { .. } | Type::Enum { .. }));
+        if nominal_boundary && shape.retained.is_empty() && shape.nominal_arguments.is_empty() {
+            if canonical.binder_count != shape.binder_count || canonical.slots != shape.slots {
+                return Err(bad("inline nominal field changes its complete class boundary or physical slots"));
+            }
+            return world.resolved(field, canonical, images);
+        }
         if canonical != shape {
             return Err(bad("field changes its complete original occurrence or child domain"));
         }

@@ -85,6 +85,29 @@ impl CheckedContext {
             classes.push(key.clone());origins.push(origin.clone());
         }
         let mut child=self.checked_value(module,ty,&life,classes,b)?;
+        if matches!(path, [LifeTypeProjection::Place(_)])
+            && matches!(&parent.ty, Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Record { .. } | Type::Package { .. } | Type::Enum { .. }))
+            && matches!(ty, Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Record { .. } | Type::Package { .. } | Type::Enum { .. }))
+        {
+            for (index, (outer, inner)) in origins.iter_mut().zip(&child.origins).enumerate() {
+                let (IntrinsicOrigin::Nominal { source: container, class: parent_class },
+                    IntrinsicOrigin::Nominal { source: selected, class: child_class }) = (&*outer, inner)
+                else { continue; };
+                if *child_class as usize != index { return Err(bad("inline nominal field renumbers an intrinsic class")); }
+                let parent_source = container.class_sources.get(*parent_class as usize)
+                    .ok_or_else(|| bad("inline nominal field has no original parent source"))?;
+                let child_source = selected.class_sources.get(index)
+                    .ok_or_else(|| bad("inline nominal field has no original child source"))?;
+                charge_intrinsic_origin(parent_source, b)?;
+                charge_intrinsic_origin(child_source, b)?;
+                if parent_source == inner || parent_source == child_source {
+                    charge_intrinsic_origin(inner, b)?;
+                    *outer = inner.clone();
+                }
+            }
+        }
         if path == [LifeTypeProjection::Place(PlaceProjection::Field(1))]
             && matches!(&parent.ty, Type::BorrowedStorage { storage, .. }
                 if matches!(storage.as_ref(), Type::Record { .. } | Type::Package { .. }))
