@@ -51,7 +51,7 @@ mod requests;
 mod types;
 #[path = "source_semantic_static_results.rs"]
 mod static_results;
-pub(crate) use static_results::input_result;
+pub(crate) use static_results::{BorrowedResult, input_result};
 
 pub struct OriginalSemanticInventory<'a> {
     /// Full original bodies/defaults remain available here, never empty CFGs.

@@ -236,6 +236,7 @@ impl Check<'_, '_> {
                         .map(|actual| actual.unwrap_or(SemanticActualRecipe::Infer))
                         .collect::<Vec<_>>();
                     let (worker_actuals, worker_signature) = self.solve_signature(
+                        worker_definition,
                         owner,
                         expression,
                         &arguments[0],
@@ -1286,6 +1287,7 @@ impl Check<'_, '_> {
             worker_signature.result =
                 self.effective_result(worker, &signature.result, depth + 1)?;
             let (actuals, signature) = self.solve_signature(
+                definition,
                 owner,
                 expression,
                 worker_expression,

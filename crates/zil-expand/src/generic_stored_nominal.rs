@@ -515,7 +515,7 @@ impl<'a> Engine<'a> {
             return Ok(false);
         }
         let mut candidate = stored_types::SignatureCandidate::default();
-        let implicit_inputs = self.elide_source_inputs(function, &mut candidate)?;
+        let (implicit_inputs,static_result) = self.elide_source_inputs(function, &mut candidate)?;
         // Keep the semantic result in this actual declaration's source domain.
         // At a call it must be rebased through actual input occurrences, never
         // returned as an erased pointer or a callee-local spelling.
@@ -643,12 +643,21 @@ impl<'a> Engine<'a> {
             self.stored_source_parameters
                 .insert(storage_name.clone(), source_parameters);
         }
-        let (contract, fixed, invocation) = stored_types::contract_with_sources(
+        let root = zil_ir::StoragePosition { base:zil_ir::StorageBase::Result, path:Vec::new() };
+        if static_result {
+            self.budget.identity_work(occurrences.len(),function.span)?;
+            let at = occurrences.iter().position(|r| matches!(&r.position,
+                stored_types::OccurrencePosition::Borrow(position) if *position == root))
+                .ok_or_else(|| error(function.span,"constant result omitted its root address position"))?;
+            occurrences.remove(at);
+        }
+        let (mut contract, fixed, invocation) = stored_types::contract_with_sources(
             occurrences,
             Vec::new(),
             &mut self.budget,
             function.span,
         )?;
+        if static_result { self.budget.lineage_push(&mut contract.static_bindings,root,function.span)?; }
         self.prepare_callable_return_context(function, &contract, &fixed, &invocation)?;
         if !callable_parameters.is_empty() {
             if let Some(selected) = callable::template(function, &mut self.budget)? {

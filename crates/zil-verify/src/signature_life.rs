@@ -284,7 +284,7 @@ pub(super) fn function_relation_byte_inputs(
 // Internal input views retain the exact immutable Type. Ordinary exported
 // wrappers keep their existing owned-slice API; header preflight borrows its
 // actual local declarations without rebuilding the whole parameter trees.
-trait InputType{fn ty(&self)->&Type;}
+pub(super) trait InputType{fn ty(&self)->&Type;}
 impl InputType for Type{fn ty(&self)->&Type{self}}
 impl InputType for &Type{fn ty(&self)->&Type{self}}
 
@@ -313,6 +313,10 @@ pub(super) fn function_relation_resource_views(module:&TypedModule,parameters:&[
     function_resource_inputs(module,parameters,result,c,span,allow_callback,allow_byte_input,b)
 }
 fn function_resource_inputs<P:InputType>(module:&TypedModule,parameters:&[P],result:&Type,c:&StorageLifeContract,span:Option<Span>,allow_callback:bool,allow_byte_input:bool,b:&mut Budget)->Check<()>{
+    function_resource_bounds(module,parameters,result,c,span,allow_callback,allow_byte_input,&[],&[],false,b)
+}
+#[allow(clippy::too_many_arguments)]
+pub(super) fn function_resource_bounds<P:InputType>(module:&TypedModule,parameters:&[P],result:&Type,c:&StorageLifeContract,span:Option<Span>,allow_callback:bool,allow_byte_input:bool,inferred_roots:&[u32],pending:&[SignatureLifeClass],static_result:bool,b:&mut Budget)->Check<()>{
     let mut roots = Vec::new();
     for (ordinal, ty) in parameters.iter().map(InputType::ty).chain(std::iter::once(result)).enumerate() {
         let base = if ordinal == parameters.len() {
@@ -346,6 +350,10 @@ fn function_resource_inputs<P:InputType>(module:&TypedModule,parameters:&[P],res
             whole_type: ty,
             statics: Vec::new(),
         });
+    }
+    if !inferred_roots.is_empty() || !pending.is_empty() || static_result {
+        return relation_inputs_with_bounds(parameters,result,c,span,allow_callback,None,Some(module),
+            allow_byte_input,None,pending,&roots,inferred_roots);
     }
     if !roots.is_empty() && !c.static_bindings.is_empty() {
         return Err(reject(
@@ -651,6 +659,24 @@ fn relation_inputs<P:InputType>(
     pending: &[SignatureLifeClass],
     zero_resources: &[KnownZeroRoot<'_>],
 ) -> Check<()> {
+    relation_inputs_with_bounds(parameters,result,c,span,allow_callback,captures,module,allow_byte_input,
+        closure_kind,pending,zero_resources,&[])
+}
+#[allow(clippy::too_many_arguments)]
+fn relation_inputs_with_bounds<P:InputType>(
+    parameters: &[P],
+    result: &Type,
+    c: &StorageLifeContract,
+    span: Option<Span>,
+    allow_callback: bool,
+    captures: Option<&[Type]>,
+    module: Option<&TypedModule>,
+    allow_byte_input: bool,
+    closure_kind: Option<CallableKind>,
+    pending: &[SignatureLifeClass],
+    zero_resources: &[KnownZeroRoot<'_>],
+    inferred_roots: &[u32],
+) -> Check<()> {
     let invalid = || {
         reject(
             "E-VERIFY-SIGNATURE-CLASS",
@@ -764,7 +790,7 @@ fn relation_inputs<P:InputType>(
                 } else {
                     let row = occurrences::binding(c, borrow, &position, span)?;
                     borrow += 1;
-                    visit(&row.position, row.binder, capture, false)?;
+                    visit(&row.position,row.binder,capture,output && !inferred_roots.is_empty())?;
                 }
 
                 (inner.as_ref(), true)
@@ -1096,7 +1122,7 @@ fn relation_inputs<P:InputType>(
             "signature Fixed({index}) has no retained input occurrence or independently established result class",
         )));
     }
-    occurrences::returned_root(c, parameters, captures, closure_kind, result, zero_resources, allow_byte_input, span)
+    occurrences::returned_root(c, parameters, captures, closure_kind, result, zero_resources, allow_byte_input,inferred_roots, span)
 }
 
 pub(super) fn entails(required: &StorageLifeContract, supplied: &StorageLifeContract) -> bool {

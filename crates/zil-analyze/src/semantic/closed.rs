@@ -856,6 +856,13 @@ impl Check<'_, '_> {
                     let arguments = self.trait_actuals(context, application, b, 0)?;
                     self.actual_provider(&receiver, application.declaration, &arguments, b, 0)?;
                 }
+                SemanticRequirementRecipe::Outlives { longer, shorter }
+                    if self.inventory.definition(context.definition,b)?.elided_result_bound(requirement).is_some() => {
+                    // The whole-body and call-operand passes discharge each upper;
+                    // never add a type equality while opening this scoped contract.
+                    self.life(context,longer,b,depth + 1)?;
+                    self.life(context,shorter,b,depth + 1)?;
+                }
                 _ => {
                     return Err(unknown(
                         "original semantic premise needs independent caller and rigid-definition proof",
@@ -1164,6 +1171,16 @@ impl Check<'_, '_> {
                 return Err(fail(
                     "actual result differs from the original instantiated signature",
                 ));
+            }
+            if definition.elided_result_ordinal().is_some() {
+                let header = function.storage_life.as_ref().ok_or_else(|| fail("inferred return lacks its physical header"))?;
+                let inputs = definition.elided_result_inputs(instance, header, |n| b.spend(n,WORK))?;
+                if inputs.is_empty() { return Err(fail("inferred return lacks its original input bound")); }
+                b.lookup(b.semantic_return_inputs.len(), WORK)?;
+                b.spend(inputs.len(), WORK)?;
+                if let Some(old) = b.semantic_return_inputs.get(&function.id) {
+                    if old.as_ref() != inputs.as_slice() { return Err(fail("inferred return changes its parameter bounds across worlds")); }
+                } else { b.semantic_return_inputs.insert(function.id, inputs.into()); }
             }
             // Physical locals and SSA types belong to this immutable CFG. All
             // original substitutions, actual operand and header relations above

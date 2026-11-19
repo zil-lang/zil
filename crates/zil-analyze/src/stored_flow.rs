@@ -2955,15 +2955,10 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             }
         }
     }
-    super::signature_life::function_relation_resource_scopes(
-        &parameters,
-        result,
-        c,
-        allow_callback,
-        module,
-        byte_signature,
-        b,
-    )?;
+    let inferred = b.return_inputs(f.id)?;
+    let inferred = inferred.as_deref().unwrap_or_default();
+    super::signature_life::function_relation_resource_bounds(&parameters,result,c,allow_callback,
+        module,byte_signature,inferred,b)?;
     Ok(())
 }
 
@@ -3139,6 +3134,8 @@ fn returns(
         }
         return Ok(());
     }
+    let inferred = b.return_inputs(f.id)?;
+    let inferred = inferred.as_deref().unwrap_or_default();
     for (path, sources) in &facts.returned {
         if sources.is_empty() {
             return Err(failure(
@@ -3162,7 +3159,9 @@ fn returns(
         if f.storage_life.is_none() {
             continue;
         }
-        let upper = binding(f, StorageBase::Result, path, b)?;
+        // A genuine static source has no invocation binder. A non-static
+        // edge must independently recover the result's declared binder.
+        let mut checked_upper = None;
         for source in sources {
             if source.base == HoldRoot::Static {
                 if !source.stored.is_empty() || !source.place.is_empty() {
@@ -3174,6 +3173,14 @@ fn returns(
             }
             let HoldRoot::Parameter(index) = source.base else {
                 return Err(failure("result retains local/captured target"));
+            };
+            let upper = match checked_upper {
+                Some(upper) => upper,
+                None => {
+                    let upper = binding(f, StorageBase::Result, path, b)?;
+                    checked_upper = Some(upper);
+                    upper
+                }
             };
             if (if let Some(PortOrigin::RawReference { depth }) = source.retained_port {
                 raw_references::binding(f, index, depth, b)?
@@ -3197,7 +3204,11 @@ fn returns(
                             }) == Some(upper)
                         })
                     });
-                if !bounded_head {
+                fee(b,inferred.len())?;
+                let allowed = path.is_empty() && source.stored.is_empty()
+                    && source.retained_port.is_none() && source.heap_element.is_none() && source.heap_parents.is_empty()
+                    && inferred.contains(&index);
+                if !bounded_head && !allowed {
                     let heads = facts.returned_head_targets.get(source);
                     fee(
                         b,

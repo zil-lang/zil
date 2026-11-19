@@ -3027,6 +3027,7 @@ impl Solver<'_, '_> {
                     b.lookup(self.state.abstract_calls.len(), WORK)?;
                     let prototype = self.state.calls.get(&(frame.definition, value.id)).map(|call| call.target)
                         .or_else(|| self.state.abstract_calls.get(&(frame.definition, value.id)).map(|call| call.signature_owner));
+                    self.collect_result_inputs(prototype, result, &mut outer_inputs, b)?;
                     self.settle_call_inputs(frame, value.id, prototype, &outer_inputs, b, depth + 1)?;
                     if !prepared_arguments.is_empty() { return Err(fail("original staged call leaves an unchecked argument")); }
                     self.finish_abstract_call(frame.definition, value.id, b)?;
@@ -5292,6 +5293,10 @@ impl Solver<'_, '_> {
                 }
                 continue;
             }
+            if matches!(requirement, SemanticRequirementRecipe::Outlives { .. })
+                && self.inventory.definition(context, b)?.elided_result_bound(requirement).is_some() {
+                continue;
+            }
             let (ty, _) = self.requirement(requirement)?;
             match ty {
                 SemanticTypeRecipe::Formal(reference) => {
@@ -5364,6 +5369,11 @@ impl Solver<'_, '_> {
                 self.callable_need(frame, term, *kind, signature, b, 0)?;
                 continue;
             }
+            if matches!(requirement, SemanticRequirementRecipe::Outlives { .. })
+                && self.inventory.definition(frame.definition, b)?.elided_result_bound(requirement).is_some() {
+                // The actual call operands discharge this bound at their original Call.
+                continue;
+            }
             let (recipe, predicate) = self.requirement(requirement)?;
             let term = self.recipe(frame, recipe, b, 0)?;
             Self::push(&mut self.needs, Need { term, predicate }, b)?;
@@ -5420,6 +5430,8 @@ impl Solver<'_, '_> {
             ) {
                 continue;
             }
+            if matches!(requirement, SemanticRequirementRecipe::Outlives { .. })
+                && self.inventory.definition(owner, b)?.elided_result_bound(requirement).is_some() { continue; }
             let (ty, available) = self.requirement(requirement)?;
             let SemanticTypeRecipe::Formal(reference) = ty else {
                 continue;

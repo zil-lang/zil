@@ -3577,6 +3577,21 @@ impl Check<'_, '_> {
         let mut pending = vec![(local, at.0, at.1)];
         let mut seen = BTreeSet::new();
         let mut selected: Option<Value> = None;
+        let returned = function.blocks.get(at.0.0 as usize).filter(|block| {
+            matches!(block.terminator, Terminator::Return(Some(id))
+                if block.instructions.get(at.1).is_some_and(|instruction| instruction.result == Some(id)
+                    && matches!(instruction.kind, InstructionKind::Load(source) | InstructionKind::TakeLocal {local:source} if source == local)))
+        });
+        let join = if returned.is_some() {
+            let definition = self.inventory.definition(instance.definition, b)?;
+            match &definition.body {
+                SemanticDefinitionBody::FunctionWithBody { signature, .. } if definition.elided_result_ordinal().is_some() =>
+                    Some(self.recipe_value(instance, &signature.result, b, depth + 1)?),
+                _ => None,
+            }
+        } else { None };
+        let mut join_sites = Vec::new();
+        let mut joined = false;
         while let Some((local, at_block, end)) = pending.pop() {
             b.lookup(seen.len(), WORK)?;
             if !seen.insert((local, at_block, end)) {
@@ -3621,6 +3636,16 @@ impl Check<'_, '_> {
                             value,
                             b,
                         )?;
+                        if let Some(expected) = &join {
+                            let actual = self.ssa_value(instance, function, value, b, depth + 1)?;
+                            if !self.outer_role(instance, function, &actual, expected, b, depth + 1)? {
+                                return Err(fail("incoming return alternative changes its original input or invariant child"));
+                            }
+                            self.push_value(&mut join_sites, (function.id, at_block, index), b)?;
+                            origin = Some(actual);
+                            assigned = true;
+                            break;
+                        }
                         let (source_block, source_index, source) =
                             self.defining(function, value, b)?;
                         match source.kind {
@@ -3722,12 +3747,13 @@ impl Check<'_, '_> {
                 b.spend(value.classes.len().saturating_add(1), WORK)?;
                 if let Some(old) = &selected {
                     if !old.equal_paid(&value, b)? {
-                        return Err(unknown(
-                            "semantic local needs its complete joined role/source dependency relation",
-                        ));
+                        if let Some(expected) = &join
+                            && self.outer_role(instance,function,old,expected,b,depth+1)?
+                            && self.outer_role(instance,function,&value,expected,b,depth+1)?
+                        { joined = true; }
+                        else { return Err(unknown("semantic local needs its complete joined role/source dependency relation")); }
                     }
-                }
-                selected = Some(value);
+                } else { selected = Some(value); }
             }
             if assigned {
                 continue;
@@ -3746,6 +3772,13 @@ impl Check<'_, '_> {
                     "semantic local has no initialized actual class origin",
                 ));
             }
+        }
+        if joined {
+            for site in join_sites {
+                b.lookup(b.semantic_join_stores.len(), WORK)?;
+                b.semantic_join_stores.insert(site);
+            }
+            return join.ok_or_else(|| fail("actual return join has no declared result role"));
         }
         selected.ok_or_else(|| fail("semantic local cycle has no initialized actual class origin"))
     }

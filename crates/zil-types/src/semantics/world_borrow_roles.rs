@@ -1617,6 +1617,49 @@ pub(super) fn payload_view(
         values, locals, implicit, false)?.is_some())
 }
 
+/// Recheck the complete incoming class on this concrete CFG edge. Only the
+/// omitted result's outer position can shorten; every pointee class is invariant.
+pub(super) fn inferred_result_edge(world: &mut World<'_, '_>, instance: &SemanticInstance,
+    original: &SemanticDefinition, actual: &SharedType, expected: &SharedType,
+    implicit: &BTreeMap<u32, SemanticClassExpr>) -> R<bool> {
+    let Some(ordinal) = original.elided_result_ordinal() else { return Ok(false); };
+    if !matches!(World::type_of(expected)?, Type::Address { .. })
+        || !matches!(roles::outer(world, expected)?, roles::Source::Class(SemanticClassExpr::Implicit {
+            scope: SemanticScopeRef::Ancestor(0), ordinal: expected
+        }) if expected == ordinal)
+        || World::type_of(actual)? != World::type_of(expected)? { return Ok(false); }
+    let source = roles::outer(world, actual)?;
+    if let roles::Source::Class(actual_class) = source {
+        if actual_class == (SemanticClassExpr::Implicit {scope: SemanticScopeRef::Ancestor(0),ordinal}) {
+            return Ok(false);
+        }
+        let actual_class = world.class(instance.id, &actual_class, implicit)?;
+        let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &original.body else { unreachable!(); };
+        let mut admitted = false;
+        for (index, parameter) in signature.parameters.iter().enumerate() {
+            world.pay(1)?;
+            let (SemanticTypeRecipe::Address { lifetime: SemanticOuterLifeRecipe::Class(source), .. } |
+                SemanticTypeRecipe::Desc { lifetime: SemanticOuterLifeRecipe::Class(source), .. }) = &parameter.ty else { continue; };
+            world.pay(original.requirements.len())?;
+            if !original.requirements.iter().any(|r| original.elided_result_bound(r) == Some(source)) { continue; }
+            let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(fid)) = instance.target else { return Ok(false); };
+            let function = world.function(fid)?;
+            let raw = function.parameters.get(index).and_then(|id| function.locals.get(id.0 as usize))
+                .ok_or_else(|| bad("inferred return source has no concrete input position"))?;
+            let value = world.parameter_value(instance.id, index, types::Hint::Actual(&raw.ty))?;
+            if let roles::Source::Class(input) = roles::outer(world, &value)? {
+                let input = world.class(instance.id, &input, implicit)?;
+                admitted |= actual_class == input;
+            }
+        }
+        if !admitted { return Ok(false); }
+    }
+    let inner = world.pointee(actual)?;
+    let wanted = world.pointee(expected)?;
+    world.same(instance.id, &inner, &wanted, implicit)?;
+    Ok(true)
+}
+
 /// A return consumes only its own original expression's directed result
 /// loan. A call adapter on the same source value is not a result theorem.
 #[allow(clippy::too_many_arguments)]

@@ -434,6 +434,7 @@ impl Check<'_, '_> {
                     1,
                 )?;
                 outer_inputs.push(call_regions::Input {
+                    result_bound: false,
                     variable,
                     selector,
                     expression: value,
@@ -1014,7 +1015,7 @@ impl<'a> Check<'a, '_> {
         let operands = values.iter().collect::<Vec<_>>();
         let (actuals, solved) = self.solve_signature_roles(
             owner, expression, object, &operands, &signature, &definition.parameters,
-            &written, variables, wanted, false, &BTreeMap::new(), &roles, 0, None, depth + 1,
+            &written, variables, wanted, false, &BTreeMap::new(), &roles, 0, None, Some(definition), depth + 1,
         )?;
         self.call_requirements(owner, definition, &actuals, depth + 1)?;
         self.pay(1, depth)?;

@@ -1267,6 +1267,63 @@ fn branch_union_alias_substitution_and_rebinding_preserve_last_use() {
 }
 
 #[test]
+fn elided_return_bounds_preserve_static_and_only_the_returned_inputs() {
+    let input = r#"
+        fn text(a:&[u8], b:&[u8])->&[u8] { return "S"; }
+        fn pick(a:&[u8], b:&[u8], unused:&[u8], f:bool, literal:bool)->&[u8] {
+            if f { return a; }
+            return if literal { "S" } else { b };
+        }
+        fn result()->i32 {
+            var a:[u8;1]=[1u8]; var b:[u8;1]=[2u8]; var c:[u8;1]=[3u8];
+            let literal=text(&a[..],&b[..]); a[0]=9u8;
+            let chosen=pick(&a[..],&b[..],&c[..],false,false); c[0]=8u8;
+            return i32(literal[0])+i32(chosen[0])+i32(c[0]);
+        }"#;
+    native(input, 93);
+    let sibling = input.replace("else { b }", "else { unused }");
+    let report = compile_source(&source(&sibling), &CompileOptions::default());
+    assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+    assert!(report.diagnostics.iter().any(|d| d.code == "E-BORROW-CONFLICT"), "{}", report.to_json());
+    for assignment in ["x=9", "y=9"] {
+        let input=format!("fn pick(a:&i32,b:&i32,f:bool)->&i32{{if f{{return a;}} return b;}}
+            fn result()->i32{{var x=1;var y=2;let p=pick(&x,&y,false);{assignment};return *p;}}");
+        let report=compile_source(&source(&input),&CompileOptions::default());
+        assert_eq!(report.status,ResultCategory::SafeReject,"{}",report.to_json());
+        assert!(report.diagnostics.iter().any(|d|d.code=="E-BORROW-CONFLICT"),"{}",report.to_json());
+    }
+    // Keep the original body and header intact while swapping only the real
+    // incoming SSA load for a same-typed, unrelated input.
+    let unit = source("fn pick(a:&i32,b:&i32,third:&i32,f:bool)->&i32{return if f {a} else {b};}");
+    let target = TargetProfile::host_llvm();
+    let limits = Limits::default();
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand_with_map_semantics(&unit, &syntax, &limits, &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id, aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        }).unwrap().core;
+    let mut module = zil_types::check(&core, &target, &limits).unwrap();
+    let mut candidate = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &target, &limits).unwrap();
+    let function = &mut module.functions[0];
+    let (right, sibling) = (function.parameters[1], function.parameters[2]);
+    let mut loads = function.blocks.iter_mut().flat_map(|block| &mut block.instructions)
+        .filter(|i| matches!(i.kind, InstructionKind::Load(local) if local == right));
+    loads.next().unwrap().kind = InstructionKind::Load(sibling);
+    assert!(loads.next().is_none());
+    candidate.module_fingerprint = module.fingerprint();
+    assert!(zil_analyze::analyze(&module, &limits).is_err());
+    let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    let raw = zil_verify::verify_module(module, candidate, &target, &limits).unwrap_err();
+    let decoded = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert_eq!(raw[0].phase, Phase::Verify);
+    assert_eq!(raw[0].category, ResultCategory::SafeReject);
+    assert_eq!(decoded[0].code, raw[0].code);
+
+}
+
+#[test]
 fn recursive_and_mutually_recursive_forwarding_find_grounded_origins() {
     native(
         "fn relay(a: &i64, b: &i64, n: i32) -> &i64 { if n == 0 { return b; } return again(a, b, n - 1); } fn again(a: &i64, b: &i64, n: i32) -> &i64 { return relay(a, b, n); } fn result() -> i64 { var x: i64 = 40; var y: i64 = 2; let p = relay(&x, &y, 8); x = 100; return *p + x; }",

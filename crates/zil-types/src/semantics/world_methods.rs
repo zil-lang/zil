@@ -1330,6 +1330,57 @@ pub(super) fn direct<'a>(
         &function.return_type,
     )?;
     let target = world.result_value(callee.id, types::Hint::Actual(&function.return_type))?;
+    let definition = world.definition(callee.definition)?;
+    if let Some(ordinal) = definition.elided_result_ordinal() {
+        let source = SemanticClassExpr::Implicit { scope: SemanticScopeRef::Ancestor(0), ordinal };
+        let roles::Source::Class(result) = roles::outer(world, &expected)? else {
+            return Err(bad("returned input join lacks a caller region"));
+        };
+        let SemanticDefinitionBody::FunctionWithBody { signature: declared, .. } = &definition.body else { unreachable!(); };
+        let caller = world.definition(instance.definition)?;
+        let node = occurrences::node(world, caller, site)?
+            .ok_or_else(|| bad("returned input join has no original Call"))?;
+        let ledger = world.ledger;
+        let proof = ledger.original.borrow();
+        let proof = proof.as_ref().ok_or_else(|| bad("returned input join omits its original source proof"))?;
+        let region = if let SemanticClassExpr::Implicit { scope: SemanticScopeRef::Ancestor(0), ordinal } = &result {
+            world.pay(index::search(proof.call_regions.len()))?;
+            proof.call_regions.get(&(caller.id,*ordinal)).filter(|row| row.is_call_implicit(node, definition.elided_result_ordinal().expect("checked result occurrence")))
+        } else { None };
+        let mut found = false;
+        for (index, parameter) in declared.parameters.iter().enumerate() {
+            world.pay(definition.requirements.len().saturating_add(1))?;
+            let (SemanticTypeRecipe::Address {lifetime: SemanticOuterLifeRecipe::Class(input), ..}
+                | SemanticTypeRecipe::Desc {lifetime: SemanticOuterLifeRecipe::Class(input), ..}) = &parameter.ty else { continue; };
+            if !definition.requirements.iter().any(|r| definition.elided_result_bound(r) == Some(input)) { continue; }
+            found = true;
+            if let Some(region) = region {
+                world.pay(index::search(region.inputs.len()))?;
+                let position = u32::try_from(index).map_err(|_| bad("result source parameter ordinal overflows"))?;
+                let source_node = region.inputs.get(&position)
+                    .ok_or_else(|| bad("returned call region omits a declared source argument"))?;
+                // The staged input SSA and the original expression SSA can differ.
+                // arguments::satisfy above checked this concrete operand at this
+                // exact call and parameter. When its loan is a call region, both
+                // regions must independently name the very same original input.
+                if let roles::Source::Class(SemanticClassExpr::Implicit { scope: SemanticScopeRef::Ancestor(0), ordinal }) =
+                    roles::outer(world, &parameters[index])? {
+                    world.pay(index::search(proof.call_regions.len()))?;
+                    if let Some(input) = proof.call_regions.get(&(caller.id,ordinal))
+                        && input.call == node {
+                        world.pay(index::search(input.inputs.len()))?;
+                        if input.inputs.get(&position) != Some(source_node) {
+                            return Err(bad("returned call region changes its actual source argument"));
+                        }
+                    }
+                }
+            } else if let roles::Source::Class(actual) = roles::outer(world, &parameters[index])? {
+                world.same_class(instance.id, &actual, &result, implicit)?;
+            } else { return Err(bad("returned call region has no exact source")); }
+        }
+        if !found { return Err(bad("returned input join has no source parameter")); }
+        insert_invocation(world, instance, &mut invocation.classes, source, &result, implicit)?;
+    }
     if let Some(header) = &function.storage_life {
         result_invocation(
             world,

@@ -49,6 +49,73 @@ impl State {
         Ok(Rc::make_mut(&mut self.locals).as_mut_slice())
     }
 }
+/// Concrete Stores whose occupant reaches a Load used by an actual Return.
+/// Kills stop this backwards query. Initialization is checked by the forward
+/// interpreter before each operation and cannot be established by this set.
+pub(crate) fn returned_join_stores(f: &TypedFunction, b: &mut Budget) -> Check<BTreeSet<(BlockId,usize)>> {
+    let definitions = crate::tasks::context_projection::definitions(f, b)?;
+    b.spend(f.blocks.len())?;
+    let mut predecessors = vec![Vec::new(); f.blocks.len()];
+    let mut pending = Vec::new();
+    for (block, body) in f.blocks.iter().enumerate() {
+        b.spend(3)?;
+        let (first, second) = match body.terminator {
+            Terminator::Jump(to) => (Some(to), None),
+            Terminator::Branch {then_block,else_block,..} => (Some(then_block),Some(else_block)),
+            Terminator::Return(Some(value)) => {
+                let (owner, at) = definitions.get(value.0 as usize).copied().flatten()
+                    .ok_or_else(||bad("returned join has no actual SSA definition"))?;
+                if let InstructionKind::Load(local) | InstructionKind::TakeLocal {local} = f.blocks[owner].instructions[at].kind {
+                    pending.push((owner,at,local));
+                }
+                (None,None)
+            }
+            _ => (None,None),
+        };
+        for successor in [first,second].into_iter().flatten() {
+            predecessors.get_mut(successor.0 as usize)
+                .ok_or_else(||bad("return join has an absent successor"))?.push(block);
+        }
+    }
+    let mut stores = BTreeSet::new();
+    for load in pending {
+        let mut pending = vec![load];
+        let mut seen = BTreeSet::new();
+        let mut reaching = BTreeSet::new();
+        while let Some((block,end,local)) = pending.pop() {
+            b.spend(seen.len().saturating_add(1).ilog2() as usize + 2)?;
+            if !seen.insert((block,end,local)) { continue; }
+            let body = &f.blocks[block];
+            let mut killed = false;
+            for (at,instruction) in body.instructions[..end].iter().enumerate().rev() {
+                b.spend(1)?;
+                match instruction.kind {
+                    InstructionKind::Store {local:target,..} if target == local => {
+                        b.spend(reaching.len().saturating_add(1).ilog2() as usize + 2)?;
+                        reaching.insert((body.id,at));
+                    }
+                    InstructionKind::StorageLive(target) | InstructionKind::StorageDead(target)
+                    | InstructionKind::TakeLocal {local:target} | InstructionKind::BindPackageCapture {local:target,..}
+                    | InstructionKind::EndPackageCapture {local:target,..} if target == local => {}
+                    _ => continue,
+                }
+                killed = true;
+                break;
+            }
+            if !killed {
+                b.spend(predecessors[block].len())?;
+                for &parent in &predecessors[block] { pending.push((parent,f.blocks[parent].instructions.len(),local)); }
+            }
+        }
+        if reaching.len() > 1 {
+            for site in reaching {
+                b.spend(stores.len().saturating_add(1).ilog2() as usize + 2)?;
+                stores.insert(site);
+            }
+        }
+    }
+    Ok(stores)
+}
 /// Constructed only after this interpreter checks the actual complete body.
 /// A catalogue entry, metadata flag or equal Type cannot manufacture it.
 pub(super) struct BodyChecked {instance:SemanticInstanceId,definition:SemanticDefinitionId,function:FunctionId,environment:EvalEnv,result:CheckedType}
@@ -169,6 +236,17 @@ impl CheckedContext {
         drop(aliases);
         self.occurrences.borrow_mut().insert((scope,key),value.clone());Ok(())
     }
+    pub(crate) fn checked_return_inputs(&self,function:FunctionId,b:&mut Budget)->Check<Option<Rc<[u32]>>> {
+        let rows=self.return_inputs.borrow();
+        if rows.is_empty() {return Ok(None);}
+        b.spend(rows.len().ilog2() as usize + 2)?;
+        Ok(rows.get(&function).cloned())
+    }
+    pub(crate) fn checked_join_stores(&self, function: FunctionId, b: &mut Budget) -> Check<Option<Rc<BTreeSet<(BlockId,usize)>>>> {
+        let stores = self.returned_join_stores.borrow();
+        b.spend(stores.len().saturating_add(1).ilog2() as usize + 2)?;
+        Ok(stores.get(&function).cloned())
+    }
     pub(super) fn compatible(&self,environment:&EvalEnv,actual:&CheckedType,expected:&CheckedType,b:&mut Budget)->Check<bool> {
         if self.same_type(environment,actual,expected,b)? {return Ok(true);}
         if actual.ty!=expected.ty||!matches!(actual.ty,Type::Address{..}|Type::Desc(_)) {return Ok(false);}
@@ -256,6 +334,17 @@ impl CheckedContext {
             self.mark_task_worker_checked(module,instance,signature,b)?;
             return Ok(BodyChecked{instance:instance.id,definition:instance.definition,function,environment:checked_environment,result:checked_signature.result});
         }
+        let join_stores = if original_definition.elided_result_ordinal().is_some() {
+            let header = f.storage_life.as_ref().ok_or_else(||bad("inferred return has no executable header"))?;
+            let inputs = original_definition.elided_result_inputs(instance,header,|n| b.spend(n))?;
+            if inputs.is_empty() { return Err(bad("inferred return has no input bounds in the actual header")); }
+            let mut rows = self.return_inputs.borrow_mut();
+            b.spend(rows.len().saturating_add(1).ilog2() as usize + 2 + inputs.len())?;
+            if let Some(old) = rows.get(&function) {
+                if old.as_ref() != inputs.as_slice() {return Err(bad("inferred return selects different input bounds across worlds"));}
+            } else {rows.insert(function,inputs.into());}
+            returned_join_stores(f,b)?
+        } else { BTreeSet::new() };
         let mut states=vec![None;f.blocks.len()];
         let entry=f.entry.0 as usize;
         if entry>=states.len() {return Err(bad("actual CFG entry is absent"));}
@@ -400,6 +489,17 @@ impl CheckedContext {
                         }
                         if f.locals[local.0 as usize].ty!=value.ty {return Err(bad("actual Store changes its local complete type"));}
                         if local_role{if let Some(value)=&normalized{self.record_local_role_write(instance,*local,actual,value,&environment,b)?;}}
+                        if !join_stores.is_empty() {
+                            b.spend(join_stores.len().ilog2() as usize + 2)?;
+                            if join_stores.contains(&(block.id,ordinal)) {
+                                let source = normalized.as_ref().unwrap_or(value);
+                                if !self.compatible(environment,source,&signature.result,b)? {
+                                    return Err(bad("incoming return join changes its source upper or invariant child"));
+                                }
+                                signature.result.charge_clone(b)?;
+                                normalized = Some(signature.result.clone());
+                            }
+                        }
                         state.edit_locals(b)?[local.0 as usize]=Some(Rc::new(match normalized{Some(value)=>value,None=>value.clone()}));None
                     }
                     InstructionKind::StorageLive(local)|InstructionKind::StorageDead(local)=>{
@@ -600,6 +700,14 @@ impl CheckedContext {
         defer_actions.finish(b)?;
         self.check_record_pattern_bindings(module, instance, f, b)?;
         self.mark_task_worker_checked(module,instance,signature,b)?;
+        if !join_stores.is_empty() {
+            let mut rows = self.returned_join_stores.borrow_mut();
+            b.spend(rows.len().saturating_add(1).ilog2() as usize + 2)?;
+            if let Some(previous) = rows.get(&function) {
+                b.spend(join_stores.len())?;
+                if previous.as_ref() != &join_stores { return Err(bad("return join has different reaching Stores across actual worlds")); }
+            } else { rows.insert(function, Rc::new(join_stores)); }
+        }
         Ok(BodyChecked{instance:instance.id,definition:instance.definition,function,environment:checked_environment,result:checked_signature.result})
     }
     fn seal_closure(&self,module:&TypedModule,creator:&SemanticInstance,site:&SemanticSite,closure:ClosureId,captures:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<(CheckedType,Option<defer_actions::Action>)> {
@@ -1060,7 +1168,14 @@ impl CheckedContext {
         if !target_definition.environment.is_empty() {return Err(unsupported("ordinary Call cannot manufacture a closure's sealed ghost environment",None));}
         let call_environment=EvalEnv{lexical,assumptions:environment.assumptions.clone(),images:environment.images.clone(),bounds:environment.bounds.clone(),invocations:vec![],at:environment.at};
         let worlds=self.call_worlds(module,callee,*target,&call_environment,environment,active,b)?;
-        self.evaluate_requirements(module,&target_definition.requirements,&call_environment,RequirementMode::ActualObligation,external,active,b)?;
+        if target_definition.elided_result_ordinal().is_some() {
+            for requirement in &target_definition.requirements {
+                b.spend(1)?;
+                if target_definition.elided_result_bound(requirement).is_none() {
+                    self.evaluate_requirements(module,std::slice::from_ref(requirement),&call_environment,RequirementMode::ActualObligation,external,active,b)?;
+                }
+            }
+        } else { self.evaluate_requirements(module,&target_definition.requirements,&call_environment,RequirementMode::ActualObligation,external,active,b)?; }
         for formal in &target_definition.parameters {if let SemanticFormal::Type{requirements}=formal {self.evaluate_requirements(module,requirements,&call_environment,RequirementMode::ActualObligation,external,active,b)?;}}
         let SemanticDefinitionBody::FunctionWithBody{signature,..}=&target_definition.body else {return Err(bad("actual Call target is not an original function"));};
         let mut signature=self.world_signature(module,signature,worlds,environment,external,active,b)?;
@@ -1089,6 +1204,31 @@ impl CheckedContext {
         let(source_inputs,source_checks)=self.original_call_inputs(module,caller,site,&signature,key,arguments,values,environment,external,active,b)?;
         let inputs=source_inputs.iter().collect::<Vec<_>>();
         self.instantiate_original_call_heads(module,caller,site,&mut signature,&inputs,key,environment,b)?;
+        if let Some(result_role) = target_definition.elided_result_ordinal() {
+            let result_life = self.original.borrow().as_ref().ok_or_else(||bad("elided result has no original Call"))?
+                .elided_call_result_life(module,caller.definition,site.recipe,environment,b)?;
+            let result_class = self.life(module,&result_life,environment,b)?;
+            let SemanticDefinitionBody::FunctionWithBody { signature: declared,.. } = &target_definition.body else { unreachable!(); };
+            for (position,parameter) in declared.parameters.iter().enumerate() {
+                b.spend(target_definition.requirements.len().saturating_add(1))?;
+                let (SemanticTypeRecipe::Address { lifetime:SemanticOuterLifeRecipe::Class(input),.. }
+                    | SemanticTypeRecipe::Desc { lifetime:SemanticOuterLifeRecipe::Class(input),.. }) = &parameter.ty else { continue; };
+                if !target_definition.requirements.iter().any(|r| target_definition.elided_result_bound(r)==Some(input)) {continue;}
+                let actual = inputs[position];
+                b.spend(actual.life.slots.len())?;
+                if let Some(head) = actual.life.slots.iter().find(|s|s.path.is_empty()) {
+                    let source = actual.classes.get(head.binder as usize).ok_or_else(||bad("elided result input has no actual outer class"))?;
+                    if !self.outlives(environment,source,&result_class,b)? {
+                        return Err(bad("elided result is not covered by every actual source"));
+                    }
+                } else if !matches!(actual.ty,Type::Address{mutable:false,..}) {
+                    return Err(bad("elided result claims a static mutable source"));
+                }
+            }
+            let mut boundary = trait_members::Boundary::default();
+            boundary.class(self, environment, &ClassKey::Implicit {scope:key,ordinal:result_role}, &result_class,b)?;
+            signature.result = boundary.project_type(self, environment, &signature.result,b)?;
+        }
         let actual_function=module.functions.get(callee.0 as usize).ok_or_else(||bad("actual Call function is absent"))?;
         for (index,((expected,_),argument)) in signature.parameters.iter().zip(arguments).enumerate() {
             let compatible=if source_checks[index]&&matches!(expected.ty,Type::Desc(_)){

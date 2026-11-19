@@ -1559,6 +1559,15 @@ impl<'p> World<'p, '_> {
                     let original_value = self.logical_type(instance.id, recipe_ty, super::materialize::LogicalExpected::whole(&value)?)?;
                     self.same(instance.id, expected, &original_value, implicit)?;
                     if let SemanticOperand::Value(operand) = subject
+                        && borrow_roles::inferred_result_edge(self, instance, original, &value, &original_value, implicit)?
+                    {
+                        // Keep the actual operand's roots and epoch while receiving its
+                        // checked outer role at the original conditional expression.
+                        value = self.share(&original_value)?;
+                        let checked = self.share(&value)?;
+                        values.set(self, operand.0 as usize, checked)?;
+                    }
+                    if let SemanticOperand::Value(operand) = subject
                         && let Some((adapted, source)) = borrow_roles::shared_expression_view(
                             self,
                             instance,
@@ -5080,7 +5089,8 @@ impl<'p> World<'p, '_> {
                     reservations::exit(self)?;
                     places::capture_exit(self, instance, f)?;
                     let value = self.get(&values, result)?;
-                    if !borrow_roles::return_view(
+                    if !borrow_roles::inferred_result_edge(self, instance, original, &value, &expected_result, &implicit)?
+                        && !borrow_roles::return_view(
                         self,
                         instance,
                         original,

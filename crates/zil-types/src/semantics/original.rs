@@ -2596,6 +2596,7 @@ impl<'a> Check<'a, '_> {
     }
     fn solve_signature(
         &mut self,
+        target: &SemanticDefinition,
         owner: SemanticDefinitionId,
         call: &SemanticOriginalExpr,
         callee: &SemanticOriginalExpr,
@@ -2623,6 +2624,7 @@ impl<'a> Check<'a, '_> {
             &[],
             0,
             None,
+            Some(target),
             depth,
         )
     }
@@ -2642,6 +2644,7 @@ impl<'a> Check<'a, '_> {
         roles: &[(NodeId, SemanticTypeRecipe)],
         parameter_offset: u32,
         contextual_callee: Option<SemanticDefinitionId>,
+        declaration: Option<&SemanticDefinition>,
         depth: usize,
     ) -> R<(Vec<SemanticActualRecipe>, SemanticSignatureRecipe)> {
         self.pay(arguments.len().saturating_add(formals.len()), depth)?;
@@ -2960,6 +2963,7 @@ impl<'a> Check<'a, '_> {
                     1,
                 )?;
                 outer_inputs.push(call_regions::Input {
+                    result_bound: false,
                     variable,
                     selector,
                     expression: argument,
@@ -2994,6 +2998,11 @@ impl<'a> Check<'a, '_> {
                 &mut invocation,
                 depth + 1,
             )?;
+        }
+        if let Some(declaration) = declaration
+            && let Some(ordinal) = declaration.elided_result_ordinal()
+        {
+            self.extend_result_inputs(declaration, signature, ordinal, &mut outer_inputs, depth + 1)?;
         }
         self.settle_call_inputs(
             owner,
@@ -3202,6 +3211,10 @@ impl<'a> Check<'a, '_> {
                 _ => &[],
             }))
         {
+            // Each inferred result edge was instantiated against its actual call
+            // operand in settle_call_inputs. Its omitted classes belong to the
+            // callee, outside the caller's named generic substitution domain.
+            if target.elided_result_bound(requirement).is_some() { continue; }
             let input;
             let requirement = if self.proof.complete.contains(&target.id)
                 && matches!(&target.body, SemanticDefinitionBody::FunctionWithBody {
@@ -4203,7 +4216,15 @@ impl<'a> Check<'a, '_> {
                 self.same(&condition, &SemanticTypeRecipe::Atom(Type::Bool))?;
                 let mut left = self.clone_variables(variables)?;
                 let mut right = self.clone_variables(variables)?;
-                let (a, b) = if wanted.is_none()
+                let (a, b) = if let Some(target) = wanted
+                    && self.inferred_return_head(owner, target)?
+                {
+                    let a = self.expr(owner, then_value, &mut left, Some(target), depth + 1)?;
+                    let b = self.expr(owner, else_value, &mut right, Some(target), depth + 1)?;
+                    self.return_edge(owner, then_value, &left, &a, target, depth + 1)?;
+                    self.return_edge(owner, else_value, &right, &b, target, depth + 1)?;
+                    (copy_recipe(target, self.limits, self.left)?, copy_recipe(target, self.limits, self.left)?)
+                } else if wanted.is_none()
                     && self.contextual_integer(then_value, variables, depth + 1)?
                     && !self.contextual_integer(else_value, variables, depth + 1)?
                 {
@@ -4423,6 +4444,7 @@ impl<'a> Check<'a, '_> {
             self.pay(arguments.len(), depth)?;
             let arguments: Vec<_> = arguments.iter().collect();
             let (actuals, solved_signature) = self.solve_signature(
+                definition,
                 owner,
                 expression,
                 callee,
@@ -6381,6 +6403,8 @@ impl<'a> Check<'a, '_> {
                 ));
             }
             self.same(&value, hidden)?;
+        } else if self.inferred_return_head(owner, &expected)? {
+            self.return_edge(owner, value_node, variables, &value, &expected, depth + 1)?;
         } else if !task_family
             && !self.return_view(
                 owner,

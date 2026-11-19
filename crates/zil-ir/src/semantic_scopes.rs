@@ -57,6 +57,89 @@ pub struct SemanticDefinition {
     pub body: SemanticDefinitionBody,
 }
 
+impl SemanticDefinition {
+    /// A body-inferred result region has its own omitted outer occurrence.
+    /// Named input bounds and nested nominal classes never select this role.
+    pub fn elided_result_ordinal(&self) -> Option<u32> {
+        let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &self.body else { return None; };
+        let SemanticTypeRecipe::Address {
+            lifetime: SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit {
+                scope: SemanticScopeRef::Ancestor(0), ordinal,
+            }), ..
+        } = &signature.result else { return None; };
+        self.implicit_lifetimes.get(*ordinal as usize)
+            .filter(|row| row.ordinal == *ordinal && row.occurrence_path.as_slice() == [2])
+            .map(|row| row.ordinal)
+    }
+
+    pub fn elided_result_bound<'a>(&self, requirement: &'a SemanticRequirementRecipe) -> Option<&'a SemanticLifeRecipe> {
+        let SemanticRequirementRecipe::Outlives {
+            longer, shorter: SemanticLifeRecipe::Implicit { scope: SemanticScopeRef::Ancestor(0), ordinal }
+        } = requirement else { return None; };
+        (self.elided_result_ordinal() == Some(*ordinal)).then_some(longer)
+    }
+}
+
+impl SemanticDefinition {
+    /// Resolve only this world’s header bounds. A result’s source is separately
+    /// reconstructed from every executable Return by the checking kernels.
+    pub fn elided_result_inputs<E>(&self, instance: &SemanticInstance, header: &StorageLifeContract,
+        mut work: impl FnMut(usize) -> Result<(),E>) -> Result<Vec<u32>,E> {
+        let Some(result) = self.elided_result_ordinal() else { return Ok(Vec::new()); };
+        if self.id != instance.definition {return Ok(Vec::new());}
+        work(header.bindings.len().saturating_mul(2))?;
+        let root = |r: &&StorageLifeBinding| r.position.base == StorageBase::Result && r.position.path.is_empty();
+        let Some(output) = header.bindings.iter().find(root) else { return Ok(Vec::new()); };
+        if !matches!(output.binder,StorageBinder::Invocation(_)) ||
+            header.bindings.iter().any(|r| matches!(r.position.base,StorageBase::Parameter(_)) && r.binder == output.binder)
+        { return Ok(Vec::new()); }
+        let SemanticDefinitionBody::FunctionWithBody { signature,.. } = &self.body else { return Ok(Vec::new()); };
+        let mut images = std::collections::BTreeMap::new();
+        for row in &instance.header_embedding {
+            work(images.len().saturating_add(1).ilog2() as usize + 2)?;
+            if images.insert(row.header,&row.actual).is_some() { return Ok(Vec::new()); }
+        }
+        let lookup = images.len().saturating_add(1).ilog2() as usize + 2;
+        work(lookup)?;
+        if images.get(&output.binder).copied() != Some(&SemanticClassExpr::Implicit {
+            scope:SemanticScopeRef::Ancestor(0), ordinal:result
+        }) { return Ok(Vec::new()); }
+        let mut uppers = std::collections::BTreeSet::new();
+        for requirement in &self.requirements {
+            work(uppers.len().saturating_add(1).ilog2() as usize + 2)?;
+            let Some(life) = self.elided_result_bound(requirement) else { continue; };
+            let key = match life {
+                SemanticLifeRecipe::Implicit {scope:SemanticScopeRef::Ancestor(0),ordinal} => (true,*ordinal),
+                SemanticLifeRecipe::Formal(SemanticFormalRef {scope:SemanticScopeRef::Ancestor(0),ordinal}) => (false,*ordinal),
+                _ => return Ok(Vec::new()),
+            };
+            uppers.insert(key);
+        }
+        let mut inputs = Vec::new();
+        for row in &header.bindings {
+            work(1)?;
+            let StorageBase::Parameter(position) = row.position.base else { continue; };
+            if !row.position.path.is_empty() { continue; }
+            let Some(parameter) = signature.parameters.get(position as usize) else { return Ok(Vec::new()); };
+            let (SemanticTypeRecipe::Address {lifetime:SemanticOuterLifeRecipe::Class(input),..}
+                | SemanticTypeRecipe::Desc {lifetime:SemanticOuterLifeRecipe::Class(input),..}) = &parameter.ty else { continue; };
+            let (key,image) = match input {
+                SemanticLifeRecipe::Implicit {scope:SemanticScopeRef::Ancestor(0),ordinal} =>
+                    ((true,*ordinal),SemanticClassExpr::Implicit {scope:SemanticScopeRef::Ancestor(0),ordinal:*ordinal}),
+                SemanticLifeRecipe::Formal(SemanticFormalRef {scope:SemanticScopeRef::Ancestor(0),ordinal}) =>
+                    ((false,*ordinal),SemanticClassExpr::Formal {scope:SemanticScopeRef::Ancestor(0),ordinal:*ordinal}),
+                _ => continue,
+            };
+            work(lookup.saturating_add(uppers.len().saturating_add(1).ilog2() as usize + 2))?;
+            if uppers.contains(&key) {
+                if images.get(&row.binder).copied() != Some(&image) { return Ok(Vec::new()); }
+                inputs.push(position);
+            }
+        }
+        Ok(inputs)
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SemanticDefinitionKind {
     Function,

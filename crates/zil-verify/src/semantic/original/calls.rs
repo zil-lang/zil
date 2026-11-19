@@ -353,7 +353,16 @@ impl CheckedOriginal {
                 if let Some(family) = &family {
                     self.bind_family_result(&prototype.result, family, b)?;
                 }
-                let outer_heads = self.defer_call_heads(&prototype, &checked, outer_floor, b)?;
+                let mut outer_heads = self.defer_call_heads(&prototype, &checked, outer_floor, b)?;
+                let result_role = if let Some(ordinal) = definition.elided_result_ordinal() {
+                    let Ty::Address { life: Life::Infer(id), .. } = &prototype.result else {
+                        return Err(bad("elided result has no independent call lifetime"));
+                    };
+                    b.spend(4)?;
+                    self.outer_inferences.entry(*id).or_default();
+                    outer_heads.push((*id, vec![1, ordinal], false));
+                    Some(*id)
+                } else { None };
                 self.execute_effect(env, prototype.call_kind, b)?;
                 if prototype.parameters.len() != arguments.len() {
                     return Err(bad(
@@ -380,6 +389,20 @@ impl CheckedOriginal {
                         env, bindings, active, b,
                     )?;
                     self.relate_value(&actual, &parameter, b)?;
+                    if let Some(id) = result_role {
+                        let declared = &signature.parameters[ordinal].ty;
+                        if let SemanticTypeRecipe::Address {lifetime: SemanticOuterLifeRecipe::Class(source), ..}
+                            | SemanticTypeRecipe::Desc {lifetime: SemanticOuterLifeRecipe::Class(source), ..} = declared
+                        {
+                            b.spend(definition.requirements.len())?;
+                            if definition.requirements.iter().any(|row| definition.elided_result_bound(row) == Some(source)) {
+                                let (Ty::Address {life, ..} | Ty::Desc {life, ..}) = &actual else {
+                                    return Err(bad("elided result bound lacks its actual address source"));
+                                };
+                                self.relate_outer(life, &Life::Infer(id), b)?;
+                            }
+                        }
+                    }
                     region_parameters.push(parameter);
                 }
                 self.finish_call_heads(&outer_heads, call.id, b)?;
@@ -404,6 +427,7 @@ impl CheckedOriginal {
                 // A target's requirements are obligations here. They never enter
                 // the caller's equality assumptions merely by selecting target.
                 for requirement in &definition.requirements {
+                    if definition.elided_result_bound(requirement).is_some() { continue; }
                     self.obligation(module, context, requirement, &selected, env, active, b)?;
                 }
                 for formal in &definition.parameters {

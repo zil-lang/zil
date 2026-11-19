@@ -85,7 +85,7 @@ impl Engine<'_> {
         &mut self,
         function: &mut Function,
         candidate: &mut SignatureCandidate,
-    ) -> R<bool> {
+    ) -> R<(bool,bool)> {
         fn implicit_input(
             engine: &mut Engine<'_>,
             parameter: u32,
@@ -366,9 +366,20 @@ impl Engine<'_> {
         let selected = receiver
             .or_else(|| (data_unique.len() == 1).then(|| data_unique[0].as_str()))
             .or_else(|| (unique.len() == 1).then(|| unique[0].as_str()));
+        let byte_result = if let Some(ty) = &function.return_type
+            && let TypeKind::Reference { mutable: false, inner, .. } = &header_grouped(ty, &mut self.budget)?.kind
+            && let TypeKind::Array { element, length: None } = &header_grouped(inner, &mut self.budget)?.kind
+        {
+            matches!(&header_grouped(element, &mut self.budget)?.kind, TypeKind::Named {path,args}
+                if path.as_slice() == ["u8"] && args.is_empty())
+        } else { false };
+        let origin = if receiver.is_none() && elided_window && (selected.is_none() || byte_result) {
+            crate::source_semantics::input_result(function,&mut self.budget)?
+        } else { None };
+        let static_result = byte_result && matches!(origin,Some(crate::source_semantics::BorrowedResult::Static));
+        let own_result = static_result || matches!(origin,Some(crate::source_semantics::BorrowedResult::Inputs(_)));
         let inferred = if selected.is_none() && elided_window {
-            let input = crate::source_semantics::input_result(function, &mut self.budget)?;
-            if let Some(index) = input {
+            if let Some(crate::source_semantics::BorrowedResult::Input(index)) = origin {
                 let parameter = &function.params[index];
                 let name = match &header_grouped(&parameter.ty, &mut self.budget)?.kind {
                     TypeKind::Reference { lifetime, .. } => lifetime.as_ref(),
@@ -387,8 +398,20 @@ impl Engine<'_> {
             } else { None }
         } else { None };
         let selected = selected.or(inferred.as_deref());
-        let mut changed = !candidate.source_inputs.is_empty();
-        if let Some(ty) = &mut function.return_type {
+        let mut changed = own_result || !candidate.source_inputs.is_empty();
+        if let Some(mut ty) = function.return_type.as_mut() {
+            if own_result {
+                // The root result has its own original region. Interpret nested
+                // classes and every other signature slot through the normal path.
+                loop {
+                    self.budget.node(ty.span, 0)?;
+                    match &mut ty.kind {
+                        TypeKind::Group(inner) => ty = inner,
+                        TypeKind::Reference {inner,..} => { ty = inner; break; }
+                        _ => unreachable!("elided result is a root address"),
+                    }
+                }
+            }
             result(self, ty, selected, &mut changed, 0)?;
         }
         if changed {
@@ -401,7 +424,7 @@ impl Engine<'_> {
             }
             candidate.source_scope = self.life_scope.clone();
         }
-        Ok(changed)
+        Ok((changed,static_result))
     }
 }
 

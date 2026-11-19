@@ -695,6 +695,25 @@ impl Check<'_, '_> {
         if actual_class == expected_class {
             return Ok(true);
         }
+        if let value::Class::Implicit(result_owner, ordinal) = &expected_class
+            && *result_owner == instance.id {
+            let definition = self.inventory.definition(instance.definition, b)?;
+            if definition.elided_result_ordinal() == Some(*ordinal) {
+                let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body else { unreachable!(); };
+                for parameter in &signature.parameters {
+                    b.spend(definition.requirements.len().saturating_add(1), WORK)?;
+                    let SemanticTypeRecipe::Address {lifetime: SemanticOuterLifeRecipe::Class(input), ..} = &parameter.ty else { continue; };
+                    if !definition.requirements.iter().any(|r| definition.elided_result_bound(r) == Some(input)) { continue; }
+                    let parameter = self.recipe_value(instance, &parameter.ty, b, depth + 1)?;
+                    b.spend(parameter.life.slots.len(), WORK)?;
+                    if let Some(head) = parameter.life.slots.iter().find(|slot| slot.path.is_empty())
+                        && let Some(source) = parameter.classes.get(head.binder as usize)
+                        && self.capture_class_image(source.clone(),b)? == actual_class {
+                        return Ok(true);
+                    }
+                }
+            }
+        }
         let value::Class::Reborrow(owner, value) = &actual_class else {
             return Ok(false);
         };

@@ -125,6 +125,9 @@ pub(super) struct Budget {
     // memory, loans or cleanup authority; coordinates are never class images.
     pub(super) semantic_environment_binders:
         BTreeMap<(FunctionId, u32, Vec<zil_ir::PlaceProjection>), zil_ir::StorageBinder>,
+    // Reaching Stores of a returned join, checked against its independent result region.
+    pub(super) semantic_return_inputs: BTreeMap<FunctionId, std::rc::Rc<[u32]>>,
+    pub(super) semantic_join_stores: BTreeSet<(FunctionId, zil_ir::BlockId, usize)>,
     pub(super) semantic_reference_locals: BTreeSet<(FunctionId, zil_ir::LocalId)>,
     pub(super) semantic_reborrow_regions: BTreeSet<(FunctionId, zil_ir::ValueId)>,
     // Exact original saved-field receiving views, checked against the actual
@@ -326,6 +329,11 @@ pub(super) struct Budget {
 impl Budget {
     // Select the Task-aware stored transfer over actual instructions. Ordinary
     // loan and resource passes retain their own independent source conditions.
+    pub(super) fn return_inputs(&mut self, function: FunctionId) -> CompileResult<Option<std::rc::Rc<[u32]>>> {
+        if self.semantic_return_inputs.is_empty() { return Ok(None); }
+        self.lookup(self.semantic_return_inputs.len(), "completed original returned input roles")?;
+        Ok(self.semantic_return_inputs.get(&function).cloned())
+    }
     pub(super) fn stored_task_flow(&self) -> bool {
         self.full_stored_task_flow || self.task_sources()
     }
@@ -385,6 +393,8 @@ impl Budget {
             semantic_dyn_functions_proven: BTreeSet::new(),
             semantic_reference_results: BTreeSet::new(),
             semantic_environment_binders: BTreeMap::new(),
+            semantic_return_inputs: BTreeMap::new(),
+            semantic_join_stores: BTreeSet::new(),
             semantic_reference_locals: BTreeSet::new(),
             semantic_reborrow_regions: BTreeSet::new(),
             semantic_receiving_returns: BTreeSet::new(),

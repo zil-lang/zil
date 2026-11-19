@@ -241,6 +241,17 @@ impl CheckedOriginal {
 }
 
 impl CheckedOriginal {
+    pub(in crate::semantic) fn elided_call_result_life(&self,module:&TypedModule,owner:SemanticDefinitionId,
+        site:SemanticSiteId,env:&EvalEnv,b:&mut Budget)->Check<SemanticLifeRecipe> {
+        let grammar = self.source_grammar.as_ref().ok_or_else(||bad("elided result has no original body"))?;
+        let Some(SemanticOriginalNode::Expression(node)) = grammar.site_node(owner,site,b)? else {
+            return Err(bad("elided result has no original call expression"));
+        };
+        if self.original_call_site(owner,node,b)?.1 != site { return Err(bad("elided result has another original call")); }
+        let actual = self.expressions.get(&(owner,node)).ok_or_else(||bad("elided call result has no original type"))?;
+        let Ty::Address { life,.. } = self.resolved(actual,b)? else {return Err(bad("elided call result is not an address"));};
+        self.reify_life(module,&life,env,b)
+    }
     pub(in crate::semantic) fn call_region_parameter_recipes(&self,module:&TypedModule,owner:SemanticDefinitionId,site:SemanticSiteId,env:&EvalEnv,b:&mut Budget)->Check<Vec<(u32,SemanticLifeRecipe)>>{
         let grammar = self.source_grammar.as_ref()
             .ok_or_else(|| bad("Call region parameter owner has no original body"))?;

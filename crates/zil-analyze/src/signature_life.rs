@@ -446,6 +446,19 @@ pub(super) fn function_relation_resource_scopes(
     allow_byte_input: bool,
     b: &mut Budget,
 ) -> CompileResult<()> {
+    function_relation_resource_bounds(parameters,result,c,allow_callback,module,allow_byte_input,&[],b)
+}
+#[allow(clippy::too_many_arguments)]
+pub(super) fn function_relation_resource_bounds(
+    parameters: &[Type],
+    result: &Type,
+    c: &StorageLifeContract,
+    allow_callback: bool,
+    module: &TypedModule,
+    allow_byte_input: bool,
+    inferred_roots: &[u32],
+    b: &mut Budget,
+) -> CompileResult<()> {
     let mut roots = Vec::new();
     let mut opaque_roots = false;
     for (base, ty) in parameters
@@ -566,12 +579,12 @@ pub(super) fn function_relation_resource_scopes(
             break;
         }
     }
-    if !result_roles.is_empty() || !raw_shapes.is_empty() {
+    if !result_roles.is_empty() || !raw_shapes.is_empty() || !inferred_roots.is_empty() {
         b.spend(
             result_roles.len().saturating_add(c.classes.len()),
             "original result-role directory",
         )?;
-        return relation_inner(
+        return relation_with_bounds(
             parameters,
             None,
             result,
@@ -584,6 +597,7 @@ pub(super) fn function_relation_resource_scopes(
             &roots,
             &result_roles,
             &raw_shapes,
+            inferred_roots,
         );
     }
     if roots.is_empty() {
@@ -622,6 +636,25 @@ fn relation_inner(
     result_roles: &[(u32, StorageBinder)],
     raw_shapes: &[(StorageBase, StorageLifeShape)],
 ) -> CompileResult<()> {
+    relation_with_bounds(parameters,captures,result,c,allow_callback,closures,allow_byte_input,
+        interfaces,receiver_kind,zero_resources,result_roles,raw_shapes,&[])
+}
+#[allow(clippy::too_many_arguments)]
+fn relation_with_bounds(
+    parameters: &[Type],
+    captures: Option<&[Type]>,
+    result: &Type,
+    c: &StorageLifeContract,
+    allow_callback: bool,
+    closures: &[ClosureDefinition],
+    allow_byte_input: bool,
+    interfaces: &[DynInterface],
+    receiver_kind: Option<CallableKind>,
+    zero_resources: &[ZeroResourceRoot<'_>],
+    result_roles: &[(u32, StorageBinder)],
+    raw_shapes: &[(StorageBase, StorageLifeShape)],
+    inferred_roots: &[u32],
+) -> CompileResult<()> {
     if c.classes
         .iter()
         .any(|row| row.position.base == StorageBase::Receiver)
@@ -649,6 +682,7 @@ fn relation_inner(
     }
     struct Cursor<'a> {
         c: &'a StorageLifeContract,
+        inferred_outer: bool,
         borrow: usize,
         constant: usize,
         class: usize,
@@ -669,6 +703,9 @@ fn relation_inner(
     }
     impl Cursor<'_> {
         fn binder(&mut self, b: StorageBinder, retained: bool) -> CompileResult<()> {
+            self.bind_position(b,retained,false)
+        }
+        fn bind_position(&mut self, b: StorageBinder, retained: bool, inferred: bool) -> CompileResult<()> {
             let (id, count, next, input) = match b {
                 StorageBinder::Fixed(i) => (
                     i,
@@ -683,7 +720,7 @@ fn relation_inner(
                     self.inputs.map(|x| x.1),
                 ),
             };
-            if id >= count || id > *next || input.is_some_and(|n| id >= n) {
+            if id >= count || id > *next || !inferred && input.is_some_and(|n| id >= n) {
                 return Err(bad("signature class is noncanonical or result-only"));
             }
             if id == *next {
@@ -884,7 +921,7 @@ fn relation_inner(
                             "captured Address must retain a Fixed environment class",
                         ));
                     }
-                    self.binder(row.binder, capture)?;
+                    self.bind_position(row.binder,capture,base == StorageBase::Result && self.inferred_outer)?;
                 }
                 (inner.as_ref(), true)
             } else {
@@ -1279,6 +1316,7 @@ fn relation_inner(
     }
     let mut cursor = Cursor {
         c,
+        inferred_outer: !inferred_roots.is_empty(),
         borrow: 0,
         constant: 0,
         class: 0,
@@ -1362,6 +1400,21 @@ fn relation_inner(
         let out = outer(c, StorageBase::Result);
         let buffer_window =
             matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8);
+        // Every upper is a real original input. Recheck its access capability;
+        // the full slot/class canonicality checks above used the original header.
+        if !inferred_roots.is_empty() {
+            for position in inferred_roots {
+                let base = StorageBase::Parameter(*position);
+                let Some(ty) = parameters.get(*position as usize) else { return Err(bad("inferred result input position absent")); };
+                let eligible = matches!(ty,Type::Address{mutable:available,..} if !mutable || *available)
+                    || buffer_window && matches!(ty,Type::Desc(payload) if payload.as_ref()==&Type::ByteBuffer)
+                    || zero_resources.iter().any(|root| root.base == base && matches!(root.whole_type,
+                        Type::Desc(payload) if matches!(payload.as_ref(),Type::OwnedStore{element}
+                            if if inner == element { !mutable } else { inner.is_copy_value() })));
+                if !eligible || outer(c,base).is_none() { return Err(bad("inferred result input lacks its actual borrow authority")); }
+            }
+            return Ok(());
+        }
         if !parameters.iter().enumerate().any(|(i, p)| {
             (matches!(p,Type::Address{mutable:m,..}if !mutable||*m)
                 || (buffer_window

@@ -20,6 +20,11 @@ impl CheckedOriginal {
             }
         }
         let (mut result,roles)=self.instantiate_prototype_roles(&prototype,Some(target),selected,b)?;
+        if let Some(ordinal) = context.definition(module,target,b)?.elided_result_ordinal() {
+            let Ty::Address { life, .. } = &mut result.result else { return Err(bad("elided result loses its address carrier")); };
+            if *life != Life::Implicit(target,ordinal) { return Err(bad("elided result changes its original lifetime identity")); }
+            *life = self.fresh_life(b)?;
+        }
         // Rigid &Self was formed before the call supplied its actual Self.
         // Freshen the call roles first, then borrow the selected resource slot.
         if let Some((trait_scope, _)) = &selected.self_type

@@ -145,6 +145,8 @@ fn analyze_budgeted_context(
     budget.error_takes.clear();
     budget.async_callback_environments.clear();
     budget.semantic_reference_results.clear();
+    budget.semantic_return_inputs.clear();
+    budget.semantic_join_stores.clear();
     budget.semantic_reference_locals.clear();
     budget.semantic_reborrow_regions.clear();
     budget.semantic_receiving_returns.clear();

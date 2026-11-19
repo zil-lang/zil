@@ -388,6 +388,34 @@ impl Solver<'_, '_> {
             role,
         }))
     }
+    pub(super) fn collect_result_inputs(&mut self, prototype: Option<SemanticDefinitionId>, result: Term,
+        inputs: &mut Vec<Input>, b: &mut Budget) -> CompileResult<()> {
+        let Some(prototype) = prototype else { return Ok(()); };
+        let declaration = self.inventory.definition(prototype, b)?;
+        let Some(ordinal) = declaration.elided_result_ordinal() else { return Ok(()); };
+        let Kind::Address { life, .. } = self.state.arena[self.type_root(result, b)?]
+            else { return Err(fail("inferred result loses its original address")); };
+        let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &declaration.body else { unreachable!(); };
+        let count = inputs.len();
+        for requirement in &declaration.requirements {
+            b.spend(1, WORK)?;
+            let Some(longer) = declaration.elided_result_bound(requirement) else { continue; };
+            let mut matched = false;
+            for index in 0..count {
+                b.spend(1, WORK)?;
+                let input = &inputs[index];
+                let Some(parameter) = signature.parameters.get(input.ordinal as usize) else { continue; };
+                let (SemanticTypeRecipe::Address { lifetime, .. } | SemanticTypeRecipe::Desc { lifetime, .. }) = &parameter.ty else { continue; };
+                if !matches!(lifetime, SemanticOuterLifeRecipe::Class(source) if source == longer) { continue; }
+                matched = true;
+                let incoming = Input { source: input.source.clone(), ordinal: input.ordinal, life, role: Some(Role::Implicit(ordinal)) };
+                Self::push(inputs, incoming, b)?;
+            }
+            if !matched { return Err(fail("inferred result bound lacks its original borrowed input")); }
+        }
+        Ok(())
+    }
+
     pub(super) fn settle_call_inputs(
         &mut self,
         frame: &mut Frame,

@@ -2770,28 +2770,14 @@ fn header_inner(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Chec
             }
         }
     }
-    if !pending.is_empty() {
-        return crate::signature_life::function_relation_pending_views(
-            module,
-            &parameters,
-            result,
-            c,
-            Some(f.span),
-            f.callable_contract.is_some() || factory,
-            byte_signature,
-            &pending,
-        );
-    }
-    super::signature_life::function_relation_resource_views(
-        module,
-        &parameters,
-        result,
-        c,
-        Some(f.span),
-        f.callable_contract.is_some() || factory,
-        byte_signature,
-        b,
-    )?;
+    // The independent result CFG check below admits a program-static
+    // address only when every actual returned source is a static literal.
+    let static_result = matches!(f.return_type, Type::Address { mutable: false, .. })
+        && matches!(c.static_bindings.as_slice(), [StoragePosition { base: StorageBase::Result, path }] if path.is_empty());
+    let inferred = crate::dynamic_witness::semantic_patterns::return_inputs(module,f,b)?;
+    let inferred = inferred.as_deref().unwrap_or_default();
+    super::signature_life::function_resource_bounds(module,&parameters,result,c,Some(f.span),
+        f.callable_contract.is_some() || factory,byte_signature,inferred,&pending,static_result,b)?;
     Ok(())
 }
 
@@ -8795,6 +8781,8 @@ fn solve_check(
                 ));
             }
         }
+        let inferred = crate::dynamic_witness::semantic_patterns::return_inputs(module,f,b)?;
+        let inferred = inferred.as_deref().unwrap_or_default();
         for (path, sources) in &s.result {
             if sources.is_empty() {
                 return Err(err("stored/reference result has no actual input source"));
@@ -8869,6 +8857,9 @@ fn solve_check(
                         } else {
                             relations.get(StorageBase::Parameter(position), &source.leaf, b)?
                         })
+                    && !(path.is_empty() && source.retained_port.is_none()
+                        && source.leaf.is_empty() && source.heap_parents.is_empty() && source.heap_element.is_none()
+                        && { b.spend(inferred.len())?; inferred.contains(&position) })
                     && !(path.is_empty()
                         && source.retained_port.is_none()
                         && source.inline.is_empty()

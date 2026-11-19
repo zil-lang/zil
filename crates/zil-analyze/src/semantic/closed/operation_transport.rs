@@ -281,6 +281,33 @@ impl Check<'_, '_> {
             for binder in binders {
                 b.lookup(sources.len(),WORK)?;
                 let mut source=sources.get(binder).cloned();
+                if source.is_none()
+                    && crate::signature_life::outer(contract, StorageBase::Result) == Some(*binder)
+                    && self.operation_outer_class(&output, &[], b)? == Some(child)
+                {
+                    if let Some(inputs) = b.return_inputs(callee.id)? {
+                        let original = self.original_call_output(instance, at.0, at.1, b)?;
+                        if !original.equal_paid(&output, b)? {
+                            return Err(fail("inferred return changes the original caller result region"));
+                        }
+                        for &ordinal in inputs.iter() {
+                            let position = ordinal as usize;
+                            let parameter = parameters.get(position)
+                                .ok_or_else(|| fail("inferred return selects an absent argument"))?;
+                            let head = self.operation_outer_class(parameter, &[], b)?
+                                .ok_or_else(|| fail("inferred return input has no outer occurrence"))?;
+                            let mut projected = parameter.copy(b)?;
+                            *projected.classes.get_mut(head as usize)
+                                .ok_or_else(|| fail("inferred return input loses its complete outer class"))? = expected.clone();
+                            let operand = arguments[position];
+                            let actual = self.ssa_value(instance, function, operand, b, depth + 1)?;
+                            if !self.outer_call_role(instance, function, at, position, operand, &actual, &projected, b, depth + 1)? {
+                                return Err(fail("inferred return omits the original argument-to-result relation"));
+                            }
+                        }
+                        source = Some(expected.clone());
+                    }
+                }
                 if source.is_none() {
                     for candidate in self.call_result_input_binders(callee,*binder,b)? {
                         b.lookup(sources.len(),WORK)?;

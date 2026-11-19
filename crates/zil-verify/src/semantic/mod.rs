@@ -76,6 +76,8 @@ pub(crate) struct CheckedContext {
     // The actual loan and its program-point liveness are checked separately.
     capture_spills: RefCell<BTreeMap<(FunctionId, LocalId), Option<u32>>>,
     local_role_writes: RefCell<BTreeMap<(SemanticInstanceId, LocalId), local_roles::Writes>>,
+    return_inputs: RefCell<BTreeMap<FunctionId, std::rc::Rc<[u32]>>>,
+    returned_join_stores: RefCell<BTreeMap<FunctionId, std::rc::Rc<BTreeSet<(BlockId, usize)>>>>,
     local_role_transfers: RefCell<BTreeMap<FunctionId, Vec<local_roles::Transfer>>>,
     closed_nominals: RefCell<nominal::closed::ClosedNominals>,
     empty_domains: RefCell<type_storage::EmptyDomains>,

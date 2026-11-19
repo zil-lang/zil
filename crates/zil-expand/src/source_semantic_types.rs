@@ -1140,6 +1140,7 @@ impl Builder<'_, '_, '_, '_> {
         inputs: &[SemanticParameterRecipe],
         receiver: Option<u32>,
         result: &mut SemanticTypeRecipe,
+        requirements: &mut Vec<SemanticRequirementRecipe>,
     ) -> R<()> {
         let Some(mut written) = function.return_type.as_ref() else { return Ok(()); };
         while let s::TypeKind::Group(inner) = &written.kind {
@@ -1158,21 +1159,46 @@ impl Builder<'_, '_, '_, '_> {
         }
         let mut selected = receiver.and_then(|ordinal| inputs.get(ordinal as usize)).and_then(outer);
         if selected.is_none() {
+            let mut ambiguous = false;
             for parameter in inputs {
                 self.budget.node(written.span, 0)?;
                 let Some(lifetime) = outer(parameter) else { continue; };
                 if let Some(previous) = selected {
                     prepay_recipe_work(previous, self.budget, written.span, 0)?;
                     prepay_recipe_work(lifetime, self.budget, written.span, 0)?;
-                    if previous != lifetime {
-                        selected = static_results::input_result(function, self.budget)?
-                            .and_then(|index| inputs.get(index)).and_then(outer);
-                        if selected.is_none() {
-                            return Err(error(written.span, "elided function result has several original input lifetime roles"));
-                        }
-                        break;
-                    }
+                    if previous != lifetime { ambiguous = true; break; }
                 } else { selected = Some(lifetime); }
+            }
+            let bytes = matches!(result, SemanticTypeRecipe::Address { mutable: false, inner, .. }
+                if matches!(inner.as_ref(), SemanticTypeRecipe::Slice(element) if matches!(element.as_ref(), SemanticTypeRecipe::Atom(Type::U8))));
+            if ambiguous || bytes {
+                match input_result(function, self.budget)? {
+                    Some(BorrowedResult::Input(index)) => selected = inputs.get(index).and_then(outer),
+                    Some(BorrowedResult::Static) if bytes => {
+                        let SemanticTypeRecipe::Address { lifetime, .. } = result else { unreachable!(); };
+                        *lifetime = SemanticOuterLifeRecipe::Static;
+                        return Ok(());
+                    }
+                    Some(BorrowedResult::Inputs(indices)) => {
+                        let SemanticTypeRecipe::Address { lifetime: SemanticOuterLifeRecipe::Class(shorter), .. } = result else {
+                            return Err(error(written.span, "elided return has no original result occurrence"));
+                        };
+                        for index in indices {
+                            self.budget.node(written.span, 0)?;
+                            let Some(SemanticOuterLifeRecipe::Class(longer)) = inputs.get(index).and_then(outer) else {
+                                return Err(error(written.span, "returned loan has no outer input class"));
+                            };
+                            prepay_recipe(longer, self.budget, written.span, 0)?;
+                            prepay_recipe(shorter, self.budget, written.span, 0)?;
+                            self.push(requirements, SemanticRequirementRecipe::Outlives {
+                                longer: longer.clone(), shorter: shorter.clone()
+                            }, written.span)?;
+                        }
+                        return Ok(());
+                    }
+                    _ if ambiguous => return Err(error(written.span, "elided function result has several original input lifetime roles")),
+                    _ => {}
+                }
             }
         }
         let selected = selected.ok_or_else(|| {
@@ -1280,7 +1306,7 @@ impl Builder<'_, '_, '_, '_> {
                     Some(ty) => self.declared_mode_type(ty, result_mode, &mut vec![2], 0)?,
                     None => SemanticTypeRecipe::Atom(Type::Unit),
                 };
-                self.function_result_elision(function, &inputs, receiver_parameter, &mut result)?;
+                self.function_result_elision(function, &inputs, receiver_parameter, &mut result, &mut requirements)?;
                 if let Some(s::TypeRef {
                     kind: s::TypeKind::Impl(bounds),
                     ..

@@ -369,6 +369,20 @@ impl CheckedOriginal {
     ) -> Check<Ty> {
         self.condition_original(module, context, condition, env, bindings, active, b)?;
         let before = self.use_snapshot(env, b)?;
+        if let Some(target @ Ty::Address { life: Life::Implicit(owner, ordinal), .. }) = expected
+            && *owner == env.current()?
+            && context.definition(module, *owner, b)?.elided_result_ordinal() == Some(*ordinal)
+        {
+            let yes = self.expression(module, context, then_value, env, bindings, Some(target), active, b)?;
+            self.relate_value(&yes, target, b)?;
+            let yes_uses = self.use_snapshot(env, b)?;
+            self.set_uses(env, before)?;
+            let no = self.expression(module, context, else_value, env, bindings, Some(target), active, b)?;
+            self.relate_value(&no, target, b)?;
+            let no_uses = self.use_snapshot(env, b)?;
+            self.join_uses(env, &yes_uses, &no_uses, b)?;
+            return Ok(target.clone());
+        }
         let (yes, yes_uses, no, no_uses) = if Self::contextual_numeric_literal(then_value, b)? {
             // A pure unsuffixed arm has no value-use/effect order
             // to execute. Collect its peer's carrier first, while

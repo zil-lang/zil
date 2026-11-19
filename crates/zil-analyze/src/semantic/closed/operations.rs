@@ -2529,6 +2529,14 @@ impl Check<'_, '_> {
                             crate::dyn_metadata::ty(&function.return_type, b)?;
                             actual.geometry_mut(b)?.ty = function.return_type.clone();
                         }
+                        if definition.elided_result_ordinal().is_some()
+                            && self.outer_role(instance, function, &actual, &expected, b, 0)? {
+                            let binder = function.storage_life.as_ref()
+                                .and_then(|header| crate::signature_life::outer(header, StorageBase::Result))
+                                .ok_or_else(|| fail("inferred return has no concrete outer binder"))?;
+                            b.lookup(b.semantic_receiving_returns.len(), WORK)?;
+                            b.semantic_receiving_returns.insert((function.id, block.id, value, binder));
+                        }
                         if !self.capture_values_equal(&actual, &expected, b)?
                             && !self.outer_role(instance, function, &actual, &expected, b, 0)?
                             && !self.receiver_return_role(instance, function, block.id, value, &actual, &expected, b)?

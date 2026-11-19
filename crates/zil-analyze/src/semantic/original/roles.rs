@@ -240,6 +240,12 @@ impl Solver<'_, '_> {
                 result?;
                 continue;
             }
+            if let SemanticRequirementRecipe::Outlives {longer,shorter} = requirement
+                && self.inventory.definition(frame.definition, b)?.elided_result_bound(requirement).is_some() {
+                self.life(frame, longer, b, depth + 1)?;
+                self.life(frame, shorter, b, depth + 1)?;
+                continue;
+            }
             if let SemanticRequirementRecipe::Callable {
                 kind, signature, ..
             } = requirement

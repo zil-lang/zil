@@ -722,6 +722,9 @@ impl Check<'_, '_> {
             ) {
                 let SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit { ordinal, .. }) = lifetime else { unreachable!() };
                 let original = self.definition(owner)?;
+                // Conditional return edges checked the independent input upper
+                // and whole referent before transporting to this signature role.
+                if original.elided_result_ordinal() == Some(*ordinal) { return Ok(()); }
                 self.pay(original.implicit_lifetimes.len(), depth)?;
                 let source = original.implicit_lifetimes.iter().find(|row| row.ordinal == *ordinal)
                     .ok_or_else(|| bad("escaping original borrow lacks its real lifetime occurrence"))?;

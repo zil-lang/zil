@@ -1180,6 +1180,7 @@ impl Check<'_, '_> {
             &roles,
             0,
             None,
+            Some(definition),
             depth + 1,
         )?;
         self.description_call(owner, target, &operands, &solved, variables, depth + 1)?;
@@ -2252,6 +2253,7 @@ impl Check<'_, '_> {
             &[],
             0,
             contextual_callee,
+            None,
             depth + 1,
         )?;
         if !actuals.is_empty() {

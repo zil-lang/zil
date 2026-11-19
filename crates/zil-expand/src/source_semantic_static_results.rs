@@ -9,6 +9,7 @@ enum Candidate<'a> {
     TakenInput(usize),
     TransferClosure(usize),
     Input(usize),
+    Inputs(Vec<usize>),
     Tuple(Vec<Candidate<'a>>),
     Record(Vec<(&'a str, Candidate<'a>)>),
 }
@@ -51,6 +52,12 @@ impl Walk<'_, '_> {
             Candidate::TakenInput(i) => Candidate::TakenInput(*i),
             Candidate::TransferClosure(i) => Candidate::TransferClosure(*i),
             Candidate::Input(index) => Candidate::Input(*index),
+            Candidate::Inputs(inputs) => {
+                let mut copy = self.vector(inputs.len(), span)?;
+                self.budget.identity_work(inputs.len(), span)?;
+                copy.extend_from_slice(inputs);
+                Candidate::Inputs(copy)
+            }
             Candidate::Tuple(fields) => {
                 let mut values = self.vector(fields.len(), span)?;
                 for field in fields {
@@ -115,6 +122,31 @@ impl Walk<'_, '_> {
         self.budget.node(span, depth)?;
         Ok(match (left, right) {
             (Candidate::Input(left), Candidate::Input(right)) if left == right => Candidate::Input(left),
+            (Candidate::Input(index), Candidate::Text) | (Candidate::Text, Candidate::Input(index)) => {
+                let mut sources = self.vector(1, span)?;
+                sources.push(index);
+                Candidate::Inputs(sources)
+            }
+            (union @ Candidate::Inputs(_), Candidate::Text) | (Candidate::Text, union @ Candidate::Inputs(_)) => union,
+            (left @ (Candidate::Input(_) | Candidate::Inputs(_)),
+             right @ (Candidate::Input(_) | Candidate::Inputs(_))) => {
+                let mut inputs = Vec::new();
+                for source in [left, right] {
+                    let row = match &source {
+                        Candidate::Input(index) => std::slice::from_ref(index),
+                        Candidate::Inputs(row) => row.as_slice(),
+                        _ => unreachable!(),
+                    };
+                    for index in row {
+                        self.budget.identity_work(inputs.len().saturating_add(1), span)?;
+                        if !inputs.contains(index) {
+                            self.reserve(&mut inputs, 1, span)?;
+                            inputs.push(*index);
+                        }
+                    }
+                }
+                Candidate::Inputs(inputs)
+            }
             (Candidate::Text, Candidate::Text) => Candidate::Text,
             (Candidate::TextClosure, Candidate::TextClosure) => Candidate::TextClosure,
             (Candidate::TakenInput(a), Candidate::TakenInput(b)) if a == b => Candidate::TakenInput(a),
@@ -300,7 +332,7 @@ impl Walk<'_, '_> {
             }
             s::ExprKind::Slice { object, .. } => {
                 match self.expression(object, env, depth + 1)? {
-                    source @ (Candidate::Input(_) | Candidate::Text) => source,
+                    source @ (Candidate::Input(_) | Candidate::Inputs(_) | Candidate::Text) => source,
                     _ => Candidate::Other,
                 }
             }
@@ -313,14 +345,30 @@ impl Walk<'_, '_> {
             s::ExprKind::Unary { op: s::UnaryOp::Borrow | s::UnaryOp::BorrowMut, operand } if self.inputs => {
                 // A reborrow of an actual pointee follows the incoming loan.
                 // Borrowing a parameter's own slot has a local lifetime.
-                if let s::ExprKind::Unary { op: s::UnaryOp::Dereference, operand } = &operand.kind {
-                    match self.expression(operand, env, depth + 1)? {
-                        source @ Candidate::Input(_) => source,
+                let mut place = operand.as_ref();
+                let mut projected = false;
+                loop {
+                    self.budget.node(place.span, depth + 1)?;
+                    match &place.kind {
+                        s::ExprKind::Group(inner) => place = inner,
+                        s::ExprKind::Member {object,..} | s::ExprKind::Index {object,..} => {
+                            projected = true;
+                            place = object;
+                        }
+                        s::ExprKind::Unary {op:s::UnaryOp::Dereference,operand} => {
+                            projected = true;
+                            place = operand;
+                            break;
+                        }
+                        _ => break,
+                    }
+                }
+                if projected {
+                    match self.expression(place, env, depth + 1)? {
+                        source @ (Candidate::Input(_) | Candidate::Inputs(_)) => source,
                         _ => Candidate::Other,
                     }
-                } else {
-                    Candidate::Other
-                }
+                } else { Candidate::Other }
             }
             s::ExprKind::Call { callee, arguments } if self.inputs => {
                 // These bare primitives are reserved by the source namespace.
@@ -339,7 +387,7 @@ impl Walk<'_, '_> {
                     if *binding == name { return Ok(Candidate::Other); }
                 }
                 match self.expression(&manager.value, env, depth + 1)? {
-                    source @ Candidate::Input(_) => source,
+                    source @ (Candidate::Input(_) | Candidate::Inputs(_)) => source,
                     _ => Candidate::Other,
                 }
             }
@@ -589,9 +637,17 @@ fn original_result<'a>(
     }
 }
 
-pub(crate) fn input_result(function: &s::Function, budget: &mut Budget<'_>) -> R<Option<usize>> {
+pub(crate) enum BorrowedResult {
+    Input(usize),
+    Inputs(Vec<usize>),
+    Static,
+}
+
+pub(crate) fn input_result(function: &s::Function, budget: &mut Budget<'_>) -> R<Option<BorrowedResult>> {
     Ok(match original_result(function, budget, true)? {
-        Some(Candidate::Input(index)) => Some(index),
+        Some(Candidate::Input(index)) => Some(BorrowedResult::Input(index)),
+        Some(Candidate::Inputs(indices)) => Some(BorrowedResult::Inputs(indices)),
+        Some(Candidate::Text) => Some(BorrowedResult::Static),
         _ => None,
     })
 }
@@ -611,6 +667,36 @@ pub(super) fn opaque_result(function: &s::Function, budget: &mut Budget<'_>) -> 
 mod tests {
     use super::*;
     use zil_base::{FileId, SourceUnit};
+
+    #[test]
+    fn original_returns_join_input_roots_and_static_literals() {
+        for (body, expected) in [
+            ("return a", (vec![0], false)),
+            ("return if f {a} else {b}", (vec![0, 1], false)),
+            ("if f {return b;} return a", (vec![1, 0], false)),
+            ("return if f {a} else {a}", (vec![0], false)),
+            ("return if f {b} else {\"ABC\"}", (vec![1], true)),
+            ("return \"ABC\"", (vec![], true)),
+        ] {
+            let source = SourceUnit::new(FileId(0), ModuleId(0), "origins.zil",
+                format!("fn choose(a:&[u8],b:&[u8],f:bool)->&[u8]{{{body}}}"));
+            let module = zil_syntax::parse(&source).into_result().unwrap();
+            let s::ItemKind::Function(function) = &module.items[0].kind else { panic!(); };
+            let limits = Limits::default();
+            let mut budget = Budget::new(&limits);
+            let result = input_result(function, &mut budget).unwrap();
+            match result {
+                Some(BorrowedResult::Input(index)) => assert_eq!((vec![index], false), expected),
+                Some(BorrowedResult::Inputs(indices)) => {
+                    assert_eq!(&indices, &expected.0);
+                    // A join with a literal still keeps its own result occurrence.
+                    if indices.len() == 1 { assert!(expected.1); }
+                }
+                Some(BorrowedResult::Static) => assert_eq!((vec![], true), expected),
+                None => panic!("missing return origin for {body}"),
+            }
+        }
+    }
 
     #[test]
     fn candidate_tracks_real_literals_all_returns_and_lexical_shadowing() {

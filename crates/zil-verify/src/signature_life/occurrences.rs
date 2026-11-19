@@ -100,6 +100,7 @@ pub(super) fn returned_root<P: InputType>(
     result: &Type,
     zero_resources: &[KnownZeroRoot<'_>],
     allow_byte_input: bool,
+    inferred_roots: &[u32],
     span: Option<Span>,
 ) -> Check<()> {
     let Type::Address { mutable, inner } = result else {
@@ -160,6 +161,15 @@ pub(super) fn returned_root<P: InputType>(
         }
         _ => None,
     };
+    if !inferred_roots.is_empty() {
+        for position in inferred_roots {
+            let source = StoragePosition {base:StorageBase::Parameter(*position),path:vec![]};
+            if !authority(&source).is_some_and(|mode| mode.permits(requested)) {
+                return Err(failure(span,StorageBase::Result,"inferred result input lacks its actual borrow authority"));
+            }
+        }
+        return Ok(());
+    }
     let mut candidate = None;
     for row in c
         .bindings

@@ -40,6 +40,9 @@ pub(super) fn signature(
         selector(rows, owner, call, &[], budget, span)?;
     }
     inputs(rows, owner, call, definition.map(|row| row.parameters.as_slice()), signature.parameters.iter().map(|row| &row.ty), budget, span)?;
+    if let Some(ordinal) = definition.and_then(SemanticDefinition::elided_result_ordinal) {
+        selector(rows, owner, call, &[u32::MAX, 1, ordinal], budget, span)?;
+    }
     for index in 0..signature.invocation_lifetimes {
         budget.node(span, 0)?;
         selector(rows, owner, call, &[u32::MAX, 3, index], budget, span)?;

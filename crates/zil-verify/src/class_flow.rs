@@ -1392,6 +1392,7 @@ fn check_with(
             None
         }
     };
+    let join_stores = crate::dynamic_witness::semantic_patterns::returned_join_stores(module, f, b)?;
     let local_roles =
         crate::dynamic_witness::semantic_patterns::local_role_transfers(module, f, b)?;
     for role in &local_roles {
@@ -1999,15 +2000,16 @@ fn check_with(
                         let role = local_roles.iter().find(|role| role.local == *local);
                         let to = &locals[local.0 as usize];
                         let from = &values[value.0 as usize];
-                        if let Some(role) = role {
-                            b.spend(role.stores.len())?;
-                            if !role
-                                .stores
-                                .contains(&(block.id, instruction_index as u32, *value))
-                            {
-                                return Err(bad(
-                                    "shared local Store lacks its exact completed original/actual transition",
-                                ));
+                        let joined = if let Some(stores) = &join_stores {
+                            b.spend(stores.len().saturating_add(1).ilog2() as usize + 2)?;
+                            stores.contains(&(block.id,instruction_index))
+                        } else { false };
+                        if role.is_some() || joined {
+                            if let Some(role) = role {
+                                b.spend(role.stores.len())?;
+                                if !role.stores.contains(&(block.id, instruction_index as u32, *value)) {
+                                    return Err(bad("shared local Store lacks its exact completed original/actual transition"));
+                                }
                             }
                             let target = &f.locals[local.0 as usize].ty;
                             let source = &f.values[value.0 as usize];

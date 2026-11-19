@@ -2001,10 +2001,12 @@ fn check_with(
                         b.semantic_reference_locals.len(),
                         "original reference Store role",
                     )?;
+                    b.lookup(b.semantic_join_stores.len(), "checked reaching Store of a returned join")?;
                     let local_region =
                         b.initialization.as_ref().is_some_and(|cache| {
                             cache.module == module as *const TypedModule as usize
-                        }) && b.semantic_reference_locals.contains(&(f.id, *local));
+                        }) && (b.semantic_reference_locals.contains(&(f.id, *local))
+                            || b.semantic_join_stores.contains(&(f.id, block.id, instruction_index)));
                     if local_region {
                         b.type_work(
                             &f.locals[local.0 as usize].ty,

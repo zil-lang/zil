@@ -38,7 +38,14 @@ pub(crate) struct CallRegion {
     pub inputs: BTreeMap<u32, NodeId>,
 }
 
+impl CallRegion {
+    pub(crate) fn is_call_implicit(&self, call: NodeId, ordinal: u32) -> bool {
+        self.call == call && self.role == Role::Implicit(ordinal)
+    }
+}
+
 pub(super) struct Input<'a> {
+    pub result_bound: bool,
     pub variable: Option<Variable>,
     pub selector: Option<Role>,
     pub expression: &'a SemanticOriginalExpr,
@@ -261,6 +268,56 @@ fn outer(ty: &SemanticTypeRecipe) -> R<&SemanticOuterLifeRecipe> {
     }
 }
 impl Check<'_, '_> {
+    pub(super) fn inferred_return_head(&mut self, owner: SemanticDefinitionId, ty: &SemanticTypeRecipe) -> R<bool> {
+        let SemanticTypeRecipe::Address { lifetime: SemanticOuterLifeRecipe::Class(
+            SemanticLifeRecipe::Implicit { scope: SemanticScopeRef::Ancestor(0), ordinal }
+        ), .. } = ty else { return Ok(false); };
+        Ok(self.definition(owner)?.elided_result_ordinal() == Some(*ordinal))
+    }
+
+    pub(super) fn return_edge(&mut self, owner: SemanticDefinitionId, expression: &SemanticOriginalExpr,
+        variables: &BTreeMap<String,Binding>, actual: &SemanticTypeRecipe,
+        expected: &SemanticTypeRecipe, depth: usize) -> R<()> {
+        let (SemanticTypeRecipe::Address { mutable: a, lifetime: source, inner: x },
+            SemanticTypeRecipe::Address { mutable: z, lifetime: SemanticOuterLifeRecipe::Class(target), inner: y }) = (actual, expected)
+        else { return Err(bad("elided return edge changes its original address carrier")); };
+        self.same(x, y)?;
+        if self.return_view(owner,expression,variables,actual,expected,depth + 1)? { return Ok(()); }
+        self.ensure_escape(owner, actual, depth + 1)?;
+        if a == z && match source {
+            SemanticOuterLifeRecipe::Static => true,
+            SemanticOuterLifeRecipe::Class(source) => self.life_outlives(owner, source, target, depth + 1)?,
+        } { return Ok(()); }
+        Err(bad("returned address has no directed upper bound from its actual input"))
+    }
+
+    pub(super) fn extend_result_inputs<'e>(&mut self, declaration: &SemanticDefinition, signature: &SemanticSignatureRecipe,
+        ordinal: u32, inputs: &mut Vec<Input<'e>>, depth: usize) -> R<()> {
+        let SemanticDefinitionBody::FunctionWithBody { signature: declared, .. } = &declaration.body else { unreachable!(); };
+        let expected = outer(&signature.result)?;
+        let variable = Some(Variable::Implicit(ordinal));
+        let count = inputs.len();
+        for requirement in &declaration.requirements {
+            self.pay(1, depth)?;
+            let Some(longer) = declaration.elided_result_bound(requirement) else { continue; };
+            let mut matched = false;
+            for index in 0..count {
+                self.pay(1, depth)?;
+                let input = &inputs[index];
+                let Some(parameter) = declared.parameters.get(input.parameter as usize) else { continue; };
+                let Ok(SemanticOuterLifeRecipe::Class(source)) = outer(&parameter.ty) else { continue; };
+                if !self.same_life(source, longer)? { continue; }
+                matched = true;
+                let actual = copy_recipe(&input.actual, self.limits, self.left)?;
+                let row = Input { result_bound: true, variable, selector: Some(Role::Implicit(ordinal)), expression: input.expression,
+                    actual, expected: expected.clone(), parameter: input.parameter };
+                inputs.push(row);
+            }
+            if !matched { return Err(bad("inferred result bound has no corresponding borrowed call input")); }
+        }
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn settle_call_inputs(
         &mut self,
@@ -397,7 +454,18 @@ impl Check<'_, '_> {
                 .and_then(|v| settled.get(&v))
                 .unwrap_or(&input.expected);
             let source = outer(&input.actual)?;
-            if source == target {
+            if source == target { continue; }
+            if input.result_bound {
+                // This is a directed result upper, not a second argument
+                // reborrow at the same SSA operand. Its independent region
+                // already contains this exact source and original argument.
+                let allowed = match (source, target) {
+                    (SemanticOuterLifeRecipe::Static, _) => true,
+                    (SemanticOuterLifeRecipe::Class(a), SemanticOuterLifeRecipe::Class(z)) =>
+                        self.life_outlives(owner, a, z, depth + 1)?,
+                    _ => false,
+                };
+                if !allowed { return Err(bad("elided call result outlives one of its actual inputs")); }
                 continue;
             }
             self.pay(self.proof.temporary_descriptions.len().saturating_add(1).ilog2() as usize + 1, depth)?;

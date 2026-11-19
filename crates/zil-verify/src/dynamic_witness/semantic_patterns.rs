@@ -133,6 +133,23 @@ pub(crate) fn checked_result_boundary(module:&TypedModule,function:&TypedFunctio
     Ok(count!=0)
 }
 
+pub(crate) fn return_inputs(module:&TypedModule, function:&TypedFunction, b:&mut Budget) -> Check<Option<std::rc::Rc<[u32]>>> {
+    let Some(session) = b.semantic_checked.clone() else { return Ok(None); };
+    if session.module != module as *const TypedModule as usize &&
+        !session.frozen_execution.as_ref().is_some_and(|(owner,_)| *owner == module as *const TypedModule as usize) {
+        return Ok(None);
+    }
+    session.context.checked_return_inputs(function.id, b)
+}
+
+pub(crate) fn returned_join_stores(module:&TypedModule, function:&TypedFunction, b:&mut Budget)
+    -> Check<Option<std::rc::Rc<BTreeSet<(BlockId,usize)>>>> {
+    let Some(session) = b.semantic_checked.clone() else { return Ok(None); };
+    if session.module != module as *const TypedModule as usize || !module.functions.get(function.id.0 as usize)
+        .is_some_and(|original| std::ptr::eq(original, function)) { return Ok(None); }
+    session.context.checked_join_stores(function.id, b)
+}
+
 /// Exact shared-local transitions from the completed original programme and
 /// every actual world. Raw headers/sites alone cannot create these rows.
 pub(crate) fn local_role_transfers(module:&TypedModule,function:&TypedFunction,b:&mut Budget)->Check<Vec<semantic::local_roles::Transfer>>{
