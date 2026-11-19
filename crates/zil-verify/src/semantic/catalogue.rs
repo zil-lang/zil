@@ -273,7 +273,9 @@ fn raw_value(value:&SemanticTypeValue,b:&mut Budget)->Check<()> {
     raw_ty(ty,b)
 }
 fn raw_ty(ty:&Type,b:&mut Budget)->Check<()> {
-    dynamic_metadata::ty(ty,b)?;
+    if !dynamic_metadata::bounded_program_type(ty,b)? {
+        dynamic_metadata::ty(ty,b)?;
+    }
     let mut pending=vec![ty];
     while let Some(ty)=pending.pop() {
         b.spend(1)?;
@@ -331,3 +333,38 @@ fn raw_parts(retained:&[SemanticRetainedPart],nominal:&[SemanticNominalPart],b:&
 fn raw_storage(recipe:&SemanticStorageShapeRecipe,b:&mut Budget)->Check<()> {raw_sequence(&recipe.domain,b)?;raw_parts(&recipe.retained,&recipe.nominal,b)}
 fn raw_retained(recipe:&SemanticRetainedShapeRecipe,b:&mut Budget)->Check<()> {raw_sequence(&recipe.domain,b)?;raw_parts(&recipe.retained,&recipe.nominal,b)?;for port in &recipe.ports{b.spend(1)?;match port{SemanticPortPart::One{leaf,..}=>raw_type(leaf,b)?,SemanticPortPart::FromType{ty,classes}=>{raw_type(ty,b)?;raw_sequence(classes,b)?;}}}Ok(())}
 fn raw_const(recipe:&SemanticConstRecipe,b:&mut Budget)->Check<()> {b.spend(1)?;match recipe{SemanticConstRecipe::Unary{operand_type,value,..}=>{raw_type(operand_type,b)?;raw_const(value,b)},SemanticConstRecipe::Binary{operand_type,left,right,..}=>{raw_type(operand_type,b)?;raw_const(left,b)?;raw_const(right,b)},SemanticConstRecipe::Convert{source_type,target_type,value}=>{raw_type(source_type,b)?;raw_type(target_type,b)?;raw_const(value,b)},SemanticConstRecipe::AssociatedConst{receiver,application,..}=>{raw_type(receiver,b)?;for actual in &application.arguments{raw_actual_recipe(actual,b)?;}Ok(())},_=>Ok(())}}
+
+#[cfg(test)]
+mod bounded_program_types {
+    use super::*;
+
+    #[test]
+    fn held_type_bounds_leave_unresolved_syntax_and_profile_rechecks_to_the_catalogue() {
+        let limits = Limits::default();
+        let (mut module,_) = zil_ir::wire::decode_module_candidate(
+            include_bytes!("fixtures/ordinary-identity-complete-call-sites.wire"),&limits,
+        ).unwrap();
+        let program=module.semantic.as_mut().unwrap();
+        let target=program.sites.iter_mut().find_map(|site|match &mut site.action {
+            SemanticSiteAction::TypeUse{expected:SemanticTypeValue::Resolved{ty,..},..}=>Some(ty),
+            _=>None,
+        }).unwrap();
+        *target=Type::Tuple(vec![Type::Record{name:"Resolved".into(),fields:vec![("original".into(),Type::Named("Missing".into()))]}]);
+        let mut b=Budget::new(&limits);
+        b.structural=Some(dynamic_metadata::Structure::register(&module,&mut b).unwrap());
+        let original=module.semantic.as_ref().unwrap().sites.iter().find_map(|site|match &site.action {
+            SemanticSiteAction::TypeUse{expected:SemanticTypeValue::Resolved{ty,..},..}=>Some(ty),
+            _=>None,
+        }).unwrap();
+        assert!(dynamic_metadata::bounded_program_type(original,&mut b).unwrap());
+        let problem=raw_ty(original,&mut b).unwrap_err();
+        assert_eq!(problem.code,"E-VERIFY-SEMANTIC");
+        assert!(problem.message.contains("unresolved type syntax"));
+        let copy=original.clone();
+        assert!(!dynamic_metadata::bounded_program_type(&copy,&mut b).unwrap());
+        assert_eq!(raw_ty(&copy,&mut b).unwrap_err().message,problem.message);
+        b.limits.max_nodes=1;
+        assert!(!dynamic_metadata::bounded_program_type(original,&mut b).unwrap());
+        assert_eq!(raw_ty(original,&mut b).unwrap_err().category,zil_base::ResultCategory::ResourceLimit);
+    }
+}

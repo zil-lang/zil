@@ -100,6 +100,7 @@ pub(crate) struct Structure{
     types:BTreeSet<usize>,
     recipes:BTreeSet<RecipeKey>,
     program_bounds:BTreeSet<Profile>,
+    program_type_roots:BTreeSet<usize>,
     declaration_nodes:BTreeSet<usize>,
     type_success:TypeFacts,
     recipe_success:BTreeSet<(RecipeKey,Profile)>,
@@ -156,7 +157,7 @@ impl Structure{
             physical_pairs: physical_pairs::Pairs::new(&b.limits),
             program:module.semantic.as_ref().map(|program|program as *const SemanticModule as usize),
             declarations:(module.dyn_declarations.as_ptr() as usize,module.dyn_declarations.len()),
-            types:BTreeSet::new(),recipes:BTreeSet::new(),program_bounds:BTreeSet::new(),declaration_nodes:BTreeSet::new(),
+            types:BTreeSet::new(),recipes:BTreeSet::new(),program_bounds:BTreeSet::new(),program_type_roots:BTreeSet::new(),declaration_nodes:BTreeSet::new(),
             type_success:TypeFacts::default(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),sum_shapes:BTreeMap::new(),store_definitions:BTreeSet::new(),scalar_store_definitions:BTreeSet::new(),store_resource_payloads:BTreeSet::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),lexical_scopes:BTreeMap::new(),dyn_declarations:BTreeMap::new(),trait_providers:None,nominal_declarations:BTreeMap::new(),nominal_instances:BTreeMap::new(),scope_instances:BTreeMap::new(),type_cells:BTreeMap::new(),borrowed_callback_domains:BTreeMap::new(),closure_abis:BTreeMap::new(),
         };
         for function in &module.functions{
@@ -297,6 +298,10 @@ impl DynRecipeVisitor for RegisterProgram<'_> {
     fn scratch(&mut self,n:usize,_:usize)->Check<()> { self.bounds.b.spend(n) }
     fn ty(&mut self,value:&Type,d:usize)->Check<()> {
         self.bounds.ty(value,d)?;
+        if !super::inexpensive_bounds(value) {
+            self.bounds.b.spend(lookup(self.structure.program_type_roots.len()).saturating_add(1))?;
+            self.structure.program_type_roots.insert(value as *const Type as usize);
+        }
         self.structure.ty(value,self.bounds.b)
     }
     fn life(&mut self,value:&StorageLifeShape,d:usize)->Check<()> { self.bounds.life(value,d) }
@@ -374,6 +379,17 @@ pub(super) fn recipe_success<T:'static>(value:&T,b:&mut Budget)->Check<()>{
     let state=b.structural.as_ref().unwrap();
     let key=(key,profile(b));let fee=lookup(state.recipe_success.len()).saturating_add(2);
     b.spend(fee)?;b.structural.as_mut().unwrap().recipe_success.insert(key);Ok(())
+}
+
+/// The held program's complete limits pass covered this exact Type root.
+/// Each catalogue consumer still validates its own raw syntax obligations.
+pub(crate) fn bounded_program_type(value:&Type,b:&mut Budget)->Check<bool>{
+    if super::inexpensive_bounds(value){ return Ok(false); }
+    let Some(state)=&b.structural else{return Ok(false);};
+    let fee=lookup(state.program_bounds.len()).saturating_add(lookup(state.program_type_roots.len()));
+    b.spend(fee)?;
+    let state=b.structural.as_ref().unwrap();
+    Ok(state.program_bounds.contains(&profile(b)) && state.program_type_roots.contains(&(value as *const Type as usize)))
 }
 
 /// Bound the complete original program once for purely structural readers.
