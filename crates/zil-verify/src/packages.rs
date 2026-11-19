@@ -367,11 +367,11 @@ pub(super) fn check_product_type(
                     resources::check_type_for(module, field, span, budget)?;
                     owns = true;
                 }
-                _ => {
-                    // Keeps existing finite Copy companions, while rejecting
-                    // owning Sum/array/Store, Closure, borrowed or opaque fields.
-                    check_type(field, span)?;
+                Type::Closure(id) => {
+                    sums::check_callable_leaf(module, *id, field, true, span, budget)?;
+                    owns = true;
                 }
+                _ => check_type(field, span)?,
             }
         }
         // A nested Package with only finite Copy fields still carries one

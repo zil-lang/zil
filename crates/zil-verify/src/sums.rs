@@ -204,6 +204,20 @@ fn complete_sum_shape(ty: &Type) -> bool {
     false
 }
 
+pub(super) fn check_callable_leaf(
+    module: &TypedModule, id: ClosureId, ty: &Type, in_product: bool,
+    span: Option<Span>, budget: &mut Budget,
+) -> Check<()> {
+    closures::definition(module, id, span)?;
+    // A plain owning aggregate has no surrounding class scope to discharge
+    // a retained environment class. Source and cleanup are separate proofs.
+    let (count, _) = dynamic_witness::intrinsic_domain(module, ty, budget)?;
+    if in_product && count != 0 {
+        return Err(bad(span, "plain callable Product requires its complete qualified intrinsic scope"));
+    }
+    Ok(())
+}
+
 pub(super) fn check_type_for(
     module: &TypedModule,
     root: &Type,
@@ -312,16 +326,7 @@ pub(super) fn check_type_for(
             continue;
         }
         match ty {
-            Type::Closure(id) => {
-                closures::definition(module, *id, span)?;
-                // This is metadata qualification, not a source/CE/SyncDrop proof.
-                // A plain Product has no surrounding class scope in which to
-                // erase a persistent opaque environment's intrinsic classes.
-                let (count, _) = dynamic_witness::intrinsic_domain(module, ty, budget)?;
-                if owning_container && count != 0 {
-                    return Err(bad(span, "plain callable Product requires its complete qualified intrinsic scope"));
-                }
-            }
+            Type::Closure(id) => check_callable_leaf(module, *id, ty, owning_container, span, budget)?,
             Type::Managed(_) => resources::check_type_for(module, ty, span, budget)?,
             Type::OwnedDyn { interface } => {
                 dynamic_dispatch::closed_owned(module, *interface, budget)?;
