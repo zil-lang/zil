@@ -6029,7 +6029,9 @@ fn transfer(
             store_package_field_value(&mut out,*index,get(*value)?,value_type(f,*value)?,b)?;
         }
         _ if pure_copy::operation(&i.kind) => {
-            if !pure_copy::ordinary_owned_union(f, i, b)? {
+            if !pure_copy::ordinary_owned_union(f, i, b)?
+                && !owned::ordinary_enum_operation(module, f, i, b)?
+            {
                 pure_copy::types(module, f, i, b)?;
             }
             for input in resources::uses(&i.kind) {
@@ -9986,7 +9988,8 @@ fn actual_instructions(
             let enum_operation = enum_address::instruction(module, f, i, b)?;
             let task_capture_operation =
                 b.stored_task_flow() && task_address::capture_instruction(module, f, i, b)?;
-            let owned_operation = owned::ordinary_enum_operation(module, f, i, b)?
+            let ordinary_enum = owned::ordinary_enum_operation(module, f, i, b)?;
+            let owned_operation = ordinary_enum
                 || owned::task_neighbour_instruction(module,f,i,b)?
                 || !task_capture_operation && (b.stored_owned_fixed
                 || b.stored_compound_values && matches!(i.kind,InstructionKind::DropManaged{local} if matches!(&f.locals[local.0 as usize].ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Record{..})))
@@ -10167,6 +10170,7 @@ fn actual_instructions(
                 }
             }
             if pure_copy::operation(&i.kind)
+                && !ordinary_enum
                 && !compound_extract(module, f, i, b)?
                 && !dyn_address::instruction(module, f, i, b)?
                 && !array_index::candidate(f, i)

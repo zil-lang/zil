@@ -1891,8 +1891,8 @@ pub(super) fn pure_inline(module: &TypedModule, ty: &Type, b: &mut Budget) -> Ch
 /// An ordinary owner has no stored data targets, but its borrowed head still
 /// has the real Address origin and loan. This predicate concerns only the
 /// pointee: it never makes the owner Copy or discharges its cleanup debt.
-fn ordinary_task_enum(module: &TypedModule, root: &Type, b: &mut Budget) -> Check<bool> {
-    if !b.stored_task_flow() || !matches!(root, Type::Enum { .. }) { return Ok(false); }
+fn ordinary_resource_enum(module: &TypedModule, root: &Type, b: &mut Budget) -> Check<bool> {
+    if module.resources.is_empty() || !matches!(root, Type::Enum { .. }) { return Ok(false); }
     let mut todo = vec![root];
     let mut owning = false;
     while let Some(ty) = todo.pop() {
@@ -1941,7 +1941,7 @@ fn ordinary_enum_operation(module: &TypedModule, f: &TypedFunction, i: &Instruct
         | InstructionKind::VariantTagLocal { local, .. } => f.locals.get(local.0 as usize).map(|l| &l.ty),
         _ => return Ok(false),
     };
-    ordinary_task_enum(module, root.ok_or_else(|| err("Enum operation lacks its actual root"))?, b)
+    ordinary_resource_enum(module, root.ok_or_else(|| err("Enum operation lacks its actual root"))?, b)
 }
 
 fn ordinary_owner_address(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
@@ -8180,7 +8180,7 @@ fn check_with_mask(
                 || pure_copy::callable_tuple(module, ty, b)?
                 || callable_cells::admitted_value(module, ty, b)?
                 || ordinary_owner_address(module, ty, b)?
-                || ordinary_task_enum(module, ty, b)?;
+                || ordinary_resource_enum(module, ty, b)?;
             let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
             let closed_dyn_value =
                 dyn_closed::value(module, ty, b)? || dyn_ports::value(module, ty, b)?;

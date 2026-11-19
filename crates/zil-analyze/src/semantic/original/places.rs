@@ -238,11 +238,25 @@ impl Solver<'_, '_> {
         // Observing an array/tuple of pending numeric leaves can defer its Copy
         // obligation; it must not default a constructor's Type before later
         // wanted/field constraints or guess a generic resource to be Copy.
+        let mut transfer = false;
         if !description && !self.pending_numeric_copy(field, b, depth + 1)?
             && (matches!(self.state.arena[selected], Kind::Infer(None))
                 || !self.satisfies(field, Predicate::Copy, b, depth + 1)?)
         {
-            return Ok(None);
+            // Reading an affine inline aggregate transfers just that field. A
+            // later access to a sibling starts at its own declared field path.
+            let aggregate = match &self.state.arena[selected] {
+                Kind::Nominal { definition, .. } => matches!(
+                    self.inventory.definition(*definition, b)?.body,
+                    SemanticDefinitionBody::Nominal { kind: LifeNominalKind::Package | LifeNominalKind::Enum, .. }
+                ),
+                Kind::Tuple(_) | Kind::ErrorUnion { .. } => true,
+                _ => false,
+            };
+            if !aggregate || !self.inline_package_field(&place, selected, b)? {
+                return Ok(None);
+            }
+            transfer = true;
         }
         if let Some(owner) = owner {
             let owner = self.recipe(frame, owner, b, depth + 1)?;
@@ -253,17 +267,20 @@ impl Solver<'_, '_> {
         if description {
             return self.describe_argument(frame, expression, &place, field, b, depth + 1).map(Some);
         }
-        Self::push(
-            &mut self.needs,
-            Need {
-                term: field,
-                predicate: Predicate::Copy,
-            },
-            b,
-        )?;
+        if transfer {
+            if frame.alive {
+                self.retire_lexical_place(frame, place.anchor, &place.path, b)?;
+            }
+        } else {
+            Self::push(
+                &mut self.needs,
+                Need { term: field, predicate: Predicate::Copy },
+                b,
+            )?;
+        }
         b.lookup(frame.expressions.len(), WORK)?;
         if frame.expressions.insert(expression.id, field).is_some() {
-            return Err(fail("original Copy-field node is reused"));
+            return Err(fail("original selected field node is reused"));
         }
         Ok(Some(field))
     }
