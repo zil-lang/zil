@@ -3002,7 +3002,7 @@ impl Flow<'_> {
                 }
                 state
                     .values
-                    .set(output.0 as usize, Arc::new(value), budget)?;
+                    .set(output.0 as usize, value, budget)?;
             }
             if record {
                 bridges.push(bridge);
@@ -3241,6 +3241,14 @@ fn run_retaining<'m>(
             None
         },
     };
+    // Inference needs the final content of each reachable Return. A block
+    // whose input widens runs again before the worklist can finish.
+    let mut returns = if validate {
+        None
+    } else {
+        budget.spend(f.blocks.len())?;
+        Some(vec![None; f.blocks.len()])
+    };
     let mut inputs = vec![None; f.blocks.len()];
     inputs[f.entry.0 as usize] = Some(state);
     let mut pending = resources::schedule::Worklist::new(
@@ -3256,8 +3264,20 @@ fn run_retaining<'m>(
         queued[block] = false;
         let mut output = inputs[block].as_ref().unwrap().duplicate(budget)?;
         flow.block(block, &mut output, false, false, budget)?;
-        for &next in &graph.successors[block] {
-            let mut edge = output.duplicate(budget)?;
+        if let Some(returns) = &mut returns
+            && let Terminator::Return(Some(value)) = f.blocks[block].terminator
+        {
+            budget.spend(2)?;
+            returns[block] = Some(output.values.get(value.0 as usize, budget)?.clone());
+        }
+        let successors = &graph.successors[block];
+        let mut output = Some(output);
+        for (position, &next) in successors.iter().enumerate() {
+            let mut edge = if position + 1 == successors.len() {
+                output.take().expect("last successor owns the block output")
+            } else {
+                output.as_ref().expect("output precedes its final edge").duplicate(budget)?
+            };
             if !flow.edge(&mut edge, block, next, budget)? {
                 budget.spend(excluded_edges.len().saturating_add(1))?;
                 excluded_edges.insert((block, next));
@@ -3288,21 +3308,22 @@ fn run_retaining<'m>(
             *capture = Some(inputs.clone());
         }
     });
-    let checkpoint = if let Some(start) = checkpoint_start {
-        start.save(
-            module,
-            f,
-            graph,
-            &flow,
-            &inputs,
-            &excluded_edges,
-            replacements,
-            budget,
-        )?
+    let (checkpoint, result, rows) = if let Some(returns) = returns {
+        let mut result = content(&f.return_type, None, &mut Vec::new(), true, budget)?;
+        budget.spend(returns.len().saturating_add(f.blocks.len()))?;
+        for returned in returns.into_iter().flatten() {
+            result.merge(&returned, budget)?;
+        }
+        let checkpoint = if let Some(start) = checkpoint_start {
+            start.save(module, f, graph, &flow, inputs, &excluded_edges, replacements, budget)?
+        } else {
+            None
+        };
+        (checkpoint, result, vec![Vec::new(); f.blocks.len()])
     } else {
-        None
+        let (result, rows) = replay_inputs(&flow, inputs, true, budget)?;
+        (None, result, rows)
     };
-    let (result, rows) = replay_inputs(&flow, inputs, validate, budget)?;
     let checkpoint = if let Some(checkpoint) = checkpoint {
         checkpoint.finish(flow, budget)?
     } else {

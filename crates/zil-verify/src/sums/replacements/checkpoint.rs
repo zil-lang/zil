@@ -100,28 +100,13 @@ fn copy_rows(rows: &Rows, b: &mut Budget) -> Check<Rows> {
     }
     Ok(rows.clone())
 }
-fn retain_inputs(inputs: &[Option<State>], b: &mut Budget) -> Check<Vec<Option<State>>> {
-    let words = std::mem::size_of::<Option<State>>().div_ceil(std::mem::size_of::<usize>());
-    b.spend(
-        inputs
-            .len()
-            .saturating_mul(words.saturating_mul(2).saturating_add(1))
-            .saturating_add(2),
-    )?;
+// The solver transfers the already paid states and their references together.
+fn retain_inputs(inputs: Vec<Option<State>>, b: &mut Budget) -> Check<Vec<Option<State>>> {
+    b.spend(inputs.len().saturating_add(1))?;
     for state in inputs.iter().flatten() {
-        state.cost(b)?; // actual duplicate
-        state.cost(b)?; // held references, facts/paths/partial final cleanup
-        b.spend(state.locals.len().saturating_add(state.captures.len()))?;
-        for root in &state.locals {
-            root.cost(b)?;
-        }
-        for root in state.captures.iter().flatten() {
-            root.cost(b)?;
-        }
-        state.values.retained_cleanup(b)?;
+        state.values.validate(b)?;
     }
-    // All budget failures above precede every added strong reference.
-    Ok(inputs.to_vec())
+    Ok(inputs)
 }
 pub(in crate::sums) struct Draft<'m> {
     module: &'m TypedModule,
@@ -154,7 +139,7 @@ impl Start {
         f: &'m TypedFunction,
         graph: &'m FunctionGraph,
         flow: &Flow<'_>,
-        inputs: &[Option<State>],
+        inputs: Vec<Option<State>>,
         excluded: &ExcludedEdges,
         context: Option<&Context<'_>>,
         b: &mut Budget,

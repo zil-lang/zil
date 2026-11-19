@@ -42,7 +42,7 @@ impl Values {
     pub(super) fn page_count(&self) -> usize {
         self.pages.len()
     }
-    fn validate(&self, budget: &mut Budget) -> Check<()> {
+    pub(super) fn validate(&self, budget: &mut Budget) -> Check<()> {
         budget.spend(1)?;
         if self.pages.len() != self.len.div_ceil(WIDTH) {
             return Err(bad(None, "Sum SSA page inventory differs"));
@@ -56,19 +56,7 @@ impl Values {
         }
         Ok(())
     }
-    // A saved input can own the final Content cleanup. Validate every page
-    // before visiting it, and pay every reference even if roots are shared.
-    pub(super) fn retained_cleanup(&self, budget: &mut Budget) -> Check<()> {
-        self.validate(budget)?;
-        budget.spend(self.pages.len().saturating_add(1))?;
-        for page in &self.pages {
-            budget.spend(page.roots.len())?;
-            for root in &page.roots {
-                root.cost(budget)?;
-            }
-        }
-        Ok(())
-    }
+    // Prepay the page and slot lookups before reading or changing the value.
     fn check_index(&self, index: usize, budget: &mut Budget) -> Check<usize> {
         // One checked page lookup here, then the caller's page and slot
         // lookups. Prepay all three before any lookup or mutation.
@@ -104,12 +92,18 @@ impl Values {
     pub(super) fn set(
         &mut self,
         index: usize,
-        root: Arc<Content>,
+        root: impl std::borrow::Borrow<Content> + Into<Arc<Content>>,
         budget: &mut Budget,
     ) -> Check<()> {
         let page = self.check_index(index, budget)?;
+        if matches!(root.borrow(), Content::Copy) {
+            budget.spend(1)?;
+            if matches!(self.pages[page].roots[index % WIDTH].as_ref(), Content::Copy) {
+                return Ok(());
+            }
+        }
         // No publication until all actual page-COW allocation fees succeed.
-        Self::edit_page(&mut self.pages[page], budget)?.roots[index % WIDTH] = root;
+        Self::edit_page(&mut self.pages[page], budget)?.roots[index % WIDTH] = root.into();
         Ok(())
     }
     pub(super) fn merge(&mut self, other: &Self, budget: &mut Budget) -> Check<bool> {

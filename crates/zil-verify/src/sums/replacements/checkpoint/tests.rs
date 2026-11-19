@@ -852,7 +852,7 @@ fn checkpoint_publish_and_guard_charge_failures_never_return_a_partial_success()
 }
 
 #[test]
-fn checkpoint_input_retention_prepays_every_failure_before_adding_strong_references() {
+fn checkpoint_input_transfer_preserves_allocations_and_checks_every_short_budget() {
     const ROOM: usize = 1_000_000;
     let module = fixture::module();
     let graph = graphs(&module);
@@ -867,19 +867,24 @@ fn checkpoint_input_retention_prepays_every_failure_before_adding_strong_referen
     };
     let before = counts();
     let mut b = budget(&module, ROOM);
-    let retained = retain_inputs(inputs, &mut b).unwrap();
+    let moved = inputs.clone();
+    let allocation = moved.as_ptr();
+    let before_move = counts();
+    let retained = retain_inputs(moved, &mut b).unwrap();
+    assert_eq!(retained.as_ptr(), allocation);
+    assert_eq!(counts(), before_move);
     let n = ROOM - b.remaining;
     drop(retained);
     assert_eq!(counts(), before);
     for limit in 0..n {
-        let error = retain_inputs(inputs, &mut budget(&module, limit))
+        let error = retain_inputs(inputs.clone(), &mut budget(&module, limit))
             .err()
             .unwrap();
         assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
         assert_eq!(counts(), before);
     }
     for _ in 0..2 {
-        let retained = retain_inputs(inputs, &mut budget(&module, n)).unwrap();
+        let retained = retain_inputs(inputs.clone(), &mut budget(&module, n)).unwrap();
         assert_eq!(retained.len(), inputs.len());
         assert!(retained == *inputs);
         drop(retained);
