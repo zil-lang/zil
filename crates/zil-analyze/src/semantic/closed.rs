@@ -76,6 +76,9 @@ struct Check<'a, 'i> {
     inventory: &'i Inventory<'a>,
     original: &'i original::Checked,
     scope_queries: std::cell::RefCell<BTreeSet<ClosureId>>,
+    // All worlds of this exact target have proved the same closed Type vector.
+    // Each caller still binds its argument occurrence, roles and return value.
+    closed_call_targets: std::cell::RefCell<BTreeMap<(FunctionId, SemanticDefinitionId), Option<Vec<usize>>>>,
     capture_directories: std::cell::RefCell<BTreeMap<ClosureId, capture_heads::CaptureDirectory>>,
     value_queries: std::cell::RefCell<BTreeSet<(SemanticInstanceId, ValueId)>>,
     /// Type-only zero-domain proofs for exact immutable SSA coordinates.
@@ -109,6 +112,7 @@ pub(super) fn coordinate_field(
         inventory,
         original,
         scope_queries: Default::default(),
+        closed_call_targets: Default::default(),
         capture_directories: Default::default(),
         value_queries: Default::default(),
         closed_ssa_types: Default::default(),
@@ -1170,6 +1174,7 @@ pub(super) fn check(
         inventory,
         original,
         scope_queries: std::cell::RefCell::new(BTreeSet::new()),
+        closed_call_targets: Default::default(),
         capture_directories: Default::default(),
         value_queries: std::cell::RefCell::new(BTreeSet::new()),
         closed_ssa_types: Default::default(),

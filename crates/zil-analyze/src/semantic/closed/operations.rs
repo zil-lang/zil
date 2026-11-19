@@ -565,6 +565,57 @@ impl Check<'_, '_> {
         Ok(())
     }
 
+    fn closed_call_targets(
+        &self, callee: FunctionId, definition: SemanticDefinitionId, formals: &[SemanticFormal],
+        arguments: &[value::Argument], b: &mut Budget,
+    ) -> CompileResult<bool> {
+        if arguments.is_empty() { return Ok(false); }
+        b.spend(arguments.len(), WORK)?;
+        let mut expected = Vec::with_capacity(arguments.len());
+        for (formal, argument) in formals.iter().zip(arguments) {
+            let (SemanticFormal::Type { .. }, value::Argument::Type(value)) = (formal, argument) else { return Ok(false); };
+            let Some(id) = value.closed_geometry_identity(b)? else { return Ok(false); };
+            expected.push(id);
+        }
+        let key = (callee, definition);
+        b.lookup(self.closed_call_targets.borrow().len(), WORK)?;
+        if let Some(contract) = self.closed_call_targets.borrow().get(&key) {
+            b.spend(expected.len(), WORK)?;
+            return Ok(contract.as_ref() == Some(&expected));
+        }
+        let worlds = self.function_worlds(callee, b)?;
+        let mut common: Option<Vec<usize>> = None;
+        let mut closed = !worlds.is_empty();
+        'worlds: for target in worlds {
+            b.spend(1, WORK)?;
+            if target.definition != definition || target.actuals.len() != formals.len()
+                || target.environment.is_some() { closed = false; break; }
+            b.spend(target.actuals.len(), WORK)?;
+            let mut actual = Vec::with_capacity(target.actuals.len());
+            for argument in &target.actuals {
+                let SemanticActual::Type(input @ SemanticTypeValue::Resolved { life, classes, .. }) = argument else {
+                    closed = false; break 'worlds;
+                };
+                if !empty(life) || !classes.is_empty() { closed = false; break 'worlds; }
+                let value = self.resolved(target, input, b, 0)?;
+                let Some(id) = value.closed_geometry_identity(b)? else { closed = false; break 'worlds; };
+                actual.push(id);
+            }
+            if let Some(common) = &common {
+                b.spend(actual.len(), WORK)?;
+                if *common != actual { closed = false; break; }
+            } else {
+                common = Some(actual);
+            }
+        }
+        if !closed { common = None; }
+        b.spend(expected.len(), WORK)?;
+        let matched = common.as_ref() == Some(&expected);
+        b.lookup(self.closed_call_targets.borrow().len(), WORK)?;
+        self.closed_call_targets.borrow_mut().insert(key, common);
+        Ok(matched)
+    }
+
     pub(super) fn body_call_actual(
         &self,
         target: &SemanticInstance,
@@ -1583,13 +1634,7 @@ impl Check<'_, '_> {
                 // A machine body may have several independently checked
                 // invocation worlds. Check this boundary against every one;
                 // no global representative identifies their local classes.
-                let worlds = self.function_worlds(callee, b)?;
                 let formals = &self.inventory.definition(original, b)?.parameters;
-                if worlds.is_empty() {
-                    return Err(fail(
-                        "actual BodyCall has no complete original target world",
-                    ));
-                }
                 if actuals.len() != expected_actuals.len() || formals.len() != actuals.len() {
                     return Err(fail("actual BodyCall changes its original mixed arity"));
                 }
@@ -1601,20 +1646,24 @@ impl Check<'_, '_> {
                         return Err(fail("actual BodyCall differs from original caller-domain mixed inference"));
                     }
                 }
-                for target in worlds {
-                    if target.definition != original || target.actuals.len() != expected_actuals.len() {
-                        return Err(fail("actual BodyCall changes its independently inferred original target or mixed arity"));
-                    }
-                    for (ordinal, ((callee, expected), formal)) in target.actuals.iter()
-                        .zip(&expected_actuals).zip(formals).enumerate()
-                    {
-                        let callee = self.actual_value(target, callee, b, 0)?;
-                        let valid =
-                            self.body_call_actual(target, ordinal, formal, expected, &callee, b)?;
-                        if !valid {
-                            return Err(fail(
-                                "actual BodyCall target changes its independent original rigid mixed context",
-                            ));
+                if closure || !self.closed_call_targets(callee, original, formals, &expected_actuals, b)? {
+                    let worlds = self.function_worlds(callee, b)?;
+                    if worlds.is_empty() { return Err(fail("actual BodyCall has no complete original target world")); }
+                    for target in worlds {
+                        if target.definition != original || target.actuals.len() != expected_actuals.len() {
+                            return Err(fail("actual BodyCall changes its independently inferred original target or mixed arity"));
+                        }
+                        for (ordinal, ((callee, expected), formal)) in target.actuals.iter()
+                            .zip(&expected_actuals).zip(formals).enumerate()
+                        {
+                            let callee = self.actual_value(target, callee, b, 0)?;
+                            let valid =
+                                self.body_call_actual(target, ordinal, formal, expected, &callee, b)?;
+                            if !valid {
+                                return Err(fail(
+                                    "actual BodyCall target changes its independent original rigid mixed context",
+                                ));
+                            }
                         }
                     }
                 }
