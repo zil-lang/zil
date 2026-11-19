@@ -167,6 +167,15 @@ impl Boundary{
     fn value_origins(&mut self,context:&CheckedContext,env:&EvalEnv,actual:&CheckedType,expected:&CheckedType,b:&mut Budget)->Check<()>{
         let same_raw=actual.same_raw_type(expected,b)?;
         if !same_raw||actual.life!=expected.life||actual.classes.len()!=expected.classes.len()||actual.origins.len()!=expected.origins.len()||actual.statics!=expected.statics{return Err(bad("member call boundary changes its complete type/domain/static occurrences"));}
+        self.bind_value_origins(context,env,actual,expected,b)
+    }
+    pub(super) fn matched_value(&mut self,context:&CheckedContext,env:&EvalEnv,pair:worlds::ValuePair<'_>,b:&mut Budget)->Check<()> {
+        let (actual,expected)=pair.into_parts();
+        self.bind_value_origins(context,env,actual,expected,b)?;
+        for (a,z) in actual.classes.iter().zip(&expected.classes) {self.class(context,env,a,z,b)?;}
+        Ok(())
+    }
+    fn bind_value_origins(&mut self,context:&CheckedContext,env:&EvalEnv,actual:&CheckedType,expected:&CheckedType,b:&mut Budget)->Check<()> {
         let mut local=Vec::<(&IntrinsicOrigin,&IntrinsicOrigin)>::new();
         for(a,z)in actual.origins.iter().zip(&expected.origins){
             b.spend(local.len().saturating_add(1))?;

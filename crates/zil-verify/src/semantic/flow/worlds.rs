@@ -4,6 +4,8 @@
 //! independent function pass as well.
 use super::*;
 mod rigid;
+mod shapes;
+pub(super) use shapes::ValuePair;
 pub(in crate::semantic) use rigid::RigidWorlds;
 
 pub(super) struct CallWorld {
@@ -38,20 +40,8 @@ impl CheckedContext {
             // Different concrete specializations can share one emitted body.
             // Filter by complete substituted shapes and constant values; class
             // identities are checked by a single joint boundary, not erased.
-            let mut shape=true;
-            for(a,z)in actual.lexical.iter().zip(&expected.lexical){
-                b.spend(a.actuals.len().saturating_add(a.environment.len()).saturating_add(1))?;
-                if a.definition!=z.definition||a.actuals.len()!=z.actuals.len()||a.environment.len()!=z.environment.len(){shape=false;break;}
-                if !a.actuals.iter().zip(&z.actuals).chain(a.environment.iter().zip(&z.environment)).all(|(a,z)|same_actual_shape(a,z)){shape=false;break;}
-                if !match(&a.self_type,&z.self_type){(Some(a),Some(z))=>same_value_shape(a,z),(None,None)=>true,_=>false}{shape=false;break;}
-            }
-            if !shape{continue;}
-            let mut boundary=trait_members::Boundary::default();
-            for(a,z)in actual.lexical.iter().zip(&expected.lexical){
-                boundary.scope(a.key,z.key,b)?;
-                for(a,z)in a.actuals.iter().zip(&z.actuals).chain(a.environment.iter().zip(&z.environment)){boundary.actual(self,caller,a,z,b)?;}
-                if let(Some(a),Some(z))=(&a.self_type,&z.self_type){boundary.value(self,caller,a,z,b)?;}
-            }
+            let Some(frames) = shapes::Frames::checked(&actual, expected, b)? else { continue; };
+            let boundary = frames.boundary(self, caller, b)?;
             b.spend(1)?;
             matched.push(CallWorld{instance:instance.id,environment:actual,boundary});
         }
@@ -93,13 +83,6 @@ impl CheckedContext {
         selected.ok_or_else(||bad("Call signature has no independently selected original world"))
     }
 }
-fn same_value_shape(a:&CheckedType,z:&CheckedType)->bool {
-    a.ty==z.ty&&a.life==z.life&&a.classes.len()==z.classes.len()&&a.origins.len()==z.origins.len()&&a.statics==z.statics
-}
-fn same_actual_shape(a:&CheckedActual,z:&CheckedActual)->bool {
-    match(a,z){(CheckedActual::Type(a),CheckedActual::Type(z))=>same_value_shape(a,z),(CheckedActual::Life(_),CheckedActual::Life(_))=>true,(CheckedActual::Const{carrier:a,value:av},CheckedActual::Const{carrier:z,value:zv})=>av==zv&&same_value_shape(a,z),_=>false}
-}
-
 impl CheckedContext {
     /// Called only after every retained actual world/body is complete. The
     /// source correspondence never becomes a permission before this seal.
