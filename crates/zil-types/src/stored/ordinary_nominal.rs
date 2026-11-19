@@ -15,6 +15,25 @@ enum NominalKey {
 
 type NominalRows<'a> = std::collections::BTreeMap<NominalKey, Vec<&'a LifeNominalInstance>>;
 
+/// A cheap partition of emitted physical names. Callers still compare the
+/// complete Type and its original declaration before using a candidate.
+pub(crate) fn nominal_name_key(
+    name: &str, pay: impl FnOnce(usize) -> R<()>,
+) -> R<zil_base::Fingerprint> {
+    let name = name.as_bytes();
+    const EDGE_BYTES: usize = 8;
+    if name.len() <= EDGE_BYTES * 2 {
+        pay(name.len().saturating_add(1))?;
+        return Ok(zil_base::Fingerprint::of(name));
+    }
+    pay(EDGE_BYTES * 3 + 1)?;
+    let mut key = zil_base::FingerprintBuilder::new();
+    key.update(&(name.len() as u64).to_le_bytes());
+    key.update(&name[..EDGE_BYTES]);
+    key.update(&name[name.len() - EDGE_BYTES..]);
+    Ok(key.digest())
+}
+
 fn nominal_key(ty: &Type, limits: &Limits, left: &mut usize) -> R<NominalKey> {
     let (name, key): (&str, fn(zil_base::Fingerprint) -> NominalKey) = match ty {
         Type::Record { name, .. } => (name, NominalKey::Record),
@@ -25,8 +44,7 @@ fn nominal_key(ty: &Type, limits: &Limits, left: &mut usize) -> R<NominalKey> {
             return Ok(NominalKey::Whole(ty.fingerprint()));
         }
     };
-    fee(left, name.len().saturating_add(1), Span::default())?;
-    Ok(key(zil_base::Fingerprint::of(name.as_bytes())))
+    Ok(key(nominal_name_key(name, |work| fee(left, work, Span::default()))?))
 }
 
 struct Check<'a, 'b> {

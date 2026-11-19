@@ -193,11 +193,7 @@ fn creator_input(
             "implicit capture mint is not an actual construction boundary",
         ));
     };
-    world.pay(creator.blocks.len())?;
-    let operation = creator
-        .blocks
-        .iter()
-        .find(|row| row.id == block)
+    let operation = world.block(creator, block)?
         .and_then(|row| row.instructions.get(instruction as usize))
         .ok_or_else(|| bad("implicit capture mint leaves its actual creator CFG"))?;
     let InstructionKind::MakeClosure {

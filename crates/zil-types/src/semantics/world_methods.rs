@@ -1070,8 +1070,7 @@ fn receiver_result(
         return Err(bad("receiver result has no actual caller frame"));
     };
     let function = world.function(function)?;
-    world.pay(function.blocks.len())?;
-    let op = function.blocks.iter().find(|row| row.id == block)
+    let op = world.block(function, block)?
         .and_then(|row| row.instructions.get(instruction as usize))
         .ok_or_else(|| bad("receiver result leaves its actual Call instruction"))?;
     let output = op.result.ok_or_else(|| bad("receiver result has no real output SSA"))?;
@@ -1193,11 +1192,7 @@ fn result_invocation(
             return Err(bad("result invocation caller has no actual function"));
         };
         let function = world.function(function)?;
-        world.pay(function.blocks.len())?;
-        let output = function
-            .blocks
-            .iter()
-            .find(|row| row.id == block)
+        let output = world.block(function, block)?
             .and_then(|row| row.instructions.get(instruction as usize))
             .and_then(|op| op.result)
             .ok_or_else(|| bad("result invocation has no exact emitted result SSA"))?;

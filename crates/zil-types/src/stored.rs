@@ -7,6 +7,7 @@ mod nominal;
 mod option_address;
 mod ordinary_nominal;
 pub(crate) use ordinary_nominal::{Context as OrdinaryContext, Stats as OrdinaryStats};
+pub(crate) use ordinary_nominal::nominal_name_key;
 mod retained;
 
 #[derive(Clone, Copy, PartialEq, Eq)]

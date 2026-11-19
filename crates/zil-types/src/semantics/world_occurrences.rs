@@ -20,9 +20,7 @@ pub(super) fn original_node(
     definition: SemanticDefinitionId,
     site: SemanticSiteId,
 ) -> R<Option<SemanticOriginalNode>> {
-    world.pay(index::search(world.index.recipes.len()))?;
-    Ok(world.index.recipes.get(&(definition, site))
-        .ok_or_else(|| bad("actual operation has no original recipe"))?.node)
+    Ok(world.original_site(definition, site)?.node)
 }
 
 /// Select the exact value of a relocated site, including calls whose original
@@ -75,11 +73,7 @@ pub(super) fn site_value(
                     "call result occurrence changes its actual After boundary",
                 ));
             }
-            world.pay(function.blocks.len())?;
-            let value = function
-                .blocks
-                .iter()
-                .find(|row| row.id == block)
+            let value = world.block(function, block)?
                 .and_then(|row| row.instructions.get(instruction as usize))
                 .and_then(|row| row.result)
                 .ok_or_else(|| bad("call occurrence has no exact actual result SSA"))?;
@@ -243,11 +237,7 @@ pub(super) fn prepared_callee(
         ));
     }
     let function = world.function(id)?;
-    world.pay(function.blocks.len())?;
-    let operation = function
-        .blocks
-        .iter()
-        .find(|row| row.id == block)
+    let operation = world.block(function, block)?
         .and_then(|row| row.instructions.get(instruction as usize))
         .ok_or_else(|| bad("prepared callee has no actual opcode"))?;
     let InstructionKind::CallClosureBorrowed { callee, .. } = operation.kind else {

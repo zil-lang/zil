@@ -327,22 +327,11 @@ pub(super) fn seal(
         crate::dyn_metadata::semantic_operand_snapshot(actual_image, world.limits, world.left, 1)?;
         actual_image.clone()
     } else {
-        world.pay(function.blocks.len())?;
-        let mut producer = None;
-        for block in &function.blocks {
-            world.pay(block.instructions.len())?;
-            for instruction in &block.instructions {
-                if instruction.result == Some(operand) {
-                    if producer.replace(&instruction.kind).is_some() {
-                        return Err(bad("method receiver SSA has multiple actual producers"));
-                    }
-                }
-            }
-        }
+        let shape = flow::Shape::for_function(world, function)?;
+        let (_, _, producer) = shape.producer(world, function, operand)?;
         if !matches!(
-            producer,
-            Some(
-                InstructionKind::BorrowLocal { .. }
+            producer.kind,
+            InstructionKind::BorrowLocal { .. }
                     | InstructionKind::BorrowLocalMut { .. }
                     | InstructionKind::BorrowFieldLocal { .. }
                     | InstructionKind::BorrowPlaceLocal { .. }
@@ -352,7 +341,6 @@ pub(super) fn seal(
                     | InstructionKind::AddressField { .. }
                     | InstructionKind::AddressIndex { .. }
                     | InstructionKind::ReborrowAddress { .. }
-            )
         ) {
             return Err(bad(
                 "fresh method receiver role is not produced by its real actual borrow",

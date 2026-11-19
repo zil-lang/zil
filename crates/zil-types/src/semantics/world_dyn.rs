@@ -133,11 +133,7 @@ pub(super) fn seal_borrow(
             "dynamic receiver borrow invents an inner outer occurrence",
         ));
     }
-    world.pay(function.blocks.len())?;
-    let operation = function
-        .blocks
-        .iter()
-        .find(|row| row.id == block)
+    let operation = world.block(function, block)?
         .and_then(|row| row.instructions.get(index))
         .ok_or_else(|| bad("dynamic receiver borrow leaves its actual CFG"))?;
     if operation.result != Some(*result)
@@ -170,11 +166,7 @@ pub(super) fn seal_borrow(
         else {
             continue;
         };
-        world.pay(function.blocks.len())?;
-        let operation = function
-            .blocks
-            .iter()
-            .find(|row| row.id == call_block)
+        let operation = world.block(function, call_block)?
             .and_then(|row| row.instructions.get(instruction as usize))
             .ok_or_else(|| bad("dynamic call occurrence leaves its actual CFG"))?;
         let InstructionKind::CallDynSlot { callee, .. } = operation.kind else {

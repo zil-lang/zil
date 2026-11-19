@@ -135,7 +135,6 @@ fn shared_creator(
         return Err(bad("shared closure creator lacks its actual function"));
     };
     let body = world.function(function)?;
-    world.pay(body.blocks.len())?;
     let mut mints = world.instance_sites(creator.id)?.into_iter().filter(|site| {
         matches!(&site.action, SemanticSiteAction::Closure {
                 closure: SemanticClosureTarget::Typed(id), ..
@@ -159,10 +158,7 @@ fn shared_creator(
     }
     let original = world.definition(creator.definition)?;
     let recipe = world.original_recipe(original, mint.recipe)?;
-    let op = body
-        .blocks
-        .iter()
-        .find(|row| row.id == block)
+    let op = world.block(body, block)?
         .and_then(|row| row.instructions.get(instruction as usize))
         .ok_or_else(|| bad("shared closure mint leaves its actual creator function"))?;
     if !matches!(&recipe.kind, SemanticSiteRecipeKind::Closure { definition, .. }

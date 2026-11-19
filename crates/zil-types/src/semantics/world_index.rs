@@ -1,9 +1,42 @@
 //! Immutable request-local metadata indices. Values are offsets, never proof
 //! of a type, source operation, permission, or original instance theorem.
 use super::*;
+#[derive(Clone, Copy)]
 pub(super) struct OriginalSite {
     pub offset: usize,
     pub node: Option<SemanticOriginalNode>,
+}
+pub(super) enum DefinitionRecipes {
+    Dense(Vec<OriginalSite>),
+    Sparse(BTreeMap<SemanticSiteId, OriginalSite>),
+}
+
+impl DefinitionRecipes {
+    pub(super) fn get(&self, id: SemanticSiteId, left: &mut usize) -> R<Option<OriginalSite>> {
+        Ok(match self {
+            Self::Dense(rows) => {
+                pay(left, 1)?;
+                rows.get(id.0 as usize).copied()
+            }
+            Self::Sparse(rows) => {
+                pay(left, search(rows.len()))?;
+                rows.get(&id).copied()
+            }
+        })
+    }
+
+    fn get_mut(&mut self, id: SemanticSiteId, left: &mut usize) -> R<Option<&mut OriginalSite>> {
+        Ok(match self {
+            Self::Dense(rows) => {
+                pay(left, 1)?;
+                rows.get_mut(id.0 as usize)
+            }
+            Self::Sparse(rows) => {
+                pay(left, search(rows.len()))?;
+                rows.get_mut(&id)
+            }
+        })
+    }
 }
 pub(super) type BlockPoints = BTreeMap<usize, Rc<Vec<usize>>>;
 
@@ -61,7 +94,8 @@ pub(super) struct Index {
     pub frozen_instances: BTreeMap<SemanticInstanceId, usize>,
     pub points: BTreeMap<(SemanticInstanceId, BlockId), Rc<BlockPoints>>,
     pub sites: BTreeMap<SemanticInstanceId, Vec<usize>>,
-    pub recipes: BTreeMap<(SemanticDefinitionId, SemanticSiteId), OriginalSite>,
+    pub recipes: BTreeMap<SemanticDefinitionId, Rc<DefinitionRecipes>>,
+    recipe_count: usize,
     pub local_declarations: BTreeMap<(SemanticInstanceId, LocalId), Rc<Vec<usize>>>,
     pub expressions: BTreeMap<(FunctionId, ValueId), Vec<zil_base::NodeId>>,
     pub requested_calls: BTreeMap<(SemanticInstanceId, SemanticSiteId, FunctionId), Vec<usize>>,
@@ -252,33 +286,40 @@ impl Index {
             return Ok(());
         };
         pay(left, sites.len())?;
-        for (offset, site) in sites.iter().enumerate() {
-            if self.recipes.len() >= limits.max_nodes {
-                return Err(Diagnostic::limit(
-                    Phase::Types,
-                    "original recipe index node limit exceeded",
-                    None,
-                ));
-            }
-            pay(left, search(self.recipes.len()).saturating_add(2))?;
-            if self
-                .recipes
-                .insert((definition.id, site.id), OriginalSite { offset, node: None })
-                .is_some()
-            {
-                return Err(bad("original definition repeats a recipe identity"));
-            }
+        self.recipe_count = self.recipe_count.saturating_add(sites.len());
+        if self.recipe_count > limits.max_nodes {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "original recipe index node limit exceeded",
+                None,
+            ));
         }
+        let mut recipes = if sites.iter().enumerate().all(|(offset, site)| site.id.0 as usize == offset) {
+            pay(left, sites.len())?;
+            DefinitionRecipes::Dense((0..sites.len()).map(|offset| OriginalSite { offset, node: None }).collect())
+        } else {
+            let mut rows = BTreeMap::new();
+            for (offset, site) in sites.iter().enumerate() {
+                pay(left, search(rows.len()).saturating_add(2))?;
+                if rows.insert(site.id, OriginalSite { offset, node: None }).is_some() {
+                    return Err(bad("original definition repeats a recipe identity"));
+                }
+            }
+            DefinitionRecipes::Sparse(rows)
+        };
         if let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body {
             pay(left, site_nodes.len())?;
             for row in site_nodes {
-                pay(left, search(self.recipes.len()))?;
-                let site = self.recipes.get_mut(&(definition.id, row.site))
+                let site = recipes.get_mut(row.site, left)?
                     .ok_or_else(|| bad("original node has no recipe in its definition"))?;
                 if site.node.replace(row.node).is_some() {
                     return Err(bad("original occurrence has multiple immutable source nodes"));
                 }
             }
+        }
+        pay(left, search(self.recipes.len()).saturating_add(1))?;
+        if self.recipes.insert(definition.id, Rc::new(recipes)).is_some() {
+            return Err(bad("original recipe directory repeats a declaration"));
         }
         Ok(())
     }

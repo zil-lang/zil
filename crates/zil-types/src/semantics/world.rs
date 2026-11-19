@@ -130,6 +130,7 @@ pub(super) struct World<'a, 'b> {
     direct_work: BTreeMap<(&'static str, u32), (usize, usize)>,
     last_instance: Option<&'a SemanticInstance>,
     last_definition: Option<&'a SemanticDefinition>,
+    last_recipe_rows: Option<(SemanticDefinitionId, Rc<index::DefinitionRecipes>)>,
     last_type_context: Option<(SemanticInstanceId, Option<type_contexts::Context>)>,
     last_point_block: Option<((SemanticInstanceId, BlockId), Option<Rc<index::BlockPoints>>)>,
     last_point_rows: Option<((SemanticInstanceId, BlockId, usize), Option<Rc<Vec<usize>>>)>,
@@ -255,6 +256,14 @@ impl<'a> World<'a, '_> {
             return Err(bad("actual closure definition changes its exact entry environment"));
         }
         Ok(definition)
+    }
+    fn block<'f>(&mut self, function: &'f TypedFunction, id: BlockId) -> R<Option<&'f BasicBlock>> {
+        self.pay(1)?;
+        if let Some(block) = function.blocks.get(id.0 as usize).filter(|block| block.id == id) {
+            return Ok(Some(block));
+        }
+        self.pay(function.blocks.len())?;
+        Ok(function.blocks.iter().find(|block| block.id == id))
     }
     fn child_at(&mut self, id: ClosureId, scope: SemanticInstanceId)
         -> R<(&'a ClosureDefinition, &'a SemanticInstance)> {
@@ -1369,12 +1378,7 @@ impl<'p> World<'p, '_> {
         {
             return Ok(recipe);
         }
-        self.pay(index::search(self.index.recipes.len()))?;
-        let entry = self
-            .index
-            .recipes
-            .get(&(original.id, id))
-            .ok_or_else(|| bad("actual operation has no original recipe"))?;
+        let entry = self.original_site(original.id, id)?;
         let recipe = sites
             .get(entry.offset)
             .ok_or_else(|| bad("actual recipe index leaves its original definition"))?;
@@ -1382,6 +1386,22 @@ impl<'p> World<'p, '_> {
             return Err(bad("actual recipe index changes its original identity"));
         }
         Ok(recipe)
+    }
+    fn original_site(
+        &mut self,
+        definition: SemanticDefinitionId,
+        id: SemanticSiteId,
+    ) -> R<index::OriginalSite> {
+        self.pay(1)?;
+        if !self.last_recipe_rows.as_ref().is_some_and(|(owner, _)| *owner == definition) {
+            self.pay(index::search(self.index.recipes.len()))?;
+            let rows = self.index.recipes.get(&definition)
+                .ok_or_else(|| bad("actual operation has no original recipe"))?;
+            self.last_recipe_rows = Some((definition, rows.clone()));
+        }
+        self.last_recipe_rows.as_ref().expect("selected original declaration").1
+            .get(id, self.left)?
+            .ok_or_else(|| bad("actual operation has no original recipe"))
     }
     fn point_sites(
         &mut self,
@@ -2359,8 +2379,7 @@ impl<'p> World<'p, '_> {
             return Err(bad("callable invocation has no exact actual caller"));
         };
         let caller = self.function(caller_id)?;
-        self.pay(caller.blocks.len())?;
-        let output = caller.blocks.iter().find(|row| row.id == block)
+        let output = self.block(caller, block)?
             .and_then(|row| row.instructions.get(index)).and_then(|op| op.result);
         if let Some(output) = output {
             // A repeated CFG visit must not reuse the previous invocation's
@@ -5231,6 +5250,7 @@ fn program_at(
         direct_work: BTreeMap::new(),
         last_instance: None,
         last_definition: None,
+        last_recipe_rows: None,
         last_type_context: None,
         last_point_block: None,
         last_point_rows: None,

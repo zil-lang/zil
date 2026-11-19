@@ -58,18 +58,7 @@ impl<Row> NominalIndex<Row> {
         {
             // A physical name selects a bucket only. Every successful
             // candidate still matches the complete Type and declaration.
-            let name = name.as_bytes();
-            if name.len() <= 16 {
-                Self::pay(left, name.len().saturating_add(1))?;
-                return Ok(zil_base::Fingerprint::of(name));
-            }
-            const EDGE_BYTES: usize = 8;
-            Self::pay(left, EDGE_BYTES * 3 + 1)?;
-            let mut key = zil_base::FingerprintBuilder::new();
-            key.update(&(name.len() as u64).to_le_bytes());
-            key.update(&name[..EDGE_BYTES]);
-            key.update(&name[name.len() - EDGE_BYTES..]);
-            return Ok(key.digest());
+            return stored::nominal_name_key(name, |work| Self::pay(left, work));
         }
         inference::charge_type_snapshot(ty, Span::default(), limits, left, 1)?;
         let mut digest = zil_base::FingerprintBuilder::new();
