@@ -66,6 +66,16 @@ fn ty_at(root: &Type, initial_depth: usize, b: &mut Budget) -> Check<()> {
     type_walk(root,initial_depth,true,b)
 }
 fn type_walk(root:&Type,initial_depth:usize,copy_or_compare:bool,b:&mut Budget)->Check<()>{
+    type_walk_nodes(root, initial_depth, copy_or_compare, b, |_, _| Ok(()))
+}
+
+fn type_walk_nodes(
+    root: &Type,
+    initial_depth: usize,
+    copy_or_compare: bool,
+    b: &mut Budget,
+    mut visit: impl FnMut(&Type, &mut Budget) -> Check<()>,
+) -> Check<()> {
     let cap = b.limits.max_nodes;
     let depth_cap = b.limits.max_call_depth.min(128);
     pay(b, &mut 0usize, cap, 1)?;
@@ -77,6 +87,7 @@ fn type_walk(root:&Type,initial_depth:usize,copy_or_compare:bool,b:&mut Budget)-
         if depth > depth_cap {
             return Err(limit("dyn metadata type depth exceeded"));
         }
+        visit(ty, b)?;
         let mut children = Vec::new();
         match ty {
             Type::BorrowedStorage { storage, life } => {

@@ -97,10 +97,11 @@ pub(crate) struct Structure{
     module:usize,
     program:Option<usize>,
     declarations:(usize,usize),
-    types:BTreeSet<usize>,
+    // Every entry is held alive by this request. True marks a node whose
+    // complete subtree the original program visitor checked at this profile.
+    types:BTreeMap<usize,bool>,
     recipes:BTreeSet<RecipeKey>,
     program_bounds:BTreeSet<Profile>,
-    program_type_roots:BTreeSet<usize>,
     declaration_nodes:BTreeSet<usize>,
     type_success:TypeFacts,
     recipe_success:BTreeSet<(RecipeKey,Profile)>,
@@ -158,7 +159,7 @@ impl Structure{
             physical_pairs: physical_pairs::Pairs::new(&b.limits),
             program:module.semantic.as_ref().map(|program|program as *const SemanticModule as usize),
             declarations:(module.dyn_declarations.as_ptr() as usize,module.dyn_declarations.len()),
-            types:BTreeSet::new(),recipes:BTreeSet::new(),program_bounds:BTreeSet::new(),program_type_roots:BTreeSet::new(),declaration_nodes:BTreeSet::new(),
+            types:BTreeMap::new(),recipes:BTreeSet::new(),program_bounds:BTreeSet::new(),declaration_nodes:BTreeSet::new(),
             type_success:TypeFacts::default(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),pod_packages:BTreeMap::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),sum_shapes:BTreeMap::new(),store_definitions:BTreeSet::new(),scalar_store_definitions:BTreeSet::new(),store_resource_payloads:BTreeSet::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),lexical_scopes:BTreeMap::new(),dyn_declarations:BTreeMap::new(),trait_providers:None,nominal_declarations:BTreeMap::new(),nominal_instances:BTreeMap::new(),scope_instances:BTreeMap::new(),type_cells:BTreeMap::new(),borrowed_callback_domains:BTreeMap::new(),closure_abis:BTreeMap::new(),
         };
         for function in &module.functions{
@@ -270,7 +271,10 @@ impl Structure{
             b.spend(2)?;
             if cacheable(ty){
                 b.spend(lookup(self.types.len()).saturating_add(2))?;
-                if !self.types.insert(ty as *const Type as usize){continue;}
+                match self.types.entry(ty as *const Type as usize) {
+                    std::collections::btree_map::Entry::Vacant(row) => { row.insert(false); }
+                    std::collections::btree_map::Entry::Occupied(_) => continue,
+                }
             }
             match ty{
                 Type::BorrowedStorage{storage:inner,..}|Type::Address{inner,..}|Type::Managed(inner)|Type::Desc(inner)|Type::Slice{element:inner}|Type::Array{element:inner,..}|Type::OwnedStore{element:inner}|Type::Mutex{payload:inner}|Type::Registration{environment:inner}|Type::AsyncRegistration{environment:inner}|Type::Opaque{hidden:inner,..}=>{b.spend(1)?;pending.push(inner);},
@@ -298,12 +302,15 @@ impl DynRecipeVisitor for RegisterProgram<'_> {
     fn rows(&mut self,n:usize,d:usize)->Check<()> { self.bounds.rows(n,d) }
     fn scratch(&mut self,n:usize,_:usize)->Check<()> { self.bounds.b.spend(n) }
     fn ty(&mut self,value:&Type,d:usize)->Check<()> {
-        self.bounds.ty(value,d)?;
-        if !super::inexpensive_bounds(value) {
-            self.bounds.b.spend(lookup(self.structure.program_type_roots.len()).saturating_add(1))?;
-            self.structure.program_type_roots.insert(value as *const Type as usize);
-        }
-        self.structure.ty(value,self.bounds.b)
+        self.bounds.node(d)?;
+        let types = &mut self.structure.types;
+        super::type_walk_nodes(value, d, false, self.bounds.b, |ty, b| {
+            if cacheable(ty) {
+                b.spend(lookup(types.len()).saturating_add(2))?;
+                types.insert(ty as *const Type as usize, true);
+            }
+            Ok(())
+        })
     }
     fn life(&mut self,value:&StorageLifeShape,d:usize)->Check<()> { self.bounds.life(value,d) }
     fn identity(&mut self,value:&LifeDeclarationIdentity,d:usize)->Check<()> { self.bounds.identity(value,d) }
@@ -353,7 +360,7 @@ pub(super) fn type_success(ty: &Type, depth: usize, b: &mut Budget) -> Check<()>
     let Some(state) = &b.structural else { return Ok(()); };
     let ptr = ty as *const Type as usize;
     b.spend(lookup(state.types.len()))?;
-    if !b.structural.as_ref().unwrap().types.contains(&ptr) { return Ok(()); }
+    if !b.structural.as_ref().unwrap().types.contains_key(&ptr) { return Ok(()); }
     b.spend(2)?;
     let bucket = type_fact_bucket(ty);
     let directory = &b.structural.as_ref().unwrap().type_success.0;
@@ -387,10 +394,10 @@ pub(super) fn recipe_success<T:'static>(value:&T,b:&mut Budget)->Check<()>{
 pub(crate) fn bounded_program_type(value:&Type,b:&mut Budget)->Check<bool>{
     if super::inexpensive_bounds(value){ return Ok(false); }
     let Some(state)=&b.structural else{return Ok(false);};
-    let fee=lookup(state.program_bounds.len()).saturating_add(lookup(state.program_type_roots.len()));
+    let fee=lookup(state.program_bounds.len()).saturating_add(lookup(state.types.len()));
     b.spend(fee)?;
     let state=b.structural.as_ref().unwrap();
-    Ok(state.program_bounds.contains(&profile(b)) && state.program_type_roots.contains(&(value as *const Type as usize)))
+    Ok(state.program_bounds.contains(&profile(b)) && state.types.get(&(value as *const Type as usize))==Some(&true))
 }
 
 /// Bound the complete original program once for purely structural readers.
@@ -569,7 +576,7 @@ pub(crate) fn record_pod_package(module: &TypedModule, ty: &Type, b: &mut Budget
     b.spend(lookup(state.types.len()))?;
     let state = b.structural.as_ref().unwrap();
     let ptr = ty as *const Type as usize;
-    if !state.types.contains(&ptr) {
+    if !state.types.contains_key(&ptr) {
         return Ok(());
     }
     b.spend(lookup(state.pod_packages.len()).saturating_add(14))?;
@@ -587,7 +594,7 @@ pub(crate) fn resource_known(module:&TypedModule,record:&Type,b:&mut Budget)->Ch
     b.spend(fee)?;let state=b.structural.as_ref().unwrap();
     let found=state.resource_success.get(&(ptr,profile(b))).copied();
     if b.diagnostic_progress.is_some(){
-        let registered=state.types.contains(&ptr);
+        let registered=state.types.contains_key(&ptr);
         let progress=b.diagnostic_progress.as_mut().unwrap();
         if found.is_some(){progress.resource_hits=progress.resource_hits.saturating_add(1);}
         else if registered{progress.resource_registered_cold=progress.resource_registered_cold.saturating_add(1);}
@@ -599,7 +606,7 @@ pub(crate) fn resource_success(module:&TypedModule,record:&Type,index:usize,b:&m
     let Some(state)=&b.structural else{return Ok(());};let ptr=record as *const Type as usize;
     if state.module!=module as *const TypedModule as usize{return Ok(());}
     let membership=lookup(state.types.len());b.spend(membership)?;
-    if !b.structural.as_ref().unwrap().types.contains(&ptr){return Ok(());}
+    if !b.structural.as_ref().unwrap().types.contains_key(&ptr){return Ok(());}
     let state=b.structural.as_ref().unwrap();
     let key=(ptr,profile(b));let fee=lookup(state.resource_success.len()).saturating_add(2);b.spend(fee)?;
     b.structural.as_mut().unwrap().resource_success.insert(key,index);Ok(())
@@ -622,7 +629,7 @@ pub(crate) fn sum_shape_success(ty: &Type, shape: bool, b: &mut Budget) -> Check
     b.spend(lookup(state.types.len()))?;
     let state = b.structural.as_ref().unwrap();
     let ptr = ty as *const Type as usize;
-    if state.types.contains(&ptr) {
+    if state.types.contains_key(&ptr) {
         b.spend(lookup(state.sum_shapes.len()).saturating_add(2))?;
         let key = (ptr, profile(b));
         b.structural.as_mut().unwrap().sum_shapes.insert(key, shape);
@@ -655,7 +662,7 @@ pub(crate) fn store_definition_success(module: &TypedModule, element: &Type, b: 
     b.spend(lookup(state.types.len()))?;
     let state = b.structural.as_ref().unwrap();
     let ptr = element as *const Type as usize;
-    if state.types.contains(&ptr) {
+    if state.types.contains_key(&ptr) {
         b.spend(lookup(state.store_definitions.len()).saturating_add(2))?;
         b.structural.as_mut().unwrap().store_definitions.insert(ptr);
     }
@@ -702,7 +709,7 @@ pub(crate) fn stored_type_success(ty:&Type,limits:&Limits,b:&mut Budget)->Check<
     if !cacheable(ty){return Ok(());}
     let Some(state)=&b.structural else{return Ok(());};let ptr=ty as *const Type as usize;
     let fee=lookup(state.types.len());b.spend(fee)?;
-    if !b.structural.as_ref().unwrap().types.contains(&ptr){return Ok(());}
+    if !b.structural.as_ref().unwrap().types.contains_key(&ptr){return Ok(());}
     let fee=lookup(b.structural.as_ref().unwrap().stored_bounds.len()).saturating_add(14);b.spend(fee)?;
     let profile=b.limits.clone();b.structural.as_mut().unwrap().stored_bounds.entry((ptr,limits.max_call_depth)).or_default().push(profile);Ok(())
 }
@@ -725,7 +732,7 @@ pub(crate) fn store_element_success(module:&TypedModule,ty:&Type,product:bool,b:
     let Some(state)=&b.structural else{return Ok(());};
     if state.module!=module as *const TypedModule as usize{return Ok(());}
     let ptr=ty as *const Type as usize;b.spend(lookup(state.types.len()))?;
-    if !b.structural.as_ref().unwrap().types.contains(&ptr){return Ok(());}
+    if !b.structural.as_ref().unwrap().types.contains_key(&ptr){return Ok(());}
     // Exclude all late-bound environments and address/κ carriers. Their
     // qualification still runs in its actual request on every occurrence.
     let mut pending=vec![ty];
@@ -796,7 +803,7 @@ pub(super) fn shared_type(ty: &Type, b: &mut Budget) -> Check<Option<TypeCell>> 
         return Ok(Some(shared.cell));
     }
     b.spend(lookup(b.structural.as_ref().unwrap().types.len()))?;
-    if !b.structural.as_ref().unwrap().types.contains(&ptr) {
+    if !b.structural.as_ref().unwrap().types.contains_key(&ptr) {
         return Ok(None);
     }
     let hash = match physical_pairs::representative(ty, b)? {
@@ -918,6 +925,33 @@ mod tests{
         assert!(before-b.remaining>hit);
         b.limits.max_nodes=1;
         assert_eq!(source_program_bounds(program,&mut b).unwrap_err().category,zil_base::ResultCategory::ResourceLimit);
+    }
+
+    #[test]
+    fn program_type_bounds_require_the_same_immutable_subtree_and_quota() {
+        let limits = Limits::default();
+        let (mut module, _) = zil_ir::wire::decode_module_candidate(
+            include_bytes!("../semantic/fixtures/phantom-closure-complete-creator.wire"),
+            &limits,
+        ).unwrap();
+        let record = Type::Record {
+            name: "Nested".into(),
+            fields: vec![("data".into(), Type::I64), ("ready".into(), Type::Bool)],
+        };
+        let actual = SemanticTypeValue::Resolved {
+            ty: Type::Tuple(vec![record.clone()]),
+            life: StorageLifeShape { binder_count: 0, slots: vec![], retained: vec![], nominal_arguments: vec![] },
+            classes: vec![],
+        };
+        module.semantic.as_mut().unwrap().instances[0].self_type = Some(actual);
+        let mut b = budget(&module);
+        let Some(SemanticTypeValue::Resolved { ty: Type::Tuple(fields), .. }) =
+            &module.semantic.as_ref().unwrap().instances[0].self_type else { unreachable!() };
+        assert!(bounded_program_type(&fields[0], &mut b).unwrap());
+        assert!(!bounded_program_type(&record, &mut b).unwrap());
+        b.limits.max_nodes = 1;
+        assert!(!bounded_program_type(&fields[0], &mut b).unwrap());
+        assert_eq!(super::super::bounds_type(&fields[0], &mut b).unwrap_err().category, zil_base::ResultCategory::ResourceLimit);
     }
 
     #[test]
