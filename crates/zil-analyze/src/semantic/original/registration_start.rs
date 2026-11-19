@@ -162,10 +162,14 @@ impl Solver<'_, '_> {
             call_kind: CallKind::Direct,
         };
         self.callable_need(frame, inner, CallableKind::FnMut, &signature, b, depth + 1)?;
-        Self::push(&mut self.needs, Need {
-            term: inner,
-            predicate: Predicate::Capability(SemanticBuiltinTrait::ClosedEnvironment),
-        }, b)?;
+        // The scoped operation verifies self-containment of its actual
+        // exclusive callback, including every concrete instance of a formal.
+        if !matches!(self.state.arena[self.type_root(inner, b)?], Kind::Rigid(..)) {
+            Self::push(&mut self.needs, Need {
+                term: inner,
+                predicate: Predicate::Capability(SemanticBuiltinTrait::ClosedEnvironment),
+            }, b)?;
+        }
 
         let body_term = self.expression(frame, body, b, depth + 1)?;
         self.prepare_call_value(frame.definition, body.id, body_term, b)?;

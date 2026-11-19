@@ -1695,10 +1695,15 @@ impl Check<'_, '_> {
                     return Err(bad("scoped registration requires an exclusive callable address"));
                 };
                 self.callable_requirement(owner, &inner, CallableKind::FnMut, &signature, depth + 1)?;
-                if self.sealed_capability(owner, &inner, SemanticBuiltinTrait::ClosedEnvironment, depth + 1)?
-                    != Some(true)
-                {
-                    return Err(bad("scoped registration callback lacks a closed environment"));
+                match self.sealed_capability(
+                    owner, &inner, SemanticBuiltinTrait::ClosedEnvironment, depth + 1,
+                )? {
+                    Some(true) => {}
+                    // The scoped operation rechecks the concrete callback
+                    // reached through this exact exclusive operand during
+                    // emission. A formal remains a callable role here.
+                    None if matches!(inner.as_ref(), SemanticTypeRecipe::Formal(_)) => {}
+                    _ => return Err(bad("scoped registration callback lacks a closed environment")),
                 }
                 let body = self.expr(owner, body, variables, None, depth + 1)?;
                 let body_signature = SemanticSignatureRecipe { parameters: Vec::new(), ..signature };

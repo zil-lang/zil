@@ -16,6 +16,21 @@ pub(super) fn declaration(module:&TypedModule,f:&TypedFunction,b:&mut Budget)->C
     }
     Ok(true)
 }
+pub(super) fn scoped_provider(f: &TypedFunction, b: &mut Budget) -> Check<bool> {
+    if !matches!(f.foreign.as_ref().and_then(|declaration| declaration.scoped_callback),
+        Some(ScopedCallbackRole::Register | ScopedCallbackRole::Close))
+    {
+        return Ok(false);
+    }
+    crate::scoped_callback::declaration(f, b)?;
+    if let Some(header) = &f.storage_life {
+        crate::signature_life::charge(header, b)?;
+        if header.fixed_binder_count != 0 {
+            return Err(err("scoped provider cannot invent a Fixed environment"));
+        }
+    }
+    Ok(true)
+}
 pub(super) fn operation(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->Check<bool>{
     match &i.kind{
         InstructionKind::ForeignFunctionRef{function}=>{

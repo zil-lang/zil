@@ -119,15 +119,20 @@ impl CheckedOriginal {
                 "scoped callback cannot be invoked repeatedly and synchronously",
             ));
         }
-        self.builtin_obligation(
-            module,
-            context,
-            &callback,
-            SemanticBuiltinTrait::ClosedEnvironment,
-            env,
-            active,
-            b,
-        )?;
+        // A formal still selects the exact source callback below. Verify's
+        // actual operation checks self-containment of the selected closure
+        // in every concrete instance.
+        if !matches!(self.resolved(&callback, b)?, Ty::Variable(..)) {
+            self.builtin_obligation(
+                module,
+                context,
+                &callback,
+                SemanticBuiltinTrait::ClosedEnvironment,
+                env,
+                active,
+                b,
+            )?;
+        }
         let callback = self.operation_source(module, operands.callback, env, bindings, b)?;
         let body = operands
             .body

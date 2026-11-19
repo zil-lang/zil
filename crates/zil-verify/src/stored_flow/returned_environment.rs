@@ -465,17 +465,23 @@ pub(super) fn borrowed_child(
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
-    if !b.returned_environment_sources {
-        return Ok(false);
-    }
     let InstructionKind::BorrowCapture { index, .. } = i.kind else {
         return Ok(false);
     };
     b.spend(1)?;
-    Ok(f.environment
-        .and_then(|id| module.closures.get(id.0 as usize))
-        .and_then(|d| d.captures.get(index as usize))
-        .is_some_and(|ty| matches!(ty, Type::Closure(_))))
+    let Some(parent) = f.environment.and_then(|id| module.closures.get(id.0 as usize))
+        .filter(|parent| parent.function == f.id) else { return Ok(false); };
+    let Some(child @ Type::Closure(_)) = parent.captures.get(index as usize) else {
+        return Ok(false);
+    };
+    if b.returned_environment_sources {
+        return Ok(true);
+    }
+    use crate::tasks::input_scope::{Domain, module_domain};
+    // A closed inline child needs no external retained class image. The
+    // actual head still gets its own capture-rooted loan in step.
+    Ok(module_domain(module, &Type::Closure(parent.id), b)? == Domain::Known(0)
+        && module_domain(module, child, b)? == Domain::Known(0))
 }
 
 /// Capturing an address retains the pointer and its original parents. Its

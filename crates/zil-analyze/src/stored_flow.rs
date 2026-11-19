@@ -4919,9 +4919,10 @@ fn transfer(
             if state.capture_views.remove(local) != Some(*index) {
                 return Err(failure("captured view end differs from its actual binding"));
             }
-            let actual = state.locals.get(local)
-                .ok_or_else(|| failure("ended captured view has no actual value"))?;
-            let actual = snapshot(actual, b)?;
+            // Ending the active alias also follows a whole TakeLocal. In
+            // that case the capture no longer carries a stored value.
+            let actual = state.locals.remove(local).unwrap_or_default();
+            clear_local_holes(state, *local, b)?;
             ordered(b, state.captures.len(), 0)?;
             state.captures.insert(*index, actual);
         }
@@ -5625,7 +5626,8 @@ fn transfer(
         }
         InstructionKind::BorrowCapture { index, .. }
             if (f.environment.is_some_and(|id| b.returned_borrowed_environments.contains(&id))
-                || super::forward::nested_entry_capture(module, f, *index, b)?)
+                || super::forward::nested_entry_capture(module, f, *index, b)?
+                || class_free_captured_closure(module, f, *index, b)?)
                 && f.environment.and_then(|id|module.closures.get(id.0 as usize))
                     .and_then(|definition|definition.captures.get(*index as usize))
                     .is_some_and(|ty|matches!(ty, Type::Closure(_))) =>
@@ -6116,6 +6118,15 @@ fn transfer(
                 }
                 pointee_memory::write(state,address,&incoming,inner,address.targets.len()==1,b)?;
             }
+        }
+        InstructionKind::WithForeignCallback { body, .. } => {
+            let Type::Closure(body) = value_type(f, *body)? else {
+                return Err(failure("scoped stored call has no actual body environment"));
+            };
+            // On success or registration failure this body cannot change any
+            // outside stored target. Its own captured resources are still
+            // consumed and cleaned up by the scoped resource proof.
+            crate::callable_fields::self_contained(module, *body, b)?;
         }
         InstructionKind::Constant(_)
         | InstructionKind::OwnedStoreNew { .. }
@@ -6620,10 +6631,10 @@ fn active(
     for (index, original) in &state.captures {
         let view = captured_view_local(state, HoldRoot::Capture(*index), b)?;
         let value = if let Some(local) = view {
-            state
-                .locals
-                .get(&local)
-                .ok_or_else(|| failure("active captured view unavailable"))?
+            // The lexical alias lasts until EndPackageCapture, but a whole
+            // take removes its current value and every stored loan it held.
+            let Some(value) = state.locals.get(&local) else { continue; };
+            value
         } else {
             original
         };
@@ -6724,10 +6735,8 @@ fn active_by_permission(
     for (index, original) in &state.captures {
         let view = captured_view_local(state, HoldRoot::Capture(*index), b)?;
         let value = if let Some(local) = view {
-            state
-                .locals
-                .get(&local)
-                .ok_or_else(|| failure("active captured view unavailable"))?
+            let Some(value) = state.locals.get(&local) else { continue; };
+            value
         } else {
             original
         };
@@ -7765,6 +7774,9 @@ fn windows(
                         address,
                         mutable: true,
                     } => access.check(pointer(*address)?, true, apart, b)?,
+                    InstructionKind::WithForeignCallback { callback, .. } => {
+                        access.check(pointer(*callback)?, true, apart, b)?;
+                    }
                     InstructionKind::CallIndirect { arguments, .. }
                     | InstructionKind::CallClosure { arguments, .. }
                     | InstructionKind::CallClosureBorrowed { arguments, .. }
@@ -9675,6 +9687,24 @@ pub(super) fn infer(
     Ok(result)
 }
 
+fn class_free_captured_closure(
+    module: &TypedModule,
+    f: &TypedFunction,
+    index: u32,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let Some(parent) = f.environment.and_then(|id| module.closures.get(id.0 as usize))
+        .filter(|parent| parent.function == f.id) else { return Ok(false); };
+    let Some(child @ Type::Closure(_)) = parent.captures.get(index as usize) else {
+        return Ok(false);
+    };
+    // The runtime borrow still roots this exact capture cell and is checked
+    // for aliasing and moves. An empty complete class domain needs no lent
+    // result or external retained image to identify the child.
+    Ok(crate::tasks::input_scope::known_zero(module, &Type::Closure(parent.id), b)?
+        && crate::tasks::input_scope::known_zero(module, child, b)?)
+}
+
 /// Validate the place being borrowed in this invocation. A field or slice
 /// projection retains this capture as its root and carries its own suffix.
 pub(super) fn inline_capture_loan(
@@ -9750,6 +9780,7 @@ fn actual_instructions(
             | InstructionKind::ExtractIndex {
                 aggregate: value, ..
             } => (Some(*value), &[]),
+            InstructionKind::WithForeignCallback { body, .. } => (Some(*body), &[]),
             InstructionKind::UpdateField {
                 aggregate, value, ..
             }
@@ -10230,7 +10261,8 @@ fn actual_instructions(
                     if (f
                         .environment
                         .is_some_and(|id| b.returned_borrowed_environments.contains(&id))
-                        || super::forward::nested_entry_capture(module, f, *index, b)?)
+                        || super::forward::nested_entry_capture(module, f, *index, b)?
+                        || class_free_captured_closure(module, f, *index, b)?)
                         && f.environment
                             .and_then(|id| module.closures.get(id.0 as usize))
                             .and_then(|d| d.captures.get(*index as usize))

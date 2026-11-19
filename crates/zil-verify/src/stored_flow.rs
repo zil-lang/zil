@@ -1251,6 +1251,7 @@ fn exclusive_consumers(kind: &InstructionKind) -> (Option<ValueId>, &[ValueId]) 
         | InstructionKind::ExtractIndex {
             aggregate: value, ..
         } => (Some(*value), &[]),
+        InstructionKind::WithForeignCallback { body, .. } => (Some(*body), &[]),
         InstructionKind::UpdateField {
             aggregate, value, ..
         }
@@ -2142,6 +2143,7 @@ pub(super) fn qualifications(
                             | InstructionKind::Call { .. }
                             | InstructionKind::SuspendCall { .. }
                             | InstructionKind::ForeignCall { .. }
+                            | InstructionKind::WithForeignCallback { .. }
                             | InstructionKind::UnsafeEnter { .. }
                             | InstructionKind::UnsafeExit { .. }
                             | InstructionKind::Unary { .. }
@@ -5175,6 +5177,15 @@ static_dependency: StaticProvenance::NotStatic,
             if inner.as_ref()!=vt(f,*value)?||!copyable_memory_value(module,inner,b)?{return Err(err("indirect write changes its complete copyable memory value type"));}
             value_transport::write(state,&val(*address)?.address,inner,val(*value)?,module,b)?;
         }
+        InstructionKind::WithForeignCallback { body, .. } => {
+            let Type::Closure(body) = vt(f, *body)? else {
+                return Err(err("scoped stored call has no actual body environment"));
+            };
+            // This stored transfer has no external body writes to transport on
+            // either outcome. The consumed environment and its cleanup still
+            // belong to the scoped resource proof.
+            crate::closures::self_contained(module, *body, b)?;
+        }
         InstructionKind::Constant(_)
         | InstructionKind::OwnedStoreNew { .. }
         | InstructionKind::OwnedStoreReserve { .. }
@@ -7124,6 +7135,9 @@ fn windows(
                         }
                         checks.check(pointer(*value)?, exclusive, requirements, b)?;
                     }
+                    InstructionKind::WithForeignCallback { callback, .. } => {
+                        checks.check(pointer(*callback)?, true, requirements, b)?;
+                    }
                     InstructionKind::CallIndirect{callee,arguments}if b.raw_reference_cells&&arguments.iter().any(|argument|matches!(f.values.get(argument.0 as usize),Some(Type::Address{mutable:true,inner})if matches!(inner.as_ref(),Type::Address{..})))=>{
                         for target in reference_cells::code_targets(f,*callee,b)?{
                             check_call(module,f,target,arguments,solution,&state,&mut checks,summaries,requirements,byte_flow.as_ref(),byte_point.as_ref(),head_accesses,description_accesses,b)?;
@@ -8123,6 +8137,7 @@ fn check_with_mask(
         }
         if (f.foreign.is_some()
             && !foreign_calls::declaration(module, f, b)?
+            && !foreign_calls::scoped_provider(f, b)?
             && !crate::tasks::input_scope::provider(module, f, b)?)
             || f.callable_return_contract.is_some() && !b.returned_environment_sources
             || f.call_kind != CallKind::Direct

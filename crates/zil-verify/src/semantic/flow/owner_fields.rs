@@ -16,7 +16,15 @@ impl CheckedContext{
                 dynamic_metadata::ty(&source.ty,b)?;b.spend(source.origins.len())?;
                 let target=state.locals.get_mut(local.0 as usize).ok_or_else(||bad("package capture local is absent"))?;
                 if matches!(instruction.kind,InstructionKind::BindPackageCapture{..}){if target.is_some(){return Err(bad("package capture rebinds an initialized lexical view"));}*target=Some(source.clone());}
-                else{if target.as_ref().is_none_or(|value|value.ty!=source.ty){return Err(bad("package capture end has no matching initialized view"));}*target=None;}
+                else {
+                    // TakeLocal can consume the value before ending its lexical view.
+                    // The package and cleanup checks still prove the exact Bind/End
+                    // pair and active storage on every actual edge.
+                    if target.as_ref().is_some_and(|value| value.ty != source.ty) {
+                        return Err(bad("package capture end changes the complete view type"));
+                    }
+                    *target = None;
+                }
                 Ok(None)
             },
             InstructionKind::ReadPackageField{local,index}|InstructionKind::TakePackageField{local,index}|InstructionKind::DescribePackageField{local,index}|InstructionKind::BorrowPackageField{local,index,..}=>{
