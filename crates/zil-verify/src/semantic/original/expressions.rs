@@ -173,11 +173,15 @@ impl CheckedOriginal {
                             self.remember_borrow_parent(module,id,expression.id,expression.id,b)?;
                             Ty::Address { mutable: true, life: Life::Local(id,expression.id), inner }
                         } else if observe_bound_fields && matches!(expression.kind,CoreExprKind::Member{..})
-                            && matches!(self.resolved(&ty,b)?,Ty::Managed(_)) && let Some(place)=place.as_ref()
+                            && matches!(self.resolved(&ty,b)?,Ty::Managed(_))
                         {
-                            // A bare selected manager is a scoped observation
-                            // in a binding. Explicit Give uses ordinary transfer.
-                            self.read_original(module,context,place,&ty,env,false,active,b)?;
+                            if let Some(place)=&place {
+                                self.read_original(module,context,place,&ty,env,false,active,b)?;
+                            } else {
+                                // A borrowed Product field has an address source
+                                // even though it has no movable lexical Place.
+                                self.address_place(module,id,expression.id,b)?;
+                            }
                             self.observed_argument(expression,&ty,env,b)?
                         }else{
                             self.take_place(module,context,&ty,place.as_ref(),env,active,b)?;ty

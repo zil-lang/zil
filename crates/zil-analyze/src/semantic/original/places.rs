@@ -53,7 +53,7 @@ impl Solver<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Option<Place>> {
-        let place = self.place_inner(frame, value, record, b, depth)?;
+        let place = self.place_inner(frame, value, record, false, b, depth)?;
         if let Some(place) = &place {
             self.place_available(frame, place.anchor, &place.path, false, b)?;
         }
@@ -64,6 +64,7 @@ impl Solver<'_, '_> {
         frame: &mut Frame,
         value: &SemanticOriginalExpr,
         record: bool,
+        observe: bool,
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Option<Place>> {
@@ -120,7 +121,7 @@ impl Solver<'_, '_> {
                 }
             }
             CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } => {
-                let Some(place) = self.place_inner(frame, inner, record, b, depth + 1)? else {
+                let Some(place) = self.place_inner(frame, inner, record, observe, b, depth + 1)? else {
                     return Ok(None);
                 };
                 if let CoreExprKind::Ascribed { ty, .. } = &value.kind {
@@ -129,12 +130,27 @@ impl Solver<'_, '_> {
                 }
                 place
             }
+            CoreExprKind::Unary { op: UnaryOp::Dereference, operand } if observe => {
+                let Some(mut place) = self.place_inner(frame, operand, record, observe, b, depth + 1)? else {
+                    return Ok(None);
+                };
+                if !place.path.is_empty() || place.selected != place.root {
+                    return Ok(None);
+                }
+                let Kind::Address { inner, .. } = self.state.arena[self.type_root(place.root, b)?] else {
+                    return Ok(None);
+                };
+                // The explicit dereference selects the pointee without changing
+                // the original address binding that bounds a field observation.
+                place.selected = inner;
+                place
+            }
             CoreExprKind::Member {
                 object,
                 member,
                 owner,
             } => {
-                let Some(mut place) = self.place_inner(frame, object, record, b, depth + 1)? else {
+                let Some(mut place) = self.place_inner(frame, object, record, observe, b, depth + 1)? else {
                     return Ok(None);
                 };
                 if let Some(owner) = owner {
@@ -158,15 +174,12 @@ impl Solver<'_, '_> {
     }
     fn inline_package_field(
         &self,
-        place: &Place,
+        mut current: Term,
+        path: &[u32],
         selected: Term,
         b: &mut Budget,
     ) -> CompileResult<bool> {
-        // Only the declared inline Package owner can produce this writable
-        // description. An address edge or a different owning constructor
-        // cannot be turned into an inline Package by field-name selection.
-        let mut current = self.type_root(place.root, b)?;
-        for field in &place.path {
+        for field in path {
             b.spend(1, WORK)?;
             let Kind::Nominal { definition, fields, .. } = &self.state.arena[current] else {
                 return Ok(false);
@@ -180,7 +193,7 @@ impl Solver<'_, '_> {
                 .ok_or_else(|| fail("original description leaves its complete Package field path"))?;
             current = self.type_root(*child, b)?;
         }
-        Ok(!place.path.is_empty() && current == selected)
+        Ok(!path.is_empty() && current == selected)
     }
     pub(super) fn give_inline_field(
         &mut self,
@@ -206,7 +219,7 @@ impl Solver<'_, '_> {
             ),
             _ => false,
         };
-        if !owns || (!tuple && !self.inline_package_field(&place, selected, b)?) {
+        if !owns || (!tuple && !self.inline_package_field(self.type_root(place.root, b)?, &place.path, selected, b)?) {
             return Err(fail("original give requires a direct owning inline field"));
         }
         if frame.alive {
@@ -225,15 +238,26 @@ impl Solver<'_, '_> {
         let CoreExprKind::Member { object, member, owner } = &expression.kind else {
             return Err(fail("original member observation selects another expression"));
         };
-        let Some(mut place) = self.place_inner(frame, object, false, b, depth + 1)? else {
+        let Some(mut place) = self.place_inner(frame, object, false, true, b, depth + 1)? else {
             return Ok(None);
         };
         let (ordinal, field) = self.field(place.selected, member, b, depth + 1)?;
         Self::push(&mut place.path, ordinal, b)?;
         self.place_available(frame, place.anchor, &place.path, false, b)?;
         let selected = self.type_root(field, b)?;
-        let description = matches!(self.state.arena[selected], Kind::Wrapped(Wrapper::Managed, _))
-            && self.inline_package_field(&place, selected, b)?;
+        let description = if matches!(self.state.arena[selected], Kind::Wrapped(Wrapper::Managed, _)) {
+            // An observation can select an inline owner field through a borrowed
+            // Package. Keep the actual address root in the description so its
+            // parent bounds the view. Giving or transferring still uses place.root.
+            let root = self.type_root(place.root, b)?;
+            let owner = match self.state.arena[root] {
+                Kind::Address { inner, .. } => self.type_root(inner, b)?,
+                _ => root,
+            };
+            self.inline_package_field(owner, &place.path, selected, b)?
+        } else {
+            false
+        };
         if let Kind::Address { mutable: true, inner, .. } = self.state.arena[selected] {
             // A field read borrows the live slot through its writable carrier.
             // Keep the original field lifetime in the slot and give the
@@ -271,7 +295,7 @@ impl Solver<'_, '_> {
                 Kind::Tuple(_) | Kind::ErrorUnion { .. } => true,
                 _ => false,
             };
-            if !aggregate || !self.inline_package_field(&place, selected, b)? {
+            if !aggregate || !self.inline_package_field(self.type_root(place.root, b)?, &place.path, selected, b)? {
                 return Ok(None);
             }
             transfer = true;
@@ -280,7 +304,7 @@ impl Solver<'_, '_> {
             let owner = self.recipe(frame, owner, b, depth + 1)?;
             self.unify(place.selected, owner, depth + 1, b)?;
         }
-        self.place_inner(frame, object, true, b, depth + 1)?;
+        self.place_inner(frame, object, true, true, b, depth + 1)?;
         self.observe_resource_capture(frame, object, place.anchor, place.root, b, depth + 1)?;
         if description {
             return self.describe_argument(frame, expression, &place, field, b, depth + 1).map(Some);

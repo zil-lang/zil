@@ -366,6 +366,24 @@ fn a_saved_store_descriptor_cannot_gain_a_rebound_pointer_generations_authority(
         "    pointer=&mut holder\n    let child=store_at(old,0)\n    let value=*child",
     );
     assert_ne!(attacked, GENERATION);
+    // The full source entry retains the original binding and its address
+    // generation for independent original-body and executable verification.
+    let dir = directory("store-descriptor-generations");
+    let main_path = dir.join("main.zil");
+    let options = CompileOptions { stop_after: Stage::Verify, ..CompileOptions::default() };
+    let dereferenced = GENERATION.replace("old=pointer.items", "old=(*pointer).items");
+    let shared = GENERATION.replace("pointer=&mut holder", "pointer=&holder");
+    for program in [GENERATION, &dereferenced, &shared] {
+        fs::write(&main_path, program).unwrap();
+        let good = CompilationSession::default().compile_path(&main_path, &options);
+        assert_eq!(good.status, ResultCategory::Success, "{}", good.to_json());
+        assert_eq!(good.verification_runs, 1);
+    }
+    fs::write(&main_path, &attacked).unwrap();
+    let bad = CompilationSession::default().compile_path(&main_path, &options);
+    assert_eq!(bad.status, ResultCategory::SafeReject, "{}", bad.to_json());
+    assert!(bad.diagnostics.iter().any(|d| d.code == "E-BORROW-CONFLICT"
+        || d.message.contains("actual borrowed resource access conflicts")), "{}", bad.to_json());
     let rejected = raw_source(&attacked);
     let errors = zil_analyze::analyze(&rejected, &limits).unwrap_err();
     println!("Desc-first rebound-pointer Source: {errors:?}");
