@@ -9568,7 +9568,7 @@ pub(super) fn infer(
     // still has one actual consumption obligation. The stored dispatcher must
     // not bypass the independent SSA/local responsibility ledger.
     fee(b, module.closures.len())?;
-    let needs_resources = b.generic_mutex
+    let needs_resources = b.stored_packages || b.generic_mutex
         || b.composition_stored.is_empty()
             && module
                 .closures
