@@ -314,6 +314,21 @@ fn reserve_work<'a, V: DynRecipeVisitor>(
     }
     Ok(())
 }
+// Original tables occur only at the programme root. Each row finishes
+// through the existing iterative stack before its next sibling begins.
+fn visit_table_row<'a, V: DynRecipeVisitor>(
+    row: Work<'a>,
+    pending: &mut Vec<Work<'a>>,
+    visitor: &mut V,
+) -> Result<(), V::Error> {
+    let floor = pending.len();
+    dispatch(row, pending, visitor)?;
+    while pending.len() > floor {
+        let next = pending.pop().unwrap();
+        dispatch(next, pending, visitor)?;
+    }
+    Ok(())
+}
 fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V::Error> {
     let mut pending = Vec::new();
     reserve_work(&mut pending, 1, visitor, 0)?;
@@ -1843,9 +1858,8 @@ fn visit_part_10<'a, V: DynRecipeVisitor>(
         Work::W87(value, nesting) => {
             visitor.rows(value.len(), nesting)?;
             visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
-            reserve_work(pending, value.len(), visitor, nesting)?;
-            for item in value.iter().rev() {
-                pending.push(Work::W88(item, nesting));
+            for item in value {
+                visit_table_row(Work::W88(item, nesting), pending, visitor)?;
             }
         }
 
@@ -1877,9 +1891,8 @@ fn visit_part_11<'a, V: DynRecipeVisitor>(
         Work::W89(value, nesting) => {
             visitor.rows(value.len(), nesting)?;
             visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
-            reserve_work(pending, value.len(), visitor, nesting)?;
-            for item in value.iter().rev() {
-                pending.push(Work::W90(item, nesting));
+            for item in value {
+                visit_table_row(Work::W90(item, nesting), pending, visitor)?;
             }
         }
 
@@ -1900,9 +1913,8 @@ fn visit_part_11<'a, V: DynRecipeVisitor>(
         Work::W91(value, nesting) => {
             visitor.rows(value.len(), nesting)?;
             visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
-            reserve_work(pending, value.len(), visitor, nesting)?;
-            for item in value.iter().rev() {
-                pending.push(Work::W92(item, nesting));
+            for item in value {
+                visit_table_row(Work::W92(item, nesting), pending, visitor)?;
             }
         }
 

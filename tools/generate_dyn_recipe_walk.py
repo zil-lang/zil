@@ -65,6 +65,17 @@ fn reserve_work<'a, V: DynRecipeVisitor>(pending: &mut Vec<Work<'a>>, additional
     }
     Ok(())
 }
+// Original tables occur only at the programme root. Each row finishes
+// through the existing iterative stack before its next sibling begins.
+fn visit_table_row<'a,V: DynRecipeVisitor>(row: Work<'a>, pending: &mut Vec<Work<'a>>, visitor: &mut V) -> Result<(),V::Error> {
+    let floor = pending.len();
+    dispatch(row,pending,visitor)?;
+    while pending.len() > floor {
+        let next = pending.pop().unwrap();
+        dispatch(next,pending,visitor)?;
+    }
+    Ok(())
+}
 fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V::Error> {
     let mut pending = Vec::new();
     reserve_work(&mut pending, 1, visitor, 0)?;
@@ -79,7 +90,11 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
         arm = ''
         arm += 'Work::' + k + '(value,nesting) => {\n'
         if t.startswith('Vec<'):
-            arm += 'visitor.rows(value.len(),nesting)?;\nvisitor.allocation(std::mem::size_of_val(value.as_slice()),nesting)?;\nreserve_work(&mut pending,value.len(),visitor,nesting)?;\nfor item in value.iter().rev() {\n' + enqueue(t[4:-1], 'item', 'nesting') + '}\n'
+            arm += 'visitor.rows(value.len(),nesting)?;\nvisitor.allocation(std::mem::size_of_val(value.as_slice()),nesting)?;\n'
+            if t in ('Vec<SemanticDefinition>', 'Vec<SemanticInstance>', 'Vec<SemanticSite>'):
+                arm += f'for item in value {{ visit_table_row(Work::{key(t[4:-1])}(item,nesting),pending,visitor)?; }}\n'
+            else:
+                arm += 'reserve_work(&mut pending,value.len(),visitor,nesting)?;\nfor item in value.iter().rev() {\n' + enqueue(t[4:-1], 'item', 'nesting') + '}\n'
         elif t.startswith('Option<'):
             arm += 'visitor.node(nesting)?;\nif let Some(item)=value {\nreserve_work(&mut pending,1,visitor,nesting)?;\n' + enqueue(t[7:-1], 'item', 'nesting') + '}\n'
         elif (parts:=tuple_parts(t)) is not None:
