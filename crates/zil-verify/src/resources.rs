@@ -5,7 +5,12 @@
 //! candidate's responsibility fields are not trusted or consulted.
 use super::*;
 pub(super) fn head_address(ty: &Type) -> bool {
-    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}|Type::AsyncRegistration{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
+    matches!(ty, Type::Address { inner, .. } if head_pointee(inner))
+}
+pub(super) fn head_pointee(ty: &Type) -> bool {
+    matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(),
+        Type::ByteBuffer | Type::OwnedStore { .. } | Type::AsyncRegistration { .. })
+        || matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
 }
 use std::collections::VecDeque;
 pub(crate) mod arrays;

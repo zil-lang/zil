@@ -71,12 +71,10 @@ pub(super) fn representative(ty: &Type, b: &mut Budget) -> Check<Representative>
     b.spend(fee)?;
     let known = b.structural.as_ref().unwrap().physical_pairs.representatives.get(&hash).cloned();
     if let Some(known)=known {
-        // Publication already checked this immutable representative under the
-        // same limits. Derived equality visits paired fields and bytes only
-        // while their prefixes match. The complete incoming tree pays for
-        // that comparison, including colliding names and member order.
-        super::super::ty(ty, b)?;
-        return Ok(if known.ty==*ty { Representative::Existing(known) } else { Representative::New(None) });
+        // Complete equality with the bounded representative proves the same
+        // geometry. A collision falls through to the caller's full cold check.
+        let equal = crate::physical_type_equality::compare(&known.ty, ty, b, super::super::ty)?;
+        return Ok(if equal { Representative::Existing(known) } else { Representative::New(None) });
     }
     super::super::bounds_type(ty,b)?;
     let payload=match ty { Type::Address { inner,.. }=>inner.as_ref(), _=>ty };

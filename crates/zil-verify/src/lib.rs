@@ -108,6 +108,7 @@ mod owned_callbacks;
 #[cfg(test)]
 mod package_tests;
 mod packages;
+mod physical_type_equality;
 mod place_replacements;
 mod registration;
 #[cfg(test)]
@@ -3228,24 +3229,16 @@ fn local_type(function: &TypedFunction, local: LocalId, span: Option<Span>) -> C
 /// equality is decided by identity or constructor first. A recursive comparison
 /// charges the left tree, an upper bound for the equal prefix of the two trees.
 fn transport_equal(left: &Type, right: &Type, meter_read: bool, b: &mut Budget) -> Check<bool> {
-    if meter_read {
-        b.spend(1)?;
+    if !meter_read {
+        return Ok(std::ptr::eq(left, right) || left == right);
     }
-    if std::ptr::eq(left, right) {
-        return Ok(true);
-    }
-    if meter_read {
-        if std::mem::discriminant(left) != std::mem::discriminant(right) {
-            return Ok(false);
-        }
+    physical_type_equality::compare(left, right, b, |ty, b| {
         if b.pod_stores {
-            resources::charge_payload(left, b)?;
+            resources::charge_payload(ty, b)
+        } else {
+            stored_flow::type_work(ty, &b.limits.clone(), b)
         }
-        if b.stored_borrows {
-            stored_flow::type_work(left, &b.limits.clone(), b)?;
-        }
-    }
-    Ok(left == right)
+    })
 }
 
 fn check_instruction(
@@ -3263,19 +3256,48 @@ fn check_instruction(
     {
         budget.qualified_package_returns = true;
     }
-    let borrowed_transport = matches!(
-        instruction.kind,
-        InstructionKind::Store { .. } | InstructionKind::Call { .. }
-    )
-        && (budget.pod_stores || budget.stored_borrows)
+    let preflighted = (budget.pod_stores || budget.stored_borrows)
         && budget.preflighted_module == Some(module as *const TypedModule as usize)
-        && module.functions.get(function.id.0 as usize)
+        && module
+            .functions
+            .get(function.id.0 as usize)
             .is_some_and(|actual| std::ptr::eq(actual, function));
-    if budget.pod_stores && !borrowed_transport {
-        dynamic_store::instruction_type_work(module, function, instruction, budget)?;
-    }
-    if budget.stored_borrows && !borrowed_transport {
-        stored_flow::instruction_work(function, instruction, budget)?;
+    let borrowed_transport = preflighted
+        && match &instruction.kind {
+            InstructionKind::Binary { left, .. } => {
+                value_type(function, *left, span)?.is_b0_scalar()
+            }
+            InstructionKind::Unary { .. }
+            | InstructionKind::ConvertNumber { .. }
+            | InstructionKind::ConvertInteger { .. } => true,
+            InstructionKind::Store { .. }
+            | InstructionKind::Call { .. }
+            | InstructionKind::ReborrowAddress { .. }
+            | InstructionKind::DescribeLocal { .. }
+            | InstructionKind::Constant(_)
+            | InstructionKind::SliceLength { .. }
+            | InstructionKind::Load(_)
+            | InstructionKind::TakeLocal { .. }
+            | InstructionKind::BorrowLocal { .. }
+            | InstructionKind::BorrowLocalMut { .. }
+            | InstructionKind::AddressField { .. }
+            | InstructionKind::AddressIndex { .. }
+            | InstructionKind::ReadAddress { .. }
+            | InstructionKind::DescribeAddress { .. }
+            | InstructionKind::ReadDesc { .. }
+            | InstructionKind::WriteDesc { .. } => true,
+            _ => false,
+        };
+    if !borrowed_transport {
+        // Both domains read the same immutable SSA operand types. The POD
+        // walk covers nested fields, names, callable signatures and storage
+        // lifetimes. Physical depth and Task contexts were checked at entry.
+        if budget.pod_stores {
+            dynamic_store::instruction_type_work(module, function, instruction, budget)?;
+        }
+        if budget.stored_borrows && !(budget.pod_stores && preflighted) {
+            stored_flow::instruction_work(function, instruction, budget)?;
+        }
     }
     let expected = match &instruction.kind {
         InstructionKind::AsyncRegistrationStart { .. }
@@ -3516,6 +3538,9 @@ fn check_instruction(
         )?),
         InstructionKind::Load(local) => {
             let ty = local_type(function, *local, span)?;
+            if borrowed_transport {
+                resources::charge_payload_shape(ty, budget)?;
+            }
             if errors::owned(ty, budget.sums) || (budget.sums && sums::owned(ty)) {
                 return Err(reject(
                     "E-VERIFY-ERROR",
@@ -3546,10 +3571,13 @@ fn check_instruction(
                 ));
             }
             budget.array_snapshot(ty, ty)?;
-            return check_result_type(function, instruction, Some(ty), false, budget);
+            return check_result_type(function, instruction, Some(ty), borrowed_transport, budget);
         }
         InstructionKind::TakeLocal { local } => {
             let ty = local_type(function, *local, span)?;
+            if borrowed_transport {
+                resources::charge_payload_shape(ty, budget)?;
+            }
             if !affine_type(module, ty)
                 && !matches!(ty, Type::Closure(_))
                 && !matches!(ty, Type::Managed(_))
@@ -3572,10 +3600,13 @@ fn check_instruction(
                     "TakeLocal requires a non-Copy address carrier",
                 ));
             }
-            return check_result_type(function, instruction, Some(ty), false, budget);
+            return check_result_type(function, instruction, Some(ty), borrowed_transport, budget);
         }
         InstructionKind::BorrowLocal { local } => {
             let inner = local_type(function, *local, span)?;
+            if borrowed_transport {
+                resources::charge_payload_shape(inner, budget)?;
+            }
             if budget.raw_reference_cells && matches!(inner, Type::Address { .. }) {
                 check_function_signature_type(module, inner, span, budget)?;
             } else if let Type::Closure(id) = inner {
@@ -3613,13 +3644,13 @@ fn check_instruction(
                 check_type(inner, span)?;
             }
             budget.array_snapshot(inner, inner)?;
-            Some(Type::Address {
-                mutable: false,
-                inner: Box::new(inner.clone()),
-            })
+            return check_projected_result(function, instruction, inner, Some(false), borrowed_transport, budget);
         }
         InstructionKind::BorrowLocalMut { local } => {
             let inner = local_type(function, *local, span)?;
+            if borrowed_transport {
+                resources::charge_payload_shape(inner, budget)?;
+            }
             if budget.raw_reference_cells && matches!(inner, Type::Address { .. }) {
                 check_function_signature_type(module, inner, span, budget)?;
             } else if let Type::Closure(id) = inner {
@@ -3665,10 +3696,7 @@ fn check_instruction(
                 ));
             }
             budget.array_snapshot(inner, inner)?;
-            Some(Type::Address {
-                mutable: true,
-                inner: Box::new(inner.clone()),
-            })
+            return check_projected_result(function, instruction, inner, Some(true), borrowed_transport, budget);
         }
         InstructionKind::ReborrowAddress { address, mutable } => {
             let Type::Address {
@@ -3690,10 +3718,8 @@ fn check_instruction(
                 ));
             }
             budget.array_snapshot(inner, value_type(function, *address, span)?)?;
-            Some(Type::Address {
-                mutable: *mutable,
-                inner: inner.clone(),
-            })
+            return check_projected_result(function, instruction, inner,
+                Some(*mutable), borrowed_transport, budget);
         }
         InstructionKind::WriteAddress { address, value } => {
             let Type::Address {
@@ -3731,6 +3757,9 @@ fn check_instruction(
                     "field projection requires a shared address",
                 ));
             };
+            if borrowed_transport {
+                resources::charge_payload_shape(inner, budget)?;
+            }
             let projected = match inner.as_ref() {
                 Type::BorrowedStorage { storage, .. } => storage.as_ref(),
                 Type::Managed(payload)
@@ -3809,11 +3838,7 @@ fn check_instruction(
                 packages::check_shared_product_type(module, field, span, budget)?;
             } else if stored_flow::shared_array_shape(field, budget)? {
                 // Actual bounded array slot permissions are proved separately.
-            } else if matches!(field, Type::Managed(_))
-                && resources::head_address(&Type::Address {
-                    mutable: *mutable,
-                    inner: Box::new(field.clone()),
-                })
+            } else if resources::head_pointee(field)
             {
                 resources::check_type_for(module, field, span, budget)?;
             } else {
@@ -3824,10 +3849,7 @@ fn check_instruction(
                 }
             }
             budget.array_snapshot(field, value_type(function, *address, span)?)?;
-            Some(Type::Address {
-                mutable: *mutable,
-                inner: Box::new(field.clone()),
-            })
+            return check_projected_result(function, instruction, field, Some(*mutable), borrowed_transport, budget);
         }
         InstructionKind::AddressIndex { address, index } => {
             let Type::Address { mutable, inner } = value_type(function, *address, span)? else {
@@ -3851,15 +3873,15 @@ fn check_instruction(
                     "index projection requires an integer",
                 ));
             }
+            if borrowed_transport {
+                resources::charge_payload_shape(element, budget)?;
+            }
             if budget.raw_reference_cells && matches!(element.as_ref(), Type::Address { .. }) {
                 check_function_signature_type(module, element, span, budget)?;
             } else {
                 check_type(element, span)?;
             }
-            Some(Type::Address {
-                mutable: *mutable,
-                inner: element.clone(),
-            })
+            return check_projected_result(function, instruction, element, Some(*mutable), borrowed_transport, budget);
         }
         InstructionKind::AddressSlice {
             address,
@@ -3920,27 +3942,26 @@ fn check_instruction(
             // Copying a shared pointer value is discharged by the actual cell
             // and loan consumers, not by Type::is_copy_value on all addresses.
             stored_flow::type_work(inner, &budget.limits.clone(), budget)?;
-            return check_result_type(function, instruction, Some(inner.as_ref()), false, budget);
+            return check_result_type(function, instruction, Some(inner.as_ref()), borrowed_transport, budget);
         }
-        InstructionKind::ReadAddress { address } => match value_type(function, *address, span)? {
-            Type::Address { inner, .. }
-                if stored_flow::copyable_memory_value(module, inner, budget)?
+        InstructionKind::ReadAddress { address } => {
+            let ty = value_type(function, *address, span)?;
+            if borrowed_transport {
+                resources::charge_payload_shape(ty, budget)?;
+            }
+            if let Type::Address { inner, .. } = ty
+                && (stored_flow::copyable_memory_value(module, inner, budget)?
                     || stored_flow::shared_tuple_value(module, inner, span, budget)?
                     || stored_flow::shared_array_shape(inner, budget)?
                     || stored_flow::pure_read(module, inner, budget)?
-                    || stored_flow::pure_inline(module, inner, budget)? =>
+                    || stored_flow::pure_inline(module, inner, budget)?)
             {
-                budget.array_snapshot(inner, value_type(function, *address, span)?)?;
-                return check_result_type(function, instruction, Some(inner.as_ref()), false, budget);
+                budget.array_snapshot(inner, ty)?;
+                return check_result_type(function, instruction, Some(inner), borrowed_transport, budget);
             }
-            _ => {
-                return Err(reject(
-                    "E-VERIFY-ADDRESS",
-                    span,
-                    "ReadAddress requires a shared address to a finite Copy value",
-                ));
-            }
-        },
+            return Err(reject("E-VERIFY-ADDRESS", span,
+                "ReadAddress requires a shared address to a finite Copy value"));
+        }
         InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
             local_type(function, *local, span)?;
             None
@@ -4643,6 +4664,9 @@ fn check_instruction(
         InstructionKind::DescribeAddress { address } => {
             budget.head_descriptions = true;
             let ty = value_type(function, *address, span)?;
+            if borrowed_transport {
+                resources::charge_payload_shape(ty, budget)?;
+            }
             if !resources::head_address(ty) {
                 return Err(reject(
                     "E-VERIFY-RESOURCE",
@@ -4657,7 +4681,7 @@ fn check_instruction(
             let Type::Managed(payload) = inner.as_ref() else {
                 unreachable!()
             };
-            Some(Type::Desc(payload.clone()))
+            return check_projected_result(function, instruction, payload, None, borrowed_transport, budget);
         }
         InstructionKind::DescribeLocal { local } => {
             let Type::Managed(inner) = local_type(function, *local, span)? else {
@@ -4667,7 +4691,7 @@ fn check_instruction(
                     "DescribeLocal requires an actual managed position",
                 ));
             };
-            Some(Type::Desc(inner.clone()))
+            return check_projected_result(function, instruction, inner, None, borrowed_transport, budget);
         }
         InstructionKind::ReadDesc { desc, index }
         | InstructionKind::WriteDesc { desc, index, .. } => {
@@ -4700,7 +4724,7 @@ fn check_instruction(
                 )
             })?;
             if let InstructionKind::WriteDesc { value, .. } = instruction.kind {
-                if value_type(function, value, span)? != field {
+                if !transport_equal(field, value_type(function, value, span)?, borrowed_transport, budget)? {
                     return Err(reject(
                         "E-VERIFY-RESOURCE",
                         span,
@@ -4709,7 +4733,7 @@ fn check_instruction(
                 }
                 None
             } else {
-                return check_result_type(function, instruction, Some(field), false, budget);
+                return check_result_type(function, instruction, Some(field), borrowed_transport, budget);
             }
         }
         InstructionKind::DropManaged { local } => {
@@ -4729,7 +4753,38 @@ fn check_instruction(
             ));
         }
     };
-    check_result_type(function, instruction, expected.as_ref(), false, budget)
+    check_result_type(function, instruction, expected.as_ref(), borrowed_transport, budget)
+}
+
+/// Check an actual description or address against the selected pointee without
+/// constructing a second copy of its type. The operation has already proved
+/// its input permissions. Both the outer mode and the complete child must match.
+fn check_projected_result(
+    function: &TypedFunction,
+    instruction: &Instruction,
+    child: &Type,
+    address_mode: Option<bool>,
+    meter_read: bool,
+    budget: &mut Budget,
+) -> Check<()> {
+    let span = Some(instruction.span);
+    if let Some(value) = instruction.result {
+        let actual = match (value_type(function, value, span)?, address_mode) {
+            (Type::Address { mutable, inner }, Some(mode)) if *mutable == mode => Some(inner),
+            (Type::Desc(inner), None) => Some(inner),
+            _ => None,
+        };
+        if let Some(inner) = actual
+            && transport_equal(inner, child, meter_read, budget)?
+        {
+            return Ok(());
+        }
+    }
+    Err(reject(
+        "E-VERIFY-TYPE",
+        span,
+        "instruction result presence or type is incorrect",
+    ))
 }
 
 fn check_result_type(
