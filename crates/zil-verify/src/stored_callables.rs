@@ -1101,12 +1101,6 @@ pub(super) fn role<'a>(
         .iter()
         .find(|r| r.parameter as usize == position)
         .ok_or_else(|| bad("callback receiver has no exact parameter role"))?;
-    if direct.is_none() && (role.closure != definition.id || role.cleanup != CallableCleanup::Owned)
-    {
-        return Err(bad(
-            "staged callback requires the exact owned parameter role",
-        ));
-    }
     let mode = match kind {
         InstructionKind::CallClosureBorrowed { kind, .. } => *kind,
         InstructionKind::CallClosureMut { .. } => zil_ir::CallableKind::FnMut,
@@ -1117,6 +1111,21 @@ pub(super) fn role<'a>(
         return Err(bad(
             "qualified call mode differs from its actual declared role",
         ));
+    }
+    if direct.is_none() {
+        // A non-consuming call may observe the owned instance en route to
+        // its return. retained verifies the same live instance at every exit.
+        let returned = role.cleanup == CallableCleanup::Returned
+            && mode != CallableKind::FnOnce
+            && f.callable_return_contract.as_ref().is_some_and(|result| {
+                result.source == CallableReturnSource::Parameter(role.parameter)
+                    && result.closure == definition.id
+            });
+        if role.closure != definition.id || (role.cleanup != CallableCleanup::Owned && !returned) {
+            return Err(bad(
+                "staged callback requires the exact owned or forwarded parameter role",
+            ));
+        }
     }
     Ok(role.life.as_ref())
 }

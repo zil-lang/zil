@@ -276,6 +276,83 @@ fn main()->i32=>run(make(10),make(30))-141
 }
 
 #[test]
+fn invoked_owned_callback_transfers_its_current_instance_to_the_result() {
+    let source = r#"fn relay<F: FnMut() -> i32>(value: F) -> F {
+    var callback = value
+    let observed = callback()
+    return callback
+}
+fn make(seed:i32)->impl FnMut()->i32 {
+    var n=seed
+    return move()=>{n+=1;return n}
+}
+fn main()->i32 {
+    var callback = relay(make(10))
+    return callback() - 12
+}
+"#;
+    native("invoke-before-return", &[("main", source)], "", 0);
+    let nested = source
+        .replace("relay(make(10))", "relay(relay(make(10)))")
+        .replace("- 12", "- 13");
+    native("nested-invoke-before-return", &[("main", &nested)], "", 0);
+    let identity = "fn identity<F:FnMut()->i32>(value:F)->F{return value}\n";
+    for (label, original, replacement) in [
+        (
+            "forward-before-invoke",
+            "var callback = value",
+            "var callback = identity(value)",
+        ),
+        (
+            "forward-after-invoke",
+            "return callback\n",
+            "return identity(callback)\n",
+        ),
+    ] {
+        let variant = format!("{identity}{}", source.replace(original, replacement));
+        native(label, &[("main", &variant)], "", 0);
+    }
+    let live_at_exit = source
+        .replace("(value: F) -> F", "(value: F) -> i32")
+        .replace("return callback\n", "return observed\n")
+        .replace(
+            "var callback = relay(make(10))\n    return callback() - 12",
+            "return relay(make(10)) - 11",
+        );
+    for (label, variant, reason) in [
+        (
+            "return-moved-input",
+            source.replace("return callback\n", "return value\n"),
+            "used after move",
+        ),
+        (
+            "return-invoked-once",
+            source.replace("FnMut() -> i32", "FnOnce() -> i32"),
+            "used after move",
+        ),
+        ("live-at-exit", live_at_exit, "independent SyncDrop proof"),
+    ] {
+        let case = Case::new(label);
+        let report = compile(&case, &[("main", &variant)], None);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains(reason)),
+            "{}",
+            report.to_json()
+        );
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+}
+
+#[test]
 fn branch_correlation_preserves_order_and_exclusive_paths() {
     for (body, wanted) in [
         (
