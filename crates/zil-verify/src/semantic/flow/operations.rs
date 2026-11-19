@@ -298,7 +298,7 @@ impl CheckedContext {
         let InstructionKind::DropMutexGuard{local}=instruction.kind else{return Err(bad("guard cleanup selects another actual opcode"));};
         if crate::generic_mutex::instruction(module,f,instruction,b)?.is_some(){return Err(bad("guard cleanup invents a result value"));}
         let declared=f.locals.get(local.0 as usize).ok_or_else(||bad("guard cleanup local identity is absent"))?;
-        let occupant=state.locals.get_mut(local.0 as usize).ok_or_else(||bad("guard cleanup semantic local identity is absent"))?;
+        let occupant=state.edit_locals(b)?.get_mut(local.0 as usize).ok_or_else(||bad("guard cleanup semantic local identity is absent"))?;
         if let Some(value)=occupant.as_ref(){
             if value.ty!=declared.ty{return Err(bad("guard cleanup changes its exact initialized original local type"));}
             self.mutex_guard_value(module,value,b)?;

@@ -71,8 +71,11 @@ pub(super) fn representative(ty: &Type, b: &mut Budget) -> Check<Representative>
     b.spend(fee)?;
     let known = b.structural.as_ref().unwrap().physical_pairs.representatives.get(&hash).cloned();
     if let Some(known)=known {
+        // Publication already checked this immutable representative under the
+        // same limits. Derived equality visits paired fields and bytes only
+        // while their prefixes match. The complete incoming tree pays for
+        // that comparison, including colliding names and member order.
         super::super::ty(ty, b)?;
-        super::super::ty(&known.ty, b)?;
         return Ok(if known.ty==*ty { Representative::Existing(known) } else { Representative::New(None) });
     }
     super::super::bounds_type(ty,b)?;
@@ -144,7 +147,9 @@ pub(crate) fn compare_type_cells(left: &TypeCell, right: &TypeCell, b: &mut Budg
 
 fn compare(left: &TypeCell, right: &TypeCell, b: &mut Budget) -> Check<bool> {
     super::super::ty(&left.ty, b)?;
-    super::super::ty(&right.ty, b)?;
+    // Both inputs must satisfy the current bounds. The comparison is one
+    // paired walk, bounded by the fully charged left operand.
+    super::super::bounds_type(&right.ty, b)?;
     Ok(left.ty == right.ty)
 }
 

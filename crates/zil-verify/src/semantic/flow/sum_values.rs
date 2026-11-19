@@ -24,7 +24,7 @@ impl CheckedContext {
             let path=path.iter().copied().map(LifeTypeProjection::Place).collect::<Vec<_>>();
             self.child_value(module,parent,&path,b)
         };
-        let local=|id:LocalId|state.locals.get(id.0 as usize).and_then(Option::as_ref)
+        let local=|id:LocalId|state.locals.get(id.0 as usize).and_then(Option::as_deref)
             .ok_or_else(||bad("actual sum/product operation has no initialized local"));
         match &instruction.kind {
             InstructionKind::ErrorTag{value}=>{value_at(values,*value)?;Ok(Some(atomic(&Type::Bool,b)?))},
@@ -76,12 +76,12 @@ impl CheckedContext {
                     if f.locals.get(target.0 as usize).is_none_or(|local|local.ty!=child.ty){return Err(bad("actual unpack destination changes a complete child type"));}
                     children.push((*target,child));
                 }
-                state.locals[source.0 as usize]=None;
-                for(target,child)in children{state.locals[target.0 as usize]=Some(child);}
+                state.edit_locals(b)?[source.0 as usize]=None;
+                for(target,child)in children{state.edit_locals(b)?[target.0 as usize]=Some(Rc::new(child));}
                 Ok(None)
             }
             InstructionKind::DropErrorUnion{local:source}|InstructionKind::DropEnum{local:source}|InstructionKind::DropTuple{local:source}=>{
-                state.locals[source.0 as usize]=None;Ok(None)
+                state.edit_locals(b)?[source.0 as usize]=None;Ok(None)
             }
             _=>Err(bad("another operation reached the whole sum/product consumer")),
         }

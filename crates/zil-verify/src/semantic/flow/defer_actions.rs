@@ -105,7 +105,7 @@ impl Actions {
         let occupant = state
             .locals
             .get(local.0 as usize)
-            .and_then(Option::as_ref)
+            .and_then(Option::as_deref)
             .ok_or_else(|| bad("defer registration has no initialized actual slot"))?;
         if occupant.ty != Type::Closure(action.closure)
             || !context.same_type(environment, occupant, value_at(values, value)?, b)?

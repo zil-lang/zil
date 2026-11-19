@@ -234,15 +234,21 @@ impl Equations {
         });
         Ok(id)
     }
+    // The reverse directory is formed once. A union updates only the smaller
+    // component, for every source type and every module calling convention.
+    fn prepare_members(&mut self, b: &mut Budget) -> Check<()> {
+        if self.members.is_none() {
+            b.spend(self.representative.len().saturating_mul(3))?;
+            let mut members = vec![Vec::new(); self.representative.len()];
+            for (variable, representative) in self.representative.iter().enumerate() {
+                members[*representative].push(variable);
+            }
+            self.members = Some(members);
+        }
+        Ok(())
+    }
     fn equal(&mut self, a: usize, z: usize, b: &mut Budget) -> Check<()> {
-        b.spend(if self.members.is_some() {
-            3
-        } else {
-            self.representative
-                .len()
-                .saturating_mul(2)
-                .saturating_add(1)
-        })?;
+        b.spend(3)?;
         let mut a = self.representative[a];
         let mut z = self.representative[z];
         if a == z {
@@ -253,37 +259,31 @@ impl Equations {
                 "actual retained class equality is not universally valid",
             ));
         }
-        if let Some(members) = &mut self.members {
-            b.spend(2)?;
-            let mut a_count = members[a].len();
-            let mut z_count = members[z].len();
-            if a_count < z_count {
-                std::mem::swap(&mut a, &mut z);
-                std::mem::swap(&mut a_count, &mut z_count);
-            }
-            b.spend(1)?;
-            let grow = members[a].capacity().saturating_sub(a_count) < z_count;
-            b.spend(
-                z_count
-                    .saturating_mul(3)
-                    .saturating_add(1)
-                    .saturating_add(if grow { a_count } else { 0 }),
-            )?;
-            if grow {
-                // Pay copying the existing larger component before reserve;
-                // none of the following member pushes can reallocate.
-                members[a].reserve(z_count);
-            }
-            for member in std::mem::take(&mut members[z]) {
-                self.representative[member] = a;
-                members[a].push(member);
-            }
-        } else {
-            for row in &mut self.representative {
-                if *row == z {
-                    *row = a;
-                }
-            }
+        self.prepare_members(b)?;
+        let members = self.members.as_mut().expect("class member rows are initialized");
+        b.spend(2)?;
+        let mut a_count = members[a].len();
+        let mut z_count = members[z].len();
+        if a_count < z_count {
+            std::mem::swap(&mut a, &mut z);
+            std::mem::swap(&mut a_count, &mut z_count);
+        }
+        b.spend(1)?;
+        let grow = members[a].capacity().saturating_sub(a_count) < z_count;
+        b.spend(
+            z_count
+                .saturating_mul(3)
+                .saturating_add(1)
+                .saturating_add(if grow { a_count } else { 0 }),
+        )?;
+        if grow {
+            // Pay copying the existing larger component before reserve;
+            // none of the following member pushes can reallocate.
+            members[a].reserve(z_count);
+        }
+        for member in std::mem::take(&mut members[z]) {
+            self.representative[member] = a;
+            members[a].push(member);
         }
         self.rigid[a] = self.rigid[a].or(self.rigid[z]);
         if let Some(grounded) = &mut self.grounded {
@@ -324,14 +324,6 @@ impl Equations {
         }
         let mut array_elements = Vec::new();
         if super::stored_flow::shared_array_value(ty) {
-            if self.members.is_none() {
-                b.spend(self.representative.len().saturating_mul(3))?;
-                let mut members = vec![Vec::new(); self.representative.len()];
-                for (variable, representative) in self.representative.iter().enumerate() {
-                    members[*representative].push(variable);
-                }
-                self.members = Some(members);
-            }
             let Type::Array { length, .. } = ty else {
                 unreachable!()
             };
@@ -1249,7 +1241,7 @@ fn check_with(
         representative: Vec::new(),
         // Use actual component membership for ordinary stored Option flows.
         // A merge rewrites only the paid members of the smaller component.
-        members: (b.store_option_results && !b.tasks && module.closures.is_empty()).then(Vec::new),
+        members: Some(Vec::new()),
         rigid: Vec::new(),
         grounded: None,
         next_rigid: 0,

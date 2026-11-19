@@ -2,6 +2,7 @@
 //! Every admitted instruction is replayed against its real operands and CFG.
 use super::*;
 use std::collections::VecDeque;
+use std::rc::Rc;
 mod intrinsics;
 mod capture_values;
 mod capture_mirrors;
@@ -32,8 +33,21 @@ mod persistent_slots;
 mod defer_actions;
 #[derive(Clone,PartialEq,Eq)]
 struct State {
-    locals: Vec<Option<CheckedType>>,
+    // Each installed type domain is immutable. Branches share that occurrence
+    // until a transfer replaces or clears its local. Loans and cleanup are
+    // still checked at each actual operation.
+    locals: Rc<Vec<Option<Rc<CheckedType>>>>,
     deferred: BTreeMap<LocalId, defer_actions::Registered>,
+}
+impl State {
+    /// Rows share the exact incoming domain until an instruction changes it.
+    /// Deferred actions remain edge-specific and are checked at every join.
+    fn edit_locals(&mut self, b: &mut Budget) -> Check<&mut [Option<Rc<CheckedType>>]> {
+        if Rc::strong_count(&self.locals) > 1 {
+            b.spend(self.locals.len())?;
+        }
+        Ok(Rc::make_mut(&mut self.locals).as_mut_slice())
+    }
 }
 /// Constructed only after this interpreter checks the actual complete body.
 /// A catalogue entry, metadata flag or equal Type cannot manufacture it.
@@ -128,7 +142,7 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
     b.spend(1)?;
     let directory=directory.seal(module,b)?;
     context.published.set(true);
-    b.semantic_checked=Some(std::rc::Rc::new(dynamic_witness::semantic_patterns::Session::new(module,context,active,directory)));
+    b.semantic_checked=Some(Rc::new(dynamic_witness::semantic_patterns::Session::new(module,context,active,directory)));
     Ok(())
 }
 impl CheckedContext {
@@ -226,11 +240,11 @@ impl CheckedContext {
                 if expected.is_some_and(|entries|entries.len()!=matched.len()) {return Err(bad("original foreign literal has no matching actual constant"));}
             }
         }
-        let mut initial=State{locals:vec![None;f.locals.len()],deferred:BTreeMap::new()};
+        let mut initial=State{locals:Rc::new(vec![None;f.locals.len()]),deferred:BTreeMap::new()};
         for (index,(parameter,(expected,_))) in f.parameters.iter().zip(&signature.parameters).enumerate() {
             let local=f.locals.get(parameter.0 as usize).ok_or_else(||bad("actual parameter local is absent"))?;
             if local.ty!=expected.ty {return Err(bad("actual parameter whole type differs from its original recipe"));}
-            initial.locals[parameter.0 as usize]=Some(expected.clone());
+            initial.edit_locals(b)?[parameter.0 as usize]=Some(Rc::new(expected.clone()));
             self.record(scope,OperandKey::Parameter(index as u32),expected,b)?;
             self.record_address_validity(module,expected,environment,b)?;
         }
@@ -257,7 +271,7 @@ impl CheckedContext {
         while let Some(block_id)=queue.pop_front() {
             b.spend(1)?;
             let incoming=states[block_id].as_ref().ok_or_else(||bad("reachable semantic block has no incoming state"))?;
-            b.spend(incoming.deferred.len())?;
+            b.spend(1usize.saturating_add(incoming.deferred.len()))?;
             let mut state=incoming.clone();
             let block=&f.blocks[block_id];
             let ordered_sites=self.site_index.block_from(module,instance.id,block.id,0,b)?;
@@ -297,13 +311,13 @@ impl CheckedContext {
                         Some(value)
                     },
                     InstructionKind::Load(local)|InstructionKind::TakeLocal{local}=>{
-                        let value=state.locals.get(local.0 as usize).and_then(Option::as_ref).cloned().ok_or_else(||bad("semantic local use is not initialized on every incoming edge"))?;
+                        let value=state.locals.get(local.0 as usize).and_then(Option::as_deref).cloned().ok_or_else(||bad("semantic local use is not initialized on every incoming edge"))?;
                         self.record(scope,OperandKey::Local{local:*local,at:environment.at.unwrap()},&value,b)?;
-                        if matches!(instruction.kind,InstructionKind::TakeLocal{..}) {state.locals[local.0 as usize]=None;}
+                        if matches!(instruction.kind,InstructionKind::TakeLocal{..}) {state.edit_locals(b)?[local.0 as usize]=None;}
                         Some(value)
                     }
                     InstructionKind::BorrowLocal{local}|InstructionKind::BorrowLocalMut{local}=>{
-                        let child=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual borrowed local has no initialized semantic occupant"))?;
+                        let child=state.locals.get(local.0 as usize).and_then(Option::as_deref).ok_or_else(||bad("actual borrowed local has no initialized semantic occupant"))?;
                         let result=instruction.result.ok_or_else(||bad("actual local borrow has no SSA result"))?;
                         let mode=if matches!(instruction.kind,InstructionKind::BorrowLocalMut{..}){StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
                         let outer=self.pattern_borrow_class(module,instance,f,instruction,*local,&[],mode==StoredBorrowMode::ExclusiveAddress,scope,b)?
@@ -315,7 +329,7 @@ impl CheckedContext {
                         Some(self.reborrow_value(value_at(&values,*address)?,scope,result,*mutable,b)?)
                     }
                     InstructionKind::DescribeLocal{local}=>{
-                        let owner=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual description has no initialized owner"))?;
+                        let owner=state.locals.get(local.0 as usize).and_then(Option::as_deref).ok_or_else(||bad("actual description has no initialized owner"))?;
 
                         let Type::Managed(_payload)=&owner.ty else{return Err(bad("actual description has no initialized complete owning carrier"));};
                         crate::resources::check_type_for(module,&owner.ty,Some(instruction.span),b)?;
@@ -326,11 +340,11 @@ impl CheckedContext {
                         Some(dynamic_witness::semantic_external::construct(self,&environment,dynamic_witness::semantic_external::Constructor::Address{mode,outer:Some(outer)},&[child],active,b)?)
                     }
                     InstructionKind::DropManaged{local}=>{
-                        if let Some(value)=state.locals.get(local.0 as usize).and_then(Option::as_ref){
+                        if let Some(value)=state.locals.get(local.0 as usize).and_then(Option::as_deref){
 
                             crate::resources::check_type_for(module,&value.ty,Some(instruction.span),b)?;
                         }
-                        state.locals[local.0 as usize]=None;None
+                        state.edit_locals(b)?[local.0 as usize]=None;None
                     }
                     InstructionKind::ConvertInteger{value,target}|InstructionKind::ConvertNumber{value,target}=>{
                         if sites.iter().any(|site|matches!(site.action,SemanticSiteAction::BodyCall{..})){self.actual_intrinsic(module,instance,f,instruction,sites,&values,&environment,external,active,b)?}
@@ -377,11 +391,11 @@ impl CheckedContext {
                         }
                         if f.locals[local.0 as usize].ty!=value.ty {return Err(bad("actual Store changes its local complete type"));}
                         if local_role{if let Some(value)=&normalized{self.record_local_role_write(instance,*local,actual,value,&environment,b)?;}}
-                        state.locals[local.0 as usize]=Some(match normalized{Some(value)=>value,None=>value.clone()});None
+                        state.edit_locals(b)?[local.0 as usize]=Some(Rc::new(match normalized{Some(value)=>value,None=>value.clone()}));None
                     }
                     InstructionKind::StorageLive(local)|InstructionKind::StorageDead(local)=>{
                         defer_actions::unregistered_slot(&state,*local,b)?;
-                        state.locals[local.0 as usize]=None;None
+                        state.edit_locals(b)?[local.0 as usize]=None;None
                     },
                     InstructionKind::RegisterDefer{scope,local}=>{
                         if instruction.result.is_some(){return Err(bad("defer registration cannot produce an actual result"));}
@@ -455,22 +469,22 @@ impl CheckedContext {
                     InstructionKind::DropMutexGuard{..}=>{self.drop_mutex_guard(module,f,instruction,&mut state,b)?;None},
                     InstructionKind::DropClosure{local}=>{
                         crate::closures::check_resource_instruction(module,f,instruction,b)?;
-                        if let Some(value)=state.locals.get(local.0 as usize).and_then(Option::as_ref){
+                        if let Some(value)=state.locals.get(local.0 as usize).and_then(Option::as_deref){
                             if f.locals.get(local.0 as usize).is_none_or(|row|row.ty!=value.ty)||!matches!(value.ty,Type::Closure(_)){return Err(bad("closure cleanup changes its complete initialized original local"));}
                             dynamic_witness::intrinsic_domain(module,&value.ty,b)?;
                         }
-                        state.locals[local.0 as usize]=None;None
+                        state.edit_locals(b)?[local.0 as usize]=None;None
                     },
                     InstructionKind::DropDynOwned{local}=>{
                         crate::dynamic_dispatch::instruction(module,f,instruction,b)?;
                         let actual=f.locals.get(local.0 as usize).ok_or_else(||bad("erased cleanup has no exact actual local"))?;
                         if !matches!(actual.ty,Type::OwnedDyn{..}){return Err(bad("erased cleanup has another complete owner kind"));}
-                        if let Some(owner)=state.locals.get(local.0 as usize).and_then(Option::as_ref){if owner.ty!=actual.ty{return Err(bad("erased cleanup changes its complete initialized original owner"));}}
+                        if let Some(owner)=state.locals.get(local.0 as usize).and_then(Option::as_deref){if owner.ty!=actual.ty{return Err(bad("erased cleanup changes its complete initialized original owner"));}}
                         dynamic_witness::structural_actual(module,&actual.ty,DynStructuralBound::SyncDrop,b)?;
                         // Conditional cleanup of an already transferred slot
                         // is empty. Actual ownership/debt/loan kernels still
                         // prove every live owner is finalized exactly once.
-                        state.locals[local.0 as usize]=None;None
+                        state.edit_locals(b)?[local.0 as usize]=None;None
                     },
                     InstructionKind::FunctionRef{..}=>Some(self.function_pointer(module,instance,f,instruction,&environment,external,active,b)?),
                     InstructionKind::ForeignFunctionRef{..}=>self.actual_intrinsic(module,instance,f,instruction,sites,&values,&environment,external,active,b)?,
@@ -552,15 +566,25 @@ impl CheckedContext {
                     b.spend(old.deferred.len().saturating_add(state.deferred.len()))?;
                     if old.deferred!=state.deferred{return Err(bad("actual CFG join changes active original defer registrations"));}
                     let mut changed=false;
-                    for (old,new) in old.locals.iter_mut().zip(&state.locals) {
-                        b.spend(1)?;
-                        match (&*old,new) {
-                            (Some(left),Some(right))=>if !self.same_type(environment,left,right,b)? {return Err(bad("CFG join merges incompatible original rigid classes"));},
-                            (Some(_),None)=>{*old=None;changed=true;},_=>{},
+                    if !Rc::ptr_eq(&old.locals, &state.locals) {
+                        b.spend(old.locals.len())?;
+                        for (index, new) in state.locals.iter().enumerate() {
+                            match (&old.locals[index], new) {
+                                (Some(left), Some(right)) => {
+                                    if !Rc::ptr_eq(left, right) && !self.same_type(environment, left, right, b)? {
+                                        return Err(bad("CFG join merges incompatible original rigid classes"));
+                                    }
+                                }
+                                (Some(_), None) => {
+                                    old.edit_locals(b)?[index] = None;
+                                    changed = true;
+                                }
+                                _ => {}
+                            }
                         }
                     }
                     changed
-                }else{b.spend(state.deferred.len())?;states[target]=Some(state.clone());true};
+                }else{b.spend(1usize.saturating_add(state.deferred.len()))?;states[target]=Some(state.clone());true};
                 if changed {queue.push_back(target);}
             }
         }
@@ -907,7 +931,7 @@ impl CheckedContext {
         if matches!(&site.action,SemanticSiteAction::BodyCall{actuals}if !actuals.is_empty()){return Err(bad("nongeneric original callable invocation adds actual arguments"));}
         let (actual,arguments)=match opcode {
             InstructionKind::CallIndirect{callee,arguments}|InstructionKind::CallClosure{callee,arguments}|InstructionKind::CallClosureOnce{callee,arguments}|InstructionKind::CallClosureBorrowed{callee,arguments,..}=>(value_at(values,*callee)?,arguments),
-            InstructionKind::CallClosureShared{callee,arguments}|InstructionKind::CallClosureMut{callee,arguments}=>(state.locals.get(callee.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual callable local is not initialized"))?,arguments),_=>return Err(bad("actual opcode is not a closure invocation")),
+            InstructionKind::CallClosureShared{callee,arguments}|InstructionKind::CallClosureMut{callee,arguments}=>(state.locals.get(callee.0 as usize).and_then(Option::as_deref).ok_or_else(||bad("actual callable local is not initialized"))?,arguments),_=>return Err(bad("actual opcode is not a closure invocation")),
         };
         if let InstructionKind::CallClosureBorrowed { callee, .. } = opcode
             && matches!(expected.ty, Type::Address { .. })
@@ -1009,7 +1033,7 @@ impl CheckedContext {
                 }
                 let parent_key = ScopeKey::Witness{definition:parent,frame:active.fresh(b)?};
                 let mut scope = EvalEnv {
-                    lexical:vec![std::rc::Rc::new(LexicalFrame{definition:parent,key:parent_key,actuals:vec![],environment:vec![],self_type:None})],
+                    lexical:vec![Rc::new(LexicalFrame{definition:parent,key:parent_key,actuals:vec![],environment:vec![],self_type:None})],
                     assumptions:vec![],images:vec![],bounds:vec![],invocations:vec![],at:None,
                 };
                 let source_self=self.evaluate_type(module,recipe,&scope,external,active,b)?;
@@ -1022,7 +1046,7 @@ impl CheckedContext {
                 lexical=scope.lexical;
             }
         }
-        lexical.insert(0,std::rc::Rc::new(LexicalFrame{definition:*target,key,actuals:checked,environment:vec![],self_type:target_self}));
+        lexical.insert(0,Rc::new(LexicalFrame{definition:*target,key,actuals:checked,environment:vec![],self_type:target_self}));
         if !target_definition.environment.is_empty() {return Err(unsupported("ordinary Call cannot manufacture a closure's sealed ghost environment",None));}
         let call_environment=EvalEnv{lexical,assumptions:environment.assumptions.clone(),images:environment.images.clone(),bounds:environment.bounds.clone(),invocations:vec![],at:environment.at};
         let worlds=self.call_worlds(module,callee,*target,&call_environment,environment,active,b)?;
@@ -1251,7 +1275,7 @@ mod type_use_view_tests {
         let input=ClassKey::Formal{scope,ordinal:0};let source=ClassKey::Implicit{scope,ordinal:0};
         // A scoped relation kernel control: these frames are not an admission
         // proof for an SSA value, source expression, header or resource owner.
-        let env=EvalEnv{lexical:vec![std::rc::Rc::new(LexicalFrame{definition:instance.definition,key:scope,actuals:vec![CheckedActual::Life(input.clone()),CheckedActual::Life(source.clone())],environment:vec![],self_type:None})],assumptions:vec![scope],images:vec![],bounds:vec![],invocations:vec![],at:None};
+        let env=EvalEnv{lexical:vec![Rc::new(LexicalFrame{definition:instance.definition,key:scope,actuals:vec![CheckedActual::Life(input.clone()),CheckedActual::Life(source.clone())],environment:vec![],self_type:None})],assumptions:vec![scope],images:vec![],bounds:vec![],invocations:vec![],at:None};
         let ty=Type::Address{mutable:false,inner:Box::new(Type::I32)};let life=StorageLifeShape{binder_count:1,slots:vec![StorageLifeSlot{path:vec![],binder:0,mode:StoredBorrowMode::SharedAddress}],retained:vec![],nominal_arguments:vec![]};
         let value=|class:ClassKey|CheckedType{type_cell:CheckedTypeData::new(ty.clone()),life:life.clone(),origins:vec![IntrinsicOrigin::DerivedClass{source:class.clone()}],classes:vec![class],statics:vec![]};
         let claim=|ordinal,ty:Type|SemanticTypeValue::Resolved{ty,life:life.clone(),classes:vec![SemanticClassExpr::Formal{scope:SemanticScopeRef::Ancestor(0),ordinal}]};

@@ -34,7 +34,7 @@ impl CheckedContext {
         let mode=if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
         let outer=ClassKey::Outer{scope,operand:OperandKey::Value(result),path:vec![],mode};
         let child=match &instruction.kind{
-            InstructionKind::BorrowDynOwned{local,..}=>{let owner=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("erased borrowing has no initialized complete owner"))?;let owner=if matches!(owner.ty,Type::Address{..}){self.child_value(module,owner,&[LifeTypeProjection::Pointee],b)?}else{owner.clone()};if owner.ty!=(Type::OwnedDyn{interface:*interface}){return Err(bad("erased borrowing changes its actual owner interface"));}CheckedType{type_cell: crate::semantic::CheckedTypeData::new(Type::Dyn{interface:*interface}),..owner}},
+            InstructionKind::BorrowDynOwned{local,..}=>{let owner=state.locals.get(local.0 as usize).and_then(Option::as_deref).ok_or_else(||bad("erased borrowing has no initialized complete owner"))?;let owner=if matches!(owner.ty,Type::Address{..}){self.child_value(module,owner,&[LifeTypeProjection::Pointee],b)?}else{owner.clone()};if owner.ty!=(Type::OwnedDyn{interface:*interface}){return Err(bad("erased borrowing changes its actual owner interface"));}CheckedType{type_cell: crate::semantic::CheckedTypeData::new(Type::Dyn{interface:*interface}),..owner}},
             InstructionKind::MakeDynBorrow{source,vtable,..}=>{
                 let source=self.child_value(module,value_at(values,*source)?,&[LifeTypeProjection::Pointee],b)?;
                 b.spend(module.dyn_vtables.len().saturating_add(module.dyn_interfaces.len()))?;

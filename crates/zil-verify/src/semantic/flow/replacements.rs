@@ -65,7 +65,7 @@ impl CheckedContext {
         let (parent, pointed) = match place.origin {
             Origin::Address(address) => (Some(value_at(values, address)?), true),
             Origin::Local(local) => (state.locals.get(local.0 as usize)
-                .ok_or_else(|| bad("replacement local has no semantic state"))?.as_ref(), false),
+                .ok_or_else(|| bad("replacement local has no semantic state"))?.as_deref(), false),
         };
         if let Some(parent) = parent {
             b.spend(place.steps.len().saturating_add(usize::from(pointed)))?;
@@ -91,7 +91,7 @@ impl CheckedContext {
             if let Origin::Local(local) = place.origin {
                 if place.steps.is_empty() {
                     actual.charge_clone(b)?;
-                    state.locals[local.0 as usize] = Some(actual.clone());
+                    state.edit_locals(b)?[local.0 as usize] = Some(Rc::new(actual.clone()));
                 }
             }
         }

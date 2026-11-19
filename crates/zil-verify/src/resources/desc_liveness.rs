@@ -161,6 +161,72 @@ fn reverse_words(
     }
     Ok(())
 }
+/// Descriptor ordinals are assigned once by Slots. Use the same backward CFG
+/// equations for small byte rows and large machine-word rows. The large path
+/// retains its packed representation from block entry through instruction use.
+pub(super) fn solve(
+    f: &TypedFunction, graph: &FunctionGraph, slots: &Slots, budget: &mut Budget,
+) -> Check<History> {
+    if slots.desc_count <= SMALL {
+        let output = solve_rows(f, graph, slots.desc_count, budget, |row, op, b| {
+            b.spend(instruction_operands(&op.kind).count().saturating_add(1))?;
+            reverse(slots, row, op);
+            Ok(())
+        })?;
+        return dense(f, slots, &output, budget);
+    }
+    let width = slots.desc_count.div_ceil(WORD);
+    let output = solve_rows(f, graph, width, budget, |row, op, b| reverse_words(slots, row, op, b))?;
+    packed(f, slots, budget, |index, b| {
+        b.spend(width.saturating_add(3))?;
+        Ok(output[index].clone())
+    })
+}
+
+fn solve_rows<T: Copy + Default + Eq + std::ops::BitOrAssign>(
+    f: &TypedFunction, graph: &FunctionGraph, width: usize, budget: &mut Budget,
+    mut reverse: impl FnMut(&mut [T], &Instruction, &mut Budget) -> Check<()>,
+) -> Check<Vec<Vec<T>>> {
+    let n = f.blocks.len();
+    budget.spend(
+        n.checked_mul(width)
+            .and_then(|v| v.checked_mul(2))
+            .ok_or_else(|| limit("resource liveness overflow"))?,
+    )?;
+    let mut input = vec![vec![T::default(); width]; n];
+    let mut output = input.clone();
+    let mut pending: VecDeque<_> = (0..n).filter(|&b| graph.reachable[b]).collect();
+    budget.spend(n)?;
+    let mut queued = graph.reachable.clone();
+    while let Some(b) = pending.pop_front() {
+        queued[b] = false;
+        budget.spend(width.saturating_add(1))?;
+        let mut live = vec![T::default(); width];
+        for &next in &graph.successors[b] {
+            budget.spend(width)?;
+            for (a, b) in live.iter_mut().zip(&input[next]) {
+                *a |= *b;
+            }
+        }
+        output[b].clone_from(&live);
+        for i in f.blocks[b].instructions.iter().rev() {
+            reverse(&mut live, i, budget)?;
+        }
+        if input[b] != live {
+            input[b] = live;
+            for &p in &graph.predecessors[b] {
+                budget.spend(1)?;
+                if graph.reachable[p] && !queued[p] {
+                    queued[p] = true;
+                    pending.push_back(p);
+                }
+            }
+        }
+    }
+    Ok(output)
+}
+
+#[cfg(test)]
 pub(super) fn history(
     f: &TypedFunction,
     slots: &Slots,
@@ -172,10 +238,7 @@ pub(super) fn history(
     }
     let len = slots.desc_count;
     let count = len.div_ceil(WORD);
-    // Outer container capacity/writes and allocation/release headers.
-    budget.spend(f.blocks.len().saturating_mul(2).saturating_add(2))?;
-    let mut blocks = Vec::with_capacity(f.blocks.len());
-    for (block_index, block) in f.blocks.iter().enumerate() {
+    packed(f, slots, budget, |block_index, budget| {
         // One actual output-row index, zeroed scratch words and Vec headers.
         budget.spend(count.saturating_add(3))?;
         let out = &output[block_index];
@@ -186,6 +249,21 @@ pub(super) fn history(
                 set(&mut live, len, index, true, budget)?;
             }
         }
+        Ok(live)
+    })
+}
+
+fn packed(
+    f: &TypedFunction, slots: &Slots, budget: &mut Budget,
+    mut exit: impl FnMut(usize, &mut Budget) -> Check<Vec<usize>>,
+) -> Check<History> {
+    let len = slots.desc_count;
+    let count = len.div_ceil(WORD);
+    // Outer container capacity/writes and allocation/release headers.
+    budget.spend(f.blocks.len().saturating_mul(2).saturating_add(2))?;
+    let mut blocks = Vec::with_capacity(f.blocks.len());
+    for (block_index, block) in f.blocks.iter().enumerate() {
+        let mut live = exit(block_index, budget)?;
         // History row capacity and allocation/release headers; each clone below
         // pays its word payload, own Vec headers and history-slot write.
         // No empty per-instruction Vecs.

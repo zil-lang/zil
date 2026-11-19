@@ -198,10 +198,10 @@ impl CheckedContext{
         };
         if index.is_some_and(|index|index!=0){return Err(bad("private callback cell selects another element"));}
         self.persistent_initialization(module,caller,f,local,b)?;
-        let parent=state.locals.get(local.0 as usize).and_then(Option::as_ref);
+        let parent=state.locals.get(local.0 as usize).and_then(Option::as_deref);
         if matches!(instruction.kind,InstructionKind::DropOwnedArray{..}){
             if let Some(parent)=parent{if element(&parent.ty).is_none(){return Err(bad("private callback cleanup selects another initialized carrier"));}let child=self.child_value(module,parent,&[LifeTypeProjection::Element],b)?;ghost_captures::complete_environment(module,&child,b)?;}
-            state.locals[local.0 as usize]=None;return Ok(None);
+            state.edit_locals(b)?[local.0 as usize]=None;return Ok(None);
         }
         let parent=parent.ok_or_else(||bad("private callback operation has no initialized shell on every incoming edge"))?;
         if f.locals.get(local.0 as usize).is_none_or(|decl|decl.ty!=parent.ty)||element(&parent.ty).is_none(){return Err(bad("private callback operation changes its exact initialized shell"));}

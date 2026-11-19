@@ -14,8 +14,8 @@ impl CheckedContext{
                 ghost_captures::complete_environment(module,source,b)?;
                 if f.locals.get(local.0 as usize).is_none_or(|target|target.ty!=source.ty){return Err(bad("package capture local differs from its full sealed environment type"));}
                 dynamic_metadata::ty(&source.ty,b)?;b.spend(source.origins.len())?;
-                let target=state.locals.get_mut(local.0 as usize).ok_or_else(||bad("package capture local is absent"))?;
-                if matches!(instruction.kind,InstructionKind::BindPackageCapture{..}){if target.is_some(){return Err(bad("package capture rebinds an initialized lexical view"));}*target=Some(source.clone());}
+                let target=state.edit_locals(b)?.get_mut(local.0 as usize).ok_or_else(||bad("package capture local is absent"))?;
+                if matches!(instruction.kind,InstructionKind::BindPackageCapture{..}){if target.is_some(){return Err(bad("package capture rebinds an initialized lexical view"));}*target=Some(Rc::new(source.clone()));}
                 else {
                     // TakeLocal can consume the value before ending its lexical view.
                     // The package and cleanup checks still prove the exact Bind/End
@@ -28,7 +28,7 @@ impl CheckedContext{
                 Ok(None)
             },
             InstructionKind::ReadPackageField{local,index}|InstructionKind::TakePackageField{local,index}|InstructionKind::DescribePackageField{local,index}|InstructionKind::BorrowPackageField{local,index,..}=>{
-                let parent=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual package field has no initialized complete parent view"))?;
+                let parent=state.locals.get(local.0 as usize).and_then(Option::as_deref).ok_or_else(||bad("actual package field has no initialized complete parent view"))?;
 
                 let storage=match &parent.ty{Type::BorrowedStorage{storage,..}=>storage.as_ref(),other=>other};
                 let Type::Package{fields,..}=storage else{return Err(bad("actual package field parent has another nominal storage"));};
@@ -46,7 +46,7 @@ impl CheckedContext{
                 match instruction.kind{InstructionKind::DescribeCapture{..}=>self.owner_description(module,child,instruction,scope,environment,active,b).map(Some),InstructionKind::BorrowCapture{mutable,..}=>self.owner_address(child,instruction,scope,mutable,environment,active,b).map(Some),_=>unreachable!()}
             },
             InstructionKind::DropPackageField{local,index}|InstructionKind::StorePackageField{local,index,..}=>{
-                let parent=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual package field replacement has no complete parent domain"))?;
+                let parent=state.locals.get(local.0 as usize).and_then(Option::as_deref).ok_or_else(||bad("actual package field replacement has no complete parent domain"))?;
                 if f.locals.get(local.0 as usize).is_none_or(|row|row.ty!=parent.ty){return Err(bad("actual package field replacement changes its exact parent local type"));}
                 let storage=match &parent.ty{Type::BorrowedStorage{storage,..}=>storage.as_ref(),other=>other};
                 let Type::Package{fields,..}=storage else{return Err(bad("actual package field replacement has another owning product kind"));};
@@ -74,7 +74,7 @@ impl CheckedContext{
                 self.record(scope,OperandKey::Capture(*index),value,b)?;Ok(None)
             },
             InstructionKind::DropPackage{local}=>{
-                let target=state.locals.get_mut(local.0 as usize).ok_or_else(||bad("package cleanup local is absent"))?;
+                let target=state.edit_locals(b)?.get_mut(local.0 as usize).ok_or_else(||bad("package cleanup local is absent"))?;
                 if let Some(value)=target.as_ref(){ghost_captures::complete_environment(module,value,b)?;}
                 *target=None;Ok(None)
             },

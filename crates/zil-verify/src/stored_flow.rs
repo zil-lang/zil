@@ -5422,6 +5422,26 @@ fn execution_order(g: &FunctionGraph, entry: usize, b: &mut Budget) -> Check<(Ve
     Ok((order, cyclic))
 }
 
+/// All predecessors are outputs from this function's one checked frame layout.
+/// On a single incoming edge the complete memory state is already available.
+/// Per-block unresolved-call observations are set anew by the actual instructions.
+fn incoming_frame(
+    graph: &FunctionGraph, block: usize, entry_block: usize, entry: &Frame,
+    blank: &Frame, outputs: &[Frame], b: &mut Budget,
+) -> Check<Frame> {
+    b.spend(graph.predecessors[block].len().saturating_add(1))?;
+    let mut incoming = graph.predecessors[block].iter().copied().filter(|&id| graph.reachable[id]);
+    let initial = if block == entry_block { entry } else {
+        incoming.next().map_or(blank, |id| &outputs[id])
+    };
+    let mut state = copy_frame(initial, b)?;
+    state.pending_external_update = false;
+    for predecessor in incoming {
+        join_frame(&mut state, &outputs[predecessor], b)?;
+    }
+    Ok(state)
+}
+
 fn solve(
     module: &TypedModule,
     f: &TypedFunction,
@@ -5490,17 +5510,7 @@ fn solve_mode(
                     progress.block_visits = progress.block_visits.saturating_add(1);
                 }
                 b.spend(1)?;
-                let mut state = if bi == f.entry.0 as usize {
-                    copy_frame(&entry, b)?
-                } else {
-                    copy_frame(&blank, b)?
-                };
-                b.spend(g.predecessors[bi].len())?;
-                for pred in &g.predecessors[bi] {
-                    if g.reachable[*pred] {
-                        join_frame(&mut state, &outputs[*pred], b)?;
-                    }
-                }
+                let mut state = incoming_frame(g, bi, f.entry.0 as usize, &entry, &blank, &outputs, b)?;
                 for instruction in &f.blocks[bi].instructions {
                     let out = step(
                         module,
@@ -5558,16 +5568,7 @@ fn solve_mode(
             if let Some(progress) = &mut b.diagnostic_progress {
                 progress.block_visits = progress.block_visits.saturating_add(1);
             }
-            let mut state = if bi == f.entry.0 as usize {
-                copy_frame(&entry, b)?
-            } else {
-                copy_frame(&blank, b)?
-            };
-            for pred in &g.predecessors[bi] {
-                if g.reachable[*pred] {
-                    join_frame(&mut state, &outputs[*pred], b)?;
-                }
-            }
+            let mut state = incoming_frame(g, bi, f.entry.0 as usize, &entry, &blank, &outputs, b)?;
             for i in &f.blocks[bi].instructions {
                 let out = step(
                     module,
@@ -6415,16 +6416,7 @@ fn windows(
         if !g.reachable[bi] {
             continue;
         }
-        let mut state = if bi == f.entry.0 as usize {
-            copy_frame(&solution.entry, b)?
-        } else {
-            copy_frame(&blank, b)?
-        };
-        for pred in &g.predecessors[bi] {
-            if g.reachable[*pred] {
-                join_frame(&mut state, &solution.outputs[*pred], b)?;
-            }
-        }
+        let mut state = incoming_frame(g, bi, f.entry.0 as usize, &solution.entry, &blank, &solution.outputs, b)?;
         replacements::entry(f, bi, &state, b)?;
         let after = instruction_rows(module, f, bi, &output_live[bi], b)?;
         let mut byte_point = byte_flow

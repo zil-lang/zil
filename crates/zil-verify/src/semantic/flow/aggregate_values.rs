@@ -65,7 +65,7 @@ impl CheckedContext {
         let local = source.ok_or_else(|| bad("package repack has no actual owning source"))?;
         self.projected_local_root(module, instance, f, local, root, node, b)?;
         crate::check_instruction(module, f, instruction, b)?;
-        let parent = state.locals.get(local.0 as usize).and_then(Option::as_ref)
+        let parent = state.locals.get(local.0 as usize).and_then(Option::as_deref)
             .ok_or_else(|| bad("package repack source has no complete initialized parent domain"))?;
         if &parent.ty != storage {
             return Err(bad("package repack changes its source's complete nominal type"));
