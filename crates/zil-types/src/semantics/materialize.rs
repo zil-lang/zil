@@ -1163,7 +1163,9 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
             .or_else(|| row.place.clone())
             .ok_or_else(|| bad("inferred type expression has no actual complete value/place type"))?;
         let actual = logical_operand(self.ledger, self.module, f, &operand, self.limits, self.left)?;
-        if let Some(hint) = hint {
+        if let Some(hint) = hint
+            && !std::ptr::eq(actual.ty, hint.ty)
+        {
             inference::charge_type_snapshot(actual.ty, Span::default(), self.limits, self.left, 1)?;
             inference::charge_type_snapshot(hint.ty, Span::default(), self.limits, self.left, 1)?;
             if actual.ty != hint.ty {
@@ -1184,25 +1186,28 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
             &SemanticOperand::Value(result), self.limits, self.left)?;
         let definition = self.instance(owner)?.definition;
         let original = self.definition(definition)?;
-        let original_node =
-            if let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body {
+        let original_node = if let SemanticDefinitionBody::FunctionWithBody {
+            sites, site_nodes, ..
+        } = &original.body {
+            let proof = self.ledger.original.borrow();
+            let occurrence = if let Some(proof) = proof.as_ref() {
+                proof.original_site_node(definition, sites, site_nodes, site, self.left)?
+            } else {
                 self.fee(site_nodes.len())?;
                 let mut nodes = site_nodes.iter().filter(|row| row.site == site);
-                let node = nodes
-                    .next()
-                    .ok_or_else(|| bad("constructor site has no exact original node"))?;
-                if nodes.next().is_some() {
-                    return Err(bad("constructor site has multiple original nodes"));
-                }
-                let SemanticOriginalNode::Expression(node) = node.node else {
-                    return Err(bad(
-                        "constructor site does not select an original expression",
-                    ));
-                };
-                Some(node)
-            } else {
-                None
+                nodes.next().map(|row| nodes.next().is_none().then_some(row.node))
             };
+            match occurrence {
+                Some(Some(SemanticOriginalNode::Expression(node))) => Some(node),
+                Some(Some(SemanticOriginalNode::Statement(_))) => {
+                    return Err(bad("constructor site does not select an original expression"));
+                }
+                Some(None) => return Err(bad("constructor site has multiple original nodes")),
+                None => return Err(bad("constructor site has no exact original node")),
+            }
+        } else {
+            None
+        };
         let SemanticTypeValue::Core { scope, source } = proposed else {
             return self.value(owner, proposed, Some(expected), 0);
         };

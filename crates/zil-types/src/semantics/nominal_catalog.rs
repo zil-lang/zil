@@ -24,6 +24,7 @@ struct Check<'a, 'b> {
         std::rc::Rc<Vec<super::original::NominalRequest>>,
     >,
     instance_index: Option<NominalIndex<&'a LifeNominalInstance>>,
+    original_nominals: Option<BTreeMap<LifeDeclarationId, Option<&'a SemanticDefinition>>>,
     scopes: BTreeMap<SemanticDefinitionId, Rc<Vec<&'a SemanticInstance>>>,
     unhinted_requests: BTreeMap<RequestKey, Option<RequestValue>>,
     limits: &'b Limits,
@@ -86,19 +87,24 @@ impl<'a> Check<'a, '_> {
         Ok(())
     }
     fn original(&mut self, declaration: LifeDeclarationId) -> R<Option<&'a SemanticDefinition>> {
-        self.pay(self.program.definitions.len())?;
-        let mut found = None;
-        for definition in &self.program.definitions {
-            if matches!(&definition.body,SemanticDefinitionBody::Nominal { declaration:actual,.. } if *actual==declaration)
-            {
-                if found.replace(definition).is_some() {
-                    return Err(bad(
-                        "nominal application has multiple original declaration recipes",
-                    ));
-                }
+        if self.original_nominals.is_none() {
+            self.pay(self.program.definitions.len())?;
+            let mut originals = BTreeMap::new();
+            for definition in &self.program.definitions {
+                let SemanticDefinitionBody::Nominal { declaration, .. } = &definition.body else {
+                    continue;
+                };
+                self.pay(originals.len().saturating_add(1).ilog2() as usize + 2)?;
+                originals.entry(*declaration).and_modify(|row| *row = None).or_insert(Some(definition));
             }
+            self.original_nominals = Some(originals);
         }
-        Ok(found)
+        let count = self.original_nominals.as_ref().expect("built original nominal lookup").len();
+        self.pay(count.saturating_add(1).ilog2() as usize + 1)?;
+        match self.original_nominals.as_ref().and_then(|rows| rows.get(&declaration)) {
+            Some(None) => Err(bad("nominal application has multiple original declaration recipes")),
+            row => Ok(row.copied().flatten()),
+        }
     }
     fn instance(&mut self, ty: &Type) -> R<&'a LifeNominalInstance> {
         if self.instance_index.is_none() {
@@ -1502,6 +1508,7 @@ pub(super) fn program<'a>(
     }
     let mut check = Check {
         instance_index: None,
+        original_nominals: None,
         scopes,
         unhinted_requests: BTreeMap::new(),
         program,

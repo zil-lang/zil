@@ -905,28 +905,20 @@ impl<'a> Engine<'a, '_> {
             else {
                 return Err(failure("original closure creator has no body directory"));
             };
-            self.pay(
-                site_nodes
-                    .len()
-                    .saturating_mul(sites.len().saturating_add(1)),
-                depth,
-            )?;
+            self.pay(1, depth)?;
+            let directory = match self.proof.original_sites.owner(owner, self.left)? {
+                Some(directory) => directory,
+                None => std::rc::Rc::new(super::sites::DefinitionSites::build(
+                    owner, sites, site_nodes, self.left,
+                )?),
+            };
             let mut selected = None;
-            for row in site_nodes {
-                if row.node != SemanticOriginalNode::Expression(node) {
-                    continue;
-                }
-                for site in sites {
-                    if site.id != row.site {
-                        continue;
-                    }
-                    if let SemanticSiteRecipeKind::Closure { definition, .. } = site.kind {
-                        if selected.replace(definition).is_some() {
-                            return Err(failure(
-                                "original closure creator selects multiple children",
-                            ));
-                        }
-                    }
+            for id in directory.at(SemanticOriginalNode::Expression(node), self.left)? {
+                if let Some(site) = directory.recipe(owner, sites, *id, self.left)?
+                    && let SemanticSiteRecipeKind::Closure { definition, .. } = site.kind
+                    && selected.replace(definition).is_some()
+                {
+                    return Err(failure("original closure creator selects multiple children"));
                 }
             }
             let child =
@@ -961,23 +953,28 @@ impl<'a> Engine<'a, '_> {
             else {
                 return Err(failure("original capture creator has no body directory"));
             };
-            self.pay(
-                sites
-                    .len()
-                    .saturating_mul(site_nodes.len().saturating_add(1)),
-                depth,
-            )?;
+            self.pay(sites.len(), depth)?;
+            let directory = match self.proof.original_sites.owner(parent, self.left)? {
+                Some(directory) => directory,
+                None => std::rc::Rc::new(super::sites::DefinitionSites::build(
+                    parent, sites, site_nodes, self.left,
+                )?),
+            };
             let mut selected = None;
             for site in sites {
                 if !matches!(site.kind,SemanticSiteRecipeKind::Closure{definition,..} if definition==child.id)
                 {
                     continue;
                 }
-                for row in site_nodes.iter().filter(|row| row.site == site.id) {
-                    let SemanticOriginalNode::Expression(node) = row.node else {
+                match directory.node(site.id, self.left)? {
+                    None => {}
+                    Some(Some(SemanticOriginalNode::Expression(node))) if selected.is_none() => {
+                        selected = Some(node);
+                    }
+                    Some(Some(SemanticOriginalNode::Statement(_))) => {
                         return Err(failure("original closure creator is not an expression"));
-                    };
-                    if selected.replace(node).is_some() {
+                    }
+                    Some(_) => {
                         return Err(failure(
                             "original closure has ambiguous creator occurrences",
                         ));
