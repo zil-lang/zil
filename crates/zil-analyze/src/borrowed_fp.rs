@@ -225,6 +225,17 @@ fn callback_returns(
     signature_work(&closure.parameters, &closure.result, budget)?;
     if let Some(life) = life {
         crate::signature_life::charge(life, budget)?;
+        if crate::stored_callables::receiver_entry(module, closure)? {
+            let receiver = super::signature_life::outer(life, StorageBase::Receiver);
+            if !matches!(receiver, Some(StorageBinder::Invocation(_)))
+                || super::signature_life::outer(life, StorageBase::Result) != receiver
+            {
+                return Err(bad("callback role changes its actual Receiver result"));
+            }
+            // The exact entry's stored flow proves lending returns. This
+            // role keeps that receiver equation and every persistent class.
+            return super::stored_callables::check_role_relation(module, closure, life, budget);
+        }
         if life.fixed_binder_count != 0 && !matches!(closure.result, Type::Address { .. }) {
             // A concrete environment's complete captured domain is not the
             // invocation-only code-pointer profile. Authenticate the actual

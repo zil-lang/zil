@@ -57,6 +57,8 @@ pub(in crate::stored_flow) fn projected_inputs(
                 invokes |= matches!(&op.kind, InstructionKind::CallClosureOnce { callee, .. }
                     | InstructionKind::CallClosureBorrowed { callee, .. }
                     if f.values.get(callee.0 as usize).and_then(code) == Some(id));
+                invokes |= matches!(&op.kind, InstructionKind::CallClosureMut { callee, .. }
+                    if f.locals.get(callee.0 as usize).and_then(|local| code(&local.ty)) == Some(id));
                 if let InstructionKind::Call{arguments,..}=&op.kind {
                     b.spend(arguments.len())?;
                     invokes |= arguments.iter().any(|value|
@@ -281,6 +283,7 @@ fn physical_paths(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<Vec<
                             (PlaceProjection::ErrorArm(false), result.as_ref()),
                         ]);
                     }
+                    Type::Array { .. } if scalar_array(ty, depth, b)? => {}
                     Type::Array { element, length } => {
                         b.spend(*length as usize)?;
                         fields.extend(

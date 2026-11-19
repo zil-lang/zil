@@ -755,7 +755,9 @@ impl Check<'_, '_> {
                 ));
             }
             origin.root = Root::Capture(capture, source.indirect);
-            origin.fresh = !source.indirect;
+            // The spill normalization preserves an independently checked
+            // post-load reborrow from the captured pointer.
+            origin.fresh |= !source.indirect;
         }
         b.spend(origin.path.len().saturating_add(source.path.len()), WORK)?;
         if origin.path != source.path || !(origin.fresh || outer_fresh) {
