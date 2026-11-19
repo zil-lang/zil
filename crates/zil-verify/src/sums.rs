@@ -2291,32 +2291,19 @@ impl Flow<'_> {
             if let (Some(meta), Some(p)) = (&self.place_meta, &mut state.partial) {
                 meta.step(p, instruction, budget)?;
                 if partial_places::invalidates(&instruction.kind) {
-                    let pending = state
-                        .dirty_tags
-                        .as_ref()
-                        .map(|p| p.scheduled(self.tagged_locals.as_deref().unwrap_or(&[]), budget))
-                        .transpose()?;
-                    if let Some(pending) = pending {
-                        for (local, tracked) in pending {
+                    if let Some(pending) = &mut state.dirty_tags {
+                        // The transfer preserves Missing wrappers and owning
+                        // sources, clears routes and widens Copy alternatives
+                        // to their full type shape. Reapplying it to the same
+                        // Content is idempotent. Local writes, refinement and
+                        // changing joins put the current Content back here.
+                        for local in pending.take(budget)? {
                             forget_shared_copy_tags(
                                 &mut state.locals[local],
                                 &self.f.locals[local].ty,
                                 budget,
                                 self.tag_cache.as_ref().map(|cache| (cache, local)),
                             )?;
-                            // Clear only after the original complete transfer and an
-                            // exact current fixed-point proof, including all Missing
-                            // wrappers, complete variants, children and absent routes.
-                            if tracked
-                                && state.locals[local]
-                                    .tags_unknown(&self.f.locals[local].ty, budget)?
-                            {
-                                state
-                                    .dirty_tags
-                                    .as_mut()
-                                    .expect("pending actual Copy tags")
-                                    .clear(local, budget)?;
-                            }
                         }
                     } else if let Some(locals) = &self.tagged_locals {
                         budget.spend(locals.len())?;
@@ -3216,11 +3203,10 @@ fn run_retaining<'m>(
     } else {
         None
     };
-    if budget.large_tag_layout
-        && replacements.is_none()
-        && !address_replacement_tags
-        && let Some(tagged) = &mut tagged_locals
-    {
+    let track_dirty_tags = budget.large_tag_layout;
+    #[cfg(test)]
+    let track_dirty_tags = track_dirty_tags && !TEST_EAGER_TAGS.get();
+    if track_dirty_tags && let Some(tagged) = tagged_locals.take() {
         budget.spend(
             f.locals
                 .len()
@@ -3228,16 +3214,10 @@ fn run_retaining<'m>(
                 .saturating_add(1),
         )?;
         let mut eligible = vec![false; f.locals.len()];
-        let mut always = Vec::with_capacity(tagged.len());
-        for &local in tagged.iter() {
-            if budget.addressed_copy_sum(&f.locals[local].ty)? {
-                eligible[local] = true;
-            } else {
-                always.push(local);
-            }
+        for local in tagged {
+            eligible[local] = true;
         }
         state.dirty_tags = Some(dirty_tags::Pending::new(eligible, budget)?);
-        *tagged = always;
     }
     let flow = Flow {
         f,
@@ -3365,6 +3345,7 @@ fn replay_inputs(
 #[cfg(test)]
 thread_local! {
     static TEST_SUM_INPUTS: std::cell::RefCell<Option<Vec<Option<State>>>> = const { std::cell::RefCell::new(None) };
+    static TEST_EAGER_TAGS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 #[cfg(test)]
@@ -3380,8 +3361,13 @@ pub(super) fn test_schedule_equivalence(
         budget.pod_stores = profile == 1;
         budget.store_option_results = profile == 2;
         budget.ordinary_error_places = profile == 2;
+        TEST_EAGER_TAGS.set(profile == 0);
         let found = run(module, f, graph, &[Content::Copy], true, &mut budget);
-        let inputs = TEST_SUM_INPUTS.with(|capture| capture.borrow_mut().take().unwrap());
+        TEST_EAGER_TAGS.set(false);
+        let mut inputs = TEST_SUM_INPUTS.with(|capture| capture.borrow_mut().take().unwrap());
+        for input in inputs.iter_mut().flatten() {
+            input.dirty_tags = None;
+        }
         (found, inputs)
     };
     let (old_result, old_inputs) = solve(0);

@@ -662,6 +662,15 @@ fn pod_cfg_priority_retains_copy_sum_guards_and_invalidation() {
                 span: span(),
             })
             .collect();
+            // Compare the large-layout frontier with eager transfer on the
+            // same actual CFG, including the nearest stale-guard cases.
+            f.locals.extend((5..64).map(|id| LocalDecl {
+                id: LocalId(id),
+                name: format!("scalar{id}"),
+                ty: Type::I32,
+                mutable: true,
+                span: span(),
+            }));
             f.values = vec![
                 Type::I32,
                 Type::I32,

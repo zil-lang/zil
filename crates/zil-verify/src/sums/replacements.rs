@@ -745,7 +745,7 @@ pub(super) fn refine_actual_error_arm(
     if tag > 1 || state.initialized.get(local.0 as usize, b)? != 2 {
         return Ok(());
     }
-    let value = &mut state.locals[local.0 as usize];
+    let value = &state.locals[local.0 as usize];
     value.cost(b)?; // includes a possible Arc copy before mutation
     let Content::Sum(arms, _) = value.as_ref() else {
         return Err(invalid(
@@ -762,7 +762,8 @@ pub(super) fn refine_actual_error_arm(
         // edges. Never turn a missing/empty alternative into initialized data.
         return Ok(());
     }
-    let Content::Sum(arms, _) = Arc::make_mut(value) else {
+    state.dirty(local, b)?;
+    let Content::Sum(arms, _) = Arc::make_mut(&mut state.locals[local.0 as usize]) else {
         unreachable!()
     };
     arms.retain(|key, _| keep(*key));
@@ -888,6 +889,8 @@ impl Context<'_> {
                     // The old observation belongs to the retired instance.
                     // The incoming Content alone carries the new tag set.
                     flow.kill(state, local, b)?;
+                } else {
+                    state.dirty(local, b)?;
                 }
             }
             // An actual borrowed Store element is complete and retained by the

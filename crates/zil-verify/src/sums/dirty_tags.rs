@@ -1,4 +1,4 @@
-//! Pending invalidations of actual Copy local tag content, never tag authority.
+//! Pending invalidations of actual local Content, separate from tag observations.
 use super::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -50,42 +50,15 @@ impl Pending {
         }
         Ok(())
     }
-    pub(super) fn scheduled(
-        &self,
-        always: &[usize],
-        budget: &mut Budget,
-    ) -> Check<Vec<(usize, bool)>> {
-        let len = self.locals.len().saturating_add(always.len());
-        budget.spend(len.saturating_mul(3).saturating_add(2))?;
-        let mut scheduled = Vec::with_capacity(len);
-        let mut pending = self.locals.iter().copied().peekable();
-        let mut fixed = always.iter().copied().peekable();
-        while let (Some(&left), Some(&right)) = (pending.peek(), fixed.peek()) {
-            budget.spend(3)?;
-            if left < right {
-                scheduled.push((pending.next().expect("actual pending local"), true));
-            } else if right < left {
-                scheduled.push((fixed.next().expect("actual always local"), false));
-            } else {
-                return Err(bad(
-                    None,
-                    "pending and unconditional Sum inventories overlap",
-                ));
-            }
-        }
-        scheduled.extend(pending.map(|local| (local, true)));
-        scheduled.extend(fixed.map(|local| (local, false)));
-        Ok(scheduled)
+    pub(super) fn take(&mut self, budget: &mut Budget) -> Check<BTreeSet<usize>> {
+        // The consuming transfer visits each pending local and releases its entry.
+        budget.spend(self.locals.len().saturating_mul(2).saturating_add(2))?;
+        Ok(std::mem::take(&mut self.locals))
     }
     #[cfg(test)]
     pub(super) fn snapshot(&self, budget: &mut Budget) -> Check<Vec<usize>> {
         budget.spend(self.locals.len().saturating_add(1))?;
         Ok(self.locals.iter().copied().collect())
-    }
-    pub(super) fn clear(&mut self, local: usize, budget: &mut Budget) -> Check<()> {
-        budget.spend(lookup(self.locals.len()).saturating_add(1))?;
-        self.locals.remove(&local);
-        Ok(())
     }
 }
 
@@ -104,13 +77,7 @@ mod tests {
         let mut first = Pending::new(vec![true, false, true], &mut b).unwrap();
         let alias = first.clone();
         assert_eq!(first.snapshot(&mut b).unwrap(), vec![0, 2]);
-        assert_eq!(
-            first.scheduled(&[1], &mut b).unwrap(),
-            vec![(0, true), (1, false), (2, true)]
-        );
-        assert!(first.scheduled(&[0], &mut b).is_err());
-        first.clear(0, &mut b).unwrap();
-        first.clear(2, &mut b).unwrap();
+        assert_eq!(first.take(&mut b).unwrap(), BTreeSet::from([0, 2]));
         first.mark(1, &mut b).unwrap();
         assert!(first.snapshot(&mut b).unwrap().is_empty());
         first.mark(0, &mut b).unwrap();
@@ -120,7 +87,25 @@ mod tests {
         let unrelated = Pending::new(vec![true, false, true], &mut b).unwrap();
         assert!(first.merge(&unrelated, &mut b).is_err());
         assert!(first.mark(3, &mut b).is_err());
-        first.clear(0, &mut b).unwrap();
+        let before_take = first.clone();
+        let mut needed = budget(100_000);
+        assert_eq!(first.take(&mut needed).unwrap(), BTreeSet::from([0, 2]));
+        let take_n = 100_000 - needed.remaining;
+        first = before_take.clone();
+        assert_eq!(
+            first.take(&mut budget(take_n - 1)).unwrap_err().category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        assert_eq!(first, before_take);
+        assert_eq!(
+            first.take(&mut budget(take_n)).unwrap(),
+            BTreeSet::from([0, 2])
+        );
+        assert_eq!(alias.snapshot(&mut b).unwrap(), vec![0, 2]);
+
+        // A later change in a different local remains pending while we
+        // exercise the next exact insertion boundary.
+        first.mark(2, &mut b).unwrap();
         let before = first.clone();
         let mut needed = budget(100_000);
         first.mark(0, &mut needed).unwrap();
