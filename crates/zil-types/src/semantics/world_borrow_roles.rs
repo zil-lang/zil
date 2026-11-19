@@ -9,7 +9,7 @@ use zil_base::NodeId;
 enum Cursor {
     Value(ValueId),
     Local(LocalId),
-    StoredField { value: ValueId, remaining: usize },
+    FieldPath { value: ValueId, remaining: usize },
 }
 pub(super) fn producer<'f>(
     world: &mut World<'_, '_>,
@@ -773,7 +773,7 @@ fn trace_steps(
                 let index = selected
                     .ok_or_else(|| bad("capture loan has no exact original creator source"))?;
                 match cursor {
-                    Cursor::StoredField { .. } => {
+                    Cursor::FieldPath { .. } => {
                         return Err(bad("capture loan omits part of its stored field path"));
                     }
                     Cursor::Value(value) => {
@@ -880,7 +880,7 @@ fn trace_steps(
                 let local = binding_source_local(world, instance, original, &source, step.node)?;
                 let actual = world.local(locals, local)?;
                 let valid = match cursor {
-                    Cursor::StoredField { .. } => false,
+                    Cursor::FieldPath { .. } => false,
                     Cursor::Local(found) => !*read && found == local,
                     Cursor::Value(value) => match producer(world, function, value)?.0 {
                         InstructionKind::Load(found) => *read && *found == local,
@@ -914,18 +914,37 @@ fn trace_steps(
             } => {
                 let (value, remaining) = match cursor {
                     Cursor::Value(value) => (value, None),
-                    Cursor::StoredField { value, remaining } => (value, Some(remaining)),
+                    Cursor::FieldPath { value, remaining } => (value, Some(remaining)),
                     Cursor::Local(_) => {
                         return Err(bad("projected loan field has no actual SSA projection"));
                     }
                 };
                 let operation = producer(world, function, value)?.0;
-                if let InstructionKind::LoadStoredBorrow {
-                    storage,
-                    path,
-                    mode,
-                } = operation
-                {
+                // A single instruction can encode several source selectors.
+                // Consume one actual ordinal per source step and finish at its
+                // actual local or address. Only a stored read unwraps a slot.
+                enum FieldAccess {
+                    Address(bool),
+                    Stored(StoredBorrowLoad),
+                }
+                let path_source = match operation {
+                    InstructionKind::BorrowPlaceLocal { local, path, mutable } => {
+                        let holder = world.local(locals, *local)?;
+                        Some((path, Cursor::Local(*local), holder, FieldAccess::Address(*mutable)))
+                    }
+                    InstructionKind::BorrowPlaceAddress { address, path, mutable } => {
+                        let address_type = world.get(values, *address)?;
+                        let holder = world.pointee(&address_type)?;
+                        Some((path, Cursor::Value(*address), holder, FieldAccess::Address(*mutable)))
+                    }
+                    InstructionKind::LoadStoredBorrow { storage, path, mode } => {
+                        let storage_type = world.get(values, *storage)?;
+                        let holder = world.pointee(&storage_type)?;
+                        Some((path, Cursor::Value(*storage), holder, FieldAccess::Stored(*mode)))
+                    }
+                    _ => None,
+                };
+                if let Some((path, base, payload, access)) = path_source {
                     let count = remaining.unwrap_or(path.len());
                     if count == 0
                         || count > path.len()
@@ -935,43 +954,35 @@ fn trace_steps(
                             "stored field loan changes its complete original projection path",
                         ));
                     }
-                    let storage_value = world.get(values, *storage)?;
-                    let payload = world.pointee(&storage_value)?;
                     let parent = places::path(world, &payload, &path[..count - 1])?;
                     input_nominal(world, *definition, &parent)?;
                     if remaining.is_none() {
                         let selected = projection::place(world, &parent, path[count - 1])?;
                         let actual = world.get(values, value)?;
-                        match (mode, World::type_of(&selected)?) {
-                            (
-                                StoredBorrowLoad::CopyShared,
-                                Type::Address { mutable: false, .. },
-                            )
-                            | (StoredBorrowLoad::CopyDescription, Type::Desc(_)) => {
+                        match (access, World::type_of(&selected)?) {
+                            (FieldAccess::Address(mutable), _) => {
+                                places::borrow_mode(Some(World::type_of(&actual)?), mutable)?;
+                                let pointee = world.pointee(&actual)?;
+                                world.same(instance.id, &pointee, &selected, implicit)?;
+                            }
+                            (FieldAccess::Stored(StoredBorrowLoad::CopyShared), Type::Address { mutable: false, .. })
+                            | (FieldAccess::Stored(StoredBorrowLoad::CopyDescription), Type::Desc(_)) => {
                                 world.same(instance.id, &actual, &selected, implicit)?;
                             }
-                            (
-                                StoredBorrowLoad::Reborrow { mutable },
-                                Type::Address {
-                                    mutable: available, ..
-                                },
-                            ) if !*mutable || *available => {
-                                places::borrow_mode(Some(World::type_of(&actual)?), *mutable)?;
+                            (FieldAccess::Stored(StoredBorrowLoad::Reborrow { mutable }),
+                                Type::Address { mutable: available, .. }) if !mutable || *available => {
+                                places::borrow_mode(Some(World::type_of(&actual)?), mutable)?;
                                 let source = world.pointee(&selected)?;
                                 let actual = world.pointee(&actual)?;
                                 world.same(instance.id, &source, &actual, implicit)?;
                             }
-                            _ => {
-                                return Err(bad(
-                                    "stored field loan changes its real read or reborrow authority",
-                                ));
-                            }
+                            _ => return Err(bad("stored field loan changes its real read or reborrow authority")),
                         }
                     }
                     cursor = if count == 1 {
-                        Cursor::Value(*storage)
+                        base
                     } else {
-                        Cursor::StoredField {
+                        Cursor::FieldPath {
                             value,
                             remaining: count - 1,
                         }
@@ -1021,7 +1032,7 @@ fn trace_steps(
                 let parent = match next {
                     Cursor::Value(value) => world.get(values, value)?,
                     Cursor::Local(local) => world.local(locals, local)?,
-                    Cursor::StoredField { .. } => {
+                    Cursor::FieldPath { .. } => {
                         return Err(bad(
                             "ordinary field operation invents a stored projection cursor",
                         ));

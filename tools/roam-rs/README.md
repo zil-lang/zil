@@ -29,6 +29,8 @@ cargo build --locked --offline --manifest-path tools/roam-rs/Cargo.toml --featur
 tools/roam-rs/target/debug/roam callable-combinations --commit="$(git rev-parse HEAD)" --out=out/runs/callable-combinations
 ```
 
+同一入口使用 `--depth=3` 时，枚举至多三层的 15 种有序包装，包括 60 项合法行为和 30 项配对反例。新增的八种三层包装占 32 项合法行为和 16 项反例。共享同一个可执行模型、原生观察和拒绝原因检查。
+
 当使用 `CARGO_TARGET_DIR` 时从该目录运行 Roam。这个有限 campaign 全选两种组合操作在深度 0 至 2 的七种有序路径。各路径观察提前正常返回、成功替换、解码错误和替换右侧错误，同时配共享接收者与同布局不同名义错误类型两个单项反例。独立模型预测返回状态和析构顺序。正例运行 Clang 与 LLVM API 的 O0 和 O2；反例要求预期的拒绝且对应正例成立。按 §8.1.2.2，`hp` 验证同步借入持有者后取字段，`pp` 验证嵌套 child 的指定字段。七种形态均计入验收。每行保留 `roam/1` case 与实际结果，可单独重放及缩减；随机 `hunt --profile=callable-composition-native` 只算探索样本。
 
 `targetSpace` 汇总全部 28 个正向观察项和 14 个 Source 反例。只有全部 42 项符合独立预期时，`status` 为 `pass`，`targetSpace.complete` 为真。每条记录链接到[组合规则](../../spec/semantic-scopes.md#可调用值与失败出口的组合)，列明改动的前提、对应合法用例、预期、实际证据及首个失配阶段。预算耗尽、未到达、未支持及观测不符各有独立结果。缩减须保留原规则、首个失配阶段及诊断类别和代码。独立 Raw/Wire 的近邻反例由 `zil-driver` 的 `direct_callback_field_calls_callback_place_raw` 检查同型字段串换，单独报告其覆盖。

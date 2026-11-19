@@ -7,7 +7,11 @@ pub const CONTRACT: &str = "zil-callable-composition-native/1";
 pub const PROPERTY: &str = "callable.receiver-result-and-cleanup";
 const RULE_REFERENCE: &str = "spec/semantic-scopes.md#可调用值与失败出口的组合";
 pub const MAX_PROGRAMS: usize = 32;
-const SHAPES: [&str; 7] = ["", "h", "p", "hh", "hp", "ph", "pp"];
+const RELEASE_SHAPES: usize = 7;
+const SHAPES: [&str; 15] = [
+    "", "h", "p", "hh", "hp", "ph", "pp",
+    "hhh", "hhp", "hph", "hpp", "phh", "php", "pph", "ppp",
+];
 const EXITS: [&str; 4] = ["early", "ok", "decode", "replace"];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -26,7 +30,7 @@ impl<'a> Program<'a> {
         let shape = value["shape"]
             .as_str()
             .filter(|s| SHAPES.contains(s))
-            .ok_or("expected a helper/projection path of depth at most two")?;
+            .ok_or("expected a helper/projection path of depth at most three")?;
         let input = EXITS
             .iter()
             .position(|exit| value["exit"] == *exit)
@@ -87,6 +91,13 @@ fn invocation(
     match shape.as_bytes().split_first() {
         Some((b'p', rest)) => {
             let rest = std::str::from_utf8(rest).expect("ASCII path");
+            // The helper receives a reference. A projected child is a place,
+            // so passing that child to another helper needs an explicit loan.
+            let receiver = if receiver.is_empty() && rest.starts_with('h') {
+                "&mut "
+            } else {
+                receiver
+            };
             invocation(rest, &format!("{place}.callback"), receiver, input, helpers)
         }
         Some((b'h', rest)) => {
@@ -193,8 +204,16 @@ fn trace(programs: impl IntoIterator<Item = Value>) -> Value {
         programs.into_iter().map(|program|json!({"op":"run","program":program})).collect::<Vec<_>>()})
 }
 pub fn fixed() -> Vec<(String, Value)> {
+    cases(&SHAPES[..RELEASE_SHAPES])
+}
+
+fn extended() -> Vec<(String, Value)> {
+    cases(&SHAPES)
+}
+
+fn cases(shapes: &[&str]) -> Vec<(String, Value)> {
     let mut cases = Vec::new();
-    for shape in SHAPES {
+    for &shape in shapes {
         let label = if shape.is_empty() { "direct" } else { shape };
         for exit in EXITS {
             cases.push((
@@ -296,18 +315,23 @@ pub fn observed(expected: &Value, observation: Value, compile: &Value) -> Value 
     }
 }
 
-pub fn campaign(root: &Path, commit: &str, jobs: usize) -> Result<Value, String> {
+pub fn campaign(root: &Path, commit: &str, jobs: usize, depth: usize) -> Result<Value, String> {
+    let (shapes, cases): (&[&str], fn() -> Vec<(String, Value)>) = match depth {
+        2 => (&SHAPES[..RELEASE_SHAPES], fixed),
+        3 => (&SHAPES, extended),
+        _ => return Err("callable depth must be 2 or 3".into()),
+    };
     crate::bounded_campaign::run(
         &crate::bounded_campaign::Rules {
             contract_id: CONTRACT,
             rule_reference: RULE_REFERENCE,
-            shapes: &SHAPES,
+            shapes,
             exits: &EXITS,
             premises: &["exclusive-receiver", "nominal-error"],
             operations: &["generic helper", "field projection"],
-            max_depth: 2,
+            max_depth: depth,
             rule: "§8.1.2.2",
-            cases: fixed,
+            cases,
             contract,
             property,
         },

@@ -40,7 +40,8 @@ fn run() -> Result<u8, String> {
     let command = args.remove(0);
     let allowed = match command.as_str() {
         "worker" => &["fault", "max-steps", "budget-ms"][..],
-        "callable-combinations" | "task-result-combinations" => &["out", "commit", "jobs"][..],
+        "callable-combinations" => &["out", "commit", "jobs", "depth"][..],
+        "task-result-combinations" => &["out", "commit", "jobs"][..],
         "campaign" => &["out", "commit", "allow-dirty"][..],
         "replay" => &[
             "case",
@@ -156,7 +157,7 @@ fn run() -> Result<u8, String> {
                 let report = if command == "task-result-combinations" {
                     roam::bounded_campaign::task_campaign(&out, &commit, jobs as usize)?
                 } else {
-                    callable_composition::campaign(&out, &commit, jobs as usize)?
+                    callable_composition::campaign(&out, &commit, jobs as usize, number(&args, "depth", 2)? as usize)?
                 };
                 println!(
                     "{}",
