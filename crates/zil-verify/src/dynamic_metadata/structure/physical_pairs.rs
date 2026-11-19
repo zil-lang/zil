@@ -25,10 +25,40 @@ pub(super) enum Representative {
     New(Option<u64>),
 }
 
-/// Only registered input nodes reach this lookup. A hash selects a candidate.
-/// Its complete physical type is compared, including names and field order.
-pub(super) fn representative(ty: &Type, b: &mut Budget) -> Check<Representative> {
+/// A directory key samples only bounded outer metadata. Equal physical types
+/// always produce the same key. Collisions keep the new allocation separate.
+fn representative_key(ty: &Type, b: &mut Budget) -> Check<u64> {
     use std::hash::{Hash, Hasher};
+    fn head(ty: &Type, hash: &mut std::hash::DefaultHasher, b: &mut Budget) -> Check<()> {
+        b.spend(1)?;
+        std::mem::discriminant(ty).hash(hash);
+        let nominal = match ty {
+            Type::Record { name, fields } | Type::Package { name, fields } => Some((name,fields.len())),
+            Type::Enum { name, variants } => Some((name,variants.len())),
+            Type::Address { mutable,.. } => { mutable.hash(hash); None }
+            Type::Tuple(fields) => { fields.len().hash(hash); None }
+            _ => None,
+        };
+        if let Some((name,width))=nominal {
+            b.spend(6)?;
+            let bytes=name.as_bytes();
+            (width,bytes.len(),bytes.first(),bytes.get(bytes.len()/2),bytes.last()).hash(hash);
+        }
+        Ok(())
+    }
+    let mut hash=std::hash::DefaultHasher::new();
+    head(ty,&mut hash,b)?;
+    match ty {
+        Type::Address { inner,.. } | Type::Managed(inner) | Type::OwnedStore {element:inner} => head(inner,&mut hash,b)?,
+        Type::ErrorUnion {error,result} => { head(error,&mut hash,b)?; head(result,&mut hash,b)?; }
+        _ => {},
+    }
+    Ok(hash.finish())
+}
+
+/// Only registered input nodes reach this lookup. Equality always compares
+/// both complete physical types, including every name and the field order.
+pub(super) fn representative(ty: &Type, b: &mut Budget) -> Check<Representative> {
     let Some(state) = &b.structural else { return Ok(Representative::New(None)); };
     if state.physical_pairs.limits != b.limits || !matches!(ty,
         Type::Record { .. } | Type::Package { .. } | Type::Enum { .. } | Type::Address { .. }
@@ -36,25 +66,18 @@ pub(super) fn representative(ty: &Type, b: &mut Budget) -> Check<Representative>
     {
         return Ok(Representative::New(None));
     }
-    super::super::bounds_type(ty, b)?;
-    let payload = match ty { Type::Address { inner, .. } => inner.as_ref(), _ => ty };
-    if !crate::semantic::closed_storage(payload, b)? { return Ok(Representative::New(None)); }
-
-    super::super::ty(ty, b)?;
-    let mut hasher = std::hash::DefaultHasher::new();
-    ty.hash(&mut hasher);
-    let hash = hasher.finish();
+    let hash=representative_key(ty,b)?;
     let fee = lookup(b.structural.as_ref().unwrap().physical_pairs.representatives.len());
     b.spend(fee)?;
     let known = b.structural.as_ref().unwrap().physical_pairs.representatives.get(&hash).cloned();
-    let Some(known) = known else { return Ok(Representative::New(Some(hash))); };
-    super::super::ty(ty, b)?;
-    super::super::ty(&known.ty, b)?;
-    if known.ty == *ty {
-        Ok(Representative::Existing(known))
-    } else {
-        Ok(Representative::New(None))
+    if let Some(known)=known {
+        super::super::ty(ty, b)?;
+        super::super::ty(&known.ty, b)?;
+        return Ok(if known.ty==*ty { Representative::Existing(known) } else { Representative::New(None) });
     }
+    super::super::bounds_type(ty,b)?;
+    let payload=match ty { Type::Address { inner,.. }=>inner.as_ref(), _=>ty };
+    Ok(Representative::New(crate::semantic::closed_storage(payload,b)?.then_some(hash)))
 }
 
 pub(super) fn publish_representative(hash: Option<u64>, cell: &TypeCell, b: &mut Budget) -> Check<()> {
@@ -144,6 +167,8 @@ mod tests {
             declared.clone(), declared.clone(),
             record("Other", [("x", Type::I32), ("y", Type::I32)]),
             record("Point", [("y", Type::I32), ("x", Type::I32)]),
+            record("aaXxxzz", [("x", Type::I32), ("y", Type::I32)]),
+            record("aaYxxzz", [("x", Type::I32), ("y", Type::I32)]),
         ]);
         let mut b = Budget::new(&limits);
         b.structural = Some(Structure::register(&module, &mut b).unwrap());
@@ -153,6 +178,8 @@ mod tests {
         assert!(Rc::ptr_eq(&first, &cell(&values[1], &mut b)));
         assert!(!Rc::ptr_eq(&first, &cell(&values[2], &mut b)));
         assert!(!Rc::ptr_eq(&first, &cell(&values[3], &mut b)));
+        assert_eq!(representative_key(&values[4], &mut b).unwrap(), representative_key(&values[5], &mut b).unwrap());
+        assert!(!Rc::ptr_eq(&cell(&values[4], &mut b), &cell(&values[5], &mut b)));
         assert!(super::super::shared_type(&declared, &mut b).unwrap().is_none());
         b.limits.max_nodes = 1;
         assert_eq!(super::super::shared_type(&values[1], &mut b).unwrap_err().category,
