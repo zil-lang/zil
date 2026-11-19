@@ -162,9 +162,10 @@ impl CheckedOriginal {
     }
     // Select a proved original call by its lexical node or its inferred local
     // binding. Explicit type ascriptions remain separate invariant obligations.
-    pub(in crate::semantic) fn call_result_source(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,environment:&EvalEnv,b:&mut Budget)->Check<Option<(SemanticSiteId,bool,Option<(StoredBorrowMode,SemanticOuterLifeRecipe)>)>>{
+    pub(in crate::semantic) fn call_result_source(&self,module:&TypedModule,selection:&mut SourceType<'_>,environment:&EvalEnv,b:&mut Budget)->Check<Option<(SemanticSiteId,bool,Option<(StoredBorrowMode,SemanticOuterLifeRecipe)>)>>{
+        let definition=selection.definition;let source=selection.source;
         if !matches!(source,SemanticOriginalTypeSource::Binding(_)|SemanticOriginalTypeSource::Expression(_)|SemanticOriginalTypeSource::NameAt{..}){return Ok(None);}
-        let checked=self.original_type(definition,source,b)?;
+        let checked=selection.resolve(self,b)?;
         // These forms already reuse a complete original type argument or have
         // no fresh class construction whose domain could be compressed.
         if matches!(checked,Ty::Atom(_)|Ty::SealedError(_)|Ty::Variable(..)|Ty::SelfType(_)|Ty::Function(_)){return Ok(None);}
@@ -198,7 +199,7 @@ impl CheckedOriginal {
         // A later Describe occurrence observes the same manager through a new
         // outer head. Only the unchanged whole result role can reuse its Call
         // receipt; all adapted roles retain their own original recipe.
-        if !self.same(&checked,result,b)?{return Ok(None);}
+        if !self.same(checked,result,b)?{return Ok(None);}
         let mut selected=None;
         let callable = self.callable_nodes.contains_key(&(definition,node));
         for (_, site) in source_grammar.recipes(definition, SemanticOriginalNode::Expression(node), &index::Role::ALL, b)? {
@@ -211,7 +212,7 @@ impl CheckedOriginal {
         selected.map(|site|{let dynamic=match self.trait_calls.get(&(definition,site)){Some(call)=>matches!(self.resolved(&call.receiver,b)?,Ty::Dyn(_)),None=>false};
             // Reify only the root adapter. Its whole child domain comes from
             // the completed actual call, not a second nominal construction.
-            let outer=match &checked{
+            let outer=match checked{
                 Ty::Address{mutable,life,..}=>Some((if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress},self.reify_outer(module,life,environment,b)?)),
                 Ty::Desc{life,..}=>Some((StoredBorrowMode::WritableDescription,self.reify_outer(module,life,environment,b)?)),
                 _=>None,
@@ -267,10 +268,10 @@ impl CheckedOriginal {
         match source.as_ref(){Binder::Local{definition,node,..}=>Ok(intrinsics::BufferSource::Local{definition:*definition,node:*node}),Binder::Parameter{definition,ordinal}=>Ok(intrinsics::BufferSource::Parameter{definition:*definition,ordinal:*ordinal}),_=>Err(unsupported("nested captured buffer needs its complete original creator source boundary",None))}
     }
     pub(in crate::semantic) fn closure_creation(
-        &self, _module: &TypedModule, definition: SemanticDefinitionId,
-        source: &SemanticOriginalTypeSource, b: &mut Budget,
+        &self, _module: &TypedModule, selection: &mut SourceType<'_>, b: &mut Budget,
     ) -> Check<Option<NodeId>> {
-        if !matches!(self.original_type(definition, source, b)?, Ty::Closure(..)) {
+        let definition=selection.definition; let source=selection.source;
+        if !matches!(selection.resolve(self,b)?, Ty::Closure(..)) {
             return Ok(None);
         }
         let grammar = self.source_grammar.as_ref()

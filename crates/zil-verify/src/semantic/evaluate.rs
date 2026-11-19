@@ -121,6 +121,7 @@ impl CheckedContext {
             SemanticTypeRecipe::OriginalType { scope, source } => {
                 let frame = self.frame(environment, *scope, b)?;
                 let definition = frame.definition;
+                let mut selection = original::SourceType::new(definition, source);
                 if !self.domain_only.get() {
                     let parameter=self.original.borrow().as_ref().ok_or_else(||bad("original source lacks its completed universal body"))?
                         .parameter_source(definition,source,b)?;
@@ -131,13 +132,12 @@ impl CheckedContext {
                             return Ok(value.clone());
                         }
                     }
-                    if let Some(value)=self.original_call_result(module,definition,source,frame.key,environment,active,b)?{
+                    if let Some(value)=self.original_call_result(module,&mut selection,frame.key,environment,active,b)?{
                         return Ok(value);
                     }
                     if let Some(value) = self.original_closure_value(
                         module,
-                        definition,
-                        source,
+                        &mut selection,
                         frame.key,
                         environment,
                         b,
@@ -150,7 +150,7 @@ impl CheckedContext {
                     .borrow()
                     .as_ref()
                     .ok_or_else(|| bad("original type body has not been independently checked"))?
-                    .type_recipe(module, definition, source, environment, b)?;
+                    .type_recipe_for_use(module, selection, environment, b)?;
                 self.evaluate_type(module, &recipe, environment, external, active, b)
             }
             SemanticTypeRecipe::Dyn{owned,interface}=>self.evaluate_dyn(module,*owned,interface,environment,external,active,b),

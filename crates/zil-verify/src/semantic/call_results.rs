@@ -5,13 +5,13 @@ impl CheckedContext {
     pub(super) fn original_call_result(
         &self,
         module: &TypedModule,
-        definition: SemanticDefinitionId,
-        source: &SemanticOriginalTypeSource,
+        selection: &mut original::SourceType<'_>,
         scope: ScopeKey,
         environment: &EvalEnv,
         active: &mut ActiveQueries,
         b: &mut Budget,
     ) -> Check<Option<CheckedType>> {
+        let definition = selection.definition;
         let Some(at) = environment.at else {
             return Ok(None);
         };
@@ -29,7 +29,7 @@ impl CheckedContext {
             .borrow()
             .as_ref()
             .ok_or_else(|| bad("original Call result has no complete symbolic body"))?
-            .call_result_source(module, definition, source, environment, b)?;
+            .call_result_source(module, selection, environment, b)?;
         let Some((site, dynamic, outer)) = site else {
             return Ok(None);
         };

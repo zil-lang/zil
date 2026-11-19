@@ -41,7 +41,12 @@ impl CheckedOriginal {
         if kind==SemanticCodeKind::ForeignCallback{return Err(bad("ordinary indirect call cannot select a foreign callback ABI"));}Ok(*signature)
     }
     pub(in crate::semantic) fn type_recipe(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,env:&EvalEnv,b:&mut Budget)->Check<SemanticTypeRecipe>{
-        let mut value=self.original_type(definition,source,b)?;
+        self.type_recipe_for_use(module, SourceType::new(definition, source), env, b)
+    }
+    pub(in crate::semantic) fn type_recipe_for_use(&self,module:&TypedModule,selection:SourceType<'_>,env:&EvalEnv,b:&mut Budget)->Check<SemanticTypeRecipe>{
+        let definition=selection.definition;
+        let source=selection.source;
+        let mut value=selection.into_value(self,b)?;
         if matches!(source,SemanticOriginalTypeSource::Result)&&self.receiver_results.contains(&definition){
             if let Ty::Address{mutable:false,life,..}=&mut value{if self.resolved_life(life,b)?!=Life::Static&&!self.receiver_physical_source(definition,life,b)?{*life=Life::ReceiverHead(definition);}}else{return Err(bad("proved Receiver result loses its shared root Address"));}
         }

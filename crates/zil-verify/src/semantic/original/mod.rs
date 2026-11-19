@@ -31,6 +31,7 @@ mod lifetimes;
 mod local_roles;
 mod materialize;
 mod names;
+pub(in crate::semantic) use names::SourceType;
 mod operations;
 mod places;
 pub(in crate::semantic) use places::{Assignment, ScalarProjection};

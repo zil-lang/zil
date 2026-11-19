@@ -65,16 +65,20 @@ impl CheckedContext {
     pub(super) fn world_signature(&self,module:&TypedModule,recipe:&SemanticSignatureRecipe,worlds:Vec<CallWorld>,caller:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<CheckedSignature>{
         let multiple = worlds.len() > 1;
         let mut selected:Option<CheckedSignature>=None;
+        let mut projected=None;
         for world in worlds{
             let definition=self.definition(module,world.environment.lexical.first().ok_or_else(||bad("Call world has no current original definition"))?.definition,b)?;
             if !multiple || !self.world_declarations_present(module,definition,recipe,&world,active,b)? {
                 self.evaluate_requirements(module,&definition.requirements,&world.environment,RequirementMode::DeclarationPremise,external,active,b)?;
                 for formal in &definition.parameters{if let SemanticFormal::Type{requirements}=formal{self.evaluate_requirements(module,requirements,&world.environment,RequirementMode::DeclarationPremise,external,active,b)?;}}
             }
-            let mut signature=if multiple {
-                self.rigid_entry_signature(module,definition,recipe,&world,external,active,b)?
+            let (mut signature, proof)=if multiple {
+                match self.rigid_entry_signature(module,definition,recipe,&world,external,active,projected.as_ref(),b)? {
+                    rigid::EntryResult::Checked(sig, proof) => (sig, proof),
+                    rigid::EntryResult::SameProjection => continue,
+                }
             } else {
-                self.entry_signature(module,definition,recipe,&world.environment,external,active,b)?
+                (self.entry_signature(module,definition,recipe,&world.environment,external,active,b)?, None)
             };
             world.boundary.project_entry(self,caller,&mut signature,b)?;
             if let Some(expected)=&selected{
@@ -84,7 +88,7 @@ impl CheckedContext {
                 alpha.project_entry(self,caller,&mut signature,b)?;
                 for((actual,mode),(expected,expected_mode))in signature.parameters.iter().zip(&expected.parameters){if mode!=expected_mode||!self.same_type(caller,actual,expected,b)?{return Err(unsupported("compatible Call worlds retain distinct original parameter domains",None));}}
                 if !self.same_type(caller,&signature.result,&expected.result,b)?{return Err(unsupported("compatible Call worlds retain distinct original result domains",None));}
-            }else{selected=Some(signature);}
+            }else{selected=Some(signature); projected=proof;}
         }
         selected.ok_or_else(||bad("Call signature has no independently selected original world"))
     }

@@ -1,6 +1,31 @@
 //! Declaration bindings and lexical snapshots are distinct namespaces. A name
 //! table cannot shadow an actual value binder or create a new where premise.
 use super::*;
+/// One interpretation of one original lexical occurrence. Its actual parameter,
+/// completed call and closure creator still belong to the current world. Only
+/// the solved symbolic source term is shared between these three lookups.
+pub(in crate::semantic) struct SourceType<'a> {
+    pub(in crate::semantic) definition: SemanticDefinitionId,
+    pub(super) source: &'a SemanticOriginalTypeSource,
+    value: Option<Ty>,
+}
+impl<'a> SourceType<'a> {
+    pub(in crate::semantic) fn new(definition: SemanticDefinitionId, source: &'a SemanticOriginalTypeSource) -> Self {
+        Self { definition, source, value: None }
+    }
+    pub(super) fn resolve(&mut self, original: &CheckedOriginal, b: &mut Budget) -> Check<&Ty> {
+        if self.value.is_none() {
+            self.value = Some(original.original_type(self.definition, self.source, b)?);
+        }
+        Ok(self.value.as_ref().unwrap())
+    }
+    pub(super) fn into_value(self, original: &CheckedOriginal, b: &mut Budget) -> Check<Ty> {
+        match self.value {
+            Some(value) => Ok(value),
+            None => original.original_type(self.definition, self.source, b),
+        }
+    }
+}
 impl CheckedOriginal {
     pub(in crate::semantic) fn parameter_source(&self,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<u32>> {
         b.spend(1)?;
@@ -101,5 +126,29 @@ impl CheckedOriginal {
                 SemanticOriginalNameValue::Recipe(recipe)=>{let value=self.actual(module,context,recipe,env,active,b)?;if !matches!((row.namespace,value),(SemanticOriginalNamespace::Type,Arg::Type(_))|(SemanticOriginalNamespace::Lifetime,Arg::Life(_))|(SemanticOriginalNamespace::Value,Arg::Const(_))){return Err(bad("original name recipe has a different full formal/value kind"));}},
             }
         }Ok(())
+    }
+}
+
+#[cfg(test)]
+mod source_type_tests {
+    use super::*;
+    #[test]
+    fn a_source_term_is_resolved_only_when_selected_and_only_for_that_declaration() {
+        let mut original=CheckedOriginal::default();
+        let one=SemanticDefinitionId{module:zil_base::ModuleId(1),index:3};
+        let two=SemanticDefinitionId{module:zil_base::ModuleId(2),index:3};
+        let node=zil_base::NodeId(17);
+        original.expressions.insert((one,node),Ty::Atom(Type::I32));
+        original.expressions.insert((two,node),Ty::Atom(Type::I64));
+        let source=SemanticOriginalTypeSource::Expression(node);
+        let mut b=Budget::new(&Limits::default());
+        let mut first=SourceType::new(one,&source);
+        assert!(matches!(first.resolve(&original,&mut b).unwrap(),Ty::Atom(Type::I32)));
+        let after=b.remaining;
+        assert!(matches!(first.resolve(&original,&mut b).unwrap(),Ty::Atom(Type::I32)));
+        assert!(matches!(first.into_value(&original,&mut b).unwrap(),Ty::Atom(Type::I32)));
+        assert_eq!(after,b.remaining);
+        assert!(matches!(SourceType::new(two,&source).into_value(&original,&mut b).unwrap(),Ty::Atom(Type::I64)));
+        assert!(SourceType::new(two,&SemanticOriginalTypeSource::Parameter(node.0)).into_value(&original,&mut b).is_err());
     }
 }

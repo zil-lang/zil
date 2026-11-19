@@ -54,8 +54,8 @@ impl CheckedContext {
         }
         Ok(false)
     }
-    pub(super) fn original_closure_value(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,creator:ScopeKey,environment:&EvalEnv,b:&mut Budget)->Check<Option<CheckedType>> {
-        let node=self.original.borrow().as_ref().ok_or_else(||bad("original closure source has no checked body"))?.closure_creation(module,definition,source,b)?;
+    pub(super) fn original_closure_value(&self,module:&TypedModule,selection:&mut original::SourceType<'_>,creator:ScopeKey,environment:&EvalEnv,b:&mut Budget)->Check<Option<CheckedType>> {
+        let node=self.original.borrow().as_ref().ok_or_else(||bad("original closure source has no checked body"))?.closure_creation(module,selection,b)?;
         let Some(node)=node else{return Ok(None);};
         let at=environment.at.ok_or_else(||unsupported("original closure value requires its exact actual creation point",None))?;
         let function=module.functions.get(at.function.0 as usize).filter(|function|function.id==at.function).ok_or_else(||bad("original closure use has no exact actual function"))?;

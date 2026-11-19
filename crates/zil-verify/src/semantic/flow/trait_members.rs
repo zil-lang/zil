@@ -67,6 +67,11 @@ impl CheckedContext {
 #[derive(Default)]
 pub(super) struct Boundary{ambiguous_fixed:Vec<ClassKey>,classes:Vec<(ClassKey,ClassKey)>,origins:Vec<(IntrinsicOrigin,IntrinsicOrigin)>,scopes:Vec<(ScopeKey,ScopeKey)>}
 impl Boundary{
+    pub(super) fn sole_scope(&self, from: ScopeKey) -> Option<ScopeKey> {
+        let [(source, image)] = self.scopes.as_slice() else { return None; };
+        (*source == from && self.classes.is_empty() && self.origins.is_empty()
+            && self.ambiguous_fixed.is_empty()).then_some(*image)
+    }
     pub(super) fn scope(&mut self,actual:ScopeKey,expected:ScopeKey,b:&mut Budget)->Check<()>{
         b.spend(self.scopes.len().saturating_add(1))?;
         if let Some((_,known))=self.scopes.iter().find(|(key,_)|*key==actual){if *known!=expected{return Err(bad("Call world changes one original lexical scope image"));}}else{self.scopes.push((actual,expected));}Ok(())

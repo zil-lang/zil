@@ -1,6 +1,6 @@
 //! Rigid entries of root functions with immutable, closed type actuals.
-//! An occurrence still checks the callee premises and projects every retained
-//! world through its own caller boundary.
+//! Each occurrence establishes its callee's premises in the current journal
+//! and projects every retained world through its own caller boundary.
 use super::*;
 
 type Target = (SemanticDefinitionId, FunctionId);
@@ -10,12 +10,25 @@ pub(in crate::semantic) struct RigidWorlds {
     by_target: Option<BTreeMap<Target, Vec<usize>>>,
     eligible: BTreeMap<SemanticDefinitionId, bool>,
     signatures: BTreeMap<SemanticInstanceId, Entry>,
+    projected: BTreeMap<(SemanticDefinitionId, FunctionId), std::rc::Rc<CheckedSignature>>,
 }
 
 struct Entry {
     inputs: Vec<CheckedActual>,
-    signature: CheckedSignature,
+    signature: std::rc::Rc<CheckedSignature>,
+    projected: Option<std::rc::Rc<CheckedSignature>>,
     declarations: Option<DeclarationPrefix>,
+}
+
+/// Valid only within a single actual call and its particular witness scope.
+pub(super) struct Projection {
+    model: std::rc::Rc<CheckedSignature>,
+    image: ScopeKey,
+}
+
+pub(super) enum EntryResult {
+    Checked(CheckedSignature, Option<Projection>),
+    SameProjection,
 }
 
 struct DeclarationPrefix {
@@ -164,11 +177,14 @@ impl CheckedContext {
         world: &CallWorld,
         external: &mut impl ExternalProofs,
         active: &mut ActiveQueries,
+        selected: Option<&Projection>,
         b: &mut Budget,
-    ) -> Check<CheckedSignature> {
+    ) -> Check<EntryResult> {
         let env = &world.environment;
+        let scope = ScopeKey::Instance(world.instance);
+        let image = world.boundary.sole_scope(scope);
         let Some(actuals) = self.rigid_inputs(module, definition, recipe, world, active, b) else {
-            return self.entry_signature(module, definition, recipe, env, external, active, b);
+            return self.entry_signature(module, definition, recipe, env, external, active, b).map(|s| EntryResult::Checked(s, None));
         };
         // environment_for_instance always creates the real code's invocation frame.
         // A root signature creates its own invocation domain inside entry_signature;
@@ -181,8 +197,16 @@ impl CheckedContext {
             && same_inputs(&prior.inputs, actuals, b)?
         {
             active.fresh(b)?;
+            let projection = prior.projected.as_ref().zip(image);
+            if let (Some((model, to)), Some(first)) = (projection, selected) {
+                b.spend(2)?;
+                if to == first.image && std::rc::Rc::ptr_eq(model, &first.model) {
+                    return Ok(EntryResult::SameProjection);
+                }
+            }
             charge_signature(&prior.signature, b)?;
-            return Ok(prior.signature.clone());
+            return Ok(EntryResult::Checked((*prior.signature).clone(), projection.map(|(model,image)|
+                Projection { model: model.clone(), image })));
         }
         b.spend(lookup(cache.eligible.len()))?;
         let eligible = match cache.eligible.get(&definition.id) {
@@ -218,6 +242,7 @@ impl CheckedContext {
         }
         let signature =
             self.entry_signature(module, definition, recipe, env, external, active, b)?;
+        let mut projected = None;
         if immutable && signature.bound.is_empty() && signature.invocation.is_empty() {
             let scope = ScopeKey::Instance(world.instance);
             let mut stable = true;
@@ -246,17 +271,29 @@ impl CheckedContext {
                         value.charge_clone(b)?;
                     }
                 }
-                self.rigid_worlds.borrow_mut().signatures.insert(
-                    world.instance,
-                    Entry {
-                        inputs: actuals.clone(),
-                        signature: signature.clone(),
-                        declarations: self.declaration_prefix(definition, scope, b)?,
-                    },
-                );
+                let signature = std::rc::Rc::new(signature.clone());
+                let instance = self.instance(module, world.instance, b)?;
+                let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) = instance.target
+                    else { return Err(bad("rigid world lacks its actual entry")); };
+                let mut worlds = self.rigid_worlds.borrow_mut();
+                b.spend(lookup(worlds.projected.len()).saturating_add(1))?;
+                let model = match worlds.projected.get(&(definition.id, function)) {
+                    Some(model) if signatures_correspond(model, &signature, b)? => Some(model.clone()),
+                    Some(_) => None,
+                    None => {
+                        b.spend(lookup(worlds.projected.len()).saturating_add(2))?;
+                        worlds.projected.insert((definition.id, function), signature.clone());
+                        Some(signature.clone())
+                    }
+                };
+                projected = model.as_ref().zip(image).map(|(model,image)| Projection { model: model.clone(), image });
+                worlds.signatures.insert(world.instance, Entry {
+                    inputs: actuals.clone(), signature, projected: model,
+                    declarations: self.declaration_prefix(definition, scope, b)?,
+                });
             }
         }
-        Ok(signature)
+        Ok(EntryResult::Checked(signature, projected))
     }
 }
 
@@ -348,6 +385,36 @@ fn same_inputs(inputs: &[CheckedActual], actuals: &[CheckedActual], b: &mut Budg
     Ok(same)
 }
 
+/// Both entry proofs have no quantifiers, statics, or occurrences from other
+/// scopes. Compare the complete observed signatures, retaining every class and
+/// intrinsic origin ordinal. The sole-scope boundary subsequently maps just
+/// their owning scopes to the same actual call witness.
+fn signatures_correspond(a: &CheckedSignature, z: &CheckedSignature, b: &mut Budget) -> Check<bool> {
+    if a.call_kind != z.call_kind || a.result_mode != z.result_mode || a.parameters.len() != z.parameters.len()
+        || !a.bound.is_empty() || !z.bound.is_empty() || !a.invocation.is_empty() || !z.invocation.is_empty() {
+        return Ok(false);
+    }
+    let value = |a: &CheckedType, z: &CheckedType, b: &mut Budget| -> Check<bool> {
+        if !a.same_raw_type(z,b)? { return Ok(false); }
+        dynamic_metadata::life_shape(&a.life,b)?;
+        dynamic_metadata::life_shape(&z.life,b)?;
+        b.spend(a.classes.len().saturating_add(a.origins.len()).saturating_add(1))?;
+        let ordinal = |key: &ClassKey| match key { ClassKey::Implicit {ordinal,..} => Some(*ordinal), _ => None };
+        let source = |origin: &IntrinsicOrigin| match origin {
+            IntrinsicOrigin::DerivedClass {source} => ordinal(source), _ => None,
+        };
+        Ok(a.life == z.life && a.statics.is_empty() && z.statics.is_empty()
+            && a.classes.len() == z.classes.len() && a.origins.len() == z.origins.len()
+            && a.classes.iter().zip(&z.classes).all(|(a,z)|ordinal(a).is_some_and(|o|ordinal(z)==Some(o)))
+            && a.origins.iter().zip(&z.origins).all(|(a,z)|source(a).is_some_and(|o|source(z)==Some(o))))
+    };
+    for ((a,am), (z,zm)) in a.parameters.iter().zip(&z.parameters) {
+        b.spend(1)?;
+        if am != zm || !value(a,z,b)? { return Ok(false); }
+    }
+    value(&a.result,&z.result,b)
+}
+
 fn charge_signature(signature: &CheckedSignature, b: &mut Budget) -> Check<()> {
     b.spend(signature.parameters.len().saturating_add(1))?;
     for (parameter, _) in &signature.parameters {
@@ -378,8 +445,8 @@ fn independent_recipe(
             return Ok(false);
         };
         b.spend(requirements.len())?;
-        // The caller of this cache always interprets each complete formal requirement
-        // in this exact world, including callable obligations and their proof requests.
+        // Every formal requirement must have been established in this exact
+        // world. Caller-side proof requests are checked by the calling occurrence.
         if !requirements.iter().all(|requirement| {
             let ty = match requirement {
                 SemanticRequirementRecipe::Structural { ty, .. } |
@@ -428,6 +495,33 @@ fn independent_recipe(
 mod tests {
     use super::*;
 
+    #[test]
+    fn joint_signature_preserves_relative_ordinals_modes_and_the_actual_call_witness() {
+        let limits=Limits::default();
+        let mut b=Budget::new(&limits);
+        let scope=|index| ScopeKey::Instance(SemanticInstanceId{module:zil_base::ModuleId(0),index});
+        let make=|owner, ordinal, origin, mode| {
+            let mut value=atomic(&Type::I32,&mut Budget::new(&limits)).unwrap();
+            value.replace_type(Type::Address{mutable:false,inner:Box::new(Type::I32)});
+            value.life.slots.push(StorageLifeSlot{path:vec![],mode:StoredBorrowMode::SharedAddress,binder:0});
+            value.classes.push(ClassKey::Implicit {scope:owner,ordinal});
+            value.origins.push(IntrinsicOrigin::DerivedClass{source:ClassKey::Implicit{scope:owner,ordinal:origin}});
+            value.life.binder_count=1;
+            CheckedSignature{parameters:vec![(value,mode)],result:atomic(&Type::Unit,&mut Budget::new(&limits)).unwrap(),
+                result_mode:PassingMode::Move,call_kind:CallKind::Direct,bound:vec![],invocation:vec![]}
+        };
+        let a=make(scope(1),2,4,PassingMode::Borrow);
+        assert!(signatures_correspond(&a,&make(scope(2),2,4,PassingMode::Borrow),&mut b).unwrap());
+        assert!(!signatures_correspond(&a,&make(scope(2),2,3,PassingMode::Borrow),&mut b).unwrap());
+        assert!(!signatures_correspond(&a,&make(scope(2),4,4,PassingMode::Borrow),&mut b).unwrap());
+        assert!(!signatures_correspond(&a,&make(scope(2),2,4,PassingMode::BorrowMut),&mut b).unwrap());
+        let mut boundary=trait_members::Boundary::default();
+        boundary.scope(scope(1),scope(2),&mut b).unwrap();
+        assert_eq!(boundary.sole_scope(scope(1)),Some(scope(2)));
+        assert_eq!(boundary.sole_scope(scope(3)),None);
+        boundary.scope(scope(3),scope(4),&mut b).unwrap();
+        assert_eq!(boundary.sole_scope(scope(1)),None);
+    }
     #[test]
     fn target_index_keeps_every_distinct_world_of_the_same_physical_entry() {
         let limits = Limits::default();
