@@ -90,6 +90,14 @@ fn accepted(label: &str, source: &str) {
     );
     assert_eq!(report.verification_runs, 1);
 }
+fn requires_cleanup_of_uncalled_role(label: &str, source: &str) {
+    let report = compile(&Case::new(label), &[("main", source)], None);
+    assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+    assert_eq!(report.phase, Phase::Types);
+    assert!(report.diagnostics.iter().any(|d| d.code == "E-ORIGINAL-CLEANUP"
+        && d.message.contains("no independent SyncDrop proof")), "{}", report.to_json());
+    assert_eq!(report.verification_runs, 0);
+}
 fn native(label: &str, files: &[(&str, &str)], stdout: &str, exit: i32) {
     for optimization in [Optimization::O0, Optimization::O2] {
         let case = Case::new(label);
@@ -505,20 +513,20 @@ fn nested_helper_keeps_actual_identity_signature_and_permission_checks() {
 #[test]
 fn each_owned_role_cleans_its_own_uncalled_environment() {
     let source = r#"extern "C" fn putchar(n:i32)->i32;resource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}fn consume(give r:R)->i32{return r.code}fn make(give r:R)->impl FnOnce()->i32{return move()=>consume(give r)}fn choose<F:FnOnce()->i32>(a:F,b:F,flag:bool)->i32{if flag{return a()};return b()}fn main()->i32{let a=make(R{code:65});let b=make(R{code:66});return choose(a,b,true)-65}"#;
-    native("owned-choice", &[("main", source)], "AB", 0);
+    requires_cleanup_of_uncalled_role("owned-choice-no-cleanup-bound", source);
+    let bounded = source.replace("F:FnOnce", "F:SyncDrop+FnOnce");
+    native("owned-choice-first", &[("main", &bounded)], "AB", 0);
+    let second = bounded.replace("true)-65", "false)-66");
+    native("owned-choice-second", &[("main", &second)], "BA", 0);
 }
 #[test]
 fn cyclic_helper_with_unused_once_role_keeps_its_cleanup() {
     let source = "fn run<F:FnOnce()->i32,G:Fn()->i32>(once:F,repeat:&G,n:i32)->i32{var i=0;while i<n{repeat();i+=1};return 0}fn main()->i32{let f=move()=>1;let g=move()=>2;return run(f,&g,0)}";
-    let case = Case::new("cyclic-once");
-    let report = compile(&case, &[("main", source)], None);
-    assert_eq!(
-        report.status,
-        ResultCategory::Success,
-        "{}",
-        report.to_json()
-    );
-    assert_eq!(report.verification_runs, 1);
+    requires_cleanup_of_uncalled_role("cyclic-once-no-cleanup-bound", source);
+    let bounded = source.replace("F:FnOnce", "F:SyncDrop+FnOnce");
+    native("cyclic-once-empty", &[("main", &bounded)], "", 0);
+    let repeated = bounded.replace("run(f,&g,0)", "run(f,&g,2)");
+    native("cyclic-once-repeated", &[("main", &repeated)], "", 0);
 }
 #[test]
 fn unused_bad_templates_and_extra_roles_do_not_gain_capabilities() {
