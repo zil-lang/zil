@@ -203,7 +203,7 @@ pub(super) fn prepared_callee(
     call: &SemanticSite,
     source: NodeId,
 ) -> R<Option<ValueId>> {
-    if !matches!(
+    if call.instance != instance.id || !matches!(
         world.original_recipe(original, call.recipe)?.kind,
         SemanticSiteRecipeKind::OriginalCall
     ) {
@@ -250,7 +250,7 @@ pub(super) fn prepared_callee(
         .frames
         .get(&id)
         .ok_or_else(|| bad("prepared callee has no emission frame"))?;
-    let key = ledger.original_call_expression(id, original, call.recipe, world.left)?;
+    let key = ledger.relocated_prepared_call(instance.id, call.recipe, world.left)?;
     world.pay(index::search(frame.expressions.len()))?;
     let row = frame.expressions.get(&key)
         .ok_or_else(|| bad("prepared callee lacks its exact actual Core Call receipt"))?;

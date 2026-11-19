@@ -108,6 +108,10 @@ pub(crate) struct Ledger {
     pub(super) instance_requests: std::cell::RefCell<
         BTreeMap<SemanticInstanceId, (SemanticInstanceId, SemanticSiteId, FunctionId)>,
     >,
+    // Exact Core call nodes retained by relocation of a real prepared call.
+    pub(super) prepared_call_nodes: std::cell::RefCell<
+        BTreeMap<(SemanticInstanceId, SemanticSiteId), NodeId>,
+    >,
     /// Lexical selections recorded while emitting this exact MakeClosure.
     pub(super) closure_captures: BTreeMap<ClosureId, Vec<(String, ValueId)>>,
     /// Candidate headers formed at real MakeClosure operations. Publication
@@ -879,53 +883,14 @@ impl Ledger {
         );
         Ok(())
     }
-    /// Original body nodes and actual Core emission nodes are separate
-    /// coordinate domains. The immutable Core site maps this definition and
-    /// recipe to the actual call key; no callee Type/image supplies that map.
-    pub(crate) fn original_call_expression(
-        &self, function: FunctionId, definition: &SemanticDefinition,
+    pub(super) fn relocated_prepared_call(
+        &self, instance: SemanticInstanceId,
         recipe: SemanticSiteId, left: &mut usize,
     ) -> R<NodeId> {
-        pay(left, lookup_cost(self.frames.len()), Span::default())?;
-        let frame = self.frames.get(&function)
-            .ok_or_else(|| invalid(Span::default(), "prepared call has no actual source frame"))?;
-        let mut selected = None;
-        for program in self.original.context().map(|context| &context.semantic).into_iter()
-            .chain(self.frozen.as_deref().map(|source| &source.semantic)) {
-            pay(left, program.definitions.len().saturating_add(program.instances.len()), Span::default())?;
-            let Some(original) = program.definitions.iter().find(|row| row.id == definition.id) else { continue; };
-            for identity in [&original.identity, &definition.identity] {
-                pay(left, identity.package.len().saturating_add(identity.module_path.len())
-                    .saturating_add(identity.declaration_path.len()).saturating_add(identity.generation_path.len()).saturating_add(1), Span::default())?;
-                for part in identity.module_path.iter().chain(&identity.declaration_path) {
-                    pay(left, part.len(), Span::default())?;
-                }
-            }
-            if original.identity != definition.identity { continue; }
-            let mut scopes = Vec::new();
-            for row in &program.instances {
-                if row.definition != definition.id { continue; }
-                let matches = match row.target {
-                    SemanticInstanceTarget::Function(SemanticFunctionTarget::Core { module, function }) =>
-                        frame.origin.closure.is_none() && module == frame.origin.module && function == frame.origin.creator,
-                    SemanticInstanceTarget::Function(SemanticFunctionTarget::CoreClosure { module, creator, expression, occurrence: 0 }) =>
-                        module == frame.origin.module && creator == frame.origin.creator && Some(expression) == frame.origin.closure,
-                    _ => false,
-                };
-                if matches { scopes.push(row.id); }
-            }
-            pay(left, program.sites.len().saturating_mul(scopes.len().saturating_add(1)), Span::default())?;
-            for site in &program.sites {
-                if site.recipe != recipe || !scopes.contains(&site.instance) { continue; }
-                let SemanticSiteAddress::Core { expression, occurrence: 0, role: SemanticEmissionRole::Call } = site.at else {
-                    return Err(invalid(Span::default(), "original prepared call has no actual Core occurrence"));
-                };
-                if selected.replace(expression).is_some_and(|old| old != expression) {
-                    return Err(invalid(Span::default(), "one original Call recipe names different actual Core occurrences"));
-                }
-            }
-        }
-        selected.ok_or_else(|| invalid(Span::default(), "prepared call has no immutable original-to-Core occurrence mapping"))
+        let nodes = self.prepared_call_nodes.borrow();
+        pay(left, lookup_cost(nodes.len()), Span::default())?;
+        nodes.get(&(instance, recipe)).copied().ok_or_else(||
+            invalid(Span::default(), "prepared call has no relocated original-to-Core occurrence"))
     }
     pub(crate) fn callee_place(
         &mut self, function: FunctionId, callee: NodeId, address: ValueId,

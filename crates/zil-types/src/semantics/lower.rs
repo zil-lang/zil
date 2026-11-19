@@ -254,7 +254,7 @@ impl<'a> Lower<'a, '_> {
         node: NodeId,
         action: &mut SemanticSiteAction,
         intrinsic: Option<&super::original::IntrinsicKind>,
-    ) -> R<Point> {
+    ) -> R<(Point, bool)> {
         let row = self.expression(function, node)?;
         if matches!(action, SemanticSiteAction::Construct { .. }) {
             let construction = row
@@ -278,7 +278,7 @@ impl<'a> Lower<'a, '_> {
                     "literal constructor receipt is not its actual creation opcode/result",
                 ));
             }
-            return Ok(construction.at);
+            return Ok((construction.at, false));
         }
         let mut found = None;
         pay(self.left, row.instructions.len())?;
@@ -345,8 +345,12 @@ impl<'a> Lower<'a, '_> {
                     ));
                 }
             };
-            if matches && found.replace(*point).is_some() {
-                return Err(bad("semantic site matches multiple actual operations"));
+            if matches {
+                let prepared = matches!(instruction.kind, InstructionKind::CallClosureBorrowed { callee, .. }
+                    if row.callee_place == Some(callee));
+                if found.replace((*point, prepared)).is_some() {
+                    return Err(bad("semantic site matches multiple actual operations"));
+                }
             }
         }
         found.ok_or_else(|| bad("semantic site does not name its actual emitted operation"))
@@ -356,7 +360,7 @@ impl<'a> Lower<'a, '_> {
         function: FunctionId,
         site: &mut SemanticSite,
         intrinsic: Option<&super::original::IntrinsicKind>,
-    ) -> R<()> {
+    ) -> R<Option<NodeId>> {
         let SemanticSiteAddress::Core {
             expression,
             occurrence: 0,
@@ -389,10 +393,11 @@ impl<'a> Lower<'a, '_> {
         } else {
             SemanticSiteEdge::After
         };
-        let point = if matches!(site.action, SemanticSiteAction::TypeUse { .. }) {
-            self.expression(function, expression)?
+        let (point, prepared) = if matches!(site.action, SemanticSiteAction::TypeUse { .. }) {
+            let point = self.expression(function, expression)?
                 .end
-                .ok_or_else(|| bad("type-use has no actual emitter boundary"))?
+                .ok_or_else(|| bad("type-use has no actual emitter boundary"))?;
+            (point, false)
         } else if let SemanticSiteAction::DeclareLocal { local, .. } = &mut site.action {
             let SemanticLocalTarget::Core {
                 statement,
@@ -411,7 +416,7 @@ impl<'a> Lower<'a, '_> {
                 .get(statement)
                 .ok_or_else(|| bad("semantic binding did not declare an actual local"))?;
             *local = SemanticLocalTarget::Typed(declaration.local);
-            declaration.at
+            (declaration.at, false)
         } else {
             self.point_for(function, expression, &mut site.action, intrinsic)?
         };
@@ -505,7 +510,7 @@ impl<'a> Lower<'a, '_> {
                 .map_err(|_| bad("actual instruction ordinal overflows"))?,
             edge,
         };
-        Ok(())
+        Ok(prepared.then_some(expression))
     }
 }
 fn recipe_kind(recipe: &SemanticSiteRecipeKind, action: &SemanticSiteAction) -> bool {
@@ -607,6 +612,7 @@ pub(super) fn program(
     pay(lower.left, program.sites.len().saturating_mul(2))?;
     let mut seen = std::collections::BTreeSet::new();
     let mut owner_observations = Vec::new();
+    let mut prepared_calls = BTreeMap::new();
     let has_dyn_observation = if let Some(proof) = ledger.original.borrow().as_ref() {
         pay(lower.left, proof.intrinsics.len())?;
         proof.intrinsics.values().any(|call| matches!(call.kind, super::original::IntrinsicKind::DynCall { .. }))
@@ -729,7 +735,7 @@ pub(super) fn program(
                         },
                     },
                 };
-                lower.site(function, &mut observation, None)?;
+                let _ = lower.site(function, &mut observation, None)?;
                 if !seen.insert((observation.instance, observation.recipe)) {
                     return Err(bad(
                         "dynamic owner observation repeats one actual original operation",
@@ -774,7 +780,13 @@ pub(super) fn program(
                         source: SemanticOriginalTypeSource::Expression(*node) })) },
             };
         }
-        lower.site(function, site, intrinsic)?;
+        if let Some(expression) = lower.site(function, site, intrinsic)?
+            && matches!(original.kind, SemanticSiteRecipeKind::OriginalCall)
+        {
+            let row_width = std::mem::size_of::<(SemanticInstanceId, SemanticSiteId, NodeId)>();
+            pay(lower.left, search(prepared_calls.len()).saturating_add(row_width))?;
+            prepared_calls.insert((site.instance, site.recipe), expression);
+        }
         match (&original.kind, &site.action) {
             (
                 SemanticSiteRecipeKind::Call {
@@ -824,6 +836,7 @@ pub(super) fn program(
         ));
     }
     program.sites.extend(owner_observations);
+    *ledger.prepared_call_nodes.borrow_mut() = prepared_calls;
     // Original sites include type-stage operations and unused template bodies.
     // They remain immutable and universally checked. Core mint events and
     // actual owner-place events attached to their original dynamic calls are
