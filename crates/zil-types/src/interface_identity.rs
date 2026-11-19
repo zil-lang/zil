@@ -53,7 +53,26 @@ pub(super) fn encode(
                 }
             }
             Event::Type(ty, depth) => {
-                fee(left, 64)?;
+                // Simple tags and physical container headers write only fixed
+                // local bytes. Text, child visits and variable rows have
+                // their own charges. Types with separate metadata digests
+                // still reserve the complete header work.
+                let header_work = match ty {
+                    ty if ty.is_b0_scalar() => 4,
+                    Type::Tuple(_)
+                    | Type::Array { .. }
+                    | Type::Slice { .. }
+                    | Type::Record { .. }
+                    | Type::Package { .. }
+                    | Type::Enum { .. }
+                    | Type::ErrorUnion { .. }
+                    | Type::Address { .. }
+                    | Type::Managed(_)
+                    | Type::Desc(_)
+                    | Type::OwnedStore { .. } => 24,
+                    _ => 64,
+                };
+                fee(left, header_work)?;
                 nodes = nodes.checked_sub(1).ok_or_else(|| {
                     Diagnostic::limit(
                         Phase::Types,

@@ -8,18 +8,29 @@ pub(super) const PAGE_LEN: usize = u64::BITS as usize;
 pub(super) struct Page {
     pub(super) present: u64,
     classed: u64,
-    cells: [Option<SharedType>; PAGE_LEN],
+    // Slots are in physical SSA order, exactly one per set bit.
+    cells: Vec<SharedType>,
 }
 impl Page {
     fn empty() -> Self {
-        Self { present: 0, classed: 0, cells: std::array::from_fn(|_| None) }
+        Self { present: 0, classed: 0, cells: Vec::new() }
+    }
+    fn rank(&self, bit: u64) -> usize {
+        (self.present & (bit - 1)).count_ones() as usize
+    }
+    fn get(&self, offset: usize) -> Option<&SharedType> {
+        let bit = 1u64 << offset;
+        if self.present & bit == 0 {
+            return None;
+        }
+        self.cells.get(self.rank(bit))
     }
     pub(super) fn entries(&self) -> impl Iterator<Item = (usize, &SharedType)> {
         self.entries_for(self.present)
     }
     fn entries_for(&self, members: u64) -> impl Iterator<Item = (usize, &SharedType)> {
         Occupied(members).map(|offset| {
-            (offset, self.cells[offset].as_ref().expect("occupied SSA page slot"))
+            (offset, self.get(offset).expect("occupied SSA page slot"))
         })
     }
 }
@@ -38,7 +49,7 @@ impl Values {
     pub(super) fn len(&self) -> usize { self.len }
     pub(super) fn get(&self, index: usize) -> Option<&SharedType> {
         if index >= self.len { return None; }
-        self.pages[index / PAGE_LEN].as_ref()?.cells[index % PAGE_LEN].as_ref()
+        self.pages[index / PAGE_LEN].as_ref()?.get(index % PAGE_LEN)
     }
     pub(super) fn set(
         &mut self,
@@ -56,15 +67,22 @@ impl Values {
         let has_classes = !classes.is_empty();
         let page = &mut self.pages[index / PAGE_LEN];
         if page.is_none() {
-            world.pay(PAGE_LEN.saturating_add(2))?;
+            world.pay(2)?;
             *page = Some(Rc::new(Page::empty()));
         }
         let page = page.as_mut().expect("SSA write initialized its page");
         let page = writable(world, page)?;
         let offset = index % PAGE_LEN;
         let bit = 1u64 << offset;
-        page.cells[offset] = Some(value);
-        page.present |= bit;
+        let rank = page.rank(bit);
+        if page.present & bit == 0 {
+            world.pay(append_work(&page.cells, 1)
+                .saturating_add(page.cells.len().saturating_sub(rank)))?;
+            page.cells.insert(rank, value);
+            page.present |= bit;
+        } else {
+            page.cells[rank] = value;
+        }
         if has_classes {
             page.classed |= bit;
         } else {
@@ -107,10 +125,13 @@ impl Values {
                 continue;
             }
             let page = writable(world, page)?;
-            world.pay((remove.count_ones() as usize).saturating_add(1))?;
-            for offset in Occupied(remove) {
-                page.cells[offset] = None;
-            }
+            world.pay(page.cells.len().saturating_add(1))?;
+            let mut present = page.present;
+            page.cells.retain(|_| {
+                let bit = present & present.wrapping_neg();
+                present &= present - 1;
+                bit & remove == 0
+            });
             page.present &= !remove;
             page.classed &= !remove;
         }
@@ -119,7 +140,7 @@ impl Values {
 }
 fn writable<'a>(world: &mut World<'_, '_>, shared: &'a mut Rc<Page>) -> R<&'a mut Page> {
     if Rc::strong_count(shared) != 1 {
-        world.pay(PAGE_LEN.saturating_add(2))?;
+        world.pay(shared.cells.len().saturating_add(2))?;
     }
     Ok(Rc::make_mut(shared))
 }

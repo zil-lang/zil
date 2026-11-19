@@ -1361,22 +1361,6 @@ pub(super) fn apply(
     ) {
         return Ok(None);
     }
-    {
-        let ledger = world.ledger;
-        let proof = ledger.original.borrow();
-        let proof = proof
-            .as_ref()
-            .ok_or_else(|| bad("projected borrow lacks its complete original Gamma"))?;
-        world.pay(index::search(proof.borrow_roles.len()))?;
-        if proof
-            .borrow_roles
-            .range((original.id, NodeId(0))..=(original.id, NodeId(u32::MAX)))
-            .next()
-            .is_none()
-        {
-            return Ok(None);
-        }
-    }
     let Some(node) = occurrences::node(world, original, site)? else {
         return Ok(None);
     };
@@ -1851,25 +1835,6 @@ pub(super) fn shared_expression_view(
         Type::Address { mutable: false, .. }
     ) {
         return Ok(None);
-    }
-    {
-        let ledger = world.ledger;
-        let proof = ledger.original.borrow();
-        let proof = proof
-            .as_ref()
-            .ok_or_else(|| bad("shared view lacks original Gamma"))?;
-        world.pay(index::search(proof.shared_views.len()))?;
-        if proof
-            .shared_views
-            .range(
-                (original.id, Query::Expression(NodeId(0)))
-                    ..=(original.id, Query::Expression(NodeId(u32::MAX))),
-            )
-            .next()
-            .is_none()
-        {
-            return Ok(None);
-        }
     }
     let Some(node) = occurrences::node(world, original, site)? else {
         return Ok(None);

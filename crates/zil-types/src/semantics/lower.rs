@@ -19,6 +19,44 @@ fn pay(left: &mut usize, n: usize) -> R<()> {
 fn search(n: usize) -> usize {
     n.saturating_add(1).ilog2() as usize + 1
 }
+
+enum OriginalRecipes<'a> {
+    Dense(&'a [SemanticSiteRecipe]),
+    Sparse(BTreeMap<SemanticSiteId, &'a SemanticSiteRecipe>),
+}
+
+impl<'a> OriginalRecipes<'a> {
+    fn new(sites: &'a [SemanticSiteRecipe], left: &mut usize) -> R<Self> {
+        pay(left, sites.len())?;
+        if sites.iter().enumerate().all(|(ordinal, recipe)| recipe.id.0 as usize == ordinal) {
+            return Ok(Self::Dense(sites));
+        }
+        let mut recipes = BTreeMap::new();
+        for recipe in sites {
+            pay(left, search(recipes.len()).saturating_add(
+                std::mem::size_of::<(SemanticSiteId, &SemanticSiteRecipe)>(),
+            ))?;
+            // The original validation owns recipe uniqueness. Preserve its
+            // source order here for sparse recipe coordinates as well.
+            recipes.entry(recipe.id).or_insert(recipe);
+        }
+        Ok(Self::Sparse(recipes))
+    }
+
+    fn get(&self, id: SemanticSiteId, left: &mut usize) -> R<Option<&'a SemanticSiteRecipe>> {
+        Ok(match self {
+            Self::Dense(sites) => {
+                pay(left, 1)?;
+                sites.get(id.0 as usize)
+            }
+            Self::Sparse(sites) => {
+                pay(left, search(sites.len()))?;
+                sites.get(&id).copied()
+            }
+        })
+    }
+}
+
 struct Lower<'a, 'b> {
     ledger: &'a Ledger,
     functions: BTreeMap<FunctionId, &'a TypedFunction>,
@@ -545,18 +583,8 @@ pub(super) fn program(
     for definition in &program.definitions {
         let recipes = match &definition.body {
             SemanticDefinitionBody::Function { sites, .. }
-            | SemanticDefinitionBody::FunctionWithBody { sites, .. } => {
-                let mut recipes = BTreeMap::new();
-                for recipe in sites {
-                    pay(lower.left, search(recipes.len()).saturating_add(
-                        std::mem::size_of::<(SemanticSiteId, &SemanticSiteRecipe)>(),
-                    ))?;
-                    // Preserve the original declaration's order. The full
-                    // original validation is responsible for uniqueness.
-                    recipes.entry(recipe.id).or_insert(recipe);
-                }
-                Some(recipes)
-            }
+            | SemanticDefinitionBody::FunctionWithBody { sites, .. } =>
+                Some(OriginalRecipes::new(sites, lower.left)?),
             _ => None,
         };
         pay(lower.left, search(originals.len()))?;
@@ -579,18 +607,22 @@ pub(super) fn program(
     pay(lower.left, program.sites.len().saturating_mul(2))?;
     let mut seen = std::collections::BTreeSet::new();
     let mut owner_observations = Vec::new();
-    pay(
-        lower.left,
-        program
-            .sites
-            .len()
-            .saturating_mul(search(program.sites.len()).saturating_add(1)),
-    )?;
-    let actual_sites: std::collections::BTreeSet<_> = program
-        .sites
-        .iter()
-        .map(|site| (site.instance, site.recipe))
-        .collect();
+    let has_dyn_observation = if let Some(proof) = ledger.original.borrow().as_ref() {
+        pay(lower.left, proof.intrinsics.len())?;
+        proof.intrinsics.values().any(|call| matches!(call.kind, super::original::IntrinsicKind::DynCall { .. }))
+    } else {
+        false
+    };
+    // Only synthesized Dyn receiver observations query original sites that
+    // have not yet been visited. Other operations use the live seen set.
+    let actual_sites = if has_dyn_observation {
+        pay(lower.left, program.sites.len()
+            .saturating_mul(search(program.sites.len()).saturating_add(1)))?;
+        Some(program.sites.iter().map(|site| (site.instance, site.recipe))
+            .collect::<std::collections::BTreeSet<_>>())
+    } else {
+        None
+    };
     for site in &mut program.sites {
         pay(
             lower.left,
@@ -612,8 +644,7 @@ pub(super) fn program(
         let recipes = recipes.as_ref().ok_or_else(|| bad(
                 "executable semantic site belongs to a nonfunction original scope",
         ))?;
-        pay(lower.left, search(recipes.len()))?;
-        let original = recipes.get(&site.recipe)
+        let original = recipes.get(site.recipe, lower.left)?
             .ok_or_else(|| bad("actual semantic site is absent from its original body"))?;
         if !recipe_kind(&original.kind, &site.action) {
             return Err(bad(
@@ -658,8 +689,7 @@ pub(super) fn program(
                 .iter()
                 .filter(|node| node.node == SemanticOriginalNode::Expression(*receiver_node))
             {
-                pay(lower.left, search(recipes.len()))?;
-                let recipe = recipes.get(&node.site)
+                let recipe = recipes.get(node.site, lower.left)?
                     .ok_or_else(|| bad("dynamic owner observation lost its original recipe"))?;
                 let SemanticSiteRecipeKind::TypeUse { expected } = &recipe.kind else {
                     continue;
@@ -673,6 +703,9 @@ pub(super) fn program(
             let (recipe, expected) = selected.ok_or_else(|| {
                 bad("dynamic owner place has no exact original observation recipe")
             })?;
+            let actual_sites = actual_sites.as_ref()
+                .ok_or_else(|| bad("dynamic owner observation has no actual site directory"))?;
+            pay(lower.left, search(actual_sites.len()))?;
             if !actual_sites.contains(&(site.instance, recipe)) {
                 crate::dyn_metadata::semantic_operand_snapshot(expected, limits, lower.left, 1)?;
                 let mut observation = SemanticSite {
