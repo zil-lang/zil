@@ -1043,6 +1043,19 @@ pub(super) fn profile(
         for i in &b.instructions {
             budget.spend(1)?;
             match &i.kind {
+                InstructionKind::OwnedStoreNew { .. }
+                | InstructionKind::OwnedStoreReserve { .. }
+                | InstructionKind::OwnedStorePush { .. }
+                | InstructionKind::OwnedStorePop { .. }
+                | InstructionKind::OwnedStoreLen { .. }
+                | InstructionKind::OwnedStoreCapacity { .. }
+                | InstructionKind::OwnedStoreBorrow { .. }
+                | InstructionKind::OwnedStoreBorrowMut { .. } => {
+                    // StoreElement includes synchronous prefix and failure
+                    // cleanup. Recheck its full actual operation before the
+                    // frame retains the resulting owner or view.
+                    crate::check_instruction(module, f, i, budget)?;
+                }
                 InstructionKind::MakeOwnedArray { .. }
                 | InstructionKind::ProjectOwnedArrayField { .. }
                 | InstructionKind::TakeOwnedArrayElement { .. }

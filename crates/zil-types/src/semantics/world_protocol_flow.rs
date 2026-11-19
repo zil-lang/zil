@@ -811,6 +811,31 @@ fn instruction(
         | InstructionKind::ByteBufferLen { .. }
         | InstructionKind::ByteBufferCapacity { .. }
         | InstructionKind::ByteBufferBorrow { .. } => Value::Plain,
+        InstructionKind::OwnedStoreNew { .. }
+        | InstructionKind::OwnedStoreReserve { .. }
+        | InstructionKind::OwnedStorePush { .. }
+        | InstructionKind::OwnedStorePop { .. }
+        | InstructionKind::OwnedStoreLen { .. }
+        | InstructionKind::OwnedStoreCapacity { .. }
+        | InstructionKind::OwnedStoreBorrow { .. }
+        | InstructionKind::OwnedStoreBorrowMut { .. } => {
+            // The ordinary Store checker proves the complete StoreElement
+            // domain, including its synchronous failure and prefix cleanup.
+            // Also check these actual inputs before forgetting phase evidence:
+            // an operation on an unrelated store leaves live roots untouched.
+            if !state.phases.is_empty() {
+                let mut roots = BTreeSet::new();
+                for operand in instruction.kind.value_operands() {
+                    let value = state.get(operand, world)?;
+                    world.pay(value.work())?;
+                    value.roots(&mut roots);
+                    if !roots.is_empty() {
+                        return Err(bad("Store operation cannot transfer or mutate an active protocol root"));
+                    }
+                }
+            }
+            Value::Plain
+        }
         _ => {
             if !state.phases.is_empty() {
                 // Every formatted field is a bounded scalar coordinate. Do
