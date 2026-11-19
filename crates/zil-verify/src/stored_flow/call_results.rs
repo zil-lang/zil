@@ -949,6 +949,7 @@ pub(super) fn physical_slots(module: &TypedModule, ty: &Type, b: &mut Budget) ->
                             (PlaceProjection::ErrorArm(false), result.as_ref()),
                         ]);
                     }
+                    Type::Array { .. } if value_transport::scalar_array(ty, depth, b)? => {}
                     Type::Array { element, length } => {
                         b.spend(*length as usize)?;
                         fields.extend(

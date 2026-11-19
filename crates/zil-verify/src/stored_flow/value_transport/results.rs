@@ -852,6 +852,7 @@ fn required_return_known(
                     (PlaceProjection::ErrorArm(false), result.as_ref()),
                 ]);
             }
+            Type::Array { .. } if payload.field_facts.is_empty() && scalar_array(storage, depth, b)? => {}
             Type::Array { element, length } => {
                 b.spend(*length as usize)?;
                 fields.extend((0..*length).map(|i| (PlaceProjection::Field(i), element.as_ref())));
