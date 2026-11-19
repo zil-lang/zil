@@ -533,7 +533,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
                 format!("mode={mode}"),
                 module,
                 plan,
-                Some([5601, 5939, 7714][mode as usize]),
+                Some([5097, 5379, 7098][mode as usize]),
             )
         })
         .collect();
@@ -545,7 +545,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
             format!("Store indirect={indirect}"),
             module,
             plan,
-            Some(if indirect { 20574 } else { 17379 }),
+            Some(if indirect { 19174 } else { 16091 }),
         ));
     }
     // Each fixture has one closure whose capture list selects the fixed point.

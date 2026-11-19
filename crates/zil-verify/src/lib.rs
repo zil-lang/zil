@@ -171,8 +171,8 @@ pub struct VerifiedModule {
     task_ownership: Arc<std::collections::BTreeMap<FunctionId, TaskOwnership>>,
 }
 
-// Keep the owned entry allocation-free. Shared entries retain the exact raw
-// snapshot checked on this call; the owner itself carries no prior proof.
+// Scalar inputs can remain inline. With original syntax, the independent
+// grammar reader and the returned module retain the same immutable bytes.
 #[derive(Clone)]
 #[allow(clippy::large_enum_variant)]
 enum VerifiedInputs {
@@ -189,7 +189,47 @@ enum VerifiedInputs {
         plan: Arc<CandidatePlan>,
     },
 }
+/// Ownership of the raw grammar, independent of any proof about it. Keeping
+/// a strong reference makes original-expression cursors valid for the request.
+#[derive(Clone)]
+enum OriginalInput {
+    Module(Arc<TypedModule>),
+    Program(Arc<TypedProgram>),
+    Detached(Arc<SemanticModule>),
+}
+
+impl OriginalInput {
+    fn grammar(&self) -> Option<&SemanticModule> {
+        match self {
+            Self::Module(module) => module.semantic.as_ref(),
+            Self::Program(program) => program.module.semantic.as_ref(),
+            Self::Detached(grammar) => Some(grammar),
+        }
+    }
+}
+
 impl VerifiedInputs {
+    fn owned(module: TypedModule, plan: CandidatePlan) -> Self {
+        if module.semantic.is_some() {
+            Self::SharedModule {
+                module: Arc::new(module),
+                plan: Arc::new(plan),
+            }
+        } else {
+            Self::Owned { module, plan }
+        }
+    }
+
+    fn original_input(&self) -> Option<OriginalInput> {
+        match self {
+            Self::SharedModule { module, .. } => module.semantic.as_ref()
+                .map(|_| OriginalInput::Module(Arc::clone(module))),
+            Self::SharedProgram { program, .. } => program.module.semantic.as_ref()
+                .map(|_| OriginalInput::Program(Arc::clone(program))),
+            Self::Owned { .. } => None,
+        }
+    }
+
     fn program(&self) -> Option<&TypedProgram> {
         match self {
             Self::SharedProgram { program, .. } => Some(program),
@@ -409,6 +449,7 @@ struct DiagnosticProgress {
 }
 struct Budget {
     remaining: usize,
+    original_input: Option<OriginalInput>,
     structural: Option<dynamic_metadata::Structure>,
     diagnostic_costs: Option<BTreeMap<(&'static str, u32), (usize, usize)>>,
     diagnostic_metadata_caller: Option<&'static std::panic::Location<'static>>,
@@ -550,6 +591,7 @@ impl Budget {
     fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
+            original_input: None,
             structural: None,
             diagnostic_costs: std::env::var_os("ZIL_VERIFY_PROFILE_COSTS").map(|_| BTreeMap::new()),
             diagnostic_metadata_caller: None,
@@ -801,7 +843,7 @@ pub fn verify_module(
     limits: &Limits,
 ) -> CompileResult<VerifiedModule> {
     verify_inputs(
-        VerifiedInputs::Owned { module, plan },
+        VerifiedInputs::owned(module, plan),
         expected_target,
         limits,
     )
@@ -843,12 +885,16 @@ fn verify_inputs(
     expected_target: &TargetProfile,
     limits: &Limits,
 ) -> CompileResult<VerifiedModule> {
-    match check_module(
+    let mut budget = Budget::new(limits);
+    budget.original_input = inputs.original_input();
+    match check_module_budget(
         inputs.module(),
         inputs.plan(),
         expected_target,
         limits,
         inputs.program(),
+        &mut budget,
+        None,
     ) {
         Ok(checked) => Ok(VerifiedModule {
             inputs,
@@ -923,24 +969,6 @@ struct CheckedModule {
     task_exports: BTreeSet<FunctionId>,
     task_input_fingerprint: Fingerprint,
     task_ownership: std::collections::BTreeMap<FunctionId, TaskOwnership>,
-}
-fn check_module(
-    module: &TypedModule,
-    plan: &CandidatePlan,
-    expected_target: &TargetProfile,
-    limits: &Limits,
-    program: Option<&TypedProgram>,
-) -> Check<CheckedModule> {
-    let mut budget = Budget::new(limits);
-    check_module_budget(
-        module,
-        plan,
-        expected_target,
-        limits,
-        program,
-        &mut budget,
-        None,
-    )
 }
 fn check_module_budget(
     module: &TypedModule,

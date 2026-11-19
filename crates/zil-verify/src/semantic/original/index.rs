@@ -121,7 +121,7 @@ fn function<'a>(definition:&'a SemanticDefinition,revisit:bool,b:&mut Budget)->C
 pub(super) struct SourceIndex {
     // Keeping this exact source tree alive binds every structural cursor and
     // returned expression to the grammar checked by this original Γ.
-    program:std::sync::Arc<SemanticModule>,
+    input: crate::OriginalInput,
     directory:Directory,
     shape_caps: (usize, usize),
 }
@@ -300,12 +300,16 @@ impl Role{
     SemanticSiteRecipeKind::Closure{..}=>Self::Closure,
 }}}
 impl SourceIndex{
+    fn program(&self) -> Check<&SemanticModule> {
+        self.input.grammar().ok_or_else(|| bad("original cursor has no retained grammar"))
+    }
+
     fn bounds(&self, b: &mut Budget) -> Check<()> {
         b.spend(2)?;
         // The complete recipe visitor bounds node count and traversal depth.
         // Queries still spend from the current request's cumulative budget.
         if self.shape_caps != (b.limits.max_nodes, b.limits.max_call_depth.min(128)) {
-            dynamic_metadata::recipe(self.program.as_ref(), b)?;
+            dynamic_metadata::recipe(self.program()?, b)?;
         }
         Ok(())
     }
@@ -418,16 +422,22 @@ pub(super) fn snapshot(module:&TypedModule,index:&Index<'_>,b:&mut Budget)->Chec
         let places = PlaceSyntax::new(function, b)?;
         definitions.insert(definition.id,DefinitionCursor{ordinal,nodes,closures:function.closures.clone(),recipes,implicit_heads,places});
     }
-    // Prepay the complete immutable snapshot copy, including all unused
-    // definitions, annotations and quote payloads. No address/digest/ID key
-    // can claim another transient module's grammar receipt.
-    dynamic_metadata::recipe(program,b)?;
+    // The full grammar, including unused definitions and actual worlds, was
+    // traversed by build. Share its exact allocation when it is held by the
+    // request. A nested or detached input must pay for its own complete copy.
     b.spend(12)?;
-    Ok(SourceIndex{program:std::sync::Arc::new(program.clone()),directory:Directory{definitions,compile_time_uses},shape_caps:(b.limits.max_nodes,b.limits.max_call_depth.min(128))})
+    let input = match &b.original_input {
+        Some(owner) if owner.grammar().is_some_and(|held| std::ptr::eq(held, program)) => owner.clone(),
+        _ => {
+            dynamic_metadata::recipe(program, b)?;
+            crate::OriginalInput::Detached(std::sync::Arc::new(program.clone()))
+        }
+    };
+    Ok(SourceIndex{input,directory:Directory{definitions,compile_time_uses},shape_caps:(b.limits.max_nodes,b.limits.max_call_depth.min(128))})
 }
 pub(super) fn select<'a>(source:&'a SourceIndex,requested:&[SemanticDefinitionId],b:&mut Budget)->Check<Index<'a>>{
     source.bounds(b)?;
-    let program=source.program.as_ref();
+    let program=source.program()?;
     let directory=&source.directory;
     let mut definitions=BTreeMap::new();
     for id in requested{
@@ -664,6 +674,27 @@ fn compatible(recipe: &SemanticSiteRecipeKind, node: Node<'_>) -> bool {
 #[cfg(test)]
 mod reverse_tests{
     use super::*;
+    #[test]
+    fn grammar_owner_must_contain_the_exact_checked_program() {
+        let (module, _) = zil_ir::wire::decode_module_candidate(
+            include_bytes!("../fixtures/ordinary-identity-complete-head.wire"), &Limits::default(),
+        ).unwrap();
+        let module = std::sync::Arc::new(module);
+        let other = module.as_ref().clone();
+        let mut b = Budget::new(&Limits::default());
+        b.original_input = Some(crate::OriginalInput::Module(module.clone()));
+        let index = build(&module, &mut b).unwrap();
+        let held = snapshot(&module, &index, &mut b).unwrap();
+        assert!(std::ptr::eq(held.program().unwrap(), module.semantic.as_ref().unwrap()));
+        let different = build(&other, &mut b).unwrap();
+        let detached = snapshot(&other, &different, &mut b).unwrap();
+        assert!(matches!(detached.input, crate::OriginalInput::Detached(_)));
+        assert_eq!(detached.program().unwrap(), held.program().unwrap());
+        b.limits.max_nodes = 1;
+        assert!(held.bounds(&mut b).is_err());
+        assert!(detached.bounds(&mut b).is_err());
+    }
+
     #[test]
     fn reverse_source_directory_preserves_all_roles_ambiguity_and_owned_grammar(){
         let(mut module,_)=crate::tests::baseline();let span=module.functions[0].span;
