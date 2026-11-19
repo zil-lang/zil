@@ -366,6 +366,27 @@ impl Engine<'_> {
         let selected = receiver
             .or_else(|| (data_unique.len() == 1).then(|| data_unique[0].as_str()))
             .or_else(|| (unique.len() == 1).then(|| unique[0].as_str()));
+        let inferred = if selected.is_none() && elided_window {
+            let input = crate::source_semantics::input_result(function, &mut self.budget)?;
+            if let Some(index) = input {
+                let parameter = &function.params[index];
+                let name = match &header_grouped(&parameter.ty, &mut self.budget)?.kind {
+                    TypeKind::Reference { lifetime, .. } => lifetime.as_ref(),
+                    _ => {
+                        self.budget.identity_work(candidate.source_inputs.len(), function.span)?;
+                        candidate.source_inputs.iter()
+                            .find(|row| row.parameter as usize == index && row.path.is_empty())
+                            .and_then(|row| self.life_scope.get(row.binder as usize))
+                    }
+                };
+                if let Some(name) = name {
+                    self.budget.text(name, function.span)?;
+                    self.budget.lineage_bytes(name.len(), function.span)?;
+                }
+                name.cloned()
+            } else { None }
+        } else { None };
+        let selected = selected.or(inferred.as_deref());
         let mut changed = !candidate.source_inputs.is_empty();
         if let Some(ty) = &mut function.return_type {
             result(self, ty, selected, &mut changed, 0)?;

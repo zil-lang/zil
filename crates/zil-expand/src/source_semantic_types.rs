@@ -1149,7 +1149,12 @@ impl Builder<'_, '_, '_, '_> {
                     prepay_recipe_work(previous, self.budget, written.span, 0)?;
                     prepay_recipe_work(lifetime, self.budget, written.span, 0)?;
                     if previous != lifetime {
-                        return Err(error(written.span, "elided function result has several original input lifetime roles"));
+                        selected = static_results::input_result(function, self.budget)?
+                            .and_then(|index| inputs.get(index)).and_then(outer);
+                        if selected.is_none() {
+                            return Err(error(written.span, "elided function result has several original input lifetime roles"));
+                        }
+                        break;
                     }
                 } else { selected = Some(lifetime); }
             }
@@ -1644,10 +1649,24 @@ mod self_header_tests {
             }
             assert_eq!(signature.invocation_lifetimes, 0);
         }
+        for (source, returned) in [
+            ("fn ambiguous(x:&i32,y:&i32)->&i32{return x}", 0),
+            ("fn last(x:&i32,y:&i32)->&i32{let alias=y;return alias}", 1),
+            ("fn rebor(x:&i32,y:&i32)->&i32{return &*y}", 1),
+            ("fn converge(x:&i32,y:&i32,b:bool)->&i32{let q=y;if b{return q}return y}", 1),
+            ("fn ambiguous(x:ByteBuffer,y:ByteBuffer)->&[u8]{return bytes_view(x)}", 0),
+            ("fn ambiguous(x:ByteBuffer,y:&[u8])->&[u8]{return bytes_view(x)}", 0),
+        ] {
+            let definitions = inventory(source).unwrap();
+            let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definitions[0].body else { panic!() };
+            let lifetime = |ty: &SemanticTypeRecipe| match ty {
+                SemanticTypeRecipe::Address { lifetime, .. } | SemanticTypeRecipe::Desc { lifetime, .. } => lifetime.clone(),
+                _ => panic!("expected an outer borrow"),
+            };
+            assert_eq!(lifetime(&signature.result), lifetime(&signature.parameters[returned].ty));
+        }
         for source in [
-            "fn ambiguous(x:&i32,y:&i32)->&i32{return x}",
-            "fn ambiguous(x:ByteBuffer,y:ByteBuffer)->&[u8]{return bytes_view(x)}",
-            "fn ambiguous(x:ByteBuffer,y:&[u8])->&[u8]{return bytes_view(x)}",
+            "fn escapes_local(x:&i32,y:&i32)->&i32{let z=42;return &z}",
         ] {
             let diagnostics = inventory(source).unwrap_err();
             assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains("several original input lifetime roles")));

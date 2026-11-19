@@ -1,12 +1,12 @@
-//! Literal-result candidates from the actual original lexical body. This
-//! navigation selects a Static obligation; it is never a storage proof and
-//! never infers a receiver, input class, or callable ABI from a type spelling.
+//! Result candidates from the original lexical body. A candidate selects a
+//! header obligation. The executable borrow proofs still establish its roots.
 use super::*;
 
 enum Candidate<'a> {
     Other,
     Text,
     TextClosure,
+    Input(usize),
     Tuple(Vec<Candidate<'a>>),
     Record(Vec<(&'a str, Candidate<'a>)>),
 }
@@ -16,6 +16,7 @@ struct Flow<'a> {
 }
 struct Walk<'b, 'l> {
     budget: &'b mut Budget<'l>,
+    inputs: bool,
 }
 impl Walk<'_, '_> {
     fn reserve<T>(&mut self, values: &mut Vec<T>, additional: usize, span: Span) -> R<()> {
@@ -45,6 +46,7 @@ impl Walk<'_, '_> {
             Candidate::Other => Candidate::Other,
             Candidate::Text => Candidate::Text,
             Candidate::TextClosure => Candidate::TextClosure,
+            Candidate::Input(index) => Candidate::Input(*index),
             Candidate::Tuple(fields) => {
                 let mut values = self.vector(fields.len(), span)?;
                 for field in fields {
@@ -108,6 +110,7 @@ impl Walk<'_, '_> {
     ) -> R<Candidate<'a>> {
         self.budget.node(span, depth)?;
         Ok(match (left, right) {
+            (Candidate::Input(left), Candidate::Input(right)) if left == right => Candidate::Input(left),
             (Candidate::Text, Candidate::Text) => Candidate::Text,
             (Candidate::TextClosure, Candidate::TextClosure) => Candidate::TextClosure,
             (Candidate::Tuple(mut left), Candidate::Tuple(right)) if left.len() == right.len() => {
@@ -290,10 +293,42 @@ impl Walk<'_, '_> {
                 self.expression(inner, env, depth + 1)?
             }
             s::ExprKind::Slice { object, .. } => {
-                if matches!(self.expression(object, env, depth + 1)?, Candidate::Text) {
-                    Candidate::Text
+                match self.expression(object, env, depth + 1)? {
+                    source @ (Candidate::Input(_) | Candidate::Text) => source,
+                    _ => Candidate::Other,
+                }
+            }
+            s::ExprKind::Unary { op: s::UnaryOp::Borrow | s::UnaryOp::BorrowMut, operand } if self.inputs => {
+                // A reborrow of an actual pointee follows the incoming loan.
+                // Borrowing a parameter's own slot has a local lifetime.
+                if let s::ExprKind::Unary { op: s::UnaryOp::Dereference, operand } = &operand.kind {
+                    match self.expression(operand, env, depth + 1)? {
+                        source @ Candidate::Input(_) => source,
+                        _ => Candidate::Other,
+                    }
                 } else {
                     Candidate::Other
+                }
+            }
+            s::ExprKind::Call { callee, arguments } if self.inputs => {
+                // These bare primitives are reserved by the source namespace.
+                // Their view depends on the first actual manager; the element
+                // index contributes no storage origin.
+                let s::ExprKind::Name(name) = &callee.kind else { return Ok(Candidate::Other); };
+                self.budget.text(name, callee.span)?;
+                let manager = match (name.as_str(), arguments.as_slice()) {
+                    ("bytes_view" | "bytes_view_mut", [manager]) if !manager.spread => manager,
+                    ("store_at" | "store_at_mut", [manager, index]) if !manager.spread && !index.spread => manager,
+                    _ => return Ok(Candidate::Other),
+                };
+                for (binding, _) in env.iter().rev() {
+                    self.budget.text(binding, callee.span)?;
+                    self.budget.text(name, callee.span)?;
+                    if *binding == name { return Ok(Candidate::Other); }
+                }
+                match self.expression(&manager.value, env, depth + 1)? {
+                    source @ Candidate::Input(_) => source,
+                    _ => Candidate::Other,
                 }
             }
             s::ExprKind::If {
@@ -528,18 +563,33 @@ pub(super) fn elided_result(bound: &s::TypeRef, budget: &mut Budget<'_>, depth: 
     }
 }
 
-pub(super) fn opaque_result(function: &s::Function, budget: &mut Budget<'_>) -> R<bool> {
-    let mut walk = Walk { budget };
+fn original_result<'a>(
+    function: &'a s::Function,
+    budget: &mut Budget<'_>,
+    inputs: bool,
+) -> R<Option<Candidate<'a>>> {
+    let mut walk = Walk { budget, inputs };
     let mut env = Vec::new();
-    for parameter in &function.params {
-        walk.bind(&mut env, &parameter.name, Candidate::Other, parameter.span)?;
+    for (index, input) in function.params.iter().enumerate() {
+        let source = if inputs { Candidate::Input(index) } else { Candidate::Other };
+        walk.bind(&mut env, &input.name, source, input.span)?;
     }
-    let result = match &function.body {
-        s::FunctionBody::Block(body) => walk.block(body, &mut env, 0)?.result,
-        s::FunctionBody::Expression(value) => Some(walk.expression(value, &mut env, 0)?),
-        s::FunctionBody::Declaration => None,
-    };
-    Ok(matches!(result, Some(Candidate::TextClosure)))
+    match &function.body {
+        s::FunctionBody::Block(body) => Ok(walk.block(body, &mut env, 0)?.result),
+        s::FunctionBody::Expression(value) => Ok(Some(walk.expression(value, &mut env, 0)?)),
+        s::FunctionBody::Declaration => Ok(None),
+    }
+}
+
+pub(crate) fn input_result(function: &s::Function, budget: &mut Budget<'_>) -> R<Option<usize>> {
+    Ok(match original_result(function, budget, true)? {
+        Some(Candidate::Input(index)) => Some(index),
+        _ => None,
+    })
+}
+
+pub(super) fn opaque_result(function: &s::Function, budget: &mut Budget<'_>) -> R<bool> {
+    Ok(matches!(original_result(function, budget, false)?, Some(Candidate::TextClosure)))
 }
 
 #[cfg(test)]
