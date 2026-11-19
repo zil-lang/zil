@@ -73,7 +73,7 @@ impl CheckedContext{
             return Err(bad("function address selects an entry with conflicting original target or environment"));
         }
         let key=ScopeKey::Witness{definition:source,frame:active.fresh(b)?};
-        let mut lexical=vec![LexicalFrame{definition:source,key,actuals:vec![],environment:vec![],self_type:None}];
+        let mut lexical=vec![std::rc::Rc::new(LexicalFrame{definition:source,key,actuals:vec![],environment:vec![],self_type:None})];
         if thin_site{b.spend(environment.lexical.len())?;lexical.extend_from_slice(&environment.lexical);}
         let selected=EvalEnv{lexical,assumptions:environment.assumptions.clone(),images:environment.images.clone(),bounds:vec![],invocations:vec![],at:environment.at};
         let worlds=self.call_worlds(module,function,source,&selected,environment,active,b)?;

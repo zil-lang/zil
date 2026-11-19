@@ -90,7 +90,7 @@ impl CheckedContext {
             };
             lexical.insert(
                 0,
-                LexicalFrame {
+                std::rc::Rc::new(LexicalFrame {
                     definition: source,
                     key: ScopeKey::Witness {
                         definition: source,
@@ -99,7 +99,7 @@ impl CheckedContext {
                     actuals: checked,
                     environment: vec![],
                     self_type: None,
-                },
+                }),
             );
             let expected = EvalEnv {
                 lexical,

@@ -404,13 +404,13 @@ impl CheckedContext {
             }
             lexical.insert(
                 0,
-                LexicalFrame {
+                std::rc::Rc::new(LexicalFrame {
                     definition: definition.id,
                     key: scope,
                     actuals,
                     environment,
                     self_type: None,
-                },
+                }),
             );
             let recipe = match &definition.body {
                 SemanticDefinitionBody::Scope(
@@ -430,8 +430,8 @@ impl CheckedContext {
                     at: None,
                 };
                 let mut external = dynamic_witness::semantic_external::Proofs::default();
-                lexical[0].self_type =
-                    Some(self.evaluate_type(module, recipe, &env, &mut external, active, b)?);
+                let value=self.evaluate_type(module, recipe, &env, &mut external, active, b)?;
+                LexicalFrame::edit(&mut lexical[0],b)?.self_type=Some(value);
             }
         }
         Ok(EvalEnv {

@@ -9,7 +9,7 @@ impl CheckedContext{
         // A static function has no parent-instance actuals to select. Every
         // compatible exact definition/target world must still be checked.
         let key=ScopeKey::Witness{definition:source,frame:active.fresh(b)?};
-        let expected=EvalEnv{lexical:vec![LexicalFrame{definition:source,key,actuals:vec![],environment:vec![],self_type:None}],assumptions:environment.assumptions.clone(),images:environment.images.clone(),bounds:vec![],invocations:vec![],at:environment.at};
+        let expected=EvalEnv{lexical:vec![std::rc::Rc::new(LexicalFrame{definition:source,key,actuals:vec![],environment:vec![],self_type:None})],assumptions:environment.assumptions.clone(),images:environment.images.clone(),bounds:vec![],invocations:vec![],at:environment.at};
         self.call_worlds(module,function,source,&expected,environment,active,b)?;
         // Selecting a code reference cannot assume its target's requirements.
         self.evaluate_requirements(module,&definition.requirements,&expected,RequirementMode::ActualObligation,external,active,b)?;

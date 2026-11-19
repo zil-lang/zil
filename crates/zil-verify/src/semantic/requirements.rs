@@ -188,7 +188,7 @@ mod quantified_callable_tests{
     #[test]
     fn callable_goal_directories_preserve_nested_nonzero_frames_without_promoting_caller_bounds(){
         let limits=Limits::default();let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("fixtures/ordinary-identity-complete-call-sites.wire"),&limits).unwrap();let mut b=Budget::new(&limits);let context=CheckedContext::catalogue(&module,&mut b).unwrap();let instance=&module.semantic.as_ref().unwrap().instances[0];let scope=ScopeKey::Instance(instance.id);
-        let caller=BoundFrame{token:FrameToken(900),classes:vec![ClassKey::Bound{frame:FrameToken(900),index:0},ClassKey::Bound{frame:FrameToken(900),index:1}]};let env=EvalEnv{lexical:vec![LexicalFrame{definition:instance.definition,key:scope,actuals:vec![],environment:vec![],self_type:None}],assumptions:vec![scope],images:vec![],bounds:vec![caller.clone()],invocations:vec![],at:None};
+        let caller=BoundFrame{token:FrameToken(900),classes:vec![ClassKey::Bound{frame:FrameToken(900),index:0},ClassKey::Bound{frame:FrameToken(900),index:1}]};let env=EvalEnv{lexical:vec![std::rc::Rc::new(LexicalFrame{definition:instance.definition,key:scope,actuals:vec![],environment:vec![],self_type:None})],assumptions:vec![scope],images:vec![],bounds:vec![caller.clone()],invocations:vec![],at:None};
         let parameter=|lifetime|SemanticParameterRecipe{ty:SemanticTypeRecipe::Address{mutable:false,lifetime:SemanticOuterLifeRecipe::Class(lifetime),inner:Box::new(SemanticTypeRecipe::Atom(Type::I32))},mode:PassingMode::Infer};
         // A request-transport control with an external recorder. It is not an
         // executable Callable/SSA or actual entry/body admission proof.
@@ -232,7 +232,7 @@ mod premise_rollback_tests {
         let context = CheckedContext::definition_catalogue(&module, None, &mut b).unwrap();
         let scope = ScopeKey::Instance(instance.id);
         let env = EvalEnv {
-            lexical: vec![LexicalFrame { definition: instance.definition, key: scope, actuals: vec![], environment: vec![], self_type: None }],
+            lexical: vec![std::rc::Rc::new(LexicalFrame { definition: instance.definition, key: scope, actuals: vec![], environment: vec![], self_type: None })],
             assumptions: vec![scope], images: vec![], bounds: vec![],
             invocations: (0..2).map(|index| ClassKey::Invocation { frame: FrameToken(123), index }).collect(), at: None,
         };

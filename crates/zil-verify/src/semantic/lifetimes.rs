@@ -4,7 +4,7 @@ impl CheckedContext {
     pub(super) fn frame<'a>(&self, environment: &'a EvalEnv, scope: SemanticScopeRef, b: &mut Budget) -> Check<&'a LexicalFrame> {
         let SemanticScopeRef::Ancestor(depth) = scope;
         b.spend(depth as usize + 1)?;
-        environment.lexical.get(depth as usize).ok_or_else(|| bad("semantic scope escapes its actual lexical parent chain"))
+        environment.lexical.get(depth as usize).map(std::rc::Rc::as_ref).ok_or_else(|| bad("semantic scope escapes its actual lexical parent chain"))
     }
     pub(super) fn formal<'a>(&self, environment: &'a EvalEnv, reference: &SemanticFormalRef, b: &mut Budget) -> Check<&'a CheckedActual> {
         self.frame(environment,reference.scope,b)?.actuals.get(reference.ordinal as usize).ok_or_else(|| bad("semantic formal full ordinal is absent"))

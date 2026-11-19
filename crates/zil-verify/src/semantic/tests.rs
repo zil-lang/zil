@@ -144,7 +144,7 @@ fn nominal_pointee_and_outer_life_keep_distinct_intrinsics_with_equal_images(){
     let child=program.instances.iter().find(|row|row.environment.is_some()).unwrap();
     let parent=program.instances.iter().find(|row|Some(row.id)==child.parent).unwrap();
     let scope=ScopeKey::Instance(parent.id);let a=ClassKey::Formal{scope,ordinal:0};
-    let env=EvalEnv{lexical:vec![LexicalFrame{definition:parent.definition,key:scope,actuals:vec![CheckedActual::Life(a.clone())],environment:vec![],self_type:None}],assumptions:vec![scope],images:vec![],bounds:vec![],invocations:vec![],at:None};
+    let env=EvalEnv{lexical:vec![std::rc::Rc::new(LexicalFrame{definition:parent.definition,key:scope,actuals:vec![CheckedActual::Life(a.clone())],environment:vec![],self_type:None})],assumptions:vec![scope],images:vec![],bounds:vec![],invocations:vec![],at:None};
     let nominal=&module.life_instances[0].ty;let Type::BorrowedStorage{life,..}=nominal else{panic!("real phantom nominal qualification")};
     let value=context.checked_value(&module,nominal,life,vec![a.clone()],&mut b).unwrap();
     let mut active=ActiveQueries::new();

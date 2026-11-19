@@ -315,7 +315,7 @@ fn value_inner(module:&TypedModule,scope:SemanticDefinitionId,recipe:&SemanticTy
         });}
         let mut sealed=Vec::new();for formal in &definition.environment{sealed.push(context.evaluate_actual(module,&formal.source,&env,&mut proofs,&mut active,b)?);}
         let self_type=matches!(definition.body,SemanticDefinitionBody::Scope(_)).then(||receiver.clone());
-        env.lexical.insert(0,LexicalFrame{definition:id,key,actuals,environment:sealed,self_type});
+        env.lexical.insert(0,std::rc::Rc::new(LexicalFrame{definition:id,key,actuals,environment:sealed,self_type}));
     }
     let definition=context.definition(module,scope,b)?;
     if let SemanticDefinitionBody::FunctionWithBody{signature,..}|SemanticDefinitionBody::Function{signature,..}=&definition.body{

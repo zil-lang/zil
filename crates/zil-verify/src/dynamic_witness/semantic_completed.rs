@@ -166,17 +166,17 @@ mod tests{
     fn environment()->EvalEnv{
         let definition=SemanticDefinitionId{module:zil_base::ModuleId(0),index:1};
         let key=ScopeKey::Witness{definition,frame:FrameToken(7)};
-        EvalEnv{lexical:vec![LexicalFrame{definition,key,actuals:vec![CheckedActual::Type(value(Type::I32))],environment:vec![],self_type:None}],assumptions:vec![key],images:vec![],bounds:vec![],invocations:vec![],at:None}
+        EvalEnv{lexical:vec![std::rc::Rc::new(LexicalFrame{definition,key,actuals:vec![CheckedActual::Type(value(Type::I32))],environment:vec![],self_type:None})],assumptions:vec![key],images:vec![],bounds:vec![],invocations:vec![],at:None}
     }
     #[test]
     fn static_query_environment_preserves_rigid_scope_and_rejects_runtime_domains(){
         let mut b=Budget::new(&Limits::default());let env=environment();assert!(pure_environment(&env,&mut b).unwrap());
-        let mut other=env.clone();other.lexical[0].key=ScopeKey::Witness{definition:env.lexical[0].definition,frame:FrameToken(8)};
+        let mut other=env.clone();std::rc::Rc::make_mut(&mut other.lexical[0]).key=ScopeKey::Witness{definition:env.lexical[0].definition,frame:FrameToken(8)};
         assert!(!env_equal(&env,&other,&mut b).unwrap());
-        other=env.clone();other.lexical[0].actuals[0]=CheckedActual::Type(value(Type::I64));assert!(!env_equal(&env,&other,&mut b).unwrap());
+        other=env.clone();std::rc::Rc::make_mut(&mut other.lexical[0]).actuals[0]=CheckedActual::Type(value(Type::I64));assert!(!env_equal(&env,&other,&mut b).unwrap());
         other=env.clone();other.assumptions.clear();assert!(!env_equal(&env,&other,&mut b).unwrap());
         other=env.clone();other.invocations.push(ClassKey::Invocation{frame:FrameToken(9),index:0});assert!(!pure_environment(&other,&mut b).unwrap());
-        other=env.clone();other.lexical[0].actuals.push(CheckedActual::Life(ClassKey::Formal{scope:env.lexical[0].key,ordinal:0}));assert!(!pure_environment(&other,&mut b).unwrap());
+        other=env.clone();std::rc::Rc::make_mut(&mut other.lexical[0]).actuals.push(CheckedActual::Life(ClassKey::Formal{scope:env.lexical[0].key,ordinal:0}));assert!(!pure_environment(&other,&mut b).unwrap());
         for ty in [Type::Address{mutable:false,inner:Box::new(Type::I32)},Type::Desc(Box::new(Type::I32)),Type::Closure(ClosureId(0))]{
             assert!(!pure_type(&value(ty),&mut b).unwrap(),"empty reported κ does not erase a runtime carrier");
         }

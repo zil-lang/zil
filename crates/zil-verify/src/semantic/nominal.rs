@@ -89,13 +89,13 @@ impl CheckedContext {
         };
         environment.lexical.insert(
             0,
-            LexicalFrame {
+            std::rc::Rc::new(LexicalFrame {
                 definition: id,
                 key,
                 actuals: actuals.clone(),
                 environment: sealed,
                 self_type: None,
-            },
+            }),
         );
         for (formal, actual) in definition.parameters.iter().zip(&actuals) {
             match (formal, actual) {

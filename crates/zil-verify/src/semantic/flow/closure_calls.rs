@@ -98,13 +98,13 @@ impl CheckedContext {
         }
         wanted.lexical.insert(
             0,
-            LexicalFrame {
+            std::rc::Rc::new(LexicalFrame {
                 definition: definition.id,
                 key: ScopeKey::Instance(instance.id),
                 actuals: cursor.arguments.clone(),
                 environment: cursor.sealed.clone(),
                 self_type: None,
-            },
+            }),
         );
         if actual.lexical.len() != wanted.lexical.len() {
             return Err(bad(
@@ -245,13 +245,13 @@ impl CheckedContext {
                 world.lexical = creator.to_vec();
                 world.lexical.insert(
                     0,
-                    LexicalFrame {
+                    std::rc::Rc::new(LexicalFrame {
                         definition: definition.id,
                         key: ScopeKey::Instance(instance.id),
                         actuals: cursor.arguments.clone(),
                         environment: cursor.sealed.clone(),
                         self_type: None,
-                    },
+                    }),
                 );
                 (instance.id, recipe, world)
             };

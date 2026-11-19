@@ -38,7 +38,7 @@ impl CheckedContext {
         &self,
         module: &TypedModule,
         parent: SemanticInstanceId,
-        expected: &[LexicalFrame],
+        expected: &[std::rc::Rc<LexicalFrame>],
         b: &mut Budget,
     ) -> Check<bool> {
         let mut parent = Some(parent);
@@ -162,13 +162,13 @@ impl CheckedContext {
             environment.lexical = creator.to_vec();
             environment.lexical.insert(
                 0,
-                LexicalFrame {
+                std::rc::Rc::new(LexicalFrame {
                     definition,
                     key: ScopeKey::Instance(instance.id),
                     actuals: actuals.clone(),
                     environment: sealed.clone(),
                     self_type: None,
-                },
+                }),
             );
             let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &original.body else {
                 return Err(bad("Closure original definition has no code signature"));

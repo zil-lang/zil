@@ -276,7 +276,7 @@ pub(crate) struct BoundFrame {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct EvalEnv {
     /// Current exact lexical scope first, followed by its real parents.
-    pub(crate) lexical: Vec<LexicalFrame>,
+    pub(crate) lexical: Vec<std::rc::Rc<LexicalFrame>>,
     /// Already checked caller Γ; evaluation substitution does not grant the
     /// target declaration's own requirements as assumptions.
     pub(crate) assumptions: Vec<ScopeKey>,

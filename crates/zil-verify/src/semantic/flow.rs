@@ -958,7 +958,7 @@ impl CheckedContext {
                 }
                 let parent_key = ScopeKey::Witness{definition:parent,frame:active.fresh(b)?};
                 let mut scope = EvalEnv {
-                    lexical:vec![LexicalFrame{definition:parent,key:parent_key,actuals:vec![],environment:vec![],self_type:None}],
+                    lexical:vec![std::rc::Rc::new(LexicalFrame{definition:parent,key:parent_key,actuals:vec![],environment:vec![],self_type:None})],
                     assumptions:vec![],images:vec![],bounds:vec![],invocations:vec![],at:None,
                 };
                 let source_self=self.evaluate_type(module,recipe,&scope,external,active,b)?;
@@ -967,11 +967,11 @@ impl CheckedContext {
                 }
                 source_self.charge_clone(b)?;
                 target_self=Some(source_self.clone());
-                scope.lexical[0].self_type=Some(source_self);
+                LexicalFrame::edit(&mut scope.lexical[0],b)?.self_type=Some(source_self);
                 lexical=scope.lexical;
             }
         }
-        lexical.insert(0,LexicalFrame{definition:*target,key,actuals:checked,environment:vec![],self_type:target_self});
+        lexical.insert(0,std::rc::Rc::new(LexicalFrame{definition:*target,key,actuals:checked,environment:vec![],self_type:target_self}));
         if !target_definition.environment.is_empty() {return Err(unsupported("ordinary Call cannot manufacture a closure's sealed ghost environment",None));}
         let call_environment=EvalEnv{lexical,assumptions:environment.assumptions.clone(),images:environment.images.clone(),bounds:environment.bounds.clone(),invocations:vec![],at:environment.at};
         let worlds=self.call_worlds(module,callee,*target,&call_environment,environment,active,b)?;
@@ -1199,7 +1199,7 @@ mod type_use_view_tests {
         let input=ClassKey::Formal{scope,ordinal:0};let source=ClassKey::Implicit{scope,ordinal:0};
         // A scoped relation kernel control: these frames are not an admission
         // proof for an SSA value, source expression, header or resource owner.
-        let env=EvalEnv{lexical:vec![LexicalFrame{definition:instance.definition,key:scope,actuals:vec![CheckedActual::Life(input.clone()),CheckedActual::Life(source.clone())],environment:vec![],self_type:None}],assumptions:vec![scope],images:vec![],bounds:vec![],invocations:vec![],at:None};
+        let env=EvalEnv{lexical:vec![std::rc::Rc::new(LexicalFrame{definition:instance.definition,key:scope,actuals:vec![CheckedActual::Life(input.clone()),CheckedActual::Life(source.clone())],environment:vec![],self_type:None})],assumptions:vec![scope],images:vec![],bounds:vec![],invocations:vec![],at:None};
         let ty=Type::Address{mutable:false,inner:Box::new(Type::I32)};let life=StorageLifeShape{binder_count:1,slots:vec![StorageLifeSlot{path:vec![],binder:0,mode:StoredBorrowMode::SharedAddress}],retained:vec![],nominal_arguments:vec![]};
         let value=|class:ClassKey|CheckedType{type_cell:CheckedTypeData::new(ty.clone()),life:life.clone(),origins:vec![IntrinsicOrigin::DerivedClass{source:class.clone()}],classes:vec![class],statics:vec![]};
         let claim=|ordinal,ty:Type|SemanticTypeValue::Resolved{ty,life:life.clone(),classes:vec![SemanticClassExpr::Formal{scope:SemanticScopeRef::Ancestor(0),ordinal}]};

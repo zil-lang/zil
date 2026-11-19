@@ -26,7 +26,7 @@ impl CheckedContext {
         if original.parent.is_some()||!original.parameters.is_empty()||!original.environment.is_empty(){return Err(bad("thread actual worker changes its full static original scheme"));}
         let SemanticDefinitionBody::FunctionWithBody{signature,..}=&original.body else{return Err(bad("thread original worker signature is absent"));};
         let token=active.fresh(b)?;let key=ScopeKey::Witness{definition:target,frame:token};
-        let selected=EvalEnv{lexical:vec![LexicalFrame{definition:target,key,actuals:vec![],environment:vec![],self_type:None}],assumptions:environment.assumptions.clone(),images:environment.images.clone(),bounds:vec![],invocations:vec![],at:environment.at};
+        let selected=EvalEnv{lexical:vec![std::rc::Rc::new(LexicalFrame{definition:target,key,actuals:vec![],environment:vec![],self_type:None})],assumptions:environment.assumptions.clone(),images:environment.images.clone(),bounds:vec![],invocations:vec![],at:environment.at};
         let worlds=self.call_worlds(module,worker,target,&selected,environment,active,b)?;
         self.evaluate_requirements(module,&original.requirements,&selected,RequirementMode::ActualObligation,external,active,b)?;
         // call_worlds/entry requests use the same actual proof session. No

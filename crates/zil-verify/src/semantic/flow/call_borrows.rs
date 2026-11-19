@@ -339,7 +339,7 @@ mod input_image_tests{
         let owner=SemanticDefinitionId{module:module.module_id,index:0};
         let call=ScopeKey::Witness{definition:owner,frame:crate::semantic::api::FrameToken(0)};
         let caller=ScopeKey::Instance(SemanticInstanceId{module:module.module_id,index:0});
-        let env=EvalEnv{lexical:vec![LexicalFrame{definition:owner,key:caller,actuals:vec![],environment:vec![],self_type:None}],assumptions:vec![caller],images:vec![],bounds:vec![],invocations:vec![],at:None};
+        let env=EvalEnv{lexical:vec![std::rc::Rc::new(LexicalFrame{definition:owner,key:caller,actuals:vec![],environment:vec![],self_type:None})],assumptions:vec![caller],images:vec![],bounds:vec![],invocations:vec![],at:None};
         let fresh=[ClassKey::Implicit{scope:call,ordinal:0},ClassKey::Implicit{scope:call,ordinal:1}];
         let origins=(0..2).map(|class|IntrinsicOrigin::Existing{scope:caller,operand:OperandKey::Receiver,path:vec![],class}).collect::<Vec<_>>();
         let template=CheckedSignature{parameters:fresh.iter().cloned().map(|key|(address(key),PassingMode::Borrow)).collect(),result:CheckedType{type_cell:crate::semantic::CheckedTypeData::new(Type::Closure(ClosureId(0))),life:StorageLifeShape{binder_count:2,slots:vec![],retained:vec![],nominal_arguments:vec![]},classes:fresh.to_vec(),origins:origins.clone(),statics:vec![]},result_mode:PassingMode::Infer,call_kind:CallKind::Direct,bound:vec![],invocation:vec![]};
@@ -448,7 +448,7 @@ mod region_image_tests {
     fn original_call_regions_are_not_replaced_by_their_input_images(){
         let limits=Limits::default();let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../fixtures/phantom-closure-complete-creator.wire"),&limits).unwrap();let mut b=Budget::new(&limits);let context=CheckedContext::catalogue(&module,&mut b).unwrap();
         let instance=&module.semantic.as_ref().unwrap().instances[0];let caller=ScopeKey::Instance(instance.id);let call=ScopeKey::Witness{definition:instance.definition,frame:FrameToken(900)};
-        let env=EvalEnv{lexical:vec![LexicalFrame{definition:instance.definition,key:caller,actuals:vec![],environment:vec![],self_type:None}],assumptions:vec![caller],images:vec![],bounds:vec![],invocations:vec![],at:None};
+        let env=EvalEnv{lexical:vec![std::rc::Rc::new(LexicalFrame{definition:instance.definition,key:caller,actuals:vec![],environment:vec![],self_type:None})],assumptions:vec![caller],images:vec![],bounds:vec![],invocations:vec![],at:None};
         let sigma=ClassKey::Implicit{scope:caller,ordinal:0};let fresh=[ClassKey::Implicit{scope:call,ordinal:0},ClassKey::Implicit{scope:call,ordinal:1}];let regions=[ClassKey::Implicit{scope:caller,ordinal:7},ClassKey::Implicit{scope:caller,ordinal:8}];
         let origins=(0..2).map(|class|IntrinsicOrigin::Existing{scope:caller,operand:OperandKey::Receiver,path:vec![],class}).collect::<Vec<_>>();
         // A scoped transport control, not an SSA or closure admission proof.
@@ -555,7 +555,7 @@ mod local_window_argument_tests{
         f.blocks[0].instructions=vec![Instruction{result:Some(ValueId(0)),kind:InstructionKind::Load(LocalId(0)),span},Instruction{result:Some(ValueId(1)),kind:InstructionKind::ReborrowAddress{address:ValueId(0),mutable:false},span}];
         let sigma=ClassKey::Formal{scope,ordinal:0};let window=ClassKey::Implicit{scope,ordinal:7};let other=ClassKey::Implicit{scope,ordinal:8};let child=ClassKey::Outer{scope,operand:OperandKey::Value(ValueId(1)),path:vec![],mode:StoredBorrowMode::SharedAddress};
         let address=|key:ClassKey|CheckedType{type_cell:CheckedTypeData::new(Type::Address{mutable:false,inner:Box::new(Type::I32)}),life:StorageLifeShape{binder_count:1,slots:vec![StorageLifeSlot{path:vec![],binder:0,mode:StoredBorrowMode::SharedAddress}],retained:vec![],nominal_arguments:vec![]},origins:vec![IntrinsicOrigin::DerivedClass{source:key.clone()}],classes:vec![key],statics:vec![]};
-        let env=EvalEnv{lexical:vec![LexicalFrame{definition:caller.definition,key:scope,actuals:vec![CheckedActual::Life(sigma.clone())],environment:vec![],self_type:None}],assumptions:vec![scope],images:vec![],bounds:vec![],invocations:vec![],at:None};
+        let env=EvalEnv{lexical:vec![std::rc::Rc::new(LexicalFrame{definition:caller.definition,key:scope,actuals:vec![CheckedActual::Life(sigma.clone())],environment:vec![],self_type:None})],assumptions:vec![scope],images:vec![],bounds:vec![],invocations:vec![],at:None};
         // A completed original initializer/assignment supplies this direction;
         // this is a scoped transport control, not a source or SSA admission.
         context.premises.borrow_mut().entry(scope).or_default().relations.outlives.push((sigma.clone(),window.clone()));

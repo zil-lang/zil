@@ -9,7 +9,7 @@ pub(super) struct ClosedFrames {
     // caller premises never take part in such a frame. Concrete callback
     // arguments still require the current creator domains below.
     premises_epoch: Option<u64>,
-    lexical: Vec<LexicalFrame>,
+    lexical: Vec<std::rc::Rc<LexicalFrame>>,
     callbacks: Vec<ClosureId>,
 }
 impl CheckedContext {
@@ -26,7 +26,7 @@ impl CheckedContext {
             let frames=self.closed_frames.borrow();
             if let Some(known)=frames.get(&memo_key).filter(|known|known.limits==b.limits && known.premises_epoch.is_none_or(|generation| generation == epoch))
                 && self.callbacks_still_empty(&known.callbacks, b)? {
-                charge_frames(&known.lexical,b)?;
+                b.spend(known.lexical.len())?;
                 if let Some(progress)=&mut b.diagnostic_progress{progress.frame_hits=progress.frame_hits.saturating_add(1);}
                 Some(known.lexical.clone())
             }else{None}
@@ -92,7 +92,7 @@ impl CheckedContext {
                 actuals.push(value);
             }
             for (ordinal,actual) in sealed.iter().enumerate() {if let CheckedActual::Type(value)=actual {self.record(key,OperandKey::Environment{scope:key,ordinal:ordinal as u32},value,b)?;}}
-            lexical.insert(0,LexicalFrame{definition:definition.id,key,actuals,environment:sealed,self_type:None});
+            lexical.insert(0,std::rc::Rc::new(LexicalFrame{definition:definition.id,key,actuals,environment:sealed,self_type:None}));
             // Reconstruct Self from the real original impl pattern in its own
             // full actual/parent environment. A raw Self claim is compared only
             // afterwards, never used as its own receiver authority.
@@ -120,12 +120,12 @@ impl CheckedContext {
                 let scope_environment=EvalEnv{assumptions:lexical.iter().map(|frame|frame.key).collect(),lexical:lexical.clone(),images:vec![],bounds:vec![],invocations:vec![],at:None};
                 self.claim(module,claim,expected,&scope_environment,b)?;
             }
-            lexical[0].self_type=self_value;
+            LexicalFrame::edit(&mut lexical[0],b)?.self_type=self_value;
         }
         let mut callbacks = Vec::new();
         let closed_callbacks = independent && !self.domain_only.get() && self.original.borrow().is_some() && self.site_index.same_input(module,b);
         if reusable&&no_seals&&epoch==self.premises_epoch.get()&&pure_frames(&lexical,module,closed_callbacks,&mut callbacks,b)?{
-            charge_frames(&lexical,b)?;
+            b.spend(lexical.len())?;
             b.spend(self.closed_frames.borrow().len().checked_ilog2().map_or(1,|n|n as usize+2).saturating_add(13))?;
             if independent {
                 for actual in &lexical[0].actuals {
@@ -258,19 +258,29 @@ pub(super) fn closed_callback(module: &TypedModule, id: ClosureId, b: &mut Budge
     Ok(closure.result == entry.return_type && type_storage::closed_storage(&closure.result, b)?)
 }
 
-fn charge_frames(frames:&[LexicalFrame],b:&mut Budget)->Check<()>{
-    b.spend(frames.len())?;
-    for frame in frames{
-        b.spend(frame.actuals.len().saturating_add(frame.environment.len()).saturating_add(1))?;
-        for value in frame.actuals.iter().chain(&frame.environment){match value{
-            CheckedActual::Type(value)=>value.charge_clone(b)?,
-            CheckedActual::Const{carrier,value}=>{carrier.charge_clone(b)?;dynamic_metadata::constant(value,b)?;},
-            CheckedActual::Life(key)=>{b.spend(1)?;if let ClassKey::Outer{path,..}|ClassKey::Intrinsic{path,..}=key{b.spend(path.len())?;}},
-        }}
-        if let Some(value)=&frame.self_type{value.charge_clone(b)?;}
-    }Ok(())
+impl LexicalFrame {
+    /// A Self installation changes only this particular lexical environment.
+    /// Other worlds keep the immutable frame they originally received.
+    pub(crate) fn edit<'a>(frame: &'a mut std::rc::Rc<Self>, b: &mut Budget) -> Check<&'a mut Self> {
+        b.spend(1)?;
+        if std::rc::Rc::strong_count(frame) > 1 {
+            b.spend(frame.actuals.len().saturating_add(frame.environment.len()).saturating_add(1))?;
+            for value in frame.actuals.iter().chain(&frame.environment) {
+                match value {
+                    CheckedActual::Type(value) => value.charge_clone(b)?,
+                    CheckedActual::Const { carrier,value } => { carrier.charge_clone(b)?; dynamic_metadata::constant(value,b)?; },
+                    CheckedActual::Life(key) => {
+                        b.spend(1)?;
+                        if let ClassKey::Outer { path,.. } | ClassKey::Intrinsic { path,.. }=key { b.spend(path.len())?; }
+                    }
+                }
+            }
+            if let Some(value)=&frame.self_type { value.charge_clone(b)?; }
+        }
+        Ok(std::rc::Rc::make_mut(frame))
+    }
 }
-fn pure_frames(frames:&[LexicalFrame],module:&TypedModule,closed_callbacks:bool,callbacks:&mut Vec<ClosureId>,b:&mut Budget)->Check<bool>{
+fn pure_frames(frames:&[std::rc::Rc<LexicalFrame>],module:&TypedModule,closed_callbacks:bool,callbacks:&mut Vec<ClosureId>,b:&mut Budget)->Check<bool>{
     b.spend(frames.len())?;
     for frame in frames{
         if !frame.environment.is_empty(){return Ok(false);}
@@ -311,7 +321,7 @@ mod tests{
         let entries=context.closed_frames.borrow().len();assert!(entries>0);
         let fresh_before=active.next_token;
         let second=context.environment_for_instance(&module,instance.id,&mut active,&mut b).unwrap();
-        assert_eq!(first.lexical,second.lexical);assert!(active.next_token>fresh_before,"even a zero invocation domain owns a fresh use frame");
+        assert_eq!(first.lexical,second.lexical);assert!(std::rc::Rc::ptr_eq(&first.lexical[0],&second.lexical[0]));assert!(active.next_token>fresh_before,"even a zero invocation domain owns a fresh use frame");
         if !first.invocations.is_empty(){assert_ne!(first.invocations,second.invocations);}
         assert_eq!(entries,context.closed_frames.borrow().len());
         context.invalidate_closed_frames();
@@ -327,8 +337,8 @@ mod tests{
         assert!(context.closed_frames.borrow().len()>full_entries,"domain-only metadata has a separate cache, never an actual WF receipt");
         let mut frame=first.lexical[0].clone();
         let sealed=CheckedType{type_cell:CheckedTypeData::new(Type::Closure(ClosureId(0))),life:empty_life(),classes:vec![],origins:vec![],statics:vec![]};
-        frame.actuals.push(CheckedActual::Type(sealed.clone()));assert!(!pure_frames(&[frame.clone()],&module,true,&mut vec![],&mut b).unwrap());
-        frame.actuals.pop();frame.environment.push(CheckedActual::Type(sealed));assert!(!pure_frames(&[frame],&module,true,&mut vec![],&mut b).unwrap());
+        LexicalFrame::edit(&mut frame,&mut b).unwrap().actuals.push(CheckedActual::Type(sealed.clone()));assert!(!std::rc::Rc::ptr_eq(&first.lexical[0],&frame));assert_eq!(frame.actuals.len(),first.lexical[0].actuals.len()+1);assert!(!pure_frames(&[frame.clone()],&module,true,&mut vec![],&mut b).unwrap());
+        LexicalFrame::edit(&mut frame,&mut b).unwrap().actuals.pop();LexicalFrame::edit(&mut frame,&mut b).unwrap().environment.push(CheckedActual::Type(sealed));assert!(!pure_frames(&[frame],&module,true,&mut vec![],&mut b).unwrap());
     }
     #[test]
     fn callback_frame_rechecks_new_creator_domains_and_both_headers() {

@@ -1534,13 +1534,13 @@ fn environment(
     }
     env.lexical.insert(
         0,
-        LexicalFrame {
+        std::rc::Rc::new(LexicalFrame {
             definition: definition.id,
             key,
             actuals,
             environment: sealed,
             self_type: Some(receiver.clone()),
-        },
+        }),
     );
     Ok(env)
 }
@@ -2388,6 +2388,8 @@ fn outside_environment(
     }
     let mut result = env.clone();
     for frame in &mut result.lexical {
+        // Every field of this private writable copy was charged above.
+        let frame=std::rc::Rc::make_mut(frame);
         for actual in frame.actuals.iter_mut().chain(&mut frame.environment) {
             *actual = map_actual(proofs, context, env, actual, false, b)?;
         }

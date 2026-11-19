@@ -36,7 +36,7 @@ impl CheckedContext {
             Some(row) => row.key,
             None => ScopeKey::Witness { definition: owner, frame: active.fresh(b)? },
         };
-        environment.lexical.insert(0, LexicalFrame { definition: owner, key, actuals, environment: sealed, self_type: None });
+        environment.lexical.insert(0, std::rc::Rc::new(LexicalFrame { definition: owner, key, actuals, environment: sealed, self_type: None }));
         for formal in &definition.parameters {
             if let SemanticFormal::Type { requirements } = formal {
                 self.evaluate_requirements(module, requirements, &environment, RequirementMode::ActualObligation, external, active, b)?;
