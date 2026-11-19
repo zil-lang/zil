@@ -699,6 +699,12 @@ pub(super) fn same_type(left: &Type, right: &Type, budget: &mut Budget) -> Compi
         return Ok(left == right);
     }
     let left_entry = registered_type(left, budget)?;
+    if std::ptr::eq(left, right) {
+        if left_entry.is_none() {
+            crate::dyn_metadata::ty(left, budget)?;
+        }
+        return Ok(true);
+    }
     let right_entry = registered_type(right, budget)?;
     if let (Some((left, _)), Some((right, _))) = (left_entry, right_entry) {
         return Ok(left == right);
@@ -725,8 +731,61 @@ pub(super) fn same_type(left: &Type, right: &Type, budget: &mut Budget) -> Compi
         left_work.max(right_work),
         "complete Type equality comparison",
     )?;
-    let equal = left == right;
-    Ok(equal)
+    if left != right {
+        return Ok(false);
+    }
+    // Bind a successful paired comparison to the exact immutable input, so
+    // later occurrences need not compare its entire field tree again.
+    match (left_entry, right_entry) {
+        (Some(_), None) => remember_equal_input(left, right, right_work, budget)?,
+        (None, Some(_)) => remember_equal_input(right, left, left_work, budget)?,
+        _ => {}
+    }
+    Ok(true)
+}
+
+fn remember_equal_input(
+    registered: &Type,
+    input: &Type,
+    raw_work: usize,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    let Some(roots) = matched_input_scope(input, budget)? else { return Ok(()); };
+    budget.lookup(budget.geometry_types.len(), "compared Type witness lookup")?;
+    let witness = &budget.geometry_types[&std::ptr::from_ref(registered).addr()];
+    publish_matched_input(
+        input, roots, Arc::clone(&witness.owner), witness.coordinate,
+        witness.type_id, raw_work, budget,
+    )
+}
+
+fn matched_input_scope(input: &Type, budget: &mut Budget) -> CompileResult<Option<Arc<BTreeSet<usize>>>> {
+    let Some((module, roots)) = &budget.input_type_coordinates else { return Ok(None); };
+    if Some(*module) != budget.geometry_module || input.is_b0_scalar() { return Ok(None); }
+    let roots = Arc::clone(roots);
+    budget.lookup(roots.len(), "compared input Type membership")?;
+    Ok(roots.contains(&std::ptr::from_ref(input).addr()).then_some(roots))
+}
+
+fn publish_matched_input(
+    input: &Type,
+    roots: Arc<BTreeSet<usize>>,
+    owner: Arc<Geometry>,
+    coordinate: intern::Node,
+    type_id: usize,
+    raw_work: usize,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    budget.lookup(budget.geometry_types.len(), "compared input Type publication")?;
+    budget.spend(2, "retain compared input Type witness")?;
+    budget.geometry_types.insert(std::ptr::from_ref(input).addr(), TypeEntry {
+        owner, coordinate, type_id, raw_work,
+        raw_limits: (budget.partial_depth, budget.helper_nodes),
+        module: budget.geometry_module,
+        input: Some(roots),
+        nominal: None,
+    });
+    Ok(())
 }
 
 /// The coordinate selects a real child of the immutable physical nominal.
@@ -854,6 +913,35 @@ mod tests {
         b.input_type_coordinates = Some((scope, Arc::new((*inputs.types).clone())));
         assert!(registered_type(&ty, &mut b).unwrap().is_none());
         assert!(registered_type(&actual.ty, &mut b).unwrap().is_some());
+    }
+    #[test]
+    fn compared_input_reuses_only_a_complete_type_match_in_its_own_directory() {
+        let mut b = Budget::new(&zil_base::Limits::default());
+        let canonical = Type::Tuple(vec![Type::U64, Type::I32]);
+        let input = canonical.clone();
+        let temporary = canonical.clone();
+        let reordered = Type::Tuple(vec![Type::I32, Type::U64]);
+        let mut inputs = Inputs {
+            module: Some(21),
+            raw_limits: (b.partial_depth, b.helper_nodes),
+            ..Inputs::default()
+        };
+        inputs.register_type(&input, &mut b).unwrap();
+        inputs.register_type(&reordered, &mut b).unwrap();
+        b.geometry_module = inputs.module;
+        b.input_type_coordinates = Some((21, Arc::clone(&inputs.types)));
+        let owner = inputs.type_value(&canonical, None, &mut b).unwrap();
+        let id = intern::owned(&owner, &mut b).unwrap().type_id;
+        assert!(same_type(&input, &owner.ty, &mut b).unwrap());
+        assert_eq!(registered_type(&input, &mut b).unwrap().unwrap().0, id);
+        assert!(!same_type(&reordered, &owner.ty, &mut b).unwrap());
+        assert!(registered_type(&reordered, &mut b).unwrap().is_none());
+        assert!(same_type(&owner.ty, &temporary, &mut b).unwrap());
+        assert!(registered_type(&temporary, &mut b).unwrap().is_none());
+        b.input_type_coordinates = Some((21, Arc::new((*inputs.types).clone())));
+        assert!(registered_type(&input, &mut b).unwrap().is_none());
+        b.partial_depth = 0;
+        assert!(same_type(&input, &input, &mut b).is_err());
     }
     #[test]
     fn physical_field_equalities_keep_complete_coordinate_and_type_identity() {

@@ -311,6 +311,11 @@ fn structural_type_candidate(
             "complete Type equality comparison",
         )?;
         if ty == value {
+            if let Some(roots) = matched_input_scope(ty, b)? {
+                publish_matched_input(
+                    ty, roots, candidate.owner, candidate.node, candidate.id, raw_work, b,
+                )?;
+            }
             return Ok((digest, Some(candidate.id)));
         }
     }
