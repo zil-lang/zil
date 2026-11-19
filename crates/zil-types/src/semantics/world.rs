@@ -119,7 +119,10 @@ pub(super) struct World<'a, 'b> {
     same_calls: usize,
     same_work: usize,
     direct_work: BTreeMap<(&'static str, u32), (usize, usize)>,
+    last_instance: Option<&'a SemanticInstance>,
+    last_definition: Option<&'a SemanticDefinition>,
     last_point_block: Option<((SemanticInstanceId, BlockId), Option<Rc<index::BlockPoints>>)>,
+    last_point_rows: Option<((SemanticInstanceId, BlockId, usize), Option<Rc<Vec<usize>>>)>,
     current_point: Option<(
         SemanticInstanceId,
         FunctionId,
@@ -170,15 +173,23 @@ impl<'a> World<'a, '_> {
         Ok(offsets.iter().map(|&offset| &self.program.sites[offset]).collect())
     }
     fn instance(&mut self, id: SemanticInstanceId) -> R<&'a SemanticInstance> {
+        self.pay(1)?;
+        if let Some(instance) = self.last_instance && instance.id == id {
+            return Ok(instance);
+        }
         self.pay(index::search(self.index.instances.len()))?;
         if let Some(offset) = self.index.instances.get(&id) {
-            return Ok(&self.program.instances[*offset]);
+            let instance = &self.program.instances[*offset];
+            self.last_instance = Some(instance);
+            return Ok(instance);
         }
         let ledger = self.ledger;
         if let Some(source) = &ledger.frozen {
             self.pay(index::search(self.index.frozen_instances.len()))?;
             if let Some(offset) = self.index.frozen_instances.get(&id) {
-                return Ok(&source.semantic.instances[*offset]);
+                let instance = &source.semantic.instances[*offset];
+                self.last_instance = Some(instance);
+                return Ok(instance);
             }
         }
         Err(bad(
@@ -186,15 +197,23 @@ impl<'a> World<'a, '_> {
         ))
     }
     fn definition(&mut self, id: SemanticDefinitionId) -> R<&'a SemanticDefinition> {
+        self.pay(1)?;
+        if let Some(definition) = self.last_definition && definition.id == id {
+            return Ok(definition);
+        }
         self.pay(index::search(self.index.definitions.len()))?;
         if let Some(offset) = self.index.definitions.get(&id) {
-            return Ok(&self.program.definitions[*offset]);
+            let definition = &self.program.definitions[*offset];
+            self.last_definition = Some(definition);
+            return Ok(definition);
         }
         let ledger = self.ledger;
         if let Some(source) = &ledger.frozen {
             self.pay(index::search(self.index.frozen_definitions.len()))?;
             if let Some(offset) = self.index.frozen_definitions.get(&id) {
-                return Ok(&source.semantic.definitions[*offset]);
+                let definition = &source.semantic.definitions[*offset];
+                self.last_definition = Some(definition);
+                return Ok(definition);
             }
         }
         Err(bad(
@@ -202,6 +221,12 @@ impl<'a> World<'a, '_> {
         ))
     }
     fn function(&mut self, id: FunctionId) -> R<&'a TypedFunction> {
+        self.pay(1)?;
+        if let Some(function) = self.module.functions.get(id.0 as usize)
+            && function.id == id
+        {
+            return Ok(function);
+        }
         self.pay(index::search(self.index.functions.len()))?;
         self.index
             .functions
@@ -1314,6 +1339,14 @@ impl<'p> World<'p, '_> {
         else {
             return Err(bad("operation is outside its original function"));
         };
+        // The directory construction has already rejected duplicate recipes.
+        // Source may also use sparse ordinals, which keep the exact index.
+        self.pay(1)?;
+        if let Some(recipe) = sites.get(id.0 as usize)
+            && recipe.id == id
+        {
+            return Ok(recipe);
+        }
         self.pay(index::search(self.index.recipes.len()))?;
         let entry = self
             .index
@@ -1355,17 +1388,23 @@ impl<'p> World<'p, '_> {
         block: BlockId,
         instruction: usize,
     ) -> R<index::SiteRows<'p>> {
-        let key = (instance, block);
+        let point = (instance, block, instruction);
         self.pay(1)?;
-        if !self.last_point_block.as_ref().is_some_and(|(block, _)| *block == key) {
-            self.pay(index::search(self.index.points.len()).saturating_add(1))?;
-            self.last_point_block = Some((key, self.index.points.get(&key).cloned()));
+        if !self.last_point_rows.as_ref().is_some_and(|(current, _)| *current == point) {
+            let key = (instance, block);
+            if !self.last_point_block.as_ref().is_some_and(|(current, _)| *current == key) {
+                self.pay(index::search(self.index.points.len()).saturating_add(1))?;
+                self.last_point_block = Some((key, self.index.points.get(&key).cloned()));
+            }
+            let offsets = if let Some((_, Some(points))) = &self.last_point_block {
+                index::pay(self.left, index::search(points.len()))?;
+                points.get(&instruction).cloned()
+            } else {
+                None
+            };
+            self.last_point_rows = Some((point, offsets));
         }
-        let Some((_, Some(points))) = &self.last_point_block else {
-            return Ok(index::SiteRows::new(&self.program.sites, None));
-        };
-        index::pay(self.left, index::search(points.len()))?;
-        let offsets = points.get(&instruction).cloned();
+        let offsets = self.last_point_rows.as_ref().and_then(|(_, rows)| rows.clone());
         index::pay(self.left, offsets.as_ref().map_or(0, |rows| rows.len().saturating_add(1)))?;
         Ok(index::SiteRows::new(&self.program.sites, offsets))
     }
@@ -5094,7 +5133,10 @@ fn program_at(
         same_calls: 0,
         same_work: 0,
         direct_work: BTreeMap::new(),
+        last_instance: None,
+        last_definition: None,
         last_point_block: None,
+        last_point_rows: None,
         current_point: None,
     };
     world.pay(
