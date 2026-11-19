@@ -1,6 +1,7 @@
 //! Lexical runtime free names in the complete original operation tree.
 //! No type, capture mode, borrow root or lifetime class is inferred here.
 use super::*;
+use crate::source_semantics::closures::CaptureOccurrence;
 use std::collections::BTreeSet;
 
 pub(in crate::source_semantics) struct OriginalClosureScope {
@@ -20,10 +21,10 @@ struct ValueUses {
 struct Free<'a> {
     available: &'a BTreeSet<String>,
     bound: Vec<Bound>,
-    // Child name IDs belong to the child definition. Only a direct read can
-    // establish an occurrence in the current definition.
-    found: Vec<(String, Option<NodeId>)>,
-    in_child: bool,
+    // Child names belong to the child definition. A forwarding-only use is
+    // anchored to the immediate constructor in the current definition.
+    found: Vec<(String, CaptureOccurrence)>,
+    child_constructor: Option<NodeId>,
     scopes: Option<Vec<OriginalClosureScope>>,
     value_uses: Option<ValueUses>,
     typing_stages: bool,
@@ -34,12 +35,12 @@ impl Builder<'_, '_, '_, '_> {
         body: &SemanticOriginalBlock,
         parameters: &[SemanticOriginalClosureParameter],
         available: &BTreeSet<String>,
-    ) -> R<Vec<(String, Option<NodeId>)>> {
+    ) -> R<Vec<(String, CaptureOccurrence)>> {
         let mut free = Free {
             available,
             bound: Vec::new(),
             found: Vec::new(),
-            in_child: false,
+            child_constructor: None,
             scopes: None,
             value_uses: None,
             typing_stages: false,
@@ -67,7 +68,7 @@ impl Builder<'_, '_, '_, '_> {
             available: &available,
             bound: Vec::new(),
             found: Vec::new(),
-            in_child: false,
+            child_constructor: None,
             scopes: Some(Vec::new()),
             value_uses: None,
             typing_stages: false,
@@ -96,7 +97,7 @@ impl Builder<'_, '_, '_, '_> {
             available,
             bound: Vec::new(),
             found: Vec::new(),
-            in_child: false,
+            child_constructor: None,
             scopes: None,
             value_uses: Some(ValueUses::default()),
             typing_stages: true,
@@ -218,17 +219,17 @@ impl Builder<'_, '_, '_, '_> {
             self.push(&mut uses.names, id, span)?;
             return Ok(());
         }
-        let local_occurrence = (!free.in_child).then_some(id);
+        let site = free.child_constructor.map_or(CaptureOccurrence::Read(id), CaptureOccurrence::Forward);
         for (previous, occurrence) in &mut free.found {
             self.budget.text(name, span)?;
             self.budget.text(previous, span)?;
             if previous == name {
-                if occurrence.is_none() { *occurrence = local_occurrence; }
+                if matches!(occurrence, CaptureOccurrence::Forward(_)) && matches!(site, CaptureOccurrence::Read(_)) { *occurrence = site; }
                 return Ok(());
             }
         }
         let name = self.text(name, span)?;
-        self.push(&mut free.found, (name, local_occurrence), span)
+        self.push(&mut free.found, (name, site), span)
     }
     fn free_bind_pattern(
         &mut self,
@@ -582,9 +583,10 @@ impl Builder<'_, '_, '_, '_> {
                     for parameter in parameters {
                         self.free_bind(&parameter.name, None, free, parameter.span)?;
                     }
-                    let was_in_child = std::mem::replace(&mut free.in_child, true);
+                    let outer = free.child_constructor;
+                    free.child_constructor.get_or_insert(value.id);
                     self.free_block(body, free, depth + 1)?;
-                    free.in_child = was_in_child;
+                    free.child_constructor = outer;
                     free.bound.truncate(scope);
                 }
             }

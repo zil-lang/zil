@@ -163,6 +163,18 @@ fn defer_inside_an_ordinary_closure_captures_the_original_outer_binding() {
     native("outer-closure", &source, "A", 0);
 }
 #[test]
+fn nested_cleanup_forwards_each_lexical_binding_at_its_constructor() {
+    for (label, declaration, expected) in [
+        ("two-outer-inputs", "", "BA"),
+        ("one-shadowed-input", "let x=67;", "BC"),
+    ] {
+        let program = format!(
+            "{IO}\nfn main()->i32{{let x=65;let y=66;let callback=()=>{{{declaration}defer{{emit(y);emit(x)}}return 7}};return callback()-7}}"
+        );
+        native(label, &program, expected, 0);
+    }
+}
+#[test]
 fn try_error_cleans_only_successfully_registered_actions() {
     let source = format!(
         "{IO}\nenum Fault{{Bad}}fn value(fail:bool)->Fault!i32{{if fail{{return Fault.Bad}}return 4}}fn run(fail:bool)->Fault!i32{{defer{{emit(65)}}let v=value(fail)?;defer{{emit(66)}}return v}}fn main()->i32{{let good=run(false);let bad=run(true);return 0}}"

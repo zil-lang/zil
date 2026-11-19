@@ -72,9 +72,9 @@ pub(crate) struct CheckedContext {
     premises_epoch: Cell<u64>,
     static_identity: std::rc::Rc<()>,
     static_members: RefCell<Vec<static_members::StaticMember>>,
-    // Immutable whole-function proof of a single, non-reactivated scalar spill.
+    // Immutable whole-function proof of a single, non-reactivated environment spill.
     // The actual loan and its program-point liveness are checked separately.
-    scalar_capture_spills: RefCell<BTreeMap<(FunctionId, LocalId), Option<u32>>>,
+    capture_spills: RefCell<BTreeMap<(FunctionId, LocalId), Option<u32>>>,
     local_role_writes: RefCell<BTreeMap<(SemanticInstanceId, LocalId), local_roles::Writes>>,
     local_role_transfers: RefCell<BTreeMap<FunctionId, Vec<local_roles::Transfer>>>,
     closed_nominals: RefCell<nominal::closed::ClosedNominals>,

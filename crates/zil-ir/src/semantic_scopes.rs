@@ -283,6 +283,22 @@ pub struct SemanticImplicitLifetime {
     pub occurrence_path: Vec<u32>,
 }
 
+impl SemanticImplicitLifetime {
+    /// A forwarded input is observed at this declaration's nested closure
+    /// constructor. The field names an environment formal of this declaration.
+    /// Consumers must bind both creator operations and their real operands.
+    pub fn forwarded_input_path(creator: NodeId, field: u32) -> [u32; 3] {
+        [42, creator.0, field]
+    }
+
+    pub fn forwarded_input(&self) -> Option<(NodeId, u32)> {
+        match self.occurrence_path.as_slice() {
+            [42, creator, field] => Some((NodeId(*creator), *field)),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SemanticEnvironmentFormal {
     /// Its carrier and requirements use the same real parent/creator domain
@@ -291,6 +307,18 @@ pub struct SemanticEnvironmentFormal {
     /// Evaluated in the real lexical parent/creator definition's domain.
     /// Ancestor(0) names that parent, not this child definition.
     pub source: SemanticActualRecipe,
+}
+
+impl SemanticActualRecipe {
+    pub fn lexical_input(&self) -> Option<(NodeId, &str)> {
+        match self {
+            SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0),
+                source: SemanticOriginalTypeSource::NameAt { at: SemanticOriginalNode::Expression(node), name },
+            }) => Some((*node, name.as_str())),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

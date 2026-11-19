@@ -39,6 +39,42 @@ impl CapturedSource {
     }
 }
 impl CheckedOriginal {
+    pub(super) fn index_capture_paths(&mut self, index: &index::Index<'_>, b: &mut Budget) -> Check<()> {
+        for (child, &moved) in &self.creator_moves {
+            b.spend(1)?;
+            if moved { continue; }
+            b.spend(index.definitions.len().max(1).ilog2() as usize + 2)?;
+            let function = index.definitions.get(child)
+                .ok_or_else(|| bad("capture origin has no checked original declaration"))?;
+            if function.definition.implicit_lifetimes.is_empty() { continue; }
+            let mut paths = BTreeMap::<Binder, Vec<u32>>::new();
+            for site in function.sites {
+                b.spend(function.nodes.len().max(1).ilog2() as usize + 2)?;
+                let Some(index::Node::Expression(node)) = function.nodes.get(&site.id) else { continue; };
+                if !matches!(node.kind, CoreExprKind::Name(_)) { continue; }
+                b.spend(self.value_bindings.len().max(1).ilog2() as usize + 2)?;
+                let Some(binder @ Binder::Capture { .. }) = self.value_bindings.get(&(*child, node.id)) else { continue; };
+                for _ in 0..=paths.len().max(1).ilog2() { binder.charge_clone(b)?; }
+                let path = &site.occurrence_path;
+                if let Some(prior) = paths.get_mut(binder) {
+                    b.spend(path.len().min(prior.len()) + 1)?;
+                    if path < prior {
+                        b.spend(path.len())?;
+                        prior.clone_from(path);
+                    }
+                } else {
+                    for _ in 0..=paths.len().max(1).ilog2() { binder.charge_clone(b)?; }
+                    b.spend(path.len() + 1)?;
+                    paths.insert(binder.clone(), path.clone());
+                }
+            }
+            if paths.is_empty() { continue; }
+            b.spend(self.first_capture_paths.len().max(1).ilog2() as usize + 2)?;
+            self.first_capture_paths.insert(*child, paths);
+        }
+        Ok(())
+    }
+
     pub(in crate::semantic) fn prepared_shared_call_input(
         &self, definition: SemanticDefinitionId, site: SemanticSiteId, b: &mut Budget,
     ) -> Check<Option<NodeId>> {
@@ -359,6 +395,30 @@ impl CheckedOriginal {
         if self.creator_moves.get(&child)!=Some(&false){return Err(bad("implicit captured head does not have its original default-borrow creation mode"));}
         let index=self.source_index(module,&[child],b)?;let function=index.definitions.get(&child).ok_or_else(||bad("implicit capture has no original child"))?;
         let implicit=function.definition.implicit_lifetimes.iter().find(|row|row.ordinal==ordinal).ok_or_else(||bad("implicit capture has no original lifetime occurrence"))?;
+        if let Some((creator, field)) = implicit.forwarded_input() {
+            let (_, name) = function.definition.environment.get(field as usize)
+                .and_then(|formal| formal.source.lexical_input())
+                .ok_or_else(|| bad("forwarded input lacks its original environment formal"))?;
+            b.spend(function.closures.len().max(1).ilog2() as usize + 2)?;
+            let nested = function.closures.get(&creator)
+                .ok_or_else(|| bad("forwarded input has no original nested constructor"))?;
+            let outer = self.free_values.get(&child).and_then(|rows| rows.get(name))
+                .ok_or_else(|| bad("forwarded input has no lexical source at its creator"))?;
+            outer.identity.charge_clone(b)?;
+            let captured = Binder::Capture { definition: child, source: Box::new(outer.identity.clone()) };
+            if self.capture_owns(&captured, b)? { return Err(bad("forwarded borrowed input selects an owned capture")); }
+            for _ in 0..=self.forwarded_creators.len().max(1).ilog2() { captured.charge_clone(b)?; }
+            if self.forwarded_creators.get(&(child, captured.clone())) != Some(&creator) ||
+                self.first_capture_paths.get(&child).is_some_and(|paths| paths.contains_key(&captured)) {
+                return Err(bad("forwarded input differs from its original first constructor use"));
+            }
+            let input = self.free_values.get(nested).and_then(|rows| rows.get(name))
+                .ok_or_else(|| bad("nested creator lacks its actual lexical input"))?;
+            if input.identity != captured {
+                return Err(bad("nested creator substitutes a different lexical input"));
+            }
+            return CapturedSource::from_binding(self, module, &outer.identity, b);
+        }
         let mut selected=None;
         for site in function.sites.iter().filter(|site|site.occurrence_path==implicit.occurrence_path){
             b.spend(1)?;let Some(index::Node::Expression(expression))=function.node(site.id,b)?else{continue;};
@@ -370,13 +430,14 @@ impl CheckedOriginal {
             // occurrence_path is checked against the original AST by index.
             // Its lexicographic first Name use is a source position, not a
             // minimum arbitrary NodeId or a selected same-typed capture.
-            let mut first=None;
-            for candidate in function.sites{
-                b.spend(1)?;let Some(index::Node::Expression(read))=function.node(candidate.id,b)?else{continue;};
-                if !matches!(read.kind,CoreExprKind::Name(_))||self.value_bindings.get(&(child,read.id))!=Some(&captured){continue;}
-                if first.as_ref().is_none_or(|path:&Vec<u32>|candidate.occurrence_path<*path){first=Some(candidate.occurrence_path.clone());}
+            b.spend(self.first_capture_paths.len().max(1).ilog2() as usize + 2)?;
+            let paths = self.first_capture_paths.get(&child)
+                .ok_or_else(|| bad("implicit capture has no checked free-value source"))?;
+            for _ in 0..=paths.len().max(1).ilog2() { captured.charge_clone(b)?; }
+            b.spend(implicit.occurrence_path.len() + 1)?;
+            if paths.get(&captured) != Some(&implicit.occurrence_path) {
+                return Err(bad("implicit capture head is not its original first lexical free-value use"));
             }
-            if first.as_ref()!=Some(&implicit.occurrence_path){return Err(bad("implicit capture head is not its original first lexical free-value use"));}
             let source = CapturedSource::from_binding(self, module, &binding.identity, b)?;
             if selected.as_ref().is_some_and(|old| old != &source) {
                 return Err(bad("implicit capture selects several original source binders"));

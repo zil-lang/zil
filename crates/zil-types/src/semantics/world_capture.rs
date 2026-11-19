@@ -28,93 +28,42 @@ fn creator_input(
         .iter()
         .find(|row| row.ordinal == ordinal)
         .ok_or_else(|| bad("implicit capture has no original occurrence"))?;
-    let mut node = None;
-    for recipe in sites {
-        if recipe.occurrence_path != occurrence.occurrence_path
-            || !matches!(recipe.kind, SemanticSiteRecipeKind::TypeUse { .. })
-        {
-            continue;
-        }
-        if let Some(binding) = occurrences::original_node(world, original.id, recipe.id)? {
-            let SemanticOriginalNode::Expression(expression) = binding else {
-                return Err(bad(
-                    "implicit capture occurrence is not its original expression",
-                ));
-            };
-            if node.replace(expression).is_some() {
-                return Err(bad(
-                    "implicit capture occurrence has multiple original expressions",
-                ));
-            }
-        }
-    }
-    let Some(node) = node else {
-        world.pay(occurrence.occurrence_path.len().saturating_add(64))?;
-        let mut diagnostic = bad("implicit captured head has no original type-use occurrence");
-        diagnostic.notes.push(format!(
-            "child {:?}, original {:?}, implicit {}, path {:?}",
-            child.id, original.id, ordinal, occurrence.occurrence_path
-        ));
-        return Err(diagnostic);
-    };
     let ledger = world.ledger;
-    let proof = ledger.original.borrow();
-    let proof = proof
-        .as_ref()
-        .ok_or_else(|| bad("implicit capture has no original body proof"))?;
-    world.pay(
-        proof
-            .capture_names
-            .len()
-            .saturating_add(proof.closure_move.len()),
-    )?;
+    let proof_ref = ledger.original.borrow();
+    let proof = proof_ref.as_ref().ok_or_else(|| bad("implicit capture has no original body proof"))?;
+    world.pay(proof.closure_move.len().max(1).ilog2() as usize + 2)?;
     if proof.closure_move.get(&original.id) != Some(&false) {
-        world.pay(64)?;
-        let mut diagnostic =
-            bad("implicit captured head has no original default-borrow capture mode");
-        diagnostic.notes.push(format!(
-            "child {:?}, original {:?}, implicit {}, source node {:?}, move mode {:?}",
-            child.id,
-            original.id,
-            ordinal,
-            node,
-            proof.closure_move.get(&original.id)
-        ));
-        return Err(diagnostic);
+        return Err(bad("implicit captured head has no original default-borrow capture mode"));
     }
-    let names = proof
-        .capture_names
-        .get(&original.id)
-        .ok_or_else(|| bad("implicit capture has no original lexical capture directory"))?;
-    let mut selected = None;
-    for name in names {
-        world.pay(name.len().saturating_add(1))?;
-        if first_use::find(original, name, world.limits, world.left)? == Some(node) {
-            if selected.replace(name).is_some() {
-                return Err(bad(
-                    "one implicit occurrence selects multiple original lexical captures",
-                ));
+    let name = if let Some(name) = proof.forwarded_name(original, occurrence, world.left)? {
+        name
+    } else {
+        let mut node = None;
+        for recipe in sites {
+            if recipe.occurrence_path != occurrence.occurrence_path
+                || !matches!(recipe.kind, SemanticSiteRecipeKind::TypeUse { .. }) { continue; }
+            if let Some(binding) = occurrences::original_node(world, original.id, recipe.id)? {
+                let SemanticOriginalNode::Expression(expression) = binding else {
+                    return Err(bad("implicit capture occurrence is not its original expression"));
+                };
+                if node.replace(expression).is_some() {
+                    return Err(bad("implicit capture occurrence has multiple original expressions"));
+                }
             }
         }
-    }
-    let Some(name) = selected else {
-        let mut diagnostic =
-            bad("implicit captured head has no matching original first free capture use");
-        world.pay(names.iter().fold(64usize, |work, name| {
-            work.saturating_add(name.len()).saturating_add(32)
-        }))?;
-        let mut uses = Vec::new();
+        let node = node.ok_or_else(|| bad("implicit captured head has no original type-use occurrence"))?;
+        world.pay(proof.capture_names.len().max(1).ilog2() as usize + 2)?;
+        let names = proof.capture_names.get(&original.id)
+            .ok_or_else(|| bad("implicit capture has no original lexical capture directory"))?;
+        let mut selected = None;
         for name in names {
-            uses.push((
-                name.as_str(),
-                first_use::find(original, name, world.limits, world.left)?,
-            ))
+            world.pay(name.len().saturating_add(1))?;
+            if first_use::find(original, name, world.limits, world.left)? == Some(node)
+                && selected.replace(name.as_str()).is_some() {
+                return Err(bad("one implicit occurrence selects multiple original lexical captures"));
+            }
         }
-        diagnostic.notes.push(format!(
-            "child {:?}, original {:?}, implicit {}, source node {:?}, first free uses {:?}",
-            child.id, original.id, ordinal, node, uses
-        ));
-        return Err(diagnostic);
+        selected.ok_or_else(|| bad("implicit captured head has no matching original first free capture use"))?
     };
     let environment = child
         .environment

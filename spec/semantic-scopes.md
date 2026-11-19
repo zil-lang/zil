@@ -98,6 +98,8 @@ Type 实参的完整内在域在 callee 自身实例域中封闭。`IntrinsicCla
 
 闭包的 `SemanticEnvironmentFormal.source` 在真实词法 parent/creator 的定义域解释；`SemanticEnvironmentInstance.actuals` 在实际 parent/creator 实例的真实闭包创建站点求值，再封闭为 child 的 ghost 实参。这两处的 `Ancestor(0)` 指该 parent 当前作用域。creator 的 Value/Local 序号不能转而选择 child 的同号操作数。必须核对实际闭包、创建指令和 parent 对应，多次创建逐实际对应检查，不能选首个调用者提供证明。环境绑定不回写或替换实例原有的 rigid Life 实参。
 
+若闭包自己的原 body 直接使用自由名字，其隐式借用发生点取该绑定的首次直接读取。若该绑定只经内层闭包转发，外层在构造实际内层环境时使用它一次。此时 `SemanticImplicitLifetime.occurrence_path` 为 `[42, nested_constructor_node, environment_formal]`。节点属于当前定义，序号选择当前定义的词法环境形参。父创建点的真实输入、内层创建点所见绑定和相应 `MakeClosure` 的实际操作数必须逐层对应。转发保留原借用权限和有效期，清理仍由各自实际拥有的叶子承担。
+
 `SemanticEnvironmentFormal.kind` 与其 source 使用相同的 parent 定义域，包括 Const 的 carrier 和 Type 的 requirements。复制来自更外层定义或环境的 kind 必须显式重定位到当前 parent 域，不能盲用旧 Ancestor(0)，也不能按 child 的相同序号查找。child 使用的环境槽必须已经在父域核过并封闭。
 
 Typed 类表达式的 Environment 引用只读取沿真实词法路径找到的已核 sealed Life 槽，并检查原 kind 与完整序号。Life 槽没有类型内在域，不能伪装成 `IntrinsicClass(Environment(...),[],0)`；也不能为了可表示而增设物理捕获或 BorrowRoot。

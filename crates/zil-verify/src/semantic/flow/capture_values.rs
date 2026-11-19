@@ -63,12 +63,12 @@ impl CheckedContext {
                 InstructionKind::ReborrowAddress { address, .. } | InstructionKind::DescribeAddress { address } => value = address,
                 InstructionKind::Load(local) | InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } =>
                 {
-                    let mut spills = self.scalar_capture_spills.borrow_mut();
+                    let mut spills = self.capture_spills.borrow_mut();
                     b.spend(spills.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
                     let slot = match spills.entry((f.id, local)) {
                         std::collections::btree_map::Entry::Occupied(known) => *known.get(),
                         std::collections::btree_map::Entry::Vacant(new) => {
-                            *new.insert(capture_mirrors::scalar(&self.site_index.producers, f, local, b)?)
+                            *new.insert(capture_mirrors::activation(&self.site_index.producers, f, local, b)?)
                         }
                     };
                     return Ok(slot);

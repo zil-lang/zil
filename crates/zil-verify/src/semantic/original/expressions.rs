@@ -293,6 +293,15 @@ impl CheckedOriginal {
                     self.definition(module,context,child,active,b)?;
                     let used=self.used.get(&child).cloned().unwrap_or_default();let consumed=self.uses.get(&child).cloned().unwrap_or_default();
                     for binding in bindings.values(){let child_key=Binder::Capture{definition:child,source:Box::new(binding.identity.clone())};if !used.contains(&child_key){continue;}
+                        if matches!(binding.identity, Binder::Capture { .. }) {
+                            // A constructor reads its actually used free inputs in this
+                            // activation, including an input forwarded by a deeper child.
+                            for _ in 0..=self.forwarded_creators.len().max(1).ilog2() {
+                                binding.identity.charge_clone(b)?;
+                            }
+                            b.spend(1)?;
+                            self.forwarded_creators.entry((id, binding.identity.clone())).or_insert(expression.id);
+                        }
                         let owned = self.capture_owns(&child_key, b)?;
                         let moved=consumed.moved.iter().any(|place|place.binder==child_key);
                         if !owned&&moved&&!self.is_copy(module,context,&binding.ty,env,active,b)?{return Err(unsupported("default closure capture cannot consume an unproved borrowed generic value",None));}

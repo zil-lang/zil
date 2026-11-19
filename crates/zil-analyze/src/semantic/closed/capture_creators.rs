@@ -9,6 +9,69 @@ pub(super) struct CreatorBinding {
     pub(super) bound_operands: BTreeSet<ValueId>,
 }
 impl Check<'_, '_> {
+    /// A forwarding occurrence observes a lexical input at a nested MakeClosure.
+    /// Bind the original child formal to its parent and find the corresponding
+    /// actual SSA input at this exact constructor, including capture reloads.
+    pub(super) fn forwarded_capture_input(
+        &self, instance: &SemanticInstance, function: &TypedFunction,
+        occurrence: &SemanticImplicitLifetime, b: &mut Budget,
+    ) -> CompileResult<Option<u32>> {
+        let Some((node, field)) = occurrence.forwarded_input() else { return Ok(None); };
+        let declaration = self.inventory.definition(instance.definition, b)?;
+        let (_, name) = declaration.environment.get(field as usize)
+            .and_then(|formal| formal.source.lexical_input())
+            .ok_or_else(|| fail("forwarded capture has no original lexical input"))?;
+        let original = self.inventory.original_index(instance.definition, b)?;
+        if !matches!(original.get_expr(node, b)?.kind, CoreExprKind::Closure { .. }) {
+            return Err(fail("forwarded capture selects another source operation"));
+        }
+        let anchor = original::LocalAnchor::Environment(field);
+        let mut observed = false;
+        for site in self.inventory.sites_for_expression(self.program, instance, node, b)? {
+            let recipe = original.recipe(site.recipe, b)?;
+            let SemanticSiteRecipeKind::Closure { definition, environment } = &recipe.kind else { continue; };
+            let mut formal = None;
+            for (ordinal, argument) in environment.iter().enumerate() {
+                let Some((creation, input)) = argument.lexical_input() else { continue; };
+                b.spend(input.len().saturating_add(name.len()).saturating_add(1), WORK)?;
+                if creation == node && input == name {
+                    if formal.replace(ordinal as u32).is_some() {
+                        return Err(fail("forwarded capture repeats its nested lexical input"));
+                    }
+                }
+            }
+            let ordinal = formal.ok_or_else(|| fail("nested creator omits the forwarded lexical input"))?;
+            if self.original.capture_origin(*definition, ordinal, b)? != Some(anchor) {
+                return Err(fail("nested creator selects another lexical binding for the forwarded field"));
+            }
+            let SemanticSiteAction::Closure { closure: SemanticClosureTarget::Typed(id),
+                result: SemanticOperand::Value(value), .. } = site.action else {
+                return Err(fail("forwarded capture has no actual closure creation"));
+            };
+            let (block, index, instruction) = self.defining(function, value, b)?;
+            let InstructionKind::MakeClosure { closure, captures } = &instruction.kind else {
+                return Err(fail("forwarded capture has no MakeClosure producer"));
+            };
+            if *closure != id { return Err(fail("forwarded capture selects another physical creator")); }
+            let entry = self.module.closures.get(id.0 as usize).filter(|entry| entry.id == id)
+                .ok_or_else(|| fail("forwarded closure entry is absent"))?;
+            let child = self.closure_creator_world(entry.function, instance.id, id, b)?;
+            if child.definition != *definition { return Err(fail("forwarded closure changes its original declaration")); }
+            let mut found = false;
+            for operand in captures {
+                if self.capture_matches(instance, function, *operand, anchor, b, 0)? {
+                    operations::available_before(function, (block, index, SemanticSiteEdge::Before), *operand, b)?;
+                    if found { return Err(fail("nested creator repeats the forwarded physical source")); }
+                    found = true;
+                }
+            }
+            if !found { return Err(fail("nested creator omits the actual forwarded capture operand")); }
+            observed = true;
+        }
+        if !observed { return Err(fail("forwarded capture has no original and actual nested constructor")); }
+        Ok(Some(field))
+    }
+
     /// Evaluate only the proved original occurrence equations. The full
     /// original N, class directory and physical modes remain unchanged.
     pub(super) fn capture_class_value(
@@ -142,8 +205,8 @@ impl Check<'_, '_> {
         }
         let occurrence = occurrence
             .ok_or_else(|| fail("capture head omits its original implicit occurrence"))?;
-        let mut lexical = None;
-        for recipe in recipes {
+        let mut lexical = self.forwarded_capture_input(instance, function, occurrence, b)?;
+        for recipe in recipes.iter().filter(|_| occurrence.forwarded_input().is_none()) {
             b.spend(
                 recipe
                     .occurrence_path

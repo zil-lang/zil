@@ -162,6 +162,10 @@ pub(super) struct CheckedOriginal {
     creator_moves: BTreeMap<SemanticDefinitionId, bool>,
     inferred_owner_captures: BTreeMap<SemanticDefinitionId, BTreeSet<Binder>>,
     value_bindings: BTreeMap<(SemanticDefinitionId, NodeId), Binder>,
+    // The first checked Name path for each free binder. An occurrence belongs
+    // to a lexical declaration, independent of the number of creator worlds.
+    first_capture_paths: BTreeMap<SemanticDefinitionId, BTreeMap<Binder, Vec<u32>>>,
+    forwarded_creators: BTreeMap<(SemanticDefinitionId, Binder), NodeId>,
     value_places: BTreeMap<(SemanticDefinitionId, NodeId), Place>,
     prepared_locals: BTreeMap<Binder, NodeId>,
     prepared_address_inputs: BTreeMap<(SemanticDefinitionId, NodeId), NodeId>,
@@ -354,6 +358,7 @@ impl CheckedOriginal {
                 ));
             }
         }
+        result.index_capture_paths(&index, b)?;
         Ok(result)
     }
     pub(in crate::semantic) fn compile_time_uses(&self, definition: SemanticDefinitionId, b: &mut Budget) -> Check<&[(usize, NodeId)]> {

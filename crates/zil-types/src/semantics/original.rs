@@ -6926,6 +6926,40 @@ fn definition_positions(
     Ok(std::rc::Rc::new(index))
 }
 impl Proof {
+    /// Rebind a forwarded lexical input to the nested constructor in its own
+    /// declaration. The creator ledger independently selects physical inputs.
+    pub(super) fn forwarded_name<'d>(&self, declaration: &'d SemanticDefinition,
+        occurrence: &SemanticImplicitLifetime, left: &mut usize) -> R<Option<&'d str>>
+    {
+        let Some((node, field)) = occurrence.forwarded_input() else { return Ok(None); };
+        let (_, name) = declaration.environment.get(field as usize)
+            .and_then(|formal| formal.source.lexical_input())
+            .ok_or_else(|| bad("forwarded capture lacks its declared environment input"))?;
+        let SemanticDefinitionBody::FunctionWithBody { sites, .. } = &declaration.body else {
+            return Err(bad("forwarded capture has no original declaration body"));
+        };
+        let directory = self.original_sites.owner(declaration.id, left)?
+            .ok_or_else(|| bad("forwarded capture has no original site directory"))?;
+        let mut found = false;
+        for &site in directory.at(SemanticOriginalNode::Expression(node), left)? {
+            let Some(recipe) = directory.recipe(declaration.id, sites, site, left)? else { continue; };
+            if let SemanticSiteRecipeKind::Closure { environment, .. } = &recipe.kind {
+                for argument in environment {
+                    let input = argument.lexical_input();
+                    let cost = input.map_or(1, |(_, actual)| actual.len().saturating_add(name.len()).saturating_add(1));
+                    *left = left.checked_sub(cost).ok_or_else(|| Diagnostic::limit(Phase::Types,"capture input lookup work exceeded",None))?;
+                    if input == Some((node, name)) {
+                        if found { return Err(bad("nested constructor repeats its forwarded input")); }
+                        found = true;
+                    }
+                }
+            }
+        }
+        if !found { return Err(bad("forwarded capture selects no actual nested constructor input")); }
+        Ok(Some(name))
+    }
+}
+impl Proof {
     pub(super) fn original_site_node(
         &self,
         owner: SemanticDefinitionId,

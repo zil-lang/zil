@@ -535,6 +535,29 @@ fn capture_value(
     else {
         return Err(bad("capture head has no exact original lexical name source"));
     };
+    pay(left, original.implicit_lifetimes.len())?;
+    let mut forwarded = None;
+    for row in &original.implicit_lifetimes {
+        if !row.forwarded_input().is_some_and(|(_, field)| field == ordinal) { continue; }
+        let guard = ledger.original.borrow();
+        let proof = guard.as_ref().ok_or_else(|| bad("forwarded input lacks the original capture proof"))?;
+        if proof.forwarded_name(original, row, left)? != Some(name.as_str()) || forwarded.replace(row.ordinal).is_some() {
+            return Err(bad("forwarded environment input changes or repeats its lexical declaration"));
+        }
+    }
+    if let Some(implicit) = forwarded {
+        let lifetime = SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit {
+            scope: SemanticScopeRef::Ancestor(0), ordinal: implicit,
+        });
+        let transport = if let Some(mutable) = address {
+            SemanticTypeRecipe::Address { mutable, lifetime, inner: Box::new(expected) }
+        } else {
+            let full = super::super::materialize::symbolic_in_view(program, module, ledger, instance.id, &expected, limits, left)?;
+            let SemanticTypeRecipe::Managed(inner) = full else { return Err(bad("forwarded description lacks its declared owning payload")); };
+            SemanticTypeRecipe::Desc { lifetime, inner }
+        };
+        return super::super::materialize::form_type_in_view(program, module, ledger, instance.id, &transport, Some(actual_ty), limits, left);
+    }
     let first = first_use::find(original, name, limits, left)?
         .ok_or_else(|| bad("capture head has no actual original first free use"))?;
     let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {

@@ -330,6 +330,7 @@ impl Check<'_, '_> {
         let mut covered_operands = BTreeSet::new();
         let mut pending_operands = Vec::new();
         for occurrence in &definition.implicit_lifetimes {
+            if self.forwarded_capture_input(instance, function, occurrence, b)?.is_some() { continue; }
             let mut emitted = false;
             let mut source_operand = None;
             let mut call_region = false;
@@ -344,6 +345,25 @@ impl Check<'_, '_> {
                 )?;
                 if recipe.occurrence_path != occurrence.occurrence_path {
                     call_region |= original::is_region_occurrence(recipe, &occurrence.occurrence_path);
+                    continue;
+                }
+                if matches!(recipe.kind, SemanticSiteRecipeKind::OriginalCall) {
+                    // A call result has its own observation even in a closure
+                    // with no direct Name read. Its real callee, operands and
+                    // result are proved by the call rule. It supplies no Fixed
+                    // capture binding in the directory below.
+                    let node = self.inventory.original_index(instance.definition, b)?
+                        .site_node(recipe.id, b)?;
+                    let Some(SemanticOriginalNode::Expression(node)) = node else {
+                        return Err(fail("implicit call result lacks its original expression"));
+                    };
+                    for site in self.inventory.sites_for_expression(self.program, instance, node, b)? {
+                        if site.recipe != recipe.id { continue; }
+                        if !matches!(site.action, SemanticSiteAction::BodyCall { .. }) {
+                            return Err(fail("implicit call result changes its actual operation"));
+                        }
+                        emitted = true;
+                    }
                     continue;
                 }
                 if let SemanticSiteRecipeKind::DeclareLocal {
@@ -593,7 +613,8 @@ impl Check<'_, '_> {
                     continue;
                 }
                 let node = source_operand.ok_or_else(|| {
-                    fail("original implicit occurrence has no matching actual name site")
+                    fail(&format!("original implicit occurrence has no matching actual name site: definition {:?}, instance {:?}, ordinal {}, path {:?}",
+                        instance.definition, instance.id, occurrence.ordinal, occurrence.occurrence_path))
                 })?;
                 self.push_value(&mut pending_operands, node, b)?;
             }
@@ -603,9 +624,8 @@ impl Check<'_, '_> {
         for node in pending_operands {
             b.lookup(covered_operands.len(), WORK)?;
             if !covered_operands.contains(&node) {
-                return Err(fail(
-                    "original implicit occurrence has no matching actual name site",
-                ));
+                return Err(fail(&format!("original implicit occurrence has no matching actual name site: definition {:?}, instance {:?}, expected operand {:?} from its selected projection",
+                    instance.definition, instance.id, node)));
             }
         }
         let mut seen_capture = BTreeSet::new();
@@ -707,6 +727,13 @@ impl Check<'_, '_> {
                 .ok_or_else(|| fail("capture head names an absent original implicit lifetime"))?;
             if implicit.next().is_some() {
                 return Err(fail("original implicit capture ordinal is ambiguous"));
+            }
+            if let Some((_, field)) = occurrence.forwarded_input() {
+                // Every original forwarding row was checked at its real constructor above.
+                if self.environment_capture(instance, function, field, b)? != index {
+                    return Err(fail("implicit forwarding occurrence is bound to another physical capture"));
+                }
+                continue;
             }
             let mut found = false;
             for recipe in recipes {

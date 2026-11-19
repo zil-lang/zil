@@ -6,6 +6,11 @@ use std::collections::BTreeSet;
 pub(super) struct ClosureUse {
     pub node: zil_base::NodeId,
 }
+#[derive(Clone, Copy)]
+pub(super) enum CaptureOccurrence {
+    Read(zil_base::NodeId),
+    Forward(zil_base::NodeId),
+}
 pub(super) struct ClosureTemplate {
     pub path: Vec<u32>,
     pub definition: SemanticDefinition,
@@ -372,7 +377,7 @@ impl Builder<'_, '_, '_, '_> {
                     },
                     span,
                 )?;
-                if let Some(occurrence) = occurrence {
+                if let CaptureOccurrence::Read(occurrence) = occurrence {
                     self.push(&mut uses, ClosureUse { node: occurrence }, span)?;
                     if !*move_capture {
                         let use_node = original.nodes.iter().find(|node| node.id == occurrence)
@@ -383,6 +388,8 @@ impl Builder<'_, '_, '_, '_> {
                         occurrence_path.extend_from_slice(&use_node.path);
                         self.implicit(&occurrence_path, span)?;
                     }
+                } else if let CaptureOccurrence::Forward(child) = occurrence && !*move_capture {
+                    self.implicit(&SemanticImplicitLifetime::forwarded_input_path(child, ordinal), span)?;
                 }
                 let ty = SemanticTypeRecipe::Environment {
                     scope: SemanticScopeRef::Ancestor(0),
