@@ -1105,7 +1105,10 @@ fn receiver_result(
                 && (path.starts_with(&root.path) || root.path.starts_with(path)))
         { return Err(bad("receiver result refers to stale or vacant actual storage")); }
     }
-    if !roots.is_empty() { world.value_roots.insert(output, roots); }
+    if !roots.is_empty() {
+        world.pay(1)?;
+        world.value_roots.insert(output, Rc::new(roots));
+    }
     Ok(directed.then_some(output))
 }
 

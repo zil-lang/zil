@@ -551,6 +551,17 @@ pub(crate) fn semantic_operand_snapshot(
     })
 }
 
+pub(crate) fn resolved_geometry_snapshot(
+    ty: &Type,
+    life: &StorageLifeShape,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    let mut work = Work { limits, left, copies: 1, nodes: 0 };
+    DynRecipeVisitor::ty(&mut work, ty, 2)?;
+    DynRecipeVisitor::life(&mut work, life, 2)
+}
+
 /// Compare borrowed immutable geometry. A comparison visits matched fields
 /// within the first complete tree, including the first mismatch, so the
 /// bound on that tree also pays for the paired reads. The candidate already
@@ -608,6 +619,27 @@ pub(crate) fn same_live_classes(
         }
     }
     Ok(true)
+}
+
+/// Compare whole semantic values that have already been formed. Their
+/// complete geometry and normalized class paths remain independently metered.
+pub(crate) fn same_formed_value(
+    a: &SemanticTypeValue,
+    b: &SemanticTypeValue,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<bool> {
+    let (
+        SemanticTypeValue::Resolved { ty: a_ty, life: a_life, classes: a_classes },
+        SemanticTypeValue::Resolved { ty: b_ty, life: b_life, classes: b_classes },
+    ) = (a, b)
+    else {
+        semantic_operand_snapshot(a, limits, left, 1)?;
+        semantic_operand_snapshot(b, limits, left, 1)?;
+        return Ok(a == b);
+    };
+    Ok(same_resolved_geometry(a_ty, a_life, b_ty, b_life, limits, left)?
+        && same_live_classes(a_classes, b_classes, limits, left)?)
 }
 
 /// Bounded snapshots of actual runtime Dyn data use the same traversal as

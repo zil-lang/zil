@@ -8,6 +8,8 @@ pub(super) struct Root {
     pub local: LocalId,
     pub path: Vec<PlaceProjection>,
 }
+pub(super) type SharedRoots = Rc<BTreeSet<Root>>;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Edge {
     pub parent: ValueId,
@@ -45,7 +47,7 @@ pub(super) fn roots(
         *left = left.checked_sub(roots.len()).ok_or_else(|| {
             Diagnostic::limit(Phase::Types, "argument root snapshot work exceeded", None)
         })?;
-        for root in roots {
+        for root in roots.iter() {
             *left = left.checked_sub(root.path.len()).ok_or_else(|| {
                 Diagnostic::limit(Phase::Types, "argument root path work exceeded", None)
             })?;
@@ -57,7 +59,7 @@ pub(super) fn roots(
                 ));
             }
         }
-        return Ok(roots.clone());
+        return Ok(roots.as_ref().clone());
     }
     let source = roles::outer(world, value)?;
     if let roles::Source::Class(SemanticClassExpr::OuterOccurrence {
@@ -70,12 +72,12 @@ pub(super) fn roots(
             *left = left.checked_sub(roots.len()).ok_or_else(|| {
                 Diagnostic::limit(Phase::Types, "argument head root snapshot exceeded", None)
             })?;
-            for root in roots {
+            for root in roots.iter() {
                 *left = left.checked_sub(root.path.len()).ok_or_else(|| {
                     Diagnostic::limit(Phase::Types, "argument head path snapshot exceeded", None)
                 })?;
             }
-            return Ok(roots.clone());
+            return Ok(roots.as_ref().clone());
         }
     }
     Ok(BTreeSet::new())
@@ -96,9 +98,7 @@ pub(super) fn tuple_field(
     let actual = world.normalized(scope, &actual, implicit)?;
     let expected = world.normalized(scope, expected, implicit)?;
     world.pay(1)?;
-    crate::dyn_metadata::semantic_operand_snapshot(&*actual, world.limits, world.left, 1)?;
-    crate::dyn_metadata::semantic_operand_snapshot(&*expected, world.limits, world.left, 1)?;
-    if actual == expected {
+    if crate::dyn_metadata::same_formed_value(&actual, &expected, world.limits, world.left)? {
         return Ok(());
     }
     let ty = World::type_of(&actual)?;
@@ -116,8 +116,7 @@ pub(super) fn tuple_field(
         cursor = edge.parent;
         let parent = world.get(values, cursor)?;
         let parent = world.normalized(scope, &parent, implicit)?;
-        crate::dyn_metadata::semantic_operand_snapshot(&*parent, world.limits, world.left, 1)?;
-        if parent == expected {
+        if crate::dyn_metadata::same_formed_value(&parent, &expected, world.limits, world.left)? {
             let inner = world.pointee(&actual)?;
             let expected_inner = world.pointee(&expected)?;
             return world.equal(&inner, &expected_inner);
@@ -171,9 +170,7 @@ fn satisfy_boundary(
     if std::ptr::eq(actual.as_ref(), expected.as_ref()) {
         return Ok(());
     }
-    crate::dyn_metadata::semantic_operand_snapshot(actual.as_ref(), world.limits, world.left, 1)?;
-    crate::dyn_metadata::semantic_operand_snapshot(expected.as_ref(), world.limits, world.left, 1)?;
-    if actual == expected {
+    if crate::dyn_metadata::same_formed_value(&actual, &expected, world.limits, world.left)? {
         return Ok(());
     }
     let actual_ty = World::type_of(&actual)?;

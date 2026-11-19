@@ -98,8 +98,8 @@ pub(super) struct World<'a, 'b> {
     value_role_sources: BTreeMap<ValueId, Rc<roles::Incoming>>,
     reborrows: BTreeMap<ValueId, Rc<arguments::Edge>>,
     reservations: BTreeMap<ReservationId, Rc<reservations::Reservation>>,
-    value_roots: BTreeMap<ValueId, std::collections::BTreeSet<arguments::Root>>,
-    local_roots: BTreeMap<LocalId, std::collections::BTreeSet<arguments::Root>>,
+    value_roots: BTreeMap<ValueId, arguments::SharedRoots>,
+    local_roots: BTreeMap<LocalId, arguments::SharedRoots>,
     argument_witnesses: Vec<arguments::Witness>,
     receiver_adaptations: Vec<receiver::Adaptation>,
     index: index::Index,
@@ -695,9 +695,7 @@ impl<'a> World<'a, '_> {
         if std::ptr::eq(a, b) {
             return Ok(());
         }
-        crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
-        crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
-        if a != b {
+        if !crate::dyn_metadata::same_formed_value(a, b, self.limits, self.left)? {
             crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
             crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
             let mut diagnostic = bad("actual whole type or rigid original classes disagree");
@@ -956,7 +954,7 @@ impl<'a> World<'a, '_> {
             if prepared_binders.is_none() { owned_binders = Some(self.boundary_binders(value, base, header)?); }
         }
         let binders = prepared_binders.or(owned_binders.as_deref());
-        let SemanticTypeValue::Resolved { classes, .. } = value.as_ref() else {
+        let SemanticTypeValue::Resolved { ty, life, classes } = value.as_ref() else {
             return Err(bad("Core type survives call interpretation"));
         };
         if let Some(binders) = binders {
@@ -966,11 +964,10 @@ impl<'a> World<'a, '_> {
         if classes.is_empty() {
             return self.share(value);
         }
-        let mut value = self.copy(value)?;
-        let SemanticTypeValue::Resolved { classes, .. } = Rc::get_mut(&mut value)
-            .ok_or_else(|| bad("fresh class mapping unexpectedly shares its value"))?
-        else { unreachable!("checked complete call boundary") };
-        for (ordinal, image) in classes.iter_mut().enumerate() {
+        self.pay(classes.len().saturating_add(1))?;
+        let mut mapped = Vec::with_capacity(classes.len());
+        for (ordinal, image) in classes.iter().enumerate() {
+            crate::dyn_metadata::semantic_operand_snapshot(image, self.limits, self.left, 1)?;
             if let Some((header, child, SemanticTypeValue::Resolved { life, classes: actual_images, .. }, _)) = environment {
                 if actual_images.len() != life.binder_count as usize || life.binder_count != header.fixed_binder_count {
                     return Err(bad("call environment loses its complete persistent class domain"));
@@ -993,15 +990,15 @@ impl<'a> World<'a, '_> {
                     }
                 };
                 crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
-                *image = actual.clone();
+                mapped.push(actual.clone());
                 continue;
             }
             self.pay(invocation.len())?;
-            let mut mapped = invocation.iter().filter(|(source, _)| source == image);
-            if let Some((_, actual)) = mapped.next() {
-                if mapped.next().is_some() { return Err(bad("one actual invocation class has repeated boundary images")); }
+            let mut matching = invocation.iter().filter(|(source, _)| source == image);
+            if let Some((_, actual)) = matching.next() {
+                if matching.next().is_some() { return Err(bad("one actual invocation class has repeated boundary images")); }
                 crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
-                *image = actual.clone();
+                mapped.push(actual.clone());
                 continue;
             }
             match image {
@@ -1018,7 +1015,7 @@ impl<'a> World<'a, '_> {
                         self.left,
                         1,
                     )?;
-                    *image = actual.clone();
+                    mapped.push(actual.clone());
                 }
                 SemanticClassExpr::IntrinsicClass {
                     operand:
@@ -1043,7 +1040,7 @@ impl<'a> World<'a, '_> {
                         self.left,
                         1,
                     )?;
-                    *image = actual.clone();
+                    mapped.push(actual.clone());
                 }
                 SemanticClassExpr::Environment { .. }
                 | SemanticClassExpr::IntrinsicClass {
@@ -1074,7 +1071,15 @@ impl<'a> World<'a, '_> {
                 }
             }
         }
-        Ok(value)
+        if mapped == *classes {
+            return self.share(value);
+        }
+        crate::dyn_metadata::resolved_geometry_snapshot(ty, life, self.limits, self.left)?;
+        Ok(Rc::new(SemanticTypeValue::Resolved {
+            ty: ty.clone(),
+            life: life.clone(),
+            classes: mapped,
+        }))
     }
     fn occurrence(&mut self, f: &TypedFunction, value: ValueId) -> R<SemanticClassExpr> {
         let ty = f
@@ -1106,38 +1111,44 @@ impl<'p> World<'p, '_> {
         image: &SemanticClassExpr,
         implicit: &BTreeMap<u32, SemanticClassExpr>,
     ) -> R<SemanticClassExpr> {
+        if let Some(mapped) = self.class_replacement(scope, image, implicit)? {
+            return Ok(mapped);
+        }
         crate::dyn_metadata::semantic_operand_snapshot(image, self.limits, self.left, 1)?;
-        Ok(match image {
+        Ok(image.clone())
+    }
+
+    fn class_replacement(
+        &mut self,
+        scope: SemanticInstanceId,
+        image: &SemanticClassExpr,
+        implicit: &BTreeMap<u32, SemanticClassExpr>,
+    ) -> R<Option<SemanticClassExpr>> {
+        match image {
             SemanticClassExpr::Implicit {
                 scope: SemanticScopeRef::Ancestor(0),
                 ordinal,
-            } => match implicit.get(ordinal) {
-                Some(actual) => {
-                    crate::dyn_metadata::semantic_operand_snapshot(
-                        actual,
-                        self.limits,
-                        self.left,
-                        1,
-                    )?;
-                    actual.clone()
-                }
-                None => image.clone(),
-            },
-            SemanticClassExpr::Formal {
-                scope: relative,
-                ordinal,
-            } => super::materialize::class_in_view(
-                self.program,
-                &self.view,
-                self.ledger,
-                scope,
-                &SemanticLifeRecipe::Formal(SemanticFormalRef {
-                    scope: *relative,
-                    ordinal: *ordinal,
-                }),
-                self.limits,
-                self.left,
-            )?,
+            } => {
+                self.pay(index::search(implicit.len()))?;
+                let Some(actual) = implicit.get(ordinal) else { return Ok(None); };
+                crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
+                Ok(Some(actual.clone()))
+            }
+            SemanticClassExpr::Formal { scope: relative, ordinal } => {
+                crate::dyn_metadata::semantic_operand_snapshot(image, self.limits, self.left, 1)?;
+                super::materialize::class_in_view(
+                    self.program,
+                    &self.view,
+                    self.ledger,
+                    scope,
+                    &SemanticLifeRecipe::Formal(SemanticFormalRef {
+                        scope: *relative,
+                        ordinal: *ordinal,
+                    }),
+                    self.limits,
+                    self.left,
+                ).map(Some)
+            }
             SemanticClassExpr::OuterOccurrence {
                 operand: SemanticOperand::Environment(_),
                 ..
@@ -1147,10 +1158,11 @@ impl<'p> World<'p, '_> {
                 ..
             }
             | SemanticClassExpr::Environment { .. } => {
-                roles::environment_class(self, scope, image)?
+                crate::dyn_metadata::semantic_operand_snapshot(image, self.limits, self.left, 1)?;
+                roles::environment_class(self, scope, image).map(Some)
             }
-            _ => image.clone(),
-        })
+            _ => Ok(None),
+        }
     }
     fn same_class(
         &mut self,
@@ -1166,21 +1178,41 @@ impl<'p> World<'p, '_> {
         }
         Ok(())
     }
-    fn normalized_images(
+    fn normalized_images<'v>(
         &mut self,
         scope: SemanticInstanceId,
-        classes: &[SemanticClassExpr],
+        classes: &'v [SemanticClassExpr],
         implicit: &BTreeMap<u32, SemanticClassExpr>,
-    ) -> R<(Vec<SemanticClassExpr>, bool)> {
+    ) -> R<std::borrow::Cow<'v, [SemanticClassExpr]>> {
         self.pay(classes.len().saturating_add(1))?;
-        let mut mapped = Vec::with_capacity(classes.len());
-        let mut changed = false;
-        for image in classes {
-            let actual = self.class(scope, image, implicit)?;
-            changed |= actual != *image;
-            mapped.push(actual);
+        let mut mapped = None;
+        for (ordinal, image) in classes.iter().enumerate() {
+            let replacement = self.class_replacement(scope, image, implicit)?;
+            if mapped.is_none()
+                && let Some(actual) = replacement.as_ref()
+                && !crate::dyn_metadata::same_live_classes(
+                    std::slice::from_ref(actual), std::slice::from_ref(image),
+                    self.limits, self.left,
+                )?
+            {
+                self.pay(classes.len())?;
+                let mut prefix = Vec::with_capacity(classes.len());
+                for prior in &classes[..ordinal] {
+                    crate::dyn_metadata::semantic_operand_snapshot(prior, self.limits, self.left, 1)?;
+                    prefix.push(prior.clone());
+                }
+                mapped = Some(prefix);
+            }
+            if let Some(mapped) = &mut mapped {
+                if let Some(actual) = replacement {
+                    mapped.push(actual);
+                } else {
+                    crate::dyn_metadata::semantic_operand_snapshot(image, self.limits, self.left, 1)?;
+                    mapped.push(image.clone());
+                }
+            }
         }
-        Ok((mapped, changed))
+        Ok(mapped.map_or_else(|| std::borrow::Cow::Borrowed(classes), std::borrow::Cow::Owned))
     }
     fn normalized<'v>(
         &mut self,
@@ -1188,20 +1220,18 @@ impl<'p> World<'p, '_> {
         value: &'v SemanticTypeValue,
         implicit: &BTreeMap<u32, SemanticClassExpr>,
     ) -> R<std::borrow::Cow<'v, SemanticTypeValue>> {
-        let SemanticTypeValue::Resolved { classes, .. } = value else {
-            return Err(bad("Core value survives normalization"));
+        let SemanticTypeValue::Resolved { ty, life, classes } = value else {
+            return Err(bad("Core type survives normalization"));
         };
-        let (mapped, changed) = self.normalized_images(scope, classes, implicit)?;
-        if !changed {
+        let std::borrow::Cow::Owned(mapped) = self.normalized_images(scope, classes, implicit)? else {
             return Ok(std::borrow::Cow::Borrowed(value));
-        }
-        crate::dyn_metadata::semantic_operand_snapshot(value, self.limits, self.left, 1)?;
-        let mut value = value.clone();
-        let SemanticTypeValue::Resolved { classes, .. } = &mut value else {
-            return Err(bad("normalization changed its resolved constructor"));
         };
-        *classes = mapped;
-        Ok(std::borrow::Cow::Owned(value))
+        crate::dyn_metadata::resolved_geometry_snapshot(ty, life, self.limits, self.left)?;
+        Ok(std::borrow::Cow::Owned(SemanticTypeValue::Resolved {
+            ty: ty.clone(),
+            life: life.clone(),
+            classes: mapped,
+        }))
     }
     fn normalize(
         &mut self,
@@ -1251,17 +1281,16 @@ impl<'p> World<'p, '_> {
             // Rebuild only the class images in this exact live world. The
             // physical type and complete intrinsic domain are immutable and
             // borrowed; an equation never needs two cloned whole values.
-            let (a_images, _) = self.normalized_images(scope, a_classes, implicit)?;
-            let (b_images, _) = self.normalized_images(scope, b_classes, implicit)?;
+            let a_images = self.normalized_images(scope, a_classes, implicit)?;
             if std::ptr::eq(a, b) {
                 return Ok(());
             }
+            let b_images = self.normalized_images(scope, b_classes, implicit)?;
             if !crate::dyn_metadata::same_resolved_geometry(
                 a_ty, a_life, b_ty, b_life, self.limits, self.left,
             )? || !crate::dyn_metadata::same_live_classes(
                 &a_images, &b_images, self.limits, self.left,
             )? {
-
                 crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
                 crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
                 let mut diagnostic = bad("actual whole type or rigid original classes disagree");
@@ -2290,15 +2319,15 @@ impl<'p> World<'p, '_> {
     }
     fn same_invocation_facts(
         &mut self,
-        first: &(Option<Rc<roles::Incoming>>, Option<std::collections::BTreeSet<arguments::Root>>),
-        other: &(Option<Rc<roles::Incoming>>, Option<std::collections::BTreeSet<arguments::Root>>),
+        first: &(Option<Rc<roles::Incoming>>, Option<arguments::SharedRoots>),
+        other: &(Option<Rc<roles::Incoming>>, Option<arguments::SharedRoots>),
     ) -> R<()> {
         for role in [&first.0, &other.0].into_iter().flatten() {
             flow::charge_incoming(self, role)?;
         }
         for roots in [&first.1, &other.1].into_iter().flatten() {
             self.pay(roots.len())?;
-            for root in roots { self.pay(root.path.len())?; }
+            for root in roots.iter() { self.pay(root.path.len())?; }
         }
         if first != other { return Err(bad("actual callable worlds disagree in their complete output source facts")); }
         Ok(())
@@ -2505,12 +2534,13 @@ impl<'p> World<'p, '_> {
                 stored::physical(&f.locals[local.0 as usize].ty),
                 Type::Address { .. } | Type::Desc(_)
             ) {
+                self.pay(1)?;
                 incoming_roots.insert(
                     *local,
-                    std::collections::BTreeSet::from([arguments::Root {
+                    Rc::new(std::collections::BTreeSet::from([arguments::Root {
                         local: *local,
                         path: Vec::new(),
-                    }]),
+                    }])),
                 );
             }
         }
@@ -2624,7 +2654,7 @@ impl<'p> World<'p, '_> {
                                         None,
                                     )
                                 })?;
-                            for root in roots {
+                            for root in roots.iter() {
                                 *self.left =
                                     self.left.checked_sub(root.path.len()).ok_or_else(|| {
                                         Diagnostic::limit(
@@ -2634,7 +2664,7 @@ impl<'p> World<'p, '_> {
                                         )
                                     })?;
                             }
-                            propagated_roots = roots.clone();
+                            propagated_roots = roots.as_ref().clone();
                         }
                     }
                     InstructionKind::BorrowLocal { local }
@@ -2842,7 +2872,8 @@ impl<'p> World<'p, '_> {
                                 self.role_sources.insert(*local, source);
                             }
                             if !stored_roots.is_empty() {
-                                self.local_roots.insert(*local, stored_roots);
+                                self.pay(1)?;
+                                self.local_roots.insert(*local, Rc::new(stored_roots));
                             }
                             set_local(self, &mut locals, *local, Some(value))?;
                             None
@@ -4778,7 +4809,10 @@ impl<'p> World<'p, '_> {
                         | InstructionKind::CallClosureBorrowed { .. })
                         && let Some(roots) = self.value_roots.remove(&result)
                     {
-                        propagated_roots = roots;
+                        propagated_roots = match Rc::try_unwrap(roots) {
+                            Ok(roots) => roots,
+                            Err(roots) => arguments::copy_roots(self, &roots)?,
+                        };
                     }
                     if matches!(instruction.kind,
                         InstructionKind::CallClosure { .. } | InstructionKind::CallClosureOnce { .. }
@@ -4801,7 +4835,8 @@ impl<'p> World<'p, '_> {
                     self.stale_values.remove(&result);
                     self.value_roots.remove(&result);
                     if !propagated_roots.is_empty() {
-                        self.value_roots.insert(result, propagated_roots);
+                        self.pay(1)?;
+                        self.value_roots.insert(result, Rc::new(propagated_roots));
                     }
                     self.value_role_sources.remove(&result);
                     if let Some(source) = propagated_role {

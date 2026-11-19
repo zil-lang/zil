@@ -142,7 +142,7 @@ pub(super) fn seal(
                             None,
                         )
                     })?;
-                for root in roots {
+                for root in roots.iter() {
                     *left = left.checked_sub(root.path.len()).ok_or_else(|| {
                         Diagnostic::limit(
                             Phase::Types,
@@ -151,7 +151,7 @@ pub(super) fn seal(
                         )
                     })?;
                 }
-                roots.clone()
+                roots.as_ref().clone()
             }
             None => {
                 return Err(pending(

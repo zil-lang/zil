@@ -25,8 +25,8 @@ pub(super) struct State {
     pub value_role_sources: BTreeMap<ValueId, Rc<roles::Incoming>>,
     pub reborrows: BTreeMap<ValueId, Rc<arguments::Edge>>,
     pub reservations: BTreeMap<ReservationId, Rc<reservations::Reservation>>,
-    pub value_roots: BTreeMap<ValueId, BTreeSet<arguments::Root>>,
-    pub local_roots: BTreeMap<LocalId, BTreeSet<arguments::Root>>,
+    pub value_roots: BTreeMap<ValueId, arguments::SharedRoots>,
+    pub local_roots: BTreeMap<LocalId, arguments::SharedRoots>,
 }
 impl State {
     pub fn snapshot(&self, world: &mut World<'_, '_>) -> R<Self> {
@@ -58,14 +58,6 @@ impl State {
         for value in self.implicit.values() {
             crate::dyn_metadata::semantic_operand_snapshot(value, world.limits, world.left, 1)?;
         }
-        let mut value_roots = BTreeMap::new();
-        for (value, roots) in &self.value_roots {
-            value_roots.insert(*value, arguments::copy_roots(world, roots)?);
-        }
-        let mut local_roots = BTreeMap::new();
-        for (local, roots) in &self.local_roots {
-            local_roots.insert(*local, arguments::copy_roots(world, roots)?);
-        }
         let state = Self {
             schema: self.schema,
             instance: self.instance,
@@ -86,8 +78,8 @@ impl State {
             value_role_sources: self.value_role_sources.clone(),
             reborrows: self.reborrows.clone(),
             reservations: self.reservations.clone(),
-            value_roots,
-            local_roots,
+            value_roots: self.value_roots.clone(),
+            local_roots: self.local_roots.clone(),
         };
         world.snapshots = world.snapshots.saturating_add(1);
         world.snapshot_work = world
@@ -170,8 +162,8 @@ impl State {
                 &other.reservations,
                 reservations::charge,
             )?
-            || !same_map(world, &self.value_roots, &other.value_roots, charge_roots)?
-            || !same_map(world, &self.local_roots, &other.local_roots, charge_roots)?
+            || !same_shared_map(world, &self.value_roots, &other.value_roots, charge_roots)?
+            || !same_shared_map(world, &self.local_roots, &other.local_roots, charge_roots)?
         {
             return Ok(false);
         }
