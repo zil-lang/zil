@@ -287,12 +287,15 @@ struct ClosedNominalFormation {
     actuals: Vec<usize>,
     fields: Vec<usize>,
 }
+// Rows are indexed by immutable term. Only original worlds actually queried
+// for that term allocate a sparse substitution table.
+type WorldValues = BTreeMap<(usize, usize, usize, usize), value::Value>;
 pub(super) struct Checked {
     arena: Vec<Kind>,
     closed_formations: std::cell::RefCell<BTreeMap<ClosedNominalFormation, value::Value>>,
     // Only complete immutable original worlds enter this directory. Each
     // result belongs to its exact term and bound on recursive depth.
-    closed_values: Option<std::cell::RefCell<BTreeMap<(usize, Term, usize), value::Value>>>,
+    closed_values: Option<std::cell::RefCell<Vec<Option<Box<WorldValues>>>>>,
     frames: BTreeMap<SemanticDefinitionId, Frame>,
     calls: BTreeMap<(SemanticDefinitionId, NodeId), Call>,
     intrinsics: BTreeMap<(SemanticDefinitionId, NodeId), sealed::Intrinsic>,
@@ -4819,7 +4822,12 @@ pub(super) fn check(
     solver.check_resume_capabilities(b)?;
     solver.check_scoped_threads(b)?;
     b.spend(module.functions.len(), WORK)?;
-    solver.state.closed_values = Some(Default::default());
+    let terms = solver.state.arena.len();
+    b.spend(terms, WORK)?;
+    let mut closed = Vec::new();
+    closed.try_reserve_exact(terms).map_err(|_| resource("original value table allocation failed"))?;
+    closed.resize_with(terms, || None);
+    solver.state.closed_values = Some(std::cell::RefCell::new(closed));
     Ok(solver.state)
 }
 

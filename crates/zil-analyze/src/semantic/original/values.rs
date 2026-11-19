@@ -539,20 +539,29 @@ impl Checked {
         if matches!(self.arena[root], Kind::Atom(_)) || !std::ptr::eq(program, inventory.program) {
             return self.value_at(root, context, program, inventory, b, depth);
         }
-        let key = (context as *const SemanticInstance as usize, root, depth);
-        b.lookup(cache.borrow().len(), WORK)?;
-        if let Some(value) = cache.borrow().get(&key) {
-            return value.copy(b);
+        let key = (context as *const SemanticInstance as usize, depth, b.partial_depth, b.helper_nodes);
+        b.spend(1, WORK)?;
+        if let Some(rows) = cache.borrow()[root].as_ref() {
+            b.lookup(rows.len(), WORK)?;
+            if let Some(value) = rows.get(&key) { return value.copy(b); }
         }
         let value = self.value_at(root, context, program, inventory, b, depth)?;
         // Synthetic contexts can carry different substituted actuals even
         // when their numerical instance IDs coincide. Publish only a value
         // of the immutable instance held by this original inventory.
-        if value.classes.is_empty() {
+        // These are declared class identities of this exact original world.
+        // Fresh physical reborrows, returned regions and temporary shape
+        // atoms still require their complete source-occurrence selection.
+        b.spend(value.classes.len(), WORK)?;
+        if value.classes.iter().all(|class| matches!(class, Class::Formal(..)
+            | Class::Implicit(..) | Class::Invocation(..) | Class::TypeArgument(..) | Class::Nominal(..))) {
             b.lookup(inventory.instances.len(), WORK)?;
             if inventory.instances.get(&context.id).is_some_and(|held| std::ptr::eq(context, *held)) {
-                b.lookup(cache.borrow().len(), WORK)?;
-                cache.borrow_mut().insert(key, value.copy(b)?);
+                b.spend(1, WORK)?;
+                let mut terms = cache.borrow_mut();
+                let rows = terms[root].get_or_insert_with(Default::default);
+                b.lookup(rows.len(), WORK)?;
+                rows.insert(key, value.copy(b)?);
             }
         }
         Ok(value)
