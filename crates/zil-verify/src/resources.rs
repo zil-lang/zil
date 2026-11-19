@@ -3207,17 +3207,35 @@ fn run_with_slots(
         sum_rows,
         replacements,
     };
+    // Taking the output and publishing it moves State headers only. Retain the
+    // direct clone on small inventories where those two moves cost more than
+    // copying the state. This lower bound needs only the immutable Slots.
+    let move_work = std::mem::size_of::<State>()
+        .div_ceil(std::mem::size_of::<usize>())
+        .saturating_mul(2)
+        .saturating_add(2);
+    let clone_floor = slots.debt_count.saturating_mul(2)
+        .saturating_add(slots.product.width())
+        .saturating_add(slots.local_count)
+        .saturating_add(slots.desc_count)
+        .saturating_add(if slots.retirement { slots.desc_count } else { 0 });
+    let forward_output = clone_floor > move_work;
     while let Some(b) = pending.pop(budget)? {
         if let Some(progress)=&mut budget.diagnostic_progress{progress.block_visits=progress.block_visits.saturating_add(1);}
         queued[b] = false;
-        let mut output = clone_state(inputs[b].as_ref().expect("queued resource state"), budget)?;
-        transfer.block(b, &mut output, false, &mut written, budget)?;
-        for &next in &graph.successors[b] {
+        let mut output = Some(clone_state(inputs[b].as_ref().expect("queued resource state"), budget)?);
+        transfer.block(b, output.as_mut().unwrap(), false, &mut written, budget)?;
+        let mut successors = graph.successors[b].iter();
+        while let Some(&next) = successors.next() {
             budget.spend(1)?;
             let changed = if let Some(input) = &mut inputs[next] {
-                merge(input, &output, budget)?
+                merge(input, output.as_ref().unwrap(), budget)?
+            } else if forward_output && successors.as_slice().is_empty() {
+                budget.spend(move_work)?;
+                inputs[next] = output.take();
+                true
             } else {
-                inputs[next] = Some(clone_state(&output, budget)?);
+                inputs[next] = Some(clone_state(output.as_ref().unwrap(), budget)?);
                 true
             };
             if changed && !queued[next] {

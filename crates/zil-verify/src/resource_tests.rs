@@ -295,27 +295,63 @@ fn packed_descriptions_reject_cleanup_before_the_late_live_ordinal_in_raw_and_wi
         index: 0,
     };
 
-    let mut invalid = valid.clone();
-    invalid.functions[0].blocks[0].instructions.swap(read, read + 1);
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
-    for (module, reject) in [(valid, false), (invalid, true)] {
-        let candidate = plan(&module);
-        let bytes = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
-        let raw = verify_module(module, candidate, &target, &limits);
-        let wire = verify_module_bytes(&bytes, &target, &limits);
-        if reject {
-            let raw = raw.unwrap_err();
-            let wire = wire.unwrap_err();
-            assert_eq!(raw, wire);
-            assert!(
-                raw.iter().any(|d| d.code == "E-VERIFY-RESOURCE"
-                    && d.message.contains("invalidate a live description")),
-                "{raw:?}"
+    for crossing in [false, true] {
+        let mut valid = valid.clone();
+        let (block, read) = if crossing {
+            // Keep the live description across both an earlier borrowed edge
+            // and a last edge that can take the whole state, then join them.
+            let f = &mut valid.functions[0];
+            let tail = f.blocks[0].instructions.split_off(read);
+            let condition = ValueId(f.values.len() as u32);
+            f.values.push(Type::Bool);
+            f.blocks[0].instructions.push(i(
+                Some(condition.0),
+                InstructionKind::Constant(Constant::Bool(true)),
+            ));
+            let returned = std::mem::replace(
+                &mut f.blocks[0].terminator,
+                Terminator::Branch {
+                    condition,
+                    then_block: BlockId(1),
+                    else_block: BlockId(2),
+                },
             );
+            f.blocks.extend([1, 2].map(|id| BasicBlock {
+                id: BlockId(id),
+                instructions: vec![],
+                terminator: Terminator::Jump(BlockId(3)),
+            }));
+            f.blocks.push(BasicBlock {
+                id: BlockId(3),
+                instructions: tail,
+                terminator: returned,
+            });
+            (3, 0)
         } else {
-            raw.unwrap();
-            wire.unwrap();
+            (0, read)
+        };
+        let mut invalid = valid.clone();
+        invalid.functions[0].blocks[block].instructions.swap(read, read + 1);
+        for (module, reject) in [(valid, false), (invalid, true)] {
+            let candidate = plan(&module);
+            let bytes = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+            let raw = verify_module(module, candidate, &target, &limits);
+            let wire = verify_module_bytes(&bytes, &target, &limits);
+            if reject {
+                let raw = raw.unwrap_err();
+                let wire = wire.unwrap_err();
+                assert_eq!(raw, wire);
+                assert!(
+                    raw.iter().any(|d| d.code == "E-VERIFY-RESOURCE"
+                        && d.message.contains("invalidate a live description")),
+                    "{raw:?}"
+                );
+            } else {
+                raw.unwrap();
+                wire.unwrap();
+            }
         }
     }
 }
