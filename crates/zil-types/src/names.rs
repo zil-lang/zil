@@ -489,7 +489,7 @@ mod tests {
             initializer: None,
         });
         assert_eq!(
-            check(&m, &Limits::default()).unwrap_err().code,
+            check_modules([&m], &Limits::default()).unwrap_err().code,
             "E-RECEIVER-RESERVED-NAME"
         );
     }
@@ -501,7 +501,7 @@ mod tests {
             span: span(),
         })));
         assert_eq!(
-            check(&m, &Limits::default()).unwrap_err().code,
+            check_modules([&m], &Limits::default()).unwrap_err().code,
             "E-RECEIVER-NONE"
         );
     }
