@@ -121,8 +121,32 @@ impl CheckedOriginal {
             match syntax.expression(node, b)?.operation {
                 Operation::Group(inner) | Operation::Ascribed(inner) => node = inner,
                 Operation::Try(inner) => return Ok(ScalarProjection::Success(inner)),
-                Operation::Member { object, .. } if matches!(self.original_type(definition,
-                    &SemanticOriginalTypeSource::Expression(object), b)?, Ty::Nominal(..) | Ty::Atom(Type::Record { .. })) => return Ok(ScalarProjection::Binding),
+                Operation::Member { object, .. } => {
+                    // A managed or described product still selects a field of a real owner.
+                    // Bind both the SSA read and its complete path back to the original owner.
+                    let parent = self.original_type(definition, &SemanticOriginalTypeSource::Expression(object), b)?;
+                    let mut logical = &parent;
+                    loop {
+                        b.spend(1)?;
+                        match logical {
+                            Ty::Managed(inner) | Ty::Desc { inner, .. } | Ty::Address { inner, .. } => logical = inner,
+                            Ty::Nominal(..) => return Ok(ScalarProjection::Binding),
+                            Ty::Atom(ty) => {
+                                let mut storage = ty;
+                                loop {
+                                    b.spend(1)?;
+                                    match storage {
+                                        Type::Managed(inner) | Type::Desc(inner) | Type::Address { inner, .. }
+                                        | Type::BorrowedStorage { storage: inner, .. } => storage = inner,
+                                        Type::Record { .. } | Type::Package { .. } => return Ok(ScalarProjection::Binding),
+                                        _ => return Ok(ScalarProjection::Other),
+                                    }
+                                }
+                            }
+                            _ => return Ok(ScalarProjection::Other),
+                        }
+                    }
+                }
                 _ => return Ok(ScalarProjection::Other),
             }
         }

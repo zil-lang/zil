@@ -450,6 +450,16 @@ impl Checked {
         Ok(self.local_reads.get(&(definition, node)).copied())
     }
 
+    pub(in crate::semantic) fn place_read_anchor(
+        &self, definition: SemanticDefinitionId, node: NodeId, b: &mut Budget,
+    ) -> CompileResult<Option<LocalAnchor>> {
+        if let Some(local) = self.local_read_anchor(definition, node, b)? {
+            return Ok(Some(local));
+        }
+        b.lookup(self.environment_reads.len(), WORK)?;
+        Ok(self.environment_reads.get(&(definition, node)).copied().map(LocalAnchor::Environment))
+    }
+
     /// The original Γ selected this environment slot at the actual Name
     /// operation. A local shadow never enters this map, even with equal Type.
     pub(in crate::semantic) fn capture_recipe_ordinal(

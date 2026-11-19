@@ -127,7 +127,11 @@ impl Check<'_, '_> {
                     return Ok(false);
                 };
                 b.spend(member.len(), WORK)?;
-                let selected = match inner.as_ref() {
+                let product = match inner.as_ref() {
+                    Type::BorrowedStorage { storage, .. } | Type::Managed(storage) => storage.as_ref(),
+                    inner => inner,
+                };
+                let selected = match product {
                     Type::Record { fields, .. } | Type::Package { fields, .. } => fields
                         .get(*index as usize)
                         .is_some_and(|(name, _)| name == member),
@@ -136,6 +140,9 @@ impl Check<'_, '_> {
                 };
                 selected
                     && self.assignment_place(world, function, object, *address, b, depth + 1)?
+            }
+            (CoreExprKind::Member { object, member, .. }, InstructionKind::BorrowPackageField { local, index, .. }) => {
+                self.copy_package_field_source(world, function, object, member, *local, *index, &producer.kind, actual, b)?
             }
             (
                 CoreExprKind::Unary {
@@ -149,6 +156,36 @@ impl Check<'_, '_> {
             }
             _ => false,
         })
+    }
+
+    /// A fused Package projection encodes its root in the instruction's local operand.
+    /// Reads, descriptions and borrows share field identity and retain distinct result roles.
+    #[allow(clippy::too_many_arguments)]
+    fn copy_package_field_source(
+        &self, world: &SemanticInstance, function: &TypedFunction, mut root: &SemanticOriginalExpr,
+        member: &str, local: LocalId, index: u32, operation: &InstructionKind, actual: ValueId, b: &mut Budget,
+    ) -> CompileResult<bool> {
+        let Some(decl) = function.locals.get(local.0 as usize) else { return Ok(false); };
+        let storage = match &decl.ty { Type::BorrowedStorage { storage, .. } => storage.as_ref(), ty => ty };
+        let Type::Package { fields, .. } = storage else { return Ok(false); };
+        let Some((name, field)) = fields.get(index as usize) else { return Ok(false); };
+        b.spend(name.len().saturating_add(member.len()), WORK)?;
+        if name != member { return Ok(false); }
+        let result = function.values.get(actual.0 as usize).ok_or_else(|| fail("actual Package projection lacks its result type"))?;
+        let typed = match (operation, field, result) {
+            (InstructionKind::DescribePackageField { .. }, Type::Managed(payload), Type::Desc(observed)) => geometry::same_type(payload, observed, b)?,
+            (InstructionKind::BorrowPackageField { mutable, .. }, field, Type::Address { inner, mutable: observed }) =>
+                mutable == observed && geometry::same_type(field, inner, b)?,
+            (InstructionKind::ReadPackageField { .. }, field, result) => geometry::same_type(field, result, b)?,
+            _ => false,
+        };
+        if !typed { return Ok(false); }
+        while let CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } = &root.kind {
+            b.spend(1, WORK)?;
+            root = inner;
+        }
+        let Some(anchor) = self.original.place_read_anchor(world.definition, root.id, b)? else { return Ok(false); };
+        Ok(self.anchored_local(world, function, anchor, b)? == local)
     }
 
     // A TypeUse can identify the correct SSA result even if its producing
@@ -175,9 +212,14 @@ impl Check<'_, '_> {
                 CoreExprKind::Member { object, .. } => {
                     let parent = self.original.source_type(world, SemanticScopeRef::Ancestor(0),
                         &SemanticOriginalTypeSource::Expression(object.id), self.program, self.inventory, b)?;
-                    if !matches!(parent, Type::Record { .. }) { return Ok(true); }
+                    let product = match &parent {
+                        Type::Managed(inner) | Type::Desc(inner) => inner.as_ref(),
+                        ty => ty,
+                    };
+                    if !matches!(product, Type::Record { .. } | Type::Package { .. }) { return Ok(true); }
                     let (_, _, producer) = self.defining(function, value, b)?;
-                    if !matches!(producer.kind, InstructionKind::ExtractField { .. } | InstructionKind::ReadAddress { .. }) {
+                    if !matches!(producer.kind, InstructionKind::ExtractField { .. } | InstructionKind::ReadAddress { .. }
+                        | InstructionKind::ReadDesc { .. } | InstructionKind::ReadPackageField { .. }) {
                         return Ok(false);
                     }
                     return self.copy_expression_source(world, function, source, value, b, 0);
@@ -224,6 +266,12 @@ impl Check<'_, '_> {
                     return Ok(false);
                 };
                 self.anchored_local(world, function, anchor, b)? == *local
+            }
+            (
+                CoreExprKind::Member { object, member, .. },
+                InstructionKind::DescribePackageField { local, index } | InstructionKind::ReadPackageField { local, index },
+            ) => {
+                self.copy_package_field_source(world, function, object, member, *local, *index, &producer.kind, actual, b)?
             }
             (
                 CoreExprKind::Member { object, member, .. },

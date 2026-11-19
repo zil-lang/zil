@@ -519,3 +519,46 @@ fn scalar_call_after_question_mark_uses_this_calls_success_payload() {
     require_semantic_rejection(zil_verify::verify_module(module, plan, &target, &limits).unwrap_err());
     require_semantic_rejection(zil_verify::verify_module_bytes(&changed, &target, &limits).unwrap_err());
 }
+
+#[test]
+fn scalar_call_observes_the_selected_managed_field_of_a_captured_package() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "captured-fields.zil", r#"
+        resource Ticket { code: i32 }
+        impl Drop for Ticket { fn drop(self: Self) {} }
+        package Bag { manages left: Ticket; manages right: Ticket; counter: i32 }
+        fn keep(value: i32) -> i32 { return value }
+        fn make() -> impl FnMut(i32) -> i32 {
+            var bag = Bag { left: Ticket { code: 17 }, right: Ticket { code: 25 }, counter: 0 }
+            return move (step: i32) => { bag.counter += 1; return keep(bag.left.code + step) }
+        }
+        fn main() -> i32 { var callback = make(); return callback(0) - 17 }
+    "#);
+    let core = original_core(source, &limits, &target);
+    let mut module = zil_types::check(&core, &target, &limits).unwrap();
+    let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let original = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&original, &target, &limits).unwrap();
+
+    let mut changed = 0;
+    for function in &mut module.functions {
+        for instruction in function.blocks.iter_mut().flat_map(|block| &mut block.instructions) {
+            if let InstructionKind::BorrowPackageField { local, index, mutable: false } = &mut instruction.kind {
+                let Type::Package { fields, .. } = &function.locals[local.0 as usize].ty else { panic!() };
+                assert_eq!((&fields[0].0[..], &fields[1].0[..]), ("left", "right"));
+                assert_eq!(fields[0].1, fields[1].1);
+                assert_eq!(*index, 0);
+                *index = 1;
+                changed += 1;
+            }
+        }
+    }
+    assert_eq!(changed, 1);
+    require_semantic_rejection(zil_analyze::analyze(&module, &limits).unwrap_err());
+    plan.module_fingerprint = module.fingerprint();
+    let changed = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    require_semantic_rejection(zil_verify::verify_module(module, plan, &target, &limits).unwrap_err());
+    require_semantic_rejection(zil_verify::verify_module_bytes(&changed, &target, &limits).unwrap_err());
+}

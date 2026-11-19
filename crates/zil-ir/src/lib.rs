@@ -2321,7 +2321,9 @@ pub enum InstructionKind {
         local: LocalId,
         index: u32,
     },
-    /// Borrow the actual resource header at this package field position.
+    /// Observe the live managed field selected by `index` in this exact Package local.
+    /// The result describes that field's resource header. The Package keeps its owner
+    /// and cleanup duty. A subsequent ReadDesc resolves its field relative to this header.
     DescribePackageField {
         local: LocalId,
         index: u32,
@@ -2374,6 +2376,8 @@ pub enum InstructionKind {
     DescribeAddress {
         address: ValueId,
     },
+    /// Read this Copy payload field through the live descriptor. Preserve its actual
+    /// header origin and field ordinal when checking the enclosing source expression.
     ReadDesc {
         desc: ValueId,
         index: u32,

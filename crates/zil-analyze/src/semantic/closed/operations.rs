@@ -19,7 +19,7 @@ impl Check<'_, '_> {
         if inputs.len() != arguments.len() {
             return Err(fail("static call changes its original scalar argument ordinals"));
         }
-        for ((source, &operand), ty) in inputs.iter().zip(arguments).zip(parameters) {
+        for (ordinal, ((source, &operand), ty)) in inputs.iter().zip(arguments).zip(parameters).enumerate() {
             if !ty.is_b0_scalar() { continue; }
             let initializer = if matches!(source.kind, CoreExprKind::Name(_)) {
                 self.original.prepared_initializer(instance.definition, source.id, b)?
@@ -46,7 +46,14 @@ impl Check<'_, '_> {
                 }
                 if proven { continue; }
             }
-            return Err(fail(&format!("actual scalar Call argument selects another original expression {:?}, SSA {:?}", source.id, operand)));
+            let (block, index, producer) = self.defining(function, operand, b)?;
+            let mut diagnostic = fail(&format!("actual scalar Call argument selects another original expression {:?}, SSA {:?}", source.id, operand));
+            diagnostic[0].span = Some(source.span);
+            diagnostic[0].notes.push(format!(
+                "Call argument {ordinal} requires the value of original {:?} in {:?}; actual {:?} is produced in {:?}, block {} instruction {index} at {:?}.",
+                source.id, instance.definition, operand, function.id, block.0, producer.span,
+            ));
+            return Err(diagnostic);
         }
         Ok(())
     }

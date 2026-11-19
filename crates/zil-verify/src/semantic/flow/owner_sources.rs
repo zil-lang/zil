@@ -209,7 +209,8 @@ impl CheckedContext{
                     (AddressProjection::Field(name),InstructionKind::BorrowPackageField{local,index,..})if ordinal+1==projections.len()=>{
                         let ty=&f.locals.get(local.0 as usize).ok_or_else(||bad("borrowed Package field has no complete actual parent"))?.ty;let mut field=vec![name.clone()];consume_field(ty,*index,&mut field,b)?;fused=Some(*local);
                     },
-                    (AddressProjection::Field(name),InstructionKind::ReadPackageField{local,index})if read_value&&ordinal+1==projections.len()=>{
+                    (AddressProjection::Field(name), InstructionKind::ReadPackageField { local, index }
+                        | InstructionKind::DescribePackageField { local, index }) if read_value && ordinal+1==projections.len()=>{
                         let ty=&f.locals.get(local.0 as usize).ok_or_else(||bad("observed Package field has no complete actual parent"))?.ty;let mut field=vec![name.clone()];consume_field(ty,*index,&mut field,b)?;fused=Some(*local);
                     },
                     (AddressProjection::Field(name), InstructionKind::TakePackageField { local, index })
