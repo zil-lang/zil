@@ -569,7 +569,7 @@ impl FunctionEmitter<'_> {
         let definition = self.closure_definition(environment)?;
         let has_owned = owns(definition);
         let group = if self.task_ownership.is_some() {
-            tasks::cleanup_group(self.dyn_module, &Type::Closure(environment), self.machine_meter)?
+            tasks::cleanup_group(self.dyn_module, environment, self.machine_meter)?
         } else { None };
         if !has_owned && definition.kind != CallableKind::FnOnce {
             return Ok(());
@@ -735,7 +735,7 @@ impl FunctionEmitter<'_> {
             self.task_ownership.and_then(|plan| plan.actions_at(block, index))
         }).filter(|actions| actions.invocation_owner().is_some());
         let group = if cleanup.is_some() {
-            Some(tasks::cleanup_group(self.dyn_module, &Type::Closure(environment), self.machine_meter)?
+            Some(tasks::cleanup_group(self.dyn_module, environment, self.machine_meter)?
                 .ok_or_else(|| vec![Diagnostic::error(Phase::Codegen, "E-CODEGEN-TASK", Some(instruction.span),
                     "verified consuming cleanup has no actual environment group")])?)
         } else { None };

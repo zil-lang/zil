@@ -710,7 +710,8 @@ pub(super) fn physical_tuple_payload(p:&Payload,b:&mut Budget)->Check<()>{
 }
 
 pub(super) fn frame_protocol_aggregate(module: &TypedModule, f: &TypedFunction, ty: &Type, b: &mut Budget) -> Check<bool> {
-    if f.call_kind != CallKind::Suspend || f.foreign.is_some() || !matches!(ty, Type::Tuple(_) | Type::Enum { .. }) {
+    if f.call_kind != CallKind::Suspend || f.foreign.is_some() || !matches!(ty, Type::Tuple(_) | Type::Enum { .. } | Type::Package { .. }
+            | Type::Record { .. } | Type::ErrorUnion { .. } | Type::Array { .. }) {
         return Ok(false);
     }
     let mut pending = vec![(ty, 0usize)];
@@ -724,6 +725,22 @@ pub(super) fn frame_protocol_aggregate(module: &TypedModule, f: &TypedFunction, 
             Type::Tuple(fields) => {
                 b.spend(fields.len())?;
                 pending.extend(fields.iter().map(|child| (child, depth + 1)));
+            }
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, child)| (child, depth + 1)));
+            }
+            Type::ErrorUnion { error, result } => {
+                b.spend(2)?;
+                pending.extend([(error.as_ref(), depth + 1), (result.as_ref(), depth + 1)]);
+            }
+            Type::Array { element, length } => {
+                // All physical elements have the same declaration. An empty
+                // array cannot contribute a live leaf to the frame.
+                if *length != 0 {
+                    b.spend(1)?;
+                    pending.push((element, depth + 1));
+                }
             }
             Type::Enum { variants, .. } => {
                 b.spend(variants.len())?;

@@ -1397,12 +1397,15 @@ impl Expander<'_> {
                 let fields = a
                     .fields
                     .iter()
-                    .map(|f| CoreField {
-                        name: f.name.clone(),
-                        ty: self.dyn_type_ref(&f.ty),
-                        public: f.public,
-                        manages: f.manages,
-                        span: f.span,
+                    .map(|field| {
+                        let ty = self.dyn_type_ref(&field.ty);
+                        CoreField {
+                            name: field.name.clone(),
+                            ty: if field.manages { self.managed_field_type(&field.ty, ty) } else { ty },
+                            public: field.public,
+                            manages: field.manages,
+                            span: field.span,
+                        }
                     })
                     .collect();
                 self.aggregates.push(CoreAggregate {

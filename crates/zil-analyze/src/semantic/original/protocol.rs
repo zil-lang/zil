@@ -807,21 +807,20 @@ impl Proof<'_, '_> {
             }
             CoreExprKind::Record { fields, .. }
             | CoreExprKind::RecordConstructor { fields, .. } => {
-                let mut exposed = false;
-                for (_, field) in fields {
+                let mut aggregate = Data::default();
+                for (member, field) in fields {
                     let data = self.expression(state, field, b, depth + 1)?;
                     self.plain(&data)?;
-                    exposed |= data.sources.opaque_exposure();
-                    if data.sources.has_exact() {
-                        return Err(unknown(
-                            "original protocol product needs its complete nested owner-place identity",
-                        ));
+                    if data.sources.needs_field_path() {
+                        // The physical field number comes from the original product,
+                        // independently of initializer order and neighboring types.
+                        let ordinal = self.projected_field(value.id, member, b)?;
+                        aggregate.sources.append_under(&[PlaceProjection::Field(ordinal)], &data.sources, b)?;
+                    } else {
+                        aggregate.sources.append_under(&[], &data.sources, b)?;
                     }
                 }
-                Ok(Data {
-                    sources: OwnerSources::opaque(exposed),
-                    outcomes: Vec::new(),
-                })
+                Ok(aggregate)
             }
             CoreExprKind::RecordUpdate { base, fields, .. } => {
                 let data = self.expression(state, base, b, depth + 1)?;

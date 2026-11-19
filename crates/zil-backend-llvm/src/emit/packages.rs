@@ -239,6 +239,10 @@ fn gep_suffix(path: &[u32]) -> Vec<m::Arg> {
         .collect()
 }
 
+pub(super) fn field_flag(local: LocalId, index: u32) -> String {
+    format!("package.live.{}.{index}", local.0)
+}
+
 impl FunctionEmitter<'_> {
     pub(super) fn package_flags(
         &mut self,
@@ -264,7 +268,7 @@ impl FunctionEmitter<'_> {
         for index in owned {
             if allocate {
                 self.event(m::Event::Instruction(m::Inst::new(
-                    Some(format!("package.live.{}.{}", local.0, index)),
+                    Some(field_flag(local, index as u32)),
                     m::Op::Alloca {
                         ty: m::Ty::Int(1),
                         align: 1,
@@ -275,7 +279,7 @@ impl FunctionEmitter<'_> {
                 None,
                 m::Op::Store {
                     arg: m::Arg::new(m::Ty::Int(1), m::val(live)),
-                    ptr: m::local(format!("package.live.{}.{}", local.0, index)),
+                    ptr: m::local(field_flag(local, index as u32)),
                     align: 1,
                 },
             )));
@@ -432,7 +436,7 @@ impl FunctionEmitter<'_> {
             None,
             m::Op::Store {
                 arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
-                ptr: m::local(format!("package.live.{}.{}", local.0, index)),
+                ptr: m::local(field_flag(local, index as u32)),
                 align: 1,
             },
         )));
@@ -475,7 +479,7 @@ impl FunctionEmitter<'_> {
                 None,
                 m::Op::Store {
                     arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(true)),
-                    ptr: m::local(format!("package.live.{}.{}", local.0, index)),
+                    ptr: m::local(field_flag(local, index as u32)),
                     align: 1,
                 },
             )));
@@ -521,7 +525,7 @@ impl FunctionEmitter<'_> {
             Some(m::name((flag).clone())),
             m::Op::Load {
                 ty: m::Ty::Int(1),
-                ptr: m::local(format!("package.live.{}.{}", local.0, index)),
+                ptr: m::local(field_flag(local, index as u32)),
                 align: 1,
             },
         )));
@@ -540,7 +544,7 @@ impl FunctionEmitter<'_> {
             None,
             m::Op::Store {
                 arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
-                ptr: m::local(format!("package.live.{}.{}", local.0, index)),
+                ptr: m::local(field_flag(local, index as u32)),
                 align: 1,
             },
         )));

@@ -237,7 +237,7 @@ fn admit_shape(
             }
             match package_storage(ty) {
                 Type::Managed(payload)
-                    if (stores && dynamic_store::is_owned_carrier(ty))
+                    if (stores && (dynamic_store::is_owned_carrier(ty) || crate::budget::direct_resource_payload(payload)))
                         || **payload == Type::ByteBuffer
                         || (matches!(payload.as_ref(), Type::Record { .. })
                             && payload.is_copy_value()) =>

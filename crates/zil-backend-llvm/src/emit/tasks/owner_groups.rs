@@ -149,18 +149,18 @@ pub(super) fn route(module: &TypedModule, ty: &Type, meter: &Meter) -> CompileRe
         type_work(ty, meter)?;
         return Ok(Some(Group::Inline { name: format!("zil.task.inline.drop.{}", ty.fingerprint()), partial: false }));
     }
-    closure(module, ty, meter).map(|id| id.map(Group::Closure))
+    match physical {
+        Type::Closure(id) => closure(module, *id, meter).map(|group| group.map(Group::Closure)),
+        Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. } | Type::TaskI32 | Type::AsyncRegistration { .. }) => Ok(None),
+        _ if scan(module, ty, 0, meter)? => unsupported("heap-owned payload needs its own cleanup protocol", None),
+        _ => Ok(None),
+    }
 }
 
-pub(super) fn closure(module: &TypedModule, ty: &Type, meter: &Meter) -> CompileResult<Option<ClosureId>> {
-    let physical=enums::storage_shape(ty);
-    let Type::Closure(id)=physical else {
-        if matches!(physical,Type::Managed(payload)if matches!(payload.as_ref(),Type::Task{..}|Type::TaskI32|Type::AsyncRegistration{..})) {return Ok(None);}
-        if scan(module,ty,0,meter)? {return unsupported("asynchronous canonical composite owner/result needs its complete resumable field recipe",None);}
-        return Ok(None);
-    };
-    if !scan(module,ty,0,meter)? {return Ok(None);}
-    validate(module,*id,0,meter)?;Ok(Some(*id))
+pub(super) fn closure(module: &TypedModule, id: ClosureId, meter: &Meter) -> CompileResult<Option<ClosureId>> {
+    if !scan(module, &Type::Closure(id), 0, meter)? { return Ok(None); }
+    validate(module, id, 0, meter)?;
+    Ok(Some(id))
 }
 
 fn flag(layouts: &LayoutContext<'_>, v: &mut Vec<m::Inst>, d: &ClosureDefinition, index: usize) -> CompileResult<()> {
@@ -276,56 +276,45 @@ pub(super) fn functions(layouts: &LayoutContext<'_>, module: &TypedModule, id: C
     Ok(items)
 }
 
-pub(super) fn helpers(layouts: &LayoutContext<'_>, verified: &VerifiedModule, meter: &Meter) -> CompileResult<Vec<m::Item>> {
+pub(super) fn helpers(layouts: &LayoutContext<'_>, verified: &VerifiedModule, plans: &BTreeMap<FunctionId, FramePlan>, meter: &Meter) -> CompileResult<Vec<m::Item>> {
     let module=verified.module();
     let mut needed=BTreeSet::new();
     let mut pending=Vec::new();
     let mut inline: BTreeMap<String, (&Type, bool)> = BTreeMap::new();
-    let mut add = |route, ty| -> CompileResult<()> {
+    let mut add = |route: &Option<Group>, ty| -> CompileResult<()> {
         match route {
-            Some(Group::Closure(id)) => pending.push(id),
+            Some(Group::Closure(id)) => pending.push(*id),
             Some(Group::Inline { name, partial }) => {
                 meter.spend(inline.len().checked_ilog2().map_or(1, |depth| depth as usize + 2))?;
-                if let Some((previous, previous_partial)) = inline.get(&name) {
+                if let Some((previous, previous_partial)) = inline.get(name) {
                     type_work(previous, meter)?;
                     type_work(ty, meter)?;
-                    if *previous != ty || *previous_partial != partial {
+                    if *previous != ty || previous_partial != partial {
                         return invalid("E-CODEGEN-TASK", "resumable inline helper changes its complete actual Type", None);
                     }
                 } else {
-                    inline.insert(name, (ty, partial));
+                    inline.insert(name.clone(), (ty, *partial));
                 }
             }
             None => {}
         }
         Ok(())
     };
-    for f in &module.functions {
-        if let Some(ownership)=verified.task_ownership(f.id) {
-            let roles=RetirementRoles::of(ownership,meter)?;
-            let mut partial_locals = BTreeSet::new();
-            for item in f.blocks.iter().flat_map(|block| &block.instructions) {
-                meter.spend(1)?;
-                if let InstructionKind::TakeTupleField { local, .. }
-                    | InstructionKind::TakeVariantField { local, .. } = item.kind
-                {
-                    meter.spend(partial_locals.len().saturating_add(1).ilog2() as usize + 2)?;
-                    partial_locals.insert(local);
-                }
-            }
-            for (index,owner) in ownership.owners().iter().enumerate() {
-                let mut group = roles.group(index,module,owner.ty(),meter)?;
-                if let Some(group) = &mut group
-                    && let zil_verify::TaskOwnerSlot::Local(local) = owner.slot()
-                    && partial_locals.contains(&local)
-                {
-                    group.mark_partial();
-                }
-                add(group, owner.ty())?;
-            }
-            if let Some(ty)=ownership.result_type() {
-                add(route(module,ty,meter)?, ty)?;
-            }
+    // The frame already selected routes from its actual storage, including
+    // partial moves. Emit exactly those helpers, using the same owner index.
+    for (&worker, frame) in plans {
+        meter.spend(1)?;
+        let Some(frame_owners) = &frame.owners else { continue; };
+        let ownership = verified.task_ownership(worker).ok_or_else(|| vec![
+            Diagnostic::error(Phase::Codegen, "E-CODEGEN-TASK", None, "owner frame has no verified worker")
+        ])?;
+        let types = ownership.owners().iter().map(|owner| owner.ty()).chain(ownership.result_type());
+        if frame_owners.groups.len() != ownership.owners().len() + usize::from(ownership.result_type().is_some()) {
+            return invalid("E-CODEGEN-TASK", "frame group directory differs from its canonical owners and saved result", None);
+        }
+        for (route, ty) in frame_owners.groups.iter().zip(types) {
+            meter.spend(1)?;
+            add(route, ty)?;
         }
     }
     let mut result=vec![];
@@ -336,8 +325,8 @@ pub(super) fn helpers(layouts: &LayoutContext<'_>, verified: &VerifiedModule, me
         meter.spend(needed.len().saturating_add(1))?;
         if !needed.insert(id) {continue;}
         for ty in &definition(module,id)?.captures {
-            if matches!(enums::storage_shape(ty), Type::Closure(_))
-                && let Some(child)=closure(module,ty,meter)? { pending.push(child); }
+            if let Type::Closure(child) = enums::storage_shape(ty)
+                && let Some(child)=closure(module,*child,meter)? { pending.push(child); }
         }
         result.extend(functions(layouts,module,id,&mut pending,meter)?);
     }
@@ -359,7 +348,7 @@ mod tests {
     #[test]
     fn resumable_environment_keeps_synchronous_package_capture_flags_and_real_teardown() {
         let module=module();let limits=zil_base::Limits::default();let layouts=&LayoutContext::for_test_module(&module,&limits).unwrap();
-        assert_eq!(closure(&module,&Type::Closure(ClosureId(0)),layouts.meter()).unwrap(),Some(ClosureId(0)));
+        assert_eq!(closure(&module,ClosureId(0),layouts.meter()).unwrap(),Some(ClosureId(0)));
         let generated=functions(layouts,&module,ClosureId(0),&mut vec![],layouts.meter()).unwrap();
         let poll=generated.iter().find_map(|item|match item {m::Item::Function(function)if function.name==symbol(ClosureId(0),"poll")=>Some(function),_=>None}).unwrap();
         assert!(poll.blocks.as_ref().unwrap().iter().flat_map(|block|&block.instructions).any(|instruction|matches!(&instruction.op,m::Op::Call{callee,args,..}if *callee==m::global(resource_closures::capture_drop_symbol(ClosureId(0),1))&&args[0].value==loc("env"))));
@@ -369,9 +358,9 @@ mod tests {
         assert!(captures.0[first..end].iter().any(|event|matches!(event,m::Event::Instruction(m::Inst{op:m::Op::CondBranch{yes,..},..})if yes=="field.drop.1.0")),"a taken Package child must still be skipped by its own flag");
         assert!(captures.0[first..end].iter().any(|event|matches!(event,m::Event::Instruction(m::Inst{op:m::Op::Call{callee,..},..})if *callee==m::global("zil.fn.1".into()))));
         let mut wrong=module.clone();wrong.functions[1].call_kind=zil_ir::CallKind::Suspend;
-        assert!(closure(&wrong,&Type::Closure(ClosureId(0)),layouts.meter()).is_err());
+        assert!(closure(&wrong,ClosureId(0),layouts.meter()).is_err());
         let mut missing=module.clone();missing.resources.pop();
-        assert!(closure(&missing,&Type::Closure(ClosureId(0)),layouts.meter()).is_err());
+        assert!(closure(&missing,ClosureId(0),layouts.meter()).is_err());
     }
     #[test]
     fn canonical_intermediate_keeps_ordinary_transfer_without_inventing_a_retirement_route() {
@@ -415,14 +404,14 @@ mod tests {
         for ty in [Type::Tuple(vec![task.clone()]),Type::Array{element:Box::new(task.clone()),length:1},Type::Enum{name:"UnknownActive".into(),variants:vec![("Empty".into(),vec![]),("Live".into(),vec![task.clone()])]},Type::ErrorUnion{error:Box::new(Type::Unit),result:Box::new(task.clone())}] {
             assert!(matches!(route(&module,&ty,&meter).unwrap(), Some(Group::Inline { .. })));
             module.closures[0].captures[1]=ty;
-            assert_eq!(closure(&module,&Type::Closure(ClosureId(0)),&meter).unwrap(), Some(ClosureId(0)));
+            assert_eq!(closure(&module,ClosureId(0),&meter).unwrap(), Some(ClosureId(0)));
         }
-        assert_eq!(closure(&module,&task,&meter).unwrap(),None,"the dedicated canonical Task route remains available");
+        assert_eq!(route(&module,&task,&meter).unwrap(),None,"the dedicated canonical Task route remains available");
         let borrowed=Type::Address{mutable:false,inner:Box::new(task.clone())};
-        assert_eq!(closure(&module,&borrowed,&meter).unwrap(),None);
+        assert_eq!(route(&module,&borrowed,&meter).unwrap(),None);
         let heap = Type::Tuple(vec![Type::Managed(Box::new(Type::OwnedStore { element: Box::new(task.clone()) }))]);
         let diagnostics = route(&module, &heap, &meter).unwrap_err();
         assert!(diagnostics[0].message.contains("heap-owned payload needs its own cleanup protocol"));
-        assert_eq!(closure(&module,&Type::Array{element:Box::new(task),length:0},&meter).unwrap(),None,"no runtime element exists in a zero-length owner");
+        assert_eq!(route(&module,&Type::Array{element:Box::new(task),length:0},&meter).unwrap(),None,"no runtime element exists in a zero-length owner");
     }
 }

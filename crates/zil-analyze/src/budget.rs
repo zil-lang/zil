@@ -1008,15 +1008,22 @@ struct SumContext {
     forbidden_store: bool,
 }
 
+/// These owning heads have independent declaration and protocol checks in the
+/// resource pass. An inline field and an ordinary local carry the same head.
+pub(super) fn direct_resource_payload(payload: &Type) -> bool {
+    matches!(payload, Type::ByteBuffer | Type::TaskI32 | Type::Task { .. }
+        | Type::Registration { .. } | Type::AsyncRegistration { .. })
+        || (matches!(payload, Type::Record { .. }) && payload.is_copy_value())
+}
+
 fn package_fields_supported(ty: &Type, arrays: bool) -> bool {
     matches!(ty, Type::Package { fields, .. }
     if fields.iter().any(|(_, t)| matches!(t, Type::Managed(_)))
     && fields.iter().all(|(_, t)| {
         t.is_copy_value()
             || (arrays && matches!(t, Type::Closure(_)))
-            || matches!(t, Type::Managed(p) if **p == Type::ByteBuffer
-                || (arrays && matches!(p.as_ref(), Type::OwnedStore { .. }))
-                || (matches!(p.as_ref(), Type::Record { .. }) && p.is_copy_value()))
+            || matches!(t, Type::Managed(p) if direct_resource_payload(p)
+                || (arrays && matches!(p.as_ref(), Type::OwnedStore { .. })))
             || (arrays && matches!(t, Type::Array { element, length }
                 if *length > 0 && package_fields_supported(element, false)))
     }))
@@ -1098,8 +1105,7 @@ pub(super) fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> Compi
         || crate::resources::head_address(ty)
         || ty.is_package_address()
         || matches!(ty, Type::Managed(inner) | Type::Desc(inner)
-            if **inner == Type::ByteBuffer || matches!(inner.as_ref(),Type::TaskI32|Type::Task{..}) || matches!(inner.as_ref(), Type::Registration { .. } | Type::AsyncRegistration { .. })
-                || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()))
+            if direct_resource_payload(inner))
     {
         Ok(())
     } else {

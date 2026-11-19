@@ -82,7 +82,8 @@ impl Check<'_, '_> {
                         || function.call_kind == CallKind::Suspend
                             && matches!(payload.as_ref(), Type::AsyncRegistration { .. }) => None,
                     Type::Closure(id) => Some(*id),
-                    Type::Tuple(_) | Type::Enum { .. } if function.call_kind == CallKind::Suspend => None,
+                    Type::Tuple(_) | Type::Enum { .. } | Type::Package { .. } | Type::ErrorUnion { .. }
+                    | Type::Array { .. } if function.call_kind == CallKind::Suspend => None,
                     _ => return Err(unknown("original cleanup occurrence needs its complete actual owning Task frame proof")),
                 };
                 let mut sites = 0usize;
@@ -94,8 +95,11 @@ impl Check<'_, '_> {
                                 InstructionKind::DropOwnedArrayElement { local: selected, index: 0 }
                                 | InstructionKind::DropOwnedArray { local: selected } if selected == local)
                         } else { match &declaration.ty {
-                            Type::Tuple(_) => matches!(instruction.kind, InstructionKind::DropTuple { local: selected } if selected == local),
-                            Type::Enum { .. } => matches!(instruction.kind, InstructionKind::DropEnum { local: selected } if selected == local),
+                            Type::Tuple(_) | Type::Enum { .. } | Type::Package { .. }
+                            | Type::Array { .. } | Type::ErrorUnion { .. } => {
+                                instruction.kind.whole_aggregate_drop() == Some(local)
+                                    && instruction.kind.drops_aggregate_storage(&declaration.ty)
+                            }
                             Type::Closure(_) => matches!(instruction.kind, InstructionKind::DropClosure { local: selected } if selected == local),
                             _ => matches!(instruction.kind, InstructionKind::DropManaged { local: selected } if selected == local),
                         }};

@@ -836,6 +836,18 @@ fn inline_protocol_aggregates_follow_the_actual_continuation_and_cleanup_edge() 
             "Anested tuple: no-future before release\n",
         ),
         (
+            "package-cancel",
+            include_str!("../../../tests/language-readiness/task-aggregate-results/inline-task-package-cancel.zil"),
+            "inline-task-enum-observer.c",
+            "AB selected child closed between its neighboring fields\n",
+        ),
+        (
+            "package-ready",
+            include_str!("../../../tests/language-readiness/task-aggregate-results/inline-task-package-ready.zil"),
+            "inline-task-enum-observer.c",
+            "AB selected child closed between its neighboring fields\n",
+        ),
+        (
             "enum-cancel",
             INLINE_CHILD,
             "inline-task-enum-observer.c",

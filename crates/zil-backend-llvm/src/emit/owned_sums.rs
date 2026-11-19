@@ -493,10 +493,7 @@ impl FunctionEmitter<'_> {
         instruction: &Instruction,
         local: LocalId,
     ) -> CompileResult<()> {
-        let owner = if let Some((block, index)) = self.current_instruction {
-            self.inline_drop_owner_at(block, index, local)?
-        } else { None };
-        if owner.is_none() && self.drop_partial_place(local)? {
+        if self.drop_partial_place(local)? {
             return Ok(());
         }
         let ty = self.local_type(local)?.clone();
@@ -518,6 +515,13 @@ impl FunctionEmitter<'_> {
                 Some(instruction.span),
             );
         }
+        self.emit_whole_drop(local, None)
+    }
+
+    /// The verified boundary keeps this exact local linked while the child is
+    /// Pending. The marker resumes at its field cursor; only Ready retires the
+    /// local and permits its frame storage to be used again.
+    pub(super) fn emit_whole_drop(&mut self, local: LocalId, owner: Option<usize>) -> CompileResult<()> {
         let flag = self.temp();
         let label = self.continuation;
         self.continuation += 1;
@@ -550,7 +554,10 @@ impl FunctionEmitter<'_> {
             self.event(tasks::inline_drop_marker(owner));
             self.event(clear);
             self.partial_flags(local, false, false)?;
+            self.package_flags(local, false, false)?;
+            self.owned_array_flags(local, false, false)?;
         } else {
+            let ty = self.local_type(local)?.clone();
             self.event(clear);
             self.event(m::Event::Instruction(m::Inst::new(
                 None,

@@ -9,7 +9,7 @@ mod tests;
 
 #[derive(Clone, Copy)]
 enum Edge<'a> {
-    Field(&'a m::Ty, u32),
+    Field { layout: &'a m::Ty, machine: u32, declared: u32 },
     Element(&'a m::Ty, u32),
     Live(&'a m::Ty, u32),
     Alternative { layout: &'a m::Ty, width: u32, tag: u32, payload: u32 },
@@ -41,8 +41,8 @@ fn steps<'a>(plan: &'a DropPlan, module: &TypedModule, path: &mut Vec<Edge<'a>>,
     let action = match plan {
         DropPlan::Empty => return Ok(()),
         DropPlan::Product(layout, fields) => {
-            for (index, field) in fields {
-                child(Edge::Field(layout, *index), field)?;
+            for (declared, (machine, field)) in fields.iter().enumerate() {
+                child(Edge::Field { layout, machine: *machine, declared: declared as u32 }, field)?;
             }
             return Ok(());
         }
@@ -68,7 +68,7 @@ fn steps<'a>(plan: &'a DropPlan, module: &TypedModule, path: &mut Vec<Edge<'a>>,
         DropPlan::Leaf(name) => Action::Call(name),
         DropPlan::Task => Action::Task,
         DropPlan::AsyncRegistration => Action::Registration,
-        DropPlan::Closure(id) => Action::Environment(*id, owner_groups::closure(module, &Type::Closure(*id), meter)?.is_some()),
+        DropPlan::Closure(id) => Action::Environment(*id, owner_groups::closure(module, *id, meter)?.is_some()),
     };
     // Account for the copied occurrence path and the two emitted consumers.
     meter.spend(256usize.saturating_add(path.len().saturating_mul(128)))?;
@@ -82,7 +82,7 @@ fn project(layouts: &LayoutContext<'_>, blocks: &mut Vec<m::Block>, prefix: &str
     for (ordinal, edge) in path.iter().enumerate() {
         let pointer = format!("{prefix}.path.{ordinal}");
         let (layout, index, element) = match *edge {
-            Edge::Field(layout, index) => (layout, index, false),
+            Edge::Field { layout, machine, .. } => (layout, machine, false),
             Edge::Element(layout, index) => (layout, index, true),
             Edge::Live(layout, index) => {
                 gep(&mut body, &pointer, &layouts.clone_machine(layout)?, loc(&base), index);
@@ -154,8 +154,26 @@ pub(super) fn partial_flags(
     layouts: &LayoutContext<'_>,
     module: &TypedModule,
     ty: &Type,
+    local: LocalId,
+    slots: &BTreeMap<String, Slot>,
     meter: &Meter,
-) -> CompileResult<Vec<usize>> {
+) -> CompileResult<Option<Vec<String>>> {
+    use super::super::{arrays, packages, partial_places};
+    // The most precise existing flag belongs to this actual local. A
+    // transferred whole field or array element guards its entire subtree.
+    // These guards are read-only during retirement. The cursor advances past
+    // each completed leaf and remains on a child that returned Pending.
+    enum Guards { Leaves, Fields, Elements }
+    meter.spend(slots.len().checked_ilog2().map_or(1, |n| n as usize + 2).saturating_mul(3))?;
+    let package_prefix = format!("package.live.{}.", local.0);
+    let guards = if slots.contains_key(&partial_places::flag_name(local, 0)) {
+        Guards::Leaves
+    } else if matches!(enums::storage_shape(ty), Type::Package { .. })
+        && slots.range(package_prefix.clone()..).next().is_some_and(|(key, _)| key.starts_with(&package_prefix)) {
+        Guards::Fields
+    } else if slots.contains_key(&arrays::element_flag(local, 0)) {
+        Guards::Elements
+    } else { return Ok(None); };
     let limits = meter.limits()?;
     let mut budget = drop_plan::Budget::new(limits);
     budget.tree(ty, 0)?;
@@ -163,18 +181,33 @@ pub(super) fn partial_flags(
         budget.tree(&resource.payload, 0)?;
     }
     meter.spend(budget.spent())?;
-    let leaves = super::super::partial_places::leaves(ty, &module.resources)?;
+    let leaves = match guards {
+        Guards::Leaves => Some(partial_places::leaves(ty, &module.resources)?),
+        Guards::Fields | Guards::Elements => None,
+    };
     let plan = drop_plan::inline_plan(layouts, ty, &module.resources, meter)?;
     let mut entries = Vec::new();
     steps(&plan, module, &mut Vec::new(), &mut entries, meter)?;
     let mut flags = Vec::with_capacity(entries.len());
     for step in entries {
         meter.spend(step.path.len().saturating_add(1))?;
+        match (&guards, step.path.first()) {
+            (Guards::Elements, Some(Edge::Element(_, index))) => {
+                flags.push(arrays::element_flag(local, *index));
+                continue;
+            }
+            (Guards::Fields, Some(Edge::Field { declared, .. })) => {
+                flags.push(packages::field_flag(local, *declared));
+                continue;
+            }
+            (Guards::Leaves, _) => {}
+            _ => return invalid("E-CODEGEN-TASK", "partial owner step has no actual guarded component", None),
+        }
         let mut path = Vec::new();
         let mut variant = None;
         for edge in step.path {
             match edge {
-                Edge::Field(_, index) => path.push(match variant.take() {
+                Edge::Field { declared: index, .. } => path.push(match variant.take() {
                     Some(variant) => PlaceProjection::Variant(VariantProjection { variant, index }),
                     None => PlaceProjection::Field(index),
                 }),
@@ -187,19 +220,19 @@ pub(super) fn partial_flags(
             return invalid("E-CODEGEN-TASK", "inline cleanup step ends at an alternative without its field", None);
         }
         let mut matched = None;
-        for (index, leaf) in leaves.iter().enumerate() {
+        for (index, leaf) in leaves.iter().flatten().enumerate() {
             meter.spend(leaf.path.len().saturating_add(path.len()).saturating_add(1))?;
             if leaf.path == path {
                 matched = Some(index);
                 break;
             }
         }
-        flags.push(matched.ok_or_else(|| vec![Diagnostic::error(
+        flags.push(partial_places::flag_name(local, matched.ok_or_else(|| vec![Diagnostic::error(
             Phase::Codegen, "E-CODEGEN-TASK", None,
             "inline cleanup step has no corresponding live leaf flag",
-        )])?);
+        )])?));
     }
-    Ok(flags)
+    Ok(Some(flags))
 }
 
 pub(super) fn capture_functions(
@@ -216,13 +249,13 @@ pub(super) fn capture_functions(
         for ((index, child), (_, field)) in children.iter().zip(fields) {
             if !packages::owned_field(field) { continue; }
             flag += 1;
-            let mut path = vec![Edge::Live(&environment, flag), Edge::Field(&environment, capture), Edge::Field(layout, *index)];
+            let mut path = vec![Edge::Live(&environment, flag), Edge::Field { layout: &environment, machine: capture, declared: capture }, Edge::Field { layout, machine: *index, declared: *index }];
             steps(child, module, &mut path, &mut entries, meter)?;
             meter.spend(256)?;
-            entries.push(Step { path: vec![Edge::Field(&environment, flag)], action: Action::ClearFlag });
+            entries.push(Step { path: vec![Edge::Field { layout: &environment, machine: flag, declared: flag }], action: Action::ClearFlag });
         }
     } else {
-        steps(&plan, module, &mut vec![Edge::Field(&environment, capture)], &mut entries, meter)?;
+        steps(&plan, module, &mut vec![Edge::Field { layout: &environment, machine: capture, declared: capture }], &mut entries, meter)?;
     }
     emit(layouts, name, &entries, false, closure_helpers)
 }

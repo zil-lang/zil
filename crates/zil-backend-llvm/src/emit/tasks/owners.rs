@@ -23,7 +23,7 @@ pub(super) struct OwnerFrame {
     nodes: Vec<u32>,
     drops: Vec<Option<String>>,
     pollable: Vec<Option<(String, String, bool)>>,
-    groups: Vec<bool>,
+    pub(super) groups: Vec<Option<owner_groups::Group>>,
     // The table stores pointers to the ordinary partial-place flags already
     // spilled in this same frame, ordered by the inline cleanup steps.
     partial_flags: BTreeMap<usize, PartialFlags>,
@@ -63,13 +63,11 @@ pub(super) fn plan(
         };
         if let Some(group @ owner_groups::Group::Inline { .. }) = &mut group
             && let TaskOwnerSlot::Local(local) = owner.slot()
-            && frame.slots.contains_key(&super::super::partial_places::flag_name(local, 0))
+            && let Some(steps) = super::inline_drop::partial_flags(layouts, module, owner.ty(), local, &frame.slots, meter)?
         {
-            let steps = super::inline_drop::partial_flags(layouts, module, owner.ty(), meter)?;
             meter.spend(steps.len().saturating_mul(256).saturating_add(128))?;
             let mut flags = Vec::with_capacity(steps.len());
-            for step in steps {
-                let key = super::super::partial_places::flag_name(local, step);
+            for key in steps {
                 let flag = frame.slots.get(&key).filter(|slot| slot.ty == m::Ty::Int(1))
                     .ok_or_else(|| vec![Diagnostic::error(Phase::Codegen, "E-CODEGEN-TASK", None,
                         "partial inline cleanup has no stable frame flag for its actual leaf")])?;
@@ -82,8 +80,7 @@ pub(super) fn plan(
             partial_flags.insert(owner_index, PartialFlags { descriptor, table, leaves: flags });
             group.mark_partial();
         }
-        groups.push(group.is_some());
-        pollable.push(if let Some(group) = group {
+        pollable.push(if let Some(group) = &group {
             Some(group.helpers())
         } else if registration {
             Some((
@@ -96,6 +93,7 @@ pub(super) fn plan(
         } else {
             None
         });
+        groups.push(group);
         drops.push(if registration {
             None
         } else {
@@ -111,14 +109,14 @@ pub(super) fn plan(
         let group=match owner_groups::route(module,ty,meter) {
             Ok(group)=>group,Err(diagnostics)=>return describe_failure(diagnostics,worker,None,ty,ownership,meter)
         };
-        groups.push(group.is_some());
-        pollable.push(if let Some(group) = group {
+        pollable.push(if let Some(group) = &group {
             Some(group.helpers())
         } else if registration {
             Some(("zil.async_registration.drop".into(), "zil.async_registration.request_head".into(), false))
         } else if child {
             Some(("zil.task.poll_close".into(), "zil.task.request_cancel".into(), false))
         } else { None });
+        groups.push(group);
         drops.push(if registration { None } else {
             drop_plan::task_leaf(ty, &module.resources, limits, meter)?
         });
@@ -292,7 +290,7 @@ pub(super) fn initialize(
             &format!("owner.drop.{index}"),
             loc(format!("task.owner.{index}")),
             2,
-            if owners.groups[index] { m::Val::Null } else {
+            if owners.groups[index].is_some() { m::Val::Null } else {
                 owners.drops[index].as_ref().map_or(m::Val::Null, |name| m::global(name.clone()))
             },
         );
@@ -347,7 +345,7 @@ pub(super) fn initialize(
             "owner.result.drop",
             loc(format!("task.owner.{index}")),
             2,
-            if owners.groups[index] { m::Val::Null } else {
+            if owners.groups[index].is_some() { m::Val::Null } else {
                 owners.drops[index].as_ref().map_or(m::Val::Null, |name| m::global(name.clone()))
             },
         );

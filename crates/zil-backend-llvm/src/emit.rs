@@ -1630,24 +1630,25 @@ impl FunctionEmitter<'_> {
             let shared = cleanup.as_ref().and_then(|p| p.starts[block_index]);
             let end = shared.map_or(block.instructions.len(), |start| start.at);
             for (index, instruction) in block.instructions[..end].iter().enumerate() {
+                let inline_owner = match instruction.kind.whole_aggregate_drop() {
+                    Some(local) => self.inline_drop_owner_at(block.id, index, local)?
+                        .map(|owner| (local, owner)),
+                    None => None,
+                };
                 let pollable_drop = matches!(instruction.kind,InstructionKind::DropManaged{local} if matches!(&self.function.locals[local.0 as usize].ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}|Type::Task{..})))
-                    || if let InstructionKind::DropClosure { local } = instruction.kind {
+                    || if let InstructionKind::DropClosure { local } = instruction.kind
+                        && let Type::Closure(id) = self.function.locals[local.0 as usize].ty {
                         self.task_ownership.is_some()
                             && tasks::cleanup_group(
                                 self.dyn_module,
-                                &self.function.locals[local.0 as usize].ty,
+                                id,
                                 self.machine_meter,
                             )?
                             .is_some()
                     } else {
                         false
                     }
-                    || match instruction.kind {
-                        InstructionKind::DropTuple { local } | InstructionKind::DropEnum { local } => {
-                            self.inline_drop_owner_at(block.id, index, local)?.is_some()
-                        }
-                        _ => false,
-                    };
+                    || inline_owner.is_some();
                 // The paid whole-CFG may-owner proof must be vacant on every
                 // incoming path. A same-block scan misses moves before a branch.
                 let vacated_pollable_drop =
@@ -1663,7 +1664,11 @@ impl FunctionEmitter<'_> {
                 }
                 if !vacated_pollable_drop {
                     self.current_instruction = Some((block.id, index));
-                    self.instruction(instruction)?;
+                    if let Some((local, owner)) = inline_owner {
+                        self.emit_whole_drop(local, Some(owner))?;
+                    } else {
+                        self.instruction(instruction)?;
+                    }
                     self.current_instruction = None;
                 }
                 if let Some(actions) = self

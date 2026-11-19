@@ -2935,6 +2935,34 @@ pub enum InstructionKind {
     },
     Unsupported(String),
 }
+impl InstructionKind {
+    /// The operand is the entire initialized inline carrier. A field drop has
+    /// its own place and cannot discharge the enclosing carrier. At a Suspend
+    /// boundary the owner remains live until every active owned leaf is ready.
+    pub fn whole_aggregate_drop(&self) -> Option<LocalId> {
+        match *self {
+            Self::DropTuple { local } | Self::DropEnum { local } | Self::DropPackage { local }
+            | Self::DropErrorUnion { local } | Self::DropOwnedArray { local } => Some(local),
+            _ => None,
+        }
+    }
+
+    /// The declaration, including nominal or lifetime qualification, comes
+    /// from the actual local. Only its storage head selects the drop opcode.
+    pub fn drops_aggregate_storage(&self, ty: &Type) -> bool {
+        let storage = match ty {
+            Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+            other => other,
+        };
+        matches!((self, storage),
+            (Self::DropTuple { .. }, Type::Tuple(_))
+            | (Self::DropEnum { .. }, Type::Enum { .. })
+            | (Self::DropPackage { .. }, Type::Package { .. })
+            | (Self::DropErrorUnion { .. }, Type::ErrorUnion { .. })
+            | (Self::DropOwnedArray { .. }, Type::Array { .. }))
+    }
+
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Terminator {
     Return(Option<ValueId>),

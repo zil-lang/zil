@@ -3469,20 +3469,22 @@ impl Flow<'_> {
                                 budget,
                             )?
                             && state.sums.no_live_owner(*local, budget)?;
-                        for (before, later) in state.later.cleanup_edges(*local, budget)? {
-                            if empty_failure_shell {
-                                continue;
-                            }
-                            budget.spend(1, "resource cleanup order")?;
-                            if before == *local
-                                && copied(state, Place::Local(later), budget)?
-                                    .life
-                                    .contains(&Life::Available)
-                            {
-                                return Err(error(&format!(
-                                    "cleanup is not reverse successful initialization order: local {} precedes live {} in {} block {}",
-                                    local.0, later.0, f.name, b
-                                )));
+                        // A conditional Drop on a fully transferred local does
+                        // not retire an owner. The destinations of Unpack retain
+                        // their own order and all possible live locals still pay.
+                        if fact.life.contains(&Life::Available) && !empty_failure_shell {
+                            for (before, later) in state.later.cleanup_edges(*local, budget)? {
+                                budget.spend(1, "resource cleanup order")?;
+                                if before == *local
+                                    && copied(state, Place::Local(later), budget)?
+                                        .life
+                                        .contains(&Life::Available)
+                                {
+                                    return Err(error(&format!(
+                                        "cleanup is not reverse successful initialization order: local {} precedes live {} in {} block {}",
+                                        local.0, later.0, f.name, b
+                                    )));
+                                }
                             }
                         }
                     }
@@ -3494,8 +3496,7 @@ impl Flow<'_> {
                     replace(state, Place::Local(*local), fact, budget)?;
                     if check && !budget.semantic_cleanup_sites.is_empty()
                         && (matches!(i.kind, InstructionKind::DropManaged { .. }) || cleanup_closure.is_some()
-                            || f.call_kind == CallKind::Suspend && matches!(i.kind,
-                                InstructionKind::DropTuple { .. } | InstructionKind::DropEnum { .. }))
+                            || f.call_kind == CallKind::Suspend && i.kind.whole_aggregate_drop() == Some(*local))
                     {
                         let point = (f.id, f.blocks[b].id, position, *local);
                         budget.lookup(budget.semantic_cleanup_sites.len(), "original Task cleanup occurrence")?;

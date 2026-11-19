@@ -25,6 +25,7 @@ impl OwnerSources {
         self.opaque || self.has_exact()
     }
     pub(super) fn has_exact(&self) -> bool { self.whole.is_some() || !self.projected.is_empty() }
+    pub(super) fn needs_field_path(&self) -> bool { self.has_exact() || !self.variants.is_empty() }
     pub(super) fn has_projected(&self) -> bool { !self.projected.is_empty() }
     pub(super) fn opaque(exposed: bool) -> Self { Self { opaque: exposed, ..Self::default() } }
     pub(super) fn opaque_exposure(&self) -> bool { self.opaque }

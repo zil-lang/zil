@@ -286,11 +286,9 @@ pub(super) fn finish(module: &TypedModule, b: &mut Budget) -> CompileResult<()> 
         };
         let registration = function.call_kind == CallKind::Suspend && matches!(&declaration.ty,
             Type::Managed(head) if matches!(head.as_ref(), Type::AsyncRegistration { .. }));
-        let inline = function.call_kind == CallKind::Suspend && match (&declaration.ty, &instruction.kind) {
-            (Type::Tuple(_), InstructionKind::DropTuple { local: actual })
-            | (Type::Enum { .. }, InstructionKind::DropEnum { local: actual }) => *actual == local,
-            _ => false,
-        };
+        let inline = function.call_kind == CallKind::Suspend
+            && instruction.kind.whole_aggregate_drop() == Some(local)
+            && instruction.kind.drops_aggregate_storage(&declaration.ty);
         let exact = slot || match closure {
             Some(closure) => matches!(instruction.kind, InstructionKind::DropClosure { local: actual } if actual == local)
                 && declaration.ty == Type::Closure(closure),

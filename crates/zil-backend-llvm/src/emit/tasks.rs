@@ -7,8 +7,8 @@ mod owners;
 mod native_root;
 pub(super) use native_root::adapter as native_entry_adapter;
 pub(super) use owners::{marker as owner_marker, retarget_marker};
-pub(super) fn cleanup_group(module: &zil_ir::TypedModule, ty: &Type, meter: &Meter) -> CompileResult<Option<ClosureId>> {
-    owner_groups::closure(module, ty, meter)
+pub(super) fn cleanup_group(module: &zil_ir::TypedModule, id: ClosureId, meter: &Meter) -> CompileResult<Option<ClosureId>> {
+    owner_groups::closure(module, id, meter)
 }
 pub(super) fn group_marker(id: ClosureId) -> String { owner_groups::symbol(id, "marker") }
 
@@ -906,7 +906,7 @@ pub(super) fn lower_workers(layouts: &LayoutContext<'_>,
         .any(|id| verified.task_ownership(*id).is_some())
     {
         items.extend(owners::helpers(meter, plans.values().any(|plan| owners::uses_retarget(plan.owners.as_ref())))?);
-        items.extend(owner_groups::helpers(layouts,verified, meter)?);
+        items.extend(owner_groups::helpers(layouts, verified, &plans, meter)?);
     }
     let mut direct_registration_drop = false;
     for (id, mut machine) in machines {
